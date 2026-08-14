@@ -85,9 +85,78 @@ A clean Sobel edge looks like a *technical* drawing. Three treatments turn it in
 
 ### 3. Fill — hatching, not gradients
 
-Value comes from **screen-space cross-hatching**, not smooth shading. Lighting is quantised to two or three hard bands; darker bands get denser hatch.
+Value comes from **hatching**, not smooth shading. Lighting is quantised to a few hard bands; darker bands get denser hatch. This is what makes it printmaking rather than cel shading, and it is dead-on for the Norse woodcut register.
 
-This is what makes it printmaking rather than cel shading, and it is dead-on for the Norse woodcut register.
+**Which space the hatching lives in is the most consequential technical decision in this document.** It has a formal answer — see below.
+
+---
+
+## The hatching problem, and the answer
+
+### The named trade-off
+
+Bénard, Bousseau & Thollot's *State-of-the-Art Report on Temporal Coherence for Stylized Animations* (2011) identifies **three goals that any stylised animation wants, and proves they are mutually contradictory** — you cannot have all three, and every technique is a trade-off between them:
+
+| Goal | Meaning | Fails as |
+|---|---|---|
+| **Flatness** | Marks look like ink on a flat page | Lost when strokes bend around 3D form |
+| **Motion coherence** | Marks follow the object's motion | Lost as the **"shower door effect"** — the world slides beneath a pattern stuck to your screen |
+| **Temporal continuity** | Marks don't flicker or pop between frames | Lost as swimming, popping, boiling |
+
+Screen-space tiling *perfectly preserves the pattern* but slides under animation. Object-space *perfectly attaches to surfaces* but distorts and scales under perspective.
+
+**Praun, Hoppe, Webb & Finkelstein's "Real-Time Hatching"** (SIGGRAPH 2001) is the canonical solution and it **chose object-space coherence** — building **Tonal Art Maps**: mipmapped hatch images per tone, with strokes scaled to hold correct density at every resolution and *nested* so they stay coherent across scales and tones.
+
+### The answer for this game: each layer takes a different corner
+
+> **Don't pick one space. Split the three layers, and let each one sacrifice a different goal.**
+
+| Layer | Space | Wins | Sacrifices |
+|---|---|---|---|
+| **Paper & grain** | **Screen-space** | Flatness — it *is* the page, and a page genuinely is fixed in front of you | Motion coherence, correctly |
+| **Hatching** | **World-space (triplanar)** | Motion coherence + temporal continuity | Some flatness |
+| **Outlines** | **Screen-space + boil** | Flatness + the hand-drawn read | Temporal continuity — **deliberately** |
+
+That last row is the elegant part: **the boil is the artefact, embraced.** Hand-drawn animation flickers because every frame was redrawn. We are not fighting temporal discontinuity in the outlines — we are *authoring* it.
+
+And it matches real hand-drawn practice: **contours are redrawn every frame; fills and hatching are held or shot on twos.** Outlines boiling more than hatching is not inconsistent, it is how animation actually works.
+
+### Why object-space hatching, specifically
+
+- **First-person, camera always moving.** Screen-space hatching would shower-door constantly and it would be *in your face* the entire run. This is the decisive argument.
+- **The fiction is that the world is drawn** — not that you are looking at a drawing. Ink belongs to surfaces.
+- **A real woodcut's lines describe form.** They are carved to follow the object. Object-space is truer to the reference than screen-space is.
+
+### The cheap implementation: triplanar, not lapped textures
+
+Full TAM requires lapped-texture parametrisation over a curvature-aligned direction field. **That is far too much for a solo project.** The 80% version:
+
+1. Author **4–6 hatch textures**, **nested** — each darker layer contains all strokes of the lighter one, plus more. *(This nesting is the core TAM insight and it is what prevents popping when tone changes.)*
+2. Project them **triplanar in world space** at a fixed world scale, so density is consistent regardless of object size.
+3. Blend between adjacent layers by quantised lit tone.
+4. Let **mipmaps** handle distance — the density-under-zoom problem TAMs solve is largely free here.
+5. Optional: a low-amplitude tone jitter on the same 8–12 fps clock as the outline boil, so hatching feels connected to the linework without swimming.
+
+> **The production windfall: triplanar needs no UVs.**
+>
+> Environment assets do not have to be unwrapped. For a pipeline built on bought kits and Meshy output — where UVs are typically garbage — this removes an entire authoring stage. See `ART-004`.
+
+---
+
+## Godot 4 constraints (verified)
+
+| | |
+|---|---|
+| **Depth** | `uniform sampler2D depth_texture : hint_depth_texture;` — available broadly, but values are **non-linear** and must be linearised: build NDC from `SCREEN_UV` + depth, multiply by `INV_PROJECTION_MATRIX`, then **negate Z**. Vulkan NDC conventions differ from Compatibility. |
+| **Normals** | `hint_normal_roughness_texture` — **Forward+ only.** Deliberately, and per the Godot issue tracker it is **not expected to be implemented** for Mobile or Compatibility due to cost. |
+| **Viewport** | The depth texture can only be read **from the current viewport.** |
+| **Home for the pass** | `CompositorEffect` (Godot 4.3+), `EFFECT_CALLBACK_TYPE_POST_TRANSPARENT` for full-frame work. |
+
+> **Consequence: Forward+ is locked in** (`TEC-005`). There is no Mobile or Compatibility fallback for a normal-buffer outline pass. If a low-end path is ever needed it would have to be depth-only edge detection (noticeably worse — it misses creases) or inverted-hull outlines. **Accepted, and worth knowing now rather than discovering at launch.**
+
+**Known limitation:** depth+normal edge detection misses boundaries between objects that are **coplanar and similarly oriented** — two touching walls of the same material produce no line. The full fix is an object-ID buffer. The cheap mitigation is the vertex-colour ink-ID channel biasing local outline generation. Prototype before deciding whether the ID pass is worth it.
+
+**Sources:** [Real-Time Hatching (Praun, Hoppe, Webb & Finkelstein, SIGGRAPH 2001)](https://hhoppe.com/hatching.pdf) · [State-of-the-Art Report on Temporal Coherence for Stylized Animations (Bénard, Bousseau & Thollot, 2011)](https://www.semanticscholar.org/paper/State%E2%80%90of%E2%80%90the%E2%80%90Art-Report-on-Temporal-Coherence-for-B%C3%A9nard-Bousseau/8437952b7e15b0ca8387b6be36e2002c08ae92c1) · [Godot advanced post-processing docs](https://docs.godotengine.org/en/stable/tutorials/shaders/advanced_postprocessing.html) · [Godot issue #78411 — normal_roughness on Mobile](https://github.com/godotengine/godot/issues/78411)
 
 ### 4. Paper and ink
 
@@ -130,4 +199,6 @@ Cheap to author, no texture work in Phase 1 or 2, and outline suppression is ess
 
 > **OPEN (Q99):** Do *player characters* get heavier outlines than the world, so teammates read instantly in a cluttered room? Almost certainly yes, and it is nearly free.
 
-> **OPEN (Q100):** Does hatching move with the camera (screen-space, more print-like, can swim) or stick to surfaces (object-space, more stable, less like a print)? **Prototype both** — this is the classic tradeoff in hatching shaders and it is a feel question.
+> **OPEN (Q101):** How many nested hatch layers — 4, 5, or 6? Fewer is less authoring and coarser tone control. Start at 4 and add only if banding is visible.
+
+> **OPEN (Q102):** Does the object-ID buffer get built, or do we live with missing coplanar edges? Prototype the ink-ID mitigation first; only build the ID pass if it visibly fails.

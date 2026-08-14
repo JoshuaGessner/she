@@ -545,4 +545,34 @@ Thirty-seven open questions resolved in one sweep, all taking the standing docum
 
 ---
 
+## ADR-051 — The ink shader: three layers, three different spaces
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q94, Q100**
+**Context:** Where hatching lives — screen-space or object-space — is the most consequential technical decision in the visual direction. Researched rather than guessed.
+
+**The literature:** Bénard, Bousseau & Thollot (2011) identify three goals of stylised animation — **flatness, motion coherence, temporal continuity** — and establish that they are **inherently contradictory**; every technique is a trade-off. Praun, Hoppe, Webb & Finkelstein's *Real-Time Hatching* (SIGGRAPH 2001) chose **object-space coherence** via Tonal Art Maps: mipmapped, *nested* hatch images per tone.
+
+**Decision:** **Don't pick one space — split the layers, and let each sacrifice a different goal.**
+
+| Layer | Space | Wins | Sacrifices |
+|---|---|---|---|
+| Paper & grain | Screen-space | Flatness — it *is* the page | Motion coherence, correctly |
+| **Hatching** | **World-space triplanar** | Motion coherence + temporal continuity | Some flatness |
+| Outlines | Screen-space + boil | Flatness + the hand-drawn read | Temporal continuity, **deliberately** |
+
+**Rationale:** First-person with a constantly moving camera makes screen-space hatching shower-door badly, in the player's face, for the entire run — decisive. The fiction is that *the world is drawn*, not that you are looking at a drawing, so ink belongs to surfaces. And a real woodcut's lines describe form.
+
+The outline row is the elegant part: **the boil is the artefact, embraced.** It also matches hand-drawn practice, where contours are redrawn every frame while fills are held or shot on twos.
+
+**Implementation is triplanar, not lapped textures** — 4–6 **nested** hatch layers (the core TAM insight, and what prevents popping across tone changes), projected in world space at fixed density, blended by quantised lit tone, with mipmaps handling distance. Full TAM parametrisation over a curvature direction field is far beyond a solo project.
+
+**Q94 answered:** vertex colours — **R** outline weight, **G** hatch density bias, **B** ink/material ID.
+**Consequences (`ART-004` updated):**
+- ✅ **Environment assets need no UVs.** Triplanar removes an entire authoring stage — a direct windfall for a pipeline built on purchased kits and Meshy output.
+- ⚠️ **Hard edges become art-critical.** The outline pass reads the normal buffer; all-smooth models produce weak or missing interior lines. Author explicit split normals; check every model flat-shaded before export. **Silhouette and edge flow are the art now**, replacing texture detail.
+- ⚠️ **Scale accuracy becomes art-critical.** World-space triplanar means a wrongly-scaled model gets wrong hatch density — a visual bug, not a tidiness issue.
+- **Forward+ is locked** (`TEC-005`): `hint_normal_roughness_texture` is Forward+ only and per the Godot issue tracker is not expected to reach Mobile or Compatibility. No low-end fallback for the normal-buffer outline pass.
+- Known gap: depth+normal edge detection misses coplanar same-orientation boundaries. Mitigate via the ink-ID channel; an object-ID buffer is the full fix if prototyping shows it is needed.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

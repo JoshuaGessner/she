@@ -104,6 +104,44 @@ Six player classes, the Bound, humanoid enemies — **one rig**. This is the dif
 
 ---
 
+## What the ink shader changes about authoring (`ART-005`)
+
+Three consequences, and the first is a large saving.
+
+### ✅ Environment assets do not need UVs
+
+Hatching is **triplanar-projected in world space**, so surfaces are textured without an unwrap. **No UV authoring for architecture, props, or set dressing.**
+
+This is a direct windfall for a pipeline built on purchased kits and Meshy output, where UVs are typically unusable — an entire authoring stage disappears. *(Characters and anything needing an authored decal or insignia still want UVs.)*
+
+### ⚠️ Hard edges are now art-critical
+
+The outline pass reads the **normal buffer**. A model exported with everything smooth-shaded produces **weak or missing interior lines** — the shader has nothing to detect.
+
+- **Author explicit hard edges / split normals** on anything with a defined form: masonry, plate, timber, blades, cut stone.
+- Smooth only what is genuinely smooth: cloth, flesh, organic growth.
+- **Check every model with flat shading before export.** If it looks correct flat-shaded, it will ink correctly.
+
+This replaces texture detail as the main authoring effort. **Silhouette and edge flow are the art now.**
+
+### ⚠️ Scale accuracy is now art-critical
+
+Triplanar projection is **world-space at a fixed density**. A model exported at the wrong scale gets **wrong hatch density** — it will read as the wrong size even if it looks right in isolation.
+
+**Apply transforms, verify against a 1.8m reference figure before export.** This was already a spec; it is now a visual bug rather than a tidiness issue.
+
+### Vertex colours are mandatory from Phase 1
+
+| Channel | Drives |
+|---|---|
+| **R** | Outline weight — 0 suppresses outlines entirely, 1 heavy |
+| **G** | Hatch density bias |
+| **B** | Ink / material ID (stone, metal, cloth, flesh, gold) |
+
+Blockout can ship flat `RGB(1, 0.5, 0)` — full outline, neutral hatch, default ink — and be refined later. But **the channels must exist from the start**; retrofitting vertex colours across a finished library is miserable.
+
+---
+
 ## Asset schedule — what's needed, when
 
 ### M1 — The Feel Prototype · *Phase 1 blockout only*

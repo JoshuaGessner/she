@@ -18,7 +18,8 @@ Live queue of unresolved decisions. Resolved items move to `process/PRO-002-deci
 
 | # | Question | Doc | Recommendation |
 |---|---|---|---|
-| Q94 | **What does the custom shader read** — vertex colours, mask texture, palette atlas, or material IDs? | `ART-004` | Decide before Phase 2; it changes how every model is authored and is painful to retrofit |
+| Q101 | How many nested hatch layers — 4, 5, or 6? | `ART-005` | Start at 4; add only if banding is visible |
+| Q102 | Build an object-ID buffer, or live with missing coplanar edges? | `ART-005` | Try the ink-ID mitigation first |
 | Q95 | Shared **modular kit grid** for architecture (2m? 4m?) | `ART-004` | Cell-based generation (ADR-014) strongly favours one |
 | Q96 | First-person arms — universal, or per-class? | `ART-004` | Per-class is far better for identity and multiplies the most-viewed asset by six |
 | Q36 | Godot high-level multiplayer at 4 peers × 150 entities | `TEC-004` | **M1 spike — go/no-go on the whole approach.** Not a design decision; a measurement |
