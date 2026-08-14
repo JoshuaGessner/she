@@ -49,7 +49,29 @@ Every soul she binds carries a little of her fire, her greed, and her curse. Non
 
 **Her true name is late-game content.** Throughout, she is *She*, *the Wyrm*, *the Gold-Drowned*. Learning what to call her should be a real revelation, not an intro cutscene.
 
-> **OPEN (Q27):** Does she have an arc — can she be healed, freed, killed, or refused? **ADR-018 gives this its shape:** since the hoard is the disease, the ending question is no longer "can she be saved" but **"do you keep feeding it?"** The specific ending is still open, but it must be an answer to *that* question.
+### Her arc, and the three endings
+
+> **DECIDED (ADR-049):** the ending **mirrors the Gullsjúkr's two solutions** (`DES-017`), plus a third the Hunter never gets.
+
+**1. Take everything.** The secret fight. Kill her, claim the hoard.
+
+This is the **greed ending**, and it is thematically coherent rather than a violation — *taking everything it has* is already one of the two established answers to a Gullsjúkr. Killing her is the ultimate expression of the thing the whole game is about: consuming your own patron.
+
+**She cannot be brute-forced.** The fight becomes available only once the player has assembled the **Calamity marks** (`DES-016`) — once they have worked out what the gold does. **Knowledge is the weapon.** This finally pays LINEAGE out in something beyond convenience without breaking ADR-006, because it grants *access to an ending*, never power. And it is exactly right: **you can only end the cycle once you have seen it.**
+
+**The three burnings** (ADR-019) structure the fight. She has died three times and come back; there is a reason she cannot simply be killed.
+
+**2. Give enough to rest.** Return the hoard until she can finally die properly. The mercy ending, and the direct mirror of *satisfying* a Gullsjúkr.
+
+**3. Refuse.** There is a door. You walk out. A skippable cutscene resolves the story, **and the game quits itself.**
+
+The last line is hers: *they'll be back, they always come back.*
+
+**Nothing is deleted.** Her memory persists, your lineage persists, the camp persists. Open the game again and you are standing at the Threshold, and **she does not mention it.** The game was right, and you proved it — which is a far better ending than a deleted save, and it keeps stopping unpunished (`PRO-005 §11`).
+
+The door must be unmistakably intentional and never readable as a crash: slow, deliberate, authored.
+
+**Endings are small by design** — a room, her voice, a last screen. No cinematics. Cheap when authored as text and audio, which means the only large content cost is the optional, late, gated fight.
 
 ### She knew. She has forgotten. Many times.
 

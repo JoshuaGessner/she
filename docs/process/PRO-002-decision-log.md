@@ -477,4 +477,72 @@ Batch of recommendations accepted as specified:
 
 ---
 
+## ADR-046 — Three-phase art pipeline: blockout, pass, final
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q30**
+**Decision:** Art is produced in **three phases**: (1) **blockout** — grey/proxy geometry for design and feel, (2) **pass** — real-but-not-final models swapped in, (3) **final**. A **custom shader carries most of the art direction**, so models can be simple and consistency comes from lighting and material treatment rather than per-asset detail.
+
+Environment volume comes from an existing owned library plus self-authored work (Blender, ShapeLab, Meshy). **Identity assets are always bespoke** and supplied on request.
+**Rationale:** Decouples "does this play well" from "does this look right," which is exactly what the M1 feel gate needs — blockout is *sufficient* for M1 and M2. A shader-led direction is also the correct choice for a small team: one shader improves every asset at once, where per-asset polish scales linearly with content.
+**Consequences:** **`ART-004` created** to specify what is needed, when, and in what format — the asset request schedule is now a first-class production document. Blockout must be honest about scale and silhouette or the feel test lies. The shader is a **critical-path asset**, not polish, and needs an early prototype.
+
+---
+
+## ADR-047 — First-person everywhere
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q26**
+**Decision:** **First person, in runs and in the Lair.** No third-person camera anywhere. Players inspect their campsite, stave, and trophies by **walking around and looking at them** in first person.
+**Rationale:** Consistency, and it removes the corner-peek exploit that a third-person option would have introduced into the awareness ladder (`DES-013`) and the Veiðimaðr's fantasy. `DES-016`'s "visible evidence" payoff still works — you can stand in front of your own trophies and look at them; you simply do it through your own eyes, which is arguably more intimate.
+**Consequences:** Campsite and trophy assets must read well **up close and at eye level**, not as a diorama viewed from outside. Trophy placement must be reachable and readable from standing height. Third-person character models are still required for co-op (`DES-012`) — you see your *teammates*, never yourself.
+
+---
+
+## ADR-048 — Magic: consumable baseline, Ember for Cinder
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q25**
+**Decision:** Magic is **found consumables** — runes and scrolls, scarce, spent and gone, no mana bar for anyone. The **Cinder Aspect** alone converts it into a system via **Ember**, per `DES-004`'s *Emberdebt* keystone: attacks cost Ember drawn from carried tribute. Burn your loot to burn your enemies.
+**Rationale:** Keeps magic special and scarce for everyone, costs almost no UI, and avoids a regenerating resource becoming the reliable answer to every problem (which would flatten `DES-008`'s sidegrade philosophy). It also gives Cinder a genuine identity instead of being a damage-flavour path — the "stat stick with a portrait" failure `DES-004` explicitly warns against.
+**Consequences:** Scroll and rune drop rates become a real tuning lever. Ember UI exists only for Cinder builds. Non-Cinder players should still find magic often enough that it feels present.
+
+---
+
+## ADR-049 — Three endings, and the door
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q56 and Q27**
+**Context:** ADR-018 made the final question *"do you keep feeding it?"*, so an answer had to exist.
+**Decision:** **The ending mirrors the Gullsjúkr's two solutions (`DES-017`), plus a third the Hunter never gets.**
+
+1. **Take everything** — the secret fight. Kill her, claim the hoard.
+2. **Give enough to rest** — return the hoard until she can finally die properly. The mercy ending.
+3. **Refuse** — a door. Walk out. A skippable cutscene resolves the story, **and the game quits itself.**
+
+**Rationale:** The player has been rehearsing this choice all game at Gullsjúkr scale without knowing it — take everything it has, or give it enough to rest. The ending is the same decision at the largest possible scale, which means the moral grammar was taught through play rather than exposition.
+
+**On the fight not breaking continuity:** *taking everything* is **already** one of the two established answers. Killing her is the **greed ending** — the ultimate act of the thing the whole game is about, consuming your own patron. That is thematically coherent, not a violation.
+
+**The gate is understanding, not gear.** She cannot be brute-forced. The fight becomes available only once the player has assembled the **Calamity marks** (`DES-016`) — that is, once they have worked out what the gold does. **Knowledge is the weapon.** This finally pays out the LINEAGE tier in something other than convenience, without breaking ADR-006 (it grants *access to an ending*, never power), and it is exactly right: you can only end the cycle once you have seen it.
+
+**The three burnings** (ADR-019) give the fight its structure — she has died three times and returned. Phases, and a reason she cannot simply be killed.
+
+**On the door:** quitting the game is the correct closing act for a refusal ending, and *"they'll be back, they always come back"* is the last line. **Critically, nothing is deleted.** Her memory persists, the lineage persists, the camp persists. Launch it again and you are at the Threshold, and she does not mention it. **The game is right, and you prove it.** Deleting the save would also violate `PRO-005 §11` — stopping must stay unpunished.
+**Consequences:** The door must be unmistakably intentional, never readable as a crash — a deliberate, slow, authored sequence. Endings are **small by design**: a room, her voice, a last screen. No cinematics; cheap if authored as text and audio. The fight is the only large content cost and it is optional, late, and gated.
+
+---
+
+## ADR-050 — Bulk resolution pass
+**Date:** 2026-08-14 · **Status:** accepted
+Thirty-seven open questions resolved in one sweep, all taking the standing documented recommendation. Recorded together rather than as separate ADRs because each was already reasoned in its home document and none was contested.
+
+**Loop & economy:** Q8 *(superseded by ADR-015 — Shaft known per floor, Waystones found)* · Q10 quit mid-run = suspend + forced resume, dropping in co-op leaves you a Vörðr · Q11 caches do **not** survive death · Q12 echoes drop local-only loot first · Q14 barter plus one soft currency for services · Q15 modest stash slot cap, Lineage expands · Q16 faction standing = threshold for access, spendable for favours · Q69 the Lodge sells Waystones rarely and expensively
+
+**World & narrative:** Q17 lineage of nobodies with light customisation · Q18 authored faction voice per archetype + procedural specifics · Q45 she visibly changes across a lineage, further fused into stone each time · Q47 memorial wall at the Threshold · Q51 one authored set-piece floor per expedition, at floor 3 · Q52 **the level does not change mid-run at 1.0** — unbounded world-delta cost against ADR-016 late join
+
+**Enemies & stealth:** Q41 enemies never pick up loot; only Gilded carry · Q42 stealth takedowns exist but are slow, positional, and impossible while heavily laden · Q43 no respawns, but the Hunt repopulates cleared space
+
+**Co-op & the dead:** Q34 solo self-recovery once per run, costly, never better than a friend · Q35 one pact across solo and co-op · Q38 duplicate classes allowed in a party · Q39 all classes open to all gender presentations · Q46 players may trade gear, never tribute (would route around ADR-011) · Q61 the Vörðr window is visible and shortening · Q62 Vörðr utility is scout and mark only, no combat effect · Q86 as a Vörðr the Ear's core goes dark, the ring stays live · Q90 Vörðr audio = the world going quiet around you
+
+**Lair & deeds:** Q44 the hoard is genuinely dynamic geometry, everything else prop-swapped · Q66 momentum loss removes services, but only pure-convenience ones · Q70 deeds are secret, discovered through Bound gossip · Q71 rescue deeds record who you carried out · Q72 plot space is finite, forcing curation of what you are known for
+
+**UI & audio:** Q83 the Tithe is surfaced quietly on the Burden layer during runs · Q84 the ping wheel and the silent-gesture system are one system · Q88 the Threshold theme grows with camp momentum · Q91 raw Godot audio first, migrate to FMOD when the musician is onboarded
+
+**Consequences:** `OPEN-QUESTIONS.md` rewritten. Stale rows removed (Q13, Q37, Q53, Q67, and duplicates of Q23/Q27). **Nothing now blocks M1 or M2.** What remains is deferrable, or answerable only by a build.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

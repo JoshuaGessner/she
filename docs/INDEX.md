@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-14 · 33 documents_
+_Regenerated 2026-08-14 · 34 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -67,6 +67,7 @@ _Visual and audio direction._
 | `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✎ draft | 2026-08-12 | DES-001, DES-005, DES-006 |
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ◆ proposed | 2026-08-14 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ◆ proposed | 2026-08-14 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
+| `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ◆ proposed | 2026-08-14 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
 
 ## By Tag
 
@@ -74,10 +75,12 @@ _Visual and audio direction._
 - **adr** — PRO-002
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
-- **art** — ART-001
+- **art** — ART-001, ART-004
+- **assets** — ART-004
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
 - **balance** — DES-003, DES-004, DES-008, PRO-005
 - **biomes** — DES-006
+- **blender** — ART-004
 - **brief** — ART-003
 - **budget** — ART-001, ART-002
 - **builds** — DES-004, DES-011
@@ -108,7 +111,7 @@ _Visual and audio direction._
 - **gear** — DES-008
 - **generation** — DES-015
 - **glossary** — PRO-003
-- **godot** — ART-002, TEC-001, TEC-002, TEC-004, TEC-005
+- **godot** — ART-002, ART-004, TEC-001, TEC-002, TEC-004, TEC-005
 - **greed** — DES-008
 - **handoff** — ART-003
 - **history** — PRO-002
@@ -146,12 +149,12 @@ _Visual and audio direction._
 - **pacing** — DES-002, DES-005, DES-010, DES-015
 - **persistence** — DES-003, TEC-003
 - **pillars** — DES-001
-- **pipeline** — PRO-006
+- **pipeline** — ART-004, PRO-006
 - **planning** — PRO-001
 - **pressure** — DES-005, DES-017
 - **process** — PRO-002
 - **procgen** — DES-015
-- **production** — PRO-001
+- **production** — ART-004, PRO-001
 - **progression** — DES-004, DES-011, DES-014, DES-016
 - **psychology** — PRO-005
 - **public-domain** — PRO-004
@@ -171,7 +174,7 @@ _Visual and audio direction._
 - **skill-tree** — DES-003, DES-004, DES-011
 - **social** — DES-012, DES-014
 - **sound-design** — ART-002, ART-003
-- **specs** — ART-003
+- **specs** — ART-003, ART-004
 - **structure** — DES-002, DES-007, TEC-002
 - **style** — ART-001
 - **systems** — DES-013, TEC-001
