@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-14 · 34 documents_
+_Regenerated 2026-08-14 · 35 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -68,6 +68,7 @@ _Visual and audio direction._
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ◆ proposed | 2026-08-14 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ◆ proposed | 2026-08-14 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 | `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ◆ proposed | 2026-08-14 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
+| `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ◆ proposed | 2026-08-14 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
 
 ## By Tag
 
@@ -75,7 +76,7 @@ _Visual and audio direction._
 - **adr** — PRO-002
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
-- **art** — ART-001, ART-004
+- **art** — ART-001, ART-004, ART-005
 - **assets** — ART-004
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
 - **balance** — DES-003, DES-004, DES-008, PRO-005
@@ -111,7 +112,7 @@ _Visual and audio direction._
 - **gear** — DES-008
 - **generation** — DES-015
 - **glossary** — PRO-003
-- **godot** — ART-002, ART-004, TEC-001, TEC-002, TEC-004, TEC-005
+- **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005
 - **greed** — DES-008
 - **handoff** — ART-003
 - **history** — PRO-002
@@ -126,7 +127,7 @@ _Visual and audio direction._
 - **items** — DES-008
 - **lair** — DES-014
 - **legal** — PRO-004
-- **legibility** — DES-018, DES-019
+- **legibility** — ART-005, DES-018, DES-019
 - **levels** — DES-015
 - **lineage** — DES-016
 - **loot** — DES-008
@@ -160,6 +161,7 @@ _Visual and audio direction._
 - **public-domain** — PRO-004
 - **quests** — DES-007
 - **readability** — ART-001
+- **rendering** — ART-005
 - **replayability** — DES-007
 - **research** — PRO-005
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
@@ -171,12 +173,13 @@ _Visual and audio direction._
 - **serialization** — TEC-003
 - **session** — DES-002, DES-010
 - **setting** — DES-006
+- **shader** — ART-005
 - **skill-tree** — DES-003, DES-004, DES-011
 - **social** — DES-012, DES-014
 - **sound-design** — ART-002, ART-003
 - **specs** — ART-003, ART-004
 - **structure** — DES-002, DES-007, TEC-002
-- **style** — ART-001
+- **style** — ART-001, ART-005
 - **systems** — DES-013, TEC-001
 - **tech-debt** — TEC-003
 - **technical** — DES-015

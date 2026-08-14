@@ -32,7 +32,17 @@ The custom shader carries most of the art direction (ADR-046). That has a conseq
 
 For a solo project this is the highest-leverage art decision available, and it means the shader should be **prototyped early — during Phase 1** — not treated as a finishing pass. Models can then be built knowing what the shader needs from them.
 
-**Decide before Phase 2, because it changes how every model is authored:** does the shader read **vertex colours**, a **mask texture**, a **gradient/palette atlas**, or **flat material IDs**? Vertex-colour-driven stylised shading is common, cheap, and pairs well with low-poly — but if that is the choice, every model must be authored with vertex colours from the start. Retrofitting them across a finished library is miserable.
+> **See `ART-005`.** The shader is **hand-inked printmaking** — screen-space edge detection with hand-drawn wobble, hatching instead of gradients, pale ink on black in the Deep and black ink on white in the Threshold.
+
+**Proposed vertex-colour channels (Q94):**
+
+| Channel | Drives |
+|---|---|
+| **R** | Outline weight — 0 suppresses outlines entirely, 1 heavy |
+| **G** | Hatch density bias |
+| **B** | Ink / material ID (stone, metal, cloth, flesh, gold) |
+
+Cheap to author, requires no texture work in Phases 1–2 — but **every model must carry vertex colours from the start.** Retrofitting them across a finished library is miserable, which is why this is the one art decision that cannot wait.
 
 ---
 

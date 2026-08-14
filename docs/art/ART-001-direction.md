@@ -14,7 +14,9 @@ related: [DES-001, DES-005, DES-006]
 
 ## Visual target
 
-**Stylized low-poly with strong silhouettes and hand-controlled lighting.** Chosen because it is the cheapest style that still reads as deliberate rather than unfinished, and because it serves Principle 6 (legibility beats realism).
+> **SUPERSEDED IN PART by `ART-005`.** The style is now **hand-inked printmaking** — *a woodcut you can walk through, drawn by your lantern.* The Deep is pale ink on black; the Threshold is hard black ink on white. **Gold is the only saturated colour in the game.** Full direction and technical approach in `ART-005`. The silhouette and darkness principles below stand and are *strengthened* by it.
+
+**Stylized low-poly geometry with strong silhouettes and hand-controlled lighting**, treated by the ink shader. Low-poly remains correct because the shader supplies the treatment — geometry only has to be right in *shape*, which is the cheapest thing to get right and the thing Principle 6 depends on.
 
 - **Silhouette first.** Every enemy must be identifiable as a black shape at 20m. This is a survival requirement in a first-person game where things approach from the dark.
 - **Darkness is a mechanic, not an effect.** Light sources are a resource the player manages (`DES-008` — the lantern occupies a weapon slot). Lighting design is gameplay design here, so it can't be handed off as polish.
