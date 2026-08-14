@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-14 · 31 documents_
+_Regenerated 2026-08-14 · 33 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -43,6 +43,7 @@ _How it gets built._
 | `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✎ draft | 2026-08-12 | TEC-001, PRO-001 |
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✎ draft | 2026-08-12 | DES-003, TEC-001, TEC-002 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ◆ proposed | 2026-08-12 | DES-012, TEC-001, TEC-003, PRO-001 |
+| `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ◆ proposed | 2026-08-14 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 
 ## Process
 
@@ -65,6 +66,7 @@ _Visual and audio direction._
 |---|---|---|---|---|
 | `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✎ draft | 2026-08-12 | DES-001, DES-005, DES-006 |
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ◆ proposed | 2026-08-14 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
+| `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ◆ proposed | 2026-08-14 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 
 ## By Tag
 
@@ -73,9 +75,10 @@ _Visual and audio direction._
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
 - **art** — ART-001
-- **audio** — ART-001, ART-002, DES-018
+- **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
 - **balance** — DES-003, DES-004, DES-008, PRO-005
 - **biomes** — DES-006
+- **brief** — ART-003
 - **budget** — ART-001, ART-002
 - **builds** — DES-004, DES-011
 - **business** — PRO-006
@@ -96,7 +99,7 @@ _Visual and audio direction._
 - **dmz** — DES-007
 - **economy** — DES-003, DES-008
 - **enemies** — DES-013
-- **engine** — TEC-001
+- **engine** — TEC-001, TEC-005
 - **ethics** — PRO-005, PRO-006
 - **extraction** — DES-005, DES-017
 - **factions** — DES-007
@@ -105,8 +108,9 @@ _Visual and audio direction._
 - **gear** — DES-008
 - **generation** — DES-015
 - **glossary** — PRO-003
-- **godot** — ART-002, TEC-001, TEC-002, TEC-004
+- **godot** — ART-002, TEC-001, TEC-002, TEC-004, TEC-005
 - **greed** — DES-008
+- **handoff** — ART-003
 - **history** — PRO-002
 - **hooks** — DES-010
 - **hub** — DES-014
@@ -126,16 +130,18 @@ _Visual and audio direction._
 - **lore** — DES-006
 - **map** — DES-019
 - **meta** — DES-003, DES-004
+- **middleware** — TEC-005
 - **migration** — TEC-003
 - **milestones** — PRO-001
 - **monetization** — PRO-006
 - **movement** — DES-009
 - **multiplayer** — DES-012, TEC-004
-- **music** — ART-002
+- **music** — ART-002, ART-003
 - **naming** — PRO-003, PRO-004
 - **narrative** — DES-015
 - **networking** — DES-012, DES-014, TEC-004
 - **north-star** — DES-001
+- **occlusion** — TEC-005
 - **onboarding** — DES-010
 - **pacing** — DES-002, DES-005, DES-010, DES-015
 - **persistence** — DES-003, TEC-003
@@ -154,7 +160,7 @@ _Visual and audio direction._
 - **replayability** — DES-007
 - **research** — PRO-005
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
-- **risk** — PRO-004, TEC-004
+- **risk** — PRO-004, TEC-004, TEC-005
 - **roadmap** — PRO-001
 - **save** — TEC-003
 - **scaling** — DES-012
@@ -164,7 +170,8 @@ _Visual and audio direction._
 - **setting** — DES-006
 - **skill-tree** — DES-003, DES-004, DES-011
 - **social** — DES-012, DES-014
-- **sound-design** — ART-002
+- **sound-design** — ART-002, ART-003
+- **specs** — ART-003
 - **structure** — DES-002, DES-007, TEC-002
 - **style** — ART-001
 - **systems** — DES-013, TEC-001

@@ -97,8 +97,8 @@ When everything happens at once, this is the order things survive in:
 
 - **Buses:** Master → Music (stems) · Ambience · Diegetic · UI. Independent player-facing sliders for each (`DES-018`).
 - **Adaptive music:** Godot 4.3+ `AudioStreamInteractive` where it fits; otherwise synchronised `AudioStreamPlayer`s crossfaded by bus volume. Prototype both early — this is the highest-risk audio tech in the project.
-- **Reverb zones.** Dungeon spaces vary enormously — a great hall and a crawlspace must not share a reverb. Area-driven reverb parameters, switched by the player's current cell (`DES-015`).
-- **Occlusion.** Godot has no built-in audio occlusion, and **this game needs it** — hearing something through a wall versus around a corner is gameplay information. Implement raycast-driven low-pass filtering on 3D sources ⟨a known real cost; budget for it⟩.
+- **Reverb zones — built into Godot.** `Area3D.reverb_bus_*` and `audio_bus_override`, driven by the player's current cell (`DES-015`). *Corrected: an earlier draft listed this as a cost. It is not.*
+- **Occlusion — no built-in feature, but cheap to write.** `AudioStreamPlayer3D.attenuation_filter_cutoff_hz` is a per-source low-pass settable at runtime, so occlusion is raycast → lerp the cutoff. ⟨~a week for gradient occlusion⟩. **Portal-based propagation only for the Gullsjúkr**, not as a general system. Full analysis and the engine evaluation it triggered are in **`TEC-005`**.
 - **Networking:** audio is entirely client-side, driven by replicated *state* (`TEC-004`). **Never replicate sounds.** Each client resolves its own mix from Hunt state, alert states, and positions.
 
 ## Scope, honestly (solo project — ADR-034)
@@ -113,7 +113,7 @@ Adaptive audio is a genuine specialism and this is a solo build, so priorities m
 
 ## Open questions
 
-> **OPEN (Q87):** Is the adaptive driver **continuous** (layer gains follow Clamor smoothly) or **stepped** (discrete states with crossfades)? Continuous is truer to the system; stepped is far easier to author and mix. Leaning **stepped states with long crossfades** — indistinguishable in play, dramatically cheaper.
+> **DECIDED (ADR-043):** **Stepped states with long crossfades** ⟨~2–4s⟩. Discrete states the driver holds, not continuous layer gains. Indistinguishable in play, dramatically cheaper to author, mix, and debug — and it gives the composer something concrete to write *to* rather than a parameter to imagine. State table in `DES-018` and `ART-003`.
 
 > **OPEN (Q88):** Does the Threshold theme change as camp momentum builds (`DES-014`, ADR-025)? A fuller camp with a fuller arrangement is lovely and nearly free if the stems already exist.
 
