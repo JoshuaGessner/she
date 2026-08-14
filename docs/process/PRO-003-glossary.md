@@ -42,6 +42,8 @@ Shared vocabulary. Using these terms precisely in conversation and code prevents
 | **Ember** | Player | The piece of her fire in each of the Bound. Drops on death in co-op; a friend can carry it out to save your life. |
 | **Downed** | Player | Zero health but not dead. Crawling, revivable by an ally. |
 | **Vörðr** | Player | Ward-spirit. What you become on death — a ghost who keeps playing, then chooses to wait for rescue or return with nothing. |
+| **Gullsjúkr** | Player | "Gold-sick." The Hunter — a former Bound who never left, still hauling their hoard, still trying to make a Tithe. Hunts carried wealth; stops to pick up gold you throw. |
+| **The Ear** | Player | The on-screen cue reporting your Clamor output, room alert state, and the Hunter. Visual twin of the adaptive score. |
 | **Stave** | Player | A Bound's rune-stick at the Threshold, notched with what they have given her. The game's only public tally, and deliberately not a table. |
 | **The Lair** | Player | The hub as a whole — Chamber plus Threshold (ADR-021). |
 | **Your Chamber** | Player | Private, local, never networked. Her, your hoard, the tree, the stash, the Legacy screen. Nobody else ever enters it. |

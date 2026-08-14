@@ -1,6 +1,7 @@
 # Project SHE — Working Agreement
 
-> Codename **SHE** (working title, TBD). A first-person 3D fantasy **extraction roguelite** built in **Godot 4**.
+> **SHE** (ADR-033 — the title, not a placeholder). A first-person 3D fantasy **extraction roguelite** built in **Godot 4**, for 1–4 players.
+> **Solo project, no fixed timeline** (ADR-034). Milestone gates are pass/fail on the game being good, never on elapsed time.
 > One-line pitch: *Barony's grubby, systemic dungeon-crawling meets DMZ's layered mission structure, in service of a hoard-dragon who buys your soul one run at a time.*
 
 ---

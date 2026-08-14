@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-13 · 27 documents_
+_Regenerated 2026-08-14 · 29 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -29,6 +29,8 @@ _What the game is._
 | `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✎ draft | 2026-08-13 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✎ draft | 2026-08-13 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✎ draft | 2026-08-13 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
+| `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ◆ proposed | 2026-08-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
+| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ◆ proposed | 2026-08-14 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
 
 ## Technical
 
@@ -64,11 +66,12 @@ _Visual and audio direction._
 
 ## By Tag
 
+- **accessibility** — DES-018
 - **adr** — PRO-002
-- **ai** — DES-005, DES-013
+- **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
 - **art** — ART-001
-- **audio** — ART-001
+- **audio** — ART-001, DES-018
 - **balance** — DES-003, DES-004, DES-008, PRO-005
 - **biomes** — DES-006
 - **budget** — ART-001
@@ -76,7 +79,7 @@ _Visual and audio direction._
 - **business** — PRO-006
 - **camp** — DES-016
 - **churn** — DES-010
-- **clamor** — DES-013
+- **clamor** — DES-013, DES-017, DES-018
 - **classes** — DES-011
 - **co-op** — DES-011, DES-012, DES-013, DES-014, TEC-004
 - **combat** — DES-009, DES-013
@@ -92,7 +95,7 @@ _Visual and audio direction._
 - **enemies** — DES-013
 - **engine** — TEC-001
 - **ethics** — PRO-005, PRO-006
-- **extraction** — DES-005
+- **extraction** — DES-005, DES-017
 - **factions** — DES-007
 - **feel** — DES-009
 - **gameplay** — DES-009
@@ -104,6 +107,8 @@ _Visual and audio direction._
 - **history** — PRO-002
 - **hooks** — DES-010
 - **hub** — DES-014
+- **hud** — DES-018
+- **hunter** — DES-017
 - **identity** — DES-011
 - **inventory** — DES-009
 - **ip** — PRO-004
@@ -111,6 +116,7 @@ _Visual and audio direction._
 - **items** — DES-008
 - **lair** — DES-014
 - **legal** — PRO-004
+- **legibility** — DES-018
 - **levels** — DES-015
 - **lineage** — DES-016
 - **loot** — DES-008
@@ -131,7 +137,7 @@ _Visual and audio direction._
 - **pillars** — DES-001
 - **pipeline** — PRO-006
 - **planning** — PRO-001
-- **pressure** — DES-005
+- **pressure** — DES-005, DES-017
 - **process** — PRO-002
 - **procgen** — DES-015
 - **production** — PRO-001
@@ -160,11 +166,12 @@ _Visual and audio direction._
 - **technical** — DES-015
 - **tension** — DES-005
 - **terminology** — PRO-003
+- **theme** — DES-017
 - **theory** — PRO-005
 - **tone** — DES-006
 - **tooling** — TEC-002
 - **trophies** — DES-016
-- **ui** — DES-014
+- **ui** — DES-014, DES-018
 - **vision** — DES-001
 - **vitals** — DES-009
 - **world** — DES-006

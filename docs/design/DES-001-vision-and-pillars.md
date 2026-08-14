@@ -69,7 +69,9 @@ Target: **solo or 2–3 person team**. That forces hard constraints, stated now 
 | Run length | 15–30 min ⟨tune⟩ | Long enough for the greed arc, short enough that death is survivable emotionally. |
 | Voice acting | None | Text + expressive audio only. |
 
-> **OPEN:** Working title. "SHE" reads as a placeholder referencing the dragon. Real title needed before any store presence.
+> **DECIDED (ADR-033):** The game is called **SHE**. Not a placeholder. It withholds exactly what the game withholds — a creature the player never names — and the lowercase intimacy does more work than any compound fantasy name would. Trademark and handle searches still needed before store presence (`PRO-004`).
+
+> **DECIDED (ADR-034):** **Solo development, no fixed timeline.** Milestone order and exit gates stand; calendar estimates are gone. This is explicitly an experiment in a crowded genre — the aim is to find out what a systemically honest extraction roguelite feels like, not to hit a market window. That makes the M1 feel-gate *more* important, not less.
 
 ### P6 — Together in the dark
 Co-op is core (ADR-008), and it is not "the same game with more people." A party is safer moment-to-moment, far more *hunted*, and yields less each (`DES-012`). Six classes exist so a party has shape (`DES-011`), and rescuing a fallen friend — carrying their ember out — is the single most heroic act in the game.

@@ -23,7 +23,11 @@ The most common way a project like this dies is building the meta-progression fi
 
 > **Reordered by ADR-008.** Co-op is no longer a late milestone — it is a constraint on every milestone. Networking exists from M1.
 
-## M1 — The Feel Prototype ⟨~5–6 weeks⟩
+> **DECIDED (ADR-034): solo project, no fixed timeline.** Calendar estimates are removed — on a solo project they produce guilt rather than throughput, and the **exit gates were always the real mechanism.** They are pass/fail on the game being good, never on elapsed time.
+>
+> Sizes below are *relative effort only*. The one piece of discipline that still matters without a deadline forcing it: **clear a milestone's exit gate before starting the next one.**
+
+## M1 — The Feel Prototype  ·  *smallest milestone*
 **Goal:** answer "is moving and fighting in this space enjoyable?" — with grey boxes and zero content.
 - First-person controller: walk, sprint, crouch, stamina, weight affecting movement
 - One weapon, one enemy, hit reactions, death
@@ -36,10 +40,12 @@ The most common way a project like this dies is building the meta-progression fi
 **Exit gate:** *two people who aren't you play for 10 minutes and ask to keep playing.*
 **If this fails, nothing else matters.** Iterate here as long as needed. Do not proceed on hope.
 
-## M2 — The Loop Prototype ⟨~6–8 weeks⟩
+## M2 — The Loop Prototype  ·  *~1.5× M1*
 **Goal:** prove the target sentence.
 - Loot with weight and clamor; inventory (prototype both models, Q23)
-- The Hunt: clamor field, Hunter entity, escalation, the Sealing (`DES-005`)
+- The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (`DES-005`)
+- **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build
+- **Standing test from here on: every milestone must be playable to completion with audio muted**
 - Extraction: reach an exit, keep what you carried
 - Death: lose it all — plus **downed state and ember rescue** (`DES-012`)
 - Minimal Lair: stash and re-descend
@@ -48,7 +54,7 @@ The most common way a project like this dies is building the meta-progression fi
 **Exit gate:** a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 **Co-op gate:** someone carries a friend's ember out and it is the best moment of the session.
 
-## M3 — The Pact ⟨~8–10 weeks⟩
+## M3 — The Pact  ·  *~2× M1*
 **Goal:** prove meta-progression makes runs *more* interesting, not easier.
 - Tribute → Boon → Aspects; two Aspects fully implemented, three stubbed
 - **Two classes fully implemented** (recommend Húskarl and Veiðimaðr — opposite loop relationships), four stubbed (`DES-011`)
@@ -60,7 +66,7 @@ The most common way a project like this dies is building the meta-progression fi
 **Exit gate:** a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 **Co-op gate:** a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
 
-## M4 — Vertical Slice ⟨~10–12 weeks⟩
+## M4 — Vertical Slice  ·  *largest; art and audio dominate*
 **Goal:** one biome, complete and polished, representative of the final game.
 - The Delvings: full generation from room modules, 3 floors
 - ~6 enemy archetypes, 2 hazard types

@@ -82,6 +82,8 @@ Some names are genuinely public domain but so strongly associated with Tolkien t
 
 ## Open items
 
-> **OPEN:** Working title "SHE" needs replacing. Requires trademark search and Steam/social handle availability check.
+> **DECIDED (ADR-033):** The title is **SHE**, final. Still required before store presence: **trademark search** and Steam/social handle availability.
+>
+> **Known cost, accepted:** a one-word common English word is hard to search for and hard to protect as a mark. Discoverability will lean on the subtitle-free store page, art direction, and word of mouth rather than on the name being searchable. Worth raising with the IP attorney at review — a stylised wordmark may be more defensible than the word itself.
 
 > **OPEN:** Budget a real IP attorney review before store page publication ⟨tune: ~$500–2000 for a focused review⟩.

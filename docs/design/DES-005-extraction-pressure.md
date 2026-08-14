@@ -35,6 +35,8 @@ Pressure you generate yourself, immediately and legibly.
 
 ### Layer 2 — The Hunt (escalating, timed, embodied)
 
+> **Full treatment now lives in `DES-017` (ADR-037).** The Hunter is the **Gullsjúkr** — a former Bound who stayed too long, still carrying their hoard, still trying to make a Tithe that can no longer be made. It hunts **carried wealth**, and it **stops to pick up gold you throw**. Q9 is resolved there: the Hunt persists across floors.
+
 At ~⟨tune⟩ 12–15 minutes, or when the floor's Clamor threshold is crossed (whichever first), **the dragon's rivals notice you.** A hunter entity enters the level.
 
 - **Announced with an unmissable diegetic beat:** horn, distant collapse, torches guttering out ahead of it, the ambient track dropping to just breathing.

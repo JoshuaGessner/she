@@ -39,7 +39,9 @@ UNAWARE ──heard something──► SUSPICIOUS ──confirmed──► ALERT
 - **Alerted** — actively hunting you. Generates Clamor itself.
 - **Swarm** — calls others. **This is the failure state**, and it must be loudly telegraphed a beat before it happens so the player gets one chance to prevent it.
 
-**Rule:** every transition has a distinct, unmissable audio cue. A player must be able to close their eyes and know what state the room is in.
+**Rule:** every transition is unmissable in **both** channels. A player must be able to know what state a room is in with their eyes closed — *and* with the sound off.
+
+> **REVISED (ADR-035/036).** The earlier version of this rule specified audio cues only, which locked deaf and hard-of-hearing players out of the game's core system. Transitions are now carried by **layered adaptive score** (never alarms or stingers) with a **parallel visual readout** — the Ear. Both designed together; see `DES-018`.
 
 ## Roles, not damage types
 

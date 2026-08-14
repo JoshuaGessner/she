@@ -26,8 +26,13 @@ related: [DES-001, DES-005, DES-006]
 Audio does disproportionate work in this design and should be resourced accordingly:
 
 - **Clamor must be audible.** The player has to *hear* their own greed — coins shifting, plate clanking, footfalls getting heavier. This is the primary feedback channel for the game's core mechanic.
-- **The Hunt takes over the mix.** When it begins, music drops out; ambience narrows to breath, distant impacts, and the Hunter's signature sound. `AudioDirector` (`TEC-001`) owns this transition and it needs to be excellent.
-- **The Hunter needs an unmistakable audio identity** — the single most important sound in the game. Reference: the Alien's ceiling movement in *Alien: Isolation*, Mr. X's footsteps in *RE2*.
+- **Clamor is carried by adaptive score, never by alarms** (ADR-035). One piece of music per biome, authored as **stems that enter and leave under a Clamor/Hunt driver** — vertical remixing. Alarms are threshold signals; Clamor is continuous, and layered audio expresses continuity natively. It also fatigues far less over a 25-minute run and keeps the Deep feeling like a place rather than a UI. Full state table in `DES-018`.
+- **This must be architected from day one.** Stems authored together, mixed live. One-shot cues cannot be retrofitted into a vertical-remix system. **`AudioDirector` is a core system, not a budget line.**
+- **The Hunter owns one reserved instrument** — a single bowed tagelharpa note that means the Gullsjúkr (`DES-017`) and *nothing else, anywhere in the game, ever*. It must never be a false alarm. Reference: the Alien's ceiling movement in *Alien: Isolation*, Mr. X's footsteps in *RE2*.
+- **The Hunter sounds like money.** Its movement is a great deal of loose coin being dragged. That single sound is its footstep, its tell, and its entire characterisation.
+- **Silence is a designed beat.** When the Gullsjúkr stops to collect thrown gold, the mix drops away — relief, and your window.
+- **Every audio channel has a visual twin** (ADR-036). Nothing may be audio-only; see `DES-018`. The standing test is that the game is playable to completion with sound off.
+- Diegetic sound (footsteps, coin, doors) stays **separate and unducked** — it is gameplay information, not atmosphere.
 - **She has a voice.** Not words — a felt presence. Low, slow, enormous, and *close*, since she speaks into the mind of the Bound.
 
 ## Budget notes

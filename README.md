@@ -6,7 +6,7 @@
 
 **Status: design phase.** No code yet. This repository currently holds the design corpus — 27 documents and 33 architecture decision records covering the full game design, technical architecture, and production plan. Implementation begins at M1 (see [roadmap](docs/process/PRO-001-roadmap-and-milestones.md)).
 
-*"SHE" is a working title.*
+Built solo, as time allows. It is deliberately an experiment: a crowded genre, approached from an angle nobody has tried, to find out what happens.
 
 ---
 
