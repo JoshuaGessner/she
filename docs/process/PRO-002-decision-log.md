@@ -586,4 +586,20 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
+## ADR-053 — Combat is a temptation with a price
+**Date:** 2026-08-14 · **Status:** accepted · **Revises the `DES-009` thesis**
+**Context:** *"Combat should usually be a bad idea"* was strategically correct but, taken literally, would produce a large system nobody enjoys touching.
+**Decision:** **Combat is a temptation with a price — exactly like loot.** All the cost, avoidance and Clamor design stands; what changes is that **feel is not optional polish, it is what makes the strategic layer function.**
+**Rationale:** If fighting feels bad, players resent being pushed into it **and — worse — choosing not to fight stops costing anything.** A refusal is only meaningful if the thing refused was attractive. Greed works in this game because treasure is genuinely desirable *and* genuinely expensive; combat must be built the same way.
+
+**Research grounding (`DES-009` expanded):**
+- **Swink's ordering** — real-time control → predictable simulated space → polish that *amplifies what already works*. Becomes an M1 production rule: **the grey box must feel decent unjuiced.** Juice cannot rescue bad control, only mask it long enough to build a game on top of the problem.
+- **The three features that empirically dominate impact feel** — *hitstop, sound coherence, camera control* (IEEE GEM 2022, NLP analysis of Steam reviews across best/worst-rated action games, 19 features tested). Neglecting any one significantly reduces satisfaction. Unusually actionable for a solo project: it says where to spend, and by omission where not to.
+- **The 250 ms floor** — human visual reaction time. **No enemy attack telegraphs under 250 ms; standard attacks 400–600 ms** ⟨tune⟩. This is Principle 4 with a number attached: an attack faster than reaction time produces a death the player cannot explain, which `PRO-005 §5` identifies as the attribution failure that makes people quit rather than retry.
+- **Depth comes from the situation, not the input.** Button count stays tiny; depth is terrain, hazards, mutually hostile enemy factions, throwables, weight, and Clamor — all already designed. References: *Dark Messiah* (environment is the depth), *Vermintide* (few inputs, enormous feel investment).
+
+**Consequences:** Hitstop scales with weapon weight and is **client-side visual only** — never a simulation pause, or co-op desyncs. **First-person overrides the general camera advice: positional kick only, never rotational shake** (motion sickness), with hands and weapon carrying the impact. Combat audio does double duty as juice *and* Clamor signal. Input buffering during recovery is required or committal reads as unresponsive. New M1 test protocol, and its gate question is **"does a tester voluntarily swing at something they could have walked past?"**
+
+---
+
 *Entries below to be added as design decisions are signed off.*
