@@ -35,11 +35,46 @@ Diegetic reinforcement costs almost nothing and does a third of the work:
 
 Layer 0 is never *sufficient* (ADR-036 — everything needs an explicit twin) but it makes the explicit layer able to stay small.
 
-### Layer 1 — The Ear (bottom centre, near but not on the reticle)
+### Layer 1 — The Ear (top right) — **the instrument**
 
-Clamor output · room alert state · bearing pips · Hunter state. Full spec in `DES-018`.
+> **DECIDED (ADR-040):** the Ear sits **top right**, where a minimap would conventionally live. Closes Q81.
 
-**The only element that grows.**
+Occupying the minimap's slot is deliberate: it is the game's answer to a minimap, and putting it there says so. Keeps the centre clear (rule 1) and sits where players already look for spatial information.
+
+**The only element permitted to grow.**
+
+#### What it must carry — and the two natures problem
+
+Four things, of two fundamentally different kinds:
+
+| | Nature | About |
+|---|---|---|
+| **Clamor output** | Continuous scalar | **You** |
+| Room alert state | Discrete, 4 states | The world |
+| Bearing of attention | Angular | The world |
+| Hunter state | Discrete + angular | The world |
+
+One is *what you are doing*. Three are *what the world is doing about it*. Cramming them into one undifferentiated widget is what makes HUD elements unreadable.
+
+#### Architecture: a core and a ring
+
+- **Inner core = you.** Fills, brightens, and quickens with your Clamor output. This is the readout that makes greed legible, and it is the most important pixel in the game.
+- **Outer ring = the world.** Arcs light where attention is coming from. The ring's *character* — solid, broken, pulsing — encodes the `DES-013` alert ladder.
+- **The Hunter** takes a distinct heavy mark on the ring, and **the whole element gains weight** (rule 5).
+
+Cause on the inside, effect on the outside. That is the mental model the player actually needs, and it means each half can be read independently at a glance.
+
+#### The guardrail that keeps this from becoming a radar
+
+> **The Ear reports attention, not positions.**
+
+It answers *"something over there heard me."* It never answers *"there are three enemies at these coordinates."*
+
+- **Coarse bearing only** — 8 sectors ⟨tune⟩, never precise angles.
+- **Only shows attention that exists.** An unaware room produces a blank ring, no matter how many enemies are standing in it.
+- **Never shows enemy count, health, or type.**
+
+Without this rule the Ear becomes a wallhack, players stare at the corner instead of the room, and the entire "look at the world" premise of the lighting and audio design collapses.
 
 ### Layer 2 — Body (bottom left)
 
@@ -66,6 +101,18 @@ Interaction prompts, contract updates, the ping wheel (`DES-012`), a reticle **o
 5. **One element carries urgency.** The Ear. Everything else is constant.
 6. **Diegetic where free, explicit where necessary.**
 
+## Carried instruments — the map, the lantern, the compass
+
+> **DECIDED (ADR-040):** the **compass is an item**, like the map and the lantern. Closes Q82.
+
+Three tools that give you information, each of which **costs you something to carry** — a slot, weight, and often a hand. That's a coherent little economy, and it means orientation is a thing you equipped rather than a thing the HUD gave you.
+
+- **Lantern** — you gave up a weapon slot to see (`DES-008`)
+- **Map** — drawn as you go, Lineage annotates (ADR-017)
+- **Compass** — bearing, which is what makes cartography annotations mean anything ("north-east of the flooded hall" is only useful if you can find north-east)
+
+A player carrying all three is very well informed and very badly equipped for a fight. **That's the intended trade**, and it gives the Veiðimaðr and Völva builds real texture.
+
 ## The map is a thing you hold
 
 > **No persistent minimap.**
@@ -80,6 +127,8 @@ Instead the map is **held up**, physically, occupying a hand and most of your at
 - Reference: DayZ and Tarkov's paper maps, Barony's minimap as the counter-example we're rejecting
 
 ## Inventory
+
+> **DECIDED (ADR-040):** **Grid-based, weighted, real-time.** Closes Q23 — no longer a prototype fork, though the grid's dimensions and cell sizes remain tuning work.
 
 **Grid-based, weighted, and real-time.**
 
@@ -122,9 +171,7 @@ Different rules apply. **Numbers are appropriate here** — you are comparing ge
 
 ## Open questions
 
-> **OPEN (Q81):** Where exactly does the Ear sit? Reticle-adjacent keeps it in foveal vision and costs centre-screen purity (rule 1); bottom-centre is safer and slower to read. **This is a prototype question, not a document question** — build both at M2.
-
-> **OPEN (Q82):** Is there a compass or bearing reference at all? Without one, "go north-east" is meaningless and cartography annotations lose half their value. Leaning **a diegetic compass item** that occupies a slot — consistent with the lantern and the map both costing you something.
+> **OPEN (Q85):** The Ear's **visual skin** — geometric ring, ember, or organic shell. The *architecture* (core + ring, attention not positions) is settled; the rendering is not. See ADR-041 once decided.
 
 > **OPEN (Q83):** How is the Tithe surfaced *during* a run — always visible, or Lair-only? Always-visible keeps the obligation present while you decide whether to push deeper. Leaning **on the Burden layer, quietly**, since it is fundamentally a greed readout.
 
