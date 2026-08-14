@@ -1,0 +1,32 @@
+# Godot 4
+game/.godot/
+game/android/
+game/export_presets.cfg
+*.translation
+
+# Godot exports
+build/
+exports/
+*.pck
+*.exe
+*.x86_64
+*.dmg
+*.app
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
+
+# Python
+__pycache__/
+*.pyc
+
+# Local scratch
+scratch/
+*.local
