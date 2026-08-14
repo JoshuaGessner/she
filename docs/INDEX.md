@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-14 · 29 documents_
+_Regenerated 2026-08-14 · 30 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -31,6 +31,7 @@ _What the game is._
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✎ draft | 2026-08-13 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ◆ proposed | 2026-08-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ◆ proposed | 2026-08-14 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✎ draft | 2026-08-14 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005 |
 
 ## Technical
 
@@ -82,6 +83,7 @@ _Visual and audio direction._
 - **clamor** — DES-013, DES-017, DES-018
 - **classes** — DES-011
 - **co-op** — DES-011, DES-012, DES-013, DES-014, TEC-004
+- **cognitive-load** — DES-019
 - **combat** — DES-009, DES-013
 - **contracts** — DES-007
 - **conventions** — TEC-002
@@ -107,20 +109,21 @@ _Visual and audio direction._
 - **history** — PRO-002
 - **hooks** — DES-010
 - **hub** — DES-014
-- **hud** — DES-018
+- **hud** — DES-018, DES-019
 - **hunter** — DES-017
 - **identity** — DES-011
-- **inventory** — DES-009
+- **inventory** — DES-009, DES-019
 - **ip** — PRO-004
 - **ip-safety** — DES-006
 - **items** — DES-008
 - **lair** — DES-014
 - **legal** — PRO-004
-- **legibility** — DES-018
+- **legibility** — DES-018, DES-019
 - **levels** — DES-015
 - **lineage** — DES-016
 - **loot** — DES-008
 - **lore** — DES-006
+- **map** — DES-019
 - **meta** — DES-003, DES-004
 - **migration** — TEC-003
 - **milestones** — PRO-001
@@ -171,7 +174,7 @@ _Visual and audio direction._
 - **tone** — DES-006
 - **tooling** — TEC-002
 - **trophies** — DES-016
-- **ui** — DES-014, DES-018
+- **ui** — DES-014, DES-018, DES-019
 - **vision** — DES-001
 - **vitals** — DES-009
 - **world** — DES-006

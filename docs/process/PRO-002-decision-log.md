@@ -396,4 +396,24 @@ Mechanically, **baiting with gold** is the counter-play that makes it specific r
 
 ---
 
+## ADR-038 — Gullsjúkr identity reuses the death record that already exists
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q74**
+**Context:** Whether a Hunter can be identified as a specific dead NPC Bound, and how much data that needs. Direction given: whatever is cheapest.
+**Decision:** **Minimal identity, reusing existing data.** ADR-027's death record already stores what's needed for the cold plot and Memorial trophies — name, personality ID, class, lineage-run of death, final rank. Add **one boolean** (`became_gullsjukr`) and have the Hunter spawn dressed with that Bound's **class silhouette and one distinguishing token** (their coat, their helm).
+
+**No gear reconstruction, no inventory replay, no bespoke record.** You recognise them by name and by one thing you remember about them.
+**Rationale:** The expensive version — rebuilding their full loadout — buys almost nothing over the cheap one. Recognition is carried by *a name and a single detail*, which is how memory actually works. Cost is a flag and a spawn path reading fields that already exist.
+**Consequences:** **Rare by design.** Most Gullsjúkr are strangers; only occasionally is one someone you knew ⟨tune⟩. If every Hunter is a dead friend it becomes cheap melodrama — the beat only lands because it's uncommon. Their stave at the Threshold stays cold either way; the game never connects the two out loud.
+
+---
+
+## ADR-039 — Hunter and Ear detail decisions
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q76, Q78, Q79**
+Batch of recommendations accepted as specified:
+- **Q76 — Gold-baiting cost is proportional to carried value**, not flat. The richer you are, the more it takes to make a thrown purse more interesting than you. Keeps baiting a real decision at every wealth level instead of a fixed toll that trivialises late runs.
+- **Q78 — The Ear shows other players' Clamor in co-op**, rendered small on the **party frame** rather than on the Ear itself. Enables "you're the loud one" without cluttering the primary readout.
+- **Q79 — Haptics are a third twin.** Controller rumble carries Clamor and Hunter proximity alongside audio and the Ear, for players comfortable with neither of the other channels. Cheap; must never be the *only* carrier of anything.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
