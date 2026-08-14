@@ -83,7 +83,7 @@ The inventory screen is where the game's central question gets asked, so it must
 - Equipped weapons/tools occupy real slots. The lantern competes with a weapon.
 - Looting a container is **not instant** — a short, interruptible, *audible* action. Looting under pressure is a decision.
 
-> **OPEN:** Grid + weight may be one constraint too many. Fallback is weight-only with a silhouette showing what's on your back. Prototype both at M2; this is a feel question, not an argument to settle on paper.
+> **DECIDED (ADR-040):** **Grid + weight, real-time, no pause.** Both constraints kept — they conflict deliberately. Co-op makes pausing impossible anyway, so opening your bag is a vulnerable act *by design*. Grid dimensions and cell sizes remain tuning work (`DES-019`).
 
 ## Magic
 
@@ -93,7 +93,7 @@ Small at 1.0, and deliberately not a parallel combat system.
 
 The Cinder and Maw Aspects (`DES-004`) are where sustained magical identity lives, so baseline magic can stay light.
 
-> **OPEN:** Is there a mana/ember resource at baseline, or are runes purely consumable? Consumable-only is cheaper, keeps magic special, and avoids a second combat economy. **Leaning consumable-only at baseline**, with Cinder introducing Ember as a build-specific resource.
+> **DECIDED (ADR-048):** **Consumable-only at baseline** — no mana bar for anyone. **Cinder alone** converts magic into a system via **Ember**, drawn from carried tribute (`DES-004`'s *Emberdebt*): burn your loot to burn your enemies. Keeps magic scarce and special for everyone, and gives Cinder a real identity rather than a damage-flavour path.
 
 ## Movement
 
@@ -111,10 +111,14 @@ Built on **the same Clamor field the Hunt uses** (`TEC-001`) — one system, two
 
 **No stealth meter, no cones on a minimap.** Diegetic feedback only: enemies visibly pause, turn, investigate, call out. The player learns the system by watching it behave.
 
-## Open feel questions for M1
+## Resolved since writing
 
-> **OPEN:** First-person only, or does third-person exist? First-person is better for tension and cheaper (no full-body animation set). Strongly lean **first-person only** — but co-op players like seeing each other, so character models still need to look right from outside.
+> **DECIDED (ADR-047):** **First-person everywhere**, including the Lair. No third-person camera at all — it would let players peek around corners without exposing themselves, which quietly breaks the awareness ladder, stealth, and the Veiðimaðr. Character models are still needed for co-op: you see your *teammates*, never yourself.
+
+> **DECIDED (Q22):** **No stat block.** Aspects plus gear cover build identity; a third axis would make balance materially harder.
+
+## Open feel questions for M1
 
 > **OPEN:** How lethal? Can 2–3 hits from a common enemy kill a fresh player? Lethality sells the thesis, but pairs badly with a stash wipe on death (ADR-004). Lean **high lethality, telegraphed heavily** — deaths must be legible (Principle 4).
 
-> **OPEN:** Does the player have a persistent character stat block (STR/DEX-style, Barony), or is all differentiation from gear and Aspects? Lean **no stat block** — Aspects plus gear already cover build identity, and a third axis makes balance much harder.
+*(Both remaining items are M1 prototype questions — the build answers them, not the document.)*
