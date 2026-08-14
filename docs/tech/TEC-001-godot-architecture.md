@@ -75,6 +75,45 @@ Consequences that bind everything in this document:
 - The **Clamor field is host-only** and never replicated; clients receive only its effects.
 - **Progression is never networked** — pacts are individual (`DES-012`), so the entire meta-layer stays local to each player's save. Protect this property.
 
+## Renderer: Forward+ (ADR-052)
+
+> **"Mobile" is the name of a Godot *renderer*, not a platform.** An earlier note in `ART-005` implied the normal-buffer limitation was a platform problem. It is not. Target platforms are **Windows, macOS, Linux on Steam**, and Forward+ is the default and correct renderer for all three.
+
+Godot 4 offers three rendering methods. They are **choices**, not platform assignments:
+
+| Method | APIs | Platforms | Lights per object |
+|---|---|---|---|
+| **Forward+** | Vulkan · Direct3D 12 · Metal | **Desktop — Windows, macOS, Linux** | **Unlimited** (clustered) |
+| Mobile | Vulkan · D3D12 · Metal | Mobile *and* desktop; default on mobile | **8** omni/spot per mesh |
+| Compatibility | OpenGL 3.3 / ES 3.0 / WebGL2 | Oldest hardware, and the only option for web | 8 per mesh |
+
+**What "Forward+" means.** *Forward* rendering computes lighting while rasterising each object, rather than deferring it to a G-buffer pass. The **+** is **clustered lighting**: the view frustum is subdivided into a 3D grid of cells, each storing the lights that touch it, so a fragment only evaluates lights in its own cell. That is what lets forward rendering handle **hundreds of simultaneous lights with no per-object limit** — classic forward rendering chokes on light count, which is historically why deferred existed.
+
+### We would choose Forward+ anyway, independent of the shader
+
+This is the important part. Our lighting design demands it on its own:
+
+- **Darkness is a mechanic** (`ART-001`). The world is lit almost entirely by carried light.
+- **Every player carries a lantern**, and co-op is 1–4 players — that is up to four moving point lights before anything else.
+- Braziers, the Threshold fire, the ember, dropped lanterns, the Gullsjúkr's glow.
+
+**Mobile's cap of 8 omni/spot lights per mesh would actively break this.** A corridor with four players' lanterns, a brazier, and a few dropped lights would exceed it and start dropping lights per-object — visibly, and worst exactly when the scene is most dramatic.
+
+So Forward+ is not a compromise accepted to enable the ink shader. **It is the correct renderer for this game's lighting, and the shader's normal-buffer access comes along free.**
+
+### What locking Forward+ actually costs
+
+- **No web export.** Compatibility is the only renderer that supports web. We are not shipping to web.
+- **A hardware floor** of roughly Vulkan 1.0 / D3D12 / Metal-capable GPUs — broadly 2012-and-later hardware. Negligible for a premium Steam title.
+- Forward+ has a **higher base cost** but **lower scaling cost** than Mobile — it gets relatively cheaper as scene complexity rises, which suits a dark dungeon full of small lights.
+
+### If we ever did need normals without Forward+
+
+Not needed, but recorded so the question stays closed:
+
+1. **Custom normal pass** — render the scene to a second viewport with a shader outputting view-space normals. Correct, and costs an extra full scene pass. Wasteful when Forward+ provides it free.
+2. **Reconstruct normals from depth** — derive them via screen-space derivatives of reconstructed view position. Works wherever depth is available, but quality is lower: it misses smooth surface variation and is noisy at silhouettes, which is precisely where our outlines live.
+
 ## Performance targets ⟨tune⟩
 
 60 fps at 1080p on a mid-range 2020 GPU. Budgets: ≤150 active AI agents per floor (only ~20 fully simulated, rest on a cheap LOD brain), ≤2ms/frame for clamor propagation, floor generation under 2s, ≤64 kbps up per client at 4 players (`TEC-004`).

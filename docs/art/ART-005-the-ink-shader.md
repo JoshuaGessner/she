@@ -152,7 +152,13 @@ Full TAM requires lapped-texture parametrisation over a curvature-aligned direct
 | **Viewport** | The depth texture can only be read **from the current viewport.** |
 | **Home for the pass** | `CompositorEffect` (Godot 4.3+), `EFFECT_CALLBACK_TYPE_POST_TRANSPARENT` for full-frame work. |
 
-> **Consequence: Forward+ is locked in** (`TEC-005`). There is no Mobile or Compatibility fallback for a normal-buffer outline pass. If a low-end path is ever needed it would have to be depth-only edge detection (noticeably worse — it misses creases) or inverted-hull outlines. **Accepted, and worth knowing now rather than discovering at launch.**
+> **Consequence: Forward+ is locked in — and this costs us nothing.**
+>
+> **"Mobile" is a Godot renderer name, not a platform.** Forward+ is the **default and correct renderer on Windows, macOS, and Linux**, which are our only targets. Full explanation in `TEC-001`.
+>
+> We would choose Forward+ **independently of this shader**: Mobile caps omni/spot lights at **8 per mesh**, and our lighting design — darkness as a mechanic, up to four moving player lanterns, braziers, the ember — would blow straight through that. The normal buffer comes along free.
+>
+> Real costs: no web export (not a target), and a hardware floor around Vulkan/D3D12/Metal-capable GPUs (2012-era and later — negligible for premium Steam).
 
 **Known limitation:** depth+normal edge detection misses boundaries between objects that are **coplanar and similarly oriented** — two touching walls of the same material produce no line. The full fix is an object-ID buffer. The cheap mitigation is the vertex-colour ink-ID channel biasing local outline generation. Prototype before deciding whether the ID pass is worth it.
 

@@ -575,4 +575,15 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
+## ADR-052 — Forward+ renderer, chosen for lighting first
+**Date:** 2026-08-14 · **Status:** accepted
+**Context:** ADR-051 noted `hint_normal_roughness_texture` is "Forward+ only," which read as a platform limitation. It is not — **"Mobile" is the name of a Godot renderer, not a platform.** Targets are Windows, macOS and Linux on Steam, where Forward+ is the default.
+**Decision:** **Forward+**, via Vulkan / Direct3D 12 / Metal.
+**Rationale — the shader is the *secondary* reason.** Mobile and Compatibility cap omni/spot lights at **8 per mesh**; Forward+ uses a clustered light grid with **no per-object limit**. Our lighting design is built on darkness as a mechanic with up to four moving player lanterns, braziers, the Threshold fire, the ember, and dropped lights. A corridor with a 4-player party would exceed 8 lights routinely and start dropping them per-object — visibly, and worst exactly when a scene is most dramatic.
+
+**We would pick Forward+ for the lighting alone. Normal-buffer access is a free consequence.**
+**Consequences:** No web export (Compatibility only, and not a target). Hardware floor of roughly Vulkan 1.0 / D3D12 / Metal-capable GPUs — 2012-era and later, negligible for premium Steam. Forward+ has a higher base cost but lower scaling cost, which suits a dark scene full of small lights. Fallbacks documented in `TEC-001` (custom normal pass, or depth-derived normals) but not needed.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
