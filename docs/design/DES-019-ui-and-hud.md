@@ -56,6 +56,14 @@ Four things, of two fundamentally different kinds:
 
 One is *what you are doing*. Three are *what the world is doing about it*. Cramming them into one undifferentiated widget is what makes HUD elements unreadable.
 
+#### Skin: the ember (ADR-042)
+
+The core is **a piece of her fire** — the same ember that drops when you die (`DES-012`). Attention arrives as **drifting sparks** from the direction that heard you.
+
+The readout is literally the thing your friends carry out of the Deep, which is why it earns the most-looked-at position on screen.
+
+> **The one risk, and the rule that fixes it:** a brighter flame reads as *good*. **High Clamor must look guttering and sick — never warm, never powerful.** The ember should feel blown-about and giving you away. If a playtester describes the loud state as "cool," the visual language has failed: desaturate it, destabilise it, thin it out.
+
 #### Architecture: a core and a ring
 
 - **Inner core = you.** Fills, brightens, and quickens with your Clamor output. This is the readout that makes greed legible, and it is the most important pixel in the game.
@@ -171,7 +179,7 @@ Different rules apply. **Numbers are appropriate here** — you are comparing ge
 
 ## Open questions
 
-> **OPEN (Q85):** The Ear's **visual skin** — geometric ring, ember, or organic shell. The *architecture* (core + ring, attention not positions) is settled; the rendering is not. See ADR-041 once decided.
+> **OPEN (Q86):** How does the Ear behave for a **Vörðr** (`DES-012`)? A ghost makes no Clamor, so the core has nothing to report — but scouting for the living is their job, and the ring is exactly the tool for it. Leaning **core goes dark, ring stays live**.
 
 > **OPEN (Q83):** How is the Tithe surfaced *during* a run — always visible, or Lair-only? Always-visible keeps the obligation present while you decide whether to push deeper. Leaning **on the Burden layer, quietly**, since it is fundamentally a greed readout.
 

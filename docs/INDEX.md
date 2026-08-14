@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-14 · 30 documents_
+_Regenerated 2026-08-14 · 31 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -64,6 +64,7 @@ _Visual and audio direction._
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
 | `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✎ draft | 2026-08-12 | DES-001, DES-005, DES-006 |
+| `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ◆ proposed | 2026-08-14 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 
 ## By Tag
 
@@ -72,15 +73,15 @@ _Visual and audio direction._
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
 - **art** — ART-001
-- **audio** — ART-001, DES-018
+- **audio** — ART-001, ART-002, DES-018
 - **balance** — DES-003, DES-004, DES-008, PRO-005
 - **biomes** — DES-006
-- **budget** — ART-001
+- **budget** — ART-001, ART-002
 - **builds** — DES-004, DES-011
 - **business** — PRO-006
 - **camp** — DES-016
 - **churn** — DES-010
-- **clamor** — DES-013, DES-017, DES-018
+- **clamor** — ART-002, DES-013, DES-017, DES-018
 - **classes** — DES-011
 - **co-op** — DES-011, DES-012, DES-013, DES-014, TEC-004
 - **cognitive-load** — DES-019
@@ -104,7 +105,7 @@ _Visual and audio direction._
 - **gear** — DES-008
 - **generation** — DES-015
 - **glossary** — PRO-003
-- **godot** — TEC-001, TEC-002, TEC-004
+- **godot** — ART-002, TEC-001, TEC-002, TEC-004
 - **greed** — DES-008
 - **history** — PRO-002
 - **hooks** — DES-010
@@ -130,6 +131,7 @@ _Visual and audio direction._
 - **monetization** — PRO-006
 - **movement** — DES-009
 - **multiplayer** — DES-012, TEC-004
+- **music** — ART-002
 - **naming** — PRO-003, PRO-004
 - **narrative** — DES-015
 - **networking** — DES-012, DES-014, TEC-004
@@ -162,6 +164,7 @@ _Visual and audio direction._
 - **setting** — DES-006
 - **skill-tree** — DES-003, DES-004, DES-011
 - **social** — DES-012, DES-014
+- **sound-design** — ART-002
 - **structure** — DES-002, DES-007, TEC-002
 - **style** — ART-001
 - **systems** — DES-013, TEC-001
