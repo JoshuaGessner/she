@@ -73,6 +73,8 @@ Stated now, because these get proposed later under commercial pressure:
 
 The retention model here is that **the loop is good and the pact is a relationship you want to continue.** If it needs psychological scaffolding to hold players, the loop is broken and scaffolding will only delay the diagnosis.
 
+> **C3 has a designed answer now (ADR-060).** `DES-022`'s felt-growth analysis landed independently on this same window, which is strong evidence the churn point is real. Three levers aim at it: **greater nodes clustered at Ranks 4–6**, the **Rite branch and visible arm changes** timed into the sag, and **over-rank descent** unlocking as a skill valve. Plus the standing rule that **every run must visibly tick ≥2 of the eight growth channels.**
+
 ## Metrics to instrument at M2 ⟨tune⟩
 
 Instrument early — retention questions are unanswerable from vibes:

@@ -116,6 +116,16 @@ Variety at first contact, and it keeps the death→new-class hook at full streng
 
 All six must therefore be playable and balanced by **M4, not M5** (`PRO-001`).
 
+## Rite pacing (ADR-060)
+
+> **The Rite branch unlocks at Pact Rank 3** ⟨tune⟩, not at Rank 1.
+
+This is deliberate pacing, not a gate for its own sake. `DES-022` identifies **runs 11–25 as the sag in felt growth** — the same window `DES-010` names as churn point C3. Holding the Rite back gives the mid-life a **second identity beat**, arriving exactly as the first keystone stops feeling new.
+
+**Visible arm changes at Ranks 3, 5 and 7** (ADR-057) sit in the same window: the Úlfheðinn's arms becoming more wolf, the Völva's ink spreading, the Haugbrjótr's hands more grave-stained. Non-numeric progression you can see on your own body, placed where nothing else is visibly changing.
+
+**Greater nodes cluster at Ranks 4–6; lesser nodes front-load at 1–3**, where knowledge growth already carries the feeling.
+
 ## Balance rules
 
 1. **Every class must be solo-viable.** Co-op is primary (`DES-012`) but solo is supported (ADR-008). *The Skald was the hard case; resolved by ADR-031.*

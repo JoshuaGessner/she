@@ -115,4 +115,81 @@ The first is always allowed. The second requires an ADR and a very good reason.
 
 ## Open questions
 
-> **OPEN (Q108):** Should a player be able to **voluntarily descend above their rank** for better rewards? Thematically excellent (greed again) and it gives skilled players a valve. Risk: it becomes the optimal play and the Tithe coupling weakens. Leaning **yes, with the Tithe still calculated at your own rank** so it is a risk you take, not a shortcut.
+> **DECIDED (ADR-059):** **Yes — you may descend above your rank, voluntarily.** Richer floors, worse composition, earlier Hunt. **The Tithe is still calculated at your own rank**, so it is a risk you accept rather than a shortcut you take, and `DES-003`'s coupling holds. Unlocks mid-life ⟨tune⟩, where it doubles as a pacing valve (below).
+
+---
+
+# Progression pacing — does growth actually *feel* like growth?
+
+`DES-022` above establishes that the power is real. This section asks the harder question: **is it felt, run to run, and does it hold up across a whole life?**
+
+## The problem: the curve sags in the middle
+
+Tracing the felt experience across a life:
+
+| Phase | Rank | Felt growth | Why |
+|---|---|---|---|
+| Runs 1–3 | 1 | **Enormous** | Knowledge acquisition is fastest here; everything is new |
+| Runs 4–10 | 2–3 | **High** | First keystone lands. It should change how you play. |
+| **Runs 11–25** | **4–6** | **⚠ FLAT** | Lesser nodes are small. Knowledge curve flattens. Gear is sidegrades, so no upgrade rush. |
+| Runs 26+ | 7–9 | **High** | Pact nodes, deep expeditions, the loudest effects |
+
+**The middle sags**, and that is not a coincidence: `DES-010` independently names **C3 — the mid-life grind (runs ~10–25)** as a churn point. Two separate analyses landing on the same window means it is real, and it is the single largest threat to "the player feels stronger and stronger."
+
+## Three levers aimed directly at it
+
+**1. Cluster the *greater* nodes at ranks 4–6.** Front-load lesser nodes at ranks 1–3, where knowledge growth is already carrying the feeling. **The middle of a life must be where the interesting nodes live**, not where the filler lives. This is free — it is a question of where nodes sit on the tree, decided once.
+
+**2. Rite thresholds land in the sag.** The class Rite branch (`DES-011`) unlocks at **Rank 3** ⟨tune⟩, not Rank 1 — a *second* identity beat, arriving exactly when the first one has worn off. And ADR-057's visible arm changes trigger at **Ranks 3, 5 and 7**: your own hands becoming more wolf, more inked, more grave-stained, **in the window where nothing else is visibly changing.**
+
+**3. Over-rank descent unlocks mid-life** (ADR-059). At Rank 4 ⟨tune⟩ a skilled player gets a valve — a way to convert competence into reward without waiting for the tree. It is a growth outlet that costs no content.
+
+## The eight channels, and the rule
+
+Growth is felt through eight independent channels:
+
+1. A node acquired
+2. Gear visibly improved (`DES-020`)
+3. Lineage knowledge — bestiary entries, map annotations
+4. A deed earned (`DES-016`)
+5. The hoard physically growing (`DES-014`)
+6. Rite arm changes at thresholds
+7. Camp momentum — a fuller Threshold, new services
+8. New access — an expedition, a forge tier, over-rank descent
+
+> **Rule: every run must visibly tick at least two of the eight.**
+
+This is stronger than ADR-006's "no run returns zero," and it is the concrete guarantee behind *feeling stronger and stronger*. **If a run ticks nothing but a partial Boon bar, that run failed** — and it is checkable in telemetry rather than a matter of opinion.
+
+## The scaling model ⟨all numbers tune⟩
+
+**Node budget.** ~32 nodes are *accessible* in a life (primary Aspect ~13, secondary ~12, Rite ~7). A player reaching Rank 9 takes roughly **20**.
+
+Taking about 60% of what you could reach is the target — **enough that builds genuinely diverge, and that a second life with the same class still plays differently.** If players routinely take everything accessible, the tree is too small or Boon is too generous.
+
+**Rate.** Roughly **one node every two runs, at every rank.** Steady drip, deliberately not accelerating.
+
+**Costs.** Lesser 1 · Greater 2 · Keystone 5 ⟨tune⟩. Modest progression — keystones are something you save for, everything else keeps the rhythm.
+
+**Boon income should stay roughly FLAT across ranks.** This is the important one and it is counter-intuitive:
+
+- Tribute goes to the **Tithe first**; only surplus becomes Boon.
+- The Tithe rises with every node taken.
+- So a rank-7 player must extract *far more value* than a rank-2 player **to earn the same Boon.**
+
+That is the treadmill, and it is the intended one — it forces deeper play without inflating anything. **Flat income plus a steady drip means the *feeling* of growth comes from nodes being loud, not from the rate changing.** If Boon income rises with rank, the tree fills too fast and the late game empties out; if it falls, the mid-game sag becomes a cliff.
+
+## What to measure at M3
+
+Balance guarantees, written as tests rather than intentions:
+
+| Check | Target |
+|---|---|
+| Runs per node acquired | ~2, **flat across all ranks** |
+| Channels ticked per run | **≥ 2 of 8** |
+| Nodes taken by Rank 9 | ~20 of ~32 accessible |
+| Boon income per run | Flat ±20% across ranks 1–9 |
+| Runs 11–25 self-reported "am I getting stronger?" | **No dip** — this is the one that matters |
+| Two lives, same class | Play noticeably differently |
+
+> **The mid-life question is the headline metric.** If testers at runs 11–25 say they have stopped feeling growth, no amount of late-game power fixes it — they will have already left (`DES-010` C3).

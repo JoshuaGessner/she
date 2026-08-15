@@ -671,4 +671,29 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
+## ADR-059 — Voluntary descent above your rank
+**Date:** 2026-08-15 · **Status:** accepted · **Closes Q108**
+**Decision:** Players may **choose to descend above their Pact Rank.** Richer floors, worse composition, earlier Hunt. **The Tithe is still calculated at your own rank**, so it is a risk accepted rather than a shortcut taken, and `DES-003`'s power↔obligation coupling holds. Unlocks around Rank 4 ⟨tune⟩.
+**Rationale:** Thematically it is greed again, at the level of the run itself. Mechanically it gives a skilled player a way to convert competence into reward without waiting for the tree — **and it lands as a pacing valve in the mid-life sag** (ADR-060), which is where the design most needs one.
+**Consequences:** Watch that it does not become the *optimal* line; if over-ranked descent is strictly better EV, the rank system stops meaning anything. Boon remains capped by your own rank (ADR-011), which already blocks the worst version.
+
+---
+
+## ADR-060 — Progression pacing: the mid-life sag, and how growth is felt
+**Date:** 2026-08-15 · **Status:** accepted · **`DES-022` expanded**
+**Context:** Direction given: verify the systems are balanced and that the player genuinely feels growth across runs, before any further planning.
+**Finding — the felt-growth curve sags in the middle.** Runs 1–3 (knowledge acquisition) and 4–10 (first keystone) feel excellent. Runs 26+ feel excellent. **Runs 11–25 are flat**: lesser nodes are small, the knowledge curve has flattened, and gear is sidegrades so there is no upgrade rush. `DES-010` independently names this exact window as churn point **C3** — two separate analyses landing on the same runs makes it real, and it is the single largest threat to *"stronger and stronger."*
+
+**Decision — three levers aimed at the sag:**
+1. **Cluster *greater* nodes at Ranks 4–6**; front-load lesser nodes at 1–3, where knowledge growth already carries the feeling. Free — it is only a question of where nodes sit on the tree.
+2. **Rite branch unlocks at Rank 3** ⟨tune⟩, not Rank 1 — a second identity beat arriving as the first wears off. **Visible arm changes at Ranks 3, 5 and 7** (ADR-057), placed precisely where nothing else is changing.
+3. **Over-rank descent unlocks around Rank 4** (ADR-059) — a growth outlet that costs no content.
+
+**The rule:** growth is felt through **eight channels** — node acquired · gear visibly improved · Lineage knowledge · a deed · the hoard growing · Rite arm change · camp momentum · new access. **Every run must visibly tick at least two.** Stronger than ADR-006's "no run returns zero," and checkable in telemetry rather than a matter of opinion.
+
+**The scaling model ⟨all tune⟩:** ~32 nodes accessible in a life, ~20 taken by Rank 9 (≈60%, so builds diverge and a second life with the same class still plays differently). **One node per ~2 runs, flat at every rank.** Costs: lesser 1 · greater 2 · keystone 5. **Boon income stays roughly flat across ranks** — tribute services the Tithe first, and the Tithe rises with every node, so a rank-7 player must extract far more to earn the same Boon. That is the intended treadmill: **the feeling of growth comes from nodes being loud, not from the rate accelerating.**
+**Consequences:** M3 gets explicit balance tests (`DES-022`), with **self-reported growth across runs 11–25 as the headline metric.** If testers say they have stopped feeling growth there, no amount of late-game power recovers it — they will already have left.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
