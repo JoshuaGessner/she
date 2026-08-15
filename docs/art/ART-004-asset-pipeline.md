@@ -222,4 +222,4 @@ ASSET REQUEST
 
 > **DECIDED (ADR-054):** **2m grid.** Divides cleanly into first-person corridor and room widths while staying fine enough for interesting silhouettes; a 4m grid would force coarser spaces. Makes modules interchangeable across biomes. ~~Original:~~ Is there a shared **modular kit grid** (e.g. 2m or 4m) for architecture? Cell-based generation (ADR-014) strongly favours one, and it makes environment assets interchangeable across biomes.
 
-> **OPEN (Q96):** First-person arms — one universal pair, or per-class? Per-class is far better for identity (a Húskarl's gauntlets versus a Völva's bare hands) and multiplies the most-viewed asset in the game by six.
+> **DECIDED (ADR-056):** **Per-class bare arms (six meshes), one shared skeleton and one shared animation set**, with the Arms slot rendering over them. **Body armour stops at the elbow**, so only the Arms slot ever needs a first-person variant — Head, Body and Pack are never in your own view. Full slot list and layering in `DES-020`.

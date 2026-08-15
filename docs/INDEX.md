@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-14 · 36 documents_
+_Regenerated 2026-08-15 · 37 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -32,6 +32,7 @@ _What the game is._
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-08-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-08-14 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
 | `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-14 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005 |
+| `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-08-15 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 
 ## Technical
 
@@ -106,12 +107,14 @@ _Visual and audio direction._
 - **economy** — DES-003, DES-008
 - **enemies** — DES-013
 - **engine** — TEC-001, TEC-005
+- **equipment** — DES-020
 - **ethics** — PRO-005, PRO-006
 - **extraction** — DES-005, DES-017
 - **factions** — DES-007
 - **feel** — DES-009
+- **first-person** — DES-020
 - **gameplay** — DES-009
-- **gear** — DES-008
+- **gear** — DES-008, DES-020
 - **generation** — DES-015
 - **glossary** — PRO-003
 - **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006
@@ -123,7 +126,7 @@ _Visual and audio direction._
 - **hud** — DES-018, DES-019
 - **hunter** — DES-017
 - **identity** — DES-011
-- **inventory** — DES-009, DES-019
+- **inventory** — DES-009, DES-019, DES-020
 - **ip** — PRO-004
 - **ip-safety** — DES-006
 - **items** — DES-008
@@ -179,6 +182,7 @@ _Visual and audio direction._
 - **setting** — DES-006
 - **shader** — ART-005
 - **skill-tree** — DES-003, DES-004, DES-011
+- **slots** — DES-020
 - **social** — DES-012, DES-014
 - **sound-design** — ART-002, ART-003
 - **specs** — ART-003, ART-004
@@ -197,5 +201,6 @@ _Visual and audio direction._
 - **trophies** — DES-016
 - **ui** — DES-014, DES-018, DES-019
 - **vision** — DES-001
+- **visual** — DES-020
 - **vitals** — DES-009
 - **world** — DES-006

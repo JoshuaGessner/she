@@ -630,4 +630,22 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
+## ADR-056 — Equipment slots, and how gear renders
+**Date:** 2026-08-15 · **Status:** accepted · **Closes Q96**
+**Context:** Q96 asked whether first-person arms are universal or per-class. Answering it surfaced a real gap: **every document referenced "slots" and none defined them.** The two questions are the same decision.
+
+**Decision — six slots:** Main hand · Off hand · Arms · Head · Body (torso *and* legs, one piece) · Pack. **No trinket slots** — `DES-009` already rejected a stat block as a third balance axis, and trinkets are that axis in a hat.
+
+**Arms:** shared skeleton, **shared animation set**, **per-class bare arms** (six meshes), with the Arms slot rendering over them. All armour is visible.
+
+**The cost-bounding rule: body armour stops at the elbow; the Arms slot owns everything below it.** Therefore **only the Arms slot ever needs a first-person mesh variant** — Head, Body and Pack are never in your own view. Without this rule every chest piece needs an FP sleeve variant and the armour budget roughly doubles.
+
+**Rationale:** The expensive part of first-person arms is animation, not meshes, and the shared skeleton (`ART-004`) means it is authored once. Six bare-arm meshes buy most of the class identity for a fraction of bespoke cost. Body-as-one-piece halves the armour mesh count for a difference stylised low-poly barely registers.
+
+**Reconciliation with `DES-008`:** "better gear" must mean **more appropriate, better preserved, better provenance — never bigger numbers.** A Dvergar king's mail looks extraordinary and is still a sidegrade. Visual progression tracks *where you have been*, not how strong you are — the same logic as `DES-016`'s trophies, and a better fantasy than a stat ladder.
+
+**Consequences:** **Attachment sockets for all six slots must be defined on the rig before any character work** — adding one later means re-exporting every mesh. Per armour set: 4 meshes, not 5, and not doubled for first person. The **Pack slot sets inventory grid size**, making the upgrade that increases your capacity the same upgrade that makes you heavier and louder — Pillar P1 as a piece of gear, and visible on your back so teammates can see who is hauling. Condition renders as line roughness under the ink shader, so a glance at your own hands reports how the run is going. `DES-020` created; onboarding moves to **DES-021**.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

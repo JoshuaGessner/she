@@ -32,7 +32,10 @@ Live queue of unresolved decisions. Resolved items move to `process/PRO-002-deci
 | Q92 | Confirm FMOD indie licensing terms at adoption | `TEC-005` |
 | Q93 | Do the three biomes share musical DNA? | `ART-003` — composer's call |
 | Q18 | How much hand-written text per contract? | `DES-007` — settled in principle, needs a volume target |
-| — | **DES-020 onboarding / the first hour** | `DES-010` names C1 as the largest churn point but does not design the answer. M4 work. |
+| — | **DES-021 onboarding / the first hour** | `DES-010` names C1 as the largest churn point but does not design the answer. M4 work. *(DES-020 became Equipment & Slots.)* |
+| Q105 | Off-hand swapping mid-run, or Lair-only? | `DES-020` — mid-run, slow, interruptible |
+| Q106 | Is there a *no pack* option — tiny grid, near-silent? | `DES-020` — almost free, great for a stealth run |
+| Q107 | Do class Rites change your bare arms over time? | `DES-020` — cheap mesh swap, non-numeric progression |
 | — | **Localization plan** | Cheap now, painful later; procedural contract text complicates string handling |
 | — | **Item & weapon taxonomy** | `DES-008` has philosophy, `DES-009` has feel, nothing has the list |
 
