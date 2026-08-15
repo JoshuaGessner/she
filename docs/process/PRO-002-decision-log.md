@@ -648,4 +648,27 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
+## ADR-057 — Equipment details and the rig attachment spec
+**Date:** 2026-08-15 · **Status:** accepted · **Closes Q105, Q106, Q107**
+- **Q105 — Off-hand swapping is mid-run, slow, and interruptible.** Same rule as opening the bag. Without a real time cost the lantern-versus-shield tension evaporates, because you would carry both and swap freely.
+- **Q106 — A *no pack* option exists.** Tiny grid, minimal weight, near-silent. Free to build (it is the absence of a mesh), available to any class, and the purest expression of refusing the greed loop: *I came for one thing.*
+- **Q107 — Rites visibly change your bare arms.** A mesh swap at two or three thresholds. **Non-numeric progression visible on your own body**, which `DES-022` names as the primary mitigation for horizontal progression feeling flat.
+
+**Rig attachment spec — decided now because adding a socket later means re-exporting every mesh on the rig.** Skinned (deforms): **Body, Arms**. Socketed (rigid): `sock_head` · `sock_hand_r` · `sock_hand_l` · `sock_back` · `sock_hip_r` · `sock_hip_l` · `sock_shoulders` (reserved, unused).
+
+**The two hip sockets are the cheap win:** a weapon you are *not* holding is visible stowed on your hip, so in co-op you can read someone's loadout at a glance. Party composition legibility for two bones and a transform.
+
+---
+
+## ADR-058 — The power model is capability, not numbers
+**Date:** 2026-08-15 · **Status:** accepted · **`DES-022` created**
+**Context:** *"If gear doesn't make you stronger, what lets you fight stronger things?"* The answer was implicit across `DES-003`, `DES-004`, `DES-008` and `DES-013` and stated in none of them — which is exactly how a design drifts back into a stat ladder.
+**Decision:** Documented as a single page. **You do not get stronger; you get harder to kill, better prepared, and better informed.** Illustrative shares: player knowledge ~35% · Lineage knowledge ~15% · Aspects and Rites ~25% · loadout and preparation ~15% · consumables and condition ~10%. **Roughly half of effective power is knowledge.**
+
+**The matching half — what "a rank-9 floor" means:** **enemy archetype stats are fixed. Difficulty scales by composition, density, modifiers, Hunt timing, time pressure and layout — never by giving the same enemy bigger numbers.** A Wretch is always a Wretch. An under-ranked player dies to *more things, worse things and less time*, which is also why a carried friend (ADR-010) survives at all: an unaware enemy is harmless whatever its stats.
+**Rationale:** The Tithe coupling (`DES-003`) only functions if power is capability. If power were a stat ladder, players would out-scale the Tithe and the escalation would stop meaning anything — the exact trivialisation `DES-003` was built to prevent.
+**Consequences:** **Archetype stats are set once and changed only by ADR** — the likeliest decay path is someone nudging Thursar damage each patch until archetypes *are* a ladder. The review test for any proposal: **"does this let the player do something new, or does it just make an existing number bigger?"** The second requires an ADR and a very good reason. Known risk accepted: some players will not *feel* progression — if playtest says "I don't feel stronger," the fix is louder keystones, not bigger numbers.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

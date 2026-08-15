@@ -97,6 +97,30 @@ Armour is **skinned to the shared skeleton and rendered in both views.** Teammat
 
 ---
 
+## Rig attachment spec (ADR-057)
+
+**Decided now, because adding a socket later means re-exporting every mesh on the rig.**
+
+The distinction that matters: **skinned meshes deform with the body; socketed meshes are rigid and ride a bone.**
+
+| Slot | Method | Bone / socket |
+|---|---|---|
+| **Body** | **Skinned** — deforms with torso and legs | — |
+| **Arms** | **Skinned** — deforms with the forearm | — |
+| **Head** | Socket | `sock_head` |
+| **Main hand** | Socket | `sock_hand_r` |
+| **Off hand** | Socket | `sock_hand_l` |
+| **Pack** | Socket | `sock_back` |
+| *Stowed weapon* | Socket | `sock_hip_r` |
+| *Stowed shield / second tool* | Socket | `sock_hip_l` |
+| *Cloak / mantle (reserved)* | Socket | `sock_shoulders` |
+
+**The two hip sockets are the cheap win.** A weapon you are not holding is **visible stowed on your hip**, so in co-op you can see at a glance that someone is carrying a hammer and a lantern rather than a spear. Readable party composition for the price of two bones and a transform.
+
+`sock_shoulders` is reserved unused — costs nothing now, and prevents a re-export if a cloak ever happens.
+
+**All sockets are authored on the shared humanoid rig before any character work begins** (`ART-004`).
+
 ## Art requirements this creates (`ART-004`)
 
 - **Attachment sockets on the shared rig for all six slots**, defined once, before any character work. Adding a socket later means re-exporting every mesh that uses the rig.
@@ -118,8 +142,8 @@ Slots are a `WearableTrait` field, so nothing here needs new schema:
 
 ## Open questions
 
-> **OPEN (Q105):** Can you swap off-hand items mid-run, or only at the Lair? Mid-run swapping is obviously right — but it needs a **time cost and a vulnerability window**, or the lantern-versus-shield tension evaporates. Leaning **mid-run, slow, and interruptible**.
+> **DECIDED (ADR-057):** **Off-hand swapping is mid-run, slow, and interruptible.** You kneel or stow, it takes real time, and you are vulnerable throughout — the same rule as opening your bag (`DES-019`). Without the time cost the lantern-versus-shield tension evaporates entirely, because you would simply carry both and swap freely.
 
-> **OPEN (Q106):** Does the Pack slot have a *no pack* option — nothing on your back, tiny grid, near-silent? Strong for a stealth Veiðimaðr run and thematically excellent (*I came for one thing*). Almost free, since it is the absence of a mesh.
+> **DECIDED (ADR-057):** **There is a *no pack* option.** Nothing on your back: tiny grid, minimal weight, near-silent. Almost free to build since it is the *absence* of a mesh, and it makes a genuine playstyle — *I came for one thing* — available to any class, not just the Veiðimaðr. It is also the purest possible expression of refusing the greed loop.
 
-> **OPEN (Q107):** Do class Rites (`DES-011`) ever change your bare arms — Úlfheðinn's arms becoming more wolf as the Rite deepens? Cheap if it is a mesh swap at a couple of thresholds, and a lovely non-numeric way to show progression.
+> **DECIDED (ADR-057):** **Rites visibly change your bare arms.** A mesh swap at two or three Rite thresholds — the Úlfheðinn's arms becoming more wolf, the Völva's ink spreading, the Haugbrjótr's hands more grave-stained. Cheap, and it is **non-numeric progression you can see on your own body**, which `DES-022` flags as the main mitigation for horizontal progression feeling flat.

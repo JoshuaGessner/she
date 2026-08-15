@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-15 · 37 documents_
+_Regenerated 2026-08-15 · 38 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -33,6 +33,7 @@ _What the game is._
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-08-14 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
 | `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-14 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-08-15 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
+| `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
 
 ## Technical
 
@@ -81,7 +82,7 @@ _Visual and audio direction._
 - **art** — ART-001, ART-004, ART-005
 - **assets** — ART-004
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
-- **balance** — DES-003, DES-004, DES-008, PRO-005
+- **balance** — DES-003, DES-004, DES-008, DES-022, PRO-005
 - **biomes** — DES-006
 - **blender** — ART-004
 - **brief** — ART-003
@@ -103,6 +104,7 @@ _Visual and audio direction._
 - **death** — DES-003
 - **decisions** — PRO-002
 - **deeds** — DES-016
+- **difficulty** — DES-022
 - **dmz** — DES-007
 - **economy** — DES-003, DES-008
 - **enemies** — DES-013
@@ -114,7 +116,7 @@ _Visual and audio direction._
 - **feel** — DES-009
 - **first-person** — DES-020
 - **gameplay** — DES-009
-- **gear** — DES-008, DES-020
+- **gear** — DES-008, DES-020, DES-022
 - **generation** — DES-015
 - **glossary** — PRO-003
 - **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006
@@ -157,11 +159,12 @@ _Visual and audio direction._
 - **pillars** — DES-001
 - **pipeline** — ART-004, PRO-006
 - **planning** — PRO-001
+- **power** — DES-022
 - **pressure** — DES-005, DES-017
 - **process** — PRO-002
 - **procgen** — DES-015
 - **production** — ART-004, PRO-001
-- **progression** — DES-004, DES-011, DES-014, DES-016
+- **progression** — DES-004, DES-011, DES-014, DES-016, DES-022
 - **psychology** — PRO-005
 - **public-domain** — PRO-004
 - **quests** — DES-007
@@ -182,6 +185,7 @@ _Visual and audio direction._
 - **setting** — DES-006
 - **shader** — ART-005
 - **skill-tree** — DES-003, DES-004, DES-011
+- **skills** — DES-022
 - **slots** — DES-020
 - **social** — DES-012, DES-014
 - **sound-design** — ART-002, ART-003
