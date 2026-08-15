@@ -1,7 +1,7 @@
 ---
 id: ART-003
 title: Composer & Sound Design Brief
-status: proposed
+status: accepted
 owner: art
 tags: [audio, handoff, brief, music, sound-design, specs]
 updated: 2026-08-14

@@ -1,10 +1,10 @@
 ---
 id: TEC-002
 title: Project Structure & Conventions
-status: draft
+status: accepted
 owner: tech
 tags: [structure, conventions, godot, tooling]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [TEC-001, PRO-001]
 ---
 

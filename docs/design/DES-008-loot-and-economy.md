@@ -1,10 +1,10 @@
 ---
 id: DES-008
 title: Loot, Gear & Economy
-status: draft
+status: accepted
 owner: design
 tags: [loot, economy, items, balance, greed, gear]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-003, DES-004, DES-005]
 ---
 
@@ -73,6 +73,6 @@ Better gear = **more options and better condition**, not bigger numbers. A veter
 
 Because **death wipes the stash**, this economy self-corrects in a way most extraction games can't manage — no permanent inflation spiral, no need for aggressive nerfs later. That's a strong structural argument for the LIFE-tier wipe in `DES-003`.
 
-> **OPEN:** Is there a currency at all, or is it barter/tribute only? Barter-only is thematically strong (a ruined world with no functioning economy) and dodges a whole class of inflation problems, but complicates vendors. Leaning **barter + a single soft currency for services** (repairs, safehouse fees).
+> **DECIDED (ADR-050):** **Barter and tribute, plus one soft currency for services only** — repairs, safehouse fees, the forge. Keeps the ruined-world tone and avoids a general-purpose money supply to inflate.
 
-> **OPEN:** Stash cap — hard slot count, weight budget, or per-category? Needs to be tight enough that hoarding can't make runs risk-free (`DES-003`). Leaning **modest slot cap, expandable via Lineage** — an unlock that grants convenience, not power.
+> **DECIDED (ADR-050):** **A modest slot cap, expanded by LINEAGE.** Convenience, never power (`DES-003`). Tight enough that hoarding cannot make runs risk-free.

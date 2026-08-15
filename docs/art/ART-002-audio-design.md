@@ -1,7 +1,7 @@
 ---
 id: ART-002
 title: Audio Design
-status: proposed
+status: accepted
 owner: art
 tags: [audio, music, sound-design, clamor, godot, budget]
 updated: 2026-08-14
@@ -115,7 +115,7 @@ Adaptive audio is a genuine specialism and this is a solo build, so priorities m
 
 > **DECIDED (ADR-043):** **Stepped states with long crossfades** ⟨~2–4s⟩. Discrete states the driver holds, not continuous layer gains. Indistinguishable in play, dramatically cheaper to author, mix, and debug — and it gives the composer something concrete to write *to* rather than a parameter to imagine. State table in `DES-018` and `ART-003`.
 
-> **OPEN (Q88):** Does the Threshold theme change as camp momentum builds (`DES-014`, ADR-025)? A fuller camp with a fuller arrangement is lovely and nearly free if the stems already exist.
+> **DECIDED (ADR-050):** **Yes.** A fuller camp gets a fuller arrangement — nearly free once the stems exist, and it makes momentum audible as well as visible.
 
 > **OPEN (Q89):** Do the six classes have any audio identity — the Skald's Verse obviously, but do the others sound different to play? Probably footsteps and gear weight only; anything more competes with the Clamor read.
 

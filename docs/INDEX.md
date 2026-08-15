@@ -13,25 +13,25 @@ _What the game is._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `DES-001` | [Vision & Pillars](design/DES-001-vision-and-pillars.md) | ✎ draft | 2026-08-12 | DES-002, DES-003, PRO-001 |
-| `DES-002` | [Core Loop](design/DES-002-core-loop.md) | ✎ draft | 2026-08-12 | DES-001, DES-003, DES-005, DES-006 |
-| `DES-003` | [Persistence & Meta-Progression](design/DES-003-persistence.md) | ◆ proposed | 2026-08-12 | DES-002, DES-004, DES-008, TEC-003 |
-| `DES-004` | [Skill Tree — The Dragon's Aspects](design/DES-004-skill-tree.md) | ◆ proposed | 2026-08-12 | DES-003, DES-007, DES-008 |
-| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ◆ proposed | 2026-08-12 | DES-002, DES-007, DES-008 |
-| `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✎ draft | 2026-08-12 | DES-001, PRO-004, DES-007 |
-| `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✎ draft | 2026-08-12 | DES-002, DES-006, DES-008 |
-| `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✎ draft | 2026-08-12 | DES-003, DES-004, DES-005 |
-| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ◆ proposed | 2026-08-12 | DES-005, DES-007, DES-008, PRO-001 |
-| `DES-010` | [Retention, Session Hooks & Churn Points](design/DES-010-retention-and-session-hooks.md) | ◆ proposed | 2026-08-12 | DES-002, DES-003, DES-007, PRO-001 |
-| `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ◆ proposed | 2026-08-12 | DES-004, DES-003, DES-012, DES-009 |
-| `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ◆ proposed | 2026-08-12 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
-| `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✎ draft | 2026-08-13 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
-| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✎ draft | 2026-08-13 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
-| `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✎ draft | 2026-08-13 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004 |
-| `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✎ draft | 2026-08-13 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
-| `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ◆ proposed | 2026-08-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
-| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ◆ proposed | 2026-08-14 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
-| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✎ draft | 2026-08-14 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005 |
+| `DES-001` | [Vision & Pillars](design/DES-001-vision-and-pillars.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, PRO-001 |
+| `DES-002` | [Core Loop](design/DES-002-core-loop.md) | ✔ accepted | 2026-08-14 | DES-001, DES-003, DES-005, DES-006 |
+| `DES-003` | [Persistence & Meta-Progression](design/DES-003-persistence.md) | ✔ accepted | 2026-08-14 | DES-002, DES-004, DES-008, TEC-003 |
+| `DES-004` | [Skill Tree — The Dragon's Aspects](design/DES-004-skill-tree.md) | ✔ accepted | 2026-08-14 | DES-003, DES-007, DES-008 |
+| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-08-14 | DES-002, DES-007, DES-008 |
+| `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-14 | DES-001, PRO-004, DES-007 |
+| `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-08-14 | DES-002, DES-006, DES-008 |
+| `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
+| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-08-14 | DES-005, DES-007, DES-008, PRO-001 |
+| `DES-010` | [Retention, Session Hooks & Churn Points](design/DES-010-retention-and-session-hooks.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-007, PRO-001 |
+| `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-08-14 | DES-004, DES-003, DES-012, DES-009 |
+| `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
+| `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-08-14 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
+| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
+| `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-08-14 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004 |
+| `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
+| `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-08-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
+| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-08-14 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-14 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005 |
 
 ## Technical
 
@@ -39,11 +39,11 @@ _How it gets built._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✎ draft | 2026-08-12 | TEC-002, TEC-003, DES-005 |
-| `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✎ draft | 2026-08-12 | TEC-001, PRO-001 |
-| `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✎ draft | 2026-08-12 | DES-003, TEC-001, TEC-002 |
-| `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ◆ proposed | 2026-08-12 | DES-012, TEC-001, TEC-003, PRO-001 |
-| `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ◆ proposed | 2026-08-14 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
+| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-08-14 | TEC-002, TEC-003, DES-005 |
+| `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✔ accepted | 2026-08-14 | TEC-001, PRO-001 |
+| `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-08-14 | DES-003, TEC-001, TEC-002 |
+| `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-14 | DES-012, TEC-001, TEC-003, PRO-001 |
+| `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-08-14 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 
 ## Process
 
@@ -51,12 +51,12 @@ _How we work, what we decided, what we must not do._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✎ draft | 2026-08-12 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-08-12 | DES-001, DES-003, PRO-001 |
-| `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✎ draft | 2026-08-12 | DES-003, DES-004, DES-005 |
-| `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ◆ proposed | 2026-08-12 | DES-006, PRO-003 |
-| `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ◆ proposed | 2026-08-12 | DES-003, DES-005, DES-009, DES-010 |
-| `PRO-006` | [Monetization](process/PRO-006-monetization.md) | ✔ accepted | 2026-08-13 | PRO-005, DES-014, DES-016, DES-001 |
+| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-08-14 | DES-001, TEC-001, TEC-003 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-08-14 | DES-001, DES-003, PRO-001 |
+| `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
+| `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
+| `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
+| `PRO-006` | [Monetization](process/PRO-006-monetization.md) | ✔ accepted | 2026-08-14 | PRO-005, DES-014, DES-016, DES-001 |
 
 ## Art & Audio
 
@@ -64,11 +64,11 @@ _Visual and audio direction._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✎ draft | 2026-08-12 | DES-001, DES-005, DES-006 |
-| `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ◆ proposed | 2026-08-14 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
-| `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ◆ proposed | 2026-08-14 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
-| `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ◆ proposed | 2026-08-14 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
-| `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ◆ proposed | 2026-08-14 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
+| `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✔ accepted | 2026-08-14 | DES-001, DES-005, DES-006 |
+| `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-08-14 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
+| `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-08-14 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
+| `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-08-14 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
+| `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-08-14 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
 
 ## By Tag
 

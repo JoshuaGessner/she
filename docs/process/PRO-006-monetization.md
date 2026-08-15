@@ -4,7 +4,7 @@ title: Monetization
 status: accepted
 owner: process
 tags: [monetization, business, ethics, cosmetics, pipeline]
-updated: 2026-08-13
+updated: 2026-08-14
 related: [PRO-005, DES-014, DES-016, DES-001]
 ---
 

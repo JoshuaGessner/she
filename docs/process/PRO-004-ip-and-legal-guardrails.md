@@ -1,10 +1,10 @@
 ---
 id: PRO-004
 title: IP & Legal Guardrails
-status: proposed
+status: accepted
 owner: process
 tags: [legal, ip, risk, naming, public-domain]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-006, PRO-003]
 ---
 

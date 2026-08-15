@@ -1,10 +1,10 @@
 ---
 id: DES-014
 title: The Lair
-status: draft
+status: accepted
 owner: design
 tags: [hub, lair, retention, social, co-op, ui, progression, networking]
-updated: 2026-08-13
+updated: 2026-08-14
 related: [DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004]
 ---
 
@@ -245,14 +245,14 @@ Cheap. High impact. Prototype it early.
 
 ## Open questions
 
-> **OPEN (Q66):** Does momentum loss remove **services** (the healer leaves) or only **warmth** (the camp looks emptier)? Services make the wipe stake real; warmth-only is safer against `PRO-005 §11`. Leaning **services, but only ones that are pure convenience** — never Waystones, never repairs.
+> **DECIDED (ADR-050):** **Services** — but **only pure-convenience ones.** Never Waystones, never repairs. Losing momentum must feel like the camp got colder, never like the game got harder (`PRO-005 §11`).
 
-> **OPEN (Q67):** A **gambling vendor** — unidentified grave-goods sold blind by a Choir scavenger. Extremely on-theme for a game about greed, and a good Boon sink. Also a variable-ratio mechanic, which `PRO-005 §10` restricts. Defensible if it uses only in-game resources and is **never** monetized, but it deserves a deliberate yes/no rather than drifting in.
+> **DECIDED:** **Yes**, with the guardrails in `PRO-005 §10` — never the best source of anything, no near-miss theatre, bounded known pool, no pity timers, hard stock cap. Tone does the work: seedy and a little sad, not exciting.
 
-> **OPEN (Q68):** Do NPC Bound **permanently die**? Strongly recommended — see above. Needs confirming because it means writing characters we intend to kill, and a persistence flag per NPC.
+> **DECIDED (ADR-027):** **Yes, permanently.** Authored personality, procedural life, and a simulated Pact Rank that eventually outruns them — they die of the same disease you have.
 
-> **OPEN (Q69):** Does the Lodge Quartermaster sell **Waystones**? Directly softens the pressure system (Q54). Probably yes but rarely and expensively.
+> **DECIDED (ADR-050):** **Yes — rarely and expensively.** Enough that a well-prepared player can buy an out; never enough to make the pressure system optional.
 
-> **OPEN (Q45):** Does she visibly change across a lineage — weaker, more fused into the stone each time? Ties to Q27 and ADR-019.
+> **DECIDED (ADR-050):** **Yes** — further fused into the stone with each lineage, a long-horizon signal of what the pact is doing to her as well as to you.
 
 > **OPEN (Q56):** If refusal is a real ending, it lives here. Where, and does the Threshold show it?

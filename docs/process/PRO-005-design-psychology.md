@@ -1,10 +1,10 @@
 ---
 id: PRO-005
 title: Design Psychology & Research Basis
-status: proposed
+status: accepted
 owner: process
 tags: [psychology, research, theory, balance, retention, ethics]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-003, DES-005, DES-009, DES-010]
 ---
 
@@ -151,7 +151,7 @@ And the positive obligations:
 
 **Where the real care is owed:** some players will not experience this theme as an abstraction. That's not an argument against making it — the best work about compulsion comes from people who recognize it — but it does argue for the rules above being non-negotiable rather than aspirational, and for the tone being *compassionate* rather than clever. She is not a joke about addiction. She is a creature who loves you and is killing you and cannot remember why.
 
-> **OPEN (Q56):** Should refusal be a mechanically supported ending? ADR-018 makes the final question *"do you keep feeding it?"* — which implies **no** must be answerable. An ending you reach by *stopping* is thematically exact and structurally strange in a roguelite. Worth designing properly rather than bolting on.
+> **DECIDED (ADR-049):** **Yes — refusal is one of three endings.** A door, a skippable cutscene, and the game quits itself. Nothing is deleted; she does not mention it when you return. See `DES-006`.
 
 ---
 

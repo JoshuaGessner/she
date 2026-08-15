@@ -4,7 +4,9 @@
 >
 > *Barony's grubby, systemic dungeon-crawling meets DMZ's layered mission structure, in service of a hoard-dragon who buys your soul one run at a time.*
 
-**Status: design phase.** No code yet. This repository currently holds the design corpus — 27 documents and 33 architecture decision records covering the full game design, technical architecture, and production plan. Implementation begins at M1 (see [roadmap](docs/process/PRO-001-roadmap-and-milestones.md)).
+**Status: design locked, implementation starting.** No engine code yet. This repository holds the design corpus — **35 documents and 53 architecture decision records** covering the full game design, technical architecture, art and audio direction, and production plan. Every design document is `accepted`; changing one now requires an ADR.
+
+Implementation begins at **M1**, whose only job is to answer whether moving and fighting is fun in a grey box (see [roadmap](docs/process/PRO-001-roadmap-and-milestones.md)).
 
 Built solo, as time allows. It is deliberately an experiment: a crowded genre, approached from an angle nobody has tried, to find out what happens.
 
@@ -40,6 +42,8 @@ Everything lives in [`docs/`](docs/). Start with the **[INDEX](docs/INDEX.md)**.
 | **[DES-005 Extraction Pressure](docs/design/DES-005-extraction-pressure.md)** | Weight, Clamor, the Hunt, the Sealing |
 | **[DES-011 Classes](docs/design/DES-011-classes.md)** | Six of the Sworn, each defined by *how they get out* |
 | **[DES-015 Level Generation](docs/design/DES-015-level-generation.md)** | Cyclic generation and history-driven space |
+| **[DES-017 The Gold-Sick](docs/design/DES-017-the-gold-sick.md)** | The Hunter — a Bound who never left, still trying to pay a debt |
+| **[ART-005 The Ink Shader](docs/art/ART-005-the-ink-shader.md)** | A woodcut you can walk through, drawn by your lantern |
 | **[PRO-002 Decision Log](docs/process/PRO-002-decision-log.md)** | Every decision, with the reasoning and the rejected alternatives |
 | **[OPEN-QUESTIONS](docs/OPEN-QUESTIONS.md)** | The live queue of what's unresolved |
 

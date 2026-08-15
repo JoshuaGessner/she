@@ -1,7 +1,7 @@
 ---
 id: TEC-005
 title: Audio Technology
-status: proposed
+status: accepted
 owner: tech
 tags: [audio, occlusion, middleware, godot, engine, risk]
 updated: 2026-08-14
@@ -104,6 +104,6 @@ Deciding now means guessing. Deciding at M1 means knowing.
 
 ## Open questions
 
-> **OPEN (Q91):** Adopt FMOD from the start, or build raw-Godot first and migrate when the musician is onboarded? Leaning **raw first** — a week of work, no dependency risk, and it proves the state machine before handing anyone a workflow.
+> **DECIDED (ADR-050):** **Raw Godot first**, migrating to FMOD when the musician is onboarded and their workflow becomes the deciding factor. A week of work, no dependency risk, and it proves the state machine before anyone is handed a pipeline.
 
 > **OPEN (Q92):** Confirm FMOD indie licensing terms at the point of adoption. They change, and it affects whether middleware is free.

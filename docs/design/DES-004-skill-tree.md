@@ -1,10 +1,10 @@
 ---
 id: DES-004
 title: Skill Tree — The Dragon's Aspects
-status: proposed
+status: accepted
 owner: design
 tags: [skill-tree, builds, meta, balance, progression]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-003, DES-007, DES-008]
 ---
 

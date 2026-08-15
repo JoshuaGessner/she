@@ -1,10 +1,10 @@
 ---
 id: DES-016
 title: Deeds & Trophies
-status: draft
+status: accepted
 owner: design
 tags: [trophies, deeds, lineage, camp, progression, retention]
-updated: 2026-08-13
+updated: 2026-08-14
 related: [DES-014, DES-003, DES-012, PRO-006, PRO-005]
 ---
 
@@ -67,8 +67,8 @@ Trophies must be **planned into gameplay, not bolted on afterward**, which means
 - **No completion percentage, no checklist UI.** A gallery of everything you *haven't* done converts the system from evidence into a chore (`PRO-005 §11`).
 - **No leaderboards, no comparison view.** Same reasoning as ADR-022 — you read a camp by looking at it.
 
-> **OPEN (Q70):** Should undiscovered deeds be *hinted* at, or entirely unknown until earned? Hints drive intentional play but create a checklist feel; total secrecy is purer but risks players never finding the best ones. Leaning **secret, with the Bound occasionally mentioning things they've seen done** — discovery through gossip.
+> **DECIDED (ADR-050):** **Secret**, discovered through **Bound gossip** — they mention things they have seen done. Discovery by rumour rather than a checklist.
 
-> **OPEN (Q71):** Do rescue deeds record *who* you carried out? Naming the friend is enormously more affecting and requires storing another player's identity in your save.
+> **DECIDED (ADR-050):** **Yes.** Naming the friend you carried out is enormously more affecting, and worth storing another player's identity in your save for.
 
-> **OPEN (Q72):** Is there a plot-space limit, forcing curation of what you display? A finite camp means choosing what you're known for, which is a good decision. An infinite one means never losing anything.
+> **DECIDED (ADR-050):** **Yes, finite.** A limited camp forces you to choose what you are known for, which is a better decision than never losing anything.

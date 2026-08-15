@@ -1,16 +1,16 @@
 ---
 id: ART-001
 title: Art & Audio Direction
-status: draft
+status: accepted
 owner: art
 tags: [art, audio, style, budget, readability]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-001, DES-005, DES-006]
 ---
 
 # Art & Audio Direction
 
-*Stub — expanded at M4 (`PRO-001`). Recorded now because style decisions constrain the engine work in `TEC-001`.*
+**Index doc.** The direction now lives across four documents: **`ART-002`** audio design · **`ART-003`** composer brief · **`ART-004`** asset pipeline and production schedule · **`ART-005`** the ink shader and visual direction. What remains here are the principles that govern all of them.
 
 ## Visual target
 
@@ -43,4 +43,4 @@ Audio does disproportionate work in this design and should be resourced accordin
 - Enemy variety comes from **recolour + modifier + behaviour swap** on a small base set (Principle 5).
 - Room modules are the art unit — a strong module library is worth more than any individual asset.
 
-> **OPEN:** Bought asset packs vs. bespoke? A coherent purchased base kit is a legitimate accelerator, but mixing packs is the classic way an indie game ends up looking like an asset flip. If buying, **buy one kit and stay inside it.**
+> **DECIDED (ADR-046):** **Three-phase pipeline** — blockout → pass → final. Environment volume from an owned library plus self-authored work (Blender, ShapeLab, Meshy); **identity assets always bespoke.** The asset-flip risk is handled by the **ink shader** (`ART-005`), which treats every surface uniformly and is far more effective at unifying mixed sources than staying inside a single purchased kit would have been. Full schedule and specs in `ART-004`.

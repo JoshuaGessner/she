@@ -1,10 +1,10 @@
 ---
 id: PRO-003
 title: Glossary
-status: draft
+status: accepted
 owner: process
 tags: [glossary, terminology, naming]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-003, DES-004, DES-005]
 ---
 

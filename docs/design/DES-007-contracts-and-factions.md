@@ -1,10 +1,10 @@
 ---
 id: DES-007
 title: Contracts & Factions
-status: draft
+status: accepted
 owner: design
 tags: [quests, contracts, factions, dmz, structure, replayability]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-002, DES-006, DES-008]
 ---
 
@@ -66,7 +66,7 @@ They must be **written with dignity, not as a nagging voice.** If they scold, th
 - **Standing is zero-sum ⟨tune⟩** between Deep-Kin and Silent Choir — you cannot max both in one life. Forces identity per life; supports the LIFE persistence tier (`DES-003`) by making each life *feel* different.
 - **Contacts persist to Lineage; standing does not.** A new life can talk to everyone but has to re-earn trust — which is exactly the right split (options persist, power doesn't).
 
-> **OPEN:** Should faction standing be spendable (a currency you burn on favours) or a threshold (a rank that unlocks tiers)? Spendable creates ongoing decisions and prevents standing from becoming a solved problem; threshold is more legible. Leaning **threshold for access, spendable for favours** — both, in separate lanes.
+> **DECIDED (ADR-050):** **Both, in separate lanes** — a *threshold* rank gates access to contract tiers, and standing is *spendable* on individual favours. Keeps access legible while leaving an ongoing decision.
 
 ## Generation
 
@@ -80,4 +80,4 @@ A complication is what makes a template feel authored: *the target is already de
 
 **~20 well-written complications generate more perceived variety than 100 hand-written quests, at a fraction of the cost.** Invest authoring effort in complications and in the *text*, not in instances.
 
-> **OPEN:** How much authored writing per contract? Fully procedural text reads as mush. Leaning **hand-written faction voice per archetype + procedural specifics** — a small authored corpus with slots.
+> **DECIDED (ADR-050):** **Hand-written faction voice per archetype, procedural specifics.** A small authored corpus with slots — the same split used for Calamities (`DES-015`) and the Bound (ADR-027). Volume target still to set.

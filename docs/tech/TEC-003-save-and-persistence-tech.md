@@ -1,10 +1,10 @@
 ---
 id: TEC-003
 title: Save System & Persistence Implementation
-status: draft
+status: accepted
 owner: tech
 tags: [save, persistence, serialization, migration, tech-debt]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-003, TEC-001, TEC-002]
 ---
 
@@ -62,10 +62,10 @@ Rules:
 
 Mid-run state lives in a separate `user://run.active` file so a crash or quit mid-run can be resumed rather than silently converted into a death.
 
-> **OPEN — important design question, not just technical:** is quitting mid-run allowed? Save-and-quit lets players scum out of losing runs, which corrodes the extraction tension the whole game rests on. Options: (A) quit = death, harsh and pure; (B) quit = suspend, resume forced on next launch, no re-roll — this is the standard solution and preserves tension while respecting real life; (C) quit = extraction failure, keep nothing, live. **Leaning B.**
+> **DECIDED (ADR-050):** **Suspend with forced resume.** Quitting mid-run suspends; you resume into the same run. **Dropping out of a co-op run leaves you a Vörðr** (`DES-012`), so disconnecting is never an escape from a bad run.
 
 ## Caches (`DES-005`)
 
 Player-hidden caches persisting between runs need a stable identity across procedurally regenerated floors. Store as `(biome, floor_depth, room_module_id, anchor_id)` and have the generator honour a request to place that specific module. Do this deliberately — it's a genuine constraint on the generator and needs to be in from the start, not bolted on.
 
-> **OPEN:** Do caches survive death? Recommend **no** — they're LIFE tier. But a Legacy slot spent on "the location of my caches" is a lovely, thematic use of a slot.
+> **DECIDED (ADR-050):** **No — caches are LIFE tier and die with you.** A Legacy slot may still be spent to carry *the knowledge of where they were*, which is a good use of a slot and thematically exact.

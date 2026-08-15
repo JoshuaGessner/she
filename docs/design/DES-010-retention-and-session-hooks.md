@@ -1,10 +1,10 @@
 ---
 id: DES-010
 title: Retention, Session Hooks & Churn Points
-status: proposed
+status: accepted
 owner: design
 tags: [retention, hooks, session, onboarding, churn, pacing]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-002, DES-003, DES-007, PRO-001]
 ---
 

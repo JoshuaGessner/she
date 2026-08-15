@@ -1,10 +1,10 @@
 ---
 id: DES-006
 title: World & Setting
-status: draft
+status: accepted
 owner: design
 tags: [world, setting, lore, tone, ip-safety, biomes]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-001, PRO-004, DES-007]
 ---
 
@@ -128,4 +128,4 @@ Named to avoid Tolkien's specific vocabulary (`PRO-004`) while keeping the arche
 
 **Explicitly avoided:** hobbits/halflings, orcs-as-Tolkien-wrote-them (we use *þurs*/troll-kin and Draugr instead), ents, balrogs, mithril, and every proper noun from his legendarium. See `PRO-004`.
 
-> **OPEN:** Is the player character a defined person, a lineage of nobodies, or a customizable avatar? Affects the Legacy death scene's emotional weight considerably. Leaning **lineage of nobodies with light customization** — nameless is thematically right and cheap.
+> **DECIDED (ADR-050):** **A lineage of nobodies, with light customisation.** Nameless is thematically right, cheap, and it makes the Legacy screen about what you *did* rather than who you were.

@@ -1,7 +1,7 @@
 ---
 id: ART-004
 title: Asset Pipeline & Production Schedule
-status: proposed
+status: accepted
 owner: art
 tags: [art, assets, pipeline, blender, godot, production, specs]
 updated: 2026-08-14

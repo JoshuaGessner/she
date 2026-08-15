@@ -1,10 +1,10 @@
 ---
 id: DES-001
 title: Vision & Pillars
-status: draft
+status: accepted
 owner: design
 tags: [vision, pillars, scope, north-star]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-002, DES-003, PRO-001]
 ---
 

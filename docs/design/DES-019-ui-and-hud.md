@@ -1,7 +1,7 @@
 ---
 id: DES-019
 title: UI & HUD
-status: draft
+status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
 updated: 2026-08-14
@@ -181,6 +181,6 @@ Different rules apply. **Numbers are appropriate here** — you are comparing ge
 
 > **OPEN (Q86):** How does the Ear behave for a **Vörðr** (`DES-012`)? A ghost makes no Clamor, so the core has nothing to report — but scouting for the living is their job, and the ring is exactly the tool for it. Leaning **core goes dark, ring stays live**.
 
-> **OPEN (Q83):** How is the Tithe surfaced *during* a run — always visible, or Lair-only? Always-visible keeps the obligation present while you decide whether to push deeper. Leaning **on the Burden layer, quietly**, since it is fundamentally a greed readout.
+> **DECIDED (ADR-050):** **Quietly, on the Burden layer.** It is fundamentally a greed readout, so it belongs next to weight and the Waystone.
 
-> **OPEN (Q84):** Does the ping wheel double as the silent-gesture system (`DES-012`), or are they separate? One system is cheaper and less to learn.
+> **DECIDED (ADR-050):** **One system.** Cheaper to build and less for players to learn.

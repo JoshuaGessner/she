@@ -1,7 +1,7 @@
 ---
 id: ART-005
 title: The Ink Shader — Visual Direction
-status: proposed
+status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
 updated: 2026-08-14

@@ -1,10 +1,10 @@
 ---
 id: TEC-001
 title: Godot Architecture
-status: draft
+status: accepted
 owner: tech
 tags: [godot, architecture, engine, systems]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [TEC-002, TEC-003, DES-005]
 ---
 

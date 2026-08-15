@@ -1,7 +1,7 @@
 ---
 id: DES-017
 title: The Gold-Sick — the Hunter
-status: proposed
+status: accepted
 owner: design
 tags: [hunter, pressure, ai, theme, clamor, extraction]
 updated: 2026-08-14
@@ -127,10 +127,10 @@ It is the game's hero asset: the most animation, the most audio, the most AI att
 
 ## Open questions
 
-> **OPEN (Q74):** Can a Gullsjúkr be *identified* as a specific dead NPC Bound — their name, their gear, their stave at camp going cold? Enormously powerful, and needs the death record to carry enough detail to reconstruct them. Strongly recommended, but confirm before ADR-027's persistence format is fixed.
+> **DECIDED (ADR-038):** **Yes, minimally and rarely.** Reuses ADR-027's existing death record plus one boolean; the Hunter spawns wearing that Bound's class silhouette and one distinguishing token. No gear reconstruction. Rare by design — if every Hunter is a dead friend it becomes cheap melodrama.
 
 > **OPEN (Q75):** Does killing one leave a **stave** you can bring back to the Threshold? Grim, cheap, and it would make the memorial wall include people you personally put down.
 
-> **OPEN (Q76):** How much gold does baiting cost? If a handful of coin buys ten seconds, it's a tax; if it costs a meaningful share of the run, it's a decision. Leaning **proportional to what you're carrying** — the richer you are, the more it takes to be interesting.
+> **DECIDED (ADR-039):** **Proportional to carried value.** The richer you are, the more it takes to make a thrown purse more interesting than you — so baiting stays a real decision at every wealth level instead of a fixed toll that trivialises late runs.
 
 > **OPEN (Q77):** Does it ever speak? Leaning **no words, but recognisable human sounds** — breathing, effort, counting. Never dialogue; the moment it talks, the player is told rather than shown.

@@ -1,10 +1,10 @@
 ---
 id: DES-002
 title: Core Loop
-status: draft
+status: accepted
 owner: design
 tags: [core-loop, structure, pacing, session]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-001, DES-003, DES-005, DES-006]
 ---
 
@@ -62,7 +62,7 @@ DMZ's tension had two sources: the environment/AI and other players. We take the
 
 **Adopted instead:** *asynchronous* player presence — the corpses, ghosts, warnings, and abandoned hoards of other players' failed runs appear in your dungeon as lootable, informative, occasionally hostile echoes. Souls-style messaging and Spelunky-style ghost-of-a-past-run. Gets the "other people are out here" texture at ~5% of the cost.
 
-> **OPEN:** Do dead players' echoes drop *their actual lost loot*? Very sticky hook (schadenfreude + revenge runs) but it's a real economy faucet and needs a server if it's cross-player. A local-only version (your *own* past corpses) is nearly free and still good.
+> **DECIDED (ADR-050):** Echoes are **local-only first** — your own past corpses, not other players'. Avoids the economy faucet and the server dependency; cross-player echoes stay a post-launch option.
 
 ## Session shape
 

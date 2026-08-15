@@ -1,10 +1,10 @@
 ---
 id: PRO-001
 title: Roadmap & Milestones
-status: draft
+status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-001, TEC-001, TEC-003]
 ---
 

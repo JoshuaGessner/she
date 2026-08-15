@@ -1,10 +1,10 @@
 ---
 id: DES-013
 title: Enemies & AI
-status: draft
+status: accepted
 owner: design
 tags: [enemies, ai, combat, clamor, systems, co-op]
-updated: 2026-08-13
+updated: 2026-08-14
 related: [DES-005, DES-007, DES-009, TEC-001, TEC-004]
 ---
 
@@ -120,8 +120,8 @@ This is a Barony inheritance and it earns its cost several times over: it produc
 - **Host-authoritative**, with relevance filtering so clients don't sync AI they can't perceive (`TEC-004`).
 - Senses are **Clamor-grid lookups**, not per-agent raycasts. Hearing must be O(1) per agent or the budget dies.
 
-> **OPEN:** Do enemies loot? A Wretch picking up gold you dropped, and having to kill it to get it back, is extremely on-theme — and a nightmare for the host-authoritative loot model. Cheap version: only **Gilded** enemies carry, and they never pick up.
+> **DECIDED (ADR-050):** **Enemies never pick up loot.** Only **Gilded** enemies carry value, and they carry it from the start. Keeps the host-authoritative loot model simple and preserves the Gilded modifier's identity.
 
-> **OPEN:** Is there a stealth-kill? A silent takedown on an Unaware enemy is the obvious reward for the Veiðimaðr, but it risks trivializing the awareness ladder if it's reliable. Leaning **yes, but slow, positional, and impossible while carrying heavy loot** — greed should close the option.
+> **DECIDED (ADR-050):** **Yes — but slow, positional, and impossible while heavily laden.** Greed closes the option, which is exactly the coupling this game wants.
 
-> **OPEN:** Respawns. None is cleanest and rewards clearing. But it makes a cleared floor a safe corridor, which undercuts the extraction walk. Leaning **no respawns, but the Hunt reintroduces pressure into cleared space** — the room is empty, and something is still coming.
+> **DECIDED (ADR-050):** **No respawns** — clearing a room means something. But **the Hunt repopulates cleared space**, so an empty floor never becomes a safe corridor and the extraction walk keeps its teeth.

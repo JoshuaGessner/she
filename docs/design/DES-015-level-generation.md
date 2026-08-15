@@ -1,10 +1,10 @@
 ---
 id: DES-015
 title: Level Generation
-status: draft
+status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-08-13
+updated: 2026-08-14
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004]
 ---
 
@@ -94,7 +94,9 @@ The myth hands us this for free: Gullveig is *already* the figure who brought go
 
 **The discipline this demands — and it is the whole thing:** the pattern must be **discoverable, never stated.** No NPC explains it. No codex entry spells it out. She certainly never admits it. If a character says "the gold is cursed, you know," the effect dies instantly and permanently. The evidence goes in the architecture, the grave-goods, the inscriptions, and the shape of how people died — and the player gets to be the one who says it out loud.
 
-> **OPEN (Q55):** Does *she* know? A wyrm who knows exactly what her gold does and asks for it anyway is a monster. One who doesn't is a tragedy. One who knew once and has burned the memory out of herself is both, and is the most interesting — but it's the hardest to write without stating it. Affects every line she has.
+> **DECIDED (ADR-019):** **She knew, and has burned the memory out of herself — repeatedly.** The only version where her fondness and her lethality are both sincere, and it makes her forgetting mechanical rather than backstory (`DES-006`). *Original framing kept below for the reasoning.*
+>
+> ~~Does *she* know?~~ A wyrm who knows exactly what her gold does and asks for it anyway is a monster. One who doesn't is a tragedy. One who knew once and has burned the memory out of herself is both, and is the most interesting — but it's the hardest to write without stating it. Affects every line she has.
 
 ## Layer 3 — Machines (rooms that pose questions)
 
@@ -146,11 +148,13 @@ Loot and enemies placed against the rules already established: greed gradient (`
 
 ## Open questions
 
-> **OPEN (Q51) — Authored set-piece floors?** Barony punctuates generated floors with unique ones. Enormous character-per-effort, but each is hand-built content that has to hold up in co-op at any rank. Leaning **yes, sparingly — one per expedition, at floor 3**, which is now also where the Deep Gate and the Cause both sit (ADR-015/018).
+> **DECIDED (ADR-050):** **Yes, sparingly — one per expedition, at floor 3**, where the Deep Gate and the Cause already sit.
 
-> **OPEN (Q52) — Does the level change during a run?** The Sealing (`DES-005`) already closes Shafts. Should the architecture do more — flooding, collapse, doors the Claimant shuts? Powerful for making the level an antagonist rather than a container, and it fights hard with determinism and late-join world-delta sync (ADR-016).
+> **DECIDED (ADR-050):** **No at 1.0.** Mid-run geometry mutation makes the late-join world delta unbounded (`TEC-004`, ADR-016). The Sealing already supplies escalation. Revisit post-launch.
 
-> **OPEN (Q54) — Waystone economy.** Drop rate is the primary tuning lever on the entire pressure system ⟨tune⟩. Too common and pressure evaporates; too rare and every run is forced to floor 3. Do Waystones stack? Can they be tributed? Can you carry two? Leaning **no stacking, not tributable, hard cap of one** — so it is always a binary "do I still have my out?"
+> **DECIDED — Waystone economy.** **No stacking, not tributable, hard cap of one**, so *"do I still have my out?"* stays a binary question answerable at a glance. Drop rate remains the primary tuning number ⟨tune⟩ and the strongest single lever on the whole pressure system.
+>
+> ~~Original:~~ Drop rate is the primary tuning lever on the entire pressure system ⟨tune⟩. Too common and pressure evaporates; too rare and every run is forced to floor 3. Do Waystones stack? Can they be tributed? Can you carry two? Leaning **no stacking, not tributable, hard cap of one** — so it is always a binary "do I still have my out?"
 
 ---
 

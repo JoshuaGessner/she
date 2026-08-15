@@ -1,10 +1,10 @@
 ---
 id: DES-011
 title: Classes — The Sworn
-status: proposed
+status: accepted
 owner: design
 tags: [classes, builds, skill-tree, identity, co-op, progression]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-004, DES-003, DES-012, DES-009]
 ---
 
@@ -130,8 +130,8 @@ All six must therefore be playable and balanced by **M4, not M5** (`PRO-001`).
 
 ## Open questions
 
-> **OPEN:** Can two players in a party be the same class? Allowing it is simpler and avoids lobby friction. Leaning **yes, allowed**.
+> **DECIDED (ADR-050):** **Yes, duplicates allowed.** Simpler, and it avoids lobby friction over who 'called' a class.
 
-> **OPEN:** Skald solo viability — does the class fundamentally not work alone? If songs only ever buff allies, solo Skald is unplayable. Needs a self-targeting mode that is thematically coherent.
+> **DECIDED (ADR-031):** Resolved by recasting the class — **songs act on the dungeon first, allies second.** Solo Skald is a controller, not a diminished co-op class.
 
-> **OPEN:** Gender presentation. *Völva* and *úlfheðinn* were historically gendered roles. Our world is invented (ADR-007), so all classes are open to all presentations; the class names are titles, not sexes. Confirm this is the intended stance.
+> **DECIDED (ADR-050):** **All classes are open to all gender presentations.** The class names are titles, not sexes — and the world is invented (ADR-007), so the historical gendering of *völva* and *úlfheðinn* does not bind us.

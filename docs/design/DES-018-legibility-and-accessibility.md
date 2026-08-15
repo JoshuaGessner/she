@@ -1,7 +1,7 @@
 ---
 id: DES-018
 title: Legibility & Accessibility
-status: proposed
+status: accepted
 owner: design
 tags: [accessibility, ui, hud, audio, legibility, clamor]
 updated: 2026-08-14
@@ -109,8 +109,8 @@ The rest, listed so it is planned rather than discovered late:
 
 ## Open questions
 
-> **OPEN (Q78):** Does the Ear show *other players'* Clamor in co-op? Enormously useful ("you're the loud one") and it adds clutter. Leaning **yes, small, on the party frame rather than the Ear itself.**
+> **DECIDED (ADR-039):** **Yes** — rendered small on the **party frame**, not on the Ear itself. Enables *"you're the loud one"* without cluttering the primary readout.
 
-> **OPEN (Q79):** Is there a haptic channel? Controller rumble as a third twin for Clamor and Hunter proximity is cheap and helps players who use neither channel comfortably. Recommended.
+> **DECIDED (ADR-039):** **Yes** — controller rumble as a third twin for Clamor and Hunter proximity. Cheap, and it helps players comfortable with neither of the other channels. It must never be the *only* carrier of anything.
 
 > **OPEN (Q80):** How much of the Hunter's *state* does the Ear reveal — bearing only, or coursing-versus-sighted too? Full parity with audio says everything the mix reveals. Confirm the mix isn't accidentally revealing more than intended.

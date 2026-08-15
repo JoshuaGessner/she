@@ -1,10 +1,10 @@
 ---
 id: DES-012
 title: Cooperative Play
-status: proposed
+status: accepted
 owner: design
 tags: [co-op, multiplayer, scaling, social, networking, retention]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-002, DES-003, DES-011, TEC-001, TEC-004]
 ---
 
@@ -52,7 +52,7 @@ From there, **two exits, and they are mutually exclusive:**
 
 **Solo:** the same, minus the wait. With nobody to carry your ember, it's return or end the run — which makes solo death heavier than co-op death, correctly.
 
-> **OPEN (Q61):** How long can a Vörðr linger before the choice is forced? A long window makes waiting free; a short one rushes a decision that should be agonizing. Leaning **a visible, shortening window** ⟨tune⟩ — your ember is going out whether you choose or not.
+> **DECIDED (ADR-050):** **A visible, shortening window** ⟨tune⟩. Your ember is going out whether you choose or not, so the decision is forced by the fiction rather than by a UI timer.
 
 ## Bear My Ember Out — death and rescue
 
@@ -152,8 +152,8 @@ Solo must be a first-class way to play, not a handicap:
 >
 > Removes the worst friction in co-op sessions: a friend who gets home late can still play with you tonight. **Costs:** the arriving player brings no accumulated loot, and **opening a gate is a loud Clamor event** — so "call them in here, or push somewhere quieter first?" is a real tactical question.
 
-> **OPEN:** Cross-progression between solo and co-op — same character, same life? **Leaning yes**, one pact regardless of who you play with. Splitting them doubles the progression surface for little benefit.
+> **DECIDED (ADR-050):** **One pact, regardless of who you play with.** Splitting solo and co-op progression would double the surface for no benefit.
 
 > **DECIDED (ADR-010/011):** Floors scale to the **highest** Pact Rank in the party. No rank gating — any two players may always play together. Boon is capped by *your own* rank, with overflow paid as Lineage.
 
-> **OPEN:** Solo self-recovery — does using it cost a Scar, a consumable, or a Legacy slot's worth of value? Must not be strictly better than having friends.
+> **DECIDED (ADR-050):** **Once per run, costly, and never better than having a friend.** Rarer and more desperate than a hand up, which is the correct relationship.

@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-001, DES-003, PRO-001]
 ---
 

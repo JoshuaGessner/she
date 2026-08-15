@@ -1,10 +1,10 @@
 ---
 id: DES-005
 title: Extraction Pressure — The Hunt
-status: proposed
+status: accepted
 owner: design
 tags: [pressure, pacing, extraction, tension, ai]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-002, DES-007, DES-008]
 ---
 
@@ -88,7 +88,7 @@ Pressure must have counters, or it's a tax rather than a system:
 
 > **RESOLVED by ADR-015:** the Shaft's location is known per floor; Waystones are found. Q8 closed.
 
-> **OPEN:** Does the Hunt persist across floors, or reset per floor? Persisting is far scarier and makes descent a real commitment; resetting is more forgiving and easier to tune. Leaning **persists, but loses you between floors if you're quiet** ⟨tune⟩. **Now more pointed under ADR-015** — a three-floor run means a persistent Hunt has a very long time to escalate.
+> **DECIDED (ADR-037):** **The Hunt persists across floors.** Descending grants nothing — going quiet and shedding carried value can shake it, but a staircase cannot. Descent is a commitment (`DES-017`).
 
 ## What we're deliberately not doing
 

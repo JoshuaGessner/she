@@ -1,10 +1,10 @@
 ---
 id: DES-003
 title: Persistence & Meta-Progression
-status: proposed
+status: accepted
 owner: design
 tags: [persistence, meta, balance, death, skill-tree, economy]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-002, DES-004, DES-008, TEC-003]
 ---
 

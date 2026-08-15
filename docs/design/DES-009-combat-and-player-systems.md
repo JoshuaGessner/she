@@ -1,10 +1,10 @@
 ---
 id: DES-009
 title: Combat, Movement & Player Systems
-status: proposed
+status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 

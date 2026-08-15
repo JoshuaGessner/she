@@ -1,10 +1,10 @@
 ---
 id: TEC-004
 title: Networking Architecture
-status: proposed
+status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-08-12
+updated: 2026-08-14
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
