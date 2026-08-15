@@ -602,4 +602,32 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
+## ADR-054 — Milestone progress is notation inside PRO-001, not a separate ledger
+**Date:** 2026-08-14 · **Status:** accepted
+**Context:** Progress across milestones was legible only by reading `PRO-001` prose and remembering what had actually been built. A tracking system needs machine-readable state, which normally means a `milestones.yaml` or an issue tracker.
+**Decision:** **Milestone state lives in `PRO-001` itself**, as checkbox tasks carrying permanent IDs (`M1-T01`), a `<!-- milestone id= depends= size= -->` comment per milestone, and `> **GATE Mx EXIT|COOP** \`state\`` lines. `tools/status.py` parses this file directly. No parallel ledger file exists.
+**Rationale:** A second file describing the same milestones drifts from the roadmap within weeks, and then neither is trustworthy. Keeping the state in the document people already read means updating progress and updating the roadmap are the same act. Cost: `PRO-001` is now load-bearing for a tool, so its formatting has rules. That is a fair trade for one source of truth — the same trade ADR-001 already made for the docs corpus.
+**Consequences:** Task IDs are permanent and never renumbered; a cut task keeps its ID with a `[-]` state and a reason. `PRO-001` is `accepted`, so scope changes still require an ADR — this entry authorises the *notation* only, and the conversion changed no scope item. Gate states are `pending | passed YYYY-MM-DD | failed YYYY-MM-DD — <reason>`; a failed gate is a normal working state, not an alarm, per ADR-034. Sizes are relative weights only and are `unknown` where `PRO-001` never stated one — **no part of this notation may be extended to express dates, durations, or velocity** (ADR-034).
+
+---
+
+## ADR-054 — 2m modular kit grid
+**Date:** 2026-08-14 · **Status:** accepted · **Closes Q95**
+**Decision:** Architecture is authored on a **2 metre grid**.
+**Rationale:** Cell-based generation (ADR-014) wants a shared module size, and 2m divides cleanly into the corridor and room widths a first-person game needs while staying fine-grained enough for interesting silhouettes. A 4m grid would force coarser spaces and fewer, chunkier rooms. Makes environment modules interchangeable across biomes, which multiplies the value of every piece authored.
+**Consequences:** All architecture snaps to 2m. Triplanar hatch density (ADR-051) is world-space, so grid discipline and scale accuracy reinforce each other. `ART-004` updated.
+
+---
+
+## ADR-055 — Data schemas: traits, not a class tree
+**Date:** 2026-08-14 · **Status:** accepted · **Delegated decision**
+**Context:** `.tres` shapes for items, enemies, skills, contracts, loot. Direction given: take the best recommendation.
+**Decision:** **`ItemResource` = core physical facts + an array of trait resources**, not an inheritance tree. Full spec in **`TEC-006`**.
+**Rationale:** `DES-008` deliberately makes items occupy several categories at once — a jewelled sword is gear *and* tribute; a grave-good is tribute *and* cursed *and* aggros a Draugr; a lantern is a light source in a weapon slot. An inheritance tree forces each into one bucket and then needs escape hatches everywhere. Composition handles it natively: a jewelled sword is `[Wieldable]` with a high `tribute_value`, and needs no new class.
+**Consequences:** Stable string IDs, never resource paths, so moving a file cannot break a save (`TEC-003`). Data never contains behaviour — resources declare `effect_tags` and systems react, which keeps `DES-004`'s "no node is purely numeric" rule *enforceable* rather than aspirational.
+
+**A CI validator is part of the decision, not an afterthought:** it fails the build on duplicate IDs, dangling references, keystones with no effect tags, free-money items — and on **any attack telegraphing under 250 ms** (ADR-053). A design rule that isn't checked is a design rule that erodes. Build it with the first ten resources, not the first thousand.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

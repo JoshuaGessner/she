@@ -14,12 +14,16 @@ related: [DES-001, TEC-001, TEC-003]
 
 The most common way a project like this dies is building the meta-progression first, because it's the most fun part to design. **Do not.** The meta-layer is worthless if the run isn't good.
 
+> **Notation (ADR-054).** Milestone scope is written as checkbox tasks with permanent IDs so `tools/status.py` can read progress straight out of this file. States: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` cut. The `→ DOC-ID` suffix at the end of a task line names the docs that task implements. Task IDs are never reused or renumbered. **This notation carries no schedule** — see *Estimates are lies* below.
+
 ---
 
 ## M0 — Design Lock (current)
+<!-- milestone id=M0 size=0 -->
 **Goal:** a signed-off design document set.
-**Exit:** `DES-001` through `DES-008` at status `accepted`; `OPEN-QUESTIONS.md` empty of blocking items.
 **Deliverable:** these docs.
+
+> **GATE M0 EXIT** `passed 2026-08-14` — `DES-001` through `DES-008` at status `accepted`; `OPEN-QUESTIONS.md` empty of blocking items.
 
 > **Reordered by ADR-008.** Co-op is no longer a late milestone — it is a constraint on every milestone. Networking exists from M1.
 
@@ -28,60 +32,69 @@ The most common way a project like this dies is building the meta-progression fi
 > Sizes below are *relative effort only*. The one piece of discipline that still matters without a deadline forcing it: **clear a milestone's exit gate before starting the next one.**
 
 ## M1 — The Feel Prototype  ·  *smallest milestone*
+<!-- milestone id=M1 depends=M0 size=1.0 -->
 **Goal:** answer "is moving and fighting in this space enjoyable?" — with grey boxes and zero content.
-- First-person controller: walk, sprint, crouch, stamina, weight affecting movement
-- One weapon, one enemy, hit reactions, death
-- One hand-built room set, no generation
-- Weight & Clamor as visible debug numbers
-- **Two players over localhost**, host-authoritative (`TEC-004`)
-- **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4.
-- **Determinism harness in CI**: same seed on two processes → identical layout hash
+- [ ] `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement → DES-009, DES-005
+- [ ] `M1-T02` One weapon, one enemy, hit reactions, death → DES-009, DES-013
+- [ ] `M1-T03` One hand-built room set, no generation → DES-015
+- [ ] `M1-T04` Weight & Clamor as visible debug numbers → DES-005
+- [ ] `M1-T05` **Two players over localhost**, host-authoritative (`TEC-004`) → TEC-004
+- [ ] `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. → TEC-004
+- [ ] `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash → TEC-001, DES-015
 
-**Exit gate:** *two people who aren't you play for 10 minutes and ask to keep playing.*
+> **GATE M1 EXIT** `pending` — *two people who aren't you play for 10 minutes and ask to keep playing.*
+
 **If this fails, nothing else matters.** Iterate here as long as needed. Do not proceed on hope.
 
 ## M2 — The Loop Prototype  ·  *~1.5× M1*
+<!-- milestone id=M2 depends=M1 size=1.5 -->
 **Goal:** prove the target sentence.
-- Loot with weight and clamor; inventory (prototype both models, Q23)
-- The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (`DES-005`)
-- **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build
+- [ ] `M2-T01` Loot with weight and clamor; inventory (prototype both models, Q23) → DES-008, DES-005, DES-019
+- [ ] `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (`DES-005`) → DES-017, DES-005
+- [ ] `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build → DES-018, DES-019, TEC-005
 - **Standing test from here on: every milestone must be playable to completion with audio muted**
-- Extraction: reach an exit, keep what you carried
-- Death: lose it all — plus **downed state and ember rescue** (`DES-012`)
-- Minimal Lair: stash and re-descend
-- **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players
+- [ ] `M2-T04` Extraction: reach an exit, keep what you carried → DES-005, DES-002
+- [ ] `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) → DES-003, DES-012
+- [ ] `M2-T06` Minimal Lair: stash and re-descend → DES-014
+- [ ] `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players → DES-012
 
-**Exit gate:** a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
-**Co-op gate:** someone carries a friend's ember out and it is the best moment of the session.
+> **GATE M2 EXIT** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
+
+> **GATE M2 COOP** `pending` — someone carries a friend's ember out and it is the best moment of the session.
 
 ## M3 — The Pact  ·  *~2× M1*
+<!-- milestone id=M3 depends=M2 size=2.0 -->
 **Goal:** prove meta-progression makes runs *more* interesting, not easier.
-- Tribute → Boon → Aspects; two Aspects fully implemented, three stubbed
-- **Two classes fully implemented** (recommend Húskarl and Veiðimaðr — opposite loop relationships), four stubbed (`DES-011`)
-- **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested
-- Tithe and Pact Rank escalation (`DES-003`)
-- Death → Legacy selection screen, with the "what you learned" panel first (ADR-006)
-- Save system with versioning and migration from day one (`TEC-003`)
+- [ ] `M3-T01` Tribute → Boon → Aspects; two Aspects fully implemented, three stubbed → DES-003, DES-004
+- [ ] `M3-T02` **Two classes fully implemented** (recommend Húskarl and Veiðimaðr — opposite loop relationships), four stubbed (`DES-011`) → DES-011
+- [ ] `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested → DES-003, DES-012
+- [ ] `M3-T04` Tithe and Pact Rank escalation (`DES-003`) → DES-003
+- [ ] `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) → DES-003, DES-019
+- [ ] `M3-T06` Save system with versioning and migration from day one (`TEC-003`) → TEC-003
 
-**Exit gate:** a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
-**Co-op gate:** a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
+> **GATE M3 EXIT** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
+
+> **GATE M3 COOP** `pending` — a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
 
 ## M4 — Vertical Slice  ·  *largest; art and audio dominate*
+<!-- milestone id=M4 depends=M3 size=unknown -->
 **Goal:** one biome, complete and polished, representative of the final game.
-- The Delvings: full generation from room modules, 3 floors
-- ~6 enemy archetypes, 2 hazard types
-- **All six classes playable**
-- Contracts tier 1–3, one faction (`DES-007`)
-- Real art pass, real audio, real UI, ping system
-- Full save/load, settings, controls rebinding
-- **Steam networking integration** (lobbies, invites, relay) — before any external playtest
+- [ ] `M4-T01` The Delvings: full generation from room modules, 3 floors → DES-015, DES-006
+- [ ] `M4-T02` ~6 enemy archetypes, 2 hazard types → DES-013
+- [ ] `M4-T03` **All six classes playable** → DES-011
+- [ ] `M4-T04` Contracts tier 1–3, one faction (`DES-007`) → DES-007
+- [ ] `M4-T05` Real art pass, real audio, real UI, ping system → ART-001, ART-002, DES-019, DES-012
+- [ ] `M4-T06` Full save/load, settings, controls rebinding → TEC-003, DES-018
+- [ ] `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest → TEC-004
 
-**Exit gate:** shippable-quality 45 minutes, played solo *and* as a 4-stack. This is what a publisher, a Steam page, or a Kickstarter would see.
+> **GATE M4 EXIT** `pending` — shippable-quality 45 minutes, played solo *and* as a 4-stack. This is what a publisher, a Steam page, or a Kickstarter would see.
 
 ## M5 — Content & Breadth
+<!-- milestone id=M5 depends=M4 size=unknown -->
 Remaining biomes, factions, Aspects, enemies. Balance passes against real telemetry, at every party size.
 
 ## M6 — Ship
+<!-- milestone id=M6 depends=M5 size=unknown -->
 Store page, IP attorney review (`PRO-004`), demo, playtesting at scale, launch.
 
 ---

@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-14 · 35 documents_
+_Regenerated 2026-08-14 · 36 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -44,6 +44,7 @@ _How it gets built._
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-08-14 | DES-003, TEC-001, TEC-002 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-14 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-08-14 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
+| `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-14 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 
 ## Process
 
@@ -97,6 +98,7 @@ _Visual and audio direction._
 - **conventions** — TEC-002
 - **core-loop** — DES-002
 - **cosmetics** — PRO-006
+- **data** — TEC-006
 - **death** — DES-003
 - **decisions** — PRO-002
 - **deeds** — DES-016
@@ -112,7 +114,7 @@ _Visual and audio direction._
 - **gear** — DES-008
 - **generation** — DES-015
 - **glossary** — PRO-003
-- **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005
+- **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006
 - **greed** — DES-008
 - **handoff** — ART-003
 - **history** — PRO-002
@@ -164,11 +166,13 @@ _Visual and audio direction._
 - **rendering** — ART-005
 - **replayability** — DES-007
 - **research** — PRO-005
+- **resources** — TEC-006
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
 - **risk** — PRO-004, TEC-004, TEC-005
 - **roadmap** — PRO-001
 - **save** — TEC-003
 - **scaling** — DES-012
+- **schema** — TEC-006
 - **scope** — DES-001, PRO-001
 - **serialization** — TEC-003
 - **session** — DES-002, DES-010
@@ -188,7 +192,8 @@ _Visual and audio direction._
 - **theme** — DES-017
 - **theory** — PRO-005
 - **tone** — DES-006
-- **tooling** — TEC-002
+- **tooling** — TEC-002, TEC-006
+- **tres** — TEC-006
 - **trophies** — DES-016
 - **ui** — DES-014, DES-018, DES-019
 - **vision** — DES-001

@@ -220,6 +220,6 @@ ASSET REQUEST
 
 > **OPEN (Q94):** What does the custom shader read — vertex colours, mask texture, palette atlas, or material IDs? **Decide before Phase 2**; it changes how every model is authored and is painful to retrofit.
 
-> **OPEN (Q95):** Is there a shared **modular kit grid** (e.g. 2m or 4m) for architecture? Cell-based generation (ADR-014) strongly favours one, and it makes environment assets interchangeable across biomes.
+> **DECIDED (ADR-054):** **2m grid.** Divides cleanly into first-person corridor and room widths while staying fine enough for interesting silhouettes; a 4m grid would force coarser spaces. Makes modules interchangeable across biomes. ~~Original:~~ Is there a shared **modular kit grid** (e.g. 2m or 4m) for architecture? Cell-based generation (ADR-014) strongly favours one, and it makes environment assets interchangeable across biomes.
 
 > **OPEN (Q96):** First-person arms — one universal pair, or per-class? Per-class is far better for identity (a Húskarl's gauntlets versus a Völva's bare hands) and multiplies the most-viewed asset in the game by six.
