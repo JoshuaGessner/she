@@ -602,15 +602,6 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
-## ADR-054 — Milestone progress is notation inside PRO-001, not a separate ledger
-**Date:** 2026-08-14 · **Status:** accepted
-**Context:** Progress across milestones was legible only by reading `PRO-001` prose and remembering what had actually been built. A tracking system needs machine-readable state, which normally means a `milestones.yaml` or an issue tracker.
-**Decision:** **Milestone state lives in `PRO-001` itself**, as checkbox tasks carrying permanent IDs (`M1-T01`), a `<!-- milestone id= depends= size= -->` comment per milestone, and `> **GATE Mx EXIT|COOP** \`state\`` lines. `tools/status.py` parses this file directly. No parallel ledger file exists.
-**Rationale:** A second file describing the same milestones drifts from the roadmap within weeks, and then neither is trustworthy. Keeping the state in the document people already read means updating progress and updating the roadmap are the same act. Cost: `PRO-001` is now load-bearing for a tool, so its formatting has rules. That is a fair trade for one source of truth — the same trade ADR-001 already made for the docs corpus.
-**Consequences:** Task IDs are permanent and never renumbered; a cut task keeps its ID with a `[-]` state and a reason. `PRO-001` is `accepted`, so scope changes still require an ADR — this entry authorises the *notation* only, and the conversion changed no scope item. Gate states are `pending | passed YYYY-MM-DD | failed YYYY-MM-DD — <reason>`; a failed gate is a normal working state, not an alarm, per ADR-034. Sizes are relative weights only and are `unknown` where `PRO-001` never stated one — **no part of this notation may be extended to express dates, durations, or velocity** (ADR-034).
-
----
-
 ## ADR-054 — 2m modular kit grid
 **Date:** 2026-08-14 · **Status:** accepted · **Closes Q95**
 **Decision:** Architecture is authored on a **2 metre grid**.
@@ -644,7 +635,7 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 **Reconciliation with `DES-008`:** "better gear" must mean **more appropriate, better preserved, better provenance — never bigger numbers.** A Dvergar king's mail looks extraordinary and is still a sidegrade. Visual progression tracks *where you have been*, not how strong you are — the same logic as `DES-016`'s trophies, and a better fantasy than a stat ladder.
 
-**Consequences:** **Attachment sockets for all six slots must be defined on the rig before any character work** — adding one later means re-exporting every mesh. Per armour set: 4 meshes, not 5, and not doubled for first person. The **Pack slot sets inventory grid size**, making the upgrade that increases your capacity the same upgrade that makes you heavier and louder — Pillar P1 as a piece of gear, and visible on your back so teammates can see who is hauling. Condition renders as line roughness under the ink shader, so a glance at your own hands reports how the run is going. `DES-020` created; onboarding moves to **DES-021**.
+**Consequences:** **Attachment sockets for all six slots must be defined on the rig before any character work** — adding one later means re-exporting every mesh. Per armour set: 4 meshes, not 5, and not doubled for first person. The **Pack slot sets inventory grid size**, making the upgrade that increases your capacity the same upgrade that makes you heavier and louder — Pillar P1 as a piece of gear, and visible on your back so teammates can see who is hauling. Condition renders as line roughness under the ink shader, so a glance at your own hands reports how the run is going. `DES-020` created; the onboarding doc is deferred and deliberately unwritten (ADR-065).
 
 ---
 
@@ -703,7 +694,7 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 **The problem:** M4 specified *all six classes* and a *45-minute* target. Six classes is **breadth, not a cross-section** — it is the one axis of the game that adds no new *systems*, only more content. As written, M4 would have delayed the moment we learn whether the game is worth finishing by months of pure content work.
 **Decision:** **M4 ships two classes (Húskarl and Veiðimaðr — opposite loop relationships) and targets 25 minutes** ⟨tune⟩. All six remain required *for launch* (ADR-012 — they are available from the start), but they move to **M5**.
 **Rationale:** The slice's job is to prove the game is worth finishing. Class breadth is what you build **once you know that it is.** Two classes with opposite relationships to the loop demonstrate that the class system works, which is what a slice needs to show.
-**Consequences:** M4 gets meaningfully smaller and arrives sooner. M5 absorbs the remaining four classes plus `DES-021` onboarding. **ADR-012 is unchanged** — all six at launch, availability from the start; only the milestone placement moved.
+**Consequences:** M4 gets meaningfully smaller and arrives sooner. M5 absorbs the remaining four classes plus the onboarding design work. **ADR-012 is unchanged** — all six at launch, availability from the start; only the milestone placement moved.
 
 ---
 
@@ -718,6 +709,64 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 **One pre-authorised escape hatch, recorded because a pre-mortem is where unsayable things belong:** *if co-op is what stops this shipping, solo-first with co-op post-launch is available.* The architecture already supports it — pacts are individual and progression never touches the network. **This does not reverse ADR-008**; it makes the option exist later without feeling like defeat.
 **Consequences:** **Re-run the pre-mortem at every milestone gate** — the failure modes that matter at M3 are not the ones on this page. "Decent unjuiced" is a *bar to clear and stop at*, not an aspiration to chase. Iterations are timeboxed at two weeks; combat feel is revisited **once**, at M4, with real assets.
+
+---
+
+## ADR-063 — Milestone progress is notation inside PRO-001, not a separate ledger
+**Date:** 2026-08-15 · **Status:** accepted · **`tools/status.py` created**
+**Context:** Progress across milestones was legible only by reading `PRO-001` prose and remembering what had actually been built. A tracking system needs machine-readable state, which normally means a `milestones.yaml` or an issue tracker. `PRO-007` names **"M1 never ends"** as the top project risk — a tracker that cannot show a gate standing open does nothing about it.
+**Decision:** **Milestone state lives in `PRO-001` itself**, as checkbox tasks carrying permanent IDs (`M1-T01`), a `<!-- milestone id= depends= size= -->` comment per milestone, and `> **GATE Mx EXIT|COOP** \`state\`` lines. `tools/status.py` parses this file directly and renders it to a terminal view, `docs/STATUS.md` and `docs/status.html`. No parallel ledger file exists.
+**Rationale:** A second file describing the same milestones drifts from the roadmap within weeks, and then neither is trustworthy. Keeping the state in the document already being read means updating progress and updating the roadmap are the same act. Cost: `PRO-001` is now load-bearing for a tool, so its formatting has rules. That is a fair trade for one source of truth — the same trade ADR-001 already made for the docs corpus.
+**Consequences:** Task IDs are permanent and never renumbered; a cut task keeps its ID with a `[-]` state and a reason. `PRO-001` is `accepted`, so scope changes still require an ADR — this entry authorises the *notation* only, and the original conversion changed no scope item. Gate states are `pending | passed YYYY-MM-DD | failed YYYY-MM-DD — <reason>`; a failed gate is a normal working state, not an alarm, per ADR-034. Sizes are relative weights only and are `unknown` where `PRO-001` never stated one. **No part of this notation may be extended to express dates, durations, or velocity** (ADR-034) — the tool reports scope covered, never time remaining. `status.py --check` enforces sequencing: no task may leave `[ ]` while the milestone it depends on has an unpassed gate.
+
+---
+
+## ADR-064 — No stubs, no placeholders, no parallel fallbacks
+**Date:** 2026-08-15 · **Status:** accepted
+**Context:** Directed. Several existing decisions violated this and are corrected below.
+**Decision:** **Build fewer things completely rather than many things partially.**
+
+Three distinctions that make this workable rather than absolutist:
+
+| | Verdict |
+|---|---|
+| **Absent** — not built yet, not present in the build, not in any menu | ✅ **Correct.** This is scoping. |
+| **Stub** — present in the build but empty, fake, or non-functional | ❌ **Banned.** It lies to playtesters and rots silently. |
+| **Parallel fallback** — a second, worse code path maintained alongside the real one | ❌ **Banned.** Doubles maintenance and hides failure. |
+| **Gate decision** — one path chosen once at a decision point, the other never built | ✅ **Correct.** Not a fallback; a choice. |
+
+**Rationale:** A stubbed class in a class-select screen is worse than no class — a playtester picks it, it does nothing, and the feedback is worthless. A maintained fallback path is worse than a decision, because it defers the decision forever while costing upkeep in both branches.
+
+**The sanctioned-exception test.** A placeholder is permitted **only** if it has **both**:
+1. a **named replacement task with a permanent ID** in `PRO-001`, and
+2. a **milestone by which it is gone**.
+
+Anything else requires an ADR naming the specific stub, why it is unavoidable, and when it dies.
+
+**What this legitimately permits:**
+- **Blockout art** (ADR-046) — a *named production phase* with a scheduled replacement, not a placeholder. Passes both tests.
+- **`⟨tune⟩` numbers** — data, not systems, and already governed by `CLAUDE.md §1`.
+- **Grey-box levels at M1** — same reasoning as blockout.
+
+**Corrections made to existing decisions:**
+- `PRO-001` M3-T01/T02 said *"three Aspects stubbed"* and *"four classes stubbed."* **Changed to absent.** Unbuilt classes do not appear in the class-select screen at all.
+- ADR-062's shader fallback reworded: it is a **one-time gate decision at the spike**, not a second renderer maintained in parallel.
+- `TEC-001`'s alternative normal-buffer approaches are marked **recorded, not built** — they exist to close a question, and no code will be written for them.
+
+**Consequences:** A milestone ships fewer, complete features. `status.py --check` should flag any task whose description contains stub/placeholder language without a paired removal task. **The M4 slice is unaffected** — it was always "all systems present, less content," which is exactly this policy.
+
+---
+
+## ADR-065 — Every accepted doc has an implementing task; every milestone has a gate
+**Date:** 2026-08-15 · **Status:** accepted
+**Context:** A tracking pass found seven accepted documents with no task implementing them, one milestone with tasks but no exit gate, and one dangling reference to an unwritten doc.
+**Decision:**
+1. **Every accepted doc is either scheduled or explicitly parked.** Tasks added for `TEC-002`, `TEC-006`, `ART-003`, `ART-004`, `ART-005`, `DES-016`, `DES-020`.
+2. **Every milestone has an exit gate.** `GATE M5 EXIT` added — without one a milestone can never be cleared, and nothing may depend on it.
+3. **The dangling forward reference to an unwritten onboarding doc is removed.** Onboarding is real M5 work, but **a reference to a document that does not exist is itself a stub** (ADR-064). The M5 task now names the deliverable rather than citing a phantom ID. Writing it now would also violate the pre-mortem's *"documentation became the project"* warning — it is not needed to start development, and the doc will get the next free `DES-` number when it is actually written.
+
+**Rationale:** An accepted document with no implementing task is indistinguishable from an abandoned one. The three states must be visible and distinct: **scheduled**, **deliberately parked**, or **not accepted yet.**
+**Consequences:** `PRO-001` gains ten tasks and one gate. `status.py --check` should fail on any accepted doc with no implementing task and no explicit park marker, and on any milestone with tasks but no gate.
 
 ---
 

@@ -1,0 +1,156 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Project SHE — Status</title>
+<style>
+:root{
+  --bg:#e9e0cd; --bg2:#f2ebdc; --ink:#1c1815; --ink2:#5b5044;
+  --rule:#c4b79c; --gold:#9a6f24; --gold2:#c89a3c;
+  --pass:#3f6b46; --fail:#8d3524; --hatch:rgba(28,24,21,.14);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0e0d0b; --bg2:#17150f; --ink:#e8dfcd; --ink2:#9a9081;
+    --rule:#332e24; --gold:#c8a04a; --gold2:#e0bc6a;
+    --pass:#6ba36f; --fail:#c4614a; --hatch:rgba(232,223,205,.13);
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;padding:clamp(1rem,4vw,3rem);background:var(--bg);color:var(--ink);
+  font:16px/1.55 ui-serif,Georgia,"Iowan Old Style",serif;
+  background-image:repeating-linear-gradient(45deg,var(--hatch) 0 1px,transparent 1px 7px);
+  background-attachment:fixed}
+main{max-width:60rem;margin:0 auto}
+h1{font-size:clamp(1.6rem,5vw,2.4rem);margin:0;letter-spacing:.14em;text-transform:uppercase}
+h2{font-size:1.05rem;letter-spacing:.18em;text-transform:uppercase;color:var(--ink2);
+  margin:2.5rem 0 .8rem;font-weight:600}
+.sub{color:var(--ink2);margin:.3rem 0 0;font-style:italic}
+.card{background:var(--bg2);border:1px solid var(--rule);padding:1rem 1.15rem;margin:.7rem 0}
+.now{border-left:4px solid var(--gold)}
+.now h3{color:var(--gold)}
+.row{display:flex;gap:.75rem;align-items:baseline;flex-wrap:wrap}
+.row h3{margin:0;font-size:1.1rem}
+.tag{font:600 .7rem/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink2);border:1px solid var(--rule);padding:.25rem .45rem}
+.count{margin-left:auto;font:600 .85rem ui-monospace,monospace;color:var(--ink2)}
+.track{display:flex;height:14px;margin:.75rem 0;border:1px solid var(--rule);overflow:hidden}
+.done{background:var(--gold)}
+.doing{background:repeating-linear-gradient(45deg,var(--gold) 0 2px,transparent 2px 5px)}
+.left{background:repeating-linear-gradient(45deg,var(--hatch) 0 1px,transparent 1px 5px)}
+.gate{display:flex;gap:.6rem;align-items:flex-start;margin-top:.6rem;padding-top:.6rem;
+  border-top:1px dashed var(--rule);font-size:.92rem}
+.seal{font:600 .68rem/1.6 ui-monospace,monospace;letter-spacing:.08em;padding:.1rem .45rem;
+  border:1px solid currentColor;white-space:nowrap}
+.pending{color:var(--ink2)} .passed{color:var(--pass)} .failed{color:var(--fail)}
+details{margin-top:.7rem} summary{cursor:pointer;color:var(--ink2);font-size:.9rem}
+ul.tasks{list-style:none;padding:0;margin:.6rem 0 0}
+ul.tasks li{padding:.3rem 0;border-bottom:1px solid var(--rule);font-size:.93rem;
+  display:flex;gap:.6rem;align-items:baseline}
+ul.tasks li:last-child{border-bottom:0}
+.tid{font:600 .78rem ui-monospace,monospace;color:var(--ink2);white-space:nowrap}
+.refs{margin-left:auto;font:.72rem ui-monospace,monospace;color:var(--ink2);white-space:nowrap}
+.state{width:1.1em;text-align:center}
+.s-x{color:var(--gold)} .s-doing{color:var(--gold2)} .s-cut{color:var(--fail);text-decoration:line-through}
+.blocker{border-left:4px solid var(--fail)}
+.blocker .code{color:var(--fail)}
+/* Warnings are advisory — they must never out-shout the blockers above them. */
+.warn{border-left:3px solid var(--gold2);padding:.45rem .8rem;margin:.3rem 0;font-size:.92rem}
+.warn .fix{font-size:.85rem}
+.code{font:600 .78rem ui-monospace,monospace;letter-spacing:.05em}
+.fix{color:var(--ink2);font-style:italic;font-size:.9rem}
+.clean{color:var(--pass)}
+.stats{display:flex;flex-wrap:wrap;gap:1.5rem;color:var(--ink2);font-size:.88rem;
+  border-top:1px solid var(--rule);margin-top:2.5rem;padding-top:1rem}
+.stats b{color:var(--ink);font-weight:600}
+footer{margin-top:1.2rem;color:var(--ink2);font-size:.82rem}
+code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
+</style></head><body><main>
+<h1>Project SHE</h1>
+<p class="sub">M1 — The Feel Prototype · 0/43 tasks across the roadmap</p>
+<p class="sub">“<em>two people who aren&#x27;t you play for 10 minutes and ask to keep playing.</em>”</p>
+<h2>Blockers</h2>
+<div class="card"><span class="clean">None. Sequencing is clean — nothing has started ahead of its gate.</span></div>
+<h2>Milestones</h2>
+<div class="card"><div class="row"><h3>M0 — Design Lock</h3><span class="count">✔</span></div>
+<div class="gate"><span class="seal passed">EXIT passed 2026-08-14</span><span><code>DES-001</code> through <code>DES-008</code> at status <code>accepted</code>; <code>OPEN-QUESTIONS.md</code> empty of blocking items.</span></div>
+</div>
+<div class="card now"><div class="row"><h3>M1 — The Feel Prototype</h3><span class="tag">×1</span><span class="count">0/10</span></div>
+<div class="track"><span class="done" style="width:0.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:100.0%"></span></div>
+<div class="gate"><span class="seal pending">EXIT pending</span><span><em>two people who aren&#x27;t you play for 10 minutes and ask to keep playing.</em></span></div>
+<details><summary>10 tasks</summary><ul class="tasks">
+<li><span class="state ">·</span><span class="tid">M1-T01</span><span>First-person controller: walk, sprint, crouch, stamina, weight affecting movement</span><span class="refs">DES-009 DES-005</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T02</span><span>One weapon, one enemy, hit reactions, death</span><span class="refs">DES-009 DES-013</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T03</span><span>One hand-built room set, no generation</span><span class="refs">DES-015</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T04</span><span>Weight &amp; Clamor as visible debug numbers</span><span class="refs">DES-005</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T05</span><span><strong>Two players over localhost</strong>, host-authoritative (<code>TEC-004</code>)</span><span class="refs">TEC-004</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T06</span><span><strong>Networking spike test — go/no-go:</strong> 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4.</span><span class="refs">TEC-004</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T07</span><span><strong>Determinism harness in CI</strong>: same seed on two processes → identical layout hash</span><span class="refs">TEC-001 DES-015</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T08</span><span><strong>Godot project skeleton</strong> — folder layout, autoload stubs against the ≤6 budget, Forward+, naming and GDScript conventions, CI for index + determinism</span><span class="refs">TEC-002 TEC-001</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T09</span><span><strong>Ink shader spike</strong> — grey boxes, outlines and boil only. <strong>Go/no-go</strong>: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064)</span><span class="refs">ART-005</span></li>
+<li><span class="state ">·</span><span class="tid">M1-T10</span><span><strong>Shared humanoid rig with all six attachment sockets</strong> — must exist before <em>any</em> character work; adding a socket later means re-exporting every mesh</span><span class="refs">ART-004 DES-020</span></li>
+</ul></details>
+</div>
+<div class="card"><div class="row"><h3>M2 — The Loop Prototype</h3><span class="tag">×1.5</span><span class="count">0/9</span></div>
+<div class="track"><span class="done" style="width:0.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:100.0%"></span></div>
+<div class="gate"><span class="seal pending">EXIT pending</span><span>a playtester <strong>voluntarily abandons loot to survive</strong>, then talks about it afterwards. That&#x27;s the whole game in one moment. If it doesn&#x27;t happen, the pressure system is wrong, not the content.</span></div>
+<div class="gate"><span class="seal pending">COOP pending</span><span>someone carries a friend&#x27;s ember out and it is the best moment of the session.</span></div>
+<details><summary>9 tasks</summary><ul class="tasks">
+<li><span class="state ">·</span><span class="tid">M2-T01</span><span>Loot with weight and clamor; inventory (prototype both models, Q23)</span><span class="refs">DES-008 DES-005 DES-019</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T02</span><span>The Hunt: clamor field, <strong>the Gullsjúkr</strong> (<code>DES-017</code> — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (<code>DES-005</code>)</span><span class="refs">DES-017 DES-005</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T03</span><span><strong>The Ear + adaptive audio driver</strong> (<code>DES-018</code>, ADR-035/036) — both channels together, from the first build</span><span class="refs">DES-018 DES-019 TEC-005</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T04</span><span>Extraction: reach an exit, keep what you carried</span><span class="refs">DES-005 DES-002</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T05</span><span>Death: lose it all — plus <strong>downed state and ember rescue</strong> (<code>DES-012</code>)</span><span class="refs">DES-003 DES-012</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T06</span><span>Minimal Lair: stash and re-descend</span><span class="refs">DES-014</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T07</span><span><strong>Party scaling instrumented from the first build</strong>: per-capita extracted value at 1/2/4 players</span><span class="refs">DES-012</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T08</span><span><strong>Data schema base resources</strong> — <code>ItemResource</code> + trait resources, stable string IDs, <strong>plus the CI validator</strong> (duplicate IDs, dangling refs, telegraph &lt;250 ms, keystones with no effect tags). Built with the first ten resources, not the first thousand</span><span class="refs">TEC-006</span></li>
+<li><span class="state ">·</span><span class="tid">M2-T09</span><span><strong>Threshold theme + adaptive driver prototype</strong> — the emotional anchor and the highest-risk audio tech, both cheap to test early</span><span class="refs">ART-002 ART-003 TEC-005</span></li>
+</ul></details>
+</div>
+<div class="card"><div class="row"><h3>M3 — The Pact</h3><span class="tag">×2</span><span class="count">0/8</span></div>
+<div class="track"><span class="done" style="width:0.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:100.0%"></span></div>
+<div class="gate"><span class="seal pending">EXIT pending</span><span>a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the <code>DES-003</code> balance guardrails.</span></div>
+<div class="gate"><span class="seal pending">COOP pending</span><span>a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and <em>still wants to go again</em>. If they don&#x27;t, the ember rescue isn&#x27;t doing enough work.</span></div>
+<details><summary>8 tasks</summary><ul class="tasks">
+<li><span class="state ">·</span><span class="tid">M3-T01</span><span>Tribute → Boon → Aspects; <strong>two Aspects complete. The other three are absent — not stubbed, not listed, not selectable</strong> (ADR-064)</span><span class="refs">DES-003 DES-004</span></li>
+<li><span class="state ">·</span><span class="tid">M3-T02</span><span><strong>Two classes complete</strong> — Húskarl and Veiðimaðr, opposite loop relationships. <strong>The other four are absent from the class-select screen entirely.</strong> A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064)</span><span class="refs">DES-011</span></li>
+<li><span class="state ">·</span><span class="tid">M3-T03</span><span><strong>Boon cap by own rank</strong> (ADR-011) — must exist before mixed-rank parties are tested</span><span class="refs">DES-003 DES-012</span></li>
+<li><span class="state ">·</span><span class="tid">M3-T04</span><span>Tithe and Pact Rank escalation (<code>DES-003</code>)</span><span class="refs">DES-003</span></li>
+<li><span class="state ">·</span><span class="tid">M3-T05</span><span>Death → Legacy selection screen, with the &quot;what you learned&quot; panel first (ADR-006)</span><span class="refs">DES-003 DES-019</span></li>
+<li><span class="state ">·</span><span class="tid">M3-T06</span><span>Save system with versioning and migration from day one (<code>TEC-003</code>)</span><span class="refs">TEC-003</span></li>
+<li><span class="state ">·</span><span class="tid">M3-T07</span><span><strong>Equipment slots and visible gear</strong> — six slots, per-class bare arms, armour rendering over them, Pack driving grid size</span><span class="refs">DES-020</span></li>
+<li><span class="state ">·</span><span class="tid">M3-T08</span><span><strong>Deeds awarded at the Settle beat</strong> — never mid-run; the run must end on evidence of what you did</span><span class="refs">DES-016</span></li>
+</ul></details>
+</div>
+<div class="card"><div class="row"><h3>M4 — Vertical Slice</h3><span class="tag">unsized</span><span class="count">0/10</span></div>
+<div class="track"><span class="done" style="width:0.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:100.0%"></span></div>
+<div class="gate"><span class="seal pending">EXIT pending</span><span>shippable-quality <strong>25 minutes</strong> ⟨tune⟩, played solo <em>and</em> as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.</span></div>
+<details><summary>10 tasks</summary><ul class="tasks">
+<li><span class="state ">·</span><span class="tid">M4-T01</span><span>The Delvings: full generation from room modules, 3 floors</span><span class="refs">DES-015 DES-006</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T02</span><span>~6 enemy archetypes, 2 hazard types</span><span class="refs">DES-013</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T03</span><span><strong>Two classes</strong>, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. <em>The other four move to M5 (ADR-061).</em></span><span class="refs">DES-011</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T04</span><span>Contracts tier 1–3, one faction (<code>DES-007</code>)</span><span class="refs">DES-007</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T05</span><span>Real art pass, real audio, real UI, ping system</span><span class="refs">ART-001 ART-002 DES-019 DES-012</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T06</span><span>Full save/load, settings, controls rebinding</span><span class="refs">TEC-003 DES-018</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T07</span><span><strong>Steam networking integration</strong> (lobbies, invites, relay) — before any external playtest</span><span class="refs">TEC-004</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T08</span><span><strong>Ink shader, complete</strong> — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library</span><span class="refs">ART-005</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T09</span><span><strong>Composer onboarded; first full stem set</strong> — brief handed over as-is, stems authored to one tempo and key</span><span class="refs">ART-003</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T10</span><span><strong>Phase 2→3 asset production</strong> — real models replacing blockout, per the schedule and specs</span><span class="refs">ART-004</span></li>
+</ul></details>
+</div>
+<div class="card"><div class="row"><h3>M5 — Content &amp; Breadth</h3><span class="tag">unsized</span><span class="count">0/6</span></div>
+<div class="track"><span class="done" style="width:0.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:100.0%"></span></div>
+<div class="gate"><span class="seal pending">EXIT pending</span><span>all six classes, three biomes and the full enemy roster complete and balanced; <code>DES-022</code>&#x27;s balance checks pass at every party size; <strong>self-reported growth across runs 11–25 shows no dip</strong> (the headline metric). Feature-complete: from here, only bugs and polish.</span></div>
+<details><summary>6 tasks</summary><ul class="tasks">
+<li><span class="state ">·</span><span class="tid">M5-T01</span><span><strong>The remaining four classes</strong> — moved here by ADR-061; all six are required for launch (ADR-012)</span><span class="refs">DES-011</span></li>
+<li><span class="state ">·</span><span class="tid">M5-T02</span><span>Remaining biomes — Barrow-Fields, Sunken Wood</span><span class="refs">DES-006 DES-015</span></li>
+<li><span class="state ">·</span><span class="tid">M5-T03</span><span>Remaining factions and Aspects</span><span class="refs">DES-007 DES-004</span></li>
+<li><span class="state ">·</span><span class="tid">M5-T04</span><span>Full enemy roster and modifier set</span><span class="refs">DES-013</span></li>
+<li><span class="state ">·</span><span class="tid">M5-T05</span><span><strong>Design and build onboarding / the first hour</strong> — <code>DES-010</code> C1 is the largest absolute churn point. <em>Produces a new design doc; deliberately not written yet (ADR-065) — it is not needed to start development, and a reference to a document that does not exist is itself a stub.</em></span><span class="refs">DES-010 PRO-005</span></li>
+<li><span class="state ">·</span><span class="tid">M5-T06</span><span>Balance passes against real telemetry, at every party size</span><span class="refs">DES-022</span></li>
+</ul></details>
+</div>
+<div class="card"><div class="row"><h3>M6 — Ship</h3><span class="count">—</span></div>
+<p class="fix">No tasks yet — this milestone is on the roadmap but has not been broken down into work.</p>
+</div>
+<div class="stats"><span><b>39</b> docs</span><span><b>39</b> accepted</span><span><b>65</b> ADRs</span><span><b>15</b> open questions</span><span><b>75</b> ⟨tune⟩ markers</span></div>
+<footer><!-- generated-stamp -->Regenerated 2026-08-15 by <code>tools/status.py --write</code>. Source of truth: <code>PRO-001</code> (ADR-063). Progress is scope covered, never time remaining (ADR-034).</footer>
+</main></body></html>

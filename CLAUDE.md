@@ -81,6 +81,29 @@ All project knowledge lives in `docs/`. **Chat is not storage.**
 
 **Definition of done:** works in-editor, works in an exported build, has no new errors in the debugger, save/load survives it, and the relevant doc is updated.
 
+### No stubs, no placeholders, no parallel fallbacks (ADR-064)
+
+> **Build fewer things completely rather than many things partially.**
+
+| | |
+|---|---|
+| **Absent** — not built, not in the build, not in any menu | ✅ This is scoping. Correct. |
+| **Stub** — present but empty, fake, or non-functional | ❌ **Banned.** It lies to playtesters and rots silently. |
+| **Parallel fallback** — a second, worse path maintained beside the real one | ❌ **Banned.** Doubles maintenance and defers the decision forever. |
+| **Gate decision** — one path chosen once, the other never built | ✅ Not a fallback. Correct. |
+
+A stubbed class in the class-select screen is **worse than no class** — a tester picks it, it does nothing, and the feedback is worthless.
+
+**The sanctioned-exception test.** A placeholder is permitted only with **both**:
+1. a **named replacement task with a permanent ID** in `PRO-001`, and
+2. a **milestone by which it is gone.**
+
+Anything else needs an ADR naming the stub, why it is unavoidable, and when it dies.
+
+**Legitimately permitted:** blockout art (ADR-046 — a named production phase with a scheduled replacement), grey-box levels at M1, and `⟨tune⟩` numbers (data, not systems).
+
+**Never say "for now"** in a commit or a doc without the paired removal task ID.
+
 ---
 
 ## 5. IP Safety (read `PRO-004` before writing any name)
@@ -96,7 +119,16 @@ Fast rule: **if you learned the word from Tolkien, don't use it.** Full allow/de
 ```bash
 python3 tools/reindex.py      # regenerate docs/INDEX.md from frontmatter
 python3 tools/reindex.py --check   # CI-safe: fail if index is stale
+
+python3 tools/status.py       # milestone dashboard in the terminal
+python3 tools/status.py --write    # regenerate docs/STATUS.md + docs/status.html
+python3 tools/status.py --check    # CI-safe: sequencing + doc integrity
 ```
+
+`status.py` reads milestone state out of `PRO-001` (ADR-063). Its job is to
+refuse work that skips a step: no task may start while the milestone it depends
+on has an unpassed gate, and open questions filed against a milestone block it.
+Run `--check` before committing; run `--write` whenever a task or gate changes.
 
 ---
 

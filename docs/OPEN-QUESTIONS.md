@@ -39,7 +39,7 @@ Every question below is one of three kinds:
 | Q75 | Does killing a Gullsjúkr leave a stave for your camp? | `DES-017` |
 | Q77 | Does the Gullsjúkr ever vocalise? | `DES-017` — no words, human sounds |
 | Q80 | How much Hunter state does the Ear reveal? | `DES-018` |
-| — | **DES-021 onboarding / the first hour** | `DES-010` C1 — scheduled as `M5-T05` |
+| — | **Onboarding / the first hour** — design work, produces a doc | `DES-010` C1 — scheduled as `M5-T05` |
 | — | Item & weapon taxonomy | `DES-008` has philosophy, `DES-009` feel, nothing has the list |
 | — | **A marketing plan** | Flagged by `PRO-007` as a genuine gap. Devlog starts when the shader works |
 

@@ -34,9 +34,9 @@ Solo, no deadline, and combat feel is a bottomless pit. The controller got tuned
 It is critical path, it is novel, and novel shaders are notorious sinks. Boil, hatching, outlines, and the two-world inversion are **four hard things stacked**, and it was the thing most likely to be visually disappointing after enormous effort.
 
 **Mitigation:**
-- **Spike it in a weekend, on grey boxes, before M1 proper.** Outlines and boil only.
-- **If it isn't ~70% convincing in that weekend, it is a research project, not a feature.** Fall back to flat quantised shading with simple outlines — which still looks deliberate and costs a fraction.
-- Hatching and the two-world inversion are **separable later additions**, not prerequisites.
+- **Spike it in a weekend, on grey boxes, before M1 proper** (`M1-T09`). Outlines and boil only.
+- **If it isn't ~70% convincing in that weekend, it is a research project, not a feature.** Commit to flat quantised shading with simple outlines — still deliberate-looking, a fraction of the cost — and **do not keep the ink path alive alongside it.** One choice, made once at the gate (ADR-064).
+- Hatching and the two-world inversion are **separable later additions** (`M4-T08`), not prerequisites.
 
 ## 3. Scope. Six classes, five Aspects, three biomes, twelve enemies, one person
 
@@ -98,7 +98,7 @@ Solo, no deadline, multi-year horizon, and a theme about compulsion that demands
 Three concrete actions, taken now:
 
 1. **ADR-061** — M4 rescoped to an actual vertical slice.
-2. **The shader weekend spike** happens before M1 proper, with an explicit fallback.
+2. **The shader weekend spike** happens before M1 proper (`M1-T09`), with an explicit **go/no-go**: if it is not ~70% convincing, we commit to flat quantised shading and **never build the other path.** That is a gate decision, not a maintained fallback (ADR-064).
 3. **A devlog** starts when the shader works.
 
 ## Re-run this

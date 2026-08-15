@@ -52,6 +52,24 @@ related: [DES-002, DES-004, TEC-003]
 2. Add an ADR entry to `process/PRO-002-decision-log.md`.
 3. Remove the resolved item from `OPEN-QUESTIONS.md`.
 4. Run `python3 tools/reindex.py`.
+5. Run `python3 tools/status.py --write`, then `--check` before committing.
+
+## Tracking progress
+
+Milestone state lives in `process/PRO-001-roadmap-and-milestones.md` as checkbox
+tasks with permanent IDs (ADR-063) — there is no separate ledger. Edit the task
+line, regenerate, and both [STATUS.md](STATUS.md) and `status.html` follow.
+
+| State | Meaning |
+|---|---|
+| `- [ ]` | not started |
+| `- [~]` | in progress |
+| `- [x]` | done — see the definition of done in `CLAUDE.md §4` |
+| `- [-]` | cut; must be followed by ` — cut: <reason>` |
+
+Gates are the mechanism that stops one milestone bleeding into the next
+(ADR-034). Mark one `passed YYYY-MM-DD` only when it genuinely is; `failed
+YYYY-MM-DD — <reason>` is a normal working state, not an alarm.
 
 ## Finding things fast
 

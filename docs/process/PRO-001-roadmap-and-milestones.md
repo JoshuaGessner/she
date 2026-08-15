@@ -14,11 +14,11 @@ related: [DES-001, TEC-001, TEC-003]
 
 The most common way a project like this dies is building the meta-progression first, because it's the most fun part to design. **Do not.** The meta-layer is worthless if the run isn't good.
 
-> **Notation (ADR-054).** Milestone scope is written as checkbox tasks with permanent IDs so `tools/status.py` can read progress straight out of this file. States: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` cut. The `→ DOC-ID` suffix at the end of a task line names the docs that task implements. Task IDs are never reused or renumbered. **This notation carries no schedule** — see *Estimates are lies* below.
+> **Notation (ADR-063).** Milestone scope is written as checkbox tasks with permanent IDs so `tools/status.py` can read progress straight out of this file. States: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` cut. The `→ DOC-ID` suffix at the end of a task line names the docs that task implements. Task IDs are never reused or renumbered. **This notation carries no schedule** — see *Estimates are lies* below.
 
 ---
 
-## M0 — Design Lock (current)
+## M0 — Design Lock
 <!-- milestone id=M0 size=0 -->
 **Goal:** a signed-off design document set.
 **Deliverable:** these docs.
@@ -41,6 +41,9 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M1-T05` **Two players over localhost**, host-authoritative (`TEC-004`) → TEC-004
 - [ ] `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. → TEC-004
 - [ ] `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash → TEC-001, DES-015
+- [ ] `M1-T08` **Godot project skeleton** — folder layout, autoload stubs against the ≤6 budget, Forward+, naming and GDScript conventions, CI for index + determinism → TEC-002, TEC-001
+- [ ] `M1-T09` **Ink shader spike** — grey boxes, outlines and boil only. **Go/no-go**: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064) → ART-005
+- [ ] `M1-T10` **Shared humanoid rig with all six attachment sockets** — must exist before *any* character work; adding a socket later means re-exporting every mesh → ART-004, DES-020
 
 > **GATE M1 EXIT** `pending` — *two people who aren't you play for 10 minutes and ask to keep playing.*
 
@@ -57,6 +60,8 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) → DES-003, DES-012
 - [ ] `M2-T06` Minimal Lair: stash and re-descend → DES-014
 - [ ] `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players → DES-012
+- [ ] `M2-T08` **Data schema base resources** — `ItemResource` + trait resources, stable string IDs, **plus the CI validator** (duplicate IDs, dangling refs, telegraph <250 ms, keystones with no effect tags). Built with the first ten resources, not the first thousand → TEC-006
+- [ ] `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early → ART-002, ART-003, TEC-005
 
 > **GATE M2 EXIT** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
@@ -65,12 +70,14 @@ The most common way a project like this dies is building the meta-progression fi
 ## M3 — The Pact  ·  *~2× M1*
 <!-- milestone id=M3 depends=M2 size=2.0 -->
 **Goal:** prove meta-progression makes runs *more* interesting, not easier.
-- [ ] `M3-T01` Tribute → Boon → Aspects; two Aspects fully implemented, three stubbed → DES-003, DES-004
-- [ ] `M3-T02` **Two classes fully implemented** (recommend Húskarl and Veiðimaðr — opposite loop relationships), four stubbed (`DES-011`) → DES-011
+- [ ] `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) → DES-003, DES-004
+- [ ] `M3-T02` **Two classes complete** — Húskarl and Veiðimaðr, opposite loop relationships. **The other four are absent from the class-select screen entirely.** A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064) → DES-011
 - [ ] `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested → DES-003, DES-012
 - [ ] `M3-T04` Tithe and Pact Rank escalation (`DES-003`) → DES-003
 - [ ] `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) → DES-003, DES-019
 - [ ] `M3-T06` Save system with versioning and migration from day one (`TEC-003`) → TEC-003
+- [ ] `M3-T07` **Equipment slots and visible gear** — six slots, per-class bare arms, armour rendering over them, Pack driving grid size → DES-020
+- [ ] `M3-T08` **Deeds awarded at the Settle beat** — never mid-run; the run must end on evidence of what you did → DES-016
 
 > **GATE M3 EXIT** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
@@ -90,6 +97,9 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M4-T05` Real art pass, real audio, real UI, ping system → ART-001, ART-002, DES-019, DES-012
 - [ ] `M4-T06` Full save/load, settings, controls rebinding → TEC-003, DES-018
 - [ ] `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest → TEC-004
+- [ ] `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library → ART-005
+- [ ] `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key → ART-003
+- [ ] `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs → ART-004
 
 > **GATE M4 EXIT** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
@@ -99,8 +109,10 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M5-T02` Remaining biomes — Barrow-Fields, Sunken Wood → DES-006, DES-015
 - [ ] `M5-T03` Remaining factions and Aspects → DES-007, DES-004
 - [ ] `M5-T04` Full enemy roster and modifier set → DES-013
-- [ ] `M5-T05` **DES-021 onboarding / the first hour** — `DES-010` C1 is the largest absolute churn point → DES-010
+- [ ] `M5-T05` **Design and build onboarding / the first hour** — `DES-010` C1 is the largest absolute churn point. *Produces a new design doc; deliberately not written yet (ADR-065) — it is not needed to start development, and a reference to a document that does not exist is itself a stub.* → DES-010, PRO-005
 - [ ] `M5-T06` Balance passes against real telemetry, at every party size → DES-022
+
+> **GATE M5 EXIT** `pending` — all six classes, three biomes and the full enemy roster complete and balanced; `DES-022`'s balance checks pass at every party size; **self-reported growth across runs 11–25 shows no dip** (the headline metric). Feature-complete: from here, only bugs and polish.
 
 ## M6 — Ship
 <!-- milestone id=M6 depends=M5 size=unknown -->
