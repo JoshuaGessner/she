@@ -58,7 +58,15 @@ All project knowledge lives in `docs/`. **Chat is not storage.**
 - Every doc has YAML frontmatter with `id`, `title`, `status`, `tags`, `updated`, `related`.
 - IDs are stable and permanent: `DES-###` (design), `TEC-###` (technical), `PRO-###` (process), `ART-###` (art/audio), `ADR-###` (decision records inside PRO-002).
 - **Reference docs by ID in conversation** ("that's a DES-003 question") so lookups are instant.
-- After any meaningful decision: update the doc, bump `updated`, add a line to the decision log, then run `python3 tools/reindex.py` to regenerate `docs/INDEX.md`.
+- **After any meaningful decision, in this order:** update the doc → bump `updated` → add an ADR to the decision log → remove the resolved item from `OPEN-QUESTIONS.md` → **regenerate both views**:
+
+```bash
+python3 tools/reindex.py        # docs/INDEX.md
+python3 tools/status.py --write # docs/STATUS.md + docs/status.html
+python3 tools/status.py --check # verify before committing
+```
+
+> **Never commit without regenerating.** `INDEX.md`, `STATUS.md` and `status.html` are all generated artefacts — a stale dashboard is worse than none, because it is believed. This applies to *any* change touching `docs/` or `PRO-001` task state, not only to decisions.
 - `status` values: `draft` (being written) → `proposed` (ready for sign-off) → `accepted` (locked, changing it requires an ADR) → `superseded`.
 
 **Read before writing.** Before proposing anything in an area, read the relevant doc. Do not re-derive or contradict accepted decisions without explicitly flagging that you're reopening them.
@@ -79,7 +87,7 @@ All project knowledge lives in `docs/`. **Chat is not storage.**
 
 **Code style:** `snake_case` files and functions, `PascalCase` classes and nodes, typed GDScript (`var x: int = 0`) everywhere, `_private` prefix for internals. Every non-obvious system gets a header comment explaining *why*, not *what*.
 
-**Definition of done:** works in-editor, works in an exported build, has no new errors in the debugger, save/load survives it, and the relevant doc is updated.
+**Definition of done:** works in-editor, works in an exported build, has no new errors in the debugger, save/load survives it, the relevant doc is updated, **its `PRO-001` task is ticked, and `reindex.py` + `status.py --write` have been re-run.** A task is not done until the dashboard says so.
 
 ### No stubs, no placeholders, no parallel fallbacks (ADR-064)
 
@@ -172,3 +180,4 @@ The first is always allowed. The second requires an ADR and a very good reason.
 - **Every audio channel has a visual twin.** From M2, the build must be completable with sound muted (`DES-018`).
 - **Archetype stats are set once and changed only by ADR** (ADR-058).
 - **Finish a milestone's exit gate before starting the next.** With no deadline, sequencing discipline is the only thing preventing an unfinishable pile of half-systems.
+- **Regenerate the dashboard on every change that touches `docs/` or task state**, and never commit without it. `INDEX.md`, `STATUS.md` and `status.html` are generated — **a stale dashboard is worse than no dashboard, because it gets believed.**
