@@ -1,0 +1,11 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/net_spike/net_spike.gd" id="1_spike"]
+
+[node name="NetSpike" type="Node"]
+script = ExtResource("1_spike")
+
+[node name="World" type="Node" parent="."]
+
+[node name="AgentSpawner" type="MultiplayerSpawner" parent="."]
+spawn_path = NodePath("../World")

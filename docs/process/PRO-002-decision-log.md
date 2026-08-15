@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-14
+updated: 2026-08-15
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -767,6 +767,96 @@ Anything else requires an ADR naming the specific stub, why it is unavoidable, a
 
 **Rationale:** An accepted document with no implementing task is indistinguishable from an abandoned one. The three states must be visible and distinct: **scheduled**, **deliberately parked**, or **not accepted yet.**
 **Consequences:** `PRO-001` gains ten tasks and one gate. `status.py --check` should fail on any accepted doc with no implementing task and no explicit park marker, and on any milestone with tasks but no gate.
+
+---
+
+## ADR-066 — Autoloads are created when they have work, not registered in advance
+**Date:** 2026-08-15 · **Status:** accepted
+**Context:** `M1-T08` reads *"…**autoload stubs** against the ≤6 budget…"*. ADR-064 banned stubs and swept `PRO-001` for the word, correcting `M3-T01` and `M3-T02` — **it missed this line.** Building the skeleton forced the question, because six autoloads registered before anything uses them are six empty singletons: precisely the artefact ADR-064 describes as *"present in the build but empty."*
+
+Every one of the six in `TEC-001` fails the completeness test today. `EventBus` with no signals is an empty file. `Config` with no `TuningProfile` to load returns nothing. `GameState`, `RunManager`, `SaveSystem` and `AudioDirector` each need a system that does not exist yet. None can be *complete* at `M1-T08`, because none has a caller.
+
+**Decision:**
+1. **`M1-T08` registers zero autoloads.** Each of the six named in `TEC-001` is created by the first task that gives it real work — `Config` at `M1-T01` (the controller's first tunable values), `EventBus` at `M1-T02` (the first real signal), and so on.
+2. **The ≤6 budget is enforced by CI, not by pre-population.** `tools/check_project.py` fails the build if `project.godot` registers a seventh. The budget was always about refusing the seventh; it was never about reserving six.
+3. **The wording of `M1-T08` is corrected** from *"autoload stubs against the ≤6 budget"* to *"the autoload budget enforced in CI"*, completing ADR-064's sweep.
+
+**Rationale:** An empty autoload is worse than an absent one in exactly the way ADR-064 names — it is present, it is importable, and the next person needing a global reaches for the existing empty singleton instead of asking whether it should exist at all. A budget is a *refusal mechanism*; a machine check refuses reliably, a reserved slot does not refuse at all. This is "prefer subtraction" (`CLAUDE.md` §2) applied to architecture before there is any code to subtract.
+
+**Consequences:** `game/autoload/` stays an empty directory until `M1-T01`. `project.godot` has no `[autoload]` section, and `check_project.py` reads a missing section as zero. The six names in `TEC-001` remain the sanctioned list — this changes *when* they appear, not *which* exist. With the wording fixed, the stub-language check that ADR-064 asked `status.py --check` to perform is implementable without failing on `PRO-001`'s own text, and is now built — a task description carrying stub language must cite either the ADR that governs it or the task ID that removes it.
+
+**Rejected alternative:** register all six now and grant ADR-064 a sanctioned exception naming the milestone by which each stops being empty. Rejected because the exception would have to be renewed six times for six different reasons, which is how a policy becomes decorative.
+
+---
+
+## ADR-067 — The enforcement ADR-064 and ADR-065 specified is now built
+**Date:** 2026-08-15 · **Status:** accepted
+**Context:** ADR-064 and ADR-065 each closed with a sentence beginning *"`status.py --check` should…"*. Three checks were specified between them; **one was implemented.** Building `M1-T08` surfaced this, and it is the more serious half of the same failure ADR-066 records: a policy that is written but not enforced is indistinguishable from one that was never agreed, and it decays in exactly the direction the policy existed to prevent.
+
+The unimplemented ones were the two that would have caught real drift — stub language in task descriptions (ADR-064), and an accepted document with nothing scheduling it (ADR-065). The third, milestones with tasks but no gate, existed only as a warning, which `--check` does not fail on.
+
+**Decision:**
+1. **Stub language in a task description is an error** unless the line names what removes it — a task ID (which carries both the replacement and its milestone, satisfying ADR-064's two-part test) or an ADR reference (which marks the line as stating policy, e.g. *"absent — not stubbed"*, rather than shipping a placeholder).
+2. **An accepted doc with no implementing task is an error**, escalated from a warning. ADR-065's *"explicitly parked"* third state becomes real: `parked: <why>` in the frontmatter. A doc that is both parked and scheduled is also an error — the states are exclusive. The parked count appears on the dashboard only once something is parked.
+3. **A milestone with tasks but no exit gate is an error**, escalated from a warning. `PRO-007` names *"M1 never ends"* as the top project risk; a milestone that cannot be cleared is that risk with a checkbox.
+4. **`M1-T08`'s scope line no longer claims the determinism harness.** It read *"CI for index + determinism"*, but the harness is `M1-T07`'s deliverable. `M1-T08` built the CI it plugs into; claiming the harness itself would have marked as delivered a thing that does not exist.
+
+**Rationale:** Every one of these was already decided — this ADR writes no new policy, it closes the gap between decisions and the tool that enforces them. Escalating warnings to errors is the substantive change, and it is the right one: `--check` passes on warnings, so a warning is a decision the project has agreed to ignore. Each check was verified by planting a violation, observing the failure, and reverting — a check that has never fired is not known to work.
+
+That verification is permanent, not a one-off: **`tools/test_checks.py`** plants one violation per check and asserts the specific issue code appears, and CI runs it followed by `git diff --exit-code`. These checks guard *decisions* rather than code, so nothing else in the project would notice if one silently stopped matching — which is how ADR-064's check came to be unimplemented for two ADRs without anyone seeing it.
+
+**Consequences:** `--check` is now strict about three things it previously tolerated. All 39 docs and every milestone pass today, so nothing is retroactively broken. The `parked:` key has no users yet; it exists so the escalated error has a legitimate escape that is *recorded* rather than silent. The remaining warnings are the `⟨tune⟩` counters on `TEC-001` and `TEC-002`, which are correct — those are performance budgets and export presets that cannot be tuned before there is a build to profile.
+
+---
+
+## ADR-068 — `M1-T06` networking spike: GO, and what it actually measured
+**Date:** 2026-08-15 · **Status:** accepted · **Gate:** `M1-T06` go/no-go
+**Context:** `TEC-004`'s risk register named `MultiplayerSynchronizer` performance at high object counts *"the assumption most likely to be wrong"*, and `PRO-001` made it a go/no-go before anything is built on top. Measured with `tools/run_net_spike.py`: one host plus three clients as separate processes on loopback, 150 spawned entities, position replicated at 20 Hz, 14–20 s windows with the first 3 s discarded. Godot 4.7-stable.
+
+**The measurement:**
+
+| Configuration | kbps/client | Verdict |
+|---|---|---|
+| 150 moving, `ALWAYS`, no compression | 528 | 8× over |
+| 150 moving, `ON_CHANGE`, no compression | 711 | 11× over |
+| 150 moving, `ON_CHANGE`, range coder | 321 | 5× over |
+| 150 spawned / 20 moving, no compression | 94 | 1.5× over |
+| **150 spawned / 20 moving, range coder** | **44** | **within budget** |
+
+Delivery held at **18.1–18.2 Hz of the 20 Hz requested (91%)** in every configuration, including the ones 11× over budget. Host physics cost **0.2–0.9 ms** for 150 synchronised entities against a 16.6 ms frame. Spawning all 150 took **3–4 ms**.
+
+**Decision: GO.** Godot's high-level multiplayer is validated for this project. The fallback — hand-rolled state replication over ENet — is not taken and no work proceeds on it (ADR-064: a gate decision, not a maintained alternative).
+
+**Rationale, and the part that matters more than the verdict:** the risk as written was aimed at the wrong thing. **CPU was never close to a constraint** — 0.2 ms is a rounding error, and `MultiplayerSynchronizer` kept delivering at 91% of the requested rate even while consuming eleven times the bandwidth budget. The engine does not degrade gracefully into low update rates; it simply spends whatever bandwidth the design asks it to. **The binding constraint is bandwidth, and bandwidth is decided by the design, not the engine.** A spike that had measured only frame time would have returned a confident GO and taught us nothing.
+
+**Consequences — three corrections to `TEC-004`:**
+1. **`⟨tune⟩` 64 kbps and `TEC-001`'s 150 agents were never jointly satisfiable by naive replication** — that combination costs 528 kbps/client, 8× over. They are compatible only under the LOD split `TEC-001` already specifies (~20 of 150 fully simulated) *with* compression. **The measured ceiling is ~29 moving entities** at 20 Hz within 64 kbps; 20 moving leaves ~45% headroom. Relevance filtering is therefore **load-bearing, not an optimisation** — the wording in `TEC-004` implied the latter.
+2. **ENet range coder compression is required.** It roughly halves cost (711→321, 94→44 kbps) for one line at transport setup. `TEC-004` did not mention compression at all.
+3. **"≤64 kbps up per client" is clarified to mean host upstream divided by party size.** Clients send only input and are nowhere near any limit; the host's upstream is the constraint that decides whether four players work.
+
+**Two engine behaviours worth recording, both of which cost real time here:**
+- `ON_CHANGE` properties travel the **delta** channel, which has its own `delta_interval` defaulting to *every network frame*. Setting only `replication_interval` leaves deltas at the physics rate — a silent 4× bandwidth cost.
+- For continuously-moving values, `ON_CHANGE` is **more** expensive than `ALWAYS` (711 vs 528), because delta encoding adds overhead and never elides anything. `ON_CHANGE` is correct for things that genuinely idle, and wrong for things that always move. Choose per property, not per project.
+
+**Scope of this result.** Loopback, so no latency, jitter or packet loss; three clients; position only. It answers the object-count question `TEC-004` asked and nothing else. Real-network behaviour is `M4-T07` (Steam relay), and join-in-progress delta sync remains untested until M2.
+
+**The NO-GO fallback, settled.** It was briefly unclear whether a failed spike meant *a different engine* or *hand-rolled replication*. **There is no engine-change fallback and there never was one** — it appears nowhere in 39 documents. The single documented fallback is `TEC-004`'s hand-rolled state replication over ENet, and it is **not taken and will not be built** (ADR-064: a gate decision, not a maintained alternative). Godot 4 is the engine. This is noted and closed; do not reopen it without an ADR arguing the engine itself is the problem.
+
+---
+
+## ADR-069 — Commit cadence: history tracks the roadmap, and agents do not ask
+**Date:** 2026-08-15 · **Status:** accepted · **Amends `CLAUDE.md` §4**
+**Context:** Directed. Two milestone tasks and four ADRs were completed before anything was committed, because the working agreement said what "done" means but never said *when work enters the repository*. Uncommitted work is invisible to CI, and CI is the only thing that runs the full check sweep on a clean checkout — so a green local tree proves less than it appears to.
+
+**Decision:** **Agents commit and push without asking.** This is durable authorisation and is not re-requested per session.
+
+**One commit per completed task or decision**, so `git log` and `PRO-001` tell the same story. A commit lands when a task changes state, when an ADR is written or its status changes, or when a measurement changes a decision — and it carries the work *and* the doc updates *and* both regenerated views together. Splitting a ticked checkbox from its regenerated dashboard is the stale-dashboard failure wearing a different hat.
+
+**A failing check is a blocked commit, not a note in the commit message.**
+
+**Rationale:** Batching a milestone into one commit destroys the thing that makes the roadmap notation worth having — the ability to see which change implemented which decision, and to revert one without the others. The standing authorisation exists because asking per commit converts a mechanical step into an interruption, and interruptions are what caused the batching in the first place.
+
+**Consequences:** `main` receives work directly, which `TEC-002` already permits provided *main always launches* — the pre-commit sweep is what guarantees it, so the sweep is not optional. Commit subjects carry the task or ADR ID (`M1-T06: networking spike GO — bandwidth, not CPU`). **The first commit under this policy is necessarily an exception:** the `M1-T08` skeleton, the ADR-066/067 enforcement work and the `M1-T06` spike were done as one continuous session and are genuinely interdependent — the CI workflow references all of it and the dashboard regenerates once — so they land together rather than being retroactively split into commits that would not individually pass CI. The cadence applies from the next task onward.
 
 ---
 

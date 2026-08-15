@@ -1,0 +1,82 @@
+name: CI
+
+# Two independent jobs so a docs-only change does not wait on a Godot download,
+# and a code-only change still cannot land with a stale dashboard.
+# CLAUDE.md: "a stale dashboard is worse than none, because it gets believed."
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  docs:
+    name: Docs & dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Index is current
+        run: python3 tools/reindex.py --check
+
+      - name: Dashboard is current, sequencing is legal
+        run: python3 tools/status.py --check
+
+      # The checks above guard decisions rather than code, so nothing else
+      # would notice if one silently stopped matching. This plants a violation
+      # per check and asserts it fires.
+      - name: The checks themselves still work
+        run: python3 tools/test_checks.py
+
+      - name: Trials left the tree clean
+        run: git diff --exit-code
+
+  project:
+    name: Godot project
+    runs-on: ubuntu-latest
+    env:
+      # Pinned deliberately. A Godot minor version can change GDScript warning
+      # behaviour, and this project treats warnings as errors — an unpinned
+      # engine would break CI on someone else's release schedule.
+      GODOT_VERSION: "4.7"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Locked settings and conventions
+        run: python3 tools/check_project.py
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          base="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          curl -fsSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${base}.zip"
+          unzip -q godot.zip
+          sudo install -m 755 "$base" /usr/local/bin/godot
+          godot --version
+
+      - name: Import project
+        run: godot --headless --path game --import
+
+      # Runs the real GDScript parser over every script. See the header of
+      # check_scripts.sh: --check-only exits 0 even when it reports errors,
+      # so this wrapper matches on the diagnostics instead.
+      - name: Parse every script
+        run: tools/check_scripts.sh
+        env:
+          GODOT: /usr/local/bin/godot
+
+      # TEC-004 asks for automated 2-client smoke tests in CI from M1, and
+      # ADR-068's GO decays silently without one. Connectivity and replication
+      # only — the bandwidth budget is a design answer, not a regression check.
+      - name: Two clients still replicate
+        run: python3 tools/run_net_spike.py --smoke
+        env:
+          GODOT: /usr/local/bin/godot

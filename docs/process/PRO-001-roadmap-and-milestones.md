@@ -4,7 +4,7 @@ title: Roadmap & Milestones
 status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-08-14
+updated: 2026-08-15
 related: [DES-001, TEC-001, TEC-003]
 ---
 
@@ -39,9 +39,9 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M1-T03` One hand-built room set, no generation → DES-015
 - [ ] `M1-T04` Weight & Clamor as visible debug numbers → DES-005
 - [ ] `M1-T05` **Two players over localhost**, host-authoritative (`TEC-004`) → TEC-004
-- [ ] `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. → TEC-004
+- [x] `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. **GO (ADR-068)** — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing → TEC-004
 - [ ] `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash → TEC-001, DES-015
-- [ ] `M1-T08` **Godot project skeleton** — folder layout, autoload stubs against the ≤6 budget, Forward+, naming and GDScript conventions, CI for index + determinism → TEC-002, TEC-001
+- [x] `M1-T08` **Godot project skeleton** — folder layout, the ≤6 autoload budget enforced in CI (ADR-066), Forward+, naming and GDScript conventions, CI for the doc index and the dashboard. *The determinism harness is `M1-T07`'s deliverable, not this one (ADR-067)* → TEC-002, TEC-001
 - [ ] `M1-T09` **Ink shader spike** — grey boxes, outlines and boil only. **Go/no-go**: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064) → ART-005
 - [ ] `M1-T10` **Shared humanoid rig with all six attachment sockets** — must exist before *any* character work; adding a socket later means re-exporting every mesh → ART-004, DES-020
 

@@ -1,0 +1,47 @@
+; Project SHE — Godot project settings
+;
+; Hand-authored settings are grouped and commented here because several of them
+; are *locked decisions*, not preferences, and a future editor session must not
+; silently revert them. `tools/check_project.py` asserts the locked ones in CI.
+;
+;   renderer/rendering_method = forward_plus   — TEC-001 / ADR-052. Locked.
+;   debug/gdscript/warnings/untyped_declaration = 2 (Error) — TEC-002. Locked.
+;
+; There is deliberately no `run/main_scene`: nothing is runnable yet, and a
+; scene that exists only to satisfy the setting would be a stub (ADR-064).
+; M1-T01 sets it when there is a first-person controller to run.
+
+config_version=5
+
+[application]
+
+config/name="SHE"
+config/description="A first-person fantasy extraction roguelite for 1-4 players."
+config/version="0.1.0"
+config/features=PackedStringArray("4.7", "Forward Plus")
+
+[debug]
+
+; TEC-002: "Static typing everywhere." Enforced by the engine's own parser
+; rather than by convention — untyped declarations are a hard Error, so an
+; untyped `var` or parameter fails the headless import in CI, not a review.
+; 0 = ignore, 1 = warn, 2 = error.
+gdscript/warnings/untyped_declaration=2
+gdscript/warnings/inferred_declaration=1
+gdscript/warnings/unsafe_cast=1
+gdscript/warnings/shadowed_variable=2
+gdscript/warnings/return_value_discarded=0
+
+[physics]
+
+; Signals up, calls down (TEC-001) plus host-authoritative networking (TEC-004)
+; both assume a fixed simulation step. 60 Hz matches the 60 fps target in
+; TEC-001's performance budget.
+common/physics_ticks_per_second=60
+
+[rendering]
+
+; ADR-052. Forward+ is not a compromise made for the ink shader — darkness is a
+; mechanic (ART-001) and four players' lanterns alone would breach the Mobile
+; renderer's cap of 8 omni/spot lights per mesh. Locked; no web export.
+renderer/rendering_method="forward_plus"

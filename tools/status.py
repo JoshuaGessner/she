@@ -68,6 +68,15 @@ GATE_STATE_RE = re.compile(r"^(pending|passed|failed)(?: (\d{4}-\d{2}-\d{2}))?(?
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 QSECTION_RE = re.compile(r"^##\s+.*needed.*$", re.IGNORECASE)
 
+# ADR-064: a placeholder is permitted only with a named replacement task ID and
+# a milestone by which it is gone — a task ID carries both. A description that
+# cites an ADR is stating the policy rather than shipping a placeholder
+# ("the other three are absent — not stubbed"), so it is exempt too.
+PLACEHOLDER_RE = re.compile(
+    r"\b(stub|stubs|stubbed|placeholder|placeholders|for now|TODO|FIXME)\b", re.IGNORECASE
+)
+PAIRED_RE = re.compile(r"\b(ADR-\d+|M\d+-T\d+)\b")
+
 
 class Doc(NamedTuple):
     id: str
@@ -79,6 +88,10 @@ class Doc(NamedTuple):
     related: list[str]
     path: Path
     text: str
+    # ADR-065's third state. An accepted doc is scheduled, deliberately parked,
+    # or not accepted yet — and the three must be distinguishable. `parked:` in
+    # the frontmatter carries the reason; empty means "not parked".
+    parked: str = ""
 
 
 class Task(NamedTuple):
@@ -163,6 +176,7 @@ def load_docs() -> dict[str, Doc]:
             related=[str(r) for r in (meta.get("related") or [])],
             path=path,
             text=path.read_text(encoding="utf-8"),
+            parked=str(meta.get("parked", "")),
         )
     return docs
 
@@ -436,9 +450,11 @@ def check_milestones(milestones: list[Milestone], docs: dict[str, Doc],
                             f"take {ref} to `accepted` before building against it",
                         ))
 
+        # ADR-065: a milestone with work but no exit gate can never be cleared,
+        # so nothing may depend on it and M1 never ends (PRO-007's top risk).
         if ms.tasks and not ms.exit_gate:
             issues.append(Issue(
-                "warn", "milestone-ungated", f"{rel(ROADMAP)}:{ms.line}",
+                "error", "milestone-ungated", f"{rel(ROADMAP)}:{ms.line}",
                 f"{ms.id} has tasks but no EXIT gate",
                 f"add a GATE {ms.id} EXIT line — without one the milestone can never be "
                 "cleared, and nothing may depend on it",
@@ -500,12 +516,39 @@ def check_quality(milestones: list[Milestone], docs: dict[str, Doc]) -> list[Iss
         # everything is judged against — neither is something a task implements.
         if doc.owner == "process" or "vision" in doc.tags or doc.status != "accepted":
             continue
-        if doc.id not in implemented:
+        # ADR-065: an accepted doc with no implementing task is indistinguishable
+        # from an abandoned one. Parking is allowed — silence is not.
+        if doc.id in implemented and doc.parked:
             issues.append(Issue(
-                "warn", "doc-unscheduled", rel(doc.path),
-                f"{doc.id} {doc.title} is accepted but no milestone task implements it",
-                "add it to a milestone, or accept that it is designed and parked",
+                "error", "doc-parked-and-scheduled", rel(doc.path),
+                f"{doc.id} is marked `parked` but a milestone task implements it",
+                "remove the `parked:` line — it is scheduled, not parked",
             ))
+        elif doc.id not in implemented and not doc.parked:
+            issues.append(Issue(
+                "error", "doc-unscheduled", rel(doc.path),
+                f"{doc.id} {doc.title} is accepted but no milestone task implements it",
+                "add it to a milestone, or add `parked: <why>` to the frontmatter "
+                "to record that it is designed and deliberately not scheduled",
+            ))
+    return issues
+
+
+def check_placeholder_language(milestones: list[Milestone]) -> list[Issue]:
+    """ADR-064 asked for this: a task that describes shipping a stub must name
+    the thing that removes it. Unpaired stub language in the roadmap is how a
+    placeholder gets planned in without anyone deciding it should exist."""
+    issues = []
+    for ms in milestones:
+        for task in ms.tasks:
+            match = PLACEHOLDER_RE.search(task.text)
+            if match and not PAIRED_RE.search(task.text):
+                issues.append(Issue(
+                    "error", "unpaired-placeholder", f"{rel(ROADMAP)}:{task.line}",
+                    f"{task.id} says '{match.group(0)}' with nothing that removes it",
+                    "ADR-064: name the replacement task ID, or scope it out — "
+                    "absent is correct, stubbed is not",
+                ))
     return issues
 
 
@@ -518,6 +561,7 @@ def run_checks(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int
     issues += check_adr_numbering(adrs)
     issues += check_milestones(milestones, docs, blocking)
     issues += check_quality(milestones, docs)
+    issues += check_placeholder_language(milestones)
     return issues
 
 
@@ -554,11 +598,23 @@ def corpus_stats(docs: dict[str, Doc], adrs: dict[int, str],
     return {
         "docs": len(docs),
         "accepted": sum(1 for d in docs.values() if d.status == "accepted"),
+        "parked": sum(1 for d in docs.values() if d.parked),
         "adrs": len(adrs),
         # A question filed under "Needed at M4 / M5" blocks both, but is one question.
         "questions": len({q for v in blocking.values() for q in v}),
         "tune": sum(d.text.count("⟨tune⟩") for d in docs.values()),
     }
+
+
+def docs_phrase(stats: dict[str, int]) -> str:
+    """"39 docs (39 accepted)" — plus ", 2 parked" once anything is parked.
+
+    Deliberately silent at zero: a permanent "0 parked" trains the eye to skip
+    the line, and the number only means something when it isn't zero."""
+    inner = f"{stats['accepted']} accepted"
+    if stats["parked"]:
+        inner += f", {stats['parked']} parked"
+    return f"{stats['docs']} docs ({inner})"
 
 
 # ── small helpers ─────────────────────────────────────────────────────────
@@ -695,7 +751,7 @@ def render_terminal(milestones: list[Milestone], docs: dict[str, Doc],
     stats = corpus_stats(docs, adrs, blocking)
     done, live = totals(milestones)
     out.append(paint(
-        f" {done}/{live} tasks · {stats['docs']} docs ({stats['accepted']} accepted) · "
+        f" {done}/{live} tasks · {docs_phrase(stats)} · "
         f"{stats['adrs']} ADRs · {stats['questions']} open Qs · {stats['tune']} ⟨tune⟩", "dim"))
     out.append(paint(rule, "gold"))
     return "\n".join(out)
@@ -808,7 +864,7 @@ def render_markdown(milestones: list[Milestone], docs: dict[str, Doc],
     out += [
         "---",
         "",
-        f"_{stats['docs']} docs ({stats['accepted']} accepted) · {stats['adrs']} ADRs · "
+        f"_{docs_phrase(stats)} · {stats['adrs']} ADRs · "
         f"{stats['questions']} open questions · {stats['tune']} ⟨tune⟩ markers._",
         "",
         "Regenerate with `python3 tools/status.py --write`. "
@@ -977,8 +1033,11 @@ def render_html(milestones: list[Milestone], docs: dict[str, Doc],
                      f"{inline_html(i.message)}<br>"
                      f'<span class="fix">→ {inline_html(i.fix)}</span></div>')
 
+    # Parked only appears once something is parked — see docs_phrase().
+    parked = f'<span><b>{stats["parked"]}</b> parked</span>' if stats["parked"] else ""
     o.append(f'<div class="stats"><span><b>{stats["docs"]}</b> docs</span>'
              f'<span><b>{stats["accepted"]}</b> accepted</span>'
+             f'{parked}'
              f'<span><b>{stats["adrs"]}</b> ADRs</span>'
              f'<span><b>{stats["questions"]}</b> open questions</span>'
              f'<span><b>{stats["tune"]}</b> ⟨tune⟩ markers</span></div>')

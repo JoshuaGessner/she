@@ -89,6 +89,43 @@ python3 tools/status.py --check # verify before committing
 
 **Definition of done:** works in-editor, works in an exported build, has no new errors in the debugger, save/load survives it, the relevant doc is updated, **its `PRO-001` task is ticked, and `reindex.py` + `status.py --write` have been re-run.** A task is not done until the dashboard says so.
 
+### When to commit (ADR-069)
+
+> **Standing authorisation: commit and push without asking.** Do not re-request this each session. Uncommitted work is invisible to CI, and CI is the only thing that runs the full sweep on a clean checkout — a green local tree proves less than it looks like it does.
+
+**One commit per completed task or decision**, so `git log` and `PRO-001` tell the same story. Commit when:
+
+| Trigger | The commit carries |
+|---|---|
+| A `PRO-001` task changes state (`[ ]`→`[~]`→`[x]`/`[-]`) | the work, the checkbox, and both regenerated views |
+| An ADR is written, or its status changes | the ADR and every doc it edits |
+| A measurement changes a decision | the harness, the numbers, and the doc it corrects |
+
+Do not batch a milestone into one commit, and never split a ticked checkbox from its regenerated dashboard — that is the stale-dashboard failure wearing a different hat.
+
+**Run the full sweep before every commit, in this order:**
+
+```bash
+python3 tools/reindex.py
+python3 tools/status.py --write
+python3 tools/status.py --check      # must pass
+python3 tools/check_project.py       # locked settings + TEC-002 conventions
+tools/check_scripts.sh               # the real GDScript parser, every script
+```
+
+**A failing check is a blocked commit, not a note in the commit message.**
+
+Then **push to `origin main`**. `TEC-002` permits this precisely because *main always launches* — the sweep above is what guarantees that, so it is not optional.
+
+**Commit subjects carry the task or ADR ID** and describe *why*, not what:
+
+```
+M1-T06: networking spike GO — bandwidth, not CPU, is the constraint
+ADR-066: autoloads are created when they have work, not registered ahead
+```
+
+**Never commit** `.godot/`, a generated view that disagrees with its source, or a `⟨tune⟩` number presented as final.
+
 ### No stubs, no placeholders, no parallel fallbacks (ADR-064)
 
 > **Build fewer things completely rather than many things partially.**

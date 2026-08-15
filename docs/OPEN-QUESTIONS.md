@@ -67,7 +67,7 @@ Recorded so they are not mistaken for undesigned areas.
 
 Not questions. The answer to *"what now."*
 
-1. **Godot project skeleton** — `TEC-002` layout, autoload stubs, Forward+, CI for the determinism harness and doc index check.
+1. ~~**Godot project skeleton**~~ — done (`M1-T08`). `TEC-002` layout, Forward+, typed GDScript enforced by the parser, the ≤6 autoload budget enforced in CI (ADR-066), doc-index and dashboard checks in CI.
 2. **The shader weekend spike** — grey boxes, outlines and boil only. Explicit fallback to flat quantised shading if it is not ~70% convincing (ADR-062).
 3. **The M1 networking spike** — 4 peers, ~150 synchronised entities. Go/no-go on the engine (`TEC-004`).
 

@@ -4,7 +4,7 @@ title: Networking Architecture
 status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-08-14
+updated: 2026-08-15
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
@@ -71,15 +71,25 @@ Extends `TEC-003`:
 
 ## Budgets ⟨tune⟩
 
-- 4 players, ~150 active AI per floor, ≤64 kbps up per client
-- Enemy replication uses **relevance filtering** — don't synchronize AI in unloaded parts of the level to players who can't see it
-- Target playable at 120ms RTT; comfortable at 60ms
+> **Measured at `M1-T06` (ADR-068).** The numbers below are no longer estimates. Godot 4.7, one host + three clients on loopback, 150 spawned entities, position at 20 Hz.
+
+- 4 players, ~150 active AI per floor, **≤64 kbps host upstream per party member**. Clients send only input and are nowhere near any limit — the host's upstream is the constraint that decides whether four players work.
+- **Relevance filtering is load-bearing, not an optimisation.** Replicating all 150 agents costs **528 kbps/client — 8× the budget.** The budget and the agent count are compatible only under `TEC-001`'s LOD split (~20 of 150 fully simulated): that measures **44 kbps/client**, with ~45% headroom. **The ceiling is ~29 moving entities** at 20 Hz.
+- **ENet range coder compression is required, not optional.** One line at transport setup, and it roughly halves cost (94 → 44 kbps at 20 moving agents).
+- Target playable at 120ms RTT; comfortable at 60ms. **Untested** — the M1 spike is loopback only, so latency, jitter and loss are `M4-T07`'s question.
+
+### Replication mode is a per-property choice (ADR-068)
+
+Two engine behaviours that are easy to get wrong and expensive when you do:
+
+- **`ON_CHANGE` properties travel the *delta* channel**, which has its own `delta_interval`, defaulting to *every network frame*. Setting only `replication_interval` leaves deltas running at the physics rate — a silent 4× bandwidth cost.
+- **For continuously-moving values, `ON_CHANGE` costs more than `ALWAYS`** (711 vs 528 kbps measured), because delta encoding adds overhead and never elides anything. Use `ON_CHANGE` for state that genuinely idles, `ALWAYS` for things that always move. Decide per property.
 
 ## Risk register
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| `MultiplayerSynchronizer` performance at high object counts | **High** | **Spike test at M1** — 4 peers, 150 synchronized entities, measure. This is the assumption most likely to be wrong. |
+| ~~`MultiplayerSynchronizer` performance at high object counts~~ | ~~High~~ | **Closed by `M1-T06` (ADR-068).** Measured: 0.2–0.9 ms host physics for 150 synchronised entities, 91% of requested update rate delivered. **CPU was never the constraint.** The real one is bandwidth, and it is decided by relevance filtering — see Budgets. |
 | Generation desync | High | Determinism harness in CI from M1 |
 | NAT traversal failures | Medium | Steam relay before any public build |
 | Host advantage / client latency feel | Medium | Predict local movement; keep melee forgiving |
@@ -132,4 +142,4 @@ A player waiting in the Lair opens a gate at the party's position and steps thro
 
 > **OPEN:** Delta growth over a long run is the risk. If the touched-ID sets grow unbounded across three floors, consider discarding deltas for floors the party has left — a joiner arriving on floor 3 does not need floor 1's state, since nobody can return there.
 
-> **OPEN:** Godot 4's high-level multiplayer may not hold at our object counts. The M1 spike is a **go/no-go on the whole approach** — the fallback is hand-rolled state replication over ENet, which is significantly more work and needs to be known early, not discovered at M4.
+> **CLOSED — GO (ADR-068, `M1-T06`).** Godot 4's high-level multiplayer holds at our object counts. The fallback, hand-rolled state replication over ENet, is **not taken and will not be built** (ADR-064: a gate decision, not a maintained alternative). Reproduce with `python3 tools/run_net_spike.py`.
