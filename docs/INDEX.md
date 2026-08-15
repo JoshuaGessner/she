@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-15 · 38 documents_
+_Regenerated 2026-08-15 · 39 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -60,6 +60,7 @@ _How we work, what we decided, what we must not do._
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
 | `PRO-006` | [Monetization](process/PRO-006-monetization.md) | ✔ accepted | 2026-08-14 | PRO-005, DES-014, DES-016, DES-001 |
+| `PRO-007` | [Pre-Mortem — How This Fails](process/PRO-007-premortem.md) | ✔ accepted | 2026-08-15 | PRO-001, DES-009, ART-005, TEC-004, DES-001 |
 
 ## Art & Audio
 
@@ -123,6 +124,7 @@ _Visual and audio direction._
 - **greed** — DES-008
 - **handoff** — ART-003
 - **history** — PRO-002
+- **honesty** — PRO-007
 - **hooks** — DES-010
 - **hub** — DES-014
 - **hud** — DES-018, DES-019
@@ -160,10 +162,11 @@ _Visual and audio direction._
 - **pipeline** — ART-004, PRO-006
 - **planning** — PRO-001
 - **power** — DES-022
+- **premortem** — PRO-007
 - **pressure** — DES-005, DES-017
 - **process** — PRO-002
 - **procgen** — DES-015
-- **production** — ART-004, PRO-001
+- **production** — ART-004, PRO-001, PRO-007
 - **progression** — DES-004, DES-011, DES-014, DES-016, DES-022
 - **psychology** — PRO-005
 - **public-domain** — PRO-004
@@ -174,12 +177,12 @@ _Visual and audio direction._
 - **research** — PRO-005
 - **resources** — TEC-006
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
-- **risk** — PRO-004, TEC-004, TEC-005
+- **risk** — PRO-004, PRO-007, TEC-004, TEC-005
 - **roadmap** — PRO-001
 - **save** — TEC-003
 - **scaling** — DES-012
 - **schema** — TEC-006
-- **scope** — DES-001, PRO-001
+- **scope** — DES-001, PRO-001, PRO-007
 - **serialization** — TEC-003
 - **session** — DES-002, DES-010
 - **setting** — DES-006

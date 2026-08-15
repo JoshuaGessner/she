@@ -102,5 +102,41 @@ python3 tools/reindex.py --check   # CI-safe: fail if index is stale
 
 ## 7. Environment Notes
 
+- Repo: **https://github.com/JoshuaGessner/she** · `main` · PolyForm Noncommercial 1.0.0.
 - `lean-ctx` MCP tools are preferred over native Read/Grep/Shell/Glob per global config.
-- Project is **not yet a git repo**. Recommend `git init` + Godot `.gitignore` (already written) before any code lands. Godot `.tscn`/`.tres` are text and diff reasonably; consider Git LFS for art once binaries appear.
+- Godot `.tscn`/`.tres` are text and diff reasonably. **Add Git LFS before the first binary art commit**, not after.
+
+---
+
+## 8. Where the Design Actually Lives
+
+Design is **locked**. All 38 documents are `status: accepted`, and 60 ADRs record the reasoning and the rejected alternatives.
+
+**Changing an accepted document requires an ADR in `PRO-002`.** That is not ceremony — it is the mechanism that stopped this design drifting back into a stat ladder three separate times.
+
+**Read these four before proposing anything:**
+
+| | |
+|---|---|
+| `DES-022` | **The power model.** Why nothing is a bigger number, and what "a rank-9 floor" means. The most misunderstood thing in the project. |
+| `DES-003` | Persistence — the Tithe coupling everything else hangs from |
+| `PRO-005` | Design psychology, and the ethics that are load-bearing rather than decorative |
+| `PRO-007` | **The pre-mortem.** The ways this project most plausibly fails. |
+
+### The two tests that settle most arguments
+
+**On any mechanical proposal:**
+> Does this let the player do something **new**, or does it just make an existing number **bigger**? (ADR-058)
+
+The first is always allowed. The second requires an ADR and a very good reason.
+
+**On any feedback or progression proposal:**
+> Does every run visibly tick **≥2 of the eight growth channels**? (ADR-060)
+
+### Standing production rules
+
+- **Blockout must feel good unjuiced** before any polish is added (`DES-009`, Swink's ordering).
+- **No enemy attack telegraphs under 250 ms.** CI enforces it (`TEC-006`).
+- **Every audio channel has a visual twin.** From M2, the build must be completable with sound muted (`DES-018`).
+- **Archetype stats are set once and changed only by ADR** (ADR-058).
+- **Finish a milestone's exit gate before starting the next.** With no deadline, sequencing discipline is the only thing preventing an unfinishable pile of half-systems.

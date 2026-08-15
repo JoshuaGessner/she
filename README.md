@@ -4,7 +4,7 @@
 >
 > *Barony's grubby, systemic dungeon-crawling meets DMZ's layered mission structure, in service of a hoard-dragon who buys your soul one run at a time.*
 
-**Status: design locked, implementation starting.** No engine code yet. This repository holds the design corpus — **35 documents and 53 architecture decision records** covering the full game design, technical architecture, art and audio direction, and production plan. Every design document is `accepted`; changing one now requires an ADR.
+**Status: design locked, implementation starting.** No engine code yet. This repository holds the design corpus — **39 documents and 64 architecture decision records** covering the full game design, technical architecture, art and audio direction, and production plan. Every design document is `accepted`; changing one now requires an ADR.
 
 Implementation begins at **M1**, whose only job is to answer whether moving and fighting is fun in a grey box (see [roadmap](docs/process/PRO-001-roadmap-and-milestones.md)).
 
@@ -103,4 +103,6 @@ For commercial licensing, open an issue.
 
 ## Contributing
 
-The design is in active back-and-forth refinement and not yet open to contributions. Issues and discussion are welcome — particularly if you have shipped an extraction game, a roguelite meta-progression system, or Godot co-op netcode at this scale, in which case the open questions are genuinely open.
+**The design is locked and not open to contributions.** Issues and discussion are welcome — particularly if you have shipped an extraction game, a roguelite meta-progression system, or Godot co-op netcode at this scale, in which case the remaining [open questions](docs/OPEN-QUESTIONS.md) are genuinely open.
+
+If you want the honest version of where this could go wrong, read the [pre-mortem](docs/process/PRO-007-premortem.md).

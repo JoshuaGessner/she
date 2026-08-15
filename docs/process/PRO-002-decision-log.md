@@ -696,4 +696,29 @@ The outline row is the elegant part: **the boil is the artefact, embraced.** It 
 
 ---
 
+## ADR-061 — M4 rescoped to an actual vertical slice
+**Date:** 2026-08-15 · **Status:** accepted · **Revises `PRO-001` M4/M5**
+**Context:** A pre-mortem pass (`PRO-007`) checked M4 against the standard definition of a vertical slice and found it mis-scoped.
+**The definition:** a vertical slice is **a small, polished, fully playable cross-section showing all major systems working together** — typically 10–30 minutes. It is distinct from a prototype, which is rough and tests specific mechanics.
+**The problem:** M4 specified *all six classes* and a *45-minute* target. Six classes is **breadth, not a cross-section** — it is the one axis of the game that adds no new *systems*, only more content. As written, M4 would have delayed the moment we learn whether the game is worth finishing by months of pure content work.
+**Decision:** **M4 ships two classes (Húskarl and Veiðimaðr — opposite loop relationships) and targets 25 minutes** ⟨tune⟩. All six remain required *for launch* (ADR-012 — they are available from the start), but they move to **M5**.
+**Rationale:** The slice's job is to prove the game is worth finishing. Class breadth is what you build **once you know that it is.** Two classes with opposite relationships to the loop demonstrate that the class system works, which is what a slice needs to show.
+**Consequences:** M4 gets meaningfully smaller and arrives sooner. M5 absorbs the remaining four classes plus `DES-021` onboarding. **ADR-012 is unchanged** — all six at launch, availability from the start; only the milestone placement moved.
+
+---
+
+## ADR-062 — Standing pre-mortem, and three actions from the first one
+**Date:** 2026-08-15 · **Status:** accepted · **`PRO-007` created**
+**Context:** Final cohesion pass before development. Rather than more design research, ran Klein's pre-mortem (HBR 2007) — assume the project already failed, then explain why. Prospective hindsight measurably improves risk identification.
+**Findings, ranked by likelihood.** The top risk is **not** technical: **M1 never ends.** ADR-034 removed deadlines correctly, but deadlines were also what ended iteration, and nothing replaced them. Then: the ink shader consuming months as a novel four-part effect; scope (the authored floor is genuinely large for one person); *"it was elegant and it wasn't fun"*; co-op QA; **no marketing plan anywhere in 38 documents**; documentation becoming the project; burnout; the door reading as a crash.
+**Three actions taken now:**
+1. **ADR-061** — M4 rescoped to an actual slice.
+2. **A weekend shader spike before M1 proper**, grey boxes, outlines and boil only — with an explicit fallback to flat quantised shading if it is not ~70% convincing. Hatching and the two-world inversion are separable later additions, not prerequisites.
+3. **A devlog starts when the shader works.** The ink style is *screenshot-legible*, which is rare and valuable, and it is the only realistic distribution a solo premium title gets.
+
+**One pre-authorised escape hatch, recorded because a pre-mortem is where unsayable things belong:** *if co-op is what stops this shipping, solo-first with co-op post-launch is available.* The architecture already supports it — pacts are individual and progression never touches the network. **This does not reverse ADR-008**; it makes the option exist later without feeling like defeat.
+**Consequences:** **Re-run the pre-mortem at every milestone gate** — the failure modes that matter at M3 are not the ones on this page. "Decent unjuiced" is a *bar to clear and stop at*, not an aspiration to chase. Iterations are timeboxed at two weeks; combat feel is revisited **once**, at M4, with real assets.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

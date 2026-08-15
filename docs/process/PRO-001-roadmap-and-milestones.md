@@ -77,21 +77,30 @@ The most common way a project like this dies is building the meta-progression fi
 > **GATE M3 COOP** `pending` — a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
 
 ## M4 — Vertical Slice  ·  *largest; art and audio dominate*
+
+> **RESCOPED (ADR-061).** A vertical slice is **a small, polished, fully playable cross-section showing all major systems working together** — typically 10–30 minutes. The previous M4 listed *all six classes* and a 45-minute target, which is **breadth, not a cross-section**, and would have delayed the moment we learn whether the game is good by months of content work.
+>
+> **M4 ships two classes, not six.** All six remain required *for launch* (ADR-012 — they are available from the start), but they move to **M5**. The slice's job is to prove the game is worth finishing; class breadth is what you build once you know it is.
 <!-- milestone id=M4 depends=M3 size=unknown -->
 **Goal:** one biome, complete and polished, representative of the final game.
 - [ ] `M4-T01` The Delvings: full generation from room modules, 3 floors → DES-015, DES-006
 - [ ] `M4-T02` ~6 enemy archetypes, 2 hazard types → DES-013
-- [ ] `M4-T03` **All six classes playable** → DES-011
+- [ ] `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* → DES-011
 - [ ] `M4-T04` Contracts tier 1–3, one faction (`DES-007`) → DES-007
 - [ ] `M4-T05` Real art pass, real audio, real UI, ping system → ART-001, ART-002, DES-019, DES-012
 - [ ] `M4-T06` Full save/load, settings, controls rebinding → TEC-003, DES-018
 - [ ] `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest → TEC-004
 
-> **GATE M4 EXIT** `pending` — shippable-quality 45 minutes, played solo *and* as a 4-stack. This is what a publisher, a Steam page, or a Kickstarter would see.
+> **GATE M4 EXIT** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
 ## M5 — Content & Breadth
 <!-- milestone id=M5 depends=M4 size=unknown -->
-Remaining biomes, factions, Aspects, enemies. Balance passes against real telemetry, at every party size.
+- [ ] `M5-T01` **The remaining four classes** — moved here by ADR-061; all six are required for launch (ADR-012) → DES-011
+- [ ] `M5-T02` Remaining biomes — Barrow-Fields, Sunken Wood → DES-006, DES-015
+- [ ] `M5-T03` Remaining factions and Aspects → DES-007, DES-004
+- [ ] `M5-T04` Full enemy roster and modifier set → DES-013
+- [ ] `M5-T05` **DES-021 onboarding / the first hour** — `DES-010` C1 is the largest absolute churn point → DES-010
+- [ ] `M5-T06` Balance passes against real telemetry, at every party size → DES-022
 
 ## M6 — Ship
 <!-- milestone id=M6 depends=M5 size=unknown -->
