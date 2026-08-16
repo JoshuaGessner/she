@@ -283,7 +283,13 @@ func _steer_toward(point: Vector3, speed: float, tuning: TuningProfile) -> void:
 
 
 func _face(direction: Vector3, tuning: TuningProfile) -> void:
-	var wanted: float = atan2(direction.x, direction.z)
+	# Godot's forward is **-Z**, so a Y rotation of θ points the node at
+	# (-sin θ, 0, -cos θ). Solving for θ therefore negates both components:
+	# atan2(direction.x, direction.z) yields the angle whose *+Z* axis is the
+	# direction, which aims the body exactly backwards. The enemy then walked
+	# at the player while looking away from them, and — because `_can_see`
+	# uses the same forward vector — went blind the instant it started closing.
+	var wanted: float = atan2(-direction.x, -direction.z)
 	rotation.y = rotate_toward(rotation.y, wanted, tuning.enemy_turn_rate)
 
 

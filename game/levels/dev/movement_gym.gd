@@ -426,7 +426,26 @@ func _combat_probe(player: Player) -> void:
 	print("[combat] player dies in           %4d hits" % [
 		int(ceil(tuning.player_health / tuning.enemy_attack_damage))])
 
-	# 6. Death resolves cleanly. This killed the run with "Function blocked
+	# 6. An enemy closing on the player faces the way it is travelling.
+	#    Nothing tested this before: every earlier check either left the enemy
+	#    standing still or only cared about the telegraph, so a 180-degree
+	#    error in the steering could sit there unnoticed while every other
+	#    number came back correct.
+	var chaser: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	player.position = chaser.global_position + Vector3(0, 0.1, -8)
+	player.velocity = Vector3.ZERO
+	var opened: float = player.global_position.distance_to(chaser.global_position)
+	for i: int in range(90):
+		await get_tree().physics_frame
+	var toward: Vector3 = player.global_position - chaser.global_position
+	toward.y = 0.0
+	var alignment: float = chaser.facing().dot(toward.normalized())
+	print("[combat] chaser faces its target   %+.2f  (+1 = forward, -1 = backwards)"
+		% alignment)
+	print("[combat] closed distance           %+.2f m" % [
+		opened - player.global_position.distance_to(chaser.global_position)])
+
+	# 7. Death resolves cleanly. This killed the run with "Function blocked
 	#    during in/out signal" until Hitbox stopped toggling `monitoring` and
 	#    the corpse's physics changes were deferred — death is reached from
 	#    inside an area signal, which is exactly where Godot forbids both.
