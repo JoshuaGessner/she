@@ -121,7 +121,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		printf '%s\n' "$problems" | sed 's/^/      /' | sort -u >&2
 		exit 1
 	fi
-	echo "${#scripts[@]} script(s) parse clean, boots and survives teardown ($("$GODOT_BIN" --version))"
+	# The shared rig, as Godot sees it. glTF export is where rigs quietly lose
+	# non-deforming leaf bones, and every socket on this rig is one — a socket
+	# that exists in Blender but not in the .glb fails silently, three tools
+	# away from the symptom. ADR-080/081 are only worth writing if something
+	# enforces them.
+	if [ -f "$GAME/assets/characters/humanoid_rig.glb" ]; then
+		rig="$("$GODOT_BIN" --headless --path "$GAME" --script tests/rig_probe.gd 2>&1)"
+		if printf '%s\n' "$rig" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+			echo "FAIL the shared humanoid rig" >&2
+			printf '%s\n' "$rig" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
+			exit 1
+		fi
+	fi
+	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
 fi
