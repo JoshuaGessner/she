@@ -12,7 +12,11 @@ extends CharacterBody3D
 ## bad control, it can only hide it long enough to build a game on top.
 ##
 ## Deliberately absent, not stubbed (ADR-064): mantling and ledge-hanging
-## (unscheduled), fall damage (needs health, M2), footstep Clamor (`M1-T04`).
+## (unscheduled), fall damage (unscheduled), footstep Clamor (`M1-T04`).
+##
+## `M1-T02` added the weapon, health and a hurtbox. Still absent, and still on
+## purpose: the heavy attack, block, shove and throw (DES-009's remaining
+## verbs), and every juice layer in its M1 protocol.
 
 const DEBUG_WEIGHT_STEP: float = 4.0
 
@@ -27,6 +31,9 @@ var _crouch_blend: float = 0.0
 @onready var _capsule: CapsuleShape3D = _collider.shape as CapsuleShape3D
 @onready var stamina: Stamina = $Stamina
 @onready var carried: CarriedWeight = $CarriedWeight
+@onready var health: Health = $Health
+@onready var weapon: MeleeWeapon = $Head/Weapon
+@onready var _hurtbox: Hurtbox = $Hurtbox
 
 
 func _ready() -> void:
@@ -35,7 +42,14 @@ func _ready() -> void:
 	_capsule.radius = tuning.body_radius
 	_camera.fov = tuning.field_of_view
 	_apply_height(tuning.stand_height)
+	health.maximum = tuning.player_health
+	health.restore()
+	_hurtbox.hit.connect(_on_hurt)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _on_hurt(amount: float, from: Node) -> void:
+	health.apply_damage(amount, from)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -60,6 +74,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	var tuning: TuningProfile = Config.tuning
+
+	# Attacking does not root the player. DES-009 makes defence positional —
+	# spacing, cover, doorways, retreat — with no dodge-roll and no i-frames,
+	# so being unable to move during a swing would delete the only defence the
+	# design gives. The swing itself commits; your feet do not.
+	if Input.is_action_just_pressed("attack"):
+		weapon.request_swing(stamina)
+	weapon.advance(delta, stamina)
 
 	if not is_on_floor():
 		velocity.y -= tuning.gravity * delta

@@ -26,11 +26,24 @@ func _process(_delta: float) -> void:
 			return
 	var carried: CarriedWeight = _player.carried
 	var stamina: Stamina = _player.stamina
-	text = "\n".join([
+	var health: Health = _player.health
+	var lines: PackedStringArray = PackedStringArray([
+		"health    %5.1f / %.0f%s" % [
+			health.current, health.maximum, "   DEAD" if health.is_dead() else "",
+		],
 		"speed     %5.2f m/s" % _player.planar_speed(),
 		"stamina   %5.1f / %.0f" % [stamina.current, stamina.maximum()],
 		"carrying  %5.1f kg  (%.0f%% laden)" % [
 			carried.kilograms, carried.encumbrance() * 100.0,
 		],
-		"[ ] adjust weight   shift sprint   ctrl crouch",
 	])
+	# Enemy state is on screen because the awareness ladder is unreadable
+	# without audio, and DES-013 requires every transition to be legible in
+	# both channels. The audio half is `M2-T03`; until then this is the only
+	# channel there is, and judging the ladder blind is not possible.
+	for enemy: Enemy in get_tree().get_nodes_in_group("enemies"):
+		lines.append("enemy     %-10s %5.1f hp" % [
+			Enemy.State.keys()[enemy.state()].to_lower(), enemy.health.current,
+		])
+	lines.append("lmb attack   [ ] weight   shift sprint   ctrl crouch   r reset")
+	text = "\n".join(lines)

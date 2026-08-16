@@ -23,3 +23,8 @@ func _ready() -> void:
 		# invented profile would make every number in the game a lie, and a
 		# second source of tuning values is the parallel path ADR-064 bans.
 		push_error("Config: %s is missing or is not a TuningProfile" % PROFILE_PATH)
+		return
+	# A tuning value that breaks a documented hard rule must fail at boot, not
+	# produce a subtly unfair game. See TuningProfile.validate().
+	for problem: String in tuning.validate():
+		push_error("Config: %s" % problem)

@@ -66,3 +66,66 @@ extends Resource
 @export var acceleration_at_capacity: float = 0.5
 @export var jump_at_capacity: float = 0.6
 @export var stamina_drain_at_capacity: float = 2.2
+
+@export_group("Vitals")
+@export var player_health: float = 100.0
+
+@export_group("Weapon")
+## DES-009 attack anatomy: Anticipation → Active → Recovery. Attacks commit;
+## there is no cancelling out of one. Recovery is not dead time — it is the
+## window an enemy gets to punish a badly chosen swing.
+@export var swing_windup: float = 0.16
+@export var swing_active: float = 0.10
+@export var swing_recovery: float = 0.30
+@export var swing_damage: float = 25.0
+@export var swing_stamina_cost: float = 12.0
+## A press this long before recovery ends still fires (DES-009 §4). Without
+## buffering, a committal system reads as unresponsive rather than weighty.
+@export var swing_buffer_window: float = 0.25
+## Generous on the player's swing, tight on incoming (DES-009 §4). Invisible,
+## standard practice, and it is most of why a game feels fair.
+@export var swing_reach: float = 2.2
+@export var swing_arc_radius: float = 1.1
+
+@export_group("Enemy")
+@export var enemy_health: float = 60.0
+@export var enemy_attack_damage: float = 34.0
+@export var enemy_walk_speed: float = 2.0
+@export var enemy_run_speed: float = 3.6
+@export var enemy_turn_rate: float = 0.12
+@export var enemy_vision_range: float = 16.0
+@export var enemy_vision_half_angle: float = 60.0
+## Seconds of pursuit after losing sight, before dropping to SUSPICIOUS and
+## then back to UNAWARE. Short enough that breaking line of sight is a real
+## counter-play, long enough that it is not trivial.
+@export var enemy_patience: float = 4.0
+@export var enemy_attack_range: float = 2.2
+## **Hard floor 0.25 s** — enforced in `_validate()`, not by convention.
+@export var enemy_telegraph: float = 0.50
+@export var enemy_attack_active: float = 0.12
+@export var enemy_attack_recovery: float = 0.45
+## How long a hit interrupts an attack. The reward for reading a telegraph.
+@export var enemy_stagger: float = 0.35
+
+
+## Human visual reaction time is ~250 ms before any decision-making or input
+## actuation (DES-009 §3), so an attack faster than that produces a death the
+## player cannot explain — Principle 4 with a number attached.
+##
+## CLAUDE.md says CI enforces this. The full data validator is `M2-T08`, which
+## will check every `EnemyDef` rather than this one profile; until it exists
+## the constraint would otherwise be unenforced on the only telegraph value
+## that actually exists, so the resource checks itself at load.
+const TELEGRAPH_FLOOR: float = 0.25
+
+
+func validate() -> PackedStringArray:
+	var problems: PackedStringArray = PackedStringArray()
+	if enemy_telegraph < TELEGRAPH_FLOOR:
+		problems.append("enemy_telegraph is %.3f s, below the %.2f s floor (DES-009 §3)"
+			% [enemy_telegraph, TELEGRAPH_FLOOR])
+	if carry_capacity <= 0.0:
+		problems.append("carry_capacity must be positive or encumbrance is undefined")
+	if stamina_max <= 0.0:
+		problems.append("stamina_max must be positive")
+	return problems

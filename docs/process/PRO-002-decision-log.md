@@ -905,4 +905,22 @@ Delivery held at **18.1–18.2 Hz of the 20 Hz requested (91%)** in every config
 
 ---
 
+## ADR-072 — `M1-T02` includes the awareness ladder, because the gate question needs it
+**Date:** 2026-08-15 · **Status:** accepted
+**Context:** `M1-T02` reads *"one weapon, one enemy, hit reactions, death"*. Built literally, that is an enemy which is always hostile. But DES-009's stated gate for this layer is **"does a tester voluntarily swing at something they could have walked past?"** — and an always-hostile enemy makes the answer unobtainable, because walking past is not an option. DES-013 opens on the same point from the other side: if encounters are unavoidable, Clamor stops being a decision and becomes a tax.
+
+**Decision:** `M1-T02` builds **UNAWARE → SUSPICIOUS → ALERTED** as well. **SWARM is absent, not stubbed** (ADR-064): calling others is only meaningful once Clamor propagates between actors, and the Clamor field is M2. Senses are **sight only** for the same reason — DES-013 specifies hearing as O(1) Clamor-grid lookups, which needs that field.
+
+SUSPICIOUS investigates the **last seen position, not the player's current one**, which `PRO-005` §5 makes a fairness requirement rather than a flourish.
+
+**Also deliberately absent from this task**, each because one verb built completely beats four built partly: the heavy attack, block, shove and throw; weapon arcs colliding with world geometry; and every layer of DES-009's juice protocol — no hitstop, no impact audio, no camera kick, no particles. **Input buffering is present** and is not a violation: DES-009 §4 files it under Forgiveness, and is explicit that without it a committal system reads as unresponsive rather than weighty.
+
+**Rationale:** the alternative was to build the literal task and discover at the gate that the gate could not be evaluated. Scope grew by one state machine; the thing it protects is the only question `M1` exists to answer.
+
+**Consequences:** measured rather than asserted, via `--combat-probe`: swing wind-up 152 ms of an intended 160, active 111 of 100 (both quantised by the 60 Hz physics step), **enemy telegraph 518 ms against the 250 ms floor**, hits interrupt a wind-up, and an enemy starts UNAWARE and stays there until it sees you. Lethality currently sits at **3 swings to kill, 3 hits to die**, which matches DES-009's *"lean high lethality, telegraphed heavily"* — it does **not** close that open question, which only play can.
+
+**The 250 ms telegraph floor is now enforced at load** by `TuningProfile.validate()`, not by convention. `CLAUDE.md` says CI enforces it and `TEC-006`'s full data validator is `M2-T08`; until that exists the rule would have been unenforced on the only telegraph value in the game. Verified by planting 0.12 s and observing the boot error.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
