@@ -1206,4 +1206,22 @@ Inventories hold `ItemInstance`s. Saves store the instance id plus the item's **
 
 ---
 
+## ADR-085 — Question numbers are permanent, and Q105 meant two things
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `OPEN-QUESTIONS.md`** · **Renumbers Q105 → Q109**
+**Context:** ADR-083 added a check that a task may not cite a closed question. Tying up loose ends, its mirror was added too — *a question an ADR says it closed must not still be listed as open* — and it immediately reported two things, of which **one was a bug in the check and one was a bug in the docs.** Both are worth recording, because they are different failures that looked identical.
+
+**The false positive.** `OPEN-QUESTIONS.md` contains the row *"First-person arms — universal or per-class? (Q96 answered; **proportions** are a feel question)"* — a **correct** citation of a closed question, flagged because the loader scraped every `Q\d+` in the file. Fixed by parsing **declarations** rather than mentions: a question is open if a table cell *begins* with its id, either owning the first cell (`| Q103 |`) or opening the question cell in bold (`| Accessibility | **Q109 — …`). Mentioning a closed question in prose is not reopening it.
+
+**The real one: `Q105` identified two unrelated questions.** ADR-057 closed *"off-hand swapping is mid-run, slow and interruptible"* as Q105 on 2026-08-15. `OPEN-QUESTIONS.md` then filed the *"see your own sound"* deaf-accessibility question as Q105 as well. So *"is Q105 open?"* had two correct and opposite answers, which is the one thing an identifier may never do.
+
+**Decision: question numbers are permanent identifiers and are never reused.** The accessibility question becomes **Q109** — the next free number above Q108, the highest any ADR has spent. The ADR keeps its number, because the decision log is history and history is not renumbered; the open list is the newer, colliding use and is the one that moves.
+
+**Rationale:** This is the same rule `TEC-006` already applies to item IDs and `TEC-003` to save data — *stable string IDs, never reused* — and it had simply never been stated for questions. `PRO-001` and `PRO-002` both cite question numbers as though they were unique, and one of this session's ADRs was written referring to "Q105" meaning the accessibility one. That confusion is exactly the cost.
+
+**Consequences:** `Q105` in this log continues to mean off-hand swapping. **The deaf-accessibility footprint question is `Q109` from here on** — the same question, parked, with `components/debug_overlays.gd` still its groundwork. `status.py --check` now cross-references the open list against every ADR's `Closes` line **in both directions**, and `test_checks.py` plants a violation for each. Two stale rows fell out of the same audit: Q36 (answered by ADR-068's spike) and Q104 (closed the same day by ADR-084).
+
+**The pattern across ADR-083 and this one.** Three separate document-integrity failures in two days — a closed question cited as live, an answered question still listed, an id used twice — and **not one of them was caught by reading.** Each was caught by a check written immediately after the previous one, which is the argument for writing the check at the moment the failure is understood rather than filing it as a lesson.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

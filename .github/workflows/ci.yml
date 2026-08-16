@@ -70,10 +70,17 @@ jobs:
       - name: Import project
         run: godot --headless --path game --import
 
-      # Runs the real GDScript parser over every script. See the header of
-      # check_scripts.sh: --check-only exits 0 even when it reports errors,
-      # so this wrapper matches on the diagnostics instead.
-      - name: Parse every script
+      # The whole engine-side sweep, not just parsing — the name used to say
+      # "parse every script" and stopped being true as checks were added to
+      # the script. A CI step whose name understates it is a step someone
+      # trims. It runs, in order: the real GDScript parser over every file,
+      # a boot of the main scene, a destroy-and-respawn churn pass, the shared
+      # rig, every authored resource, and a two-process host/client session.
+      #
+      # See the header of check_scripts.sh for why the parser is invoked once
+      # per file and matched on its output: --check-only exits 0 even when it
+      # reports errors.
+      - name: Parse, boot, rig, data and two-player co-op
         run: tools/check_scripts.sh
         env:
           GODOT: /usr/local/bin/godot

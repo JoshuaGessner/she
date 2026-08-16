@@ -75,6 +75,10 @@ GATE_STATE_RE = re.compile(r"^(pending|passed|failed)(?: (\d{4}-\d{2}-\d{2}))?(?
 # Question IDs, wherever they appear. Deliberately bare: a task citing `Q23`
 # and `OPEN-QUESTIONS.md` listing `| Q23 |` have to compare equal (ADR-083).
 QUESTION_ID_RE = re.compile(r"\bQ(\d+)\b")
+# An ADR announcing what it resolved: "**Closes Q81, Q23, Q82**".
+ADR_CLOSES_RE = re.compile(r"\*\*Closes ([^*]+)\*\*")
+# A table cell that *declares* a question rather than mentioning one.
+QUESTION_DECL_RE = re.compile(r"^Q(\d+)\b")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 QSECTION_RE = re.compile(r"^##\s+.*needed.*$", re.IGNORECASE)
 
@@ -318,15 +322,31 @@ def load_adrs() -> dict[int, str]:
 
 
 def load_open_questions() -> set[str]:
-    """Every question number `OPEN-QUESTIONS.md` still lists.
+    """Every question number `OPEN-QUESTIONS.md` still *declares*.
 
-    That file's own header says resolved items *move* to the decision log and
-    are deleted from it, so membership here is the definition of "still open"
-    — there is no status column to disagree with.
+    That file's own header says resolved items move to the decision log and are
+    deleted from it, so membership here is the definition of "still open" —
+    there is no status column to disagree with.
+
+    **Declared, not merely mentioned**, and the distinction is load-bearing: a
+    row reading "First-person arms — universal or per-class? (Q96 answered)" is
+    citing a closed question *correctly*, and scraping every `Q\\d+` in the file
+    reported it as still open. Two table shapes are in use, so a declaration is
+    a cell that *begins* with the id — either owning the first cell, `| Q103 |`,
+    or opening the question cell in bold, `| Accessibility | **Q105 — …`.
     """
     if not QUESTIONS.exists():
         return set()
-    return set(QUESTION_ID_RE.findall(QUESTIONS.read_text(encoding="utf-8")))
+    found: set[str] = set()
+    for line in QUESTIONS.read_text(encoding="utf-8").splitlines():
+        if not line.startswith("|"):
+            continue
+        for cell in line.strip().strip("|").split("|"):
+            declared = QUESTION_DECL_RE.match(cell.strip().lstrip("*").strip())
+            if declared:
+                found.add(declared.group(1))
+                break  # one question per row; the first cell to name it wins
+    return found
 
 
 def load_blocking_questions() -> dict[str, list[str]]:
@@ -637,6 +657,43 @@ def check_stale_questions(milestones: list[Milestone]) -> list[Issue]:
     return issues
 
 
+def check_closed_questions() -> list[Issue]:
+    """The mirror of `check_stale_questions`: a question an ADR says it closed
+    must not still be sitting in the open list.
+
+    Both directions failed on this project inside two days. Q23 was closed by
+    ADR-040 and still cited as a live prototype fork by the roadmap (ADR-083).
+    Q36 was answered by the `M1-T06` spike and still listed as open four
+    commits later — found only because starting M2 happened to trip a
+    different check.
+
+    The two run in opposite directions on purpose. A decision recorded in two
+    places and updated in one is worse than a decision recorded once, and
+    neither file can notice the drift alone.
+    """
+    if not QUESTIONS.exists() or not DECISIONS.exists():
+        return []
+    still_open = load_open_questions()
+    issues: list[Issue] = []
+    adr = "an ADR"
+    for n, line in enumerate(DECISIONS.read_text(encoding="utf-8").splitlines(), 1):
+        head = ADR_HEAD_RE.match(line)
+        if head:
+            adr = "ADR-%s" % head.group(1)
+            continue
+        for claim in ADR_CLOSES_RE.findall(line):
+            for qid in QUESTION_ID_RE.findall(claim):
+                if qid not in still_open:
+                    continue
+                issues.append(Issue(
+                    "error", "question-closed", f"{rel(DECISIONS)}:{n}",
+                    f"{adr} says it closes Q{qid}, but {rel(QUESTIONS)} still lists it",
+                    "delete the row — a resolved question moves to the decision log, "
+                    "and one left in both places reads as still open",
+                ))
+    return issues
+
+
 def check_deferred_sections(docs: dict[str, Doc]) -> list[Issue]:
     """ADR-077: a section that means "later" must say which later.
 
@@ -685,6 +742,7 @@ def run_checks(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int
     issues += check_quality(milestones, docs)
     issues += check_placeholder_language(milestones)
     issues += check_stale_questions(milestones)
+    issues += check_closed_questions()
     issues += check_deferred_sections(docs)
     return issues
 
