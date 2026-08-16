@@ -50,7 +50,13 @@ CALLS_UP = re.compile(r"\bget_parent\(\)\s*\.")
 PLACEHOLDER_WORDS = re.compile(
     r"\b(TODO|FIXME|XXX|HACK|stub|stubbed|placeholder|for now)\b", re.IGNORECASE
 )
-TASK_ID = re.compile(r"\bM\d+-T\d+\b")
+# A task ID carries both halves of ADR-064's exception — the replacement and
+# the milestone it lands in. An ADR reference marks prose that is *stating* the
+# policy ("absent, not stubbed") rather than shipping a placeholder. Same
+# exemption status.py applies to roadmap tasks; the two must agree or the same
+# sentence passes one checker and fails the other.
+PAIRED = re.compile(r"\b(M\d+-T\d+|ADR-\d+)\b")
+COMMENT_LINE = re.compile(r"^\s*(#|//)")
 
 TEXT_SUFFIXES = {".gd", ".gdshader", ".tscn", ".tres"}
 
@@ -106,11 +112,19 @@ def check_settings() -> list[Issue]:
     cfg = parse_project()
     where = rel(PROJECT)
 
-    method = cfg.get("rendering", {}).get("renderer/rendering_method", "")
-    if method.strip('"') != "forward_plus":
+    # Godot persists only settings that DIFFER from the engine default, so an
+    # explicitly written `forward_plus` is deleted the next time anything calls
+    # ProjectSettings.save(). Measured: it vanished on the first such save.
+    # Absence therefore genuinely means forward_plus, the desktop default —
+    # while any *other* renderer does differ from the default and so is always
+    # written out. Checking for "absent or forward_plus" is not a weakening of
+    # ADR-052: switching to Mobile still fails this, which is the only case
+    # the lock was ever guarding against.
+    method = cfg.get("rendering", {}).get("renderer/rendering_method", "").strip('"')
+    if method and method != "forward_plus":
         issues.append(Issue(
             "error", "renderer", where,
-            f"rendering_method is {method or 'unset'}, not forward_plus",
+            f"rendering_method is {method}, not forward_plus",
             "ADR-052 locks Forward+ — Mobile's 8-light cap breaks carried lanterns",
         ))
 
@@ -217,16 +231,40 @@ def check_script(path: Path) -> list[Issue]:
 
 
 def check_placeholders(path: Path) -> list[Issue]:
-    """ADR-064: placeholder language needs a paired removal task ID."""
+    """ADR-064: placeholder language needs a paired removal task ID.
+
+    Scoped to the whole comment block, not the single line. A doc comment
+    explaining *why* something is absent naturally wraps, so the sentence
+    carrying the word and the sentence carrying the task ID are usually on
+    different lines — and a checker that cannot read two lines together would
+    force every such explanation to be deleted or contorted.
+    """
     if path.suffix not in TEXT_SUFFIXES:
         return []
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    # Map each line to the text of its enclosing run of comment lines.
+    context: list[str] = list(lines)
+    start = 0
+    while start < len(lines):
+        if not COMMENT_LINE.match(lines[start]):
+            start += 1
+            continue
+        end = start
+        while end + 1 < len(lines) and COMMENT_LINE.match(lines[end + 1]):
+            end += 1
+        block = "\n".join(lines[start:end + 1])
+        for i in range(start, end + 1):
+            context[i] = block
+        start = end + 1
+
     issues = []
-    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for n, line in enumerate(lines, 1):
         match = PLACEHOLDER_WORDS.search(line)
-        if match and not TASK_ID.search(line):
+        if match and not PAIRED.search(context[n - 1]):
             issues.append(Issue(
                 "error", "unpaired-placeholder", f"{rel(path)}:{n}",
-                f"'{match.group(0)}' with no replacement task ID",
+                f"'{match.group(0)}' with nothing that removes it",
                 "ADR-064: name the PRO-001 task that removes it, or remove it now",
             ))
     return issues

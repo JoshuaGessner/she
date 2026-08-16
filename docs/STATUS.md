@@ -35,7 +35,7 @@ flowchart LR
 | | Milestone | Progress | Done | Gates |
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
-| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `███░░░░░░░` | 3/10 | `EXIT` pending |
+| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `███▒░░░░░░` | 3/10 | `EXIT` pending |
 |  | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
@@ -50,7 +50,7 @@ _None. Sequencing is clean._
 
 ### M1 — The Feel Prototype
 
-- · `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement `DES-009` `DES-005`
+- ▶ `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement. *Built, unjuiced per Swink; couplings measured in `tools/`'s gym probe. Awaiting the feel judgement and the exported-build half of the Definition of Done* `DES-009` `DES-005`
 - · `M1-T02` One weapon, one enemy, hit reactions, death `DES-009` `DES-013`
 - · `M1-T03` One hand-built room set, no generation `DES-015`
 - · `M1-T04` Weight & Clamor as visible debug numbers `DES-005`

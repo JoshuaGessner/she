@@ -34,7 +34,7 @@ The most common way a project like this dies is building the meta-progression fi
 ## M1 — The Feel Prototype  ·  *smallest milestone*
 <!-- milestone id=M1 depends=M0 size=1.0 -->
 **Goal:** answer "is moving and fighting in this space enjoyable?" — with grey boxes and zero content.
-- [ ] `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement → DES-009, DES-005
+- [~] `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement. *Built, unjuiced per Swink; couplings measured in `tools/`'s gym probe. Awaiting the feel judgement and the exported-build half of the Definition of Done* → DES-009, DES-005
 - [ ] `M1-T02` One weapon, one enemy, hit reactions, death → DES-009, DES-013
 - [ ] `M1-T03` One hand-built room set, no generation → DES-015
 - [ ] `M1-T04` Weight & Clamor as visible debug numbers → DES-005

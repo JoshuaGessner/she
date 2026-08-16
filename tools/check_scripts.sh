@@ -51,10 +51,37 @@ if [[ ${#scripts[@]} -eq 0 ]]; then
 	exit 0
 fi
 
+# Rebuild the global class cache first. Without it, every `class_name` added
+# since the last import reads as "Could not find type X in the current scope",
+# which looks like a code error and is not one. Self-contained beats a
+# precondition nobody remembers.
+"$GODOT_BIN" --headless --path "$GAME" --import >/dev/null 2>&1 || true
+
+# `--check-only` compiles a script in isolation, with no SceneTree and so no
+# autoloads registered — every reference to one reads as "Identifier not found".
+# That is an engine limitation, not a defect in the code, so those exact names
+# are filtered out and the boot check below covers them properly instead.
+# Filtering is by name, not by pattern: an unknown identifier that is not a
+# registered autoload still fails.
+autoloads="$(sed -n '/^\[autoload\]/,/^\[/p' "$GAME/project.godot" \
+	| grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' | tr -d '=' | paste -sd'|' -)"
+# "Failed to compile depended scripts" is the same limitation one level out: a
+# script whose dependency touches an autoload cannot compile in isolation
+# either. Safe to drop, because every script is also checked on its own pass —
+# a genuine error in a dependency still fails there.
+ignore="Failed to load script|Failed to compile depended scripts"
+if [[ -n "$autoloads" ]]; then
+	ignore="$ignore|Identifier not found: ($autoloads)"
+fi
+
 failed=0
 for script in "${scripts[@]}"; do
 	output="$("$GODOT_BIN" --headless --path "$GAME" --check-only --script "$script" 2>&1)"
-	if diagnostics="$(printf '%s\n' "$output" | grep -E 'SCRIPT ERROR|Parse Error|^ERROR:')"; then
+	# "Failed to load script" is always a cascade of a preceding diagnostic, so
+	# dropping it cannot hide anything: the real error line is still matched.
+	if diagnostics="$(printf '%s\n' "$output" \
+			| grep -E 'SCRIPT ERROR|Parse Error|^ERROR:' \
+			| grep -vE "$ignore")"; then
 		echo "FAIL game/$script" >&2
 		printf '%s\n' "$diagnostics" | sed 's/^/      /' >&2
 		failed=$((failed + 1))
@@ -67,4 +94,18 @@ if [[ $failed -gt 0 ]]; then
 	exit 1
 fi
 
-echo "${#scripts[@]} script(s) parse clean ($("$GODOT_BIN" --version))"
+# Boot the main scene for a few frames. This is what actually exercises the
+# autoloads, the scene tree and every script reached from it together — the
+# per-script pass above cannot, by construction. Skipped when no main scene is
+# set, which is a legitimate state before there is anything to run.
+if grep -q '^run/main_scene=' "$GAME/project.godot"; then
+	boot="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 5 2>&1)"
+	if problems="$(printf '%s\n' "$boot" | grep -E 'SCRIPT ERROR|Parse Error|^ERROR:')"; then
+		echo "FAIL booting the main scene" >&2
+		printf '%s\n' "$problems" | sed 's/^/      /' >&2
+		exit 1
+	fi
+	echo "${#scripts[@]} script(s) parse clean, main scene boots ($("$GODOT_BIN" --version))"
+else
+	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
+fi
