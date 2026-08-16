@@ -14,8 +14,20 @@ extends Node3D
 const GREY: Color = Color(0.60, 0.59, 0.58)
 const ACCENT: Color = Color(0.38, 0.37, 0.36)
 
-const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
-const SPAWN: Vector3 = Vector3(0, 0.1, 10)
+## The network boundary (`M1-T05`). The gym is a solo feel harness and will
+## almost always run with nobody connected — which on Godot's offline peer is
+## a host with zero peers, the same code path. It goes through the session
+## anyway, because two ways to put a player in a level is the parallel path
+## ADR-064 bans, and the one nobody exercises is the one that rots.
+const SESSION_SCENE: PackedScene = preload("res://systems/net/coop_session.tscn")
+
+## Godot's host is always peer 1, offline peer included.
+const HOST_PEER: int = 1
+
+const SPAWNS: Array[Vector3] = [
+	Vector3(-1.2, 0.1, 10), Vector3(1.2, 0.1, 10),
+	Vector3(-3.6, 0.1, 10), Vector3(3.6, 0.1, 10),
+]
 
 ## Where the enemies stand. Spread out and away from spawn on purpose: the M1
 ## gate question is whether a tester *chooses* to swing at something they could
@@ -27,36 +39,44 @@ const ENEMY_POSTS: Array[Vector3] = [
 
 @onready var _world: Node3D = $World
 
-var _player: Player = null
+var _session: CoopSession = null
 
 
 func _ready() -> void:
 	_build()
-	_player = preload("res://actors/player/player.tscn").instantiate() as Player
-	_player.position = SPAWN
-	add_child(_player)
-	_player.health.died.connect(_on_player_died)
+	_session = SESSION_SCENE.instantiate() as CoopSession
+	_session.spawn_points = SPAWNS
+	_session.player_spawned.connect(_on_player_spawned)
+	add_child(_session)
 	# The ring and the vision cones now live in a component, so the room set
 	# gets them too (ADR-078). It finds the player and the enemies by group.
 	_world.add_child(DebugOverlays.new())
 	_spawn_enemies()
+	var player: Player = _session.local_player()
 	# Once, at startup. This loop briefly ended up inside _process() during a
 	# refactor and re-entered the probe every frame — 84,000 lines of header and
 	# no measurements, which is a good argument for reading the whole function
 	# after moving anything into the middle of one.
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture="):
-			_capture(arg.split("=", true, 1)[1])
+			_capture(player, arg.split("=", true, 1)[1])
 		elif arg == "--probe":
-			_probe(_player)
+			_probe(player)
 		elif arg == "--combat-probe":
-			_combat_probe(_player)
+			_combat_probe(player)
 		elif arg == "--clamor-probe":
-			_clamor_probe(_player)
+			_clamor_probe(player)
 		elif arg.begins_with("--capture-top="):
-			_capture_top(arg.split("=", true, 1)[1])
+			_capture_top(player, arg.split("=", true, 1)[1])
 		elif arg == "--lifecycle-probe":
 			_lifecycle_probe()
+
+
+## Dev convenience only. Death costing you the run is `M2-T05`; nothing here
+## should be mistaken for that system. Connected per body as it spawns, since
+## a body now arrives when a peer does rather than at level start.
+func _on_player_spawned(player: Player) -> void:
+	player.health.died.connect(_on_player_died)
 
 
 ## Reset the gym repeatedly and let the per-frame overlays run over the wreckage.
@@ -84,7 +104,7 @@ func _lifecycle_probe() -> void:
 
 ## Overhead capture. The audible footprint is a shape on the ground plane, and
 ## a first-person shot at eye level cannot show a shape on the ground plane.
-func _capture_top(path: String) -> void:
+func _capture_top(player: Player, path: String) -> void:
 	var camera := Camera3D.new()
 	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
 	camera.size = 34.0
@@ -95,12 +115,12 @@ func _capture_top(path: String) -> void:
 	# The ink pass belongs to the player's camera but draws in clip space, so it
 	# fills this one too and composites over the debug overlays. An overhead
 	# diagnostic wants the raw simulation, not the style.
-	_player.show_ink(false)
+	player.show_ink(false)
 	# North of the interior wall, and loud enough to reach past it but not so
 	# loud the footprint leaves the room — at maximum clamor the outline is
 	# wider than the gym and the doorway notch is off-screen.
-	_player.position = Vector3(0, 0.1, 9)
-	_player.clamor.add(14.0 / Config.tuning.clamor_metres_per_unit)
+	player.teleport(Vector3(0, 0.1, 9), 0.0)
+	player.clamor.add(14.0 / Config.tuning.clamor_metres_per_unit)
 	for i: int in range(4):
 		await get_tree().physics_frame
 	await RenderingServer.frame_post_draw
@@ -129,8 +149,7 @@ func _clamor_probe(player: Player) -> void:
 		{"name": "crouch, full load", "kg": tuning.carry_capacity,
 			"sprint": false, "crouch": true},
 	]:
-		player.position = Vector3(0, 0.1, 18)
-		player.velocity = Vector3.ZERO
+		player.teleport(Vector3(0, 0.1, 18), 0.0)
 		player.clamor.silence()
 		player.carried.kilograms = float(case["kg"])
 		player.stamina.refill()
@@ -154,7 +173,7 @@ func _clamor_probe(player: Player) -> void:
 
 	# A swing that misses versus one that lands. DES-009 makes connecting the
 	# loud part, which is what makes a fight expensive and a whiff cheap.
-	player.position = Vector3(0, 0.1, 18)
+	player.teleport(Vector3(0, 0.1, 18), 0.0)
 	player.clamor.silence()
 	player.stamina.refill()
 	player.weapon.request_swing(player.stamina)
@@ -186,7 +205,7 @@ func _clamor_probe(player: Player) -> void:
 	# The level is chosen so the open radius is about 10 m: at maximum clamor
 	# the radius dwarfs the penalty and everything is audible through
 	# everything, which proves nothing.
-	player.position = Vector3(0, 0.1, 6)
+	player.teleport(Vector3(0, 0.1, 6), 0.0)
 	player.clamor.silence()
 	player.clamor.add(10.0 / tuning.clamor_metres_per_unit)
 	await get_tree().physics_frame
@@ -209,36 +228,52 @@ func _clamor_probe(player: Player) -> void:
 
 func _spawn_enemies() -> void:
 	for post: Vector3 in ENEMY_POSTS:
-		var enemy: Enemy = ENEMY_SCENE.instantiate() as Enemy
-		enemy.position = post
 		# Facing away from spawn, so approaching unseen is possible and the
 		# vision cone is something a tester discovers by using it. Godot's
-		# forward is -Z, and the player spawns at +Z, so the default rotation
-		# already looks away — an earlier PI here turned every enemy around to
-		# stare at the spawn point and made the gym start in ALERTED.
-		enemy.rotation.y = 0.0
-		_world.add_child(enemy)
+		# forward is -Z, and the player spawns at +Z, so a yaw of zero already
+		# looks away — an earlier PI here turned every enemy around to stare at
+		# the spawn point and made the gym start in ALERTED.
+		_session.spawn_enemy(post, 0.0)
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("debug_reset"):
+		_ask_for_reset()
+
+
+## Resetting the gym respawns enemies and moves every body, and both of those
+## are host decisions (`TEC-004`). A client presses the same key and asks.
+func _ask_for_reset() -> void:
+	if multiplayer.is_server():
+		_reset()
+	else:
+		_request_reset.rpc_id(HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _request_reset() -> void:
+	if multiplayer.is_server():
 		_reset()
 
 
 func _on_player_died(_from: Node) -> void:
-	# Dev convenience only. Death costing you the run is `M2-T05`; nothing here
-	# should be mistaken for that system.
 	_reset()
 
 
 func _reset() -> void:
-	_player.position = SPAWN
-	_player.velocity = Vector3.ZERO
-	_player.health.restore()
-	_player.stamina.refill()
-	_player.carried.kilograms = 0.0
-	for enemy: Enemy in get_tree().get_nodes_in_group("enemies"):
-		enemy.queue_free()
+	if not multiplayer.is_server():
+		return
+	var index: int = 0
+	for player: Player in _session.players():
+		# `teleport` rather than assigning the position: the transform belongs
+		# to whoever is playing that body, so the host has to ask, or the next
+		# packet drags them straight back to where they died.
+		player.teleport(SPAWNS[index % SPAWNS.size()], 0.0)
+		player.health.restore()
+		player.stamina.refill()
+		player.carried.kilograms = 0.0
+		index += 1
+	_session.clear_enemies()
 	_spawn_enemies()
 
 
@@ -261,7 +296,7 @@ func _combat_probe(player: Player) -> void:
 		% Enemy.State.keys()[enemy.state()].to_lower())
 
 	# 2. Swing anatomy, measured in physics frames rather than trusted.
-	player.position = Vector3(0, 0.1, 10)
+	player.teleport(Vector3(0, 0.1, 10), 0.0)
 	player.stamina.refill()
 	var phases: Dictionary = {}
 	var began: int = Time.get_ticks_msec()
@@ -283,7 +318,7 @@ func _combat_probe(player: Player) -> void:
 	# In front of the enemy, inside its vision cone. Godot's forward is -Z, so
 	# +Z would place the player behind it — which reads as a broken telegraph
 	# rather than as a working one that was never triggered.
-	player.position = enemy.global_position + Vector3(0, 0.1, -1.6)
+	player.teleport(enemy.global_position + Vector3(0, 0.1, -1.6), 0.0)
 	var telegraph_start: int = 0
 	var telegraph_ms: int = 0
 	for i: int in range(600):
@@ -321,8 +356,7 @@ func _combat_probe(player: Player) -> void:
 	#    error in the steering could sit there unnoticed while every other
 	#    number came back correct.
 	var chaser: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
-	player.position = chaser.global_position + Vector3(0, 0.1, -8)
-	player.velocity = Vector3.ZERO
+	player.teleport(chaser.global_position + Vector3(0, 0.1, -8), 0.0)
 	var opened: float = player.global_position.distance_to(chaser.global_position)
 	for i: int in range(90):
 		await get_tree().physics_frame
@@ -371,8 +405,7 @@ func _probe(player: Player) -> void:
 		# simply runs into the slopes partway through the run and every case
 		# after the second reports 0.00 — which looks exactly like a broken
 		# controller and is not one.
-		player.position = Vector3(0, 0.1, 18)
-		player.velocity = Vector3.ZERO
+		player.teleport(Vector3(0, 0.1, 18), 0.0)
 		player.carried.kilograms = float(case["kg"])
 		player.stamina.refill()
 		Input.action_press("move_forward")
@@ -394,7 +427,7 @@ func _probe(player: Player) -> void:
 	get_tree().quit()
 
 
-func _capture(path: String) -> void:
+func _capture(player: Player, path: String) -> void:
 	## Screenshot and quit. Building a gym without looking at it is how the
 	## ink spike ended up with its camera standing inside a pillar.
 	##
@@ -402,8 +435,8 @@ func _capture(path: String) -> void:
 	## the weapon mid-arc and the clamor ring the swing produced. An idle frame
 	## shows neither — clamor decays to nothing and the ring hides itself — and
 	## would suggest both features were missing.
-	_player.clamor.add(Config.tuning.clamor_swing * 2.0)
-	_player.weapon.request_swing(_player.stamina)
+	player.clamor.add(Config.tuning.clamor_swing * 2.0)
+	player.weapon.request_swing(player.stamina)
 	for i: int in range(6):
 		await get_tree().physics_frame
 	await RenderingServer.frame_post_draw

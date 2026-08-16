@@ -52,7 +52,10 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	if _player == null or not is_instance_valid(_player):
-		_player = get_tree().get_first_node_in_group("player") as Player
+		# `local_player`, not `player`: the ring is *what you are emitting*, so
+		# with a party it has to follow the body this process is playing rather
+		# than whichever teammate happens to be first in the group.
+		_player = get_tree().get_first_node_in_group("local_player") as Player
 		if _player == null:
 			return
 	_redraw_ring()

@@ -31,6 +31,13 @@ var level: float = 0.0
 
 
 func _process(delta: float) -> void:
+	# Noise is host-authoritative (`TEC-004`, ADR-082) and `level` is
+	# replicated host→peer. A client that also decayed it locally would be
+	# fighting the value arriving from the host twenty times a second, and the
+	# two would settle somewhere neither of them meant — which would make the
+	# debug ring disagree with the ears that actually heard you.
+	if not multiplayer.is_server():
+		return
 	if level <= 0.0:
 		return
 	# Linear decay, not exponential: a decay curve with a long tail leaves a

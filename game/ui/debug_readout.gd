@@ -18,10 +18,12 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _player == null:
-		# The gym spawns the player at runtime, so bind on the first frame it
-		# is actually there rather than assuming scene order.
-		_player = get_tree().get_first_node_in_group("player") as Player
+	if _player == null or not is_instance_valid(_player):
+		# The session spawns bodies at runtime, so bind on the first frame one
+		# is actually there rather than assuming scene order — and bind to
+		# `local_player`, since these are the numbers for the body this process
+		# is playing, not for whoever is first in the party.
+		_player = get_tree().get_first_node_in_group("local_player") as Player
 		if _player == null:
 			return
 	var carried: CarriedWeight = _player.carried

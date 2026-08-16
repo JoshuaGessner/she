@@ -103,9 +103,28 @@ func _begin(stamina: Stamina, tuning: TuningProfile) -> bool:
 	if not stamina.spend(tuning.swing_stamina_cost):
 		refused.emit("stamina")
 		return false
-	_enter(Phase.WINDUP, tuning.swing_windup)
-	swing_started.emit()
+	begin_owned_swing()
 	return true
+
+
+## Start a swing whose cost has already been paid, on another peer's machine
+## (`M1-T05`, ADR-082).
+##
+## Every peer runs this phase machine: the owner because they asked for the
+## swing, the host because its copy's hitbox is the only one allowed to decide
+## that something was hurt, and everyone else so a teammate visibly swings
+## rather than gliding with a still weapon.
+##
+## It does not consult stamina, and that is the point rather than an oversight.
+## Stamina was spent on the owner's machine; a remote copy has been drained by
+## nothing, so charging it again would sometimes *refuse* — on the host — a
+## swing that legitimately happened, and the symptom would be hits that
+## occasionally do not land for no visible reason.
+func begin_owned_swing() -> void:
+	if _phase != Phase.IDLE:
+		return
+	_enter(Phase.WINDUP, Config.tuning.swing_windup)
+	swing_started.emit()
 
 
 func _enter(next: Phase, duration: float) -> void:

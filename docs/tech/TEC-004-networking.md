@@ -4,7 +4,7 @@ title: Networking Architecture
 status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-08-15
+updated: 2026-08-16
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
@@ -22,9 +22,13 @@ The M1 feel prototype ships with **two players connected over localhost**, even 
 
 **Host-authoritative peer-to-peer.** One player hosts and simulates; clients send input and render.
 
+> **The split, stated exactly (ADR-082):** **the owning peer is authoritative over its own body's transform; the host is authoritative over every consequence.**
+>
+> This paragraph used to say "client-side prediction for local movement" one line above "do not build rollback or lag compensation", which cannot both be satisfied — prediction with no reconciliation is not prediction, it is authority. The exclusion list below was always the real specification, and movement was never on it.
+
 - **No dedicated servers.** Not defensible for a premium PvE game with no PvP integrity requirements.
 - **No client authority** over damage, loot acquisition, extraction, or progression. Not for anti-cheat — this is co-op, and cheating mostly harms the cheater — but because a single authority is dramatically simpler to reason about and debug.
-- **Client-side prediction for local movement only.** Everything else is host-authoritative with interpolation. Melee combat in a PvE game tolerates ~80ms latency well; do **not** build rollback or lag compensation. That complexity buys nothing here.
+- **A client simulates its own legs and nothing else.** Melee combat in a PvE game tolerates ~80ms latency well; do **not** build rollback or lag compensation. That complexity buys nothing here, and under the split above nothing needs correcting, so no reconciliation path exists to build.
 
 ## Transport
 
@@ -34,6 +38,19 @@ The M1 feel prototype ships with **two players connected over localhost**, even 
 
 > Architect the transport behind a thin interface from day one so ENet (dev, fast iteration) and Steam (ship) are swappable. Do not scatter Steam API calls through gameplay code.
 
+## Where the boundary lives (`M1-T05`)
+
+"Networking is a constraint on every milestone" is only true if the boundary is somewhere findable. It is `game/systems/net/coop_session.gd` — **the only place a peer is created, and the only place an actor is spawned.** Levels hand it their spawn points and ask it for enemies; they never instantiate a player.
+
+**Single-player is a host with zero peers, and it costs nothing.** Measured on 4.7: with no peer ever assigned Godot installs an `OfflineMultiplayerPeer`, `get_unique_id()` is 1, `is_server()` is true, and `MultiplayerSpawner.spawn()` works. So solo runs the same code as a host nobody has joined, and there is no offline path to drift out of sync with the real one (ADR-064). **`has_multiplayer_peer()` returns `true` with no peer**, so it can never mean "am I networked" — ask `multiplayer.get_peers()` who is there and `is_server()` who decides.
+
+**Damage becomes host-authoritative in exactly one line**, in `Hitbox`: no peer but the host resolves an overlap. One gate rather than a guard at every call site.
+
+```bash
+python3 tools/run_coop.py            # two windows, host on keyboard, client on pad
+python3 tools/run_coop.py --smoke    # headless, two processes, judged
+```
+
 ## What replicates, and what doesn't
 
 The seeded generator (`TEC-001`) pays off enormously here.
@@ -41,9 +58,10 @@ The seeded generator (`TEC-001`) pays off enormously here.
 | Data | Approach |
 |---|---|
 | **Level geometry** | **Not replicated.** Host sends the seed; every client generates an identical floor. Requires bit-exact determinism in generation — already a requirement, now load-bearing. |
-| Player transforms | Synchronized, interpolated, locally predicted |
+| Player transforms | Owned by the peer playing them (`MotionSync`) — position, yaw, pitch, stance, grounded |
+| Player health, carried weight, clamor | Owned by the host (`StateSync`). One body, two synchronisers, two authorities — ADR-082 |
 | Enemy transforms & state | Host-authoritative, synchronized, interpolated |
-| **Clamor field** | **Host only.** Never replicated — it's a coarse grid updated continuously and would dominate bandwidth. Clients receive only its *effects* (Hunt state, enemy alerts). |
+| **Clamor field** | **Host only.** Never replicated — it's a coarse grid updated continuously and would dominate bandwidth. Clients receive only its *effects* (Hunt state, enemy alerts). **Not the same thing as a `ClamorSource`'s scalar level**, which is one float per actor, derived on the host for *every* body from the motion it can see, and replicated back down so your own audible-footprint overlay and the ears that heard you cannot disagree. |
 | Hunt / Hunter state | Host-authoritative, replicated as compact state |
 | Loot in world | Host-authoritative spawn, replicated; **pickup is a host-validated request** |
 | Inventories | Host-authoritative; each client sees only its own in detail |
@@ -92,8 +110,8 @@ Two engine behaviours that are easy to get wrong and expensive when you do:
 | ~~`MultiplayerSynchronizer` performance at high object counts~~ | ~~High~~ | **Closed by `M1-T06` (ADR-068).** Measured: 0.2–0.9 ms host physics for 150 synchronised entities, 91% of requested update rate delivered. **CPU was never the constraint.** The real one is bandwidth, and it is decided by relevance filtering — see Budgets. |
 | Generation desync | High | Determinism harness in CI from M1 |
 | NAT traversal failures | Medium | Steam relay before any public build |
-| Host advantage / client latency feel | Medium | Predict local movement; keep melee forgiving |
-| Co-op QA cost (roughly 2× everything) | **High** | Automated 2-client smoke tests in CI; budget for it in `PRO-001` |
+| Host advantage / client latency feel | Medium | The peer simulates its own movement (ADR-082); keep melee forgiving |
+| ~~Co-op QA cost (roughly 2× everything)~~ | ~~High~~ | **Mitigated at `M1-T05`.** `tools/run_coop.py --smoke` runs a host and a client as separate processes in the pre-commit sweep and compares what each *independently* saw — party membership, agreed positions, who resolved a hit, who simulated an enemy, who heard whom. The only check in the sweep that exercises a second process, which is the only way any of this is checkable. |
 
 ## The hub: Chamber vs Threshold (ADR-021)
 

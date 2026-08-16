@@ -1113,4 +1113,41 @@ The real argument is that **armour is authored against the rig**: a modeller bui
 
 ---
 
+## ADR-082 — `M1-T05`: the peer owns its body, the host owns every consequence
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `TEC-004`** · **Task:** `M1-T05`
+**Context:** `TEC-004` asks for two things that cannot both be true. It specifies *"client-side prediction for local movement only"* and, one line later, *"do **not** build rollback or lag compensation."* Prediction without reconciliation is not prediction — it is authority with a more reassuring name. Building `M1-T05` required picking one, and "host-authoritative" as a slogan reads as *the host simulates your body*, which needs exactly the machinery the document bans.
+
+**Decision — the split is stated, not implied:**
+
+> **The owning peer is authoritative over its own body's transform. The host is authoritative over every consequence.**
+
+This is the reading `TEC-004`'s own exclusion list already implies: it names damage, loot acquisition, extraction and progression as host-owned, and conspicuously does not name movement. So a client simulates its own legs and nothing else, and no reconciliation path is needed because nothing corrects it.
+
+**It is visible in the node tree rather than living in comments.** Each player carries two synchronisers with two different authorities — `MotionSync` (the peer: position, yaw, pitch, stance, grounded) and `StateSync` (the host: health, carried weight, clamor). A reader who wants to know who decides something looks at which one carries it.
+
+**Damage has exactly one gate.** `Hitbox` refuses to resolve an overlap anywhere but the host. One line, in one place, rather than a guard at each call site — four guards are four chances to forget one.
+
+### Three things measured on the way, all of which changed the work
+
+**1. Solo is a host with zero peers, for free.** With no peer ever assigned, Godot 4.7 installs an `OfflineMultiplayerPeer`: `get_unique_id()` is 1, `is_server()` is true, and `MultiplayerSpawner.spawn()` works normally. So single-player runs the *same* path as a host with nobody connected and no offline branch exists to rot (ADR-064 satisfied structurally rather than by discipline). **The trap that comes with it:** `has_multiplayer_peer()` returns **true** with no peer at all, so it can never be used to ask "am I networked".
+
+**2. `player.tscn` shared one `CapsuleShape3D` across every instance.** `_apply_height` mutates that shape every frame a player crouches, and a scene sub-resource is shared between instances by default — so **one player crouching resized the other player's collider and hurtbox**. Invisible for as long as there was only ever one body; arrived with the second. Fixed with `resource_local_to_scene`, and the co-op smoke now asserts two players in one process report different capsule heights.
+
+**3. Every enemy perceived exactly one player.** `Enemy._look()` used `get_first_node_in_group("player")`, which with a party makes everyone else a ghost — invisible, unattackable, unable to fail a stealth approach. Now nearest-*visible*, so hiding still works when a teammate is standing in the open. `_on_hurt` had the same shape and sent a struck enemy after whoever was first in the group rather than after whoever hit it, which `PRO-005` §5 forbids: the player must be able to explain how they were found.
+
+### Two checks that could not fail, and what they cost
+
+The smoke test compares reports from **both** processes, because every claim in `TEC-004` is a claim that two peers agree and a probe that interrogates one of them passes with the cable pulled. Two of its assertions were written, passed, and were worthless until a planted violation proved they never fired:
+
+- **"the enemy is host-simulated"** compared enemy positions. Deleting the host gate and letting the client simulate its own copies **still passed**, because the probe left the enemies standing still and a stationary enemy looks identical either way. Now the probe stages a chase and compares `velocity`, which is never replicated and never assigned on a client — an honest client reports exact zero.
+- **"the host heard the client"** used the whole run's peak clamor. A *swing* makes noise on the host through a different path, so the check passed with the host deriving movement noise for its own body alone. Now sampled from the walk phase only.
+
+**Recorded because this is the second time on this project that a green check turned out to be untestable** (ADR-067 was the first). The rule that caught both: plant the violation and watch it fail, or the check is decoration.
+
+**Consequences:** `tools/run_coop.py --smoke` joins the pre-commit sweep via `tools/check_scripts.sh` — the only check that exercises a second process, which is the only way any of this can be checked at all. `TEC-004`'s risk register can close "co-op QA cost" as mitigated rather than intended. `CoopSession` is now the single place a peer is created or an actor is spawned, and levels ask it for actors rather than instantiating them; the network boundary `TEC-004` says every later system must be written against is therefore somewhere findable. **Latency, jitter and loss remain untested** — this is loopback, and `M4-T07` owns the real-network question.
+
+`--input=keyboard|gamepad` strips the other device's bindings at launch, so ADR-075's parity check is enforceable rather than hopeful: two processes on one machine both enumerate the same pad, and "I checked the controller" with a hand resting on WASD checks nothing.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

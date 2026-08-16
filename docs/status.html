@@ -65,7 +65,7 @@ footer{margin-top:1.2rem;color:var(--ink2);font-size:.82rem}
 code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 </style></head><body><main>
 <h1>Project SHE</h1>
-<p class="sub">M1 — The Feel Prototype · 9/44 tasks across the roadmap</p>
+<p class="sub">M1 — The Feel Prototype · 10/44 tasks across the roadmap</p>
 <p class="sub">“<em>two people who aren&#x27;t you play for 10 minutes and ask to keep playing.</em>”</p>
 <h2>Blockers</h2>
 <div class="card"><span class="clean">None. Sequencing is clean — nothing has started ahead of its gate.</span></div>
@@ -73,15 +73,15 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <div class="card"><div class="row"><h3>M0 — Design Lock</h3><span class="count">✔</span></div>
 <div class="gate"><span class="seal passed">EXIT passed 2026-08-14</span><span><code>DES-001</code> through <code>DES-008</code> at status <code>accepted</code>; <code>OPEN-QUESTIONS.md</code> empty of blocking items.</span></div>
 </div>
-<div class="card now"><div class="row"><h3>M1 — The Feel Prototype</h3><span class="tag">×1</span><span class="count">9/10</span></div>
-<div class="track"><span class="done" style="width:90.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:10.0%"></span></div>
+<div class="card now"><div class="row"><h3>M1 — The Feel Prototype</h3><span class="tag">×1</span><span class="count">10/10</span></div>
+<div class="track"><span class="done" style="width:100.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:0.0%"></span></div>
 <div class="gate"><span class="seal pending">EXIT pending</span><span><em>two people who aren&#x27;t you play for 10 minutes and ask to keep playing.</em></span></div>
 <details><summary>10 tasks</summary><ul class="tasks">
 <li><span class="state s-x">✔</span><span class="tid">M1-T01</span><span>First-person controller: walk, sprint, crouch, stamina, weight affecting movement. <em>Unjuiced per Swink; couplings measured, encumbrance signed off 2026-08-15</em></span><span class="refs">DES-009 DES-005</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M1-T02</span><span>One weapon, one enemy, hit reactions, death. <em>Built with the awareness ladder (ADR-072); anatomy and telegraph measured. Signed off 2026-08-16 on DES-009&#x27;s actual M1 criterion — swinging and connecting feel decent unjuiced. The avoidance question moves to <code>M2-T02</code>, where there is finally something worth declining (ADR-079)</em></span><span class="refs">DES-009 DES-013</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M1-T03</span><span>One hand-built room set, no generation. <em>A cycle, not a corridor: two routes to the exit, one enemy-free, both asserted by <code>--route-probe</code>. The Prize costs -18% walk speed and triples your audible radius, so the Guardian room poses a real question. Signed off 2026-08-16</em></span><span class="refs">DES-015</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M1-T04</span><span>Weight &amp; Clamor as visible debug numbers. <em>Layer 1 radius, not the M2 field (ADR-073); readout plus an audible-radius ring, since TEC-001 calls this untunable blind</em></span><span class="refs">DES-005</span></li>
-<li><span class="state ">·</span><span class="tid">M1-T05</span><span><strong>Two players over localhost</strong>, host-authoritative (<code>TEC-004</code>)</span><span class="refs">TEC-004</span></li>
+<li><span class="state s-x">✔</span><span class="tid">M1-T05</span><span><strong>Two players over localhost</strong>, host-authoritative (<code>TEC-004</code>). <em>The peer owns its body, the host owns every consequence (ADR-082) — <code>TEC-004</code> asked for prediction and banned reconciliation, which cannot both hold. A two-process smoke test runs in the pre-commit sweep</em></span><span class="refs">TEC-004</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M1-T06</span><span><strong>Networking spike test — go/no-go:</strong> 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. <strong>GO (ADR-068)</strong> — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing</span><span class="refs">TEC-004</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M1-T07</span><span><strong>Determinism harness in CI</strong>: same seed on two processes → identical layout hash. <em>Built before the generator on purpose — written first it is a specification <code>M4-T01</code> must satisfy, written after it only ratifies whatever the generator already does</em></span><span class="refs">TEC-001 DES-015</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M1-T08</span><span><strong>Godot project skeleton</strong> — folder layout, the ≤6 autoload budget enforced in CI (ADR-066), Forward+, naming and GDScript conventions, CI for the doc index and the dashboard. <em>The determinism harness is <code>M1-T07</code>&#x27;s deliverable, not this one (ADR-067)</em></span><span class="refs">TEC-002 TEC-001</span></li>
@@ -155,6 +155,6 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <h2>Warnings (2)</h2>
 <div class="card warn"><span class="code">untuned</span> DES-009 is fully implemented (M1-T01, M1-T02) but still has 4 ⟨tune⟩ marker(s)<br><span class="fix">→ tune the numbers against play, or accept them as final</span></div>
 <div class="card warn"><span class="code">untuned</span> TEC-001 is fully implemented (M1-T07, M1-T08) but still has 1 ⟨tune⟩ marker(s)<br><span class="fix">→ tune the numbers against play, or accept them as final</span></div>
-<div class="stats"><span><b>39</b> docs</span><span><b>39</b> accepted</span><span><b>81</b> ADRs</span><span><b>15</b> open questions</span><span><b>83</b> ⟨tune⟩ markers</span></div>
+<div class="stats"><span><b>39</b> docs</span><span><b>39</b> accepted</span><span><b>82</b> ADRs</span><span><b>15</b> open questions</span><span><b>83</b> ⟨tune⟩ markers</span></div>
 <footer><!-- generated-stamp -->Regenerated 2026-08-16 by <code>tools/status.py --write</code>. Source of truth: <code>PRO-001</code> (ADR-063). Progress is scope covered, never time remaining (ADR-034).</footer>
 </main></body></html>

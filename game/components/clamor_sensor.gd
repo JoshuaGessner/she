@@ -16,6 +16,12 @@ signal heard(position: Vector3, loudness: float)
 
 
 func _physics_process(_delta: float) -> void:
+	# Hearing is a host-side sense, because the brain it feeds is (`TEC-004`:
+	# enemies are host-authoritative). Running it on a client would scan every
+	# clamor source in the level to emit into a state machine that is not
+	# listening — O(n) per agent per frame, bought for nothing.
+	if not multiplayer.is_server():
+		return
 	var loudest: float = 0.0
 	var where: Vector3 = Vector3.ZERO
 	for node: Node in get_tree().get_nodes_in_group("clamor_sources"):

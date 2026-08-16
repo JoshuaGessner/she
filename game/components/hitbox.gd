@@ -52,8 +52,30 @@ func is_armed() -> bool:
 	return _armed
 
 
+## The actor this hitbox was authored under — who swung, not what swung.
+##
+## `owner` rather than a walk up the tree: a node instantiated from a scene has
+## its scene root as `owner`, and `TEC-001`'s "signals up, calls down" forbids
+## reaching into a parent. With one player it made no difference; with two, an
+## enemy that cannot tell which of them hit it investigates the wrong place.
+func actor() -> Node3D:
+	return owner as Node3D
+
+
 func _on_area_entered(area: Area3D) -> void:
 	if not _armed:
+		return
+	# **The single place damage becomes host-authoritative** (`TEC-004`,
+	# ADR-082). Every peer runs this phase machine and every peer's hitbox
+	# overlaps the same things; only the host's is allowed to conclude
+	# anything. One gate rather than a guard at each of the four call sites,
+	# because four guards are four chances for one to be forgotten — and a
+	# forgotten one means damage applied twice on the host and once on a
+	# client, which reads as "enemies sometimes take double damage".
+	#
+	# A solo launch is peer 1 on Godot's offline peer, so this is true there
+	# too and single-player is not a special case.
+	if not multiplayer.is_server():
 		return
 	var hurtbox := area as Hurtbox
 	if hurtbox == null or hurtbox in _already_hit:

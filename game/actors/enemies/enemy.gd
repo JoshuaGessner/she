@@ -43,8 +43,52 @@ const TELEGRAPH_TINT: Color = Color(0.95, 0.95, 0.95)
 const SENSE_ON: Color = Color(1.0, 1.0, 1.0)
 const SENSE_OFF: Color = Color(0.14, 0.14, 0.15)
 
-var _state: State = State.UNAWARE
-var _attack: Attack = Attack.NONE
+## Replication rate, matching the player's. ADR-068 measured the budget at
+## 20 Hz and put the ceiling at ~29 continuously-moving entities; a room set
+## with four enemies and two players is a rounding error of that.
+const REPLICATION_HZ: float = 20.0
+
+## Host→client. The transform moves continuously, so `ALWAYS` — ADR-068
+## measured `ON_CHANGE` costing *more* for values like that. Everything else
+## here genuinely idles: an enemy holds a state for seconds at a time, and an
+## idle agent should cost nothing, which is the case `ON_CHANGE` exists for.
+const REPLICATED_PROPERTIES: Dictionary = {
+	".:position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:rotation:y": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:_state": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:_attack": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:_sees": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:_hears": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	"Health:current": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+}
+
+## The ladder state, and the single place its visible consequences happen.
+##
+## A setter rather than a `_set_state()` method because this value is
+## replicated: the host reaches it by deciding, a client by receiving, and a
+## GDScript setter fires either way. That is what stops the two diverging —
+## there is one piece of code that turns a state into a tint and a corpse, and
+## both peers run it.
+var _state: State = State.UNAWARE:
+	set(next):
+		if next == _state:
+			return
+		_state = next
+		if is_node_ready():
+			_apply_state()
+		state_changed.emit(next)
+
+## Drives the telegraph tint, so it has to reach clients: DES-009 puts a 250 ms
+## floor under the wind-up specifically so a player can *read* it, and a
+## telegraph only the host can see is not a telegraph.
+var _attack: Attack = Attack.NONE:
+	set(next):
+		if next == _attack:
+			return
+		_attack = next
+		if is_node_ready():
+			_apply_tint()
+
 var _attack_timer: float = 0.0
 var _stagger_timer: float = 0.0
 var _patience: float = 0.0
@@ -75,6 +119,33 @@ var _hears: bool = false
 @onready var _ears: ClamorSensor = $Ears
 
 
+## Build this enemy's synchroniser, before it enters the tree (`M1-T05`).
+##
+## Authority is left at peer 1 — Godot's default for a spawned node, and the
+## host in every session including the offline peer a solo launch runs on. So
+## there is nothing to set, which is the point: an enemy that a client could
+## claim authority over would need a reason, and `TEC-004` gives none.
+func configure_replication() -> void:
+	var config := SceneReplicationConfig.new()
+	for path: String in REPLICATED_PROPERTIES:
+		var property := NodePath(path)
+		config.add_property(property)
+		# Spawn state as well as stream, so a client that joins after a fight
+		# sees the corpses as corpses rather than watching them die again.
+		config.property_set_spawn(property, true)
+		config.property_set_replication_mode(property, int(REPLICATED_PROPERTIES[path]))
+
+	var sync := MultiplayerSynchronizer.new()
+	sync.name = "StateSync"
+	sync.replication_config = config
+	# Both intervals (ADR-068): `ON_CHANGE` properties travel the delta
+	# channel, whose `delta_interval` defaults to every network frame, and
+	# leaving it there costs about 4x the bandwidth for nothing.
+	sync.replication_interval = 1.0 / REPLICATION_HZ
+	sync.delta_interval = 1.0 / REPLICATION_HZ
+	add_child(sync)
+
+
 func _ready() -> void:
 	add_to_group("enemies")
 	_ears.heard.connect(_on_heard)
@@ -89,7 +160,11 @@ func _ready() -> void:
 	_mesh.material_override = _material
 	_sight_lamp = _build_lamp(Vector3(-0.16, 2.1, 0))
 	_hearing_lamp = _build_lamp(Vector3(0.16, 2.1, 0))
-	_apply_tint()
+	# Applied from whatever `_state` already holds rather than assuming
+	# UNAWARE. Spawn state can land either side of `_ready` depending on how
+	# the spawn packet is applied, and an enemy that arrived dead must not
+	# stand back up because this ran in the wrong order.
+	_apply_state()
 	_update_sense_markers()
 
 
@@ -146,7 +221,23 @@ func take_test_hit(amount: float) -> void:
 	_on_hurt(amount, null)
 
 
+## The sense lamps, every frame, on every peer.
+##
+## Moved out of `_physics_process` by `M1-T05`: that function now belongs to
+## the host, and DES-013 requires every transition to be legible — a lamp that
+## only lit on the host's screen would make the awareness ladder unreadable for
+## exactly the player who is not hosting.
+func _process(_delta: float) -> void:
+	_update_sense_markers()
+
+
 func _physics_process(delta: float) -> void:
+	# **Enemies are host-authoritative** (`TEC-004`, ADR-082). A client running
+	# this too would steer a body whose transform is overwritten twenty times a
+	# second, and the two copies would disagree about where the fight is.
+	# Solo is peer 1 on the offline peer, so nothing here is special-cased.
+	if not multiplayer.is_server():
+		return
 	if _state == State.DEAD:
 		return
 	var tuning: TuningProfile = Config.tuning
@@ -158,7 +249,6 @@ func _physics_process(delta: float) -> void:
 	# contact; what the state machine does with them is gated below.
 	_listen(delta, tuning)
 	_look(tuning)
-	_update_sense_markers()
 
 	if _state == State.STAGGERED:
 		_tick_stagger(delta, tuning)
@@ -176,15 +266,39 @@ func _physics_process(delta: float) -> void:
 ## Sight runs every frame, including while attacking or staggered, so `_sees`
 ## always reports live contact. Only the *promotion* to ALERTED is gated.
 func _look(tuning: TuningProfile) -> void:
-	var player: Node3D = get_tree().get_first_node_in_group("player") as Node3D
-	_sees = player != null and _can_see(player, tuning)
+	var player: Node3D = _nearest_visible_player(tuning)
+	_sees = player != null
 	if not _sees:
 		return
 	_target = player
 	_last_seen = player.global_position
 	_patience = tuning.enemy_patience
 	if _state != State.ALERTED and _state != State.STAGGERED:
-		_set_state(State.ALERTED)
+		_state = State.ALERTED
+
+
+## The closest player this enemy can actually see.
+##
+## `M1-T05` replaced `get_first_node_in_group("player")` here, and the old line
+## was worse than it looked: with a party, *every* enemy in the level perceived
+## exactly one player and the rest walked around as ghosts — invisible,
+## unattackable, and unable to fail a stealth approach. It was invisible as a
+## bug for as long as there was only ever one body in the group.
+##
+## Nearest *visible*, not nearest: hiding has to keep working when a teammate
+## is standing in the open two metres away.
+func _nearest_visible_player(tuning: TuningProfile) -> Node3D:
+	var best: Node3D = null
+	var nearest: float = INF
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var candidate := node as Node3D
+		if candidate == null or not _can_see(candidate, tuning):
+			continue
+		var distance: float = global_position.distance_to(candidate.global_position)
+		if distance < nearest:
+			nearest = distance
+			best = candidate
+	return best
 
 
 ## The sensor only records; the decision is made in `_listen` so that silence
@@ -215,7 +329,7 @@ func _listen(delta: float, tuning: TuningProfile) -> void:
 	_last_seen = _heard_at
 	_patience = tuning.enemy_patience
 	if _state != State.SUSPICIOUS:
-		_set_state(State.SUSPICIOUS)
+		_state = State.SUSPICIOUS
 
 
 func _can_see(player: Node3D, tuning: TuningProfile) -> bool:
@@ -244,16 +358,19 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 		State.SUSPICIOUS:
 			_patience -= delta
 			if _patience <= 0.0:
-				_set_state(State.UNAWARE)
+				_state = State.UNAWARE
 			else:
 				_steer_toward(_last_seen, tuning.enemy_walk_speed, tuning)
 		State.ALERTED:
 			_patience -= delta
 			if _patience <= 0.0:
 				# Lost the player: go to where they were, not where they are.
-				_set_state(State.SUSPICIOUS)
+				_state = State.SUSPICIOUS
 				_patience = tuning.enemy_patience
-			elif _target != null:
+			# `is_instance_valid`, not `!= null`: a player who disconnects is
+			# freed out from under whichever enemy was chasing them, and a
+			# stale reference here crashes the host mid-fight.
+			elif is_instance_valid(_target):
 				var range_to: float = global_position.distance_to(_target.global_position)
 				if range_to <= tuning.enemy_attack_range:
 					_begin_attack(tuning)
@@ -305,7 +422,6 @@ func _begin_attack(tuning: TuningProfile) -> void:
 	# explain, which PRO-005 §5 identifies as the attribution failure that
 	# makes people quit rather than retry. TuningProfile enforces the floor.
 	_attack_timer = tuning.enemy_telegraph
-	_apply_tint()
 
 
 func _tick_attack(delta: float, tuning: TuningProfile) -> void:
@@ -325,7 +441,6 @@ func _tick_attack(delta: float, tuning: TuningProfile) -> void:
 			_hitbox.disarm()
 		Attack.RECOVERY:
 			_attack = Attack.NONE
-			_apply_tint()
 		Attack.NONE:
 			pass
 
@@ -343,12 +458,16 @@ func _on_hurt(amount: float, from: Node) -> void:
 	_hitbox.disarm()
 	_attack = Attack.NONE
 	_stagger_timer = Config.tuning.enemy_stagger
-	_set_state(State.STAGGERED)
-	# A hit is also information: it tells the enemy where you are.
-	var player: Node3D = get_tree().get_first_node_in_group("player") as Node3D
-	if player != null:
-		_target = player
-		_last_seen = player.global_position
+	_state = State.STAGGERED
+	# A hit is also information: it tells the enemy where *the attacker* is.
+	# `M1-T05`: this used to look up the first player in the group, which with
+	# a party sent a struck enemy after whoever happened to be first rather
+	# than after whoever hit it — and PRO-005 §5 requires the player to be able
+	# to explain how they were found.
+	var attacker: Node3D = (from as Hitbox).actor() if from is Hitbox else null
+	if attacker != null:
+		_target = attacker
+		_last_seen = attacker.global_position
 
 
 func _tick_stagger(delta: float, tuning: TuningProfile) -> void:
@@ -357,31 +476,41 @@ func _tick_stagger(delta: float, tuning: TuningProfile) -> void:
 	_stagger_timer -= delta
 	if _stagger_timer <= 0.0:
 		_patience = tuning.enemy_patience
-		_set_state(State.ALERTED)
+		_state = State.ALERTED
 
 
 func _on_died(_from: Node) -> void:
-	_set_state(State.DEAD)
+	# Reached only on the host — `Health.died` follows damage, and damage is
+	# resolved nowhere else (`Hitbox`). Assigning the state is enough: the
+	# setter turns it into a corpse here *and* on every client when the value
+	# arrives, which is why there is no death RPC.
+	_state = State.DEAD
+	died.emit()
+
+
+## Everything a state means, in one place, run by whoever set it.
+##
+## The host reaches this by deciding and a client by receiving a replicated
+## value, and both go through the same code — which is the property that keeps
+## a corpse a corpse on every screen without a second death message.
+func _apply_state() -> void:
+	_apply_tint()
+	if _state == State.DEAD:
+		_become_a_corpse()
+
+
+func _become_a_corpse() -> void:
 	_hitbox.disarm()
 	velocity = Vector3.ZERO
 	# No ragdoll, no death animation, no corpse fade — all polish, all absent.
 	# Collision is dropped so a body never becomes an invisible wall.
 	#
-	# Deferred because this runs inside the hurtbox's own signal, and Godot
-	# refuses physics-state changes from there: "Function blocked during in/out
-	# signal. Use set_deferred(...)". Applying next frame is correct anyway —
-	# the hit that killed it has to finish resolving first.
+	# Deferred because on the host this runs inside the hurtbox's own signal,
+	# and Godot refuses physics-state changes from there: "Function blocked
+	# during in/out signal. Use set_deferred(...)". Applying next frame is
+	# correct anyway — the hit that killed it has to finish resolving first.
 	_hurtbox.set_deferred("monitorable", false)
 	set_deferred("collision_layer", 0)
-	died.emit()
-
-
-func _set_state(next: State) -> void:
-	if next == _state:
-		return
-	_state = next
-	_apply_tint()
-	state_changed.emit(next)
 
 
 func _apply_tint() -> void:

@@ -1,4 +1,4 @@
-[gd_scene load_steps=13 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://actors/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://components/stamina.gd" id="2_stamina"]
@@ -10,9 +10,28 @@
 [ext_resource type="Script" path="res://components/clamor_source.gd" id="8_clamor"]
 [ext_resource type="Script" path="res://components/ink_pass.gd" id="9_ink"]
 
+; local_to_scene, and this is load-bearing rather than tidy. `_apply_stance`
+; mutates this shape every frame a player crouches. Shared across instances —
+; which is Godot's default for a scene sub-resource — one player crouching
+; silently resizes every other player's collider *and* hurtbox. Invisible in
+; single-player; arrived the moment `M1-T05` put two bodies in a level.
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
+resource_local_to_scene = true
 radius = 0.35
 height = 1.8
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
+resource_local_to_scene = true
+radius = 0.35
+height = 1.8
+
+; Lighter than every enemy state (0.20–0.52) and darker than the telegraph
+; flash (0.95), so a teammate is never mistaken for a threat at a glance.
+; ART-005 spends saturated colour on treasure, so the distinction is value.
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_body"]
+resource_local_to_scene = true
+albedo_color = Color(0.72, 0.71, 0.7, 1)
+roughness = 1.0
 
 [sub_resource type="SphereShape3D" id="SphereShape3D_arc"]
 radius = 1.1
@@ -31,6 +50,11 @@ script = ExtResource("1_player")
 [node name="CollisionShape3D" type="CollisionShape3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_body")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("CapsuleMesh_body")
+surface_material_override/0 = SubResource("StandardMaterial3D_body")
 
 [node name="Head" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)

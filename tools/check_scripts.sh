@@ -134,7 +134,24 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 			exit 1
 		fi
 	fi
-	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact ($("$GODOT_BIN" --version))"
+	# Two processes, host and client, over loopback (`M1-T05`). This is the
+	# only check in the sweep that exercises a *second* process, and it is the
+	# only one that can: every claim in `TEC-004` is a claim that two peers
+	# agree, and one process cannot disagree with itself.
+	#
+	# It runs here rather than in its own harness because the failures it
+	# catches are ordinary code failures — a signal wired on the wrong peer, a
+	# property that stopped replicating — and a check that lives somewhere
+	# separate is a check that runs on a different day from the change that
+	# broke it.
+	coop="$(GODOT="$GODOT_BIN" python3 "$ROOT/tools/run_coop.py" --smoke 2>&1)"
+	if [[ $? -ne 0 ]]; then
+		echo "FAIL two players over localhost" >&2
+		printf '%s\n' "$coop" | sed 's/^/      /' >&2
+		exit 1
+	fi
+	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
+	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
 fi

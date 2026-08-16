@@ -37,8 +37,11 @@ const FLOOR_COLOUR: Color = Color(0.58, 0.57, 0.56)
 const WALL_COLOUR: Color = Color(0.44, 0.43, 0.43)
 const PRIZE_COLOUR: Color = Color(0.85, 0.66, 0.22)
 
-const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
-const PLAYER_SCENE: PackedScene = preload("res://actors/player/player.tscn")
+## The network boundary (`M1-T05`). Levels ask it for actors and never
+## instantiate one themselves, which is what keeps `TEC-004`'s "the boundary
+## already exists" true rather than aspirational. A solo launch runs the same
+## path on Godot's offline peer.
+const SESSION_SCENE: PackedScene = preload("res://systems/net/coop_session.tscn")
 
 ## The authored layout. Each room is (min_x, max_x, min_z, max_z), and each
 ## doorway names the two rooms it joins so the loop is legible as data.
@@ -84,7 +87,15 @@ const ENEMY_POSTS: Array[Vector3] = [
 ]
 const GUARDIAN_POST: Vector3 = Vector3(18.5, 0.1, -21.0)
 const PRIZE_AT: Vector3 = Vector3(20.3, 0.6, -21.0)
-const SPAWN: Vector3 = Vector3(0.0, 0.1, 8.0)
+
+## Where the party starts — one point per player, a stride apart across the
+## entrance. A single shared point would have two people begin the run standing
+## inside each other, which reads as a replication bug on the first frame
+## anyone sees.
+const SPAWNS: Array[Vector3] = [
+	Vector3(-1.2, 0.1, 8.0), Vector3(1.2, 0.1, 8.0),
+	Vector3(-3.6, 0.1, 8.0), Vector3(3.6, 0.1, 8.0),
+]
 
 ## Heavy enough that the walk out is genuinely worse ⟨tune⟩ — 40% of capacity,
 ## which is where `DES-005` Layer 1's speed penalty starts to bite. If taking
@@ -93,8 +104,18 @@ const PRIZE_KILOGRAMS: float = 16.0
 const PRIZE_CLAMOR: float = 6.0
 const PRIZE_REACH: float = 2.2
 
-var _player: Player = null
+## Latency slack on the host's reach check. A client presses `interact` from
+## where it believes it is standing; the host tests against a transform that
+## arrived up to a replication interval ago. At walk speed that is about
+## 0.2 m, so half a metre is generous without letting anyone reach the Prize
+## from outside the room.
+const REACH_SLACK: float = 0.5
+
+## Godot's host is always peer 1, offline peer included.
+const HOST_PEER: int = 1
+
 var _prize: MeshInstance3D = null
+var _session: CoopSession = null
 
 @onready var _world: Node3D = $World
 
@@ -118,6 +139,8 @@ func _ready() -> void:
 			_prize_probe()
 		elif arg == "--hash":
 			_print_hash()
+		elif arg.begins_with("--coop-probe="):
+			_coop_probe(arg.split("=", true, 1)[1])
 
 
 ## Print the world fingerprint and quit (`M1-T07`). Two processes given the
@@ -139,15 +162,19 @@ func _print_hash() -> void:
 ## price. This measures the price rather than asserting it: speed and audible
 ## radius before and after, on the same player, seconds apart.
 func _prize_probe() -> void:
-	_player.global_position = PRIZE_AT + Vector3(0, 0.1, 2.0)
+	var player: Player = _session.local_player()
+	player.teleport(PRIZE_AT + Vector3(0, 0.1, 2.0), 0.0)
 	for i: int in range(4):
 		await get_tree().physics_frame
 
-	var before_speed: float = await _walk_speed()
-	var before_heard: float = _player.clamor.audible_radius()
-	_take_prize()
-	var after_speed: float = await _walk_speed()
-	var after_heard: float = _player.clamor.audible_radius()
+	var before_speed: float = await _walk_speed(player)
+	var before_heard: float = player.clamor.audible_radius()
+	# Through the same host-validated path a real pickup takes, not around it:
+	# a probe that reached past the authority check would stop measuring the
+	# thing that ships.
+	_grant_prize(HOST_PEER)
+	var after_speed: float = await _walk_speed(player)
+	var after_heard: float = player.clamor.audible_radius()
 
 	print("[set] walk speed   %5.2f → %5.2f m/s   (%+.0f%%)" % [
 		before_speed, after_speed,
@@ -155,15 +182,285 @@ func _prize_probe() -> void:
 	print("[set] heard from   %5.1f → %5.1f m      at the moment of lifting it" % [
 		before_heard, after_heard])
 	print("[set] carrying     %5.1f kg (%.0f%% laden)" % [
-		_player.carried.kilograms, _player.carried.encumbrance() * 100.0])
+		player.carried.kilograms, player.carried.encumbrance() * 100.0])
 	get_tree().quit(0 if after_speed < before_speed else 1)
 
 
-func _walk_speed() -> float:
+# ── the co-op guarantee, measured rather than eyeballed ──────────────────
+
+
+## Seconds of each phase, and where the client stands to do it. The strike
+## point is 1.5 m from the first post, *behind* the enemy — Godot's forward is
+## -Z and the posts face -Z, so approaching from +Z keeps it unaware and
+## standing still, which is what makes "one swing, 25 damage" a fixed number
+## rather than a race against a body walking out of the arc.
+const PROBE_WALK_FROM: Vector3 = Vector3(0.0, 0.1, 6.0)
+const PROBE_STRIKE_FROM: Vector3 = Vector3(9.0, 0.1, -3.5)
+
+## Far enough down the same corridor that the struck enemy has to *run* to
+## reach it, and does not arrive before the probe samples.
+##
+## This exists because of a check that did not fire. The first version left the
+## client standing next to the enemy, where an alerted enemy stops and attacks
+## — velocity zero. So "enemies are host-simulated" passed happily with the
+## host gate deleted and the client simulating its own copy, because a
+## stationary enemy looks identical either way. A check that cannot fail is not
+## a check.
+const PROBE_RETREAT_TO: Vector3 = Vector3(9.0, 0.1, -16.0)
+const PROBE_TIMEOUT_MSEC: int = 15000
+
+var _probe_clamor_peak: Dictionary = {}
+var _probe_walk_clamor: Dictionary = {}
+var _probe_walked: Dictionary = {}
+var _probe_heights: Dictionary = {}
+var _probe_connect_seconds: float = 0.0
+var _probe_ending: bool = false
+var _probe_damage_events: int = 0
+
+
+## `M1-T05`: does the host own the world, and does the client see it?
+##
+## Runs in **both** processes; each writes what it can see, and
+## `tools/run_coop.py` compares the two files. That shape is the whole point —
+## every claim about replication is a claim that two processes agree, and a
+## probe that interrogated only one of them would pass with the cable pulled.
+##
+## Only the client acts. The host drives nothing and presses nothing, so every
+## number it reports about the client's body arrived over the wire.
+##
+## Phases are wall-clock from the moment this process can see both bodies. On
+## loopback the two get there within a frame of each other and each phase is
+## most of a second, so no shared clock is needed and none is faked.
+## **The client says when it is over, and the host samples on that word.**
+##
+## Sampling on its own clock cost a full debugging round: the two processes
+## finish within milliseconds of each other, the client quits first, the host
+## frees the departed body — and the host's report then shows a party of one.
+## A clean *disconnect*, reported as a replication failure. The client writes
+## its own file, tells the host to write its own while it is demonstrably still
+## connected, and only then drops.
+func _coop_probe(out: String) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var host: bool = multiplayer.is_server()
+	_probe_connect_seconds = await _await_party()
+	var mine: Player = _session.local_player()
+
+	# Count damage *events on this peer*, which is the only thing that can tell
+	# host-authoritative damage from damage that merely agrees.
+	#
+	# Comparing hit points cannot do it: a client that resolved the swing
+	# itself would arrive at the same 35 as the host and the replicated value
+	# would overwrite it with itself. `Health.damaged` fires only from
+	# `apply_damage`, and replication assigns `current` directly — so a client
+	# that has correctly refused to resolve anything counts **zero**, and a
+	# client that resolved its own copy counts one. That is the assertion.
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		(node as Enemy).health.damaged.connect(_on_probe_damage)
+
+	# 1. The client walks. Nothing else in the level moves, so the host's view
+	#    of this body is replication and nothing but.
+	if not host:
+		mine.teleport(PROBE_WALK_FROM, 0.0)
+	await _hold(0.5)
+	var before: Dictionary = _probe_positions()
+	# Clamor sampled from here, so the walk-phase peak contains footsteps and
+	# nothing else. It has to be isolated: with the whole run's peak, a swing
+	# alone satisfies "the host heard the client", and the check passed even
+	# with the host deriving movement noise for its own body only — which is
+	# the exact failure it exists to catch.
+	_probe_clamor_peak = {}
+	if not host:
+		Input.action_press("move_forward")
+	await _hold(1.0)
+	if not host:
+		Input.action_release("move_forward")
+	await _hold(0.4)
+	_probe_walked = _probe_drift(before, _probe_positions())
+	_probe_walk_clamor = _probe_clamor_peak.duplicate()
+
+	# 2. The client crouches. Two things at once, and both need to hold: the
+	#    stance has to replicate, *and* the two bodies have to own separate
+	#    collision shapes — `player.tscn`'s capsule is a scene sub-resource,
+	#    which Godot shares between instances by default, so before it was
+	#    marked `resource_local_to_scene` one player crouching resized the
+	#    other player's collider and hurtbox on every peer.
+	if not host:
+		Input.action_press("crouch")
+	await _hold(0.8)
+	_probe_heights = _probe_capsule_heights()
+	if not host:
+		Input.action_release("crouch")
+	await _hold(0.5)
+
+	# 3. The client swings once at the first post. The client's own hitbox is
+	#    inert; if the enemy loses exactly one swing of health on both peers,
+	#    the host resolved it, resolved it once, and told the client.
+	if not host:
+		mine.teleport(PROBE_STRIKE_FROM, 0.0)
+	await _hold(0.6)
+	if not host:
+		mine.weapon.request_swing(mine.stamina)
+	await _hold(0.8)
+
+	# 4. The client backs off down the corridor, and the enemy it just hit
+	#    comes after it. Sampled mid-chase on purpose: a client that is
+	#    correctly running no enemy AI has never integrated a velocity, so its
+	#    copies read exactly zero while the host's read metres per second.
+	#    That difference is what proves the simulation lives in one process.
+	if not host:
+		mine.teleport(PROBE_RETREAT_TO, 0.0)
+	await _hold(1.5)
+
+	if host:
+		await _await_probe_end()
+		_probe_write(out, _probe_report(true))
+	else:
+		_probe_write(out, _probe_report(false))
+		_end_probe.rpc_id(HOST_PEER)
+		# Long enough for the host to sample while this peer is still in its
+		# party, and short enough that a stalled host does not hang CI.
+		await _hold(0.5)
+	get_tree().quit()
+
+
+@rpc("any_peer", "reliable")
+func _end_probe() -> void:
+	if multiplayer.is_server():
+		_probe_ending = true
+
+
+## Waits for the client's word, but not forever. On a timeout the host writes
+## the report anyway, and it fails loudly with `players_seen: 1` — a silent
+## pass would be far worse than a noisy failure at a gate like this.
+func _await_probe_end() -> void:
+	var began: int = Time.get_ticks_msec()
+	while not _probe_ending and Time.get_ticks_msec() - began < PROBE_TIMEOUT_MSEC:
+		await get_tree().physics_frame
+
+
+func _probe_report(host: bool) -> Dictionary:
+	return {
+		"role": "host" if host else "client",
+		"peer": multiplayer.get_unique_id(),
+		"connect_seconds": _probe_connect_seconds,
+		"players_seen": _session.players().size(),
+		"enemies_seen": get_tree().get_nodes_in_group("enemies").size(),
+		"positions": _probe_positions(),
+		"walked": _probe_walked,
+		"capsule_heights": _probe_heights,
+		"enemy_health": _probe_enemy_health(),
+		"enemy_positions": _probe_enemy_positions(),
+		"enemy_speeds": _probe_enemy_speeds(),
+		"clamor_peak": _probe_clamor_peak,
+		"walk_clamor_peak": _probe_walk_clamor,
+		"damage_events": _probe_damage_events,
+		# The numbers the damage assertion is made of, carried in the report
+		# rather than repeated in the harness. A ⟨tune⟩ value that CI has its
+		# own copy of is a ⟨tune⟩ value nobody can change.
+		"swing_damage": Config.tuning.swing_damage,
+		"enemy_max_health": Config.tuning.enemy_health,
+		"godot": Engine.get_version_info()["string"],
+	}
+
+
+## Wait until both bodies exist here. A timeout rather than a forever loop:
+## a probe that hangs is a CI job that hangs, and the report it fails to write
+## is indistinguishable from a crash. Timing out writes `players_seen: 1`,
+## which fails loudly and says why.
+func _await_party() -> float:
+	var began: int = Time.get_ticks_msec()
+	while _session.players().size() < 2 or _session.local_player() == null:
+		await get_tree().physics_frame
+		if Time.get_ticks_msec() - began > PROBE_TIMEOUT_MSEC:
+			break
+	return float(Time.get_ticks_msec() - began) / 1000.0
+
+
+## Advance real time, sampling clamor as it goes. Peak rather than final,
+## because noise decays: by the end of the run every level is back to zero and
+## a final reading would prove only that time passes.
+func _hold(seconds: float) -> void:
+	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < until:
+		await get_tree().physics_frame
+		for player: Player in _session.players():
+			_probe_clamor_peak[player.name] = maxf(
+				float(_probe_clamor_peak.get(player.name, 0.0)), player.clamor.level)
+
+
+func _on_probe_damage(_amount: float, _remaining: float, _from: Node) -> void:
+	_probe_damage_events += 1
+
+
+func _probe_positions() -> Dictionary:
+	var out: Dictionary = {}
+	for player: Player in _session.players():
+		var at: Vector3 = player.global_position
+		out[player.name] = [at.x, at.y, at.z]
+	return out
+
+
+func _probe_drift(before: Dictionary, after: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for key: String in after:
+		if not before.has(key):
+			continue
+		var a: Array = before[key]
+		var b: Array = after[key]
+		out[key] = Vector3(a[0], a[1], a[2]).distance_to(Vector3(b[0], b[1], b[2]))
+	return out
+
+
+func _probe_capsule_heights() -> Dictionary:
+	var out: Dictionary = {}
+	for player: Player in _session.players():
+		out[player.name] = player.capsule_height()
+	return out
+
+
+func _probe_enemy_health() -> Dictionary:
+	var out: Dictionary = {}
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		out[node.name] = (node as Enemy).health.current
+	return out
+
+
+func _probe_enemy_positions() -> Dictionary:
+	var out: Dictionary = {}
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var at: Vector3 = (node as Enemy).global_position
+		out[node.name] = [at.x, at.y, at.z]
+	return out
+
+
+## Horizontal speed per enemy. Zero on a client is not a rounding artefact:
+## `velocity` is never replicated and never assigned there, so a client that
+## has correctly refused to simulate reports exact zeroes.
+func _probe_enemy_speeds() -> Dictionary:
+	var out: Dictionary = {}
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var moving: Vector3 = (node as Enemy).velocity
+		out[node.name] = Vector2(moving.x, moving.z).length()
+	return out
+
+
+func _probe_write(path: String, report: Dictionary) -> void:
+	var file: FileAccess = FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		printerr("[coop-probe] could not write %s (%d)" % [
+			path, FileAccess.get_open_error()])
+		return
+	file.store_string(JSON.stringify(report, "\t"))
+	file.close()
+	print("[coop-probe] %s saw %d player(s), %d enemy/ies" % [
+		report["role"], report["players_seen"], report["enemies_seen"]])
+
+
+func _walk_speed(player: Player) -> float:
 	Input.action_press("move_forward")
 	for i: int in range(50):
 		await get_tree().physics_frame
-	var speed: float = _player.planar_speed()
+	var speed: float = player.planar_speed()
 	Input.action_release("move_forward")
 	for i: int in range(20):
 		await get_tree().physics_frame
@@ -277,26 +574,67 @@ func _build_prize() -> void:
 
 
 func _process(_delta: float) -> void:
-	if _prize == null or _player == null:
+	if _prize == null:
 		return
-	var near: bool = _player.global_position.distance_to(PRIZE_AT) <= PRIZE_REACH
+	var player: Player = _session.local_player()
+	if player == null:
+		return
+	var near: bool = player.global_position.distance_to(PRIZE_AT) <= PRIZE_REACH
 	# Pulse while in reach. A prompt would need the HUD that `M4-T05` builds;
 	# the object drawing attention to itself is free and needs no text.
 	var pulse: float = 1.0 if not near else 1.0 + sin(Time.get_ticks_msec() * 0.006) * 0.25
 	(_prize.material_override as StandardMaterial3D).albedo_color = PRIZE_COLOUR * pulse
 	if near and Input.is_action_just_pressed("interact"):
-		_take_prize()
+		_reach_for_prize()
 
 
-func _take_prize() -> void:
-	_player.carried.kilograms += PRIZE_KILOGRAMS
+## Loot is host-authoritative and **pickup is a host-validated request**
+## (`TEC-004`), which is what this is — not ceremony.
+##
+## The client says only "I am reaching for it". The host decides whether they
+## were close enough, using its own copy of where they are, and it is the host
+## that adds the weight and makes the noise. Two players lunging for the same
+## Prize therefore cannot both get it: the second request finds `_prize` gone.
+func _reach_for_prize() -> void:
+	if multiplayer.is_server():
+		_grant_prize(multiplayer.get_unique_id())
+	else:
+		_request_prize.rpc_id(HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _request_prize() -> void:
+	if not multiplayer.is_server():
+		return
+	_grant_prize(multiplayer.get_remote_sender_id())
+
+
+func _grant_prize(peer: int) -> void:
+	if _prize == null:
+		return
+	var player: Player = _session.player_for(peer)
+	if player == null:
+		return
+	if player.global_position.distance_to(PRIZE_AT) > PRIZE_REACH + REACH_SLACK:
+		return
+	player.carried.kilograms += PRIZE_KILOGRAMS
 	# Lifting a hoard-piece off stone is loud. This is the moment the Guardian
 	# gets its chance, which is what makes taking it a decision rather than a
 	# formality.
-	_player.clamor.add(PRIZE_CLAMOR)
+	player.clamor.add(PRIZE_CLAMOR)
+	_clear_prize.rpc()
+	print("[set] prize taken by peer %d: +%.0f kg, the room heard it" % [
+		peer, PRIZE_KILOGRAMS])
+
+
+## The Prize is authored geometry, so every peer already built one and every
+## peer has to remove its own. `call_local` so the host runs the same line.
+@rpc("authority", "call_local", "reliable")
+func _clear_prize() -> void:
+	if _prize == null:
+		return
 	_prize.queue_free()
 	_prize = null
-	print("[set] prize taken: +%.0f kg, the room heard it" % PRIZE_KILOGRAMS)
 
 
 func _build_lighting() -> void:
@@ -317,19 +655,18 @@ func _build_lighting() -> void:
 
 
 func _spawn_actors() -> void:
-	_player = PLAYER_SCENE.instantiate() as Player
-	_player.position = SPAWN
-	add_child(_player)
+	_session = SESSION_SCENE.instantiate() as CoopSession
+	_session.spawn_points = SPAWNS
+	add_child(_session)
 
+	# Host-only, and silently so: on a client these calls do nothing and the
+	# host's spawns arrive on their own. The level does not need to know which
+	# process it is, which is the property that keeps every future level from
+	# growing a networking branch.
 	for post: Vector3 in ENEMY_POSTS:
-		var enemy := ENEMY_SCENE.instantiate() as Enemy
-		enemy.position = post
-		_world.add_child(enemy)
-
+		_session.spawn_enemy(post)
 	# The Guardian faces its prize's doorway and never leaves the room.
-	var guardian := ENEMY_SCENE.instantiate() as Enemy
-	guardian.position = GUARDIAN_POST
-	_world.add_child(guardian)
+	_session.spawn_enemy(GUARDIAN_POST)
 
 
 # ── the guarantee, asserted rather than eyeballed ─────────────────────────
@@ -407,7 +744,7 @@ func _capture_top(path: String) -> void:
 	camera.rotation_degrees = Vector3(-90, 0, 0)
 	add_child(camera)
 	camera.make_current()
-	_player.show_ink(false)
+	_session.local_player().show_ink(false)
 	for i: int in range(4):
 		await get_tree().physics_frame
 	await RenderingServer.frame_post_draw
