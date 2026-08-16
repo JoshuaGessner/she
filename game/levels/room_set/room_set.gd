@@ -105,6 +105,10 @@ func _ready() -> void:
 		_build_room(name)
 	_build_prize()
 	_spawn_actors()
+	# What you emit and what they perceive, on the floor (ADR-078). This set has
+	# corners and doorways, which is the only place occlusion has anything to
+	# show — the gym it came from is mostly open ground.
+	_world.add_child(DebugOverlays.new())
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])

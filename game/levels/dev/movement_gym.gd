@@ -16,13 +16,6 @@ const ACCENT: Color = Color(0.38, 0.37, 0.36)
 
 const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
 const SPAWN: Vector3 = Vector3(0, 0.1, 10)
-## Enough to show a doorway notch without the outline looking polygonal.
-const RING_SEGMENTS: int = 96
-const VISION_SEGMENTS: int = 32
-## Low enough that three overlapping cones stay readable; the floor is pale, so
-## the fill has to be dark to register at all.
-const VISION_IDLE: Color = Color(0.10, 0.10, 0.12, 0.16)
-const VISION_SEEING: Color = Color(0.02, 0.02, 0.03, 0.42)
 
 ## Where the enemies stand. Spread out and away from spawn on purpose: the M1
 ## gate question is whether a tester *chooses* to swing at something they could
@@ -35,7 +28,6 @@ const ENEMY_POSTS: Array[Vector3] = [
 @onready var _world: Node3D = $World
 
 var _player: Player = null
-var _clamor_ring: MeshInstance3D = null
 
 
 func _ready() -> void:
@@ -44,7 +36,9 @@ func _ready() -> void:
 	_player.position = SPAWN
 	add_child(_player)
 	_player.health.died.connect(_on_player_died)
-	_build_clamor_ring()
+	# The ring and the vision cones now live in a component, so the room set
+	# gets them too (ADR-078). It finds the player and the enemies by group.
+	_world.add_child(DebugOverlays.new())
 	_spawn_enemies()
 	# Once, at startup. This loop briefly ended up inside _process() during a
 	# refactor and re-entered the probe every frame — 84,000 lines of header and
@@ -113,166 +107,6 @@ func _capture_top(path: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(path)
 	get_tree().quit()
-
-
-## TEC-001, on the Clamor field: "Build that overlay early; this system is
-## untunable blind." A number tells you the radius is 7.7 m; the ring tells you
-## whether 7.7 m reaches the thing standing over there, which is the only
-## question a tester actually has.
-##
-## It lives in the gym rather than on the Player, so no debug geometry ships
-## inside the actor scene.
-func _build_clamor_ring() -> void:
-	var material := StandardMaterial3D.new()
-	# Dark line on a pale floor. White read as almost nothing against the grey
-	# box, and ART-005 spends saturated colour on treasure, so contrast here
-	# has to come from value.
-	material.albedo_color = Color(0.08, 0.08, 0.09, 0.9)
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.no_depth_test = true
-	material.vertex_color_use_as_albedo = false
-	material.render_priority = OVERLAY_PRIORITY
-	_clamor_ring = MeshInstance3D.new()
-	_clamor_ring.mesh = ImmediateMesh.new()
-	_clamor_ring.material_override = material
-	_clamor_ring.position = Vector3.ZERO
-	_world.add_child(_clamor_ring)
-
-
-## Redraw the audible footprint: a closed outline whose radius in each
-## direction is however far sound actually carries that way.
-##
-## Not a circle, because a circle would be a lie the moment there is a wall —
-## and the whole reason this overlay exists is to show occlusion. Every vertex
-## comes from `ClamorSource.reach()`, the same function the enemy's ears use,
-## so the shape on the ground is exactly the shape being simulated.
-func _redraw_clamor_ring() -> void:
-	var mesh := _clamor_ring.mesh as ImmediateMesh
-	mesh.clear_surfaces()
-	var radius: float = _player.clamor.audible_radius()
-	if radius <= 0.1:
-		return
-	# Ear height, not floor height: sound leaves the player's head, and casting
-	# along the floor would have every ramp in the gym read as a wall.
-	var origin: Vector3 = _player.global_position + Vector3.UP * 1.2
-	var world: World3D = _player.get_world_3d()
-	mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
-	for i: int in range(RING_SEGMENTS + 1):
-		var angle: float = TAU * float(i) / float(RING_SEGMENTS)
-		var direction := Vector3(cos(angle), 0.0, sin(angle))
-		var carried: float = ClamorSource.reach(world, origin, direction, radius)
-		# The node sits at the world origin untransformed, so local and world
-		# coordinates are the same; drop the outline to just above the floor.
-		var point: Vector3 = origin + direction * carried
-		point.y = _player.global_position.y + 0.05
-		mesh.surface_add_vertex(point)
-	mesh.surface_end()
-
-
-## One filled wedge per enemy: the cone from DES-013's vision half-angle, with
-## every ray cut at the first wall.
-##
-## Filled rather than outlined, and that is the whole visual language of the
-## floor — **an outline is what you emit, a fill is what they perceive.** The
-## first version drew a dashed arc, which vanished at any distance: hairlines
-## cannot carry a shape across a room, and Godot 4 will not widen them.
-func _redraw_vision(enemy: Enemy, mesh: ImmediateMesh) -> void:
-	mesh.clear_surfaces()
-	if enemy.state() == Enemy.State.DEAD:
-		return
-	var tuning: TuningProfile = Config.tuning
-	var origin: Vector3 = enemy.eye_position()
-	var forward: Vector3 = enemy.facing()
-	var half: float = deg_to_rad(tuning.enemy_vision_half_angle)
-	var floor_y: float = enemy.global_position.y + 0.04
-	var space: PhysicsDirectSpaceState3D = enemy.get_world_3d().direct_space_state
-
-	var points: Array[Vector3] = []
-	for i: int in range(VISION_SEGMENTS + 1):
-		var angle: float = -half + 2.0 * half * float(i) / float(VISION_SEGMENTS)
-		var direction: Vector3 = forward.rotated(Vector3.UP, angle)
-		var reach: float = tuning.enemy_vision_range
-		var query := PhysicsRayQueryParameters3D.create(
-			origin, origin + direction * reach
-		)
-		query.collision_mask = CollisionLayers.WORLD
-		var hit: Dictionary = space.intersect_ray(query)
-		if not hit.is_empty():
-			reach = origin.distance_to(hit["position"] as Vector3)
-		var point: Vector3 = origin + direction * reach
-		point.y = floor_y
-		points.append(point)
-
-	var apex: Vector3 = Vector3(origin.x, floor_y, origin.z)
-	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-	for i: int in range(points.size() - 1):
-		mesh.surface_add_vertex(apex)
-		mesh.surface_add_vertex(points[i])
-		mesh.surface_add_vertex(points[i + 1])
-	mesh.surface_end()
-
-
-## Each enemy owns its own cone, so the engine disposes of it.
-##
-## This previously kept a `{enemy: overlay}` dictionary and swept it for dead
-## keys. That cannot work: `for enemy: Node in _vision.keys()` assigns a freed
-## instance to a **typed** loop variable, which throws before the
-## `is_instance_valid()` guard on the next line can run. The guard was
-## unreachable, and every reset produced a wall of errors.
-##
-## Making the overlay a child of the enemy deletes the problem rather than
-## working around it — no dictionary, no sweep, no window in which a stale
-## reference exists. `top_level` keeps its transform in world space, which is
-## what the vertices are built in, while its *lifetime* follows the enemy.
-func _sync_vision_overlays() -> void:
-	for node: Node in get_tree().get_nodes_in_group("enemies"):
-		var enemy := node as Enemy
-		var mesh_instance := enemy.get_node_or_null("VisionOverlay") as MeshInstance3D
-		if mesh_instance == null:
-			var overlay := MeshInstance3D.new()
-			overlay.name = "VisionOverlay"
-			overlay.top_level = true
-			overlay.mesh = ImmediateMesh.new()
-			overlay.material_override = _overlay_material(VISION_IDLE)
-			(overlay.material_override as StandardMaterial3D).cull_mode = \
-				BaseMaterial3D.CULL_DISABLED
-			enemy.add_child(overlay)
-			mesh_instance = overlay
-		# Seeing you is the one state that must be unmissable at a glance.
-		var material := mesh_instance.material_override as StandardMaterial3D
-		material.albedo_color = VISION_SEEING if enemy.sees_player() else VISION_IDLE
-		_redraw_vision(enemy, mesh_instance.mesh as ImmediateMesh)
-
-
-## Diagnostics sit above the style, always.
-##
-## The ink pass is a transparent full-screen quad at render_priority 100, so
-## anything drawn below that priority is composited over and vanishes the
-## moment the shader is on. That made the clamor ring and the vision cones
-## invisible in normal play while still rendering perfectly in a screenshot
-## with ink disabled — which is exactly the kind of bug that gets diagnosed as
-## "the overlay is broken" when the overlay is fine.
-## 127 is Godot's hard maximum (`MATERIAL_RENDER_PRIORITY_MAX`); anything above
-## it is rejected at runtime rather than clamped.
-const OVERLAY_PRIORITY: int = 127
-
-
-func _overlay_material(colour: Color) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	material.no_depth_test = true
-	material.render_priority = OVERLAY_PRIORITY
-	return material
-
-
-func _process(_delta: float) -> void:
-	if _clamor_ring == null or _player == null:
-		return
-	_redraw_clamor_ring()
-	_sync_vision_overlays()
 
 
 func _clamor_probe(player: Player) -> void:

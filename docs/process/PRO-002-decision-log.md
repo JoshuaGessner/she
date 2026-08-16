@@ -1034,4 +1034,18 @@ The heading lens found exactly three, and **two were already properly built**: `
 
 ---
 
+## ADR-078 — The debug overlays are a component, not gym furniture
+**Date:** 2026-08-16 · **Status:** accepted · **`M1-T04` follow-through**
+**Context:** The clamor footprint and the vision cones were written inside `movement_gym.gd`, because the gym was the only level that existed. `M1-T03` then built a room set with corners, doorways and a room you cannot hear into — and it could not display either overlay. **The one space built to exercise walls was the one space unable to show what the walls were doing**, which is the opposite of the situation `TEC-001` demands when it says the Clamor system is *"untunable blind"*.
+
+**Decision:** both move to `components/debug_overlays.gd`, added by any level in one line. It finds the player and the enemies by group, so it needs no wiring and puts no debug geometry inside either actor scene. **Moved, not copied** — a gym copy and a room-set copy would be the parallel path ADR-064 bans, and they would diverge the first time either was tuned.
+
+**The visual language is recorded here because it is a rule, not a style:** *an **outline** is what you emit, a **fill** is what they perceive.* Your clamor footprint is a line on the floor; an enemy's cone is a filled wedge. Two overlapping fills read as two enemies looking at the same place; two overlapping outlines read as mush.
+
+**Rationale:** This is also the groundwork for **Q105** — the proposal to promote the footprint into a real accessibility feature so deaf players can *see* where their sound went. That cannot be prototyped while the drawing code is welded to a dev level, and `DES-018`'s Ear reports loudness and bearing but never propagation.
+
+**Consequences:** The gym keeps its probes and loses ~110 lines. The room set gains both overlays, and the footprint is visibly clipped by walls the moment the player stands in a room rather than a field. Still dev-only and still unstyled — Q105 is where it becomes something a player sees.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
