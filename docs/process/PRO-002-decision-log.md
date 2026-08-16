@@ -1048,4 +1048,21 @@ The heading lens found exactly three, and **two were already properly built**: `
 
 ---
 
+## ADR-079 — The avoidance test is premature at M1, and moves to M2
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `PRO-001` `M1-T02`**
+**Context:** Playtest feedback: *"with combat so simple at this stage, and there being no real loot, it's hard to want to swing at something you can walk past — so that may be an irrelevant test parameter."* Correct, and **ADR-053 already said so**: combat is *"a temptation with a price,"* and *"a refusal is only meaningful if the thing refused was attractive."*
+
+At M1 there is no Gilded enemy, no contract target, and nothing on the floor worth carrying. Walking past costs nothing, so declining a fight is not a decision and cannot be observed as one. `M1-T02`'s note asked *"does a tester swing at something they could have walked past?"* — **a question the milestone is constructed to make unanswerable.** That framing was added when the task was written up; it is not in the original task and not in `DES-009`.
+
+**Decision:**
+1. **`M1-T02`'s judgement is the one `DES-009` actually specifies for M1** — step 1 of its test protocol: *does swinging and connecting feel decent with zero feedback layers?* That is answerable today, and it is the question Swink's ordering says must be answered before anything is layered on top.
+2. **The avoidance question moves to `M2-T02`**, where the Hunt, the Gullsjúkr and loot with weight and clamor all exist, and where declining a fight finally has something to decline.
+3. **Clamor is signed off as functional and explicitly not as tuned.** Reported as *"neat and functional… may need tuning later once it's more filled out."* Its `⟨tune⟩` markers stand, and `M5-T06` balances against real telemetry.
+
+**Rationale:** A gate that cannot discriminate is worse than no gate: it gets passed by default and the milestone claims evidence it never had — the failure `PRO-007` names as *"M1 never ends"* wearing the opposite mask. The general lesson is worth stating, since I generated the bad test myself while writing up a task: **a test invented at write-up time must be checked against the design docs, not just against intuition.** ADR-053 contained the answer and I did not consult it.
+
+**Consequences:** `M1-T02` and `M1-T03` close on the criteria that are actually measurable now — attack anatomy and the awareness ladder measured, the loop and ADR-032's bypass asserted. Nothing about the avoidance design changes; only when it becomes testable.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

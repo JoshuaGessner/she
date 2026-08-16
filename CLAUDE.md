@@ -117,6 +117,29 @@ tools/check_scripts.sh               # the real GDScript parser, every script
 
 Then **push to `origin main`**. `TEC-002` permits this precisely because *main always launches* — the sweep above is what guarantees that, so it is not optional.
 
+**After a push that lands, republish the descent board.** The hosted copy is a
+snapshot, not a live view — it holds whatever was published last, so a push
+that isn't followed by a republish leaves a link that quietly lies about where
+the project stands.
+
+```bash
+python3 tools/status.py --fragment "${TMPDIR:-/tmp}/she-descent-board.html"
+```
+
+Then call the **Artifact** tool with that file and the `url` recorded in
+[`tools/artifact.json`](tools/artifact.json). **Passing that exact url is what
+updates the board in place** — publishing without it silently creates a second,
+orphaned artifact, and the link the user already has stops being the one that
+gets updated.
+
+`tools/artifact_sync.sh` runs as a `PostToolUse` hook and does the first half
+automatically: it notices a `git push`, confirms HEAD now matches its upstream
+so a *rejected* push can't be mistaken for a landed one, rebuilds the fragment,
+and asks for the republish. **The hook cannot publish by itself** — only the
+agent can call the Artifact tool — so the republish above is still your job when
+the hook fires, and the whole job when it doesn't (a push made from a plain
+terminal never reaches it).
+
 **Commit subjects carry the task or ADR ID** and describe *why*, not what:
 
 ```

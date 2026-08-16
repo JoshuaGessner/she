@@ -18,7 +18,8 @@ set -uo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="$REPO/tools/artifact.json"
-FRAGMENT="${TMPDIR:-/tmp}/she-descent-board.html"
+TMPROOT="${TMPDIR:-/tmp}"
+FRAGMENT="${TMPROOT%/}/she-descent-board.html"
 
 payload="$(cat)"
 ran="$(printf '%s' "$payload" | jq -r '.tool_input.command // ""' 2>/dev/null)" || exit 0
