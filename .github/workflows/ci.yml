@@ -85,3 +85,11 @@ jobs:
         run: python3 tools/run_net_spike.py --smoke
         env:
           GODOT: /usr/local/bin/godot
+
+      # TEC-004: clients build the floor from a seed rather than receiving
+      # geometry, so a determinism regression is invisible until two players
+      # disagree about where a wall is.
+      - name: Same seed, same layout
+        run: python3 tools/check_determinism.py
+        env:
+          GODOT: /usr/local/bin/godot

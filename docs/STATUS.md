@@ -8,12 +8,12 @@
 
 > **Gate:** `pending` — *two people who aren't you play for 10 minutes and ask to keep playing.*
 
-`7/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`8/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
-  M1["M1 The Feel Prototype<br/>7/10"]:::current
+  M1["M1 The Feel Prototype<br/>8/10"]:::current
   M0 --> M1
   M2["M2 The Loop Prototype<br/>0/9"]:::ahead
   M1 --> M2
@@ -35,7 +35,7 @@ flowchart LR
 | | Milestone | Progress | Done | Gates |
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
-| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `███████░░░` | 7/10 | `EXIT` pending |
+| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `████████░░` | 8/10 | `EXIT` pending |
 |  | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
@@ -51,6 +51,7 @@ _None. Sequencing is clean._
 | Check | Note |
 |---|---|
 | `untuned` | DES-009 is fully implemented (M1-T01, M1-T02) but still has 4 ⟨tune⟩ marker(s) |
+| `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08) but still has 1 ⟨tune⟩ marker(s) |
 
 ## Tasks
 
@@ -62,7 +63,7 @@ _None. Sequencing is clean._
 - ✔ `M1-T04` Weight & Clamor as visible debug numbers. *Layer 1 radius, not the M2 field (ADR-073); readout plus an audible-radius ring, since TEC-001 calls this untunable blind* `DES-005`
 - · `M1-T05` **Two players over localhost**, host-authoritative (`TEC-004`) `TEC-004`
 - ✔ `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. **GO (ADR-068)** — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing `TEC-004`
-- · `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash `TEC-001` `DES-015`
+- ✔ `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash. *Built before the generator on purpose — written first it is a specification `M4-T01` must satisfy, written after it only ratifies whatever the generator already does* `TEC-001` `DES-015`
 - ✔ `M1-T08` **Godot project skeleton** — folder layout, the ≤6 autoload budget enforced in CI (ADR-066), Forward+, naming and GDScript conventions, CI for the doc index and the dashboard. *The determinism harness is `M1-T07`'s deliverable, not this one (ADR-067)* `TEC-002` `TEC-001`
 - ✔ `M1-T09` **Ink shader spike** — grey boxes, outlines and boil only. **Go/no-go**: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064). **GO (ADR-070)** — pass costs ≈0.4–0.6 ms at 1080p; flat quantised shading is not built `ART-005`
 - · `M1-T10` **Shared humanoid rig with all six attachment sockets** — must exist before *any* character work; adding a socket later means re-exporting every mesh `ART-004` `DES-020`

@@ -62,7 +62,7 @@ All project knowledge lives in `docs/`. **Chat is not storage.**
 
 ```bash
 python3 tools/reindex.py        # docs/INDEX.md
-python3 tools/status.py --write # docs/STATUS.md + docs/status.html
+python3 tools/status.py --write # STATUS.md + status.html + status-app.html
 python3 tools/status.py --check # verify before committing
 ```
 
@@ -189,9 +189,15 @@ python3 tools/reindex.py      # regenerate docs/INDEX.md from frontmatter
 python3 tools/reindex.py --check   # CI-safe: fail if index is stale
 
 python3 tools/status.py       # milestone dashboard in the terminal
-python3 tools/status.py --write    # regenerate docs/STATUS.md + docs/status.html
+python3 tools/status.py --write    # regenerate all three generated views
 python3 tools/status.py --check    # CI-safe: sequencing + doc integrity
+python3 tools/status.py --fragment PATH   # status-app.html body only, to publish
 ```
+
+Three views, three jobs. `docs/STATUS.md` is the GitHub-readable report;
+`docs/status.html` is the parchment read-through; `docs/status-app.html` is the
+working board — filters, search, and the descent rail — and the one published
+as the shareable link.
 
 `status.py` reads milestone state out of `PRO-001` (ADR-063). Its job is to
 refuse work that skips a step: no task may start while the milestone it depends

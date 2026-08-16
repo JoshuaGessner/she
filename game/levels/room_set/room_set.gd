@@ -116,6 +116,21 @@ func _ready() -> void:
 			_route_probe()
 		elif arg == "--prize-probe":
 			_prize_probe()
+		elif arg == "--hash":
+			_print_hash()
+
+
+## Print the world fingerprint and quit (`M1-T07`). Two processes given the
+## same seed must print the same line; `tools/check_determinism.py` runs them
+## and compares. Waits for physics to settle first, because a body that has not
+## finished resolving its first frame reports a position that is *nearly*
+## right, which is exactly the kind of near-miss this must not tolerate.
+func _print_hash() -> void:
+	for i: int in range(8):
+		await get_tree().physics_frame
+	print("[hash] entries %d" % WorldHash.entries(self).size())
+	print("[hash] %s" % WorldHash.digest(self))
+	get_tree().quit()
 
 
 ## Does taking the prize actually cost anything?
