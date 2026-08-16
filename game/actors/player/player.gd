@@ -33,7 +33,11 @@ var _crouch_blend: float = 0.0
 @onready var carried: CarriedWeight = $CarriedWeight
 @onready var health: Health = $Health
 @onready var weapon: MeleeWeapon = $Head/Weapon
+@onready var clamor: ClamorSource = $ClamorSource
 @onready var _hurtbox: Hurtbox = $Hurtbox
+
+var _step_accumulator: float = 0.0
+var _was_on_floor: bool = true
 
 
 func _ready() -> void:
@@ -45,7 +49,19 @@ func _ready() -> void:
 	health.maximum = tuning.player_health
 	health.restore()
 	_hurtbox.hit.connect(_on_hurt)
+	weapon.swing_started.connect(_on_swing_started)
+	weapon.connected.connect(_on_swing_connected)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+
+func _on_swing_started() -> void:
+	clamor.add(Config.tuning.clamor_swing)
+
+
+func _on_swing_connected(_hurtbox_hit: Hurtbox) -> void:
+	# DES-009: blunt weapons are loudest, and connecting is the loud part. This
+	# is the main combat-to-pressure coupling — a whiff is cheap, a fight is not.
+	clamor.add(Config.tuning.clamor_hit)
 
 
 func _on_hurt(amount: float, from: Node) -> void:
@@ -105,10 +121,41 @@ func _physics_process(delta: float) -> void:
 	velocity.x = planar.x
 	velocity.z = planar.z
 
+	_emit_movement_clamor(planar.length() * delta, sprinting, tuning)
+
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not _crouching:
 		velocity.y = tuning.jump_velocity * carried.scale_by_load(tuning.jump_at_capacity)
 
 	move_and_slide()
+
+
+## Footfalls and landings, the continuous half of DES-005 Layer 1.
+##
+## Measured in distance walked rather than elapsed time, so sprinting is louder
+## for two compounding reasons — more ground per second *and* a multiplier —
+## while crouch-walking is quiet in both. Weight raises it further, which is the
+## coupling the whole layer exists for: your greed is audible.
+func _emit_movement_clamor(distance: float, sprinting: bool, tuning: TuningProfile) -> void:
+	var landed: bool = is_on_floor() and not _was_on_floor
+	_was_on_floor = is_on_floor()
+	if landed:
+		clamor.add(tuning.clamor_landing * carried.scale_by_load(
+			tuning.clamor_footstep_at_capacity
+		))
+		return
+	if not is_on_floor():
+		return
+
+	_step_accumulator += distance
+	if _step_accumulator < tuning.clamor_step_distance:
+		return
+	_step_accumulator = 0.0
+	var amount: float = tuning.clamor_footstep
+	if _crouching:
+		amount *= tuning.clamor_crouch_multiplier
+	elif sprinting:
+		amount *= tuning.clamor_sprint_multiplier
+	clamor.add(amount * carried.scale_by_load(tuning.clamor_footstep_at_capacity))
 
 
 func _wish_direction() -> Vector3:

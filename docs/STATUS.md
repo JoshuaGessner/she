@@ -2,18 +2,18 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-15_
+<!-- generated-stamp --> _Regenerated 2026-08-16_
 
 **Current milestone: M1 — The Feel Prototype**
 
 > **Gate:** `pending` — *two people who aren't you play for 10 minutes and ask to keep playing.*
 
-`4/43` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`5/43` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
-  M1["M1 The Feel Prototype<br/>4/10"]:::current
+  M1["M1 The Feel Prototype<br/>5/10"]:::current
   M0 --> M1
   M2["M2 The Loop Prototype<br/>0/9"]:::ahead
   M1 --> M2
@@ -35,7 +35,7 @@ flowchart LR
 | | Milestone | Progress | Done | Gates |
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
-| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `████▒░░░░░` | 4/10 | `EXIT` pending |
+| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `█████▒░░░░` | 5/10 | `EXIT` pending |
 |  | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
@@ -53,7 +53,7 @@ _None. Sequencing is clean._
 - ✔ `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement. *Unjuiced per Swink; couplings measured, encumbrance signed off 2026-08-15* `DES-009` `DES-005`
 - ▶ `M1-T02` One weapon, one enemy, hit reactions, death. *Built with the awareness ladder (ADR-072) so the fight is avoidable; anatomy and telegraph measured. Awaiting the gate judgement — does a tester swing at something they could have walked past?* `DES-009` `DES-013`
 - · `M1-T03` One hand-built room set, no generation `DES-015`
-- · `M1-T04` Weight & Clamor as visible debug numbers `DES-005`
+- ✔ `M1-T04` Weight & Clamor as visible debug numbers. *Layer 1 radius, not the M2 field (ADR-073); readout plus an audible-radius ring, since TEC-001 calls this untunable blind* `DES-005`
 - · `M1-T05` **Two players over localhost**, host-authoritative (`TEC-004`) `TEC-004`
 - ✔ `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. **GO (ADR-068)** — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing `TEC-004`
 - · `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash `TEC-001` `DES-015`
@@ -108,6 +108,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 72 ADRs · 15 open questions · 79 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 73 ADRs · 15 open questions · 80 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

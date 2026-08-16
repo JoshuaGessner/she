@@ -48,15 +48,21 @@ var _home: Vector3 = Vector3.ZERO
 var _target: Node3D = null
 var _material: StandardMaterial3D = null
 
+var _heard_for: float = 0.0
+var _hearing_now: bool = false
+var _heard_at: Vector3 = Vector3.ZERO
+
 @onready var health: Health = $Health
 @onready var _hurtbox: Hurtbox = $Hurtbox
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _mesh: MeshInstance3D = $Mesh
 @onready var _eyes: Node3D = $Eyes
+@onready var _ears: ClamorSensor = $Ears
 
 
 func _ready() -> void:
 	add_to_group("enemies")
+	_ears.heard.connect(_on_heard)
 	_home = global_position
 	var tuning: TuningProfile = Config.tuning
 	health.maximum = tuning.enemy_health
@@ -94,6 +100,8 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= tuning.gravity * delta
 
+	_listen(delta, tuning)
+
 	if _state == State.STAGGERED:
 		_tick_stagger(delta, tuning)
 	elif _attack != Attack.NONE:
@@ -118,6 +126,36 @@ func _sense(tuning: TuningProfile) -> void:
 		_patience = tuning.enemy_patience
 		if _state != State.ALERTED:
 			_set_state(State.ALERTED)
+
+
+## The sensor only records; the decision is made in `_listen` so that silence
+## is a real input. Deciding inside the signal would mean `_heard_for` only ever
+## rises, and a room once disturbed would stay disturbed for good.
+func _on_heard(where: Vector3, _loudness: float) -> void:
+	_hearing_now = true
+	_heard_at = where
+
+
+## Noise moves UNAWARE to SUSPICIOUS, never straight to ALERTED. DES-013 is
+## explicit that SUSPICIOUS investigates *the last heard position*, and that
+## this is what makes the system fair and baitable — the enemy genuinely does
+## not know where you are, only where a sound was.
+func _listen(delta: float, tuning: TuningProfile) -> void:
+	var hearing: bool = _hearing_now
+	_hearing_now = false
+	if not hearing:
+		_heard_for = maxf(0.0, _heard_for - delta)
+		return
+	if _state == State.ALERTED or _state == State.STAGGERED:
+		return
+	_heard_for += delta
+	if _heard_for < tuning.enemy_hearing_patience:
+		return
+	_heard_for = 0.0
+	_last_seen = _heard_at
+	_patience = tuning.enemy_patience
+	if _state != State.SUSPICIOUS:
+		_set_state(State.SUSPICIOUS)
 
 
 func _can_see(player: Node3D, tuning: TuningProfile) -> bool:
@@ -263,8 +301,13 @@ func _on_died(_from: Node) -> void:
 	velocity = Vector3.ZERO
 	# No ragdoll, no death animation, no corpse fade — all polish, all absent.
 	# Collision is dropped so a body never becomes an invisible wall.
-	_hurtbox.monitorable = false
-	set_collision_layer_value(3, false)
+	#
+	# Deferred because this runs inside the hurtbox's own signal, and Godot
+	# refuses physics-state changes from there: "Function blocked during in/out
+	# signal. Use set_deferred(...)". Applying next frame is correct anyway —
+	# the hit that killed it has to finish resolving first.
+	_hurtbox.set_deferred("monitorable", false)
+	set_deferred("collision_layer", 0)
 	died.emit()
 
 

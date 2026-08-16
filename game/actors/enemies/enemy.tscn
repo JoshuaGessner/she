@@ -1,9 +1,10 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=9 format=3]
 
 [ext_resource type="Script" path="res://actors/enemies/enemy.gd" id="1_enemy"]
 [ext_resource type="Script" path="res://components/health.gd" id="2_health"]
 [ext_resource type="Script" path="res://components/hurtbox.gd" id="3_hurtbox"]
 [ext_resource type="Script" path="res://components/hitbox.gd" id="4_hitbox"]
+[ext_resource type="Script" path="res://components/clamor_sensor.gd" id="5_ears"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.4
@@ -31,6 +32,10 @@ mesh = SubResource("CapsuleMesh_blockout")
 
 [node name="Eyes" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+
+[node name="Ears" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.6, 0)
+script = ExtResource("5_ears")
 
 [node name="Health" type="Node" parent="."]
 script = ExtResource("2_health")

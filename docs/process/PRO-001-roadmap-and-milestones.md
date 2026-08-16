@@ -37,7 +37,7 @@ The most common way a project like this dies is building the meta-progression fi
 - [x] `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement. *Unjuiced per Swink; couplings measured, encumbrance signed off 2026-08-15* → DES-009, DES-005
 - [~] `M1-T02` One weapon, one enemy, hit reactions, death. *Built with the awareness ladder (ADR-072) so the fight is avoidable; anatomy and telegraph measured. Awaiting the gate judgement — does a tester swing at something they could have walked past?* → DES-009, DES-013
 - [ ] `M1-T03` One hand-built room set, no generation → DES-015
-- [ ] `M1-T04` Weight & Clamor as visible debug numbers → DES-005
+- [x] `M1-T04` Weight & Clamor as visible debug numbers. *Layer 1 radius, not the M2 field (ADR-073); readout plus an audible-radius ring, since TEC-001 calls this untunable blind* → DES-005
 - [ ] `M1-T05` **Two players over localhost**, host-authoritative (`TEC-004`) → TEC-004
 - [x] `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. **GO (ADR-068)** — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing → TEC-004
 - [ ] `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash → TEC-001, DES-015

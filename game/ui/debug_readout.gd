@@ -27,6 +27,7 @@ func _process(_delta: float) -> void:
 	var carried: CarriedWeight = _player.carried
 	var stamina: Stamina = _player.stamina
 	var health: Health = _player.health
+	var clamor: ClamorSource = _player.clamor
 	var lines: PackedStringArray = PackedStringArray([
 		"health    %5.1f / %.0f%s" % [
 			health.current, health.maximum, "   DEAD" if health.is_dead() else "",
@@ -35,6 +36,12 @@ func _process(_delta: float) -> void:
 		"stamina   %5.1f / %.0f" % [stamina.current, stamina.maximum()],
 		"carrying  %5.1f kg  (%.0f%% laden)" % [
 			carried.kilograms, carried.encumbrance() * 100.0,
+		],
+		# The radius is the number that means something: DES-005 requires the
+		# player to always know how much pressure they have made. "4.8 clamor"
+		# is not actionable; "heard 7.7 m away" is.
+		"clamor    %5.1f      heard %.1f m away" % [
+			clamor.level, clamor.audible_radius(),
 		],
 	])
 	# Enemy state is on screen because the awareness ladder is unreadable

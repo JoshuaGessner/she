@@ -106,6 +106,33 @@ extends Resource
 @export var enemy_attack_recovery: float = 0.45
 ## How long a hit interrupts an attack. The reward for reading a telegraph.
 @export var enemy_stagger: float = 0.35
+## Seconds of hearing something before UNAWARE becomes SUSPICIOUS. A short
+## delay stops a single footstep at the edge of earshot from flipping a whole
+## room, which would make crouching pointless.
+@export var enemy_hearing_patience: float = 0.35
+
+@export_group("Clamor")
+## DES-005 Layer 1: noise is continuous, player-caused pressure. Units are
+## arbitrary; what matters is the ratios between the emitters below and the
+## radius they buy.
+@export var clamor_decay: float = 2.4
+@export var clamor_maximum: float = 20.0
+## Metres of audible radius per unit of clamor.
+@export var clamor_metres_per_unit: float = 1.6
+## Metres walked between footfalls. Distance rather than time, so sprinting is
+## louder because you cover ground faster *and* because of the multiplier.
+@export var clamor_step_distance: float = 1.9
+@export var clamor_footstep: float = 1.5
+@export var clamor_crouch_multiplier: float = 0.25
+@export var clamor_sprint_multiplier: float = 1.7
+## Weight makes you louder as well as slower — the same greed, same number.
+@export var clamor_footstep_at_capacity: float = 2.4
+@export var clamor_landing: float = 3.5
+## DES-009: "Every swing has a Clamor value." Missing is quieter than hitting;
+## hitting something is the loud part, which is what makes a whiff cheap and a
+## fight expensive.
+@export var clamor_swing: float = 2.0
+@export var clamor_hit: float = 4.5
 
 
 ## Human visual reaction time is ~250 ms before any decision-making or input

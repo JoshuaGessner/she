@@ -923,4 +923,36 @@ SUSPICIOUS investigates the **last seen position, not the player's current one**
 
 ---
 
+## ADR-073 — `M1-T04` builds the Clamor *radius*, not the Clamor *field*
+**Date:** 2026-08-16 · **Status:** accepted
+**Context:** `M1-T04` is *"Weight & Clamor as visible debug numbers"*, but `M2-T02` is *"The Hunt: clamor field…"*. Both name Clamor, and building the wrong one here would either leave a number measuring nothing or do M2's work early.
+
+**Decision:** `M1-T04` builds **DES-005 Layer 1** — clamor deposited by actions, decaying continuously, mapping to an **audible radius** that enemies hear. DES-005 Layer 1 names that mechanic directly: *"Clamor → wider aggro radius."* **TEC-001's decaying scalar grid is absent** (ADR-064), not approximated.
+
+These are two consumers of one fiction and **both exist in the finished game**: the radius answers *"can that enemy hear me"*, the field answers *"where in the level was noise recently"*, and only the second needs a grid the Gullsjúkr can navigate by gradient. So this is not a cheaper stand-in that gets thrown away — `ClamorSensor`'s interface is unchanged when it becomes a grid lookup, which is also what DES-013's O(1)-per-agent requirement demands at 150 agents.
+
+**Measured** (`--clamor-probe`), sustained level and the radius it buys:
+
+| | peak | heard |
+|---|---|---|
+| crouch, empty | 0.34 | 0.5 m |
+| crouch, full load | 0.87 | 1.4 m |
+| walk, empty | 3.60 | 5.8 m |
+| walk, full load | 4.71 | 7.5 m |
+| sprint, empty | 13.21 | 21.1 m |
+| swing, missed | 1.95 | 3.1 m |
+| swing, connected | 6.50 | 10.4 m |
+
+**A tuning finding that needs judgement, not a fix.** Weight multiplies each footfall by 2.4 at capacity, but sustained clamor rises only **31%** (3.60 → 4.71). Encumbrance also makes you *slower*, and because footfalls are emitted per metre walked rather than per second, a laden player takes the same number of steps over more time — giving decay longer to eat them. The two couplings partly cancel.
+
+That may be correct: you are slower *and* louder, and the compounding shows up as time-in-the-open rather than as peak volume. But DES-005 calls Layer 1 *"the single most important feedback loop in the game"*, and a 31% change is close to imperceptible. **Flagged for play rather than silently retuned** — every number here is `⟨tune⟩`, and the choice between raising `clamor_footstep_at_capacity`, shortening `clamor_step_distance` under load, or accepting the damping is a feel call.
+
+Crouch, by contrast, is unambiguous: **10.6× quieter than walking**, which makes it the real stealth verb DES-009 asks for rather than a speed penalty.
+
+**Also in this task, and not a juice violation:** the weapon now has a blockout model that moves through wind-up, strike and recovery. Without it the phases are invisible and DES-009's attack anatomy cannot be judged at all — this is the *primary representation* of the mechanic, in the same way the enemy's telegraph tint is. Straight lerps, no easing and no anticipation overshoot, precisely so it does not flatter the timings being judged. The polish layer DES-009 defers — hitstop, impact audio, camera kick, the arm absorbing a blow — remains absent.
+
+**Fixed here:** `Hitbox` toggled `monitoring` to open and close its damage window, which Godot forbids from inside an area signal (*"Function blocked during in/out signal"*) — and death is reached from exactly there. Monitoring now stays on for the node's life and `_armed` gates the window, which also fixes a second bug in the same code: an `Area3D` that has never monitored does not know what it overlaps, so the "already inside the arc" scan never worked. The corpse's physics changes are deferred. `--combat-probe` now kills an enemy as a regression test.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

@@ -26,17 +26,55 @@ signal refused(reason: String)
 
 enum Phase { IDLE, WINDUP, ACTIVE, RECOVERY }
 
+## Blockout poses, as (position, rotation-in-degrees). Not juice: without a
+## visible weapon the player cannot see wind-up, strike or recovery at all, and
+## the whole point of DES-009's attack anatomy is that those phases are
+## *readable*. This is the primary representation of the mechanic — the polish
+## layer is the arm absorbing impact and the camera kick, both still absent.
+##
+## Straight lerps, no easing curves and no anticipation overshoot, for the same
+## reason: an eased swing would flatter the timings being judged.
+const POSE_REST: Array = [Vector3(0.42, -0.34, -0.62), Vector3(6, -12, -22)]
+const POSE_RAISED: Array = [Vector3(0.52, -0.02, -0.44), Vector3(-38, 28, -58)]
+const POSE_STRUCK: Array = [Vector3(-0.34, -0.30, -0.72), Vector3(14, -34, 40)]
+
 var _phase: Phase = Phase.IDLE
 var _remaining: float = 0.0
+var _duration: float = 0.0
 var _buffered_until: float = -1.0
 
 @onready var _hitbox: Hitbox = $Hitbox
+@onready var _model: Node3D = $Model
 
 
 func _ready() -> void:
 	var tuning: TuningProfile = Config.tuning
 	_hitbox.damage = tuning.swing_damage
 	_hitbox.struck.connect(_on_struck)
+	_pose(POSE_REST, POSE_REST, 0.0)
+
+
+func _pose(from: Array, to: Array, t: float) -> void:
+	_model.position = (from[0] as Vector3).lerp(to[0] as Vector3, t)
+	_model.rotation = Vector3(
+		deg_to_rad(lerpf((from[1] as Vector3).x, (to[1] as Vector3).x, t)),
+		deg_to_rad(lerpf((from[1] as Vector3).y, (to[1] as Vector3).y, t)),
+		deg_to_rad(lerpf((from[1] as Vector3).z, (to[1] as Vector3).z, t))
+	)
+
+
+func _update_pose() -> void:
+	# How far through the current phase we are, 0 at its start and 1 at its end.
+	var t: float = 1.0 - clampf(_remaining / maxf(_duration, 0.0001), 0.0, 1.0)
+	match _phase:
+		Phase.WINDUP:
+			_pose(POSE_REST, POSE_RAISED, t)
+		Phase.ACTIVE:
+			_pose(POSE_RAISED, POSE_STRUCK, t)
+		Phase.RECOVERY:
+			_pose(POSE_STRUCK, POSE_REST, t)
+		Phase.IDLE:
+			_pose(POSE_REST, POSE_REST, 0.0)
 
 
 func phase() -> Phase:
@@ -73,10 +111,12 @@ func _begin(stamina: Stamina, tuning: TuningProfile) -> bool:
 func _enter(next: Phase, duration: float) -> void:
 	_phase = next
 	_remaining = duration
+	_duration = duration
 	if next == Phase.ACTIVE:
 		_hitbox.arm()
 	else:
 		_hitbox.disarm()
+	_update_pose()
 	phase_changed.emit(next)
 
 
@@ -85,6 +125,7 @@ func advance(delta: float, stamina: Stamina) -> void:
 		return
 	var tuning: TuningProfile = Config.tuning
 	_remaining -= delta
+	_update_pose()
 	if _remaining > 0.0:
 		return
 

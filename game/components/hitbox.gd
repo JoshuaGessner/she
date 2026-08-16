@@ -22,7 +22,14 @@ var _already_hit: Array[Hurtbox] = []
 
 
 func _ready() -> void:
-	monitoring = false
+	# Monitoring stays on for the node's whole life; `_armed` is what opens and
+	# closes the damage window. Toggling `monitoring` looked tidier and was
+	# wrong twice over: Godot forbids changing it from inside an area signal
+	# ("Function blocked during in/out signal"), and disarm() is reached from
+	# exactly there — hit -> Health.died -> disarm. It also broke the
+	# overlap scan below, since an Area3D that has never monitored does not
+	# know what it overlaps.
+	monitoring = true
 	area_entered.connect(_on_area_entered)
 
 
@@ -30,17 +37,15 @@ func _ready() -> void:
 func arm() -> void:
 	_already_hit.clear()
 	_armed = true
-	monitoring = true
 	# Anything already overlapping when the window opens must still be hit:
-	# area_entered will not fire for it, and a target standing inside the arc
-	# taking no damage is the most confusing possible outcome.
+	# area_entered will not fire again for it, and a target standing inside the
+	# arc taking no damage is the most confusing possible outcome.
 	for area: Area3D in get_overlapping_areas():
 		_on_area_entered(area)
 
 
 func disarm() -> void:
 	_armed = false
-	monitoring = false
 
 
 func is_armed() -> bool:

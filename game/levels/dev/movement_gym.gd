@@ -26,6 +26,7 @@ const ENEMY_POSTS: Array[Vector3] = [
 @onready var _world: Node3D = $World
 
 var _player: Player = null
+var _clamor_ring: MeshInstance3D = null
 
 
 func _ready() -> void:
@@ -34,7 +35,12 @@ func _ready() -> void:
 	_player.position = SPAWN
 	add_child(_player)
 	_player.health.died.connect(_on_player_died)
+	_build_clamor_ring()
 	_spawn_enemies()
+	# Once, at startup. This loop briefly ended up inside _process() during a
+	# refactor and re-entered the probe every frame — 84,000 lines of header and
+	# no measurements, which is a good argument for reading the whole function
+	# after moving anything into the middle of one.
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture="):
 			_capture(arg.split("=", true, 1)[1])
@@ -42,6 +48,106 @@ func _ready() -> void:
 			_probe(_player)
 		elif arg == "--combat-probe":
 			_combat_probe(_player)
+		elif arg == "--clamor-probe":
+			_clamor_probe(_player)
+
+
+## TEC-001, on the Clamor field: "Build that overlay early; this system is
+## untunable blind." A number tells you the radius is 7.7 m; the ring tells you
+## whether 7.7 m reaches the thing standing over there, which is the only
+## question a tester actually has.
+##
+## It lives in the gym rather than on the Player, so no debug geometry ships
+## inside the actor scene.
+func _build_clamor_ring() -> void:
+	var torus := TorusMesh.new()
+	torus.inner_radius = 0.94
+	torus.outer_radius = 1.0
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.95, 0.95, 0.95, 0.45)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.no_depth_test = true
+	_clamor_ring = MeshInstance3D.new()
+	_clamor_ring.mesh = torus
+	_clamor_ring.material_override = material
+	_world.add_child(_clamor_ring)
+
+
+func _process(_delta: float) -> void:
+	if _clamor_ring == null or _player == null:
+		return
+	var radius: float = _player.clamor.audible_radius()
+	_clamor_ring.visible = radius > 0.1
+	_clamor_ring.global_position = _player.global_position + Vector3.UP * 0.05
+	_clamor_ring.scale = Vector3(radius, 1.0, radius)
+
+
+func _clamor_probe(player: Player) -> void:
+	## Measure what each action costs in noise, and how far it carries.
+	##
+	## DES-005 Layer 1 makes two claims this checks: that weight makes you
+	## louder as well as slower, and that crouching is a real stealth verb
+	## rather than a speed penalty. Both are ratios, and a ratio nobody measured
+	## is a ratio nobody knows.
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var tuning: TuningProfile = Config.tuning
+	print("[clamor] %-26s %8s %8s" % ["case", "peak", "heard m"])
+
+	for case: Dictionary in [
+		{"name": "walk, empty", "kg": 0.0, "sprint": false, "crouch": false},
+		{"name": "walk, full load", "kg": tuning.carry_capacity,
+			"sprint": false, "crouch": false},
+		{"name": "sprint, empty", "kg": 0.0, "sprint": true, "crouch": false},
+		{"name": "crouch, empty", "kg": 0.0, "sprint": false, "crouch": true},
+		{"name": "crouch, full load", "kg": tuning.carry_capacity,
+			"sprint": false, "crouch": true},
+	]:
+		player.position = Vector3(0, 0.1, 18)
+		player.velocity = Vector3.ZERO
+		player.clamor.silence()
+		player.carried.kilograms = float(case["kg"])
+		player.stamina.refill()
+		Input.action_press("move_forward")
+		if bool(case["sprint"]):
+			Input.action_press("sprint")
+		if bool(case["crouch"]):
+			Input.action_press("crouch")
+		var peak: float = 0.0
+		for i: int in range(150):
+			await get_tree().physics_frame
+			peak = maxf(peak, player.clamor.level)
+		print("[clamor] %-26s %8.2f %8.1f" % [
+			case["name"], peak, peak * tuning.clamor_metres_per_unit,
+		])
+		Input.action_release("move_forward")
+		Input.action_release("sprint")
+		Input.action_release("crouch")
+		for i: int in range(20):
+			await get_tree().physics_frame
+
+	# A swing that misses versus one that lands. DES-009 makes connecting the
+	# loud part, which is what makes a fight expensive and a whiff cheap.
+	player.position = Vector3(0, 0.1, 18)
+	player.clamor.silence()
+	player.stamina.refill()
+	player.weapon.request_swing(player.stamina)
+	var whiff: float = 0.0
+	while player.weapon.is_busy():
+		await get_tree().physics_frame
+		whiff = maxf(whiff, player.clamor.level)
+	print("[clamor] %-26s %8.2f %8.1f" % [
+		"swing, missed", whiff, whiff * tuning.clamor_metres_per_unit])
+
+	player.clamor.silence()
+	player.clamor.add(tuning.clamor_swing + tuning.clamor_hit)
+	var landed: float = player.clamor.level
+	print("[clamor] %-26s %8.2f %8.1f" % [
+		"swing, connected", landed, landed * tuning.clamor_metres_per_unit])
+
+	print("[clamor] decay to silence from peak  %.1f s"
+		% (tuning.clamor_maximum / tuning.clamor_decay))
+	get_tree().quit()
 
 
 func _spawn_enemies() -> void:
@@ -151,6 +257,15 @@ func _combat_probe(player: Player) -> void:
 		int(ceil(tuning.enemy_health / tuning.swing_damage))])
 	print("[combat] player dies in           %4d hits" % [
 		int(ceil(tuning.player_health / tuning.enemy_attack_damage))])
+
+	# 6. Death resolves cleanly. This killed the run with "Function blocked
+	#    during in/out signal" until Hitbox stopped toggling `monitoring` and
+	#    the corpse's physics changes were deferred — death is reached from
+	#    inside an area signal, which is exactly where Godot forbids both.
+	enemy.take_test_hit(9999.0)
+	for i: int in range(6):
+		await get_tree().physics_frame
+	print("[combat] death state              %s" % Enemy.State.keys()[enemy.state()].to_lower())
 	get_tree().quit()
 
 
@@ -206,6 +321,15 @@ func _probe(player: Player) -> void:
 func _capture(path: String) -> void:
 	## Screenshot and quit. Building a gym without looking at it is how the
 	## ink spike ended up with its camera standing inside a pillar.
+	##
+	## Staged, and worth saying so: the shot swings first, so the frame catches
+	## the weapon mid-arc and the clamor ring the swing produced. An idle frame
+	## shows neither — clamor decays to nothing and the ring hides itself — and
+	## would suggest both features were missing.
+	_player.clamor.add(Config.tuning.clamor_swing * 2.0)
+	_player.weapon.request_swing(_player.stamina)
+	for i: int in range(6):
+		await get_tree().physics_frame
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(path)
