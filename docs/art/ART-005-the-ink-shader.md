@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-08-14
+updated: 2026-08-15
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -69,7 +69,11 @@ Four stacked components. None is exotic; the *combination* and the hand-drawn tr
 
 ### 1. Outlines — screen-space, not inverted hull
 
+> **VALIDATED at `M1-T09` (ADR-070) — GO.** Reproduce with `python3 tools/run_ink_spike.py`. Measured pass cost **~0.15–0.23 ms at 1152×648**, ≈0.4–0.6 ms at 1080p — about 3% of a 60 fps frame.
+
 **Screen-space edge detection** on the depth and normal buffers (Sobel or Roberts cross), run as a full-screen pass.
+
+> **The depth threshold must scale with N·V, or the technique does not work.** A fixed threshold renders every floor and ceiling as solid scribble: depth changes enormously from pixel to pixel on any surface seen edge-on, *even when that surface is perfectly flat*. Widening the tolerance as the surface turns away is what distinguishes a genuine discontinuity from foreshortening. This is not a tuning preference — the first spike build was unusable without it (ADR-070).
 
 Chosen over inverted-hull because it catches **interior creases** — folds, corners, and detail *inside* a silhouette, which is what makes a drawing read as drawn rather than as an object with a border. One pass for the whole scene rather than per-object cost.
 
@@ -79,7 +83,7 @@ Godot 4 exposes depth and normal-roughness textures to spatial shaders; Godot 4.
 
 A clean Sobel edge looks like a *technical* drawing. Three treatments turn it into a hand-drawn one, and they matter more than everything else on this page:
 
-- **Line wobble.** Offset edge sampling by a noise texture so lines waver like a drawn stroke instead of following geometry exactly.
+- **Line wobble.** Offset edge sampling by a noise texture so lines waver like a drawn stroke instead of following geometry exactly. **Amplitude belongs near one pixel** ⟨tune⟩ — measured at `M1-T09`, a stroke that wanders further than its own width stops reading as a line and becomes a smudge.
 - **Boil.** **Update that jitter at 8–12 fps, not 60.** This is *the* trick. Hand-drawn animation shimmers because each frame was redrawn; quantising the wobble to a low framerate reproduces that instantly. Without boil the look is sterile; with it, it reads as animation. Cheapest, highest-impact line in this document.
 - **Variable weight.** Line thickness driven by depth discontinuity and a noise term, so strokes thicken and thin like a real nib.
 
@@ -208,3 +212,5 @@ Cheap to author, no texture work in Phase 1 or 2, and outline suppression is ess
 > **OPEN (Q101):** How many nested hatch layers — 4, 5, or 6? Fewer is less authoring and coarser tone control. Start at 4 and add only if banding is visible.
 
 > **OPEN (Q102):** Does the object-ID buffer get built, or do we live with missing coplanar edges? Prototype the ink-ID mitigation first; only build the ID pass if it visibly fails.
+>
+> **Still open after `M1-T09`.** The spike staged two flush, coplanar, identically-oriented faces on purpose, but they are not legible in the captures — so nothing was learned either way. This needs a dedicated test that isolates the case, not an inference from a busy frame (ADR-070).

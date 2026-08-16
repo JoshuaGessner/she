@@ -860,4 +860,24 @@ Delivery held at **18.1–18.2 Hz of the 20 Hz requested (91%)** in every config
 
 ---
 
+## ADR-070 — `M1-T09` ink shader spike: GO
+**Date:** 2026-08-15 · **Status:** accepted · **Gate:** `M1-T09` go/no-go
+**Context:** ADR-062 required a weekend spike — grey boxes, **outlines and boil only**, no hatching and no two-world inversion — with a one-time gate at *"~70% convincing"*. `PRO-007` ranks the ink shader as the second most likely cause of this project failing, specifically by consuming months as a novel four-part effect. The narrow scope was the mitigation.
+
+**Decision: GO.** The ink path is the visual direction. Flat quantised shading is **not built** — per ADR-064 this is a gate decision, not a maintained alternative, and no second renderer exists. Hatching and the Threshold/Deep inversion remain scheduled at `M4-T08` and are not brought forward.
+
+**Measurements:**
+- **Boil holds and jumps as specified.** Captured at 30 fps with boil at 10 Hz: frames inside a beat are pixel-identical (0 changed pixels), ~6,500 pixels change at each beat boundary. `ART-005` calls this "the cheapest, highest-impact line in this document"; it is now verified rather than asserted.
+- **Pass cost ~0.15–0.23 ms** at 1152×648, ≈0.4–0.6 ms at 1080p — about 3% of a 60 fps frame. Bracketed, not exact: the baseline is vsync-clamped, so the true value sits inside that range.
+
+**Two findings `ART-005` does not state, now folded into it:**
+1. **The depth threshold must scale with N·V.** A fixed threshold renders every floor and ceiling as solid scribble, because depth changes enormously per pixel on any surface seen edge-on *even when it is perfectly flat*. This is not a tuning detail — without it the technique does not work at all.
+2. **Wobble amplitude belongs near one pixel.** At 2.6 px a stroke wanders further than its own width and reads as a smudge rather than a drawn line.
+
+**What this does not settle.** The spike used ordinary grey-box lighting. The grey-fill result is markedly weaker than the ink-on-paper result, because smooth gradient fills fight the printmaking read — which is what hatching exists to fix, and hatching was deliberately out of scope. **Q102 (coplanar edges) remains open:** the test geometry was staged but is not legible in the captures, so it needs a dedicated test rather than being inferred from these.
+
+**Consequences:** `M1-T09` closes. The remaining M1 work is the game itself. **ADR-062's third action — *"a devlog starts when the shader works"* — has now been triggered and has no task anywhere in `PRO-001`.** `PRO-007` names the absence of any marketing plan as a real gap and made the devlog its mitigation; recorded here so the trigger is not lost, but **adding it to a milestone is a scope decision and is not taken by this ADR.**
+
+---
+
 *Entries below to be added as design decisions are signed off.*
