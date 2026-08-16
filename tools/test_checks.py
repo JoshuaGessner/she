@@ -25,6 +25,14 @@ ROOT = Path(__file__).resolve().parent.parent
 ROADMAP = ROOT / "docs" / "process" / "PRO-001-roadmap-and-milestones.md"
 TEC005 = ROOT / "docs" / "tech" / "TEC-005-audio-technology.md"
 
+# Every file this script can disturb, including the generated views, which
+# `status.py --write` re-stamps with today's date. Restoring these verbatim is
+# not optional: regenerating them instead leaves the tree dirty whenever the
+# run crosses UTC midnight relative to the commit — which is precisely how CI
+# caught this, since `--check` deliberately ignores the date stamp but
+# `git diff` does not.
+TOUCHED = [ROADMAP, TEC005, ROOT / "docs" / "STATUS.md", ROOT / "docs" / "status.html"]
+
 
 class Trial(NamedTuple):
     code: str       # the Issue code --check must report
@@ -72,7 +80,7 @@ def run_check() -> str:
     return proc.stdout + proc.stderr
 
 
-def main() -> int:
+def run_trials() -> int:
     # Regenerate first, so the only failure a trial can produce is its own.
     subprocess.run([sys.executable, str(ROOT / "tools" / "status.py"), "--write"],
                    capture_output=True, text=True, cwd=ROOT, check=True)
@@ -98,10 +106,18 @@ def main() -> int:
             print("        planting the violation did not trigger it:", file=sys.stderr)
             print("\n".join("        " + line for line in output.splitlines()), file=sys.stderr)
             failures += 1
+    return failures
 
-    # Restore the generated views, which the trials will have rewritten.
-    subprocess.run([sys.executable, str(ROOT / "tools" / "status.py"), "--write"],
-                   capture_output=True, text=True, cwd=ROOT, check=True)
+
+def main() -> int:
+    snapshot = {path: path.read_text(encoding="utf-8") for path in TOUCHED if path.exists()}
+    try:
+        failures = run_trials()
+    finally:
+        # Byte-for-byte, so the working tree is exactly as it was found.
+        for path, text in snapshot.items():
+            if path.read_text(encoding="utf-8") != text:
+                path.write_text(text, encoding="utf-8")
 
     if failures:
         print(f"\n{failures} of {len(TRIALS)} check(s) did not fire", file=sys.stderr)
