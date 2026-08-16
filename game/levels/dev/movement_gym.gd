@@ -14,6 +14,8 @@ const ACCENT: Color = Color(0.38, 0.37, 0.36)
 
 const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
 const SPAWN: Vector3 = Vector3(0, 0.1, 10)
+## Enough to show a doorway notch without the outline looking polygonal.
+const RING_SEGMENTS: int = 96
 
 ## Where the enemies stand. Spread out and away from spawn on purpose: the M1
 ## gate question is whether a tester *chooses* to swing at something they could
@@ -50,6 +52,31 @@ func _ready() -> void:
 			_combat_probe(_player)
 		elif arg == "--clamor-probe":
 			_clamor_probe(_player)
+		elif arg.begins_with("--capture-top="):
+			_capture_top(arg.split("=", true, 1)[1])
+
+
+## Overhead capture. The audible footprint is a shape on the ground plane, and
+## a first-person shot at eye level cannot show a shape on the ground plane.
+func _capture_top(path: String) -> void:
+	var camera := Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 34.0
+	camera.position = Vector3(0, 30, 2)
+	camera.rotation_degrees = Vector3(-90, 0, 0)
+	add_child(camera)
+	camera.make_current()
+	# North of the interior wall, and loud enough to reach past it but not so
+	# loud the footprint leaves the room — at maximum clamor the outline is
+	# wider than the gym and the doorway notch is off-screen.
+	_player.position = Vector3(0, 0.1, 9)
+	_player.clamor.add(14.0 / Config.tuning.clamor_metres_per_unit)
+	for i: int in range(4):
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	get_tree().quit()
 
 
 ## TEC-001, on the Clamor field: "Build that overlay early; this system is
@@ -60,27 +87,56 @@ func _ready() -> void:
 ## It lives in the gym rather than on the Player, so no debug geometry ships
 ## inside the actor scene.
 func _build_clamor_ring() -> void:
-	var torus := TorusMesh.new()
-	torus.inner_radius = 0.94
-	torus.outer_radius = 1.0
 	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.95, 0.95, 0.95, 0.45)
+	# Dark line on a pale floor. White read as almost nothing against the grey
+	# box, and ART-005 spends saturated colour on treasure, so contrast here
+	# has to come from value.
+	material.albedo_color = Color(0.08, 0.08, 0.09, 0.9)
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.no_depth_test = true
+	material.vertex_color_use_as_albedo = false
 	_clamor_ring = MeshInstance3D.new()
-	_clamor_ring.mesh = torus
+	_clamor_ring.mesh = ImmediateMesh.new()
 	_clamor_ring.material_override = material
+	_clamor_ring.position = Vector3.ZERO
 	_world.add_child(_clamor_ring)
+
+
+## Redraw the audible footprint: a closed outline whose radius in each
+## direction is however far sound actually carries that way.
+##
+## Not a circle, because a circle would be a lie the moment there is a wall —
+## and the whole reason this overlay exists is to show occlusion. Every vertex
+## comes from `ClamorSource.reach()`, the same function the enemy's ears use,
+## so the shape on the ground is exactly the shape being simulated.
+func _redraw_clamor_ring() -> void:
+	var mesh := _clamor_ring.mesh as ImmediateMesh
+	mesh.clear_surfaces()
+	var radius: float = _player.clamor.audible_radius()
+	if radius <= 0.1:
+		return
+	# Ear height, not floor height: sound leaves the player's head, and casting
+	# along the floor would have every ramp in the gym read as a wall.
+	var origin: Vector3 = _player.global_position + Vector3.UP * 1.2
+	var world: World3D = _player.get_world_3d()
+	mesh.surface_begin(Mesh.PRIMITIVE_LINE_STRIP)
+	for i: int in range(RING_SEGMENTS + 1):
+		var angle: float = TAU * float(i) / float(RING_SEGMENTS)
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var carried: float = ClamorSource.reach(world, origin, direction, radius)
+		# The node sits at the world origin untransformed, so local and world
+		# coordinates are the same; drop the outline to just above the floor.
+		var point: Vector3 = origin + direction * carried
+		point.y = _player.global_position.y + 0.05
+		mesh.surface_add_vertex(point)
+	mesh.surface_end()
 
 
 func _process(_delta: float) -> void:
 	if _clamor_ring == null or _player == null:
 		return
-	var radius: float = _player.clamor.audible_radius()
-	_clamor_ring.visible = radius > 0.1
-	_clamor_ring.global_position = _player.global_position + Vector3.UP * 0.05
-	_clamor_ring.scale = Vector3(radius, 1.0, radius)
+	_redraw_clamor_ring()
 
 
 func _clamor_probe(player: Player) -> void:
@@ -147,6 +203,37 @@ func _clamor_probe(player: Player) -> void:
 
 	print("[clamor] decay to silence from peak  %.1f s"
 		% (tuning.clamor_maximum / tuning.clamor_decay))
+
+	# Occlusion. Two listeners the same distance away, one straight through the
+	# interior wall and one on a clear line through its doorway. If these come
+	# back the same, walls are doing nothing and the debug outline is a circle
+	# that happens to look convincing.
+	# Both listeners sit just past the interior wall at z = 2, close enough that
+	# nothing else in the gym is on either line — an earlier version aimed the
+	# "clear" ray straight through the 30-degree ramp and read one wall of
+	# penalty as a failure of the doorway.
+	#
+	# The level is chosen so the open radius is about 10 m: at maximum clamor
+	# the radius dwarfs the penalty and everything is audible through
+	# everything, which proves nothing.
+	player.position = Vector3(0, 0.1, 6)
+	player.clamor.silence()
+	player.clamor.add(10.0 / tuning.clamor_metres_per_unit)
+	await get_tree().physics_frame
+	var open_at: Vector3 = Vector3(0, 1.2, -1)
+	var walled_at: Vector3 = Vector3(-7, 1.2, -1)
+	var ear: Vector3 = player.global_position + Vector3.UP * 1.2
+	print("[clamor] distance to each listener   %.1f m / %.1f m" % [
+		ear.distance_to(open_at), ear.distance_to(walled_at)])
+	print("[clamor] radius in open air          %.1f m" % player.clamor.audible_radius())
+	print("[clamor] reach through doorway       %.1f m" % ClamorSource.reach(
+		player.get_world_3d(), ear, (open_at - ear).normalized(),
+		player.clamor.audible_radius()))
+	print("[clamor] reach through wall          %.1f m" % ClamorSource.reach(
+		player.get_world_3d(), ear, (walled_at - ear).normalized(),
+		player.clamor.audible_radius()))
+	print("[clamor] heard through doorway       %s" % player.clamor.audible_at(open_at))
+	print("[clamor] heard through wall          %s" % player.clamor.audible_at(walled_at))
 	get_tree().quit()
 
 
@@ -403,6 +490,14 @@ func _build() -> void:
 	_slab(Vector3(5, 0.4, 3), Vector3(7, 1.4, 8), 0.0, ACCENT)
 	_slab(Vector3(0.4, 1.4, 3), Vector3(4.7, 0.7, 8))
 	_slab(Vector3(0.4, 1.4, 3), Vector3(9.3, 0.7, 8))
+
+	# An interior wall with a doorway, between the spawn and the enemies. This
+	# is the occlusion test: sound should pour through the gap at full strength
+	# and die crossing the wall, and the debug outline should show that shape
+	# rather than a circle. It is also the smallest possible preview of what
+	# `M1-T03` builds properly.
+	_slab(Vector3(10, 4, 0.5), Vector3(-7, 2, 2))
+	_slab(Vector3(10, 4, 0.5), Vector3(7, 2, 2))
 
 	# Walls, so the gym is a room rather than a plinth in a void.
 	_slab(Vector3(24, 5, 0.5), Vector3(0, 2.5, -22))

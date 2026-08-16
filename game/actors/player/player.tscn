@@ -65,7 +65,7 @@ script = ExtResource("3_weight")
 [node name="Health" type="Node" parent="."]
 script = ExtResource("4_health")
 
-[node name="ClamorSource" type="Node" parent="." groups=["clamor_sources"]]
+[node name="ClamorSource" type="Node3D" parent="." groups=["clamor_sources"]]
 script = ExtResource("8_clamor")
 
 [node name="Hurtbox" type="Area3D" parent="."]

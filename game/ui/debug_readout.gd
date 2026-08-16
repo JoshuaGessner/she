@@ -49,8 +49,13 @@ func _process(_delta: float) -> void:
 	# both channels. The audio half is `M2-T03`; until then this is the only
 	# channel there is, and judging the ladder blind is not possible.
 	for enemy: Enemy in get_tree().get_nodes_in_group("enemies"):
-		lines.append("enemy     %-10s %5.1f hp" % [
+		# Sight and hearing shown apart from the ladder state. The state says
+		# what the enemy is doing; these say which sense is feeding it, which
+		# is the difference between "spotted" and "it heard something".
+		lines.append("enemy     %-10s %5.1f hp   %s %s" % [
 			Enemy.State.keys()[enemy.state()].to_lower(), enemy.health.current,
+			"SEES" if enemy.sees_player() else "····",
+			"HEARS" if enemy.hears_player() else "·····",
 		])
 	lines.append("lmb attack   [ ] weight   shift sprint   ctrl crouch   r reset")
 	text = "\n".join(lines)

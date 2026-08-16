@@ -133,6 +133,11 @@ extends Resource
 ## fight expensive.
 @export var clamor_swing: float = 2.0
 @export var clamor_hit: float = 4.5
+## Metres of *equivalent distance* added by each wall between you and a
+## listener. Walls muffle rather than block: TEC-001's field gets that shape
+## for free by diffusing through open space, and this reproduces it — sound
+## rounds a corner cheaply and dies through a wall.
+@export var clamor_wall_penalty: float = 7.0
 
 
 ## Human visual reaction time is ~250 ms before any decision-making or input

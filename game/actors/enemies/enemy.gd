@@ -37,6 +37,11 @@ const TINTS: Dictionary = {
 	State.DEAD: Color(0.12, 0.12, 0.13),
 }
 const TELEGRAPH_TINT: Color = Color(0.95, 0.95, 0.95)
+## Sense lamps read as value, not hue: ART-005 reserves saturated colour for
+## treasure, and a green/red pair here would compete with the one thing in the
+## game allowed to be coloured.
+const SENSE_ON: Color = Color(1.0, 1.0, 1.0)
+const SENSE_OFF: Color = Color(0.14, 0.14, 0.15)
 
 var _state: State = State.UNAWARE
 var _attack: Attack = Attack.NONE
@@ -47,10 +52,20 @@ var _last_seen: Vector3 = Vector3.ZERO
 var _home: Vector3 = Vector3.ZERO
 var _target: Node3D = null
 var _material: StandardMaterial3D = null
+var _sight_lamp: StandardMaterial3D = null
+var _hearing_lamp: StandardMaterial3D = null
 
 var _heard_for: float = 0.0
 var _hearing_now: bool = false
 var _heard_at: Vector3 = Vector3.ZERO
+
+# Live contact per sense, kept separate from the ladder state on purpose.
+# The ladder is DES-013's spine; sight and hearing are its two *inputs*, and
+# collapsing them into one state makes it impossible to tell a room that saw
+# you from one that only heard something — which is the difference between
+# "you were spotted" and "you can still bluff this".
+var _sees: bool = false
+var _hears: bool = false
 
 @onready var health: Health = $Health
 @onready var _hurtbox: Hurtbox = $Hurtbox
@@ -72,11 +87,37 @@ func _ready() -> void:
 	health.died.connect(_on_died)
 	_material = StandardMaterial3D.new()
 	_mesh.material_override = _material
+	_sight_lamp = _build_lamp(Vector3(-0.16, 2.1, 0))
+	_hearing_lamp = _build_lamp(Vector3(0.16, 2.1, 0))
 	_apply_tint()
+	_update_sense_markers()
+
+
+func _build_lamp(offset: Vector3) -> StandardMaterial3D:
+	var box := BoxMesh.new()
+	box.size = Vector3(0.22, 0.22, 0.22)
+	var material := StandardMaterial3D.new()
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	var lamp := MeshInstance3D.new()
+	lamp.mesh = box
+	lamp.material_override = material
+	lamp.position = offset
+	add_child(lamp)
+	return material
 
 
 func state() -> State:
 	return _state
+
+
+## Live visual contact this frame — not "has ever seen you".
+func sees_player() -> bool:
+	return _sees
+
+
+## Live audible contact this frame.
+func hears_player() -> bool:
+	return _hears
 
 
 ## True during the Anticipation phase — the window DES-009 puts a 250 ms floor
@@ -100,14 +141,17 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= tuning.gravity * delta
 
+	# Both senses run unconditionally so the debug readout always reports live
+	# contact; what the state machine does with them is gated below.
 	_listen(delta, tuning)
+	_look(tuning)
+	_update_sense_markers()
 
 	if _state == State.STAGGERED:
 		_tick_stagger(delta, tuning)
 	elif _attack != Attack.NONE:
 		_tick_attack(delta, tuning)
 	else:
-		_sense(tuning)
 		_act(delta, tuning)
 
 	move_and_slide()
@@ -116,16 +160,18 @@ func _physics_process(delta: float) -> void:
 # ── senses ────────────────────────────────────────────────────────────────
 
 
-func _sense(tuning: TuningProfile) -> void:
+## Sight runs every frame, including while attacking or staggered, so `_sees`
+## always reports live contact. Only the *promotion* to ALERTED is gated.
+func _look(tuning: TuningProfile) -> void:
 	var player: Node3D = get_tree().get_first_node_in_group("player") as Node3D
-	if player == null:
+	_sees = player != null and _can_see(player, tuning)
+	if not _sees:
 		return
-	if _can_see(player, tuning):
-		_target = player
-		_last_seen = player.global_position
-		_patience = tuning.enemy_patience
-		if _state != State.ALERTED:
-			_set_state(State.ALERTED)
+	_target = player
+	_last_seen = player.global_position
+	_patience = tuning.enemy_patience
+	if _state != State.ALERTED and _state != State.STAGGERED:
+		_set_state(State.ALERTED)
 
 
 ## The sensor only records; the decision is made in `_listen` so that silence
@@ -143,6 +189,7 @@ func _on_heard(where: Vector3, _loudness: float) -> void:
 func _listen(delta: float, tuning: TuningProfile) -> void:
 	var hearing: bool = _hearing_now
 	_hearing_now = false
+	_hears = hearing
 	if not hearing:
 		_heard_for = maxf(0.0, _heard_for - delta)
 		return
@@ -324,3 +371,14 @@ func _apply_tint() -> void:
 		return
 	var tint: Color = TELEGRAPH_TINT if _attack == Attack.TELEGRAPH else TINTS[_state]
 	_material.albedo_color = tint
+
+
+## Two lamps over the head: left is sight, right is hearing. Separate marks
+## rather than one "aware" light, because the whole point of splitting the
+## senses is being able to see *which* one has you — sight means you are
+## spotted, hearing alone means the enemy is guessing at a position.
+func _update_sense_markers() -> void:
+	if _sight_lamp == null:
+		return
+	_sight_lamp.albedo_color = SENSE_ON if _sees else SENSE_OFF
+	_hearing_lamp.albedo_color = SENSE_ON if _hears else SENSE_OFF

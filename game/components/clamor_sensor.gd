@@ -22,19 +22,18 @@ func _physics_process(_delta: float) -> void:
 		var source := node as ClamorSource
 		if source == null or source.level <= 0.0:
 			continue
-		var origin: Node3D = source.get_parent() as Node3D
-		if origin == null:
-			continue
-		var distance: float = global_position.distance_to(origin.global_position)
-		if distance > source.audible_radius():
+		# Occlusion lives in ClamorSource so that this test and the gym's debug
+		# ring cannot disagree about what is audible.
+		if not source.audible_at(global_position):
 			continue
 		# Nearest-loudest wins. With one player this is trivial; it matters
 		# once thrown objects are also sources (DES-005 counter-play).
+		var distance: float = global_position.distance_to(source.global_position)
 		var loudness: float = source.level - distance / maxf(
 			Config.tuning.clamor_metres_per_unit, 0.001
 		)
 		if loudness > loudest:
 			loudest = loudness
-			where = origin.global_position
+			where = source.global_position
 	if loudest > 0.0:
 		heard.emit(where, loudest)

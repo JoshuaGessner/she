@@ -955,4 +955,26 @@ Crouch, by contrast, is unambiguous: **10.6× quieter than walking**, which make
 
 ---
 
+## ADR-074 — Sight and hearing are separate signals, and walls muffle
+**Date:** 2026-08-16 · **Status:** accepted · **Extends ADR-073**
+**Context:** Directed, after playing `M1-T04`. The awareness ladder reported a single state, so there was no way to tell a room that had *seen* you from one that had only *heard something* — and no way to test occlusion at all, because clamor ignored geometry.
+
+**Decision:**
+1. **The two senses are tracked and displayed separately.** DES-013's ladder is the *state*; sight and hearing are its two *inputs*. Collapsing them loses the distinction between "you are spotted" and "it is guessing at a position" — which is precisely the difference SUSPICIOUS exists to express, and the thing a player has to read in order to bluff. Both run every frame, including while attacking or staggered, so the readout always shows live contact; only the promotion to ALERTED is gated. Two lamps over each enemy carry it in-world: left sight, right hearing.
+2. **Walls muffle rather than block.** Each occluder between source and listener adds a fixed amount of *equivalent distance* (`clamor_wall_penalty`, 7 m ⟨tune⟩), up to three. TEC-001's field gets this shape for free by diffusing through open space; this reproduces it — sound rounds a doorway cheaply and dies through a wall — and is replaced by the field at `M2-T02` rather than maintained beside it.
+3. **The debug overlay is no longer a circle.** It is the audible *footprint*: a closed outline whose radius in each direction comes from `ClamorSource.reach()`, **the same function the enemy's ears call.** A circle would have been a lie the moment a wall existed, and an overlay that disagrees with its simulation is worse than none — the same failure as a stale dashboard, which the project already refuses.
+
+**Measured**, two listeners past one wall, at a clamor level worth 9.9 m in open air:
+
+| | distance | reach | heard |
+|---|---|---|---|
+| through the doorway | 7.0 m | 9.9 m | yes |
+| through the wall | 9.9 m | 5.3 m | **no** |
+
+**Consequences:** occlusion makes the aggro radius a *shape* rather than a number, which is what makes crouching past a doorway a real decision instead of an arithmetic one. It also means `M1-T03`'s room set is now the thing that gives this system something to say — an open gym cannot exercise it.
+
+**Two bugs found while building it**, both worth recording because both were silent. `ClamorSource` became a `Node3D` so a listener need not reach into an emitter's parent, but the player scene still declared the node as `Node`, so the script did not attach and every clamor call hit a null — Godot reports that only at runtime. And the first occlusion measurement aimed its "clear line" straight through a 30° ramp, reading one wall of penalty as a broken doorway. **A measurement whose control case is not actually clear measures nothing.**
+
+---
+
 *Entries below to be added as design decisions are signed off.*
