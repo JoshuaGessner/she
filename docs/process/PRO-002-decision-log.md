@@ -1093,4 +1093,24 @@ At M1 there is no Gilded enemy, no contract target, and nothing on the floor wor
 
 ---
 
+## ADR-081 — Four socket rules, and a justification that was wrong
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `DES-020`, corrects ADR-057's reasoning**
+**Context:** Working through `M1-T10` before authoring anything. ADR-057 fixed *which* sockets exist; nothing had fixed how they behave.
+
+**1. The stated reason for real bones is false, and the conclusion still holds.** ADR-057 and `ART-004` justify authoring sockets up front with *"adding one later means re-exporting every mesh."* **Godot's `BoneAttachment3D` tracks any named bone at an arbitrary offset, added engine-side, without touching a source file.** A socket genuinely can be added years later.
+
+The real argument is that **armour is authored against the rig**: a modeller building a pack must see where `sock_back` lands while they work. As a bone they can; as an offset in a `.tscn` they are guessing, and every pack after the first inherits that guess. The failure is not a re-export, it is a gear library that sits subtly wrong with no traceable cause. **Recorded because a rule defended by a false reason gets discarded the first time somebody checks it** — and this one is load-bearing enough that losing it to a bad argument would be expensive.
+
+**2. The camera is never parented to `sock_head`.** `DES-009` bans head bob at M1 and restricts shake to positional kick because rotational shake in first person causes motion sickness; `DES-018` requires shake, blur, head-bob and FOV to be independently adjustable. A camera on an animated head bone inherits **every rotation an animator authors, with no per-effect opt-out** — one parenting decision silently overriding an accessibility guarantee. `sock_head` is for helms.
+
+**3. Socket orientation is one convention: −Z is the way the held object points, +Y is its up.** A weapon authored to +Y in a socket facing −Z is correct in Blender and ninety degrees wrong in game, and that is invisible until the whole weapon set exists.
+
+**4. The off-hand grip offset is item data, not rig data.** `sock_hand_l` must carry a shield (forearm), a lantern (hanging grip), a map (open in the palm) and a compass. No single transform flatters all four, so the socket stays single and each item carries its offset in its `.tres` — a designer tunes grip per object without touching the skeleton every other slot depends on.
+
+**Rationale:** All four are cheap now and a re-export later, which is exactly what `M1-T10` exists as a gate to prevent. Rule 2 is the one with real teeth: it is the natural thing to do, it looks correct, and it breaks a documented accessibility promise in a way nobody would trace back to the rig.
+
+**Consequences:** `DES-020` gains the four rules. Nothing about the socket list changes. The rig is still unbuilt — this is the specification it has to satisfy, and writing it before the Blender work is the whole point of the ordering.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

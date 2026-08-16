@@ -4,7 +4,7 @@ title: Equipment & Gear Slots
 status: accepted
 owner: design
 tags: [equipment, gear, slots, inventory, visual, first-person]
-updated: 2026-08-15
+updated: 2026-08-16
 related: [DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006]
 ---
 
@@ -120,6 +120,32 @@ The distinction that matters: **skinned meshes deform with the body; socketed me
 `sock_shoulders` is reserved unused — costs nothing now, and prevents a re-export if a cloak ever happens.
 
 **All sockets are authored on the shared humanoid rig before any character work begins** (`ART-004`).
+
+### Why real bones, and not the reason first given (ADR-081)
+
+ADR-057 justified authoring sockets up front with *"adding one later means re-exporting every mesh."* **That is not true in Godot.** `BoneAttachment3D` tracks any named bone at an arbitrary offset, added engine-side, without touching a source file — a socket genuinely can be bolted on years later.
+
+The conclusion survives on a better argument: **armour is authored against the rig.** A modeller building a pack needs to see where `sock_back` actually lands while they work. As a bone they can; as an offset buried in a `.tscn` they are guessing, and every pack after the first inherits that guess. The cost of getting it wrong is not a re-export — it is a gear library that sits subtly wrong and nobody can say why.
+
+Recorded because *a rule defended by a false reason gets discarded the first time somebody checks it.*
+
+### The camera is never parented to `sock_head`
+
+`sock_head` exists for helms. **The first-person camera stays an independent node**, driven by the rig only where deliberately chosen.
+
+`DES-009` bans head bob at M1 and restricts camera shake to positional kick, explicitly because *"rotational screen shake in first person causes motion sickness"* — and `DES-018` makes shake, blur, head-bob and FOV independently adjustable. A camera parented to an animated head bone inherits **every rotation an animator authors, permanently**, and there is no per-effect opt-out. That single parenting decision would quietly override an accessibility guarantee.
+
+### Socket orientation is one convention, fixed here
+
+> **Every socket's −Z points the way the held object points; +Y is the object's up.**
+
+Godot is Y-up, −Z forward. A weapon authored pointing +Y into a socket facing −Z is correct in Blender and ninety degrees wrong in game — and that is invisible until the whole weapon set exists. One line now, or a re-export of every weapon later.
+
+### The off hand holds four unrelated things, and the offset is item data
+
+`sock_hand_l` must carry a shield, a lantern, a map and a compass. A shield straps to the forearm, a lantern hangs from a grip, a map is held open in the palm; no single transform flatters all four.
+
+**The socket stays single, and each item carries its own offset in its `.tres`.** That makes grip a property of the object rather than of the skeleton — tunable per item, by a designer, without touching the rig every other slot depends on.
 
 ## Art requirements this creates (`ART-004`)
 
