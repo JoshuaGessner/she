@@ -66,8 +66,19 @@ TRIALS = [
         # genuinely orphans it. A doc with two references would not.
         "doc-unscheduled", "ADR-065 — an accepted doc must be scheduled or parked",
         ROADMAP,
-        "not the first thousand → TEC-006",
-        "not the first thousand → TEC-001",
+        "→ TEC-006",
+        "→ TEC-001",
+    ),
+    Trial(
+        # The shape ADR-083 found: a task citing a question that was answered
+        # days earlier. Anchored to a gate line rather than to task prose for
+        # the same reason the placeholder trial is — prose is expected to
+        # change, and a trial that breaks when it does cries wolf.
+        "stale-question", "ADR-083 — a task may not cite a closed question",
+        ROADMAP,
+        "> **GATE M5 EXIT** `pending`",
+        "- [ ] `M5-T98` revisit the inventory fork (Q23) → DES-019\n\n"
+        "> **GATE M5 EXIT** `pending`",
     ),
     Trial(
         "doc-parked-and-scheduled", "ADR-065 — parked and scheduled are exclusive",

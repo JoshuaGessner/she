@@ -149,7 +149,7 @@ So a bulky-but-light bolt of cloth and a tiny-but-ruinous bag of coin pose *diff
 
 **No pause.** Co-op makes pausing impossible anyway, so we design for it deliberately rather than inheriting it: **opening your bag is a vulnerable act.** You kneel, you rummage, and the floor keeps happening. Sorting loot while something approaches is one of the best tension generators available and it costs nothing extra to get.
 
-> **Cost, stated honestly:** a good grid inventory is ⟨a few weeks⟩ of UI work, and it is the single largest UI item in the project. Q23 says prototype both models at M2 — that still stands, because this is a feel question and no document can settle it.
+> **Cost, stated honestly:** a good grid inventory is ⟨a few weeks⟩ of UI work, and it is the single largest UI item in the project. **One model is built, not two (ADR-083).** This line previously said the Q23 prototype fork still stood, twelve lines below the decision that closed it — and `PRO-001` was reading the stale half. Doubling the largest UI item in the project is not how M2 answers *"does a playtester abandon loot to survive?"*; if the grid feels wrong, that is an M4 revision against playtest data.
 
 ## The two screens that matter most
 

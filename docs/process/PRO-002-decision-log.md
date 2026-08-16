@@ -1150,4 +1150,29 @@ The smoke test compares reports from **both** processes, because every claim in 
 
 ---
 
+## ADR-083 — Q23 was closed, then quietly reopened by a stale line; and M2 starts with its schema
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `DES-019`, `PRO-001`** · **Reaffirms ADR-040**
+**Context:** Orienting on M2 immediately after the M1 gate passed. `DES-019` says both of these, twelve lines apart, in one `accepted` document:
+
+> line 140 — *"**DECIDED (ADR-040):** Grid-based, weighted, real-time. Closes Q23 — no longer a prototype fork."*
+> line 152 — *"Q23 says prototype both models at M2 — that still stands, because this is a feel question and no document can settle it."*
+
+`PRO-001` inherited the stale half: `M2-T01` read *"inventory (prototype both models, Q23)"*. So the roadmap instructed building **two** inventory models — the parallel path ADR-064 bans — applied to the thing `DES-019` itself prices at *"⟨a few weeks⟩ of UI work, the single largest UI item in the project."*
+
+An audit of every `Q`-reference in `PRO-001` found this is the only one. The roadmap cites exactly one open question, and it has been closed since 2026-08-14.
+
+**Decision 1: ADR-040 stands. One inventory — grid-based, weighted, real-time.** `DES-019` line 152 is corrected and `M2-T01`'s wording drops the fork.
+
+**Rationale:** The ADR mechanism is the authority (`CLAUDE.md` §8), and ADR-040 is both later and explicit — line 152 predates it and was missed. Beyond precedence, the fork fails the standing test in `CLAUDE.md`: a second inventory model lets the player do nothing **new**. And it would spend most of M2 on inventory inside a milestone whose gate is *"a playtester voluntarily abandons loot to survive"* — a question one inventory answers perfectly well. **If the grid feels wrong, that is an M4 revision against playtest data, not a fork built at M2 on speculation.**
+
+**Decision 2: `M2-T08` is built before `M2-T01`,** and moves to the head of the M2 list.
+
+**Rationale:** `M2-T01` creates the first loot, and loot needs a resource shape. Building it first means inventing an ad-hoc shape and migrating it — the retrofit `TEC-003` and ADR-064 both exist to prevent. `M2-T08`'s own line already said *"built with the first ten resources, not the first thousand"*, which is an instruction about **ordering** that the list order silently contradicted. Task IDs are permanent; list order is presentation, and ADR-077 already reordered within a milestone.
+
+**Consequences:** `DES-019` and `PRO-001` are corrected. Nothing about ADR-040's substance changes — this ADR exists because a decision that is recorded in two places and updated in one is worse than a decision recorded once.
+
+**The generalisable failure, worth more than the fix.** ADR-065 checks that documents are *scheduled*; ADR-076's audit found intentions hiding inside scheduled documents. This is a third shape: **a closed question still cited as open, in a doc that also records it as closed.** The stale half was self-consistent enough to survive every existing check, and would have been read as an instruction by whoever started M2 — which was very nearly this session. Worth a check: no task line may cite a `Q` that `OPEN-QUESTIONS.md` no longer lists.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

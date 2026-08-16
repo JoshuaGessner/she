@@ -72,6 +72,9 @@ GATE_RE = re.compile(r"^> \*\*GATE (M\d+) (EXIT|COOP)\*\* `([^`]+)` — (.+)$")
 HEADING_RE = re.compile(r"^## (M\d+) — (.+)$")
 ADR_HEAD_RE = re.compile(r"^## ADR-(\d{3}) — (.+)$", re.MULTILINE)
 GATE_STATE_RE = re.compile(r"^(pending|passed|failed)(?: (\d{4}-\d{2}-\d{2}))?(?: — (.*))?$")
+# Question IDs, wherever they appear. Deliberately bare: a task citing `Q23`
+# and `OPEN-QUESTIONS.md` listing `| Q23 |` have to compare equal (ADR-083).
+QUESTION_ID_RE = re.compile(r"\bQ(\d+)\b")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 QSECTION_RE = re.compile(r"^##\s+.*needed.*$", re.IGNORECASE)
 
@@ -312,6 +315,18 @@ def load_roadmap() -> tuple[list[Milestone], list[Issue]]:
 def load_adrs() -> dict[int, str]:
     text = DECISIONS.read_text(encoding="utf-8")
     return {int(m.group(1)): m.group(2) for m in ADR_HEAD_RE.finditer(text)}
+
+
+def load_open_questions() -> set[str]:
+    """Every question number `OPEN-QUESTIONS.md` still lists.
+
+    That file's own header says resolved items *move* to the decision log and
+    are deleted from it, so membership here is the definition of "still open"
+    — there is no status column to disagree with.
+    """
+    if not QUESTIONS.exists():
+        return set()
+    return set(QUESTION_ID_RE.findall(QUESTIONS.read_text(encoding="utf-8")))
 
 
 def load_blocking_questions() -> dict[str, list[str]]:
@@ -591,6 +606,37 @@ def check_placeholder_language(milestones: list[Milestone]) -> list[Issue]:
     return issues
 
 
+def check_stale_questions(milestones: list[Milestone]) -> list[Issue]:
+    """ADR-083: a task may not cite a question that has already been answered.
+
+    `M2-T01` told whoever started M2 to "prototype both models, Q23" — two days
+    after ADR-040 closed Q23 and picked one — and `DES-019` recorded *both*
+    states twelve lines apart. Every existing check passed, because each half
+    was internally consistent; nothing compares the roadmap against the
+    question list. It was caught by reading, and reading is not a process.
+
+    An answered question in a task line is worse than a missing one: it reads
+    as a live instruction, and here it instructed building the largest UI item
+    in the project twice.
+    """
+    if not QUESTIONS.exists():
+        return []
+    still_open = load_open_questions()
+    issues = []
+    for ms in milestones:
+        for task in ms.tasks:
+            for qid in sorted(set(QUESTION_ID_RE.findall(task.text)), key=int):
+                if qid in still_open:
+                    continue
+                issues.append(Issue(
+                    "error", "stale-question", f"{rel(ROADMAP)}:{task.line}",
+                    f"{task.id} cites Q{qid}, which {rel(QUESTIONS)} no longer lists",
+                    "an answered question is not an instruction — cite the ADR that "
+                    "closed it, or drop the reference",
+                ))
+    return issues
+
+
 def check_deferred_sections(docs: dict[str, Doc]) -> list[Issue]:
     """ADR-077: a section that means "later" must say which later.
 
@@ -638,6 +684,7 @@ def run_checks(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int
     issues += check_milestones(milestones, docs, blocking)
     issues += check_quality(milestones, docs)
     issues += check_placeholder_language(milestones)
+    issues += check_stale_questions(milestones)
     issues += check_deferred_sections(docs)
     return issues
 

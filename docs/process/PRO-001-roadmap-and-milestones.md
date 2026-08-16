@@ -52,7 +52,8 @@ The most common way a project like this dies is building the meta-progression fi
 ## M2 — The Loop Prototype  ·  *~1.5× M1*
 <!-- milestone id=M2 depends=M1 size=1.5 -->
 **Goal:** prove the target sentence.
-- [ ] `M2-T01` Loot with weight and clamor; inventory (prototype both models, Q23) → DES-008, DES-005, DES-019
+- [ ] `M2-T08` **Data schema base resources** — `ItemResource` + trait resources, stable string IDs, **plus the CI validator** (duplicate IDs, dangling refs, telegraph <250 ms, keystones with no effect tags). Built with the first ten resources, not the first thousand. *Moved ahead of `M2-T01` by ADR-083 — loot needs a resource shape, and inventing one to migrate later is the retrofit this task exists to prevent* → TEC-006
+- [ ] `M2-T01` Loot with weight and clamor; **one inventory: grid-based, weighted, real-time** (ADR-040, reaffirmed by ADR-083 — decided, not a prototype fork) → DES-008, DES-005, DES-019
 - [ ] `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (`DES-005`) → DES-017, DES-005
 - [ ] `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build → DES-018, DES-019, TEC-005
 - **Standing test from here on: every milestone must be playable to completion with audio muted**
@@ -60,7 +61,6 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) → DES-003, DES-012
 - [ ] `M2-T06` Minimal Lair: stash and re-descend → DES-014
 - [ ] `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players → DES-012
-- [ ] `M2-T08` **Data schema base resources** — `ItemResource` + trait resources, stable string IDs, **plus the CI validator** (duplicate IDs, dangling refs, telegraph <250 ms, keystones with no effect tags). Built with the first ten resources, not the first thousand → TEC-006
 - [ ] `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early → ART-002, ART-003, TEC-005
 
 > **GATE M2 EXIT** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
