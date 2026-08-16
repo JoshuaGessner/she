@@ -16,6 +16,11 @@ const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
 const SPAWN: Vector3 = Vector3(0, 0.1, 10)
 ## Enough to show a doorway notch without the outline looking polygonal.
 const RING_SEGMENTS: int = 96
+const VISION_SEGMENTS: int = 32
+## Low enough that three overlapping cones stay readable; the floor is pale, so
+## the fill has to be dark to register at all.
+const VISION_IDLE: Color = Color(0.10, 0.10, 0.12, 0.16)
+const VISION_SEEING: Color = Color(0.02, 0.02, 0.03, 0.42)
 
 ## Where the enemies stand. Spread out and away from spawn on purpose: the M1
 ## gate question is whether a tester *chooses* to swing at something they could
@@ -29,6 +34,7 @@ const ENEMY_POSTS: Array[Vector3] = [
 
 var _player: Player = null
 var _clamor_ring: MeshInstance3D = null
+var _vision: Dictionary = {}
 
 
 func _ready() -> void:
@@ -133,10 +139,85 @@ func _redraw_clamor_ring() -> void:
 	mesh.surface_end()
 
 
+## One filled wedge per enemy: the cone from DES-013's vision half-angle, with
+## every ray cut at the first wall.
+##
+## Filled rather than outlined, and that is the whole visual language of the
+## floor — **an outline is what you emit, a fill is what they perceive.** The
+## first version drew a dashed arc, which vanished at any distance: hairlines
+## cannot carry a shape across a room, and Godot 4 will not widen them.
+func _redraw_vision(enemy: Enemy, mesh: ImmediateMesh) -> void:
+	mesh.clear_surfaces()
+	if enemy.state() == Enemy.State.DEAD:
+		return
+	var tuning: TuningProfile = Config.tuning
+	var origin: Vector3 = enemy.eye_position()
+	var forward: Vector3 = enemy.facing()
+	var half: float = deg_to_rad(tuning.enemy_vision_half_angle)
+	var floor_y: float = enemy.global_position.y + 0.04
+	var space: PhysicsDirectSpaceState3D = enemy.get_world_3d().direct_space_state
+
+	var points: Array[Vector3] = []
+	for i: int in range(VISION_SEGMENTS + 1):
+		var angle: float = -half + 2.0 * half * float(i) / float(VISION_SEGMENTS)
+		var direction: Vector3 = forward.rotated(Vector3.UP, angle)
+		var reach: float = tuning.enemy_vision_range
+		var query := PhysicsRayQueryParameters3D.create(
+			origin, origin + direction * reach
+		)
+		query.collision_mask = CollisionLayers.WORLD
+		var hit: Dictionary = space.intersect_ray(query)
+		if not hit.is_empty():
+			reach = origin.distance_to(hit["position"] as Vector3)
+		var point: Vector3 = origin + direction * reach
+		point.y = floor_y
+		points.append(point)
+
+	var apex: Vector3 = Vector3(origin.x, floor_y, origin.z)
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for i: int in range(points.size() - 1):
+		mesh.surface_add_vertex(apex)
+		mesh.surface_add_vertex(points[i])
+		mesh.surface_add_vertex(points[i + 1])
+	mesh.surface_end()
+
+
+func _sync_vision_overlays() -> void:
+	for enemy: Node in _vision.keys():
+		if not is_instance_valid(enemy):
+			(_vision[enemy] as Node).queue_free()
+			_vision.erase(enemy)
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var enemy := node as Enemy
+		if not _vision.has(enemy):
+			var overlay := MeshInstance3D.new()
+			overlay.mesh = ImmediateMesh.new()
+			overlay.material_override = _overlay_material(VISION_IDLE)
+			(overlay.material_override as StandardMaterial3D).cull_mode = \
+				BaseMaterial3D.CULL_DISABLED
+			_world.add_child(overlay)
+			_vision[enemy] = overlay
+		var mesh_instance := _vision[enemy] as MeshInstance3D
+		# Seeing you is the one state that must be unmissable at a glance.
+		var material := mesh_instance.material_override as StandardMaterial3D
+		material.albedo_color = VISION_SEEING if enemy.sees_player() else VISION_IDLE
+		_redraw_vision(enemy, mesh_instance.mesh as ImmediateMesh)
+
+
+func _overlay_material(colour: Color) -> StandardMaterial3D:
+	var material := StandardMaterial3D.new()
+	material.albedo_color = colour
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	material.no_depth_test = true
+	return material
+
+
 func _process(_delta: float) -> void:
 	if _clamor_ring == null or _player == null:
 		return
 	_redraw_clamor_ring()
+	_sync_vision_overlays()
 
 
 func _clamor_probe(player: Player) -> void:

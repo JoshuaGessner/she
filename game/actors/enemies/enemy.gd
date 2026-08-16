@@ -110,6 +110,19 @@ func state() -> State:
 	return _state
 
 
+## Where sight is cast from. Used by the gym's vision overlay so the drawn
+## wedge starts where the rays actually start.
+func eye_position() -> Vector3:
+	return _eyes.global_position
+
+
+## The direction this enemy is facing, on the horizontal plane.
+func facing() -> Vector3:
+	var forward: Vector3 = -global_transform.basis.z
+	forward.y = 0.0
+	return forward.normalized()
+
+
 ## Live visual contact this frame — not "has ever seen you".
 func sees_player() -> bool:
 	return _sees
@@ -210,9 +223,8 @@ func _can_see(player: Node3D, tuning: TuningProfile) -> bool:
 	var to_player: Vector3 = player.global_position + Vector3.UP * 0.9 - eye
 	if to_player.length() > tuning.enemy_vision_range:
 		return false
-	var facing: Vector3 = -global_transform.basis.z
 	var flat: Vector3 = Vector3(to_player.x, 0.0, to_player.z).normalized()
-	if flat.dot(facing) < cos(deg_to_rad(tuning.enemy_vision_half_angle)):
+	if flat.dot(facing()) < cos(deg_to_rad(tuning.enemy_vision_half_angle)):
 		return false
 	# Line of sight against world geometry only. Bodies are on their own layer
 	# so one enemy cannot block another's view — with 150 agents that would
