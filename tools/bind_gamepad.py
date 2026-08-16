@@ -61,6 +61,7 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     "debug_weight_down": [(BUTTON, DPAD_DOWN, 0.0)],
     "debug_reset": [(BUTTON, DPAD_LEFT, 0.0)],
     "debug_ink": [(BUTTON, Y, 0.0)],
+    "interact": [(BUTTON, X, 0.0)],
 }
 
 JOY_BUTTON = ('Object(InputEventJoypadButton,"resource_local_to_scene":false,'

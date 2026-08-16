@@ -86,7 +86,15 @@ const GUARDIAN_POST: Vector3 = Vector3(18.5, 0.1, -21.0)
 const PRIZE_AT: Vector3 = Vector3(20.3, 0.6, -21.0)
 const SPAWN: Vector3 = Vector3(0.0, 0.1, 8.0)
 
+## Heavy enough that the walk out is genuinely worse ⟨tune⟩ — 40% of capacity,
+## which is where `DES-005` Layer 1's speed penalty starts to bite. If taking
+## the prize does not change how you get home, the Guardian room is decoration.
+const PRIZE_KILOGRAMS: float = 16.0
+const PRIZE_CLAMOR: float = 6.0
+const PRIZE_REACH: float = 2.2
+
 var _player: Player = null
+var _prize: MeshInstance3D = null
 
 @onready var _world: Node3D = $World
 
@@ -102,6 +110,45 @@ func _ready() -> void:
 			_capture_top(arg.split("=", true, 1)[1])
 		elif arg == "--route-probe":
 			_route_probe()
+		elif arg == "--prize-probe":
+			_prize_probe()
+
+
+## Does taking the prize actually cost anything?
+##
+## The Guardian & Prize machine only poses a question if the answer has a
+## price. This measures the price rather than asserting it: speed and audible
+## radius before and after, on the same player, seconds apart.
+func _prize_probe() -> void:
+	_player.global_position = PRIZE_AT + Vector3(0, 0.1, 2.0)
+	for i: int in range(4):
+		await get_tree().physics_frame
+
+	var before_speed: float = await _walk_speed()
+	var before_heard: float = _player.clamor.audible_radius()
+	_take_prize()
+	var after_speed: float = await _walk_speed()
+	var after_heard: float = _player.clamor.audible_radius()
+
+	print("[set] walk speed   %5.2f → %5.2f m/s   (%+.0f%%)" % [
+		before_speed, after_speed,
+		(after_speed / before_speed - 1.0) * 100.0 if before_speed > 0.0 else 0.0])
+	print("[set] heard from   %5.1f → %5.1f m      at the moment of lifting it" % [
+		before_heard, after_heard])
+	print("[set] carrying     %5.1f kg (%.0f%% laden)" % [
+		_player.carried.kilograms, _player.carried.encumbrance() * 100.0])
+	get_tree().quit(0 if after_speed < before_speed else 1)
+
+
+func _walk_speed() -> float:
+	Input.action_press("move_forward")
+	for i: int in range(50):
+		await get_tree().physics_frame
+	var speed: float = _player.planar_speed()
+	Input.action_release("move_forward")
+	for i: int in range(20):
+		await get_tree().physics_frame
+	return speed
 
 
 # ── geometry ──────────────────────────────────────────────────────────────
@@ -187,8 +234,50 @@ func _build_room(name: String) -> void:
 
 ## The Prize. Gold is the only saturated colour in the game (`ART-005`), so the
 ## one thing worth dying for is also the only thing on screen with a hue.
+##
+## **It has to cost something or the Guardian room is scenery.** The first
+## version was a gold block you could walk to, and a playtester did exactly
+## that and asked what they were supposed to do — which is ADR-064's complaint
+## about stubs, arriving as feedback. Taking it now makes you heavier and
+## louder, which is the whole greed loop in miniature and needs no system that
+## does not already exist (`DES-005` Layer 1).
+##
+## Not the inventory. `M2-T01` builds loot with real weight, slots and value;
+## this is one object with one consequence, complete in itself.
 func _build_prize() -> void:
-	_slab(Vector3(1.2, 1.2, 1.2), PRIZE_AT, PRIZE_COLOUR)
+	_prize = MeshInstance3D.new()
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(1.2, 1.2, 1.2)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = PRIZE_COLOUR
+	material.roughness = 0.4
+	_prize.mesh = mesh
+	_prize.material_override = material
+	_prize.position = PRIZE_AT
+	_world.add_child(_prize)
+
+
+func _process(_delta: float) -> void:
+	if _prize == null or _player == null:
+		return
+	var near: bool = _player.global_position.distance_to(PRIZE_AT) <= PRIZE_REACH
+	# Pulse while in reach. A prompt would need the HUD that `M4-T05` builds;
+	# the object drawing attention to itself is free and needs no text.
+	var pulse: float = 1.0 if not near else 1.0 + sin(Time.get_ticks_msec() * 0.006) * 0.25
+	(_prize.material_override as StandardMaterial3D).albedo_color = PRIZE_COLOUR * pulse
+	if near and Input.is_action_just_pressed("interact"):
+		_take_prize()
+
+
+func _take_prize() -> void:
+	_player.carried.kilograms += PRIZE_KILOGRAMS
+	# Lifting a hoard-piece off stone is loud. This is the moment the Guardian
+	# gets its chance, which is what makes taking it a decision rather than a
+	# formality.
+	_player.clamor.add(PRIZE_CLAMOR)
+	_prize.queue_free()
+	_prize = null
+	print("[set] prize taken: +%.0f kg, the room heard it" % PRIZE_KILOGRAMS)
 
 
 func _build_lighting() -> void:
