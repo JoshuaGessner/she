@@ -27,6 +27,15 @@ gdscript/warnings/untyped_declaration=2
 gdscript/warnings/inferred_declaration=1
 gdscript/warnings/unsafe_cast=1
 
+[rendering]
+
+; Required to export macOS for arm64 or universal — Godot refuses the preset
+; without it (ADR-086). Costs nothing here: the project has no imported
+; textures at all, so nothing is actually compressed into ETC2/ASTC. It does
+; NOT touch the renderer; `renderer/rendering_method` stays absent, which is
+; how ADR-052's Forward+ lock is expressed (see tools/check_project.py).
+textures/vram_compression/import_etc2_astc=true
+
 [internationalization]
 
 ; ADR-084 closes Q104: item text is translation *keys*, and this is the table

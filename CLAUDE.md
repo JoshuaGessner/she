@@ -110,10 +110,25 @@ python3 tools/reindex.py
 python3 tools/status.py --write
 python3 tools/status.py --check      # must pass
 python3 tools/check_project.py       # locked settings + TEC-002 conventions
-tools/check_scripts.sh               # the real GDScript parser, every script
+tools/check_scripts.sh               # parse, boot, teardown, rig, data, 2-player co-op
 ```
 
 **A failing check is a blocked commit, not a note in the commit message.**
+
+**At every milestone gate, additionally export and open the box (ADR-086):**
+
+```bash
+python3 tools/export_build.py        # macOS + Windows, then runs what it built
+```
+
+Not per commit — an export costs a 1.2 GB template download and catches nothing
+the sweep above does, *except* packaging faults. **Exporting is not the check.**
+A build that boots proves the pack loads; it does not prove the pack contains
+the game. `en.en.translation` is gitignored and every `.tres` is re-serialised
+on export, so a build can launch cleanly at full size while shipping an empty
+item table — reproduced deliberately, and only the packed-content census caught
+it. Windows builds for testers come from `.github/workflows/build.yml`, which
+exports on Linux and then *runs* the result on a Windows runner.
 
 Then **push to `origin main`**. `TEC-002` permits this precisely because *main always launches* — the sweep above is what guarantees that, so it is not optional.
 

@@ -1224,4 +1224,31 @@ Inventories hold `ItemInstance`s. Saves store the instance id plus the item's **
 
 ---
 
+## ADR-086 — Exported builds: standard Godot, tracked presets, and a check that opens the box
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `CLAUDE.md` §4, `.gitignore`, `project.godot`**
+**Context:** Directed. Development is on a MacBook and the remote-multiplayer testers will be on Windows, so a Windows build has to be producible. Auditing that turned up something worse than the expected gap: **`CLAUDE.md`'s Definition of Done has always included "works in an exported build", and it had never once been checked — because it could not be.** The only engine on the machine was the .NET build, and its export template set contained a single file, `android_source.zip`. No desktop templates at all. Eleven completed tasks carried the claim.
+
+**Decision 1 — exports use standard Godot 4.7, not the .NET build.** The project is GDScript-only by decision (`CLAUDE.md` §4: *"C# only if a profiler proves a hot path needs it. Do not mix languages speculatively"*), and **CI has been running standard Godot all along** while the development machine ran mono — a divergence nobody had noticed. Standard bundles no .NET runtime, produces smaller builds for testers, and removes a live hazard: the machine's `dotnet` is 10.0.400 while Godot 4.7 targets .NET 8. `tools/export_build.py` deliberately omits `Godot_mono.app` from its search path rather than falling back to it, because a silent fallback would produce a different artifact than CI does.
+
+**Decision 2 — `game/export_presets.cfg` is tracked.** Ignoring it is the common default and was wrong here: it is the only place the export configuration lives, so ignoring it made a Definition-of-Done line unreproducible by anyone but the one machine that happened to hold the file. Nothing secret goes in it — signing identities and notarisation credentials arrive from the environment, and macOS export is unsigned on purpose because its job is to prove the pack runs, not to distribute.
+
+**Decision 3 — exporting is not the check; opening the box is.** A build that boots proves the pack loads. It does not prove the pack contains the game, and **two things this project ships are generated rather than committed**: `en.en.translation` is gitignored and rebuilt by the importer, and every `.tres` is re-serialised on export. So `--export-probe` runs *inside* the exported binary and reports what it actually holds, which `tools/export_build.py` compares against the repo.
+
+That distinction is not theoretical. Excluding `data/items/*` from the macOS pack was tried deliberately: the build **exported at full size, launched, and reported zero errors**, while shipping none of its ten items. Only the census caught it.
+
+| Verified at `M2-T08` | |
+|---|---|
+| Windows export from macOS | 104 MB exe + pck, cross-exported without Wine |
+| macOS export, arm64/universal | runs headless, reaches `CoopSession` |
+| Ten items in the pack | `10 packed, 10 in repo` |
+| Translation table | `item.wpn_seax.name` → `Seax` |
+
+**Decision 4 — cadence: at every milestone gate, and on demand.** Not per commit — an export costs a 1.2 GB template download and catches nothing the pre-commit sweep does not, *except* packaging faults, which only change when packaging changes. `.github/workflows/build.yml` is `workflow_dispatch`, exports Windows on Linux, and then **runs it on a `windows-latest` runner** — the half `export_build.py` honestly cannot do from a Mac, and the half that matters most, since the Windows build is the one build nobody here can check by launching it.
+
+**Consequences:** `project.godot` gains `textures/vram_compression/import_etc2_astc=true` — Godot refuses an arm64 or universal macOS export without it. It costs nothing (the project has no imported textures) and does **not** touch the renderer, so ADR-052's Forward+ lock is untouched. A second Godot now exists on the development machine; the tools' search order prefers `/Applications/Godot.app`, so the whole check sweep now runs on the same engine build as CI.
+
+**The Windows CI job is unverified until its first dispatch**, and is stated as such rather than claimed to work: it cannot be run from here. Its YAML parses and its logic mirrors the local tool, but the first `workflow_dispatch` is its real test.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

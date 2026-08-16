@@ -1,7 +1,11 @@
 # Godot 4
 game/.godot/
 game/android/
-game/export_presets.cfg
+# `game/export_presets.cfg` is deliberately NOT ignored (ADR-086). It is the
+# only place the export configuration lives, so ignoring it — the common
+# default — made "works in an exported build" unreproducible by anyone but the
+# one machine holding the file. Nothing secret goes in it; signing identities
+# and notarisation credentials arrive from the environment.
 *.translation
 
 # Godot exports

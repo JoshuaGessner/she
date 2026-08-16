@@ -1,0 +1,104 @@
+name: Build
+
+# Manual, and at milestone gates (ADR-086) — deliberately not on every push.
+# An export costs a 1.2 GB template download and produces a ~100 MB artifact,
+# and it catches nothing the pre-commit sweep does not already catch *except*
+# packaging faults, which only change when packaging changes.
+#
+# The reason this exists at all: development happens on a MacBook and the
+# playtesters are on Windows, so the build they receive is the one build nobody
+# can check by running it locally.
+on:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Export Windows
+    runs-on: ubuntu-latest
+    env:
+      # Same pin as ci.yml, and for the same reason: a Godot minor version can
+      # change GDScript warning behaviour, and export templates must match the
+      # engine exactly or the export fails with a misleading message.
+      GODOT_VERSION: "4.7"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Godot ${{ env.GODOT_VERSION }}
+        run: |
+          set -euo pipefail
+          base="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
+          curl -fsSL -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${base}.zip"
+          unzip -q godot.zip
+          sudo install -m 755 "$base" /usr/local/bin/godot
+          godot --version
+
+      - name: Install export templates
+        run: |
+          set -euo pipefail
+          curl -fsSL -o templates.tpz \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          unzip -q templates.tpz
+          dest="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          mkdir -p "$dest"
+          mv templates/* "$dest"/
+          test -f "$dest/windows_release_x86_64.exe"
+
+      # Import before exporting: `.tres` resources and the translation CSV are
+      # built by the importer, and an export from an unimported project packs
+      # a game with no data in it — silently, and at full size.
+      - name: Import project
+        run: godot --headless --path game --import
+
+      - name: Export
+        run: |
+          set -euo pipefail
+          mkdir -p build/SHE-windows
+          godot --headless --path game \
+            --export-release "Windows Desktop" "$PWD/build/SHE-windows/SHE.exe"
+          ls -lh build/SHE-windows
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SHE-windows
+          path: build/SHE-windows/
+          retention-days: 30
+
+  verify-windows:
+    name: Run the Windows build
+    needs: windows
+    runs-on: windows-latest
+    steps:
+      # Checked out so the packed item count can be compared against the repo's
+      # — the assertion that catches a build shipping without its data.
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: SHE-windows
+          path: build
+
+      # The half `tools/export_build.py` cannot do from a Mac. Exporting proves
+      # a file was produced; only running it proves the pack contains the game.
+      # A build can export at full size, launch cleanly, and still ship an
+      # empty item table — that exact failure was reproduced deliberately.
+      - name: The packed build contains the game
+        shell: pwsh
+        run: |
+          $exe = if (Test-Path build/SHE.console.exe) { "build/SHE.console.exe" }
+                 else { "build/SHE.exe" }
+          $log = & $exe --headless --quit-after 600 -- --export-probe 2>&1 | Out-String
+          Write-Host $log
+          if ($log -notmatch '\[export\] probe complete') {
+            throw "the exported build did not run its probe"
+          }
+          if ($log -notmatch '\[export\] items packed\s+(\d+)') {
+            throw "no item census in the probe output"
+          }
+          $packed = [int]$Matches[1]
+          $repo = @(Get-ChildItem game/data/items/*.tres).Count
+          Write-Host "packed $packed item(s), repo holds $repo"
+          if ($repo -lt 1) { throw "no items in the repo — the comparison is meaningless" }
+          if ($packed -ne $repo) { throw "the build shipped $packed of $repo items" }
+          if ($log -match "-> 'item\.") { throw "the translation table did not ship" }
+          if ($log -match 'SCRIPT ERROR') { throw "script errors in the packed build" }

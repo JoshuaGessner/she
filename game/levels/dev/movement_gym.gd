@@ -70,6 +70,8 @@ func _ready() -> void:
 			_capture_top(player, arg.split("=", true, 1)[1])
 		elif arg == "--lifecycle-probe":
 			_lifecycle_probe()
+		elif arg == "--export-probe":
+			_export_probe()
 
 
 ## Dev convenience only. Death costing you the run is `M2-T05`; nothing here
@@ -77,6 +79,45 @@ func _ready() -> void:
 ## a body now arrives when a peer does rather than at level start.
 func _on_player_spawned(player: Player) -> void:
 	player.health.died.connect(_on_player_died)
+
+
+## Prove the **packed** build contains what the repo does (ADR-086).
+##
+## Booting an export proves the pack loads and the main scene runs. It does not
+## prove the *content* came with it, and two things this project ships are
+## generated rather than committed: `en.en.translation` is gitignored and
+## rebuilt by the importer, and every `.tres` is re-serialised on export.
+##
+## So a build can boot perfectly and still ship with every item called
+## `item.wpn_seax.name` and an empty item table — silently, because nothing in
+## the running game reads either yet. This is the check that would notice.
+## It runs *inside* the exported binary, which is the only place the question
+## can be asked.
+func _export_probe() -> void:
+	var items: Array[ItemResource] = []
+	var dir: DirAccess = DirAccess.open("res://data/items")
+	if dir != null:
+		dir.list_dir_begin()
+		var entry: String = dir.get_next()
+		while entry != "":
+			# Godot rewrites `.tres` to `.res` when it packs them, so match on
+			# the stem rather than the extension the repo happens to hold.
+			if not dir.current_is_dir() and entry.get_extension() in ["tres", "res", "remap"]:
+				var item := load("res://data/items/%s" % entry.trim_suffix(".remap")) as ItemResource
+				if item != null:
+					items.append(item)
+			entry = dir.get_next()
+		dir.list_dir_end()
+
+	print("[export] engine        %s" % Engine.get_version_info()["string"])
+	print("[export] items packed  %d" % items.size())
+	print("[export] tuning loaded %s" % (Config.tuning != null))
+	# The translation, read the way the game reads it. A key coming back
+	# unchanged means the table did not ship.
+	var sample: String = tr("item.wpn_seax.name")
+	print("[export] translation   'item.wpn_seax.name' -> '%s'" % sample)
+	print("[export] probe complete")
+	get_tree().quit()
 
 
 ## Reset the gym repeatedly and let the per-frame overlays run over the wreckage.
