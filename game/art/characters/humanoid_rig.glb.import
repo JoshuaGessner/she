@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://u3230jyi6d1p"
-path="res://.godot/imported/humanoid_rig.glb-c0bfb17c0c11e6cab88fe5d698dd6a12.scn"
+uid="uid://dykawpjhwhdtg"
+path="res://.godot/imported/humanoid_rig.glb-f5ce34db489a8ef57a54491ae24d472c.scn"
 
 [deps]
 
-source_file="res://assets/characters/humanoid_rig.glb"
-dest_files=["res://.godot/imported/humanoid_rig.glb-c0bfb17c0c11e6cab88fe5d698dd6a12.scn"]
+source_file="res://art/characters/humanoid_rig.glb"
+dest_files=["res://.godot/imported/humanoid_rig.glb-f5ce34db489a8ef57a54491ae24d472c.scn"]
 
 [params]
 

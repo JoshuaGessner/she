@@ -8,7 +8,7 @@ extends SceneTree
 ## in the .glb fails silently: gear attaches to nothing and the cause is three
 ## tools away from the symptom.
 
-const RIG: String = "res://assets/characters/humanoid_rig.glb"
+const RIG: String = "res://art/characters/humanoid_rig.glb"
 const SOCKETS: Array[String] = [
 	"sock_head", "sock_hand_r", "sock_hand_l", "sock_back",
 	"sock_hip_r", "sock_hip_l", "sock_shoulders",
