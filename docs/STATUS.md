@@ -4,18 +4,18 @@
 
 <!-- generated-stamp --> _Regenerated 2026-08-16_
 
-**Current milestone: M1 — The Feel Prototype**
+**Current milestone: M2 — The Loop Prototype**
 
-> **Gate:** `pending` — *two people who aren't you play for 10 minutes and ask to keep playing.*
+> **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
 `10/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
-  M1["M1 The Feel Prototype<br/>10/10"]:::current
+  M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>0/9"]:::ahead
+  M2["M2 The Loop Prototype<br/>0/9"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
@@ -35,8 +35,8 @@ flowchart LR
 | | Milestone | Progress | Done | Gates |
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
-| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` pending |
-|  | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
+| ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
