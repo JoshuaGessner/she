@@ -36,7 +36,6 @@ const ENEMY_POSTS: Array[Vector3] = [
 
 var _player: Player = null
 var _clamor_ring: MeshInstance3D = null
-var _vision: Dictionary = {}
 
 
 func _ready() -> void:
@@ -62,6 +61,31 @@ func _ready() -> void:
 			_clamor_probe(_player)
 		elif arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
+		elif arg == "--lifecycle-probe":
+			_lifecycle_probe()
+
+
+## Reset the gym repeatedly and let the per-frame overlays run over the wreckage.
+##
+## Reported from play as a wall of "Trying to assign invalid previously freed
+## instance". Nothing caught it because every probe measures numbers and then
+## quits, and the only thing that frees an enemy is `_reset()` — which a probe
+## never reached. The measurement probes and the render path had no overlap at
+## all, so the whole lifecycle of a debug overlay was untested.
+##
+## This deliberately proves nothing about gameplay. It exists so CI drives the
+## code that runs every frame, on objects that have just been destroyed, and
+## the runner fails on any SCRIPT ERROR it produces.
+func _lifecycle_probe() -> void:
+	for cycle: int in range(3):
+		_reset()
+		# Long enough for queue_free to actually take effect: it lands at the
+		# end of the frame, so the *next* frames are the ones that walk over
+		# the freed instances.
+		for i: int in range(8):
+			await get_tree().process_frame
+	print("[gym] lifecycle probe survived %d resets" % 3)
+	get_tree().quit()
 
 
 ## Overhead capture. The audible footprint is a shape on the ground plane, and
@@ -74,6 +98,10 @@ func _capture_top(path: String) -> void:
 	camera.rotation_degrees = Vector3(-90, 0, 0)
 	add_child(camera)
 	camera.make_current()
+	# The ink pass belongs to the player's camera but draws in clip space, so it
+	# fills this one too and composites over the debug overlays. An overhead
+	# diagnostic wants the raw simulation, not the style.
+	_player.show_ink(false)
 	# North of the interior wall, and loud enough to reach past it but not so
 	# loud the footprint leaves the room — at maximum clamor the outline is
 	# wider than the gym and the doorway notch is off-screen.
@@ -104,6 +132,7 @@ func _build_clamor_ring() -> void:
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.no_depth_test = true
 	material.vertex_color_use_as_albedo = false
+	material.render_priority = OVERLAY_PRIORITY
 	_clamor_ring = MeshInstance3D.new()
 	_clamor_ring.mesh = ImmediateMesh.new()
 	_clamor_ring.material_override = material
@@ -184,26 +213,49 @@ func _redraw_vision(enemy: Enemy, mesh: ImmediateMesh) -> void:
 	mesh.surface_end()
 
 
+## Each enemy owns its own cone, so the engine disposes of it.
+##
+## This previously kept a `{enemy: overlay}` dictionary and swept it for dead
+## keys. That cannot work: `for enemy: Node in _vision.keys()` assigns a freed
+## instance to a **typed** loop variable, which throws before the
+## `is_instance_valid()` guard on the next line can run. The guard was
+## unreachable, and every reset produced a wall of errors.
+##
+## Making the overlay a child of the enemy deletes the problem rather than
+## working around it — no dictionary, no sweep, no window in which a stale
+## reference exists. `top_level` keeps its transform in world space, which is
+## what the vertices are built in, while its *lifetime* follows the enemy.
 func _sync_vision_overlays() -> void:
-	for enemy: Node in _vision.keys():
-		if not is_instance_valid(enemy):
-			(_vision[enemy] as Node).queue_free()
-			_vision.erase(enemy)
 	for node: Node in get_tree().get_nodes_in_group("enemies"):
 		var enemy := node as Enemy
-		if not _vision.has(enemy):
+		var mesh_instance := enemy.get_node_or_null("VisionOverlay") as MeshInstance3D
+		if mesh_instance == null:
 			var overlay := MeshInstance3D.new()
+			overlay.name = "VisionOverlay"
+			overlay.top_level = true
 			overlay.mesh = ImmediateMesh.new()
 			overlay.material_override = _overlay_material(VISION_IDLE)
 			(overlay.material_override as StandardMaterial3D).cull_mode = \
 				BaseMaterial3D.CULL_DISABLED
-			_world.add_child(overlay)
-			_vision[enemy] = overlay
-		var mesh_instance := _vision[enemy] as MeshInstance3D
+			enemy.add_child(overlay)
+			mesh_instance = overlay
 		# Seeing you is the one state that must be unmissable at a glance.
 		var material := mesh_instance.material_override as StandardMaterial3D
 		material.albedo_color = VISION_SEEING if enemy.sees_player() else VISION_IDLE
 		_redraw_vision(enemy, mesh_instance.mesh as ImmediateMesh)
+
+
+## Diagnostics sit above the style, always.
+##
+## The ink pass is a transparent full-screen quad at render_priority 100, so
+## anything drawn below that priority is composited over and vanishes the
+## moment the shader is on. That made the clamor ring and the vision cones
+## invisible in normal play while still rendering perfectly in a screenshot
+## with ink disabled — which is exactly the kind of bug that gets diagnosed as
+## "the overlay is broken" when the overlay is fine.
+## 127 is Godot's hard maximum (`MATERIAL_RENDER_PRIORITY_MAX`); anything above
+## it is rejected at runtime rather than clamped.
+const OVERLAY_PRIORITY: int = 127
 
 
 func _overlay_material(colour: Color) -> StandardMaterial3D:
@@ -212,6 +264,7 @@ func _overlay_material(colour: Color) -> StandardMaterial3D:
 	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	material.no_depth_test = true
+	material.render_priority = OVERLAY_PRIORITY
 	return material
 
 

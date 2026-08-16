@@ -89,7 +89,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("debug_weight_down"):
 		carried.kilograms -= DEBUG_WEIGHT_STEP
 	elif event.is_action_pressed("debug_ink"):
-		_ink.visible = not _ink.visible
+		show_ink(not _ink.visible)
+
+
+## The ink pass is a clip-space quad, so it fills whatever camera draws it —
+## including cameras that are not this player's. A debug or spectator camera
+## must be able to switch it off, or it composites over their view as well.
+func show_ink(on: bool) -> void:
+	_ink.visible = on
 
 
 ## Stick and arrow-key look (ADR-075).

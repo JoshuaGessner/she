@@ -105,7 +105,23 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		printf '%s\n' "$problems" | sed 's/^/      /' >&2
 		exit 1
 	fi
-	echo "${#scripts[@]} script(s) parse clean, main scene boots ($("$GODOT_BIN" --version))"
+	# Booting proves startup works. It does not prove *teardown* works, and the
+	# errors that reach a player are disproportionately lifecycle errors: a
+	# per-frame overlay walking over an object that was freed last frame. The
+	# gym's lifecycle probe destroys and respawns everything three times, which
+	# is the state no measurement probe ever reaches because they all quit
+	# before anything dies.
+	# `--quit-after` is a backstop, not the exit path: a GDScript runtime error
+	# aborts the function it happens in, so a probe that errors never reaches
+	# its own `quit()` and would otherwise hang the build forever. Measured the
+	# hard way — this check ran for eight minutes before being killed.
+	churn="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 -- --lifecycle-probe 2>&1)"
+	if problems="$(printf '%s\n' "$churn" | grep -E 'SCRIPT ERROR|Parse Error|^ERROR:')"; then
+		echo "FAIL destroying and respawning actors" >&2
+		printf '%s\n' "$problems" | sed 's/^/      /' | sort -u >&2
+		exit 1
+	fi
+	echo "${#scripts[@]} script(s) parse clean, boots and survives teardown ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
 fi

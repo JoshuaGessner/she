@@ -3,9 +3,15 @@
 
 Usage:
     python3 tools/status.py             # terminal dashboard
-    python3 tools/status.py --write     # regenerate docs/STATUS.md + docs/status.html
+    python3 tools/status.py --write     # regenerate STATUS.md, status.html, status-app.html
     python3 tools/status.py --check     # CI-safe: exit 1 on any error
     python3 tools/status.py --check --strict    # warnings count as errors too
+    python3 tools/status.py --fragment PATH     # status-app.html body only, for publishing
+
+Two HTML views, deliberately different instruments. `status.html` is the
+read-through report — parchment, serif, printable, the shape of the docs it
+summarises. `status-app.html` is the working board — a descent rail, filters
+and search, for the question "what am I doing next and what is blocked".
 
 Single source of truth is PRO-001: milestone comments, checkbox tasks with
 permanent IDs, and gate lines (ADR-063). Nothing here writes to a design doc —
@@ -40,6 +46,7 @@ DECISIONS = DOCS / "process" / "PRO-002-decision-log.md"
 QUESTIONS = DOCS / "OPEN-QUESTIONS.md"
 STATUS_MD = DOCS / "STATUS.md"
 STATUS_HTML = DOCS / "status.html"
+STATUS_APP = DOCS / "status-app.html"
 
 # The line carrying the regeneration date, ignored when comparing for staleness.
 STAMP = "generated-stamp"
@@ -1064,6 +1071,359 @@ def render_html(milestones: list[Milestone], docs: dict[str, Doc],
     return "\n".join(o) + "\n"
 
 
+# ── status-app.html — the working board ───────────────────────────────────
+#
+# A different instrument from status.html, not a restyle of it. The roadmap is
+# a descent (DES-002's nested loops, DES-015's floors), so the rail down the
+# left encodes depth rather than decorating a list, and the accent gold is
+# spent on exactly one thing: where you are now.
+
+APP_CSS = """
+:root{
+  --ground:#0b0d10; --surface:#141920; --raised:#1b212a; --line:#28313d;
+  --text:#e2e8ef; --muted:#8a97a8; --faint:#5d6877;
+  --accent:#e0a94a; --accent-dim:#7d5f22;
+  --pass:#4f9e7a; --crit:#d4574a; --advisory:#9a8560;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 8px 24px rgba(0,0,0,.35);
+  --serif:Georgia,"Iowan Old Style",'Times New Roman',serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:light){
+  :root:not([data-theme="dark"]){
+    --ground:#eef1f5; --surface:#ffffff; --raised:#f5f7fa; --line:#d8dee7;
+    --text:#141a21; --muted:#5a6675; --faint:#8794a4;
+    --accent:#8a6414; --accent-dim:#d9c48d;
+    --pass:#2f7355; --crit:#a83527; --advisory:#7a6535;
+    --shadow:0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.08);
+  }
+}
+:root[data-theme="light"]{
+  --ground:#eef1f5; --surface:#ffffff; --raised:#f5f7fa; --line:#d8dee7;
+  --text:#141a21; --muted:#5a6675; --faint:#8794a4;
+  --accent:#8a6414; --accent-dim:#d9c48d;
+  --pass:#2f7355; --crit:#a83527; --advisory:#7a6535;
+  --shadow:0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.08);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans);
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.shell{display:grid;grid-template-columns:16rem minmax(0,1fr);gap:0;min-height:100vh;
+  max-width:82rem;margin:0 auto}
+
+/* ── descent rail ── */
+.rail{border-right:1px solid var(--line);padding:1.5rem 1rem;position:sticky;top:0;
+  align-self:start;max-height:100vh;overflow-y:auto;background:var(--surface)}
+.brand{display:flex;align-items:baseline;gap:.5rem;margin-bottom:1.5rem}
+.mark{font-family:var(--serif);font-size:1.5rem;letter-spacing:.2em;font-weight:700}
+.brand .sub{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--faint)}
+.overall{margin-bottom:1.5rem}
+.odigits{font-family:var(--mono);font-size:1.6rem;font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em}
+.odigits b{font-weight:700}
+.odigits .of{color:var(--faint)}
+.olabel{font-family:var(--mono);font-size:.62rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--faint);margin-bottom:.6rem}
+.obar{height:3px;background:var(--line)}
+.obar span{display:block;height:100%;background:var(--accent)}
+.descent{position:relative;padding-left:1.1rem;display:flex;flex-direction:column;gap:.15rem}
+.descent::before{content:"";position:absolute;left:.32rem;top:.9rem;bottom:.9rem;
+  width:1px;background:var(--line)}
+.node{display:grid;grid-template-columns:auto 2.1rem 1fr auto;align-items:center;gap:.5rem;
+  padding:.45rem .5rem .45rem 0;margin-left:-1.1rem;padding-left:1.1rem;position:relative;
+  border-radius:3px}
+.node:hover{background:var(--raised)}
+.dot{position:absolute;left:0;width:.66rem;height:.66rem;border-radius:50%;
+  background:var(--ground);border:1.5px solid var(--line)}
+.node.cleared .dot{background:var(--pass);border-color:var(--pass)}
+.node.here .dot{border-color:var(--accent);background:
+  conic-gradient(var(--accent) calc(var(--p) * 1%), var(--ground) 0)}
+.node.ahead .dot{background:var(--ground)}
+.nid{font-family:var(--mono);font-size:.72rem;color:var(--faint);letter-spacing:.04em}
+.nname{font-size:.84rem;color:var(--muted);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.node.here .nname{color:var(--accent);font-weight:600}
+.node.here .nid{color:var(--accent)}
+.nprog{font-family:var(--mono);font-size:.68rem;color:var(--faint);
+  font-variant-numeric:tabular-nums}
+.railfoot{margin-top:1.5rem;display:flex;flex-direction:column;gap:.35rem}
+.badge{display:flex;justify-content:space-between;align-items:center;gap:.5rem;
+  font-family:var(--mono);font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;
+  padding:.5rem .6rem;border:1px solid var(--line);color:var(--muted)}
+.badge b{font-variant-numeric:tabular-nums;font-size:.82rem}
+.badge.crit{border-color:var(--crit);color:var(--crit)}
+.badge.ok{color:var(--pass);border-color:color-mix(in srgb,var(--pass) 40%,var(--line))}
+.badge:hover{background:var(--raised)}
+
+/* ── main panel ── */
+main{padding:1.5rem clamp(1rem,3vw,2.5rem) 4rem;min-width:0}
+.top{position:sticky;top:0;z-index:5;background:var(--ground);
+  padding-top:.25rem;margin-bottom:1.5rem}
+.eyebrow{font-family:var(--mono);font-size:.64rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--faint)}
+h1{font-family:var(--serif);font-size:clamp(1.5rem,3.5vw,2rem);margin:.2rem 0 .3rem;
+  font-weight:700;text-wrap:balance}
+.gateline{color:var(--muted);font-size:.95rem;max-width:62ch;margin:0 0 1rem;font-style:italic}
+.controls{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;
+  padding-bottom:.9rem;border-bottom:1px solid var(--line)}
+.chips{display:flex;gap:.25rem;flex-wrap:wrap}
+.chip{font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
+  padding:.4rem .65rem;border:1px solid var(--line);background:transparent;color:var(--muted);
+  cursor:pointer;border-radius:2px}
+.chip:hover{background:var(--raised);color:var(--text)}
+.chip[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);
+  color:var(--ground);font-weight:600}
+.search{flex:1;min-width:11rem;background:var(--surface);border:1px solid var(--line);
+  color:var(--text);padding:.42rem .6rem;font-family:var(--mono);font-size:.78rem;
+  border-radius:2px}
+.search::placeholder{color:var(--faint)}
+
+h2{font-family:var(--mono);font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--faint);margin:2rem 0 .6rem;font-weight:600}
+.panel{background:var(--surface);border:1px solid var(--line);box-shadow:var(--shadow);
+  margin-bottom:.5rem}
+.panel.stripe-crit{border-left:3px solid var(--crit)}
+.panel.stripe-advisory{border-left:3px solid var(--advisory)}
+.panel.stripe-ok{border-left:3px solid var(--pass)}
+.pad{padding:.75rem .9rem}
+.issue .code{font-family:var(--mono);font-size:.72rem;letter-spacing:.05em;color:var(--crit)}
+.issue.advisory .code{color:var(--advisory)}
+.issue .fix{color:var(--muted);font-size:.85rem;margin-top:.15rem}
+.issue .where{font-family:var(--mono);font-size:.72rem;color:var(--faint)}
+
+.ms{margin-bottom:.6rem;scroll-margin-top:9rem}
+.mshead{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;
+  padding:.7rem .9rem;border-bottom:1px solid var(--line)}
+.mshead h3{margin:0;font-family:var(--serif);font-size:1.05rem;font-weight:700}
+.ms.here .mshead h3{color:var(--accent)}
+.tag{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--faint);border:1px solid var(--line);padding:.15rem .38rem;border-radius:2px}
+.count{margin-left:auto;font-family:var(--mono);font-size:.8rem;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.seals{display:flex;flex-direction:column;gap:.3rem;padding:.7rem .9rem;
+  border-bottom:1px solid var(--line)}
+.seal{display:flex;gap:.6rem;align-items:flex-start;font-size:.88rem;color:var(--muted)}
+.seal .k{font-family:var(--mono);font-size:.64rem;letter-spacing:.1em;padding:.2rem .4rem;
+  border:1px solid currentColor;white-space:nowrap;flex-shrink:0}
+.seal.passed .k{color:var(--pass)} .seal.failed .k,.seal.nogate .k{color:var(--crit)}
+.seal.pending .k{color:var(--faint)}
+ul.tasks{list-style:none;margin:0;padding:0}
+.task{display:grid;grid-template-columns:1.2rem 4.6rem minmax(0,1fr) auto;gap:.6rem;
+  align-items:baseline;padding:.42rem .9rem;border-bottom:1px solid var(--line);font-size:.9rem}
+.task:last-child{border-bottom:0}
+.task:hover{background:var(--raised)}
+.box{font-family:var(--mono);color:var(--faint);text-align:center}
+.task[data-state="done"] .box{color:var(--pass)}
+.task[data-state="doing"] .box{color:var(--accent)}
+.task[data-state="done"] .ttext{color:var(--muted)}
+.task[data-state="cut"] .ttext{color:var(--faint);text-decoration:line-through}
+.tid{font-family:var(--mono);font-size:.72rem;color:var(--faint);letter-spacing:.02em}
+.trefs{font-family:var(--mono);font-size:.68rem;color:var(--faint);white-space:nowrap}
+.empty{padding:.9rem;color:var(--faint);font-size:.88rem;font-style:italic}
+.stats{display:flex;flex-wrap:wrap;gap:1.4rem;margin-top:2.5rem;padding-top:1rem;
+  border-top:1px solid var(--line);color:var(--faint);font-size:.8rem;font-family:var(--mono)}
+.stats b{color:var(--text);font-variant-numeric:tabular-nums}
+footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
+[hidden]{display:none !important}
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr}
+  .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}
+  .descent{flex-direction:row;overflow-x:auto;padding-left:0;gap:.4rem}
+  .descent::before{display:none}
+  .node{grid-template-columns:auto auto;margin-left:0;padding-left:1.3rem;
+    border:1px solid var(--line);flex-shrink:0}
+  .nname,.nprog{display:none}
+  .dot{left:.45rem}
+  .task{grid-template-columns:1.2rem 4.6rem minmax(0,1fr);}
+  .trefs{display:none}
+}
+@media (prefers-reduced-motion:no-preference){
+  .node,.chip,.task{transition:background .12s ease,color .12s ease}
+}
+"""
+
+APP_JS = """
+(function(){
+  var chips=[].slice.call(document.querySelectorAll('.chip'));
+  var search=document.getElementById('q');
+  var tasks=[].slice.call(document.querySelectorAll('.task'));
+  var groups=[].slice.call(document.querySelectorAll('.ms'));
+  var state='all';
+  function apply(){
+    var q=search.value.trim().toLowerCase();
+    tasks.forEach(function(t){
+      var okState=(state==='all')||(t.dataset.state===state);
+      var okText=!q||t.dataset.find.indexOf(q)>-1;
+      t.hidden=!(okState&&okText);
+    });
+    groups.forEach(function(g){
+      var rows=[].slice.call(g.querySelectorAll('.task'));
+      var shown=rows.filter(function(r){return !r.hidden;}).length;
+      var none=g.querySelector('.nomatch');
+      if(rows.length){ g.hidden=(shown===0&&(state!=='all'||q)); }
+      if(none){ none.hidden=shown>0; }
+    });
+  }
+  chips.forEach(function(c){
+    c.addEventListener('click',function(){
+      state=c.dataset.state;
+      chips.forEach(function(o){o.setAttribute('aria-pressed',String(o===c));});
+      apply();
+    });
+  });
+  search.addEventListener('input',apply);
+  apply();
+})();
+"""
+
+
+def render_app(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int, str],
+               issues: list[Issue], standalone: bool = True) -> str:
+    """The working board. `standalone=False` emits body content only, for publishing."""
+    cur = current_milestone(milestones)
+    blocking = load_blocking_questions()
+    stats = corpus_stats(docs, adrs, blocking)
+    done, live = totals(milestones)
+    errors = [i for i in issues if i.level == "error"]
+    warns = [i for i in issues if i.level == "warn"]
+    pct = 100 * done / live if live else 0
+    box = {DONE: "▣", DOING: "▶", TODO: "☐", CUT: "▨"}
+    name = {DONE: "done", DOING: "doing", TODO: "todo", CUT: "cut"}
+
+    head = f"<title>SHE Descent Board</title>\n<style>{APP_CSS}</style>"
+    o: list[str] = ['<div class="shell">']
+
+    # rail
+    o.append('<aside class="rail">'
+             '<div class="brand"><span class="mark">SHE</span>'
+             '<span class="sub">descent</span></div>'
+             f'<div class="overall"><div class="odigits"><b>{done}</b>'
+             f'<span class="of">/{live}</span></div>'
+             '<div class="olabel">tasks complete</div>'
+             f'<div class="obar"><span style="width:{pct:.1f}%"></span></div></div>'
+             '<nav class="descent" aria-label="Milestones">')
+    for ms in milestones:
+        counts = ms.counts()
+        klass = "cleared" if ms.cleared else ("here" if cur and ms.id == cur.id else "ahead")
+        mpct = 100 * counts[DONE] / len(ms.live()) if ms.live() else 0
+        prog = "✔" if ms.cleared else (f"{counts[DONE]}/{len(ms.live())}" if ms.tasks else "—")
+        o.append(f'<a class="node {klass}" href="#{ms.id}" style="--p:{mpct:.0f}">'
+                 f'<span class="dot"></span><span class="nid">{ms.id}</span>'
+                 f'<span class="nname">{inline_html(ms.title)}</span>'
+                 f'<span class="nprog">{prog}</span></a>')
+    o.append("</nav>")
+    bklass = "badge crit" if errors else "badge ok"
+    o.append(f'<div class="railfoot">'
+             f'<a class="{bklass}" href="#blockers"><span>blockers</span>'
+             f"<b>{len(errors)}</b></a>"
+             f'<a class="badge" href="#warnings"><span>warnings</span>'
+             f"<b>{len(warns)}</b></a></div></aside>")
+
+    # header
+    o.append("<main>")
+    o.append('<div class="top">')
+    if cur:
+        gate = cur.exit_gate
+        o.append(f'<div class="eyebrow">Current milestone</div>'
+                 f"<h1>{cur.id} — {inline_html(cur.title)}</h1>")
+        if gate:
+            o.append(f'<p class="gateline">“{inline_html(gate.text)}”</p>')
+    else:
+        o.append('<div class="eyebrow">Roadmap</div><h1>All milestones cleared</h1>')
+    o.append('<div class="controls"><div class="chips" role="group" aria-label="Filter by state">')
+    for key, lbl in (("all", "all"), ("todo", "todo"), ("doing", "doing"),
+                     ("done", "done"), ("cut", "cut")):
+        pressed = "true" if key == "all" else "false"
+        o.append(f'<button class="chip" data-state="{key}" aria-pressed="{pressed}">{lbl}</button>')
+    o.append('</div><input id="q" class="search" type="search" '
+             'placeholder="search tasks and doc ids…" aria-label="Search tasks"></div></div>')
+
+    # blockers
+    o.append('<h2 id="blockers">Blockers</h2>')
+    if errors:
+        for i in errors:
+            o.append(f'<div class="panel stripe-crit"><div class="pad issue">'
+                     f'<span class="code">{html.escape(i.code)}</span> {inline_html(i.message)}'
+                     f'<div class="fix">→ {inline_html(i.fix)} '
+                     f'<span class="where">{html.escape(i.where)}</span></div></div></div>')
+    else:
+        o.append('<div class="panel stripe-ok"><div class="pad">Nothing has started ahead '
+                 "of its gate.</div></div>")
+
+    # milestones
+    o.append("<h2>Descent</h2>")
+    for ms in milestones:
+        counts = ms.counts()
+        here = " here" if cur and ms.id == cur.id else ""
+        size = "unsized" if ms.size is None else f"×{ms.size:g}"
+        tag = f'<span class="tag">{size}</span>' if ms.tasks else ""
+        cnt = (f"{counts[DONE]}/{len(ms.live())}" if ms.tasks
+               else ("cleared" if ms.cleared else "not broken down"))
+        o.append(f'<section class="panel ms{here}" id="{ms.id}"><div class="mshead">'
+                 f"<h3>{ms.id} — {inline_html(ms.title)}</h3>{tag}"
+                 f'<span class="count">{cnt}</span></div>')
+        if ms.gates:
+            o.append('<div class="seals">')
+            for g in ms.gates:
+                o.append(f'<div class="seal {g.state}"><span class="k">{g.kind} '
+                         f'{html.escape(g.label())}</span><span>{inline_html(g.text)}</span></div>')
+            o.append("</div>")
+        elif ms.tasks:
+            o.append('<div class="seals"><div class="seal nogate">'
+                     '<span class="k">NO GATE</span><span>No exit gate, so this milestone '
+                     "can never be cleared and nothing may depend on it.</span></div></div>")
+        if ms.tasks:
+            o.append('<ul class="tasks">')
+            for t in ms.tasks:
+                refs = " ".join(t.docs)
+                find = html.escape(f"{t.id} {plain(t.text)} {refs}".lower(), quote=True)
+                o.append(f'<li class="task" data-state="{name[t.state]}" data-find="{find}">'
+                         f'<span class="box">{box[t.state]}</span>'
+                         f'<span class="tid">{t.id}</span>'
+                         f'<span class="ttext">{inline_html(t.text)}</span>'
+                         f'<span class="trefs">{html.escape(refs)}</span></li>')
+            o.append('</ul><div class="empty nomatch" hidden>No tasks match the filter.</div>')
+        else:
+            o.append('<div class="empty">'
+                     + ("Its deliverable was the design corpus itself."
+                        if ms.cleared else "On the roadmap, not yet broken down into work.")
+                     + "</div>")
+        o.append("</section>")
+
+    # warnings
+    if warns:
+        o.append(f'<h2 id="warnings">Warnings ({len(warns)})</h2>')
+        for i in warns:
+            o.append(f'<div class="panel stripe-advisory"><div class="pad issue advisory">'
+                     f'<span class="code">{html.escape(i.code)}</span> {inline_html(i.message)}'
+                     f'<div class="fix">→ {inline_html(i.fix)}</div></div></div>')
+
+    o.append(f'<div class="stats"><span><b>{stats["docs"]}</b> docs</span>'
+             f'<span><b>{stats["accepted"]}</b> accepted</span>'
+             f'<span><b>{stats["adrs"]}</b> ADRs</span>'
+             f'<span><b>{stats["questions"]}</b> open questions</span>'
+             f'<span><b>{stats["tune"]}</b> ⟨tune⟩</span></div>')
+    o.append(f'<footer class="note"><!-- {STAMP} -->Regenerated '
+             f"{date.today().isoformat()} by <code>tools/status.py --write</code>. "
+             "Source of truth: PRO-001 (ADR-063). Progress is scope covered, "
+             "never time remaining (ADR-034).</footer>")
+    o.append(f"</main></div><script>{APP_JS}</script>")
+
+    body = "\n".join(o)
+    if not standalone:
+        # Published artifacts are wrapped in their own doctype/head/body; the title
+        # tag still gets picked up from the top of the fragment.
+        return f"{head}\n{body}\n"
+    return (
+        '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+        f"{head}\n</head>\n<body>\n{body}\n</body>\n</html>\n"
+    )
+
+
 # ── entry point ───────────────────────────────────────────────────────────
 
 
@@ -1086,14 +1446,27 @@ def main() -> int:
 
     markdown = render_markdown(milestones, docs, adrs, issues)
     page = render_html(milestones, docs, adrs, issues)
+    app = render_app(milestones, docs, adrs, issues)
+
+    if "--fragment" in args:
+        i = args.index("--fragment")
+        if i + 1 >= len(args):
+            print("--fragment needs a path", file=sys.stderr)
+            return 1
+        target = Path(args[i + 1]).expanduser().resolve()
+        target.write_text(render_app(milestones, docs, adrs, issues, standalone=False),
+                          encoding="utf-8")
+        print(f"wrote {target}")
+        return 0
 
     if write:
         STATUS_MD.write_text(markdown, encoding="utf-8")
         STATUS_HTML.write_text(page, encoding="utf-8")
-        print(f"wrote {rel(STATUS_MD)} and {rel(STATUS_HTML)}")
+        STATUS_APP.write_text(app, encoding="utf-8")
+        print(f"wrote {rel(STATUS_MD)}, {rel(STATUS_HTML)} and {rel(STATUS_APP)}")
 
     if check:
-        for name, fresh in ((STATUS_MD, markdown), (STATUS_HTML, page)):
+        for name, fresh in ((STATUS_MD, markdown), (STATUS_HTML, page), (STATUS_APP, app)):
             current = name.read_text(encoding="utf-8") if name.exists() else ""
             if strip_stamp(current) != strip_stamp(fresh):
                 issues.append(Issue(
