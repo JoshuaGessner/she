@@ -4,7 +4,7 @@ title: Enemies & AI
 status: accepted
 owner: design
 tags: [enemies, ai, combat, clamor, systems, co-op]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [DES-005, DES-007, DES-009, TEC-001, TEC-004]
 ---
 
@@ -60,6 +60,8 @@ Roster is defined by *what problem it poses*, never by "fire guy / ice guy":
 **The Guardian role is the most important one.** An enemy that *never* threatens you unless you approach it is the purest possible expression of Pillar P1 — the danger is entirely self-selected.
 
 ## Roster sketch (~12 at 1.0)
+
+> **Built by `M4-T02`** (~6 archetypes, the slice) and **`M5-T04`** (the full roster). A sketch of twelve enemies is a content budget, so it names the milestones that spend it (ADR-077).
 
 **The Delvings** — Dvergar ruin
 - **Wretch** *(attrition)* — degenerate Dvergar survivors, numerous, pitiable

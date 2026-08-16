@@ -1007,4 +1007,31 @@ Left to M4 it becomes a retrofit, because the cost is never the input map: it is
 
 ---
 
+## ADR-077 — A section that means "later" must say which later
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `PRO-001`, `DES-006`, `DES-013`, `DES-018`**
+**Context:** Directed audit, following ADR-075. That ADR found controller parity listed in `DES-018` under **"Beyond the core loop"** with nothing scheduling it, and every existing check passed — ADR-065 works at *document* granularity, and `DES-018` is scheduled by two tasks. The question was whether the same blind spot hid other deferred intentions.
+
+**The audit, and what it actually found.** Three passes over all 39 documents:
+
+| Lens | Candidates | Verdict |
+|---|---|---|
+| Promise-verbs in prose ("we will", "eventually", "deferred") | 15 | Almost all prose or explicitly-reasoned deferrals |
+| Bulleted sections naming no task or milestone | **72** | Unusable — most bulleted lists in a design doc *describe the design* |
+| Section **headings** whose wording defers work | **3** | The real population |
+
+The middle row is the important negative result. Section-body scanning cannot distinguish a backlog from a specification, because the bullets under both are bare noun phrases — *"UI scaling and font size"* has no verb to match on. **A check that flags 72 of anything is a check nobody reads**, and shipping it would have been worse than shipping nothing.
+
+The heading lens found exactly three, and **two were already properly built**: `DES-006`'s *"Biomes (3 at 1.0)"* by `M4-T01`/`M5-T02`, and `DES-013`'s *"Roster sketch (~12 at 1.0)"* by `M4-T02`/`M5-T04`. Neither section said so, which is a readability defect rather than a scheduling one. **The blind spot is narrow, not systemic** — that is the headline finding.
+
+**Decision:**
+1. **An accepted doc's section whose heading defers work must name a milestone or task.** Enforced by `status.py --check`. Scoped to headings deliberately, per the table above.
+2. **`M4-T11` — the accessibility suite — is split out of `M4-T06`.** `M4-T06` read *"full save/load, settings, controls rebinding"*, and **"settings" was carrying a dozen deliverables**: colour-blind support, UI scaling, a dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. Several are **architectural constraints rather than options** — "no information in hue alone" is not a checkbox, it is a rule every HUD element obeys — and burying them inside one word is how they arrive as a retrofit.
+3. **`DES-006` and `DES-013` now name their building tasks** inline.
+
+**Rationale:** `PRO-005` treats accessibility as load-bearing rather than decorative, and the thing that makes that true in practice is a task with an ID. The general principle is the one ADR-064 already states about stubs, applied to documents: **listing is not planning.** A heading meaning "later" with no "later" attached is a backlog nobody owns, and it reads as commitment while functioning as none.
+
+**Consequences:** Three sections edited, one task added. The check is verified by a trial in `tools/test_checks.py` that plants a deferring heading and asserts the failure. **It will fire on future docs written in the same shape, which is the point** — and when it does, the fix is usually one line naming the milestone, not new scope. Known limit, stated plainly: this catches deferral announced in a *heading*. Work deferred in a sentence in the middle of a paragraph is still invisible to it, and the 72-candidate result says no cheap check closes that gap.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

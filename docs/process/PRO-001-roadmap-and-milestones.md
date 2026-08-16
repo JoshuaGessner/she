@@ -96,6 +96,7 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M4-T04` Contracts tier 1–3, one faction (`DES-007`) → DES-007
 - [ ] `M4-T05` Real art pass, real audio, real UI, ping system → ART-001, ART-002, DES-019, DES-012
 - [ ] `M4-T06` Full save/load, settings, controls rebinding → TEC-003, DES-018
+- [ ] `M4-T11` **The accessibility suite** — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. *Split out of `M4-T06` by ADR-077: "settings" was standing in for a dozen deliverables, several of which are architectural constraints rather than options* → DES-018
 - [ ] `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest → TEC-004
 - [ ] `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library → ART-005
 - [ ] `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key → ART-003

@@ -79,7 +79,7 @@ Its mirror is worth stating too: a run played with the HUD hidden should still b
 
 ## Beyond the core loop
 
-The rest, listed so it is planned rather than discovered late:
+The rest. **Built by `M4-T11`, the accessibility suite** — which exists because this list said "planned rather than discovered late" for six months while no task implemented any of it (ADR-077). Listing is not planning; a milestone is.
 
 **Visual**
 - Full colour-blind support; no information in hue alone, anywhere

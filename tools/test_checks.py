@@ -80,6 +80,14 @@ TRIALS = [
         "## Build & release",
         "## Build & release ⟨tune⟩",
     ),
+    Trial(
+        # The shape that slipped past every other check: a heading meaning
+        # "after the thing we are building", inside a doc that is scheduled.
+        "deferred-unanchored", "ADR-077 — a section meaning 'later' names which later",
+        TEC002,
+        "## Build & release",
+        "## Build & release, and future tooling beyond the core loop",
+    ),
 ]
 
 

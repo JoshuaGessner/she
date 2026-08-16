@@ -4,7 +4,7 @@ title: World & Setting
 status: accepted
 owner: design
 tags: [world, setting, lore, tone, ip-safety, biomes]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [DES-001, PRO-004, DES-007]
 ---
 
@@ -105,6 +105,8 @@ The consequence for the player is the thing the whole game is pointed at: **you 
 **Absolute rule: this is discoverable, never stated.** No NPC explains it. No codex spells it out. She never admits it. The evidence lives in architecture, grave-goods, inscriptions, and the shape of how people died — and the player gets to be the one who says it out loud, probably around their fifteenth run. The moment a character explains the curse, the effect dies permanently. See `DES-015` for how the generator carries it.
 
 ## Biomes (3 at 1.0)
+
+> **Built by `M4-T01`** (the Delvings, complete) and **`M5-T02`** (Barrow-Fields, Sunken Wood). Stated here because "3 at 1.0" is a scope commitment, and a scope commitment that names no milestone is a backlog (ADR-077).
 
 | Biome | Sources | Fantasy | Distinct mechanic |
 |---|---|---|---|

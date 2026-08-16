@@ -36,8 +36,8 @@ body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans)
   font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.shell{display:grid;grid-template-columns:16rem minmax(0,1fr);gap:0;min-height:100vh;
-  max-width:82rem;margin:0 auto}
+.shell{display:grid;grid-template-columns:17.5rem minmax(0,1fr);gap:0;min-height:100vh;
+  max-width:84rem;margin:0 auto}
 
 /* ── descent rail ── */
 .rail{border-right:1px solid var(--line);padding:1.5rem 1rem;position:sticky;top:0;
@@ -58,8 +58,9 @@ a{color:inherit;text-decoration:none}
 .descent{position:relative;padding-left:1.1rem;display:flex;flex-direction:column;gap:.15rem}
 .descent::before{content:"";position:absolute;left:.32rem;top:.9rem;bottom:.9rem;
   width:1px;background:var(--line)}
-.node{display:grid;grid-template-columns:auto 2.1rem 1fr auto;align-items:center;gap:.5rem;
-  padding:.45rem .5rem .45rem 0;margin-left:-1.1rem;padding-left:1.1rem;position:relative;
+/* The dot is absolutely positioned, so it is not a grid item — three columns, not four. */
+.node{display:grid;grid-template-columns:2.1rem minmax(0,1fr) auto;align-items:center;gap:.45rem;
+  padding:.45rem .4rem .45rem 0;margin-left:-1.1rem;padding-left:1.1rem;position:relative;
   border-radius:3px}
 .node:hover{background:var(--raised)}
 .dot{position:absolute;left:0;width:.66rem;height:.66rem;border-radius:50%;
@@ -159,7 +160,7 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
   .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}
   .descent{flex-direction:row;overflow-x:auto;padding-left:0;gap:.4rem}
   .descent::before{display:none}
-  .node{grid-template-columns:auto auto;margin-left:0;padding-left:1.3rem;
+  .node{grid-template-columns:auto;margin-left:0;padding-left:1.3rem;
     border:1px solid var(--line);flex-shrink:0}
   .nname,.nprog{display:none}
   .dot{left:.45rem}
@@ -173,12 +174,12 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
 </head>
 <body>
 <div class="shell">
-<aside class="rail"><div class="brand"><span class="mark">SHE</span><span class="sub">descent</span></div><div class="overall"><div class="odigits"><b>5</b><span class="of">/43</span></div><div class="olabel">tasks complete</div><div class="obar"><span style="width:11.6%"></span></div></div><nav class="descent" aria-label="Milestones">
+<aside class="rail"><div class="brand"><span class="mark">SHE</span><span class="sub">descent</span></div><div class="overall"><div class="odigits"><b>5</b><span class="of">/44</span></div><div class="olabel">tasks complete</div><div class="obar"><span style="width:11.4%"></span></div></div><nav class="descent" aria-label="Milestones">
 <a class="node cleared" href="#M0" style="--p:0"><span class="dot"></span><span class="nid">M0</span><span class="nname">Design Lock</span><span class="nprog">✔</span></a>
 <a class="node here" href="#M1" style="--p:50"><span class="dot"></span><span class="nid">M1</span><span class="nname">The Feel Prototype</span><span class="nprog">5/10</span></a>
 <a class="node ahead" href="#M2" style="--p:0"><span class="dot"></span><span class="nid">M2</span><span class="nname">The Loop Prototype</span><span class="nprog">0/9</span></a>
 <a class="node ahead" href="#M3" style="--p:0"><span class="dot"></span><span class="nid">M3</span><span class="nname">The Pact</span><span class="nprog">0/8</span></a>
-<a class="node ahead" href="#M4" style="--p:0"><span class="dot"></span><span class="nid">M4</span><span class="nname">Vertical Slice</span><span class="nprog">0/10</span></a>
+<a class="node ahead" href="#M4" style="--p:0"><span class="dot"></span><span class="nid">M4</span><span class="nname">Vertical Slice</span><span class="nprog">0/11</span></a>
 <a class="node ahead" href="#M5" style="--p:0"><span class="dot"></span><span class="nid">M5</span><span class="nname">Content &amp; Breadth</span><span class="nprog">0/6</span></a>
 <a class="node ahead" href="#M6" style="--p:0"><span class="dot"></span><span class="nid">M6</span><span class="nname">Ship</span><span class="nprog">—</span></a>
 </nav>
@@ -218,7 +219,7 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
 <li class="task" data-state="done" data-find="m1-t08 godot project skeleton — folder layout, the ≤6 autoload budget enforced in ci (adr-066), forward+, naming and gdscript conventions, ci for the doc index and the dashboard. the determinism harness is m1-t07&#x27;s deliverable, not this one (adr-067) tec-002 tec-001"><span class="box">▣</span><span class="tid">M1-T08</span><span class="ttext"><strong>Godot project skeleton</strong> — folder layout, the ≤6 autoload budget enforced in CI (ADR-066), Forward+, naming and GDScript conventions, CI for the doc index and the dashboard. <em>The determinism harness is <code>M1-T07</code>&#x27;s deliverable, not this one (ADR-067)</em></span><span class="trefs">TEC-002 TEC-001</span></li>
 <li class="task" data-state="done" data-find="m1-t09 ink shader spike — grey boxes, outlines and boil only. go/no-go: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (adr-062, adr-064). go (adr-070) — pass costs ≈0.4–0.6 ms at 1080p; flat quantised shading is not built art-005"><span class="box">▣</span><span class="tid">M1-T09</span><span class="ttext"><strong>Ink shader spike</strong> — grey boxes, outlines and boil only. <strong>Go/no-go</strong>: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064). <strong>GO (ADR-070)</strong> — pass costs ≈0.4–0.6 ms at 1080p; flat quantised shading is not built</span><span class="trefs">ART-005</span></li>
 <li class="task" data-state="todo" data-find="m1-t10 shared humanoid rig with all six attachment sockets — must exist before any character work; adding a socket later means re-exporting every mesh art-004 des-020"><span class="box">☐</span><span class="tid">M1-T10</span><span class="ttext"><strong>Shared humanoid rig with all six attachment sockets</strong> — must exist before <em>any</em> character work; adding a socket later means re-exporting every mesh</span><span class="trefs">ART-004 DES-020</span></li>
-</ul><div class="empty nomatch" hidden>No tasks match the filter.</div>
+</ul>
 </section>
 <section class="panel ms" id="M2"><div class="mshead"><h3>M2 — The Loop Prototype</h3><span class="tag">×1.5</span><span class="count">0/9</span></div>
 <div class="seals">
@@ -235,7 +236,7 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
 <li class="task" data-state="todo" data-find="m2-t07 party scaling instrumented from the first build: per-capita extracted value at 1/2/4 players des-012"><span class="box">☐</span><span class="tid">M2-T07</span><span class="ttext"><strong>Party scaling instrumented from the first build</strong>: per-capita extracted value at 1/2/4 players</span><span class="trefs">DES-012</span></li>
 <li class="task" data-state="todo" data-find="m2-t08 data schema base resources — itemresource + trait resources, stable string ids, plus the ci validator (duplicate ids, dangling refs, telegraph &lt;250 ms, keystones with no effect tags). built with the first ten resources, not the first thousand tec-006"><span class="box">☐</span><span class="tid">M2-T08</span><span class="ttext"><strong>Data schema base resources</strong> — <code>ItemResource</code> + trait resources, stable string IDs, <strong>plus the CI validator</strong> (duplicate IDs, dangling refs, telegraph &lt;250 ms, keystones with no effect tags). Built with the first ten resources, not the first thousand</span><span class="trefs">TEC-006</span></li>
 <li class="task" data-state="todo" data-find="m2-t09 threshold theme + adaptive driver prototype — the emotional anchor and the highest-risk audio tech, both cheap to test early art-002 art-003 tec-005"><span class="box">☐</span><span class="tid">M2-T09</span><span class="ttext"><strong>Threshold theme + adaptive driver prototype</strong> — the emotional anchor and the highest-risk audio tech, both cheap to test early</span><span class="trefs">ART-002 ART-003 TEC-005</span></li>
-</ul><div class="empty nomatch" hidden>No tasks match the filter.</div>
+</ul>
 </section>
 <section class="panel ms" id="M3"><div class="mshead"><h3>M3 — The Pact</h3><span class="tag">×2</span><span class="count">0/8</span></div>
 <div class="seals">
@@ -251,9 +252,9 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
 <li class="task" data-state="todo" data-find="m3-t06 save system with versioning and migration from day one (tec-003) tec-003"><span class="box">☐</span><span class="tid">M3-T06</span><span class="ttext">Save system with versioning and migration from day one (<code>TEC-003</code>)</span><span class="trefs">TEC-003</span></li>
 <li class="task" data-state="todo" data-find="m3-t07 equipment slots and visible gear — six slots, per-class bare arms, armour rendering over them, pack driving grid size des-020"><span class="box">☐</span><span class="tid">M3-T07</span><span class="ttext"><strong>Equipment slots and visible gear</strong> — six slots, per-class bare arms, armour rendering over them, Pack driving grid size</span><span class="trefs">DES-020</span></li>
 <li class="task" data-state="todo" data-find="m3-t08 deeds awarded at the settle beat — never mid-run; the run must end on evidence of what you did des-016"><span class="box">☐</span><span class="tid">M3-T08</span><span class="ttext"><strong>Deeds awarded at the Settle beat</strong> — never mid-run; the run must end on evidence of what you did</span><span class="trefs">DES-016</span></li>
-</ul><div class="empty nomatch" hidden>No tasks match the filter.</div>
+</ul>
 </section>
-<section class="panel ms" id="M4"><div class="mshead"><h3>M4 — Vertical Slice</h3><span class="tag">unsized</span><span class="count">0/10</span></div>
+<section class="panel ms" id="M4"><div class="mshead"><h3>M4 — Vertical Slice</h3><span class="tag">unsized</span><span class="count">0/11</span></div>
 <div class="seals">
 <div class="seal pending"><span class="k">EXIT pending</span><span>shippable-quality <strong>25 minutes</strong> ⟨tune⟩, played solo <em>and</em> as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.</span></div>
 </div>
@@ -264,11 +265,12 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
 <li class="task" data-state="todo" data-find="m4-t04 contracts tier 1–3, one faction (des-007) des-007"><span class="box">☐</span><span class="tid">M4-T04</span><span class="ttext">Contracts tier 1–3, one faction (<code>DES-007</code>)</span><span class="trefs">DES-007</span></li>
 <li class="task" data-state="todo" data-find="m4-t05 real art pass, real audio, real ui, ping system art-001 art-002 des-019 des-012"><span class="box">☐</span><span class="tid">M4-T05</span><span class="ttext">Real art pass, real audio, real UI, ping system</span><span class="trefs">ART-001 ART-002 DES-019 DES-012</span></li>
 <li class="task" data-state="todo" data-find="m4-t06 full save/load, settings, controls rebinding tec-003 des-018"><span class="box">☐</span><span class="tid">M4-T06</span><span class="ttext">Full save/load, settings, controls rebinding</span><span class="trefs">TEC-003 DES-018</span></li>
+<li class="task" data-state="todo" data-find="m4-t11 the accessibility suite — colour-blind support with no information in hue alone, ui scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / fov. split out of m4-t06 by adr-077: &quot;settings&quot; was standing in for a dozen deliverables, several of which are architectural constraints rather than options des-018"><span class="box">☐</span><span class="tid">M4-T11</span><span class="ttext"><strong>The accessibility suite</strong> — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. <em>Split out of <code>M4-T06</code> by ADR-077: &quot;settings&quot; was standing in for a dozen deliverables, several of which are architectural constraints rather than options</em></span><span class="trefs">DES-018</span></li>
 <li class="task" data-state="todo" data-find="m4-t07 steam networking integration (lobbies, invites, relay) — before any external playtest tec-004"><span class="box">☐</span><span class="tid">M4-T07</span><span class="ttext"><strong>Steam networking integration</strong> (lobbies, invites, relay) — before any external playtest</span><span class="trefs">TEC-004</span></li>
 <li class="task" data-state="todo" data-find="m4-t08 ink shader, complete — hatching (nested triplanar layers), the threshold/deep inversion, vertex-colour authoring across the asset library art-005"><span class="box">☐</span><span class="tid">M4-T08</span><span class="ttext"><strong>Ink shader, complete</strong> — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library</span><span class="trefs">ART-005</span></li>
 <li class="task" data-state="todo" data-find="m4-t09 composer onboarded; first full stem set — brief handed over as-is, stems authored to one tempo and key art-003"><span class="box">☐</span><span class="tid">M4-T09</span><span class="ttext"><strong>Composer onboarded; first full stem set</strong> — brief handed over as-is, stems authored to one tempo and key</span><span class="trefs">ART-003</span></li>
 <li class="task" data-state="todo" data-find="m4-t10 phase 2→3 asset production — real models replacing blockout, per the schedule and specs art-004"><span class="box">☐</span><span class="tid">M4-T10</span><span class="ttext"><strong>Phase 2→3 asset production</strong> — real models replacing blockout, per the schedule and specs</span><span class="trefs">ART-004</span></li>
-</ul><div class="empty nomatch" hidden>No tasks match the filter.</div>
+</ul>
 </section>
 <section class="panel ms" id="M5"><div class="mshead"><h3>M5 — Content &amp; Breadth</h3><span class="tag">unsized</span><span class="count">0/6</span></div>
 <div class="seals">
@@ -281,12 +283,13 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
 <li class="task" data-state="todo" data-find="m5-t04 full enemy roster and modifier set des-013"><span class="box">☐</span><span class="tid">M5-T04</span><span class="ttext">Full enemy roster and modifier set</span><span class="trefs">DES-013</span></li>
 <li class="task" data-state="todo" data-find="m5-t05 design and build onboarding / the first hour — des-010 c1 is the largest absolute churn point. produces a new design doc; deliberately not written yet (adr-065) — it is not needed to start development, and a reference to a document that does not exist is itself a stub. des-010 pro-005"><span class="box">☐</span><span class="tid">M5-T05</span><span class="ttext"><strong>Design and build onboarding / the first hour</strong> — <code>DES-010</code> C1 is the largest absolute churn point. <em>Produces a new design doc; deliberately not written yet (ADR-065) — it is not needed to start development, and a reference to a document that does not exist is itself a stub.</em></span><span class="trefs">DES-010 PRO-005</span></li>
 <li class="task" data-state="todo" data-find="m5-t06 balance passes against real telemetry, at every party size des-022"><span class="box">☐</span><span class="tid">M5-T06</span><span class="ttext">Balance passes against real telemetry, at every party size</span><span class="trefs">DES-022</span></li>
-</ul><div class="empty nomatch" hidden>No tasks match the filter.</div>
+</ul>
 </section>
 <section class="panel ms" id="M6"><div class="mshead"><h3>M6 — Ship</h3><span class="count">not broken down</span></div>
 <div class="empty">On the roadmap, not yet broken down into work.</div>
 </section>
-<div class="stats"><span><b>39</b> docs</span><span><b>39</b> accepted</span><span><b>76</b> ADRs</span><span><b>15</b> open questions</span><span><b>82</b> ⟨tune⟩</span></div>
+<div class="panel" id="nomatch" hidden><div class="empty">No tasks match that filter.</div></div>
+<div class="stats"><span><b>39</b> docs</span><span><b>39</b> accepted</span><span><b>77</b> ADRs</span><span><b>15</b> open questions</span><span><b>82</b> ⟨tune⟩</span></div>
 <footer class="note"><!-- generated-stamp -->Regenerated 2026-08-16 by <code>tools/status.py --write</code>. Source of truth: PRO-001 (ADR-063). Progress is scope covered, never time remaining (ADR-034).</footer>
 </main></div><script>
 (function(){
@@ -294,21 +297,26 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
   var search=document.getElementById('q');
   var tasks=[].slice.call(document.querySelectorAll('.task'));
   var groups=[].slice.call(document.querySelectorAll('.ms'));
+  var empty=document.getElementById('nomatch');
   var state='all';
   function apply(){
     var q=search.value.trim().toLowerCase();
+    var filtering=(state!=='all')||!!q;
+    var total=0;
     tasks.forEach(function(t){
       var okState=(state==='all')||(t.dataset.state===state);
       var okText=!q||t.dataset.find.indexOf(q)>-1;
       t.hidden=!(okState&&okText);
+      if(!t.hidden){total++;}
     });
     groups.forEach(function(g){
       var rows=[].slice.call(g.querySelectorAll('.task'));
       var shown=rows.filter(function(r){return !r.hidden;}).length;
-      var none=g.querySelector('.nomatch');
-      if(rows.length){ g.hidden=(shown===0&&(state!=='all'||q)); }
-      if(none){ none.hidden=shown>0; }
+      // While filtering, a milestone with nothing to show is noise — including
+      // the ones that have no tasks at all.
+      g.hidden=filtering&&shown===0;
     });
+    empty.hidden=total>0;
   }
   chips.forEach(function(c){
     c.addEventListener('click',function(){

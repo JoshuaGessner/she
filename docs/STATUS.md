@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — *two people who aren't you play for 10 minutes and ask to keep playing.*
 
-`5/43` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`5/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
-  M4["M4 Vertical Slice<br/>0/10"]:::ahead
+  M4["M4 Vertical Slice<br/>0/11"]:::ahead
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `█████▒░░░░` | 5/10 | `EXIT` pending |
 |  | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
-|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
+|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -92,6 +92,7 @@ _None. Sequencing is clean._
 - · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) `DES-007`
 - · `M4-T05` Real art pass, real audio, real UI, ping system `ART-001` `ART-002` `DES-019` `DES-012`
 - · `M4-T06` Full save/load, settings, controls rebinding `TEC-003` `DES-018`
+- · `M4-T11` **The accessibility suite** — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. *Split out of `M4-T06` by ADR-077: "settings" was standing in for a dozen deliverables, several of which are architectural constraints rather than options* `DES-018`
 - · `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest `TEC-004`
 - · `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library `ART-005`
 - · `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key `ART-003`
@@ -108,6 +109,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 76 ADRs · 15 open questions · 82 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 77 ADRs · 15 open questions · 82 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

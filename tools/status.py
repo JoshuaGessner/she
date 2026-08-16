@@ -84,6 +84,23 @@ PLACEHOLDER_RE = re.compile(
 )
 PAIRED_RE = re.compile(r"\b(ADR-\d+|M\d+-T\d+)\b")
 
+# ADR-077. A section whose *heading* deliberately means "after the thing we are
+# building" is a backlog living inside an otherwise-scheduled document, and
+# ADR-065's check cannot see it: that one works at document granularity, and
+# the document is scheduled. Detecting it needs the heading, because the
+# bullets underneath are bare noun phrases ("UI scaling and font size") with no
+# verb to match on.
+#
+# Kept to headings on purpose. Scanning section *bodies* for the same intent
+# flagged 72 of 39 documents' sections — overwhelmingly design description
+# rather than deferred work — and a check that noisy is one nobody reads.
+DEFERRING_HEADING_RE = re.compile(
+    r"beyond|later|future|post-?launch|eventually|\b1\.0\b|"
+    r"backlog|wishlist|nice to have|someday|the rest\b",
+    re.IGNORECASE,
+)
+MILESTONE_REF_RE = re.compile(r"\b(M\d+-T\d+|M[1-6])\b")
+
 
 class Doc(NamedTuple):
     id: str
@@ -574,6 +591,43 @@ def check_placeholder_language(milestones: list[Milestone]) -> list[Issue]:
     return issues
 
 
+def check_deferred_sections(docs: dict[str, Doc]) -> list[Issue]:
+    """ADR-077: a section that means "later" must say which later.
+
+    Found by audit after ADR-075: `DES-018` listed controller parity under
+    "Beyond the core loop" with nothing scheduling it, and every existing check
+    passed because the *document* was scheduled. The unit of scoping is the
+    milestone, so a section deferring work has to name one.
+    """
+    issues = []
+    for doc in sorted(docs.values(), key=lambda d: d.id):
+        if doc.status != "accepted":
+            continue
+        heading, body, line_no = "", [], 0
+
+        def judge(head: str, lines: list[str], where: int) -> None:
+            if not head or not DEFERRING_HEADING_RE.search(head):
+                return
+            if MILESTONE_REF_RE.search(head) or MILESTONE_REF_RE.search("\n".join(lines)):
+                return
+            issues.append(Issue(
+                "error", "deferred-unanchored", f"{rel(doc.path)}:{where}",
+                f"{doc.id} section '{head[:44]}' defers work but names no milestone",
+                "name the milestone or task that builds it, or say plainly that "
+                "it is not being built — a heading meaning 'later' with no "
+                "'later' attached is a backlog nobody owns",
+            ))
+
+        for n, text in enumerate(doc.text.splitlines(), 1):
+            if text.startswith("#"):
+                judge(heading, body, line_no)
+                heading, body, line_no = text.lstrip("# ").strip(), [], n
+            else:
+                body.append(text)
+        judge(heading, body, line_no)
+    return issues
+
+
 def run_checks(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int, str],
                parse_issues: list[Issue]) -> list[Issue]:
     blocking = load_blocking_questions()
@@ -584,6 +638,7 @@ def run_checks(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int
     issues += check_milestones(milestones, docs, blocking)
     issues += check_quality(milestones, docs)
     issues += check_placeholder_language(milestones)
+    issues += check_deferred_sections(docs)
     return issues
 
 
@@ -1110,8 +1165,8 @@ body{margin:0;background:var(--ground);color:var(--text);font-family:var(--sans)
   font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 a{color:inherit;text-decoration:none}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.shell{display:grid;grid-template-columns:16rem minmax(0,1fr);gap:0;min-height:100vh;
-  max-width:82rem;margin:0 auto}
+.shell{display:grid;grid-template-columns:17.5rem minmax(0,1fr);gap:0;min-height:100vh;
+  max-width:84rem;margin:0 auto}
 
 /* ── descent rail ── */
 .rail{border-right:1px solid var(--line);padding:1.5rem 1rem;position:sticky;top:0;
@@ -1132,8 +1187,9 @@ a{color:inherit;text-decoration:none}
 .descent{position:relative;padding-left:1.1rem;display:flex;flex-direction:column;gap:.15rem}
 .descent::before{content:"";position:absolute;left:.32rem;top:.9rem;bottom:.9rem;
   width:1px;background:var(--line)}
-.node{display:grid;grid-template-columns:auto 2.1rem 1fr auto;align-items:center;gap:.5rem;
-  padding:.45rem .5rem .45rem 0;margin-left:-1.1rem;padding-left:1.1rem;position:relative;
+/* The dot is absolutely positioned, so it is not a grid item — three columns, not four. */
+.node{display:grid;grid-template-columns:2.1rem minmax(0,1fr) auto;align-items:center;gap:.45rem;
+  padding:.45rem .4rem .45rem 0;margin-left:-1.1rem;padding-left:1.1rem;position:relative;
   border-radius:3px}
 .node:hover{background:var(--raised)}
 .dot{position:absolute;left:0;width:.66rem;height:.66rem;border-radius:50%;
@@ -1233,7 +1289,7 @@ footer.note{margin-top:1rem;color:var(--faint);font-size:.76rem;max-width:70ch}
   .rail{position:static;max-height:none;border-right:0;border-bottom:1px solid var(--line)}
   .descent{flex-direction:row;overflow-x:auto;padding-left:0;gap:.4rem}
   .descent::before{display:none}
-  .node{grid-template-columns:auto auto;margin-left:0;padding-left:1.3rem;
+  .node{grid-template-columns:auto;margin-left:0;padding-left:1.3rem;
     border:1px solid var(--line);flex-shrink:0}
   .nname,.nprog{display:none}
   .dot{left:.45rem}
@@ -1251,21 +1307,26 @@ APP_JS = """
   var search=document.getElementById('q');
   var tasks=[].slice.call(document.querySelectorAll('.task'));
   var groups=[].slice.call(document.querySelectorAll('.ms'));
+  var empty=document.getElementById('nomatch');
   var state='all';
   function apply(){
     var q=search.value.trim().toLowerCase();
+    var filtering=(state!=='all')||!!q;
+    var total=0;
     tasks.forEach(function(t){
       var okState=(state==='all')||(t.dataset.state===state);
       var okText=!q||t.dataset.find.indexOf(q)>-1;
       t.hidden=!(okState&&okText);
+      if(!t.hidden){total++;}
     });
     groups.forEach(function(g){
       var rows=[].slice.call(g.querySelectorAll('.task'));
       var shown=rows.filter(function(r){return !r.hidden;}).length;
-      var none=g.querySelector('.nomatch');
-      if(rows.length){ g.hidden=(shown===0&&(state!=='all'||q)); }
-      if(none){ none.hidden=shown>0; }
+      // While filtering, a milestone with nothing to show is noise — including
+      // the ones that have no tasks at all.
+      g.hidden=filtering&&shown===0;
     });
+    empty.hidden=total>0;
   }
   chips.forEach(function(c){
     c.addEventListener('click',function(){
@@ -1385,13 +1446,16 @@ def render_app(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int
                          f'<span class="tid">{t.id}</span>'
                          f'<span class="ttext">{inline_html(t.text)}</span>'
                          f'<span class="trefs">{html.escape(refs)}</span></li>')
-            o.append('</ul><div class="empty nomatch" hidden>No tasks match the filter.</div>')
+            o.append("</ul>")
         else:
             o.append('<div class="empty">'
                      + ("Its deliverable was the design corpus itself."
                         if ms.cleared else "On the roadmap, not yet broken down into work.")
                      + "</div>")
         o.append("</section>")
+
+    o.append('<div class="panel" id="nomatch" hidden><div class="empty">'
+             "No tasks match that filter.</div></div>")
 
     # warnings
     if warns:
