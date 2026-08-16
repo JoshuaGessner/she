@@ -4,7 +4,7 @@ title: Project Structure & Conventions
 status: accepted
 owner: tech
 tags: [structure, conventions, godot, tooling]
-updated: 2026-08-14
+updated: 2026-08-15
 related: [TEC-001, PRO-001]
 ---
 
@@ -76,6 +76,6 @@ Feel — combat, movement, pressure pacing — is **not** unit tested. It's play
 - **Git LFS** for `.blend`, `.png` over ~1MB, `.wav`, `.ogg` — set this up *before* art lands, not after.
 - Branches: `main` always launches. `feat/*` for work. Commit messages describe *why*.
 
-## Build & release ⟨tune⟩
+## Build & release
 
 Export presets for Windows (primary), Linux, macOS. Every build stamps commit hash + save-format version into the main menu — indispensable when triaging player bug reports against save data.

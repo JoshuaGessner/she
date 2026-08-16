@@ -880,4 +880,29 @@ Delivery held at **18.1–18.2 Hz of the 20 Hz requested (91%)** in every config
 
 ---
 
+## ADR-071 — The `untuned` check fires when a doc is *fully* built, not partly
+**Date:** 2026-08-15 · **Status:** accepted
+**Context:** After three M1 tasks closed, the dashboard carried four `untuned` warnings — `TEC-001`, `TEC-002`, `TEC-004`, `ART-005`. None was actionable, and that is the problem: a warning nobody can act on teaches the reader to skip the warnings block, which costs more than the check is worth. Investigating them found the check itself was wrong rather than the docs.
+
+**The bug.** `check_quality` warned as soon as **any** implementing task finished. But docs are implemented by several tasks across several milestones:
+
+| Doc | Implemented by | State |
+|---|---|---|
+| `ART-005` | `M1-T09` outlines and boil · `M4-T08` hatching, inversion | partly built |
+| `TEC-004` | `M1-T05` · `M1-T06` · `M4-T07` Steam relay | partly built |
+| `TEC-001` | `M1-T07` determinism · `M1-T08` | partly built |
+
+`ART-005`'s numbers **cannot** be final after `M1-T09`, because `M1-T09` was explicitly scoped to outlines and boil (ADR-062). Asking for them was incoherent.
+
+**Decision:**
+1. **`untuned` fires only when every task implementing a doc is `[x]` or `[-]`**, and at least one is `[x]`. The message names the tasks that built it.
+2. **`TEC-002`'s `⟨tune⟩` on "Build & release" is removed** — that section contains export targets and a build-stamping rule, and **not one number**. The marker was misapplied; accepting it as final is the correct half of the check's own advice.
+3. **`TEC-001`'s autoload table no longer writes the literal `⟨tune⟩`** when describing the notation. Prose *about* the marker was being counted as an instance of it, inflating the corpus total by one.
+
+**Rationale:** Three of the four warnings were the tool being wrong, and one was a doc being wrong. Neither was a number needing tuning — so suppressing the warnings would have hidden two real defects. The remaining five markers across `TEC-001`, `TEC-004` and `ART-005` are all genuine: performance targets needing a profiler, an RTT figure needing a real network, a join-in-progress sync window, wobble amplitude, and an outline distance. Every one is blocked on play, which is exactly what `⟨tune⟩` means.
+
+**Consequences:** The dashboard reports zero warnings and therefore means something again. **One real gap surfaced and is deliberately not closed here:** nothing in `PRO-001` implements `TEC-002`'s build-and-release section — no task covers export presets or stamping the commit hash and save-format version into the main menu, even though "works in an exported build" sits in the Definition of Done. Scheduling that is a scope decision and is left to the owner.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

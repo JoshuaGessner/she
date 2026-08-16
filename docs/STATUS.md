@@ -46,15 +46,6 @@ flowchart LR
 
 _None. Sequencing is clean._
 
-## Warnings
-
-| Check | Note |
-|---|---|
-| `untuned` | M1-T06 is done but TEC-004 still has 2 ⟨tune⟩ marker(s) |
-| `untuned` | M1-T08 is done but TEC-002 still has 1 ⟨tune⟩ marker(s) |
-| `untuned` | M1-T08 is done but TEC-001 still has 2 ⟨tune⟩ marker(s) |
-| `untuned` | M1-T09 is done but ART-005 still has 2 ⟨tune⟩ marker(s) |
-
 ## Tasks
 
 ### M1 — The Feel Prototype
@@ -117,6 +108,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 70 ADRs · 15 open questions · 78 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 71 ADRs · 15 open questions · 79 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

@@ -4,7 +4,7 @@ title: Godot Architecture
 status: accepted
 owner: tech
 tags: [godot, architecture, engine, systems]
-updated: 2026-08-14
+updated: 2026-08-15
 related: [TEC-002, TEC-003, DES-005]
 ---
 
@@ -21,7 +21,7 @@ related: [TEC-002, TEC-003, DES-005]
 | `EventBus` | Global signals (`enemy_died`, `hunt_escalated`, `item_taken`, `extraction_started`) |
 | `SaveSystem` | Versioned serialization + migration (`TEC-003`) |
 | `AudioDirector` | Music state machine, dynamic mixing, the Hunt's audio takeover |
-| `Config` | Tunable constants loaded from `.tres` — every `⟨tune⟩` value in the docs lands here |
+| `Config` | Tunable constants loaded from `.tres` — every tunable value in the docs lands here |
 
 `Config` matters more than it looks: **every tunable number lives in a resource file**, not in code. Balance iteration on a game like this happens hundreds of times, and recompiling logic to change a timer is how projects stall.
 

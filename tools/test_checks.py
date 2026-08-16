@@ -24,6 +24,7 @@ from typing import NamedTuple
 ROOT = Path(__file__).resolve().parent.parent
 ROADMAP = ROOT / "docs" / "process" / "PRO-001-roadmap-and-milestones.md"
 TEC005 = ROOT / "docs" / "tech" / "TEC-005-audio-technology.md"
+TEC002 = ROOT / "docs" / "tech" / "TEC-002-project-structure.md"
 
 # Every file this script can disturb, including the generated views, which
 # `status.py --write` re-stamps with today's date. Restoring these verbatim is
@@ -31,7 +32,8 @@ TEC005 = ROOT / "docs" / "tech" / "TEC-005-audio-technology.md"
 # run crosses UTC midnight relative to the commit — which is precisely how CI
 # caught this, since `--check` deliberately ignores the date stamp but
 # `git diff` does not.
-TOUCHED = [ROADMAP, TEC005, ROOT / "docs" / "STATUS.md", ROOT / "docs" / "status.html"]
+TOUCHED = [ROADMAP, TEC005, TEC002,
+           ROOT / "docs" / "STATUS.md", ROOT / "docs" / "status.html"]
 
 
 class Trial(NamedTuple):
@@ -68,6 +70,15 @@ TRIALS = [
         TEC005,
         "owner: tech",
         "owner: tech\nparked: exercising the exclusive-state check",
+    ),
+    Trial(
+        # TEC-002 is implemented by exactly one task, M1-T08, which is done —
+        # so it is the only doc that can be *fully* built today, and therefore
+        # the only one able to exercise this check at all (ADR-071).
+        "untuned", "ADR-071 — a fully built doc should not still hold ⟨tune⟩",
+        TEC002,
+        "## Build & release",
+        "## Build & release ⟨tune⟩",
     ),
 ]
 

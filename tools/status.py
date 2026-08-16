@@ -497,19 +497,34 @@ def check_milestones(milestones: list[Milestone], docs: dict[str, Doc],
 def check_quality(milestones: list[Milestone], docs: dict[str, Doc]) -> list[Issue]:
     issues = []
     implemented: set[str] = set()
+    tasks_by_doc: dict[str, list[Task]] = {}
     for ms in milestones:
         for task in ms.tasks:
             implemented.update(task.docs)
-            if task.state == DONE:
-                for ref in task.docs:
-                    doc = docs.get(ref)
-                    if doc and "⟨tune⟩" in doc.text:
-                        count = doc.text.count("⟨tune⟩")
-                        issues.append(Issue(
-                            "warn", "untuned", rel(doc.path),
-                            f"{task.id} is done but {ref} still has {count} ⟨tune⟩ marker(s)",
-                            "tune the numbers against play, or accept them as final",
-                        ))
+            for ref in task.docs:
+                tasks_by_doc.setdefault(ref, []).append(task)
+
+    # Only ask about unsettled numbers once a doc is *fully* built. Firing when
+    # any single implementing task finishes is premature and wrong: ART-005 is
+    # implemented by M1-T09 (outlines and boil) and M4-T08 (hatching, the
+    # two-world inversion), so its numbers cannot possibly be final after the
+    # first. A warning that cannot be acted on trains the reader to skip the
+    # warnings block, which costs more than the check is worth.
+    for ref, tasks in sorted(tasks_by_doc.items()):
+        doc = docs.get(ref)
+        if not doc or "⟨tune⟩" not in doc.text:
+            continue
+        if any(t.state not in (DONE, CUT) for t in tasks):
+            continue
+        if not any(t.state == DONE for t in tasks):
+            continue
+        built = ", ".join(t.id for t in tasks if t.state == DONE)
+        issues.append(Issue(
+            "warn", "untuned", rel(doc.path),
+            f"{ref} is fully implemented ({built}) but still has "
+            f"{doc.text.count('⟨tune⟩')} ⟨tune⟩ marker(s)",
+            "tune the numbers against play, or accept them as final",
+        ))
 
     for doc in sorted(docs.values(), key=lambda d: d.id):
         # Process docs describe how work happens, and a vision doc is the standard
