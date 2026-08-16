@@ -1065,4 +1065,32 @@ At M1 there is no Gilded enemy, no contract target, and nothing on the floor wor
 
 ---
 
+## ADR-080 — The rig is built to the collider, and `M1-T10` understated its own spec
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `PRO-001` `M1-T10`, extends ADR-057**
+**Context:** Opening `M1-T10` surfaced two problems, neither of them design questions — ADR-057 already locked the socket spec.
+
+**First, the task line is wrong in the dangerous direction.** `M1-T10` reads *"all six attachment sockets."* ADR-057 specifies **seven sockets**, and only **four** of the six *slots* are socketed at all — Body and Arms are skinned. Someone building from the task line rather than from `DES-020` would author six, and the entire reason this task exists is that the seventh cannot be added afterwards without re-exporting every mesh on the rig. **The task line is what gets built from, so it has to be the accurate one.**
+
+**Second, and not written down anywhere: the rig has to match dimensions that are already tuned.** `M1-T01` was signed off against a specific collider, and the encumbrance feel was approved against that. A rig authored at different proportions forces one of two bad outcomes — change the collider and invalidate a passed sign-off, or leave it and have the mesh float and clip. This constraint lived only in `player.tscn` and `default_tuning.tres`, where no one opening Blender would look.
+
+**Decision:**
+1. **`M1-T10`'s wording is corrected** to name the seven sockets and state that Body and Arms are skinned.
+2. **The rig is authored to the collider, never the reverse.** Binding figures, from `default_tuning.tres` and `player.tscn`:
+
+| | | Source |
+|---|---|---|
+| Standing height | **1.80 m** | `stand_height` |
+| Crouched height | **1.15 m** | `crouch_height` |
+| Body radius | **0.35 m** | `body_radius` |
+| Eye / camera height | **1.62 m** | `Head` transform |
+
+`sock_head` sits at the eye line, not the crown — a helm is placed relative to the face. Godot is Y-up, −Z forward, metres, and the rig is authored at **1.0 scale with no import-time rescale**, because a scaled rig makes every socket offset a lie.
+3. **Hand-authored in Blender**, not a marketplace or Mixamo base. The sockets have to be exact and permanent, and an inherited rig means inheriting bone names, orientation and scale that we do not control — retargeting drift shows up months later as clipping, at which point the re-export this task exists to prevent is exactly what is required.
+
+**Rationale:** Both halves are the same failure — a constraint that is real, load-bearing, and recorded somewhere nobody will read at the moment it matters. `ART-004` says adding a socket later means re-exporting every mesh; that warning is only useful if the socket list and the dimensions sit where the person building the rig is looking.
+
+**Consequences:** The Blender authoring is hands-on work, not something the toolchain can produce. What the toolchain *can* do is refuse a rig that does not match this spec, and that check is worth building alongside the first imported rig rather than after — an unenforced dimension is the same class of thing ADR-067 was written about.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

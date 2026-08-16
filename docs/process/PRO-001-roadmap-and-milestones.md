@@ -43,7 +43,7 @@ The most common way a project like this dies is building the meta-progression fi
 - [x] `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash. *Built before the generator on purpose — written first it is a specification `M4-T01` must satisfy, written after it only ratifies whatever the generator already does* → TEC-001, DES-015
 - [x] `M1-T08` **Godot project skeleton** — folder layout, the ≤6 autoload budget enforced in CI (ADR-066), Forward+, naming and GDScript conventions, CI for the doc index and the dashboard. *The determinism harness is `M1-T07`'s deliverable, not this one (ADR-067)* → TEC-002, TEC-001
 - [x] `M1-T09` **Ink shader spike** — grey boxes, outlines and boil only. **Go/no-go**: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064). **GO (ADR-070)** — pass costs ≈0.4–0.6 ms at 1080p; flat quantised shading is not built → ART-005
-- [ ] `M1-T10` **Shared humanoid rig with all six attachment sockets** — must exist before *any* character work; adding a socket later means re-exporting every mesh → ART-004, DES-020
+- [ ] `M1-T10` **Shared humanoid rig — seven sockets, authored to the collider** (ADR-080). `sock_head` `sock_hand_r` `sock_hand_l` `sock_back` `sock_hip_r` `sock_hip_l` `sock_shoulders`; Body and Arms are *skinned*, not socketed (ADR-057). Built to 1.80 m standing, 0.35 m radius, 1.62 m eye — the dimensions `M1-T01` was signed off against. Must exist before *any* character work; adding a socket later means re-exporting every mesh → ART-004, DES-020
 
 > **GATE M1 EXIT** `pending` — *two people who aren't you play for 10 minutes and ask to keep playing.*
 
