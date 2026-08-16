@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/ink_spike/ink_spike.gd" id="1_ink"]
+
+[node name="InkSpike" type="Node3D"]
+script = ExtResource("1_ink")
+
+[node name="World" type="Node3D" parent="."]
+
+[node name="PostQuad" type="MeshInstance3D" parent="."]

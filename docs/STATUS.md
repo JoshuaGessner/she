@@ -35,7 +35,7 @@ flowchart LR
 | | Milestone | Progress | Done | Gates |
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
-| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `██░░░░░░░░` | 2/10 | `EXIT` pending |
+| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `██▒░░░░░░░` | 2/10 | `EXIT` pending |
 |  | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
@@ -66,7 +66,7 @@ _None. Sequencing is clean._
 - ✔ `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. **GO (ADR-068)** — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing `TEC-004`
 - · `M1-T07` **Determinism harness in CI**: same seed on two processes → identical layout hash `TEC-001` `DES-015`
 - ✔ `M1-T08` **Godot project skeleton** — folder layout, the ≤6 autoload budget enforced in CI (ADR-066), Forward+, naming and GDScript conventions, CI for the doc index and the dashboard. *The determinism harness is `M1-T07`'s deliverable, not this one (ADR-067)* `TEC-002` `TEC-001`
-- · `M1-T09` **Ink shader spike** — grey boxes, outlines and boil only. **Go/no-go**: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064) `ART-005`
+- ▶ `M1-T09` **Ink shader spike** — grey boxes, outlines and boil only. **Go/no-go**: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064). *Built and measured; the gate is an aesthetic judgement and is awaiting sign-off — `tools/run_ink_spike.py`* `ART-005`
 - · `M1-T10` **Shared humanoid rig with all six attachment sockets** — must exist before *any* character work; adding a socket later means re-exporting every mesh `ART-004` `DES-020`
 
 ### M2 — The Loop Prototype

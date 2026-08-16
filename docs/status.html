@@ -74,7 +74,7 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <div class="gate"><span class="seal passed">EXIT passed 2026-08-14</span><span><code>DES-001</code> through <code>DES-008</code> at status <code>accepted</code>; <code>OPEN-QUESTIONS.md</code> empty of blocking items.</span></div>
 </div>
 <div class="card now"><div class="row"><h3>M1 — The Feel Prototype</h3><span class="tag">×1</span><span class="count">2/10</span></div>
-<div class="track"><span class="done" style="width:20.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:80.0%"></span></div>
+<div class="track"><span class="done" style="width:20.0%"></span><span class="doing" style="width:10.0%"></span><span class="left" style="width:70.0%"></span></div>
 <div class="gate"><span class="seal pending">EXIT pending</span><span><em>two people who aren&#x27;t you play for 10 minutes and ask to keep playing.</em></span></div>
 <details><summary>10 tasks</summary><ul class="tasks">
 <li><span class="state ">·</span><span class="tid">M1-T01</span><span>First-person controller: walk, sprint, crouch, stamina, weight affecting movement</span><span class="refs">DES-009 DES-005</span></li>
@@ -85,7 +85,7 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <li><span class="state s-x">✔</span><span class="tid">M1-T06</span><span><strong>Networking spike test — go/no-go:</strong> 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. <strong>GO (ADR-068)</strong> — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing</span><span class="refs">TEC-004</span></li>
 <li><span class="state ">·</span><span class="tid">M1-T07</span><span><strong>Determinism harness in CI</strong>: same seed on two processes → identical layout hash</span><span class="refs">TEC-001 DES-015</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M1-T08</span><span><strong>Godot project skeleton</strong> — folder layout, the ≤6 autoload budget enforced in CI (ADR-066), Forward+, naming and GDScript conventions, CI for the doc index and the dashboard. <em>The determinism harness is <code>M1-T07</code>&#x27;s deliverable, not this one (ADR-067)</em></span><span class="refs">TEC-002 TEC-001</span></li>
-<li><span class="state ">·</span><span class="tid">M1-T09</span><span><strong>Ink shader spike</strong> — grey boxes, outlines and boil only. <strong>Go/no-go</strong>: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064)</span><span class="refs">ART-005</span></li>
+<li><span class="state s-doing">▶</span><span class="tid">M1-T09</span><span><strong>Ink shader spike</strong> — grey boxes, outlines and boil only. <strong>Go/no-go</strong>: if it is not ~70% convincing, commit to flat quantised shading and never build the other path (ADR-062, ADR-064). <em>Built and measured; the gate is an aesthetic judgement and is awaiting sign-off — <code>tools/run_ink_spike.py</code></em></span><span class="refs">ART-005</span></li>
 <li><span class="state ">·</span><span class="tid">M1-T10</span><span><strong>Shared humanoid rig with all six attachment sockets</strong> — must exist before <em>any</em> character work; adding a socket later means re-exporting every mesh</span><span class="refs">ART-004 DES-020</span></li>
 </ul></details>
 </div>
