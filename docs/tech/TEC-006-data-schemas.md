@@ -4,7 +4,7 @@ title: Data Schemas
 status: accepted
 owner: tech
 tags: [data, resources, godot, tres, schema, tooling]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007]
 ---
 
@@ -39,8 +39,10 @@ An inheritance tree forces these into one bucket and then needs escape hatches e
 class_name ItemResource extends Resource
 
 @export var id: StringName            # "wpn_dvergar_hammer" — stable, unique, permanent
-@export var display_name: String
-@export var description: String
+# Translation keys, not English (ADR-084 closes Q104). data/locale/en.csv holds
+# the strings, so `display()` returns real text and the retrofit never happens.
+@export var name_key: StringName      # "item.wpn_dvergar_hammer.name"
+@export var description_key: StringName
 
 # The four axes from DES-008 — every item has all four
 @export var weight: float             # movement, stamina  (DES-005)
@@ -172,19 +174,24 @@ game/data/items/…   enemies/…   skills/…   contracts/…   loot/…   biom
 
 ## Validation (CI)
 
-A `tools/validate_data.py`-equivalent (or a Godot headless script) runs on every commit and fails on:
+`game/tests/data_probe.gd` runs in the pre-commit sweep (`tools/check_scripts.sh`) and fails on:
 
-- Duplicate or missing `id`
-- `telegraph_ms < 250` (ADR-053)
-- Dangling `requires` references in skill nodes
-- Items with `tribute_value > 0` and zero `weight` *and* zero `clamor` — free money, always a bug
-- Keystone nodes with no `effect_tags` — a stat stick (`DES-004`)
-- Loot entries referencing nonexistent items
+- Duplicate or missing `id`, an `id` outside the prefix set, or a file not named after its `id` — **built** (`M2-T08`)
+- Items with `tribute_value > 0` and zero `weight` *and* zero `clamor` — free money, always a bug — **built**
+- A resource with no `validate()`, or whose own `validate()` reports a problem — **built**
+- **Finding zero items at all** — **built**, and the most important one: every other rule is conditional on there being data, so without it a moved folder produces a clean, meaningless pass
+- `telegraph_ms < 250` (ADR-053) — *not built*: `AttackResource` arrives at `M4-T02`. The floor is enforced today in `TuningProfile.validate()`, where its data actually lives
+- Dangling `requires` references, and keystone nodes with no `effect_tags` (`DES-004`) — *not built*: `SkillNodeResource` arrives at `M3-T01`
+- Loot entries referencing nonexistent items — *not built*: `LootTableResource` arrives with loot spawning
+
+> **A rule arrives with its data (ADR-084).** Writing a check against an empty folder produces a green tick that cannot fail, which is worse than no check — it convinces the next reader the ground is covered. `M1-T05` shipped two such checks and only found them by planting violations.
+
+**Rules live on the resources**, as `validate() -> PackedStringArray`, the same shape `TuningProfile` uses: only a resource knows what its own fields mean. The probe owns just the questions no single resource can answer — uniqueness, and whether the corpus exists.
 
 > **Build this with the first ten resources, not the first thousand.** Data corpora rot silently, and every one of these checks encodes a design rule that would otherwise erode unnoticed.
 
 ## Open questions
 
-> **OPEN (Q103):** Do trait resources ever need per-instance state (a lantern's remaining fuel, a weapon's condition)? Resources are shared by default in Godot — **instance state must live in a separate runtime object keyed by item instance ID**, or two lanterns will share one fuel value. Decide the runtime-instance model before the first stateful item.
+> **CLOSED (Q103, ADR-084): a carried item is an `ItemInstance`, not an `ItemResource`.** The resource is the shared, immutable definition and is never mutated at runtime; an `ItemInstance` is one carried thing — a reference to its definition, a per-instance id, its grid position, and any mutable state. Inventories hold instances. Saves store the instance id plus the **stable string id**, never a path (`TEC-003`). Decided at `M2-T08`, **built at `M2-T01`** with the inventory that first needs it.
 
-> **OPEN (Q104):** Localisation — `display_name` and `description` as raw strings, or keys into a translation table? Keys cost nothing now and are painful to retrofit. **Leaning keys from the start.**
+> **CLOSED (Q104, ADR-084): keys, and they are built.** `name_key` and `description_key` are translation keys; `data/locale/en.csv` is loaded as a Godot translation, so English displays today. It cost one CSV and one project setting at ten items.

@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Script" path="res://systems/items/wieldable_trait.gd" id="2_wieldable"]
+
+[sub_resource type="Resource" id="Resource_wieldable"]
+script = ExtResource("2_wieldable")
+windup = 0.15
+active = 0.11
+recovery = 0.26
+damage = 30.0
+damage_type = 0
+reach = 1.5
+stamina_cost = 15.0
+clamor_swing = 0.9
+clamor_hit = 4.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"rlc_regin_blade"
+name_key = &"item.rlc_regin_blade.name"
+description_key = &"item.rlc_regin_blade.desc"
+weight = 3.2
+clamor = 1.0
+grid_size = Vector2i(1, 4)
+tribute_value = 120
+traits = Array[ExtResource("2_wieldable")]([SubResource("Resource_wieldable")])
+tags = Array[StringName]([&"relic", &"gear", &"glitter", &"metal"])

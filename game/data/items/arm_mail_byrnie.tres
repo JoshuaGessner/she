@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+id = &"arm_mail_byrnie"
+name_key = &"item.arm_mail_byrnie.name"
+description_key = &"item.arm_mail_byrnie.desc"
+weight = 11.0
+clamor = 1.6
+grid_size = Vector2i(3, 3)
+tribute_value = 8
+tags = Array[StringName]([&"gear", &"armour", &"metal"])

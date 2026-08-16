@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+id = &"glt_hoard_coin"
+name_key = &"item.glt_hoard_coin.name"
+description_key = &"item.glt_hoard_coin.desc"
+weight = 9.5
+clamor = 3.0
+grid_size = Vector2i(2, 2)
+tribute_value = 40
+tags = Array[StringName]([&"glitter", &"dvergar", &"metal"])

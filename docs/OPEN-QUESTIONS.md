@@ -20,11 +20,7 @@ Every question below is one of three kinds:
 
 ## Needed at M2
 
-| # | Question | Doc | Lean |
-|---|---|---|---|
-| Q36 | Godot high-level multiplayer at 4 peers × ~150 entities | `TEC-004` | **A measurement, not a decision.** The M1 spike is go/no-go on the whole approach |
-| Q103 | Runtime instance state — a lantern's fuel, a weapon's condition | `TEC-006` | Resources are shared in Godot; instance state needs a separate runtime object keyed by item instance ID. **Decide before the first stateful item** |
-| Q104 | Localisation — raw strings or translation keys? | `TEC-006` | **Keys from the start.** Costs nothing now, painful to retrofit |
+*Nothing outstanding. Q36 was answered by ADR-068 (the `M1-T06` spike returned GO) and Q103 by ADR-084; both sat here after the ADRs that closed them, which is the failure ADR-083 added a check for.*
 
 ## Needed at M4 / M5
 

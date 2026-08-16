@@ -46,7 +46,7 @@ _How it gets built._
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-08-14 | DES-003, TEC-001, TEC-002 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-16 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-08-14 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
-| `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-14 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
+| `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 
 ## Process
 

@@ -134,6 +134,22 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 			exit 1
 		fi
 	fi
+	# Every authored resource, loaded and validated (`M2-T08`, TEC-006
+	# principle 4). Data rots the way a rig does — silently, and three tools
+	# away from the symptom — and the rules it enforces are design rules that
+	# would otherwise erode without anything failing.
+	#
+	# `--quit-after` is the same backstop the churn check uses: a GDScript
+	# runtime error aborts the function it happens in, so a probe that errors
+	# never reaches its own quit() and would hang the build forever.
+	data="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
+		--script tests/data_probe.gd 2>&1)"
+	if printf '%s\n' "$data" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the authored data" >&2
+		printf '%s\n' "$data" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Two processes, host and client, over loopback (`M1-T05`). This is the
 	# only check in the sweep that exercises a *second* process, and it is the
 	# only one that can: every claim in `TEC-004` is a claim that two peers

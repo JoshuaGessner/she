@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+id = &"glt_altar_plate"
+name_key = &"item.glt_altar_plate.name"
+description_key = &"item.glt_altar_plate.desc"
+weight = 14.0
+clamor = 4.0
+grid_size = Vector2i(3, 3)
+tribute_value = 140
+tags = Array[StringName]([&"glitter", &"regalia", &"metal"])

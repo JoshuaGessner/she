@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+
+[resource]
+script = ExtResource("1_item")
+id = &"mat_bog_iron"
+name_key = &"item.mat_bog_iron.name"
+description_key = &"item.mat_bog_iron.desc"
+weight = 1.4
+clamor = 0.0
+grid_size = Vector2i(1, 1)
+tribute_value = 3
+tags = Array[StringName]([&"material", &"metal"])

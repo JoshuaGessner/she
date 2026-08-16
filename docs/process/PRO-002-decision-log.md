@@ -1175,4 +1175,35 @@ An audit of every `Q`-reference in `PRO-001` found this is the only one. The roa
 
 ---
 
+## ADR-084 — `M2-T08`: item text is keys, and the validator only checks what exists
+**Date:** 2026-08-16 · **Status:** accepted · **Closes Q104** · **Amends `TEC-006`** · **Task:** `M2-T08`
+**Context:** Building the item schema. Two things had to be settled before `ItemResource` could have fields.
+
+**Decision 1 — Q104 closed: `display_name`/`description` become `name_key`/`description_key`.** `TEC-006` already leaned this way (*"Keys cost nothing now and are painful to retrofit"*) and was right. The English lives in `data/locale/en.csv`, loaded as a Godot translation, so `display()` returns *"Dvergar Hammer"* today — **the decision is implemented, not deferred.** Cost: one CSV and one project setting. It never gets cheaper than at ten items.
+
+**Decision 2 — the validator implements the rules whose data exists, and no others.** `TEC-006` lists six. Three are built (ID uniqueness and format, required fields, the free-money rule, plus per-trait field rules). Three are **not**: `telegraph_ms >= 250`, dangling `requires` in skill nodes, and keystones with no `effect_tags`. Their resources do not exist — `EnemyResource` arrives at `M4-T02`, `SkillNodeResource` at `M3-T01` — and each rule arrives with its data.
+
+**Rationale for 2, which is the part worth keeping.** `M1-T05` shipped two checks that passed with the code deliberately broken, because neither had data that could distinguish a pass from a failure. **A rule with nothing to check is not a safeguard, it is a green tick that means nothing** — and worse than an absent check, because it convinces the next person the ground is covered. The telegraph floor is meanwhile genuinely enforced where its data actually lives: `TuningProfile.validate()`, at boot, since `M1-T02`. Writing a second copy against an empty folder would be the duplicate ADR-064 bans *and* the untestable check ADR-083 was written about, in one line.
+
+**Scope, stated plainly.** `M2-T08` delivers `ItemResource`, `ItemTrait`, `WieldableTrait`, ten authored items and `tests/data_probe.gd` in the pre-commit sweep. **Nothing reads an item yet** — wiring loot into the world is `M2-T01`, which is the next task and the reason this one went first.
+
+**One trait, not seven.** `TEC-006` names seven; `WieldableTrait` is built because every field it holds is a number the melee system already runs on. The other six describe systems that do not exist (slots `M3-T07`, extraction `M2-T04`, curses `M5-T02`), and a trait whose fields nothing reads is a schema nobody can check. Absent, not stubbed.
+
+**Decision 3 — Q103 closed: a carried item is an `ItemInstance`, not an `ItemResource`.** Godot shares one `Resource` between every holder of it, so two lanterns would share one fuel value and two blades one condition. So the definition and the carried thing are different objects:
+
+| | |
+|---|---|
+| `ItemResource` | the shared, immutable definition — what a Hoard-Coin *is*. Never mutated at runtime |
+| `ItemInstance` | one carried thing — a reference to its `ItemResource`, a per-instance id, its grid position, and any mutable state |
+
+Inventories hold `ItemInstance`s. Saves store the instance id plus the item's **stable string id**, never a resource path (`TEC-003`).
+
+**Built at `M2-T01`, decided here** — which is exactly what `TEC-006` asks: *"decide the runtime-instance model before the first stateful item."* Deciding is not building, and the first stateful item arrives with the inventory. Writing the class now, against ten deliberately stateless items and no inventory to hold them, would be the premature build Decision 2 spends its rationale rejecting.
+
+*This was going to be left open. `status.py --check` refused the commit — M2 was underway with an M2 question unresolved — and it was right: the roadmap's own next task is the one that needs the answer.*
+
+**Consequences:** `TEC-006`'s `ItemResource` sketch is corrected to keys. `OPEN-QUESTIONS.md` loses Q104. The data probe fails loudly if it finds **zero** items — without that line, a moved folder or a mistyped path produces a clean, meaningless pass, which is the exact failure this ADR spends its rationale on. Five planted violations were confirmed to fail it, two of which required fixing the *test* rather than the check.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

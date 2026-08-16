@@ -1,0 +1,28 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Script" path="res://systems/items/wieldable_trait.gd" id="2_wieldable"]
+
+[sub_resource type="Resource" id="Resource_wieldable"]
+script = ExtResource("2_wieldable")
+windup = 0.32
+active = 0.12
+recovery = 0.46
+damage = 34.0
+damage_type = 2
+reach = 1.0
+stamina_cost = 30.0
+clamor_swing = 2.0
+clamor_hit = 7.5
+
+[resource]
+script = ExtResource("1_item")
+id = &"wpn_dvergar_hammer"
+name_key = &"item.wpn_dvergar_hammer.name"
+description_key = &"item.wpn_dvergar_hammer.desc"
+weight = 6.4
+clamor = 0.0
+grid_size = Vector2i(2, 3)
+tribute_value = 0
+traits = Array[ExtResource("2_wieldable")]([SubResource("Resource_wieldable")])
+tags = Array[StringName]([&"gear", &"dvergar", &"metal"])
