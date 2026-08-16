@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -208,7 +208,7 @@ The Cinder and Maw Aspects (`DES-004`) are where sustained magical identity live
 Grounded and physical. Walk / sprint / crouch, mantling, ledge-hanging, real fall damage. Vertical traversal matters in the Delvings (`DES-006`).
 
 - **Weight is felt everywhere:** acceleration, top speed, jump height, mantle ability, stamina, footstep volume. One number the player can *feel* in their hands.
-- **Crouch is a real stealth verb** — significant Clamor reduction, meaningful speed cost.
+- **Crouch is a real stealth verb** — significant Clamor reduction, meaningful speed cost. **Hold and latch are both bound** (ADR-075): the approach crouch rewards is long, and holding an input for its duration is a physical cost rather than a skill test (`DES-018`).
 - **No parkour, no wall-running, no dodge-roll.** Mobility is earned through the Wing Aspect, not given as a baseline.
 
 ## Stealth

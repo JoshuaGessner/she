@@ -23,6 +23,7 @@ const DEBUG_WEIGHT_STEP: float = 4.0
 var _yaw: float = 0.0
 var _pitch: float = 0.0
 var _crouching: bool = false
+var _crouch_latched: bool = false
 var _crouch_blend: float = 0.0
 
 @onready var _head: Node3D = $Head
@@ -35,6 +36,7 @@ var _crouch_blend: float = 0.0
 @onready var weapon: MeleeWeapon = $Head/Weapon
 @onready var clamor: ClamorSource = $ClamorSource
 @onready var _hurtbox: Hurtbox = $Hurtbox
+@onready var _ink: InkPass = $Head/Camera3D/InkPass
 
 var _step_accumulator: float = 0.0
 var _was_on_floor: bool = true
@@ -86,6 +88,31 @@ func _unhandled_input(event: InputEvent) -> void:
 		carried.kilograms += DEBUG_WEIGHT_STEP
 	elif event.is_action_pressed("debug_weight_down"):
 		carried.kilograms -= DEBUG_WEIGHT_STEP
+	elif event.is_action_pressed("debug_ink"):
+		_ink.visible = not _ink.visible
+
+
+## Stick and arrow-key look (ADR-075).
+##
+## Rate-based, not delta-based: a mouse reports how far it moved, a stick
+## reports how far it is *held*, and treating the second like the first gives
+## the sluggish, floaty aim that makes people call controller support "added
+## but unusable". Full deflection turns at a fixed rate in radians per second.
+##
+## The response curve matters as much as the rate. A linear stick is precise
+## nowhere — too twitchy for fine aim, too slow for turning round — so small
+## deflections are compressed and large ones are not.
+func _apply_stick_look(delta: float, tuning: TuningProfile) -> void:
+	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	if look.length_squared() <= 0.0:
+		return
+	var magnitude: float = minf(look.length(), 1.0)
+	var shaped: Vector2 = look.normalized() * pow(magnitude, tuning.stick_look_curve)
+	var limit: float = deg_to_rad(tuning.pitch_limit_degrees)
+	_yaw -= shaped.x * tuning.stick_look_rate * delta
+	_pitch = clampf(_pitch - shaped.y * tuning.stick_look_rate * delta, -limit, limit)
+	rotation.y = _yaw
+	_head.rotation.x = _pitch
 
 
 func _physics_process(delta: float) -> void:
@@ -102,6 +129,7 @@ func _physics_process(delta: float) -> void:
 	if not is_on_floor():
 		velocity.y -= tuning.gravity * delta
 
+	_apply_stick_look(delta, tuning)
 	_update_stance(delta, tuning)
 
 	var wish: Vector3 = _wish_direction()
@@ -194,7 +222,15 @@ func _acceleration(tuning: TuningProfile) -> float:
 
 
 func _update_stance(delta: float, tuning: TuningProfile) -> void:
-	var wants_crouch: bool = Input.is_action_pressed("crouch")
+	# Hold and toggle, both live, because they suit different hands and neither
+	# is correct for everyone: hold reads better for a quick peek, toggle for
+	# the long quiet approach DES-005 Layer 1 actually rewards — and holding a
+	# key for a two-minute crouched crossing is a genuine accessibility cost
+	# (DES-018). The toggle is the latch; hold ORs on top of it, so releasing
+	# ctrl never cancels a crouch you toggled on.
+	if Input.is_action_just_pressed("crouch_toggle"):
+		_crouch_latched = not _crouch_latched
+	var wants_crouch: bool = _crouch_latched or Input.is_action_pressed("crouch")
 	if _crouching and not wants_crouch and _blocked_above(tuning):
 		wants_crouch = true  # something overhead; stay down
 	_crouching = wants_crouch

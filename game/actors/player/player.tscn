@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://actors/player/melee_weapon.gd" id="6_weapon"]
 [ext_resource type="Script" path="res://components/hitbox.gd" id="7_hitbox"]
 [ext_resource type="Script" path="res://components/clamor_source.gd" id="8_clamor"]
+[ext_resource type="Script" path="res://components/ink_pass.gd" id="9_ink"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
 radius = 0.35
@@ -35,6 +36,9 @@ shape = SubResource("CapsuleShape3D_body")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)
 
 [node name="Camera3D" type="Camera3D" parent="Head"]
+
+[node name="InkPass" type="MeshInstance3D" parent="Head/Camera3D"]
+script = ExtResource("9_ink")
 
 [node name="Weapon" type="Node3D" parent="Head"]
 script = ExtResource("6_weapon")

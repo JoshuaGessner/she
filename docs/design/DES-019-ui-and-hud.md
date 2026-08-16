@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005]
 ---
 
@@ -108,6 +108,7 @@ Interaction prompts, contract updates, the ping wheel (`DES-012`), a reticle **o
 4. **The HUD never lies and never hides.** There is no "immersive mode" that strips information — that is a difficulty change wearing an options-menu costume, and it would silently break `DES-018`'s parity guarantee.
 5. **One element carries urgency.** The Ear. Everything else is constant.
 6. **Diegetic where free, explicit where necessary.**
+7. **Every prompt names both devices** (ADR-075). A prompt reading *"press E"* is a keyboard-only element that has to be rebuilt rather than adjusted when a controller is plugged in, so no HUD element may be authored assuming one. Until glyph-swapping icons land at `M4-T05`, prompts carry both labels — `lmb/RT`, `ctrl/B`. **This is a rule about authoring, not about the final look:** the shipped HUD swaps to the active device's glyph, and the rule exists so that swap is a rendering change and never a redesign.
 
 ## Carried instruments — the map, the lantern, the compass
 

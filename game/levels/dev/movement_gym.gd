@@ -5,9 +5,11 @@ extends Node3D
 ## steps, gaps and a low overhang — the four things that expose a bad
 ## first-person controller immediately.
 ##
-## Unlit by the ink shader on purpose. DES-009: the grey box must feel decent
-## with no juice at all, and the shader is exactly the kind of thing that makes
+## Carried the ink pass from ADR-076 onward, and deliberately not before it.
+## DES-009 puts control ahead of polish: the grey box had to feel decent with no
+## juice at all first, because a shader is exactly the kind of thing that makes
 ## a controller *look* better while telling you nothing about how it plays.
+## Press `i`/Y to strip it back off and check that judgement still holds.
 
 const GREY: Color = Color(0.60, 0.59, 0.58)
 const ACCENT: Color = Color(0.38, 0.37, 0.36)

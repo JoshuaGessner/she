@@ -57,5 +57,6 @@ func _process(_delta: float) -> void:
 			"SEES" if enemy.sees_player() else "····",
 			"HEARS" if enemy.hears_player() else "·····",
 		])
-	lines.append("lmb attack   [ ] weight   shift sprint   ctrl crouch   r reset")
+	lines.append("lmb/RT attack   [ ] weight   shift/L3 sprint   "
+		+ "ctrl/B crouch   c/R3 toggle   i/Y ink   r reset")
 	text = "\n".join(lines)

@@ -52,6 +52,11 @@ jobs:
       - name: Locked settings and conventions
         run: python3 tools/check_project.py
 
+      # ADR-075: parity that is merely intended is parity that regresses the
+      # next time an action is added.
+      - name: Every action has a gamepad binding
+        run: python3 tools/bind_gamepad.py --check
+
       - name: Install Godot ${{ env.GODOT_VERSION }}
         run: |
           set -euo pipefail

@@ -52,7 +52,7 @@ var _amplify_copies: int = 0
 var _amplified: Array[MeshInstance3D] = []
 
 @onready var _world: Node3D = $World
-@onready var _post: MeshInstance3D = $PostQuad
+@onready var _post: InkPass = $PostQuad
 
 
 func _ready() -> void:
@@ -206,26 +206,11 @@ func _build_camera() -> void:
 
 
 func _build_post_process() -> void:
-	var quad := QuadMesh.new()
-	quad.size = Vector2(2, 2)
-	_post.mesh = quad
-	# Never let the full-screen quad be frustum-culled; it lives in clip space.
-	_post.custom_aabb = AABB(Vector3(-1e5, -1e5, -1e5), Vector3(2e5, 2e5, 2e5))
-
-	var noise := FastNoiseLite.new()
-	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
-	noise.frequency = 0.03
-	var noise_tex := NoiseTexture2D.new()
-	noise_tex.noise = noise
-	noise_tex.seamless = true
-	noise_tex.width = 256
-	noise_tex.height = 256
-
-	_material = ShaderMaterial.new()
-	_material.shader = load("res://tests/ink_spike/ink_outline.gdshader") as Shader
-	_material.set_shader_parameter("noise_tex", noise_tex)
-	_material.render_priority = 100
-	_post.material_override = _material
+	# The pass itself now lives in components/ink_pass.gd, which the game uses
+	# too. The spike reaches for its material rather than building a second
+	# one: two copies of this setup would drift apart the first time either
+	# was tuned, and then the spike would stop measuring what ships.
+	_material = _post.material
 
 
 # ── modes ─────────────────────────────────────────────────────────────────

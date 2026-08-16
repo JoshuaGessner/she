@@ -4,7 +4,7 @@ title: Legibility & Accessibility
 status: accepted
 owner: design
 tags: [accessibility, ui, hud, audio, legibility, clamor]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [DES-005, DES-013, DES-017, ART-001, PRO-005]
 ---
 
@@ -92,11 +92,20 @@ The rest, listed so it is planned rather than discovered late:
 - Mono output option (single-sided hearing loss)
 - **Visual sound indicators** as above — the same system, not a separate mode
 
-**Input**
-- Full rebinding, including modifiers
-- Toggle-vs-hold for every hold action (crouch, sprint, block, aim)
+**Input** — *the first two moved out of this list by ADR-075; see below*
+- Full rebinding, including modifiers — `M4-T06`
 - No required rapid repeated inputs; **no quick-time events anywhere**
-- Controller and keyboard parity
+
+## Input parity is a standing rule, from M1 (ADR-075)
+
+> Controller parity and toggle-vs-hold were listed above as post-slice work. They were **promoted to standing rules in M1** because both are cheap now and are retrofits later — a HUD authored as *"press E"* has to be rebuilt, not adjusted.
+
+- **Every action is reachable from a gamepad**, and `tools/bind_gamepad.py --check` fails the build if one is not. Parity that is merely intended is parity that regresses the next time an action is added.
+- **Every hold action also has a latch.** Crouch ships with both (`ctrl`/B to hold, `c`/R3 to toggle); sprint, block and aim inherit the rule as they are built. Holding an input through the long quiet approach `DES-005` Layer 1 rewards is a real physical cost, not a preference.
+- **Look is available without fine pointer control** — stick or arrow keys, rate-based, with an adjustable response curve.
+- **Prompts name both devices** (`DES-019`).
+
+Still absent, deliberately: rumble, glyph-swapping prompt icons, and rebinding UI. Those are `M4-T05`/`M4-T06` and are not approximated in the meantime.
 
 **Cognitive**
 - Contract and objective text re-readable at any time, never timed

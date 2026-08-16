@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-15
+updated: 2026-08-16
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -974,6 +974,36 @@ Crouch, by contrast, is unambiguous: **10.6× quieter than walking**, which make
 **Consequences:** occlusion makes the aggro radius a *shape* rather than a number, which is what makes crouching past a doorway a real decision instead of an arithmetic one. It also means `M1-T03`'s room set is now the thing that gives this system something to say — an open gym cannot exercise it.
 
 **Two bugs found while building it**, both worth recording because both were silent. `ClamorSource` became a `Node3D` so a listener need not reach into an emitter's parent, but the player scene still declared the node as `Node`, so the script did not attach and every clamor call hit a null — Godot reports that only at runtime. And the first occlusion measurement aimed its "clear line" straight through a 30° ramp, reading one wall of penalty as a broken doorway. **A measurement whose control case is not actually clear measures nothing.**
+
+---
+
+## ADR-075 — Full controller parity is a project rule, not a feature
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `DES-009`, `DES-018`, `DES-019`**
+**Context:** Directed. `DES-018` already listed *"controller and keyboard parity"* and *"toggle-vs-hold for every hold action"* — but under **"Beyond the core loop"**, its own heading for things deferred past the vertical slice, and no `PRO-001` task implemented either. So the intent was recorded and nothing was going to build it, which is the precise failure ADR-065 exists to catch and did not, because that check works at document granularity and this was a line inside a scheduled doc.
+
+Left to M4 it becomes a retrofit, because the cost is never the input map: it is that a HUD reading *"press E"* has to be rebuilt, and that any action which quietly assumed a pointer has to be redesigned.
+
+**Decision: every action is reachable from a gamepad, and this is checkable.**
+1. **Parity is enforced, not intended.** `tools/bind_gamepad.py --check` fails the build if any action lacks a gamepad binding. A generator rather than hand-editing because Godot writes keyboard-only actions as `Array[InputEventKey](…)` — a *typed* array that cannot hold a joypad event — so the wrapper has to be stripped every time the editor saves.
+2. **Look is rate-based, not delta-based.** A mouse reports how far it moved; a stick reports how far it is *held*. Treating the second like the first is exactly what produces the floaty aim that gets controller support called "present but unusable". Full deflection turns at `stick_look_rate` rad/s, shaped by `stick_look_curve` so small deflections stay precise.
+3. **Crouch has both a hold and a latch, on both devices** — `ctrl`/B to hold, `c`/R3 to toggle. Not a duplicate binding: they suit different hands, and holding a key through the long quiet approach `DES-005` Layer 1 rewards is a real accessibility cost (`DES-018`).
+4. **Prompts must name both devices** from here on. The debug readout already does; `DES-019` now requires it, so no HUD element can be authored keyboard-only and need rebuilding later.
+
+**Rationale:** The two tests in `CLAUDE.md` both pass — this lets a player do something *new* (play at all, with a controller or without fine pointer control) rather than making a number bigger. `PRO-005` treats accessibility as load-bearing rather than decorative, and arrow-key look, which falls out of the same action set, is the binding that makes looking around possible with no pointer at all.
+
+**Consequences:** Seventeen actions bound. `stick_look_rate` and `stick_look_curve` join the `TuningProfile` as `⟨tune⟩` values — stick feel is a playtest question and these are first guesses. Rumble, glyph-swapping prompt icons and full rebinding UI are **absent, not stubbed**: rebinding is already scheduled as `M4-T06`, and prompt glyphs belong with the real HUD at `M4-T05`. **`M1-T05`'s two-player test should use one keyboard and one controller** — that is the cheapest possible parity check and it costs nothing extra.
+
+---
+
+## ADR-076 — The ink pass moves from the spike into the game
+**Date:** 2026-08-16 · **Status:** accepted · **`M1-T09` follow-through**
+**Context:** Reported from play: *"I'm not seeing our ink style shader working correctly in the game."* Correct — it was never in the game. ADR-070 passed the `M1-T09` gate, but the shader lived only inside `game/tests/ink_spike/`, and the movement gym carried a header comment saying it was unshaded on purpose. That was right at the time: `CLAUDE.md` requires blockout to feel good unjuiced, and `DES-009` puts control before polish in Swink's ordering.
+
+**That bar has now been cleared** — encumbrance was signed off on 2026-08-15 and combat feel on 2026-08-16 — so the ordering permits the shader, and continuing to withhold it would be following the letter of a rule past its purpose.
+
+**Decision:** the pass becomes `components/ink_pass.gd` with the shader at `art/shaders/ink_outline.gdshader`, carried by the player's camera. **Moved, not copied** — the spike scene now uses the same component, because a spike-local duplicate is the parallel path ADR-064 bans and the two would diverge the first time either was tuned, at which point the spike would stop measuring what ships.
+
+**Consequences:** `i`/Y toggles the pass so the grey box can still be judged bare — one implementation switched off, not a second code path. Hatching, the Threshold/Deep inversion and the vertex-colour ink-ID channel remain **absent**; they are `M4-T08`. The gym's "unlit on purpose" comment is corrected rather than deleted, since the reasoning it records is still why the shader arrived after the controller and not before it.
 
 ---
 

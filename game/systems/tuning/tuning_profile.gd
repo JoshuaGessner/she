@@ -42,6 +42,13 @@ extends Resource
 @export_group("Look")
 @export var mouse_sensitivity: float = 0.0022
 @export var pitch_limit_degrees: float = 88.0
+## Radians per second at full stick deflection. A stick reports *displacement*,
+## not motion, so look is rate-based rather than scaled per-event like a mouse
+## (ADR-075).
+@export var stick_look_rate: float = 3.0
+## Response exponent. 1.0 is linear and precise nowhere; above 1 compresses
+## small deflections for fine aim while leaving full deflection at full rate.
+@export var stick_look_curve: float = 2.0
 @export var field_of_view: float = 75.0
 
 @export_group("Stamina")
