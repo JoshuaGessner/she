@@ -46,10 +46,14 @@ class Trial(NamedTuple):
 
 TRIALS = [
     Trial(
+        # Inserts a whole task rather than rewording an existing one. The first
+        # version edited M1-T03's text and broke the moment that task was
+        # written up — anchoring a trial to prose that is *expected* to change
+        # guarantees false alarms. A gate line is structural and stable.
         "unpaired-placeholder", "ADR-064 — stub language needs a paired removal task",
         ROADMAP,
-        "- [ ] `M1-T03` One hand-built room set, no generation",
-        "- [ ] `M1-T03` One hand-built room set, placeholder doors for now",
+        "> **GATE M1 EXIT**",
+        "- [ ] `M1-T98` placeholder work, wired up for now → DES-009\n\n> **GATE M1 EXIT**",
     ),
     Trial(
         "milestone-ungated", "ADR-065 — a milestone with tasks needs an exit gate",

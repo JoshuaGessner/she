@@ -60,6 +60,7 @@ Recorded so they are not mistaken for undesigned areas.
 | Hunter | Gold-bait cost curve; how long a bait buys | `DES-017` |
 | Art | First-person arms — universal or per-class? (Q96 answered; **proportions** are a feel question) | `ART-004` |
 | Progression | **Self-reported growth across runs 11–25** | `DES-022` — the headline metric |
+| Accessibility | **Q105 — "see your own sound": a polished, in-game version of the M1 debug clamor footprint.** The dev overlay draws the *shape* your noise actually makes, notched where walls muffle it (`M1-T04`). `DES-018`'s Ear reports **how loud** you are and **which bearing** heard you; it does not show **where your sound went**, which is the thing a hearing player gets for free and a deaf player currently cannot get at all. Worth prototyping as a toggle: does the footprint read as information or as visual noise in a real room? **If it works it is a strong candidate for the audio twin ADR-036 demands**, and it is largely already built. Cost: the shape exists; the work is art direction and the readability test | `DES-018`, `DES-019`, ADR-036, ADR-073 |
 
 ---
 

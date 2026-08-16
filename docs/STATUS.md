@@ -35,7 +35,7 @@ flowchart LR
 | | Milestone | Progress | Done | Gates |
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
-| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `█████▒░░░░` | 5/10 | `EXIT` pending |
+| ▶ | **M1** The Feel Prototype<br><sub>×1</sub> | `█████▒▒░░░` | 5/10 | `EXIT` pending |
 |  | **M2** The Loop Prototype<br><sub>×1.5</sub> | `░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
@@ -52,7 +52,7 @@ _None. Sequencing is clean._
 
 - ✔ `M1-T01` First-person controller: walk, sprint, crouch, stamina, weight affecting movement. *Unjuiced per Swink; couplings measured, encumbrance signed off 2026-08-15* `DES-009` `DES-005`
 - ▶ `M1-T02` One weapon, one enemy, hit reactions, death. *Built with the awareness ladder (ADR-072) so the fight is avoidable; anatomy and telegraph measured. Awaiting the gate judgement — does a tester swing at something they could have walked past?* `DES-009` `DES-013`
-- · `M1-T03` One hand-built room set, no generation `DES-015`
+- ▶ `M1-T03` One hand-built room set, no generation. *A cycle, not a corridor: two routes to the exit, one of them enemy-free. Both guarantees asserted by `--route-probe` rather than eyeballed. Awaiting the walk-through judgement* `DES-015`
 - ✔ `M1-T04` Weight & Clamor as visible debug numbers. *Layer 1 radius, not the M2 field (ADR-073); readout plus an audible-radius ring, since TEC-001 calls this untunable blind* `DES-005`
 - · `M1-T05` **Two players over localhost**, host-authoritative (`TEC-004`) `TEC-004`
 - ✔ `M1-T06` **Networking spike test — go/no-go:** 4 peers, ~150 synchronized entities. This validates or kills the whole Godot high-level-multiplayer approach, and it must happen now rather than at M4. **GO (ADR-068)** — CPU never the constraint; bandwidth is, and relevance filtering is load-bearing `TEC-004`
