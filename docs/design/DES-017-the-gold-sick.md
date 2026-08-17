@@ -4,7 +4,7 @@ title: The Gold-Sick — the Hunter
 status: accepted
 owner: design
 tags: [hunter, pressure, ai, theme, clamor, extraction]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [DES-005, DES-013, DES-008, DES-014, DES-018]
 ---
 
@@ -55,6 +55,10 @@ This is the mechanical core and the thing that distinguishes it.
 | **Near** | **Carried tribute value.** It can feel gold through a wall. |
 | **Contact** | Sight and sound, normally |
 
+**Built at `M2-T02`**, and the far sense is built the hard way on purpose: it navigates `TEC-001`'s **clamor field by gradient**, never a player transform. It walks up the noise and arrives where the noise *was*. `--hunt-probe` asserts exactly that — make a sound, move away silently, and the Hunter must go to the sound — and the check was verified by handing it the player's position and watching it fail. That is the shortcut this design cannot survive, because players test it directly.
+
+The middle sense is what makes going quiet insufficient, and it is now literal: a silent player carrying 316 tribute is found through walls; the same player, having put it all down, is not.
+
 **Going quiet is not enough.** A silent Veiðimaðr with a bag full of Dvergar regalia is a lantern to this thing. To become uninteresting you have to *actually give something up* — which is the entire game, expressed as an enemy's sensory model.
 
 ## The verbs — how you deal with it
@@ -63,6 +67,12 @@ This is the mechanical core and the thing that distinguishes it.
 
 **Bait it with gold.** ← *the important one*
 Throw a purse of coin down a side corridor and **it will stop and pick it up.** Every time. It cannot help itself.
+
+> **DECIDED (ADR-089): only gold a player has *disturbed* baits it.** Treasure that has lain on a plinth since before it arrived is scenery — it has been down here for years and never took the altar-plate. What draws it is **someone handling wealth**: gold that has been picked up, gold that is going somewhere, gold about to become a Tithe that is not its own.
+>
+> This was forced by the build. Implemented literally — all gold is bait — the Gullsjúkr spent an entire run walking between authored treasures and never hunted anybody. A pursuer doing a shopping round is not a pursuer. The rule also makes the counter-play mean what the rest of the design means: **baiting works because you gave something up**, not because gold happened to be nearby.
+>
+> The threshold has an absolute floor beside ADR-039's proportional one — proportional to a player carrying nothing is zero. The floor is the same value that decides whether *you* are worth crossing a room for: it does not want gold, it wants *enough* gold.
 
 This is the best interaction in the design and it costs very little to build:
 - It's a real counter-play with a real price — you're buying seconds with treasure.

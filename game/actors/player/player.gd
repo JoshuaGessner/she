@@ -52,7 +52,14 @@ const HOST_PEER: int = 1
 ## Loot leaving the bag. `CoopSession` listens and spawns the `WorldItem`,
 ## because a child never reaches into the tree above it for a service — signals
 ## up, calls down (`TEC-002`).
-signal dropped(item: StringName, at: Vector3, yaw: float)
+signal dropped(item: StringName, at: Vector3, yaw: float, launch: Vector3)
+
+## Metres per second a thrown item leaves the hand at, and how far the arc is
+## tilted up from where you are looking ⟨tune⟩. `DES-017` wants a purse to go
+## *down a side corridor*, so the throw has to buy real distance — baiting is
+## worth nothing if the gold lands at your feet.
+const THROW_SPEED: float = 11.0
+const THROW_LIFT_DEGREES: float = 14.0
 
 ## Replication rate for a player body. `TEC-004`'s budget was measured at 20 Hz
 ## (ADR-068) and the ceiling is ~29 continuously-moving entities, so a party of
@@ -288,7 +295,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("bag"):
 		_bag_wanted = not _bag_wanted
 	elif event.is_action_pressed("drop"):
-		_ask_to_drop()
+		_ask_to_drop(false)
+	elif event.is_action_pressed("throw"):
+		_ask_to_drop(true)
 	elif event.is_action_pressed("interact") and _bag <= 0.0:
 		_reach_for_loot()
 	elif event.is_action_pressed("debug_ink"):
@@ -416,38 +425,44 @@ func _take(path: NodePath) -> void:
 ## **the heaviest thing you have** — the panic dump, and weight rather than
 ## value because `DES-005` Layer 1 puts the cost of greed in your legs, so that
 ## is the one whose removal you actually feel.
-func _ask_to_drop() -> void:
+func _ask_to_drop(thrown: bool) -> void:
 	var target: ItemInstance = null
 	if _bag > 0.0:
 		if _bag_screen != null:
 			target = _bag_screen.hovered()
+	elif thrown:
+		# A throw reaches for the most *valuable* thing, not the heaviest. It is
+		# a bait (`DES-017`), and what makes a bait work is what she would pay
+		# for it — the Gullsjúkr is drawn by tribute, so throwing the mail
+		# byrnie because it happens to be heavy would buy nothing at all.
+		target = inventory.richest()
 	else:
 		target = inventory.heaviest()
 	if target == null:
 		return
-	ask_to_drop_instance(target.instance_id)
+	ask_to_drop_instance(target.instance_id, thrown)
 
 
-## Put down one specific thing. `BagScreen` calls this when an item is dragged
-## out of the grid — the same gesture as setting something on a table, and the
-## same path the panic dump takes.
-func ask_to_drop_instance(instance_id: int) -> void:
+## Put down one specific thing, or throw it. `BagScreen` calls this when an item
+## is dragged out of the grid — the same gesture as setting something on a
+## table, and the same path the panic dump takes.
+func ask_to_drop_instance(instance_id: int, thrown: bool = false) -> void:
 	if multiplayer.is_server():
-		_put_down(instance_id)
+		_put_down(instance_id, thrown)
 	else:
-		_request_drop.rpc_id(HOST_PEER, instance_id)
+		_request_drop.rpc_id(HOST_PEER, instance_id, thrown)
 
 
 @rpc("any_peer", "reliable")
-func _request_drop(instance_id: int) -> void:
+func _request_drop(instance_id: int, thrown: bool) -> void:
 	if not multiplayer.is_server():
 		return
 	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
 		return
-	_put_down(instance_id)
+	_put_down(instance_id, thrown)
 
 
-func _put_down(instance_id: int) -> void:
+func _put_down(instance_id: int, thrown: bool) -> void:
 	var item: ItemInstance = inventory.remove(instance_id)
 	if item == null:
 		return
@@ -462,8 +477,16 @@ func _put_down(instance_id: int) -> void:
 	# moment buys lasting quiet, and that is the decision `DES-005` wants a
 	# player cornered by the Hunt to have to make.
 	clamor.add(_handling_clamor(item.definition))
-	dropped.emit(item.definition.id, global_position + forward * DROP_DISTANCE,
-		rotation.y)
+
+	var at: Vector3 = global_position + forward * DROP_DISTANCE
+	var launch: Vector3 = Vector3.ZERO
+	if thrown:
+		# From the hand, not the feet, or the arc starts underground and the
+		# first physics step buries it.
+		at = global_position + Vector3(0.0, _head.position.y, 0.0) + forward * 0.4
+		var tilt: float = deg_to_rad(THROW_LIFT_DEGREES)
+		launch = (forward * cos(tilt) + Vector3.UP * sin(tilt)) * THROW_SPEED
+	dropped.emit(item.definition.id, at, rotation.y, launch)
 
 
 ## Ask to move something within the grid. Host-authoritative like everything

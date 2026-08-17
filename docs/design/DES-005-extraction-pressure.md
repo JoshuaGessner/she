@@ -27,6 +27,8 @@ The brief: *"something that pushes you towards exit."* This is the mechanism tha
 Pressure you generate yourself, immediately and legibly.
 
 - Every item has **weight** and **clamor** (loudness). Coin is heavy and loud; gems are light and silent; a suit of plate is a catastrophe of both.
+
+> **A gemstone is silent, and it still costs you (ADR-089).** *"Light and silent"* is now literal — `glt_raw_gemstone` has no clamor at all. Its price is the one `DES-008` always named: **the Gullsjúkr feels carried tribute through walls** (`DES-017`), so a pocketful of gems is a lantern to the thing hunting you however quietly you move. That is what makes weight and clamor the *physical* costs of greed rather than the only ones.
 - Weight → slower movement, shorter stamina, louder footfalls, worse dodge.
 - Clamor → wider aggro radius, faster Hunt escalation.
 - **You feel your greed in your legs.** The single most important feedback loop in the game.
@@ -53,6 +55,8 @@ At ~⟨tune⟩ 12–15 minutes, or when the floor's Clamor threshold is crossed 
 ### Layer 3 — The Sealing (hard floor, prevents infinite camping)
 
 > **REWRITTEN BY ADR-015.** Extraction is now a **resource** problem, not a routing problem.
+>
+> **DEFERRED TO `M2-T04` (ADR-089).** The Sealing seals Shafts, and Shafts are what `M2-T04` builds. It was listed under `M2-T02` with the rest of the Hunt; building it there would have meant inventing an extraction point inside a pressure task, ahead of the task that owns it. The Hunt itself — field, Gullsjúkr, escalation — landed at `M2-T02` without it.
 
 A run is all three floors (ADR-015). Leaving before the bottom is possible on every floor, but it must be *earned* — there are three ways out, and they cost different things:
 

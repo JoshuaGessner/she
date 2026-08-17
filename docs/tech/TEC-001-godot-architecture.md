@@ -4,7 +4,7 @@ title: Godot Architecture
 status: accepted
 owner: tech
 tags: [godot, architecture, engine, systems]
-updated: 2026-08-15
+updated: 2026-08-16
 related: [TEC-002, TEC-003, DES-005]
 ---
 
@@ -62,6 +62,12 @@ Custom `Resource` classes, all authorable in the editor without code:
 - Clamor is a **decaying scalar field** on a coarse grid over the floor. Actions deposit clamor; it diffuses and decays. Cheap, and produces exactly the "sound travels through the level" behaviour we want.
 - The Hunter navigates the clamor gradient, not the player's transform. It genuinely does not know where you are — it knows where noise was. That's what makes counter-play real rather than performative.
 - Hunter AI is a small, debuggable state machine: `Patrol → Investigate → Pursue → Lose → Patrol`, with a dev overlay visualizing the clamor field. **Build that overlay early**; this system is untunable blind.
+
+> **Built at `M2-T02`.** `ClamorField` is a 2 m grid — one cell per ADR-054 architecture module — diffusing at 10 Hz, host-only and never replicated. **Diffusion is blocked by walls**, so noise rounds corners through doorways and dies through rock; because of that, following the gradient one cell at a time routes the Hunter through doorways without any navmesh or pathfinder.
+>
+> The state machine is `DES-017`'s ladder rather than the sketch above — `Distant → Coursing → Sighted → Collecting → Lost` — because the Gullsjúkr has a sensory model no patrol has. The overlay is built, drawn from the host's live grid with no cached copy that could disagree with it.
+>
+> *"It genuinely does not know where you are"* is enforced, not merely intended: `--hunt-probe` makes a sound, moves the player away silently, and fails if the Hunter travels toward the player rather than the noise. The check was verified by handing it the player's transform and watching it fail.
 
 ## Multiplayer posture
 

@@ -29,7 +29,7 @@ _What the game is._
 | `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-08-14 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
-| `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-08-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
+| `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-08-16 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-08-16 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
 | `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-16 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-08-16 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
@@ -41,7 +41,7 @@ _How it gets built._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-08-15 | TEC-002, TEC-003, DES-005 |
+| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-08-16 | TEC-002, TEC-003, DES-005 |
 | `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✔ accepted | 2026-08-15 | TEC-001, PRO-001 |
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-08-14 | DES-003, TEC-001, TEC-002 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-16 | DES-012, TEC-001, TEC-003, PRO-001 |

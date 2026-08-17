@@ -134,6 +134,29 @@ func heaviest() -> ItemInstance:
 	return worst
 
 
+## The single most valuable thing you carry. What a **bait** reaches for
+## (`DES-017`): the Gullsjúkr is drawn by tribute, so the purse worth throwing
+## is the one she would pay most for — deliberately a different item from
+## `heaviest()`, which is what a panic dump reaches for. The two answers
+## disagreeing is the point.
+func richest() -> ItemInstance:
+	var best: ItemInstance = null
+	for item: ItemInstance in _items:
+		if best == null or item.definition.tribute_value > best.definition.tribute_value:
+			best = item
+	return best
+
+
+## Everything you are carrying, as she would price it. **This is what the
+## Gullsjúkr senses through walls** — going quiet is not enough, because it is
+## not listening for this (`DES-017`).
+func total_tribute() -> int:
+	var sum: int = 0
+	for item: ItemInstance in _items:
+		sum += item.definition.tribute_value
+	return sum
+
+
 # ── space ─────────────────────────────────────────────────────────────────
 
 

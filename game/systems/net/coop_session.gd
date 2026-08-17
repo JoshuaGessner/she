@@ -67,6 +67,7 @@ var _next_spawn: int = 0
 ## to agree across peers, and reusing an index after something was picked up
 ## would give a new item the name of one a client is still despawning.
 var _next_item: int = 0
+var _next_hunter: int = 0
 
 @onready var _actors: Node3D = $Actors
 @onready var _spawner: MultiplayerSpawner = $Spawner
@@ -197,6 +198,8 @@ func _spawn_actor(data: Variant) -> Node:
 			return _build_player(payload)
 		"world_item":
 			return _build_world_item(payload)
+		"hunter":
+			return _build_hunter(payload)
 		_:
 			return _build_enemy(payload)
 
@@ -240,9 +243,23 @@ func _build_world_item(payload: Dictionary) -> Node:
 	# node that entered the tree not knowing what it is would have to be told
 	# afterwards, which is one frame of an item with no mesh on every peer.
 	item.item_id = payload["item"] as StringName
+	item.launch = payload["launch"] as Vector3
+	item.disturbed = bool(payload["disturbed"])
 	item.position = payload["at"] as Vector3
 	item.rotation.y = float(payload["yaw"])
 	return item
+
+
+## The Gullsjúkr (`M2-T02`). One per floor for now — `DES-017`'s second Hunter
+## needs floors to escalate across, and there is one until `M4-T01`.
+func _build_hunter(payload: Dictionary) -> Node:
+	var hunter := Gullsjukr.new()
+	hunter.name = "gullsjukr_%d" % int(payload["index"])
+	hunter.position = payload["at"] as Vector3
+	# Authority stays with the host: every decision it makes is a consequence,
+	# and the default authority of a spawned node is already peer 1.
+	hunter.configure_replication()
+	return hunter
 
 
 func _spawn_player(peer: int) -> void:
@@ -279,19 +296,40 @@ func spawn_enemy(at: Vector3, yaw: float = 0.0) -> void:
 ##
 ## Returns the host's copy so a drop can be measured immediately; clients get
 ## theirs when the spawn packet lands.
-func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0) -> WorldItem:
+## `disturbed` defaults false, so **authored floor loot is not bait** — levels
+## place treasure without it becoming something the Gullsjúkr walks off to
+## collect. Only a player putting something down sets it (`DES-017`).
+func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0,
+		launch: Vector3 = Vector3.ZERO, disturbed: bool = false) -> WorldItem:
 	if not is_host():
 		return null
 	var made: WorldItem = _spawner.spawn({
 		"kind": "world_item", "index": _next_item, "item": item,
-		"at": at, "yaw": yaw,
+		"at": at, "yaw": yaw, "launch": launch, "disturbed": disturbed,
 	}) as WorldItem
 	_next_item += 1
 	return made
 
 
-func _on_player_dropped(item: StringName, at: Vector3, yaw: float) -> void:
-	spawn_world_item(item, at, yaw)
+func _on_player_dropped(item: StringName, at: Vector3, yaw: float,
+		launch: Vector3) -> void:
+	# Anything a player set down counts as disturbed, thrown or not: a panic
+	# dump is as much an offering as a bait, and the Hunter stopping for the
+	# pile you abandoned is `DES-005`'s counter-play paying out.
+	spawn_world_item(item, at, yaw, launch, true)
+
+
+## Levels ask for the Hunter. Returns the host's copy so a level can hand it
+## the clamor field it hunts by; clients get theirs from the spawn packet and
+## never need one, because the field is host-only (`TEC-001`).
+func spawn_hunter(at: Vector3) -> Gullsjukr:
+	if not is_host():
+		return null
+	var made: Gullsjukr = _spawner.spawn({
+		"kind": "hunter", "index": _next_hunter, "at": at,
+	}) as Gullsjukr
+	_next_hunter += 1
+	return made
 
 
 ## Free every enemy. Host-only: the despawn replicates, so a client doing this

@@ -167,6 +167,24 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Does the Hunt hunt the way `DES-017` says (`M2-T02`)? Four claims, and
+	# every one of them would be satisfied by an implementation that cheated:
+	# it goes to the noise rather than to you, a rich silent player is found
+	# anyway, a stripped-down one is not, and thrown gold reliably diverts it.
+	#
+	# The first is the one that matters most. `TEC-001` requires the Hunter to
+	# navigate the clamor field and *not* the player's transform, and handing
+	# it a transform is the single most likely shortcut anyone will take here —
+	# it would look almost identical in play and be a lie the first time a
+	# player tested it. Players test exactly this.
+	hunt="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --hunt-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$hunt" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the Hunt" >&2
+		printf '%s\n' "$hunt" | grep -E '\[hunt\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Two processes, host and client, over loopback (`M1-T05`). This is the
 	# only check in the sweep that exercises a *second* process, and it is the
 	# only one that can: every claim in `TEC-004` is a claim that two peers
@@ -184,7 +202,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
-	echo "greed costs and dropping it pays,"
+	echo "greed costs and dropping it pays, the Hunt tracks noise not transforms,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

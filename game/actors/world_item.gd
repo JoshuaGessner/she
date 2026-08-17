@@ -26,6 +26,14 @@ extends Node3D
 ## replicates from `queue_free()` on the host, which is what makes two players
 ## lunging for the same thing resolve correctly: the second request arrives to
 ## find the node already gone.
+##
+## A **thrown** item does move, and still has no synchroniser: its whole flight
+## is a parabola determined by the launch velocity in the spawn payload, so
+## every peer integrates the same arc from the same numbers and nobody sends a
+## position. Peers can drift by centimetres where a wall stops it, and that is
+## harmless — the host's copy is the one that decides pickups and the one the
+## Gullsjúkr reads. Replicating the flight would spend bandwidth per frame on
+## an object whose resting place is the only thing anyone acts on.
 
 const GROUP: StringName = &"world_items"
 
@@ -47,16 +55,46 @@ const TAG_COLOURS: Dictionary = {
 }
 const DEFAULT_COLOUR: Color = Color(0.55, 0.54, 0.52)
 
+## Metres per second lost to the floor on landing, and the height below which
+## it is simply at rest. A thrown purse should stop where it lands rather than
+## skitter — `DES-017` has the Hunter stooping to *pick it up*, which needs it
+## to be somewhere specific.
+const REST_HEIGHT: float = 0.0
+
 ## Set before the node enters the tree, by `CoopSession`, on every peer.
 var item_id: StringName = &""
+## Launch velocity, also from the spawn payload. Zero for a dropped item, which
+## is why drop and throw are one code path with one difference.
+var launch: Vector3 = Vector3.ZERO
+
+## **Did a player just put this here?** Only disturbed gold baits the Gullsjúkr
+## (`DES-017`), and the distinction turned out to be load-bearing.
+##
+## Without it, every piece of authored floor loot is an irresistible bait, and
+## `--hunt-probe` caught the consequence immediately: the Hunter spent the
+## entire run walking between treasures and never hunted anybody. A pursuer
+## doing a shopping round is not a pursuer.
+##
+## The fix is also the better fiction. It has been down there for years and the
+## altar-plate has been sitting on its plinth the whole time — it never took
+## that. What draws it is *someone handling wealth*: gold that has been picked
+## up, gold that is going somewhere, gold that is about to become a Tithe that
+## is not its own. That is its entire psychology, and it means baiting works
+## because you **gave something up**, not because gold was nearby.
+var disturbed: bool = false
 
 var _definition: ItemResource = null
 var _mesh: MeshInstance3D = null
 var _material: StandardMaterial3D = null
+var _velocity: Vector3 = Vector3.ZERO
+var _flying: bool = false
 
 
 func _ready() -> void:
 	add_to_group(GROUP)
+	_velocity = launch
+	_flying = not launch.is_zero_approx()
+	set_physics_process(_flying)
 	_definition = ItemCatalogue.by_id(item_id)
 	if _definition == null:
 		# A spawn naming an item this build does not have. Loud, because it
@@ -69,6 +107,40 @@ func _ready() -> void:
 
 func definition() -> ItemResource:
 	return _definition
+
+
+## True while it is still in the air. The Gullsjúkr ignores a bait it cannot
+## pick up yet, so a purse thrown *over* it does not stop it mid-stride.
+func in_flight() -> bool:
+	return _flying
+
+
+## Integrate the arc. Runs on every peer from the same launch velocity, so no
+## position is ever sent — see the note at the top of this file.
+##
+## `move_and_collide` needs a body; this is a `Node3D`, so the sweep is a
+## shapecast-free raycast along the step. That is enough for a thrown purse: it
+## stops at the first wall or floor it meets, which is all `DES-017`'s bait
+## needs it to do. A bouncing, rolling item would be a physics toy, and
+## `CLAUDE.md`'s anti-goals rule that out explicitly.
+func _physics_process(delta: float) -> void:
+	_velocity.y -= Config.tuning.gravity * delta
+	var step: Vector3 = _velocity * delta
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var query := PhysicsRayQueryParameters3D.create(
+		global_position, global_position + step)
+	query.collision_mask = CollisionLayers.WORLD
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit.is_empty():
+		global_position += step
+		return
+	# Land just clear of the surface, so the next frame's ray does not start
+	# inside it and report an immediate second hit.
+	global_position = (hit["position"] as Vector3) + (hit["normal"] as Vector3) * 0.02
+	global_position.y = maxf(global_position.y, REST_HEIGHT)
+	_velocity = Vector3.ZERO
+	_flying = false
+	set_physics_process(false)
 
 
 ## Bulk, as a box. A 3x3 altar-plate is visibly a shield-sized slab and a 1x1

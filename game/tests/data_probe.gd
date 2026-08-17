@@ -60,7 +60,6 @@ func _run() -> void:
 	_check_unique_ids()
 	_check_catalogue_agrees()
 	_check_items_fit_the_grid()
-	_check_no_free_money()
 
 	# A validator that validated nothing must never report success. This is
 	# the single most important line in the file: every other check here is
@@ -190,49 +189,25 @@ func _check_items_fit_the_grid() -> void:
 				% [item.id, size, grid] + "in either orientation")
 
 
-## Fraction of `carry_capacity` below which an item's weight is *no* weight
-## ⟨tune⟩. At a 40 kg capacity this is 0.2 kg — half of one percent of what
-## you can haul, which is nothing you will ever feel in your legs.
-const NEGLIGIBLE_WEIGHT_FRACTION: float = 0.005
-
-
-## **Free money, always a bug** (`TEC-006`). An item worth tributing that costs
-## nothing to carry and nothing to be near breaks the loop the whole game is
-## built on: `DES-005` makes greed felt in your legs and heard through walls,
-## and this is an item that opts out of both.
+## **The free-money rule is gone, and its absence is the decision** (ADR-089).
 ##
-## **This rule used to live on `ItemResource` and could not fire.** It asked
-## `is_zero_approx(weight)`, which compares against `CMP_EPSILON` — 0.00001 —
-## so any non-zero weight satisfied it, and the raw gemstone it was written
-## about (0.04 kg, 55 tribute) escaped on that clause before its clamor was
-## ever read. Zeroing the gem's clamor was tried and the validator passed it.
+## It asked whether a tributable item cost either weight or clamor, because
+## without one of those a valuable item was free to carry. `M2-T02` closed that
+## hole in the design rather than in the validator: the Gullsjúkr senses
+## **carried tribute value through walls** (`DES-017`), so *every* item with
+## `tribute_value > 0` now costs something by construction — it makes you
+## legible to the thing hunting you, whatever it weighs and however quiet it is.
 ##
-## The fix needs `carry_capacity` to say what "no weight" *means*, and no
-## single resource can see both, so the rule is here now. `DES-008`'s own
-## example — *"a raw gemstone (high tribute, no weight, no use)"* — is meant to
-## read as legal, and it is: **the gem pays audibly.** The day something gives
-## its wealth a different cost (`DES-017`'s wealth-sensing, `M2-T02`) this rule
-## is what forces that cost to exist before the clamor comes off.
+## Which means the rule could no longer fail. A check whose premise the design
+## has made unfalsifiable is exactly the green tick ADR-084 and ADR-088 both
+## spend their rationale on: it reads as coverage and provides none, and the
+## next person to look sees a guarded corpus that is not guarded. Deleted
+## rather than weakened into something that always passes.
 ##
-## Cells are deliberately **not** accepted as the cost. Every item occupies at
-## least one, so counting space would make the rule unfireable — the green tick
-## that cannot fail, which is the thing ADR-084 spends its rationale on.
-func _check_no_free_money() -> void:
-	if _tuning == null:
-		_fail("no TuningProfile in the corpus — 'costs nothing' has no capacity "
-			+ "to be measured against")
-		return
-	var floor_kilograms: float = (_tuning.carry_capacity
-		* NEGLIGIBLE_WEIGHT_FRACTION)
-	for item: ItemResource in _items:
-		if item.tribute_value <= 0:
-			continue
-		if item.weight >= floor_kilograms or item.clamor > 0.0:
-			continue
-		_fail(("'%s' is worth %d and costs nothing — %.2f kg is under the %.2f kg "
-			+ "that registers as weight, and it makes no sound. Free money; give it "
-			+ "a physical or an audible cost")
-			% [item.id, item.tribute_value, item.weight, floor_kilograms])
+## `glt_raw_gemstone` lost its `clamor` in the same change — `DES-005` says
+## *"gems are light and silent"*, and it had only been loud to satisfy this
+## rule. Its cost is now the one `DES-008` always described: it catches every
+## light in the dark, including the ones looking for it.
 
 
 func _fail(message: String) -> void:

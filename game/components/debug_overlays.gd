@@ -17,6 +17,14 @@ extends Node3D
 ## is what they perceive. Your clamor footprint is a line on the floor; an
 ## enemy's vision cone is a filled wedge. Two overlapping fills read as two
 ## enemies looking at the same place; two overlapping outlines read as mush.
+##
+## `M2-T02` adds the third thing: **the clamor field the Gullsjúkr navigates**,
+## drawn as a fill because it is emphatically not what you emit — it is the
+## level's memory of noise, which is a different object from your current
+## radius and behaves differently. Seeing both at once is the whole reason this
+## overlay exists: `TEC-001` says the field is untunable blind, and the two
+## things it is easiest to confuse are *how far I carry right now* and *where
+## the noise I made is still lying around.*
 
 ## Enough to show a doorway notch without the outline looking polygonal.
 const RING_SEGMENTS: int = 96
@@ -39,7 +47,19 @@ const OVERLAY_PRIORITY: int = 127
 ## ramp read as a wall.
 const EAR_HEIGHT: float = 1.2
 
+## The field, as heat. Warm where noise is, and it has to stay well under the
+## vision fills in value or a loud room drowns out every other diagnostic.
+const FIELD_COLOUR: Color = Color(0.72, 0.30, 0.12, 0.30)
+## Cells quieter than this are not drawn at all. Drawing every cell at low alpha
+## turns the floor into a uniform wash that reads as nothing.
+const FIELD_FLOOR: float = 0.35
+## Just off the floor, under the emission outline. The field is background
+## information; your own footprint is the thing you are reading.
+const FIELD_HEIGHT: float = 0.03
+
 var _ring: MeshInstance3D = null
+var _field_mesh: MeshInstance3D = null
+var _field: ClamorField = null
 var _player: Player = null
 
 
@@ -48,6 +68,25 @@ func _ready() -> void:
 	_ring.mesh = ImmediateMesh.new()
 	_ring.material_override = _material(RING_COLOUR)
 	add_child(_ring)
+
+	_field_mesh = MeshInstance3D.new()
+	_field_mesh.mesh = ImmediateMesh.new()
+	var field_material: StandardMaterial3D = _material(Color.WHITE)
+	# Loudness is per cell, so it arrives as a vertex colour rather than as a
+	# material property. Without this flag `surface_set_color` is silently
+	# ignored and every cell draws at the same alpha — a field that looks
+	# uniform, which is exactly the reading it must never give.
+	field_material.vertex_color_use_as_albedo = true
+	_field_mesh.material_override = field_material
+	add_child(_field_mesh)
+
+
+## Levels hand over the field they built. Not discovered by group: the field is
+## host-only (`TEC-001`), so on a client there is genuinely nothing to draw and
+## the overlay should show nothing rather than an empty grid that reads as
+## "silent everywhere".
+func show_field(field: ClamorField) -> void:
+	_field = field
 
 
 func _process(_delta: float) -> void:
@@ -59,7 +98,52 @@ func _process(_delta: float) -> void:
 		if _player == null:
 			return
 	_redraw_ring()
+	_redraw_field()
 	_sync_vision()
+
+
+## The clamor field, one quad per audible cell, brighter where it is louder.
+##
+## Redrawn every frame from the host's live grid rather than cached on the
+## field's `ticked` signal — the overlay must never be able to show a field the
+## Hunter is not reading, and the cheapest way to guarantee that is to have no
+## second copy to fall out of date (the ADR-073 rule).
+func _redraw_field() -> void:
+	var mesh: ImmediateMesh = _field_mesh.mesh as ImmediateMesh
+	mesh.clear_surfaces()
+	if _field == null or _field.width() == 0:
+		return
+	var ceiling: float = maxf(Config.tuning.clamor_field_maximum, 0.001)
+	# Gathered before the surface is opened, because `surface_end` on an empty
+	# surface is an engine error rather than a no-op — and a silent field is
+	# the *normal* state at the start of a run, so the naive version errors
+	# every frame until somebody makes a noise.
+	var audible: Array[Vector2i] = []
+	for y: int in range(_field.height()):
+		for x: int in range(_field.width()):
+			if _field.level_in(Vector2i(x, y)) >= FIELD_FLOOR:
+				audible.append(Vector2i(x, y))
+	if audible.is_empty():
+		return
+
+	var half: float = ClamorField.CELL_METRES * 0.5
+	mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+	for cell: Vector2i in audible:
+		var centre: Vector3 = _field.cell_centre(cell.x, cell.y)
+		centre.y = FIELD_HEIGHT
+		# Alpha carries loudness. Value rather than hue, so the overlay is
+		# still readable in monochrome (`DES-018`) and does not compete with
+		# the one saturated colour the game reserves for treasure.
+		var shade: Color = FIELD_COLOUR
+		shade.a *= clampf(_field.level_in(cell) / ceiling, 0.0, 1.0) * 3.0
+		mesh.surface_set_color(shade)
+		var a := centre + Vector3(-half, 0.0, -half)
+		var b := centre + Vector3(half, 0.0, -half)
+		var c := centre + Vector3(half, 0.0, half)
+		var d := centre + Vector3(-half, 0.0, half)
+		for corner: Vector3 in [a, b, c, a, c, d]:
+			mesh.surface_add_vertex(corner)
+	mesh.surface_end()
 
 
 func _material(colour: Color) -> StandardMaterial3D:

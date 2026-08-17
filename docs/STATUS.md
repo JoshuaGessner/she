@@ -8,14 +8,14 @@
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
-`12/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`13/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>2/9"]:::current
+  M2["M2 The Loop Prototype<br/>3/9"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███░░░░░░░░░░░░` | 2/9 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `█████░░░░░░░░░░` | 3/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -72,9 +72,9 @@ _None. Sequencing is clean._
 
 - ✔ `M2-T08` **Data schema base resources** — `ItemResource` + trait resources, stable string IDs, **plus the CI validator**. Built with the first ten resources, not the first thousand. *Moved ahead of `M2-T01` by ADR-083. `WieldableTrait` only — the other six traits describe systems that do not exist yet. Validator implements the rules whose data exists and no others (ADR-084): a rule against an empty folder is a green tick that cannot fail. Item text is translation keys (ADR-084)* `TEC-006`
 - ✔ `M2-T01` Loot with weight and clamor; **one inventory: grid-based, weighted, real-time** (ADR-040, reaffirmed by ADR-083 — decided, not a prototype fork). *6×5 grid ⟨tune⟩, `ItemInstance` + `ItemCatalogue`, host-validated pickup and drop, blockout bag screen. The room set's Prize is `glt_altar_plate` and its hand-rolled loot path is deleted. Carried clamor is a decay floor, so dropping loot buys silence back (ADR-087)* `DES-008` `DES-005` `DES-019`
-- · `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (`DES-005`) `DES-017` `DES-005`
-- · `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build `DES-018` `DES-019` `TEC-005`
-- · `M2-T04` Extraction: reach an exit, keep what you carried `DES-005` `DES-002`
+- ✔ `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation. *It navigates the clamor gradient and never a player transform (`TEC-001`), feels carried tribute through walls, and stops for gold a player disturbed — authored floor treasure is scenery to it (ADR-089). The throw verb is built. **The Sealing moved to `M2-T04`**, where the Shafts it seals exist* `DES-017` `DES-005`
+- · `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build. *Carries the Gullsjúkr's reserved instrument: `DES-017` says you hear it before you see it, always, and `M2-T02` shipped it with only the visual half* `DES-017` `DES-018` `DES-019` `TEC-005`
+- · `M2-T04` Extraction: reach an exit, keep what you carried — **plus the Sealing** (`DES-005` Layer 3), moved here from `M2-T02` by ADR-089 because it seals the Shafts this task builds `DES-005` `DES-002`
 - · `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) `DES-003` `DES-008` `DES-012`
 - · `M2-T06` Minimal Lair: stash and re-descend `DES-008` `DES-014`
 - · `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players `DES-012`
@@ -85,7 +85,7 @@ _None. Sequencing is clean._
 - · `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) `DES-003` `DES-004` `DES-008`
 - · `M3-T02` **Two classes complete** — Húskarl and Veiðimaðr, opposite loop relationships. **The other four are absent from the class-select screen entirely.** A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064) `DES-011`
 - · `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested `DES-003` `DES-012`
-- · `M3-T04` Tithe and Pact Rank escalation (`DES-003`) `DES-003`
+- · `M3-T04` Tithe and Pact Rank escalation (`DES-003`) — *and with it the rank at which a Gullsjúkr becomes killable, which `M2-T02` left absent rather than stubbed* `DES-003` `DES-017`
 - · `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) `DES-003` `DES-019`
 - · `M3-T06` Save system with versioning and migration from day one (`TEC-003`) `TEC-003`
 - · `M3-T07` **Equipment slots and visible gear** — six slots, per-class bare arms, armour rendering over them, Pack driving grid size `DES-020`
@@ -93,7 +93,7 @@ _None. Sequencing is clean._
 
 ### M4 — Vertical Slice
 
-- · `M4-T01` The Delvings: full generation from room modules, 3 floors `DES-015` `DES-006`
+- · `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037); `M2-T02` has one floor to hunt on* `DES-015` `DES-006` `DES-017`
 - · `M4-T02` ~6 enemy archetypes, 2 hazard types `DES-013`
 - · `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* `DES-011`
 - · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) `DES-007`
@@ -116,6 +116,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 88 ADRs · 12 open questions · 89 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 89 ADRs · 12 open questions · 89 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

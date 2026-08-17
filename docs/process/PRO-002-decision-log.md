@@ -1307,4 +1307,35 @@ Setting the gem's clamor to `0.0` was tried directly: **55 tribute, 0.04 kg, sil
 
 ---
 
+## ADR-089 — `M2-T02`: the Hunt tracks noise, wants *disturbed* gold, and the Sealing moves to `M2-T04`
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `DES-017`, `DES-005`, `PRO-001`, `TEC-006`** · **Supersedes ADR-088's rule**
+
+**Context:** `M2-T02` reads *"The Hunt: clamor field, the Gullsjúkr, escalation, the Sealing"*. Two of those four have dependencies that land later, and building them now would mean inventing the things they act on.
+
+**Decision 1 — the Sealing moves to `M2-T04`.** `DES-005` Layer 3 seals **Shafts**, and Shafts are what `M2-T04` builds. There is nothing to seal, and a Sealing invented here would be an extraction system built inside a pressure task, ahead of the task that owns it. Cross-floor persistence (Q9) and *"a second one joins"* are likewise noted as `M4` work: there is one hand-built floor until `M4-T01`, so *"floor 1 absent, floor 2 arrives, floor 3 already there"* has nothing to vary across. The Gullsjúkr is on the one floor that exists — a scoping consequence, not a design change.
+
+**Decision 2 — the throw is built.** `DES-009` listed it among the absent verbs, and `DES-017` calls baiting *"the best interaction in the design"*. Baiting by dropping at your feet does not draw the Hunter *away*, so it buys no time and the counter-play does not work; the doc says *down a side corridor* and means it. Cost was small because `WorldItem` and drop already existed — a throw is a drop with a launch velocity. The arc integrates identically on every peer from the spawn payload, so no position is replicated.
+
+**Decision 3 — only *disturbed* gold baits it.** This is new, and it is the change the build forced.
+
+`DES-017` describes baiting with thrown gold and says nothing about treasure already lying on the floor. Implemented literally, every authored item became an irresistible bait: **the Gullsjúkr spent the entire run walking between treasures and never hunted anybody.** `--hunt-probe` reported it as a wealth-sensing failure, which is what it looked like from outside — the Hunter never noticed a rich player because it was already stooped over a torc.
+
+So a `WorldItem` is bait only if a player put it there. The fix is also the better fiction: it has been down there for years and never took the altar-plate off its plinth. What draws it is **someone handling wealth** — gold that is going somewhere, gold about to become a Tithe that is not its own. Baiting works because you *gave something up*, which is the sentence the whole game is written in.
+
+The bait threshold also gained an absolute floor beside ADR-039's proportional one, because proportional to a player carrying nothing is zero. The floor is `hunter_wealth_floor` — the same number that decides whether *you* are worth crossing a room for. One threshold for "worth having", applied to a player and a purse alike: it does not want gold, it wants *enough* gold.
+
+**Decision 4 — the free-money rule is deleted, and ADR-088's fix is superseded.** ADR-088 repaired a rule that could not fire and predicted this: *"when wealth-sensing lands, this rule blocks the clamor coming off until the replacement cost exists."* It did exactly that, and then the design closed the hole underneath it. The Gullsjúkr senses carried tribute through walls, so **every** item with `tribute_value > 0` now costs something by construction — it makes you legible to the thing hunting you, whatever it weighs. The rule can no longer fail, and a check whose premise the design has made unfalsifiable is the green tick ADR-084 spends its rationale on. Deleted rather than weakened into something that always passes.
+
+`glt_raw_gemstone` lost its `clamor` in the same change. `DES-005` says *"gems are light and silent"*; it had only ever been loud to satisfy the rule that is now gone. Its cost is the one `DES-008` always described — it catches every light in the dark, including the ones looking for it.
+
+**The bug the greed probe caught, which had nothing to do with greed.** Built in code rather than from a `.tscn`, the Gullsjúkr inherited `CharacterBody3D`'s default `collision_layer = 1` — which is **WORLD**. It was architecture: it blocked the player like a wall, it blocked `ClamorSource.reach()` so standing behind it muffled you, and it blocked `ClamorField._open_between`, making the Hunter a moving obstruction in the noise field it navigates by, able to wall off the trail it was following. `--bag-probe` found it by reporting that dropping 14 kg made the player *slower* — the Hunter had walked into them and was pushing. A check written for one thing failing on another is the argument for keeping it in the sweep.
+
+**Measured:** a 21-by-25 field at 2 m per cell over the room set; a 20-unit deposit lands 21.5 in the cell it was made in. After making noise in the west corridor and moving silently to the east, the Hunter travels **+4.98 m toward the sound and +2.25 m toward the player** — it goes where the noise was. A silent player carrying 316 tribute is found; the same player carrying nothing is not. A thrown purse takes it from SIGHTED to COLLECTING.
+
+**Consequences:** `--hunt-probe` joins the pre-commit sweep with four assertions, **each confirmed by planting a violation** — including handing the Hunter the player's transform, which is the shortcut anyone would reach for and which the probe exists to refuse. `TuningProfile` gains a Hunt group; `hunter_wealth_floor` is an `int` because `tribute_value` is one and the two are compared directly. The field's debug overlay is built per `TEC-001`'s *"build that overlay early; this system is untunable blind."*
+
+**Absent, not stubbed:** killing it (`DES-017` makes that a high-Pact-Rank ability and Pact Rank is `M3-T04`), its audio (`M2-T03` owns the reserved instrument), and satisfying it outright.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

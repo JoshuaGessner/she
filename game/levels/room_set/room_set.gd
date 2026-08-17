@@ -142,6 +142,21 @@ const LOOT: Array = [
 ## Godot's host is always peer 1, offline peer included.
 const HOST_PEER: int = 1
 
+## Where the Gullsjúkr starts (`M2-T02`). The far end of the guardian wing,
+## behind the Prize — so it begins between you and nothing, and the first time
+## you meet it is on the walk *out* with a full bag, which is `DES-017`'s
+## *"make the extraction walk the tensest part of the run"*.
+##
+## `DES-017` puts it on floor 2 and later, absent from floor 1 to protect the
+## quiet opening. There is one floor, so it is here — and that is a scoping
+## consequence recorded in ADR-089, not a design change.
+const HUNTER_POST: Vector3 = Vector3(21.0, 0.1, -25.0)
+
+## The field's footprint, a little wider than the room bounds so a doorway on
+## the outer wall still has a cell on both sides of it.
+const FIELD_FROM: Vector3 = Vector3(-16.0, 0.0, -36.0)
+const FIELD_TO: Vector3 = Vector3(26.0, 0.0, 14.0)
+
 ## How far apart the heaviest and lightest kilograms-per-cell on this floor
 ## must be before `--bag-probe` accepts that space and weight are two different
 ## constraints (`DES-019`). Not a tuned value — a floor under "these are not
@@ -149,6 +164,8 @@ const HOST_PEER: int = 1
 const DENSITY_SPREAD_FLOOR: float = 3.0
 
 var _session: CoopSession = null
+var _field: ClamorField = null
+var _hunter: Gullsjukr = null
 
 @onready var _world: Node3D = $World
 
@@ -161,7 +178,10 @@ func _ready() -> void:
 	# What you emit and what they perceive, on the floor (ADR-078). This set has
 	# corners and doorways, which is the only place occlusion has anything to
 	# show — the gym it came from is mostly open ground.
-	_world.add_child(DebugOverlays.new())
+	_build_hunt()
+	var overlays := DebugOverlays.new()
+	_world.add_child(overlays)
+	overlays.show_field(_field)
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
@@ -173,6 +193,8 @@ func _ready() -> void:
 			_bag_probe()
 		elif arg.begins_with("--bag-shot="):
 			_bag_shot(arg.split("=", true, 1)[1])
+		elif arg == "--hunt-probe":
+			_hunt_probe()
 		elif arg == "--hash":
 			_print_hash()
 		elif arg.begins_with("--coop-probe="):
@@ -394,6 +416,114 @@ func _carried_names(player: Player) -> String:
 	for item: ItemInstance in player.inventory.items():
 		names.append(item.definition.display())
 	return "· ".join(names) if names.size() > 0 else "(nothing)"
+
+
+## Does the Hunt work the way `DES-017` says it does (`M2-T02`)?
+##
+## Four claims, and every one of them is a claim a lazier implementation would
+## satisfy by cheating. Each is checked in a way that **fails if the Gullsjúkr**
+## **is ever given the player's transform**, which is the single most likely
+## shortcut anyone will reach for here.
+##
+## 1. **It goes to the noise, not to you.** The load-bearing one. Make a loud
+##    sound at one end of a corridor, move the player far away in silence, and
+##    the Hunter must walk to *where the sound was*. `TEC-001`: *"it genuinely
+##    does not know where you are — it knows where noise was."*
+## 2. **A rich silent player is found anyway.** `DES-017`'s middle sense.
+##    Carrying nothing and standing still must not be equivalent to carrying a
+##    hoard and standing still, or *"going quiet is not enough"* is a slogan.
+## 3. **Stripping down makes you uninteresting.** The same player, having put
+##    the gold down, must stop registering. This is the counter-play, and it is
+##    the M2 gate question wearing an enemy's sensory model.
+## 4. **Gold diverts it.** A thrown purse worth enough must pull it off you and
+##    hold it — `DES-017`: *"it will stop and pick it up. Every time."*
+func _hunt_probe() -> void:
+	var player: Player = _session.local_player()
+	var hunter: Gullsjukr = _hunter
+	if hunter == null:
+		printerr("[hunt] FAIL no Gullsjúkr in the level")
+		get_tree().quit(1)
+		return
+	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ 1. noise, not you ─
+	#
+	# The player is parked in the *west* corridor and made loud there, then
+	# teleported to the far *east* corridor and silenced. If the Hunter walks
+	# east it is reading a transform; if it walks west it is reading the field.
+	var noise_at: Vector3 = Vector3(-9.0, 0.1, -10.0)
+	var hide_at: Vector3 = Vector3(9.0, 0.1, -10.0)
+	hunter.global_position = Vector3(-9.0, 0.1, -22.0)
+	player.inventory.clear()
+	player.teleport(noise_at, 0.0)
+	await _hold(0.3)
+	player.clamor.add(Config.tuning.clamor_maximum)
+	print("[hunt] the deposit  %.1f in the field, %.1f in the cell it was made in" % [
+		_field.total(), _field.level_at(player.global_position)])
+	await _hold(0.6)
+	# Gone, and silent, before the Hunter has had time to arrive.
+	player.teleport(hide_at, 0.0)
+	player.clamor.silence()
+	var started: Vector3 = hunter.global_position
+	await _hold(2.5)
+	var moved: Vector3 = hunter.global_position - started
+	var toward_noise: float = moved.dot((noise_at - started).normalized())
+	var toward_player: float = moved.dot((hide_at - started).normalized())
+	print("[hunt] chased noise  %+.2f m toward the sound, %+.2f m toward the player" % [
+		toward_noise, toward_player])
+	if toward_noise <= toward_player:
+		problems.append("the Hunter moved toward the player rather than toward the "
+			+ "noise — it is reading a transform, and TEC-001 says it must not")
+
+	# ─ 2 and 3. wealth, through walls and through silence ─
+	#
+	# Same position, same silence, twice. The only thing that changes between
+	# the two samples is what is in the bag, so nothing else can explain a
+	# difference in what the Hunter does.
+	var watch_from: Vector3 = Vector3(9.4, 0.1, -8.0)
+	hunter.global_position = Vector3(9.0, 0.1, -20.0)
+	player.teleport(watch_from, 0.0)
+	player.inventory.clear()
+	player.clamor.silence()
+	await _hold(0.6)
+	var poor_target: bool = hunter.target() != null
+	for row: Array in LOOT:
+		var definition: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
+		if definition != null and definition.tribute_value > 0:
+			player.inventory.add(definition)
+	player.clamor.silence()
+	await _hold(0.6)
+	var rich_target: bool = hunter.target() != null
+	print("[hunt] wealth sense  carrying %d: %s   carrying nothing: %s" % [
+		player.inventory.total_tribute(),
+		"seen" if rich_target else "unseen",
+		"seen" if poor_target else "unseen"])
+	if not rich_target:
+		problems.append("a silent player carrying a hoard went unnoticed — DES-017's "
+			+ "middle sense is what makes going quiet insufficient")
+	if poor_target:
+		problems.append("a silent player carrying nothing was still hunted — then "
+			+ "giving up loot buys nothing and the counter-play is decorative")
+
+	# ─ 4. gold diverts it ─
+	#
+	# Thrown through the real path, so what is measured is the verb that ships.
+	var before_state: int = hunter.state_index
+	player.ask_to_drop_instance(player.inventory.richest().instance_id, true)
+	await _hold(1.2)
+	var collecting: bool = hunter.state() == Gullsjukr.State.COLLECTING
+	print("[hunt] the bait      state %s → %s" % [
+		Gullsjukr.State.keys()[before_state],
+		Gullsjukr.State.keys()[hunter.state_index]])
+	if not collecting:
+		problems.append("a thrown purse did not divert the Hunter — DES-017 calls "
+			+ "this the best interaction in the design and it must be reliable")
+
+	print("[hunt] field         %d cells, %.1f total clamor, %.1f m wealth range" % [
+		_field.width() * _field.height(), _field.total(), hunter.wealth_range()])
+	for problem: String in problems:
+		printerr("[hunt] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 # ── the co-op guarantee, measured rather than eyeballed ──────────────────
@@ -817,6 +947,22 @@ func _build_room(name: String) -> void:
 func _spawn_loot() -> void:
 	for row: Array in LOOT:
 		_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
+
+
+## The Hunt (`M2-T02`): the field, then the thing that navigates it.
+##
+## The field is added on every peer and simply does nothing on a client — it
+## refuses to process there (`TEC-001`: host-only, never replicated). Building
+## it unconditionally keeps the level free of a networking branch, which is the
+## property `_spawn_actors` already relies on.
+func _build_hunt() -> void:
+	_field = ClamorField.new()
+	_field.name = "ClamorField"
+	add_child(_field)
+	_field.configure(FIELD_FROM, FIELD_TO)
+	_hunter = _session.spawn_hunter(HUNTER_POST)
+	if _hunter != null:
+		_hunter.hunt_with(_field)
 
 
 func _build_lighting() -> void:

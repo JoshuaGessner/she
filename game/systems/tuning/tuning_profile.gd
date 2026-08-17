@@ -98,6 +98,52 @@ extends Resource
 ## act by design, not by accident (`DES-019`).
 @export var bag_speed_multiplier: float = 0.45
 
+@export_group("The Hunt")
+## `TEC-001`'s decaying scalar field (`M2-T02`). Ceiling per cell, so one very
+## loud event cannot flatten the whole gradient into a plateau the Hunter
+## cannot climb.
+@export var clamor_field_maximum: float = 24.0
+## Fraction of a cell's level handed to its open neighbours each tick. Higher
+## spreads noise further and faster and blurs the direction it came from —
+## which is the trade: a field that spreads too eagerly tells the Hunter a
+## room was loud, not which corner of it.
+@export var clamor_field_spread: float = 0.22
+## Units lost per second. Sets how long the Hunter can follow a cold trail, and
+## with it how much a moment of quiet actually buys you.
+@export var clamor_field_decay: float = 0.9
+## Below this a cell is silence, not a whisper. Without a floor the Hunter
+## chases rounding error forever and never returns to wandering.
+@export var clamor_field_floor: float = 0.35
+
+## Metres the Gullsjúkr feels carried wealth **through walls** (`DES-017`).
+## *"A silent Veiðimaðr with a bag full of Dvergar regalia is a lantern to this
+## thing."* Going quiet is not enough; you have to give something up.
+@export var hunter_wealth_range: float = 26.0
+## Tribute value that registers at all. Below it you are not worth crossing a
+## room for, which is what makes a stripped-down run genuinely uninteresting to
+## it rather than merely quieter.
+## An `int` because `tribute_value` is one, and the two are compared directly.
+## As a float it silently narrowed at every call site, including inside `maxi`.
+@export var hunter_wealth_floor: int = 20
+@export var hunter_walk_speed: float = 1.9
+@export var hunter_pursue_speed: float = 3.1
+## What escalation buys it, per minute on the floor ⟨tune⟩ — `DES-017`: *"it
+## gets faster and reads you more accurately the longer you stay."*
+@export var hunter_speed_per_minute: float = 0.28
+@export var hunter_range_per_minute: float = 3.0
+## Seconds it keeps coming after losing you. Long, on purpose: `DES-017` says
+## it does not lose interest quickly, and a pursuer you can shake in two
+## seconds is a patrol.
+@export var hunter_patience: float = 9.0
+## Seconds it spends stooped over thrown gold. **The player's window** — the
+## whole value of a bait is measured in this number.
+@export var hunter_collect_seconds: float = 4.5
+## ADR-039: a bait must be worth this fraction of what you carry before it is
+## more interesting than you are. **Proportional, not fixed** — a flat toll
+## would be ruinous on floor one and pocket change by the time it matters.
+@export var hunter_bait_fraction: float = 0.34
+@export var hunter_reach: float = 2.0
+
 @export_group("Interaction")
 ## Metres you can reach a thing from. Latency slack is added on top **on the
 ## host**: a client presses interact from where it believes it stands, and the

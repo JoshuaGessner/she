@@ -32,7 +32,7 @@ LEFT_STICK, RIGHT_STICK = 7, 8
 LEFT_SHOULDER, RIGHT_SHOULDER = 9, 10
 DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT = 11, 12, 13, 14
 AXIS_LX, AXIS_LY, AXIS_RX, AXIS_RY = 0, 1, 2, 3
-AXIS_TRIGGER_RIGHT = 5
+AXIS_TRIGGER_LEFT, AXIS_TRIGGER_RIGHT = 4, 5
 
 # One binding per action. Sticks are analogue on purpose: movement and look are
 # the two places a controller is *better* than a keyboard, and quantising them
@@ -66,6 +66,10 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     "bag": [(BUTTON, LEFT_SHOULDER, 0.0)],
     "drop": [(BUTTON, DPAD_DOWN, 0.0)],
     "rotate_item": [(BUTTON, RIGHT_SHOULDER, 0.0)],
+    # Baiting the Gullsjúkr (`M2-T02`, DES-017). On the trigger opposite attack,
+    # because it is the other thing you do with a full hand under pressure and
+    # the two must never be confused at the moment it matters.
+    "throw": [(AXIS, AXIS_TRIGGER_LEFT, 1.0)],
     "debug_reset": [(BUTTON, DPAD_LEFT, 0.0)],
     "debug_ink": [(BUTTON, Y, 0.0)],
     "interact": [(BUTTON, X, 0.0)],
