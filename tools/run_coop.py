@@ -274,6 +274,41 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"client sees {client_bag.get('items', 0)} item(s), "
         f"{client_bag.get('kilograms', 0.0):.1f} kg"))
 
+    # The rescue (`M2-T05`, `DES-012`). The client was put on the floor and the
+    # host walked over and picked them up — the one claim in the whole design
+    # that genuinely cannot be tested in a single process, because it is two
+    # people, and the mechanism under the M2 co-op gate.
+    #
+    # Both peers are asked, because both halves have to hold: the client has to
+    # *see* itself go down (the window is replicated, which is what makes going
+    # back for someone a decision rather than a guess), and the host's hand has
+    # to reach across the wire and work.
+    for report, who in ((host, "host"), (client, "client")):
+        fell = report["downed"].get(client_body, {})
+        rows.append(check(
+            f"the client went down, on the {who}",
+            fell.get("downed", False) and fell.get("bleeding", 0.0) > 0.0,
+            f"bleeding {fell.get('bleeding', 0.0):.0f}s"))
+
+    for report, who in ((host, "host"), (client, "client")):
+        up = report["revived"].get(client_body, {})
+        rows.append(check(
+            f"a hand got them back up, on the {who}",
+            not up.get("downed", True) and up.get("health", 0.0) > 0.0,
+            f"{up.get('health', 0.0):.0f} hp"))
+
+    # At most what a revive returns, or going down cost nothing and `DES-012`'s
+    # revive is free. Against the *fraction* rather than against "less than
+    # full": an enemy that lands a hit after the rescue would satisfy the
+    # weaker test for a reason that has nothing to do with the revive, and it
+    # did — the client stood up at 40 and was promptly hit down to 6.
+    revived_hp = host["revived"].get(client_body, {}).get("health", 0.0)
+    ceiling = float(host["player_max_health"]) * float(host["revive_health_fraction"])
+    rows.append(check(
+        "and no better than a revive gives",
+        0.0 < revived_hp <= ceiling + 0.01,
+        f"{revived_hp:.0f}, revive gives {ceiling:.0f}"))
+
     return rows
 
 

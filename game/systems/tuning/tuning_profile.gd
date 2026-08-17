@@ -144,6 +144,30 @@ extends Resource
 @export var hunter_bait_fraction: float = 0.34
 @export var hunter_reach: float = 2.0
 
+@export_group("Down and out")
+## Seconds on the floor before the ember goes out ⟨tune⟩ (`DES-012`, ADR-050).
+## **The window is the decision** — it shortens whatever anyone does about it,
+## so choosing to wait for a rescue is forced by the fiction rather than by a
+## UI prompt. Long enough to cross a room for someone, short enough that
+## crossing two is a gamble.
+@export var bleed_out_seconds: float = 45.0
+## Seconds of a teammate's hands to get you up. A real cost in time and
+## exposure, because a free revive is not a decision (`DES-012`).
+@export var revive_seconds: float = 3.5
+## Clamor per second made by whoever is kneeling over you. It is the *rescuer*
+## who makes it — being loud on someone else's behalf is the sacrifice.
+@export var revive_clamor: float = 3.2
+## Fraction of maximum health you stand up with. Not full: going down has to
+## cost something even when it works out.
+@export var revive_health_fraction: float = 0.4
+## Solo's single self-recovery (ADR-050) — deliberately below the value a
+## friend's hand returns, because it *"must never be better than having a
+## friend."*
+@export var self_recovery_health_fraction: float = 0.22
+## Crawl speed as a fraction of walking. You are on the floor and bleeding;
+## you can move, and you cannot get anywhere.
+@export var downed_speed_fraction: float = 0.28
+
 @export_group("Extraction")
 ## Seconds standing in the Shaft to leave, before escalation ⟨tune⟩. Long
 ## enough that a known, fixed location is a real exposure and short enough that

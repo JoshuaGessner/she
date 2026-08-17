@@ -212,6 +212,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Going down, bleeding out, and being carried home (`M2-T05`). The M2 co-op
+	# gate is *"someone carries a friend's ember out and it is the best moment of
+	# the session"* — whether it is the best moment is a playtest question,
+	# whether it is possible is this. The solo half runs here; the half that
+	# needs two people (a teammate's hand actually reaching across the wire) is
+	# asserted in the co-op smoke below.
+	ember="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 12000 \
+		levels/room_set/room_set.tscn -- --ember-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$ember" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL bear my ember out" >&2
+		printf '%s\n' "$ember" | grep -E '\[ember\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Two processes, host and client, over loopback (`M1-T05`). This is the
 	# only check in the sweep that exercises a *second* process, and it is the
 	# only one that can: every claim in `TEC-004` is a claim that two peers
@@ -231,6 +245,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
 	echo "greed costs and dropping it pays, the Hunt tracks noise not transforms,"
 	echo "every mix channel has a visual twin, the way out is never sealed shut,"
+	echo "the fallen can be carried home,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

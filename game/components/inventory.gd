@@ -147,6 +147,18 @@ func richest() -> ItemInstance:
 	return best
 
 
+## The embers in your bag — the peers whose lives you are carrying (`DES-012`).
+## Their weight and noise are already counted by `total_weight` and
+## `total_clamor` like anything else, which is exactly what makes a rescue a
+## sacrifice rather than a formality.
+func embers() -> Array[int]:
+	var borne: Array[int] = []
+	for item: ItemInstance in _items:
+		if item.bound_to != 0:
+			borne.append(item.bound_to)
+	return borne
+
+
 ## Everything you are carrying, as she would price it. **This is what the
 ## Gullsjúkr senses through walls** — going quiet is not enough, because it is
 ## not listening for this (`DES-017`).

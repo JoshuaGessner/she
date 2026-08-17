@@ -8,14 +8,14 @@
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
-`15/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`16/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>5/9"]:::current
+  M2["M2 The Loop Prototype<br/>6/9"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `████████░░░░░░░` | 5/9 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `██████████░░░░░` | 6/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -75,7 +75,7 @@ _None. Sequencing is clean._
 - ✔ `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation. *It navigates the clamor gradient and never a player transform (`TEC-001`), feels carried tribute through walls, and stops for gold a player disturbed — authored floor treasure is scenery to it (ADR-089). The throw verb is built. **The Sealing moved to `M2-T04`**, where the Shafts it seals exist* `DES-017` `DES-005`
 - ✔ `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build. *One `HuntMix` computed by `AudioDirector`, rendered by the score **and** the Ear — the twin is structural, and `--ear-probe` refuses a channel nobody draws. Raw Godot, no middleware: `ART-002` chose vertical remixing, which Godot does natively (ADR-090). Score layers are blockout; `M2-T09` authors the theme* `DES-017` `DES-018` `DES-019` `TEC-005`
 - ✔ `M2-T04` Extraction: reach an exit, keep what you carried — **plus the Sealing** (`DES-005` Layer 3), moved here from `M2-T02` by ADR-089 because it seals the Shafts this task builds. *Two ways out: the Shaft (fixed, known, loud) and the Waystone (loot, capped at one, consumed). **The Sealing never locks the Shaft, it makes it worse** — 4.0 s to 12.8 s and 5.0 to 16.0 clamor at full escalation — because on one floor a lock is the trapping ADR-015 forbids (ADR-091). `ExtractionTrait` built. The Settle beat is absent, not faked: the loop closes and reports, the Lair is `M2-T06`* `DES-005` `DES-002`
-- · `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`). *The other half of `DES-002`'s loop: `M2-T04` built "extract", this builds "or die"* `DES-002` `DES-003` `DES-008` `DES-012`
+- ✔ `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`). *The other half of `DES-002`'s loop: `M2-T04` built "extract", this builds "or die". **The ember is an `ItemResource`**, so the sacrifice falls out of the grid, the scales and the clamor floor rather than being special-cased — 3.40 → 2.94 m/s and silent → heard at 2.2 m for whoever carries it (ADR-092). `ItemInstance` gains `bound_to`, its first mutable field, exactly as ADR-084 said it would. Vörðr **Return** and Scars are absent, not approximated — both need the LIFE `M3` builds* `DES-002` `DES-003` `DES-008` `DES-012`
 - · `M2-T06` Minimal Lair: stash and re-descend — *and with it the **Settle beat** `M2-T04` deliberately left absent: what you brought, the keep-or-give decision made physically at the hoard (`DES-019`)* `DES-002` `DES-008` `DES-014` `DES-019`
 - · `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players `DES-012`
 - · `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early `ART-002` `ART-003` `TEC-005`
@@ -116,6 +116,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 91 ADRs · 12 open questions · 90 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 92 ADRs · 12 open questions · 91 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

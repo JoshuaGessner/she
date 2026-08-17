@@ -52,12 +52,21 @@ const HOST_PEER: int = 1
 ## Loot leaving the bag. `CoopSession` listens and spawns the `WorldItem`,
 ## because a child never reaches into the tree above it for a service — signals
 ## up, calls down (`TEC-002`).
-signal dropped(item: StringName, at: Vector3, yaw: float, launch: Vector3)
+signal dropped(item: StringName, at: Vector3, yaw: float, launch: Vector3,
+	bound_to: int)
 
 ## Left the floor alive, by Waystone. The level decides what that means — a
 ## body does not get to end its own run (`TEC-004`: consequences have one
 ## owner, and this is the largest one there is).
 signal extracted(player: Player)
+
+## Bled out (`M2-T05`, `DES-012`). The level drops the ember, because where a
+## life ends up is the level's business and the body is past having opinions.
+signal died_here(player: Player, at: Vector3)
+
+## Went down, or got back up. Two arguments rather than two signals so a
+## readout can bind once and never miss an edge.
+signal downed_changed(player: Player, down: bool)
 
 ## Metres per second a thrown item leaves the hand at, and how far the arc is
 ## tilted up from where you are looking ⟨tune⟩. `DES-017` wants a purse to go
@@ -94,6 +103,13 @@ const STATE_PROPERTIES: Dictionary = {
 	"Health:current": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	"CarriedWeight:kilograms": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	"ClamorSource:level": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# The bleed-out window and the revive (`M2-T05`). `ALWAYS` for both: they
+	# move continuously the whole time they matter, and they are what a teammate
+	# deciding whether to come for you is reading. ADR-068 measured `ON_CHANGE`
+	# costing *more* than `ALWAYS` for values that change every frame.
+	".:bleeding": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:revival": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:spent": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 }
 
 ## 0 standing, 1 fully crouched. Replicated, because a crouched teammate must
@@ -128,6 +144,24 @@ var _bag_screen: BagScreen = null
 var _reaching_for: WorldItem = null
 ## Seconds left on a Waystone being spent. Host-side; zero when not leaving.
 var _spending: float = 0.0
+
+## Seconds of bleeding left, or 0 when up. **Replicated**, because `DES-012`
+## makes the window itself the decision — *"a visible, shortening window; your
+## ember is going out whether you choose or not"* (ADR-050) — and a teammate
+## deciding whether to come for you has to see the same clock you do.
+var bleeding: float = 0.0
+## How far through a revive someone has got, 0..1. Replicated for the same
+## reason: the person on the floor watches it too.
+var revival: float = 0.0
+## `true` once the window ran out. The body stays where it fell (`DES-012`: you
+## become a Vörðr) rather than vanishing, so there is a place the ember is.
+var spent: bool = false
+
+## Solo's single self-recovery (ADR-050) — *"once per run, costly, and never
+## better than having a friend."* Spent, not regenerating.
+var _self_recovery: bool = true
+## A remote rescuer's held `interact`, as told to the host.
+var _reviving: bool = false
 
 @onready var _head: Node3D = $Head
 @onready var _camera: Camera3D = $Head/Camera3D
@@ -213,6 +247,10 @@ func _ready() -> void:
 	# overlap anywhere else, so this connection is host-authoritative by
 	# construction rather than by a second guard that could drift out of step.
 	_hurtbox.hit.connect(_on_hurt)
+	# Zero health is **down**, not dead (`DES-012`). Death is what happens when
+	# the window runs out with nobody's hand on you, and it is a separate event
+	# with a separate consequence.
+	health.died.connect(_on_health_emptied)
 	weapon.swing_started.connect(_on_swing_started)
 	weapon.connected.connect(_on_swing_connected)
 	# Loot is the only gameplay source of carried weight. `CarriedWeight`'s own
@@ -303,20 +341,29 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		if InputDevices.pointer_allowed() and not _bag_wanted:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif event.is_action_pressed("bag"):
+	elif event.is_action_pressed("bag") and not is_incapacitated():
 		_bag_wanted = not _bag_wanted
-	elif event.is_action_pressed("drop"):
+	elif event.is_action_pressed("drop") and not is_incapacitated():
 		_ask_to_drop(false)
-	elif event.is_action_pressed("throw"):
+	elif event.is_action_pressed("throw") and not is_incapacitated():
 		_ask_to_drop(true)
 	elif event.is_action_pressed("use_waystone"):
-		ask_to_spend_waystone()
-	elif event.is_action_pressed("interact") and _bag <= 0.0:
+		# On the floor, the same key is your one way back up (ADR-050). A
+		# downed player has exactly one thing to spend and this is it, so it
+		# does not need a binding of its own.
+		if is_downed():
+			ask_to_self_recover()
+		else:
+			ask_to_spend_waystone()
+	elif event.is_action_pressed("interact") and _bag <= 0.0 and not is_incapacitated():
+		_tell_host_reviving(true)
 		# The Shaft first: standing in one and pressing interact means leaving,
 		# not picking up whatever is also lying there. A player in the exit
 		# reaching for their way home should never get a lump of bog iron.
 		if not _reach_for_shaft():
 			_reach_for_loot()
+	elif event.is_action_released("interact"):
+		_tell_host_reviving(false)
 	elif event.is_action_pressed("debug_ink"):
 		show_ink(not _ink.visible)
 
@@ -432,8 +479,13 @@ func _take(path: NodePath) -> void:
 	# A full bag refuses, and the item stays on the floor. Silently swallowing
 	# something there was no room for would delete the spatial half of
 	# `DES-019` the first time it mattered.
-	if inventory.add(definition) == null:
+	var taken: ItemInstance = inventory.add(definition)
+	if taken == null:
 		return
+	# Whose it is comes with it. For everything but an ember this is zero, and
+	# for an ember it is the whole point — the bag now knows it is carrying
+	# somebody (`DES-012`).
+	taken.bound_to = item.bound()
 	clamor.add(_handling_clamor(definition))
 	item.queue_free()
 
@@ -496,6 +548,9 @@ func _put_down(instance_id: int, thrown: bool) -> void:
 	clamor.add(_handling_clamor(item.definition))
 
 	var at: Vector3 = global_position + forward * DROP_DISTANCE
+	# Putting an ember down is allowed, and it is meant to be a decision you
+	# can make. `DES-012` never says the rescuer is committed — the sacrifice is
+	# real precisely because it can be abandoned partway home.
 	var launch: Vector3 = Vector3.ZERO
 	if thrown:
 		# From the hand, not the feet, or the arc starts underground and the
@@ -503,7 +558,7 @@ func _put_down(instance_id: int, thrown: bool) -> void:
 		at = global_position + Vector3(0.0, _head.position.y, 0.0) + forward * 0.4
 		var tilt: float = deg_to_rad(THROW_LIFT_DEGREES)
 		launch = (forward * cos(tilt) + Vector3.UP * sin(tilt)) * THROW_SPEED
-	dropped.emit(item.definition.id, at, rotation.y, launch)
+	dropped.emit(item.definition.id, at, rotation.y, launch, item.bound_to)
 
 
 ## Ask to move something within the grid. Host-authoritative like everything
@@ -536,11 +591,219 @@ func _move_within_bag(instance_id: int, to: Vector2i, rotated: bool) -> void:
 	clamor.add(Config.tuning.clamor_rummage)
 
 
-# ── leaving ──────────────────────────────────────────────────
+# ── going down, and what a friend can do about it ────────────────────────
+#
+# `DES-012`'s three stages, and the reason they exist: ADR-004 wipes your LIFE
+# on death, and in co-op you can die to a teammate's mistake. Unmitigated that
+# is a friendship-ending mechanic. The answer converts the harshest rule in the
+# game into **the most heroic thing a friend can do for you**.
+#
+#   1. **Downed** — zero health puts you on the floor, crawling, unable to
+#      fight. A teammate can get you up at a real cost.
+#   2. **Ember** — bleed out and you die *for the run*, and your ember drops
+#      where you fell. It is heavy and it is loud.
+#   3. **Carried out** — if it reaches an exit, your LIFE survives.
+#
+# The weight and the noise are the whole point: rescue has to be a **genuine
+# sacrifice**, because a free revive is not a decision. That falls out for
+# nothing here — the ember is an `ItemResource` and goes in the bag, so it
+# costs the rescuer squares, kilograms and quiet exactly like loot does.
+
+
+func is_downed() -> bool:
+	return bleeding > 0.0 and not spent
+
+
+## Down, dead, or otherwise not playing. Movement, the weapon and the bag all
+## ask this rather than each testing three things and drifting apart.
+func is_incapacitated() -> bool:
+	return bleeding > 0.0 or spent
+
+
+func _on_health_emptied(_from: Node) -> void:
+	if not multiplayer.is_server():
+		return
+	_go_down()
+
+
+func _go_down() -> void:
+	if is_incapacitated():
+		return
+	bleeding = Config.tuning.bleed_out_seconds
+	revival = 0.0
+	# Whatever you were doing, you are not doing it. The bag shuts on its own —
+	# `DES-019` makes rummaging a vulnerable act and being on the floor is not
+	# the moment to be sorting loot.
+	_bag_wanted = false
+	_spending = 0.0
+	downed_changed.emit(self, true)
+
+
+## Host-side, per frame. The window shortens whatever anyone is doing about it,
+## because ADR-050 makes the shortening itself the decision: *"your ember is
+## going out whether you choose or not, so the decision is forced by the
+## fiction rather than by a UI timer."*
+func _tick_bleeding(delta: float) -> void:
+	if bleeding <= 0.0 or spent:
+		return
+	bleeding = maxf(0.0, bleeding - delta)
+	if bleeding > 0.0:
+		return
+	# Nobody got here in time.
+	spent = true
+	revival = 0.0
+	downed_changed.emit(self, false)
+	# Everything you were carrying stays with the body. `DES-012`: rescue saves
+	# your LIFE, never your loot — *"you lose the run, your carried loot, and
+	# take a Scar."*
+	inventory.clear()
+	died_here.emit(self, global_position)
+
+
+## A hand on the shoulder. Called per frame while a teammate holds interact on
+## a downed body; letting go stops it where it is rather than resetting, so a
+## rescue interrupted by a swing can be resumed rather than restarted.
+func revive_by(rescuer: Player, delta: float) -> void:
+	if not multiplayer.is_server() or not is_downed():
+		return
+	if rescuer == self or rescuer.is_incapacitated():
+		return
+	revival += delta / maxf(Config.tuning.revive_seconds, 0.001)
+	# Kneeling over someone is loud and it is *their* rescuer making the noise,
+	# which is the exposure `DES-012` charges for a revive.
+	rescuer.clamor.add(Config.tuning.revive_clamor * delta)
+	if revival < 1.0:
+		return
+	_stand_up(Config.tuning.revive_health_fraction)
+
+
+## Solo's single self-recovery (ADR-050) — *"once per run, costly, and never
+## better than having a friend."*
+##
+## Costly two ways: it is gone for the rest of the run, and it returns less
+## health than a friend's hand does. `DES-012` asks for a solo analogue so
+## downing is not strictly worse alone, and is explicit that it must stay the
+## worse option.
+func ask_to_self_recover() -> void:
+	if multiplayer.is_server():
+		_self_recover()
+	else:
+		_request_self_recover.rpc_id(HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _request_self_recover() -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_self_recover()
+
+
+func _self_recover() -> void:
+	if not is_downed() or not _self_recovery:
+		return
+	_self_recovery = false
+	clamor.add(Config.tuning.revive_clamor)
+	_stand_up(Config.tuning.self_recovery_health_fraction)
+
+
+func has_self_recovery() -> bool:
+	return _self_recovery
+
+
+func _stand_up(fraction: float) -> void:
+	bleeding = 0.0
+	revival = 0.0
+	health.revive(health.maximum * fraction)
+	downed_changed.emit(self, false)
+
+
+## Host-side, per frame, on the *rescuer*. Whoever is holding interact next to
+## a downed teammate is picking them up.
+##
+## Held rather than pressed, and that is `DES-012` being specific: a revive
+## costs *"time, exposure, noise"*. A press would cost none of the three, and
+## the whole reason the ember rescue is the emotional peak of a co-op session
+## is that getting someone up is dangerous for you.
+##
+## The intent is read from the owning peer's input on the host's frame, which
+## works because `interact` is already a held key rather than a tap for this
+## one purpose. A client's held state arrives as part of nothing at all — so a
+## remote rescuer sends it, and that is what `_reviving` carries.
+func _offer_a_hand(delta: float) -> void:
+	var holding: bool = _reviving
+	if _is_local:
+		holding = Input.is_action_pressed("interact") and _bag <= 0.0
+	if not holding:
+		return
+	var reach: float = Config.tuning.interact_reach + Config.tuning.interact_reach_slack
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var fallen := node as Player
+		if fallen == null or fallen == self or not fallen.is_downed():
+			continue
+		if global_position.distance_to(fallen.global_position) > reach:
+			continue
+		fallen.revive_by(self, delta)
+		return
+
+
+## A client telling the host it is holding interact. Sent on change rather than
+## per frame: it is a held boolean, and one packet per press is the whole cost.
+@rpc("any_peer", "reliable")
+func _set_reviving(holding: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_reviving = holding
+
+
+## Back on your feet for a fresh descent. Host-side, called by the level.
+##
+## Not a revive and not a heal: this is a *new run*, which is the one moment
+## the design allows hit points to return to full (`DES-009` bans regeneration
+## within a run, not between them). `DES-012`'s **Return** — walking back in
+## with nothing, at the floor entrance, your ember extinguished — is what this
+## becomes once `M3` gives a LIFE to lose, and it is absent rather than
+## approximated in the meantime.
+func restore_for_descent() -> void:
+	if not multiplayer.is_server():
+		return
+	bleeding = 0.0
+	revival = 0.0
+	spent = false
+	_spending = 0.0
+	_reviving = false
+	_self_recovery = true
+	health.restore()
+
+
+func _tell_host_reviving(holding: bool) -> void:
+	if multiplayer.is_server():
+		_reviving = holding
+	else:
+		_set_reviving.rpc_id(HOST_PEER, holding)
+
+
+## Where the ember goes. Public because the level spawns it and the probe reads
+## it, and because a body on the floor is exactly where `DES-012` says the
+## ember drops.
+func fell_at() -> Vector3:
+	return global_position
+
+
+# ── leaving ───────────────────────────────────────────────────────────────
 #
 # Two ways out, and ADR-015 makes them cost different things: the **Shaft** is
 # always there and charges you time in a known place, the **Waystone** is loot
 # you had to find and charges you the squares it occupied all run.
+
+
+## Start using whatever Shaft is underfoot. Public for the probes, which drive
+## the shipping path rather than reaching past it.
+func reach_for_shaft_now() -> bool:
+	return _reach_for_shaft()
 
 
 ## True if a Shaft was reached for, so the caller knows not to grab loot too.
@@ -742,7 +1005,8 @@ func _physics_process(delta: float) -> void:
 	# that rummaging leaves you unable to fight well; a player who could still
 	# swing at full strength with their bag open is not paying the cost the
 	# no-pause design charges, and the tension it exists to create evaporates.
-	if _is_local and not bag_is_open() and Input.is_action_just_pressed("attack"):
+	if (_is_local and not bag_is_open() and not is_incapacitated()
+			and Input.is_action_just_pressed("attack")):
 		weapon.request_swing(stamina)
 	weapon.advance(delta, stamina)
 
@@ -750,6 +1014,12 @@ func _physics_process(delta: float) -> void:
 		_update_bag(delta)
 		_update_reach()
 		_drive(delta, tuning)
+	# A hand on a fallen teammate, held. Driven from the *rescuer's* frame on
+	# the host, so it is the host that decides whether they are close enough and
+	# the host that charges them the noise — same shape as every other
+	# consequence (`TEC-004`).
+	if multiplayer.is_server() and not is_incapacitated():
+		_offer_a_hand(delta)
 
 	# Noise is a consequence, so the host derives it for *every* body from the
 	# motion it can see — its own directly, a client's from the transform that
@@ -758,6 +1028,7 @@ func _physics_process(delta: float) -> void:
 	if multiplayer.is_server():
 		_emit_movement_clamor(delta, tuning)
 		_tick_waystone(delta)
+		_tick_bleeding(delta)
 
 
 ## Everything the owning peer simulates for itself. `TEC-004`: prediction for
@@ -854,8 +1125,9 @@ func _wish_direction() -> Vector3:
 
 func _resolve_sprint(wish: Vector3, delta: float, tuning: TuningProfile) -> bool:
 	# No sprinting with your bag open, at any openness. Not a balance number:
-	# you have both hands in a satchel.
-	if bag_is_open():
+	# you have both hands in a satchel. Nor on the floor, for reasons that need
+	# no explanation.
+	if bag_is_open() or is_incapacitated():
 		return false
 	if _crouching or wish == Vector3.ZERO or not Input.is_action_pressed("sprint"):
 		return false
@@ -875,6 +1147,13 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 		base = tuning.crouch_speed
 	elif sprinting:
 		base = tuning.sprint_speed
+	# Crawling. `DES-012`: down means *"crawling, bleeding, unable to fight"* —
+	# you can still move, and you cannot get anywhere, which is what makes
+	# whether a friend comes for you *their* decision rather than yours.
+	if is_downed():
+		return tuning.walk_speed * tuning.downed_speed_fraction
+	if spent:
+		return 0.0
 	# Two multipliers, and they compound on purpose. Load is `DES-005` Layer 1 —
 	# greed in your legs. The bag term is `DES-019`'s vulnerable act, scaled by
 	# how far open it is so the penalty arrives with the screen rather than

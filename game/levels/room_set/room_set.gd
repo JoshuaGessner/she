@@ -185,6 +185,11 @@ var _descent: int = 1
 ## per-capita extracted value off this; `M2-T06` will hang the Lair on it.
 signal extracted(player: Player, tribute: int)
 
+## Somebody's ember reached the exit in somebody else's bag — **the M2 co-op
+## gate, as an event** (`DES-012`). `M3-T05`'s Legacy screen is what will read
+## it; today it is reported and probed.
+signal rescued(saved_peer: int, by: Player)
+
 @onready var _world: Node3D = $World
 
 
@@ -220,6 +225,8 @@ func _ready() -> void:
 			_ear_shot(arg.split("=", true, 1)[1])
 		elif arg == "--exit-probe":
 			_exit_probe()
+		elif arg == "--ember-probe":
+			_ember_probe()
 		elif arg == "--hash":
 			_print_hash()
 		elif arg.begins_with("--coop-probe="):
@@ -743,10 +750,181 @@ func _exit_probe() -> void:
 
 
 var _extracted_tribute: int = -1
+var _rescued_peer: int = -1
 
 
 func _on_probe_extracted(_player: Player, tribute: int) -> void:
 	_extracted_tribute = tribute
+
+
+func _on_probe_rescued(saved_peer: int, _by: Player) -> void:
+	_rescued_peer = saved_peer
+
+
+## Going down, bleeding out, and being carried home (`M2-T05`, `DES-012`).
+##
+## The M2 co-op gate is *"someone carries a friend's ember out and it is the
+## best moment of the session"*. Whether it is the best moment is a playtest
+## question; whether it is **possible** is this.
+##
+## Six assertions:
+##
+## 1. **Zero health is down, not dead.** `DES-012`'s whole mitigation rests on
+##    the two being different events.
+## 2. **Down is not out.** You crawl — slower than walking, faster than
+##    nothing — and you cannot swing.
+## 3. **The window shortens on its own**, whatever anyone does (ADR-050).
+## 4. **Solo's one self-recovery gets you up**, below full health, and only
+##    once (ADR-050). A *teammate's* hand cannot be tested here — there is one
+##    player — and is asserted in the two-process co-op smoke instead.
+## 5. **Bleeding out drops an ember bound to you**, and it is heavy and loud.
+## 6. **Carrying it out saves that life**, and the ember costs the rescuer real
+##    kilograms and real quiet on the way — without which the rescue is a
+##    formality rather than the sacrifice `DES-012` asks for.
+func _ember_probe() -> void:
+	var player: Player = _session.local_player()
+	var problems: PackedStringArray = PackedStringArray()
+	player.inventory.clear()
+	player.teleport(Vector3(0.0, 0.1, 4.0), 0.0)
+	await _hold(0.3)
+
+	# ─ 1. zero health is down ─
+	player.health.apply_damage(player.health.maximum * 2.0)
+	await _hold(0.2)
+	print("[ember] on zero     downed %s, spent %s, window %.1f s" % [
+		player.is_downed(), player.spent, player.bleeding])
+	if not player.is_downed():
+		problems.append("zero health did not put the player down — DES-012's whole "
+			+ "mitigation is that down and dead are different events")
+	if player.spent:
+		problems.append("zero health killed the player outright, skipping the window")
+
+	# ─ 2. crawling, and unable to fight ─
+	var crawl: float = await _walk_speed(player)
+	print("[ember] crawling    %.2f m/s against %.2f walking" % [
+		crawl, Config.tuning.walk_speed])
+	if crawl <= 0.0 or crawl >= Config.tuning.walk_speed:
+		problems.append("a downed player is not crawling (%.2f m/s) — DES-012 wants "
+			% crawl + "them moving and going nowhere")
+
+	# ─ 3. the window shortens by itself ─
+	var before_window: float = player.bleeding
+	await _hold(1.0)
+	var after_window: float = player.bleeding
+	print("[ember] the window  %.1f s → %.1f s with nobody helping" % [
+		before_window, after_window])
+	if after_window >= before_window:
+		problems.append("the bleed-out window did not shorten — ADR-050 makes the "
+			+ "shortening itself the decision")
+
+	# ─ 4. solo's one self-recovery ─
+	#
+	# ADR-050: *"once per run, costly, and never better than having a friend."*
+	# Both halves are checked — that it works, and that it is gone afterwards.
+	var had_recovery: bool = player.has_self_recovery()
+	player.ask_to_self_recover()
+	await _hold(0.3)
+	var recovered_up: bool = not player.is_downed()
+	var recovered_health: float = player.health.fraction()
+	print("[ember] self-rescue up %s at %.0f%% health, another available: %s" % [
+		recovered_up, recovered_health * 100.0, player.has_self_recovery()])
+	if not had_recovery or not recovered_up:
+		problems.append("solo's self-recovery did not get the player up — DES-012 "
+			+ "needs a solo analogue or downing is strictly worse alone")
+	if recovered_health >= 1.0:
+		problems.append("self-recovery returned full health — it has to cost "
+			+ "something, and stay worse than a friend's hand")
+	if player.has_self_recovery():
+		problems.append("self-recovery is still available after being used — "
+			+ "ADR-050 allows it once per run")
+
+	# Back down again, to test the death that follows an unanswered window.
+	player.health.apply_damage(player.health.maximum * 2.0)
+	await _hold(0.2)
+
+	# ─ 5. bleeding out drops a bound ember ─
+	#
+	# Solo, so there is nobody to be rescued *by*; the ember is picked up by
+	# the same player on their next descent, which is exactly what the probe
+	# needs and is not a thing that happens in a real run.
+	var fell_at: Vector3 = player.global_position
+	player.bleeding = 0.02
+	await _hold(0.5)
+	var ember: WorldItem = null
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var found := node as WorldItem
+		if found != null and found.bound() != 0:
+			ember = found
+	print("[ember] the drop    %s, bound to %d, %.1f kg / %.1f clamor" % [
+		"found" if ember != null else "MISSING",
+		ember.bound() if ember != null else 0,
+		ember.definition().weight if ember != null else 0.0,
+		ember.definition().clamor if ember != null else 0.0])
+	if ember == null:
+		problems.append("bleeding out dropped no ember — there is nothing for a "
+			+ "friend to carry and the M2 co-op gate cannot happen")
+		# **Report and stop.** Everything below needs an ember to carry, and a
+		# GDScript runtime error aborts the function it happens in — so a null
+		# dereference here would never reach the reporting at the bottom and
+		# the run would hang until `--quit-after` killed it, printing nothing.
+		# Found by planting a frozen bleed-out window: the probe crashed
+		# silently instead of failing, which is the one thing a check must
+		# never do.
+		_report(problems, "ember")
+		return
+	else:
+		if ember.bound() != player.get_multiplayer_authority():
+			problems.append("the ember is not bound to whoever died — a rescue "
+				+ "cannot know whose life it saved")
+		if ember.global_position.distance_to(fell_at) > 2.0:
+			problems.append("the ember did not drop where they fell")
+		if ember.definition().weight <= 0.0 or ember.definition().clamor <= 0.0:
+			problems.append("the ember is not heavy and loud — DES-012 makes the "
+				+ "weight and noise the reason rescue is a sacrifice")
+
+	# ─ 6. carrying it out saves that life, and costs the carrier ─
+	var owner_peer: int = player.get_multiplayer_authority()
+	player.restore_for_descent()
+	await _hold(0.2)
+	var clean_speed: float = await _walk_speed(player)
+	var clean_quiet: float = _standing_radius(player)
+	player.teleport(ember.global_position + Vector3(0.0, 0.1, 1.0), 0.0)
+	await _hold(0.4)
+	player.reach_for(ember)
+	await _hold(0.3)
+	var burdened_speed: float = await _walk_speed(player)
+	var burdened_quiet: float = _standing_radius(player)
+	print("[ember] the burden  %.2f → %.2f m/s, heard %.1f → %.1f m standing still" % [
+		clean_speed, burdened_speed, clean_quiet, burdened_quiet])
+	if burdened_speed >= clean_speed or burdened_quiet <= clean_quiet:
+		problems.append("carrying an ember costs the rescuer nothing — DES-012 makes "
+			+ "the sacrifice the entire reason the rescue is a decision")
+
+	_rescued_peer = -1
+	if not rescued.is_connected(_on_probe_rescued):
+		rescued.connect(_on_probe_rescued)
+	player.teleport(SHAFT_AT, 0.0)
+	await _hold(0.4)
+	player.reach_for_shaft_now()
+	await _hold(_shaft.channel_seconds() + 1.5)
+	print("[ember] the rescue  reported saved peer %d (expected %d)" % [
+		_rescued_peer, owner_peer])
+	if _rescued_peer != owner_peer:
+		problems.append("carrying the ember to the exit did not save that life — "
+			+ "which is the whole of the M2 co-op gate")
+
+	_report(problems, "ember")
+
+
+## Print every problem and quit with the right code.
+##
+## One place, because a probe that ends by hand ends differently each time it
+## is copied — and because an early return needs the same ending as the normal
+## one or bailing out becomes a silent pass.
+func _report(problems: PackedStringArray, tag: String) -> void:
+	for problem: String in problems:
+		printerr("[%s] FAIL %s" % [tag, problem])
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 func _levels_line(levels: Dictionary) -> String:
@@ -791,6 +969,9 @@ var _probe_walk_clamor: Dictionary = {}
 var _probe_walked: Dictionary = {}
 var _probe_heights: Dictionary = {}
 var _probe_bags: Dictionary = {}
+var _probe_downed: Dictionary = {}
+var _probe_speeds: Dictionary = {}
+var _probe_revived: Dictionary = {}
 var _probe_connect_seconds: float = 0.0
 var _probe_ending: bool = false
 var _probe_damage_events: int = 0
@@ -888,6 +1069,14 @@ func _coop_probe(out: String) -> void:
 	if not host:
 		mine.teleport(PROBE_RETREAT_TO, 0.0)
 	await _hold(1.5)
+	# Captured **here**, mid-chase, not read at the end. The rescue phase below
+	# adds six seconds, by which time the enemy has arrived and stopped and its
+	# velocity is zero on every peer — which reads exactly like a client
+	# correctly refusing to simulate. Adding phase 6 broke this check that way,
+	# and the check caught it, which is the argument for sampling a phase-
+	# sensitive value inside its phase (`_probe_walk_clamor` is captured for the
+	# same reason).
+	_probe_speeds = _probe_enemy_speeds()
 
 	# 5. The client picks something up (`M2-T01`). Two different claims land in
 	#    one gesture, and they travel in opposite directions:
@@ -908,6 +1097,32 @@ func _coop_probe(out: String) -> void:
 		_take_nearest(mine)
 	await _hold(0.8)
 	_probe_bags = _probe_bag_state()
+
+	# 6. **The rescue** (`M2-T05`). The client is put on the floor and the host
+	#    walks over and picks them up — which is the one claim in `DES-012` that
+	#    genuinely cannot be tested in one process, because it is two people.
+	#
+	#    The host holds `interact`; nothing else about the two bodies changes.
+	#    If the client comes back up, then the downed state replicated *and* the
+	#    host's hand reached across the wire, and the M2 co-op gate has a
+	#    mechanism under it.
+	if host:
+		var fallen: Player = _client_body()
+		if fallen != null:
+			fallen.health.apply_damage(fallen.health.maximum * 2.0)
+	await _hold(0.5)
+	_probe_downed = _probe_down_state()
+	if host:
+		var fallen: Player = _client_body()
+		var helper: Player = _session.local_player()
+		if fallen != null and helper != null:
+			helper.teleport(fallen.global_position + Vector3(1.0, 0.0, 0.0), 0.0)
+			await _hold(0.4)
+			Input.action_press("interact")
+	await _hold(Config.tuning.revive_seconds + 1.2)
+	if host:
+		Input.action_release("interact")
+	_probe_revived = _probe_down_state()
 
 	if host:
 		await _await_probe_end()
@@ -948,16 +1163,20 @@ func _probe_report(host: bool) -> Dictionary:
 		"capsule_heights": _probe_heights,
 		"enemy_health": _probe_enemy_health(),
 		"enemy_positions": _probe_enemy_positions(),
-		"enemy_speeds": _probe_enemy_speeds(),
+		"enemy_speeds": _probe_speeds,
 		"clamor_peak": _probe_clamor_peak,
 		"walk_clamor_peak": _probe_walk_clamor,
 		"damage_events": _probe_damage_events,
 		"bags": _probe_bags,
+		"downed": _probe_downed,
+		"revived": _probe_revived,
 		# The numbers the damage assertion is made of, carried in the report
 		# rather than repeated in the harness. A ⟨tune⟩ value that CI has its
 		# own copy of is a ⟨tune⟩ value nobody can change.
 		"swing_damage": Config.tuning.swing_damage,
 		"enemy_max_health": Config.tuning.enemy_health,
+		"player_max_health": Config.tuning.player_health,
+		"revive_health_fraction": Config.tuning.revive_health_fraction,
 		"godot": Engine.get_version_info()["string"],
 	}
 
@@ -1008,6 +1227,30 @@ func _probe_drift(before: Dictionary, after: Dictionary) -> Dictionary:
 		var b: Array = after[key]
 		out[key] = Vector3(a[0], a[1], a[2]).distance_to(Vector3(b[0], b[1], b[2]))
 	return out
+
+
+## Who is on the floor, as each peer sees it. The bleed-out window is
+## replicated (`M2-T05`), so a client watching a teammate go down sees the same
+## clock the host does — which is what makes deciding to go back for them a
+## decision rather than a guess.
+func _probe_down_state() -> Dictionary:
+	var out: Dictionary = {}
+	for player: Player in _session.players():
+		out[player.name] = {
+			"downed": player.is_downed(),
+			"bleeding": player.bleeding,
+			"health": player.health.current,
+		}
+	return out
+
+
+## The body this process is *not* playing. With a party of two that is the
+## other one, which is all the co-op probe ever needs.
+func _client_body() -> Player:
+	for player: Player in _session.players():
+		if player != _session.local_player():
+			return player
+	return null
 
 
 ## What each body is carrying, as both peers see it. Kilograms come from the
@@ -1211,9 +1454,8 @@ func _build_shaft() -> void:
 	_world.add_child(_shaft)
 	_shaft.claimed.connect(_on_extracted)
 	for player: Player in _session.players():
-		player.extracted.connect(_on_extracted)
-	_session.player_spawned.connect(func(player: Player) -> void:
-		player.extracted.connect(_on_extracted))
+		_watch(player)
+	_session.player_spawned.connect(_watch)
 
 
 ## The Shaft is channelled here rather than driving itself, so the level owns
@@ -1222,6 +1464,35 @@ func _build_shaft() -> void:
 func _physics_process(delta: float) -> void:
 	if _shaft != null:
 		_shaft.advance(delta)
+
+
+func _watch(player: Player) -> void:
+	player.extracted.connect(_on_extracted)
+	player.died_here.connect(_on_died_here)
+
+
+## Someone bled out (`M2-T05`, `DES-012`). **The ember drops where they fell.**
+##
+## Spawned as an ordinary `WorldItem` carrying `con_ember`, bound to the peer
+## whose life it is — which means it is picked up, carried, weighed and heard
+## exactly like loot, and costs the rescuer squares, kilograms and quiet for
+## the whole walk home. `DES-012` asks for precisely that: *"the ember's weight
+## and noise mean rescue is a genuine sacrifice — the rescuer's own extraction
+## gets materially worse. That's a real decision, not a free revive."*
+##
+## Marked `disturbed`, so the Gullsjúkr will stop for it. That is not a
+## special case; it is the rule from ADR-089 applied honestly, and it is a
+## horrible little decision to be handed: the thing that would buy you seconds
+## is your friend.
+func _on_died_here(player: Player, at: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	var ember: WorldItem = _session.spawn_world_item(&"con_ember",
+		at + Vector3(0.0, 0.1, 0.0), 0.0, Vector3.ZERO, true)
+	if ember != null:
+		ember.bind_to(player.get_multiplayer_authority())
+	print("[death] %s went out — their ember is on the floor at %.0f, %.0f" % [
+		player.name, at.x, at.z])
 
 
 ## Someone got out (`M2-T04`). **This is the Settle beat, and almost none of it
@@ -1244,6 +1515,19 @@ func _on_extracted(player: Player) -> void:
 		_descent, player.name, player.carried.kilograms,
 		player.inventory.total_tribute(),
 		"· ".join(carried) if carried.size() > 0 else "(nothing)"])
+
+	# **Bear my ember out** (`DES-012`). Anyone whose ember reached the exit in
+	# somebody's bag keeps their LIFE — tree, stash and rank intact. There is
+	# no tree, stash or rank until `M3`, so this is *reported* rather than
+	# enforced; what is real today is that the ember made it, which is the
+	# thing the M2 co-op gate is about.
+	for peer: int in player.inventory.embers():
+		var saved: Player = _session.player_for(peer)
+		var who: String = saved.name if saved != null else "peer %d" % peer
+		print("[death] %s carried %s's ember out — their LIFE survives" % [
+			player.name, who])
+		rescued.emit(peer, player)
+
 	extracted.emit(player, player.inventory.total_tribute())
 	_descend_again()
 
@@ -1268,6 +1552,12 @@ func _descend_again() -> void:
 	for player: Player in _session.players():
 		player.inventory.clear()
 		player.clamor.silence()
+		# A new descent is a new body. `DES-012`'s *Return* — walking back in
+		# with nothing, at the floor entrance, ember extinguished — is the real
+		# version of this and needs the LIFE that `M3` builds; it is absent
+		# rather than approximated, and what happens here is simply the next run
+		# starting.
+		player.restore_for_descent()
 		player.teleport(SPAWNS[index % SPAWNS.size()], 0.0)
 		index += 1
 	if _hunter != null:

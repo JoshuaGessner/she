@@ -54,6 +54,24 @@ func heal(amount: float) -> void:
 	current = minf(maximum, current + amount)
 
 
+## Back on your feet, with `amount` hit points (`M2-T05`, `DES-012`).
+##
+## Separate from `heal()`, which deliberately refuses to work on the dead — and
+## it has to stay refusing, because `DES-009`'s non-regenerating health is the
+## document's second most important decision and a consumable that could raise
+## the fallen would be a resurrection item nobody designed.
+##
+## This is the *revive*: a teammate's hand, or solo's one self-recovery. It
+## does not undo the damage, it returns a fraction (`revive_health_fraction`) —
+## `DES-012` charges a real cost for being picked up, and standing up at full
+## health would make going down free.
+func revive(amount: float) -> void:
+	if amount <= 0.0:
+		return
+	_dead = false
+	current = clampf(amount, 0.0, maximum)
+
+
 ## Dev-only, for the gym's reset. A run never does this.
 func restore() -> void:
 	_dead = false

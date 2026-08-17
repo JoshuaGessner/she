@@ -1397,4 +1397,33 @@ Escalation multiplies the channel time *and* the noise, so leaving late means st
 
 ---
 
+## ADR-092 — `M2-T05`: the ember is an item, and that is what makes rescue cost something
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-012`, `TEC-006`** · **Implements ADR-024, ADR-050**
+
+**Context:** ADR-004 wipes your LIFE on death, and in co-op you can die to a teammate's mistake. `DES-012` is blunt that unmitigated this is *"a friendship-ending mechanic"*, and answers it with three stages — downed, ember, carried out — whose whole point is that **the rescue has to be a genuine sacrifice**. A free revive is not a decision.
+
+**Decision 1 — the ember is an `ItemResource`, carried in the bag.** `con_ember`: 12 kg, 5.5 clamor, 2×3 cells.
+
+**Rationale:** `DES-012` asks for *"the ember's weight and noise mean rescue is a genuine sacrifice — the rescuer's own extraction gets materially worse."* Making it an item means that is not a special case to be tuned and maintained; it **falls out of systems already built**. It costs squares against `DES-019`'s grid, kilograms against `CarriedWeight`, and quiet against `ClamorSource`'s carried floor (ADR-087), all for the whole walk home. Measured: picking one up takes the carrier from 3.40 to 2.94 m/s and from silent to audible at 2.2 m standing still.
+
+It also means the ember can be **put down**, which the design never forbids and which is the right kind of horrible: the sacrifice is real precisely because it can be abandoned partway home.
+
+**Decision 2 — `ItemInstance` gains its first mutable field, `bound_to`.** ADR-084 built `ItemInstance` deliberately empty of state and said the fields would arrive with their systems. This is that: every ember loads from one `.tres`, so a shared `Resource` cannot possibly answer *whose* it is. Two embers on the floor are the same definition and two different people's lives. `condition`, `fuel` and `charges` remain absent on the same terms.
+
+**Decision 3 — an ember is `disturbed`, so the Gullsjúkr will stop for it.** Not a special case: it is ADR-089's rule applied honestly, since a player put it there. The consequence is a genuinely nasty decision to be handed — **the thing that would buy you seconds is your friend.**
+
+**On what is reported rather than enforced.** *"Your LIFE survives — tree, stash, rank intact"* names three things that do not exist until `M3`. Carrying an ember out therefore prints that the life was saved and emits `rescued`; `M3-T05`'s Legacy screen is what will read it. What is real today is that the ember drops, is carryable, costs its carrier, and reaches the exit — which is the whole mechanism under the M2 co-op gate.
+
+**Absent, not stubbed:** the Vörðr's utility powers (scouting marks need the ping system, `M4-T05`), **Return** (walking back in with nothing needs a LIFE to end, `M3`), and Scars (`DES-003`, `M3`). A dead player's body stays where it fell rather than becoming a ghost with nothing to do.
+
+**Two things planting violations found.** The first is ordinary and the second is not.
+
+Adding a rescue phase to the co-op probe broke *"only the host simulates enemies"* — the new phase pushed the report six seconds past the chase, by which time the enemy had arrived and stopped, and a stopped enemy reads exactly like a client correctly refusing to simulate. Enemy speeds are now captured mid-phase, as the clamor peak already was for the same reason.
+
+The second: freezing the bleed-out window made the probe **crash instead of failing**. With no ember, a later assertion dereferenced null, the function aborted, and it never reached its own reporting — printing nothing and hanging until `--quit-after` killed it. A check that cannot report is worse than one that cannot fail, because it looks like a timeout. The probe now bails out through the same reporting path an early return has to share.
+
+**Consequences:** `--ember-probe` joins the sweep with six assertions and the co-op smoke gains three more — the client going down as seen by **both** peers, and a host's hand reaching across the wire to get them up. That last pair is the only claim in the design that genuinely cannot be tested in one process, because it is two people. `Health.revive()` is separate from `heal()`, which keeps refusing to work on the dead: `DES-009`'s non-regenerating health must not acquire a resurrection item by accident.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

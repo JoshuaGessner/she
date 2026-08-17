@@ -48,6 +48,10 @@ const MINIMUM_EXTENT: float = 0.18
 ## palette is not in the `.tres` and the item does not know it is being drawn.
 ## `ART-005` spends saturated colour on treasure, so glitter is the warm one.
 const TAG_COLOURS: Dictionary = {
+	# An ember first, whatever else it is. `DES-012` makes it *"a piece of her
+	# fire"* and `DES-019` builds the whole Ear out of the same image, so it
+	# reads as the one thing on the floor that used to be a person.
+	&"ember": Color(0.95, 0.42, 0.16),
 	&"glitter": Color(0.85, 0.66, 0.22),
 	&"relic": Color(0.72, 0.44, 0.78),
 	&"gear": Color(0.62, 0.63, 0.66),
@@ -83,6 +87,10 @@ var launch: Vector3 = Vector3.ZERO
 ## because you **gave something up**, not because gold was nearby.
 var disturbed: bool = false
 
+## The peer whose ember this is, or `0`. Carried through to `ItemInstance` on
+## pickup, because a shared `ItemResource` cannot possibly answer *whose*.
+var bound_to: int = 0
+
 var _definition: ItemResource = null
 var _mesh: MeshInstance3D = null
 var _material: StandardMaterial3D = null
@@ -107,6 +115,17 @@ func _ready() -> void:
 
 func definition() -> ItemResource:
 	return _definition
+
+
+## Whose life this carries, or `0`. Only the ember uses it (`DES-012`), and it
+## rides through `ItemInstance.bound_to` into the bag of whoever picks it up —
+## which is how a rescue knows *who* was rescued.
+func bind_to(peer: int) -> void:
+	bound_to = peer
+
+
+func bound() -> int:
+	return bound_to
 
 
 ## True while it is still in the air. The Gullsjúkr ignores a bait it cannot

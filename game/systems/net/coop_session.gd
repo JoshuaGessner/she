@@ -245,6 +245,7 @@ func _build_world_item(payload: Dictionary) -> Node:
 	item.item_id = payload["item"] as StringName
 	item.launch = payload["launch"] as Vector3
 	item.disturbed = bool(payload["disturbed"])
+	item.bound_to = int(payload["bound"])
 	item.position = payload["at"] as Vector3
 	item.rotation.y = float(payload["yaw"])
 	return item
@@ -306,17 +307,22 @@ func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0,
 	var made: WorldItem = _spawner.spawn({
 		"kind": "world_item", "index": _next_item, "item": item,
 		"at": at, "yaw": yaw, "launch": launch, "disturbed": disturbed,
+		"bound": 0,
 	}) as WorldItem
 	_next_item += 1
 	return made
 
 
 func _on_player_dropped(item: StringName, at: Vector3, yaw: float,
-		launch: Vector3) -> void:
+		launch: Vector3, bound_to: int) -> void:
 	# Anything a player set down counts as disturbed, thrown or not: a panic
 	# dump is as much an offering as a bait, and the Hunter stopping for the
 	# pile you abandoned is `DES-005`'s counter-play paying out.
-	spawn_world_item(item, at, yaw, launch, true)
+	var made: WorldItem = spawn_world_item(item, at, yaw, launch, true)
+	# A put-down ember is still somebody's. Losing the binding here would turn
+	# a friend into scenery the moment their rescuer set them down for a fight.
+	if made != null and bound_to != 0:
+		made.bind_to(bound_to)
 
 
 ## Levels ask for the Hunter. Returns the host's copy so a level can hand it

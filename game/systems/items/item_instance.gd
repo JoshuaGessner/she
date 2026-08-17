@@ -18,17 +18,18 @@ extends RefCounted
 ## to load one from, nothing caches it, and two instances of the same item are
 ## two objects however they were made.
 ##
-## ## What is deliberately not here
+## ## The first piece of mutable state, and why it is this one
 ##
-## No `condition`, no `fuel`, no `charges`. Those are the fields ADR-084's
-## rationale *names*, and none of them has a system yet — condition is
-## `DES-008` economy work, fuel needs `LightTrait` and a lantern. A field
-## nothing reads and nothing writes is the stub ADR-064 bans, and adding one
-## here would make this class look finished while being untestable.
+## `bound_to` arrives at `M2-T05` with the **ember** (`DES-012`), and it is the
+## exact case ADR-084 was written about: every ember loads from one `.tres`, so
+## a shared `Resource` could not possibly answer *whose* it is. Two embers on
+## the floor are the same definition and two different people's lives.
 ##
-## The class is fully justified without them: `instance_id` and `cell` are
-## already per-instance state a shared definition cannot hold, because two
-## altar-plates in one bag are the same definition in two different squares.
+## Still deliberately absent: `condition`, `fuel`, `charges`. Those are the
+## other fields ADR-084's rationale names and none of them has a system yet —
+## condition is `DES-008` economy work, fuel needs `LightTrait` and a lantern.
+## A field nothing reads and nothing writes is the stub ADR-064 bans. They
+## arrive the way this one did: with the thing that needs them.
 
 ## Unique within one inventory, assigned by the host. This is what an RPC and a
 ## save row name — never an array index, which changes the moment anything is
@@ -45,6 +46,16 @@ var cell: Vector2i = Vector2i.ZERO
 ## only if it can be turned, and RE4's case — which `DES-019` names as the
 ## gold standard — makes rotation most of what the spatial puzzle *is*.
 var rotated: bool = false
+
+## The peer whose life this thing carries, or `0` for the overwhelming majority
+## of items that are simply objects.
+##
+## Only the **ember** uses it (`DES-012`): *"your ember, the piece of her fire
+## she gave you, drops where you fell. A teammate can carry it."* Which teammate
+## carries *whose* ember is the entire content of the M2 co-op gate, and it
+## cannot live on the shared definition — that is ADR-084's argument arriving as
+## a real case rather than a hypothetical lantern.
+var bound_to: int = 0
 
 
 static func of(from: ItemResource, id: int) -> ItemInstance:
@@ -77,6 +88,7 @@ func to_wire() -> Dictionary:
 		"item": definition.id,
 		"cell": cell,
 		"rotated": rotated,
+		"bound": bound_to,
 	}
 
 
@@ -90,4 +102,5 @@ static func from_wire(row: Dictionary) -> ItemInstance:
 	var made := ItemInstance.of(known, int(row["instance"]))
 	made.cell = row["cell"] as Vector2i
 	made.rotated = bool(row["rotated"])
+	made.bound_to = int(row["bound"])
 	return made

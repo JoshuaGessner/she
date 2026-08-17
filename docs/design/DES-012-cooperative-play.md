@@ -4,7 +4,7 @@ title: Cooperative Play
 status: accepted
 owner: design
 tags: [co-op, multiplayer, scaling, social, networking, retention]
-updated: 2026-08-14
+updated: 2026-08-17
 related: [DES-002, DES-003, DES-011, TEC-001, TEC-004]
 ---
 
@@ -28,6 +28,8 @@ This keeps `DES-003` intact without modification, avoids loot-drama entirely, an
 ## Vörðr — the dead keep playing (ADR-024)
 
 Barony's best social idea is that dead players stay in the level as ghosts with small useful powers, instead of watching a spectator camera. We take it, and add a decision to it that no extraction game has tried.
+
+> **Partly built at `M2-T05` (ADR-092).** *Wait* is real — you go down, you bleed out, your ember drops and a friend can carry it. **Return is absent, not approximated**: walking back in with nothing requires a LIFE to end, and that arrives with `M3`. So does the Vörðr's utility (scout marks need the ping system, `M4-T05`). Until then a fallen player's body stays where it fell rather than becoming a ghost with nothing to do.
 
 **On death you become a Vörðr** — your ward-spirit, briefly loose. Mobile, safe, unable to fight or carry. Minor utility ⟨tune⟩: scout ahead without risk, mark what you find for the living, unnerve enemies slightly. **The point is that a dead player is still playing**, still talking, still contributing — which is the whole reason Barony's ghosts work.
 
@@ -63,6 +65,12 @@ The hardest problem co-op creates: ADR-004 wipes your LIFE on death, and in co-o
 1. **Downed.** Taken to zero health, you go down — crawling, bleeding, unable to fight. A teammate can revive you in the field at a real cost (time, exposure, noise).
 2. **Ember.** Bleed out and you die *for the run* — but your **ember**, the piece of her fire she gave you, drops where you fell. A teammate can carry it. **It is heavy and it is loud.**
 3. **Carried out.** If your ember reaches an extraction point, **your LIFE survives.** You lose the run, your carried loot, and take a Scar — but your skill tree, stash, and Pact Rank are intact. If nobody carries it out, you die properly and the Legacy screen follows.
+
+> **BUILT AT `M2-T05` (ADR-092), and the ember is an `ItemResource`.** Not a special-cased object with hand-tuned penalties — `con_ember` goes in the bag, so the sacrifice **falls out of systems already built**: it costs 2×3 squares against the grid, 12 kg against `CarriedWeight`, and 5.5 clamor against the carried floor. Measured on a rescuer: **3.40 → 2.94 m/s, and silent → audible from 2.2 m standing still.**
+>
+> Two consequences worth stating. The ember can be **put down** — the design never forbids it, and the sacrifice is real precisely because it can be abandoned partway home. And it is *disturbed* gold by ADR-089's rule, so **the Gullsjúkr will stop for it**: the thing that would buy you seconds is your friend.
+>
+> *"Your LIFE survives"* names a tree, a stash and a rank that arrive at `M3`. Carrying an ember out therefore **reports** the life saved today; `M3-T05`'s Legacy screen reads it. What is real is the mechanism, which is what the co-op gate is about.
 
 Why this is good:
 - It converts the harshest mechanic in the game into **the most heroic thing a friend can do for you.**
@@ -157,3 +165,5 @@ Solo must be a first-class way to play, not a handicap:
 > **DECIDED (ADR-010/011):** Floors scale to the **highest** Pact Rank in the party. No rank gating — any two players may always play together. Boon is capped by *your own* rank, with overflow paid as Lineage.
 
 > **DECIDED (ADR-050):** **Once per run, costly, and never better than having a friend.** Rarer and more desperate than a hand up, which is the correct relationship.
+>
+> **Built at `M2-T05`.** Self-recovery returns ⟨tune⟩ 22% health against a friend's 40%, and it is gone for the rest of the run. `--ember-probe` asserts all three: that it works, that it returns less than full, and that a second attempt is refused.
