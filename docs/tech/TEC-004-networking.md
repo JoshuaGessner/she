@@ -55,6 +55,8 @@ python3 tools/run_coop.py --smoke    # headless, two processes, judged
 
 A body half a second old cannot have wandered, and that holds at any party size. The rule this leaves behind: **an authority probe must control everything except the authority it is measuring** — and every sample must be taken at the moment its claim is made, not at report time, which is the same mistake ADR-093 caught for enemy speeds and ADR-096 found still sitting in three more fields.
 
+**The smoke is also the only place party count is real (ADR-097).** `_start_host()` spawns the host's own body and nothing else; every other body arrives on `peer_connected`, after the level has already built its floor. So anything derived from *how many people are playing* is computed against a party of one in every single-process test, however carefully that test is written — and party scaling shipped dead for exactly one commit because of it. A single-process probe proves a function; **only a second process proves the game calls it.** The floor row exists to catch that whole class, not just the one instance of it.
+
 ## What replicates, and what doesn't
 
 The seeded generator (`TEC-001`) pays off enormously here.

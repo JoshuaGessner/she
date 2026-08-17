@@ -415,6 +415,11 @@ func _on_inventory_changed() -> void:
 	# Derived on every peer from the bag that peer holds, so no second
 	# replicated property is needed and a client's debug ring cannot disagree
 	# with the host's simulation about what this body gives away.
+	# **Not party-scaled, deliberately** (`M2-T07`, ADR-096). The party
+	# multiplier is on what people *do*, in `ClamorSource.add()`; a coin clinks
+	# the same whoever you came with. Scaling a *floor* would put every party
+	# above the hearing threshold permanently and delete `DES-005`'s "hide and
+	# let it pass". `--scaling-probe` holds both halves of that line.
 	clamor.carried_floor = (inventory.total_clamor()
 		* Config.tuning.clamor_carried_fraction)
 

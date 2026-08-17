@@ -1537,4 +1537,44 @@ The fix is not more tolerance. The probe now **empties the floor and spawns exac
 
 ---
 
+## ADR-097 — Party scaling, made to actually happen: every size, the behaviour/baggage line, and a floor that grows
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-012`, `TEC-004`, ADR-096**
+
+**Context:** ADR-096 landed party scaling and `--scaling-probe` proved the arithmetic. A cohesion pass over the finished task found three things wrong with it, one of them severe. All three are the same species of fault: **a correct calculation that nothing made the game perform.**
+
+### 1. The scaling was dead code in every real session
+
+`CoopSession._start_host()` spawns the host's own body and nothing else — every other body arrives later, on `peer_connected`. But `_spawn_actors()` built the floor in the **same frame** it created the session. So `PartyScaling.size_of()` counted **one, always**, and enemy and loot scaling never fired outside the probe that measured them in isolation.
+
+`--scaling-probe` could not have caught this. It measures a pure function and the pure function was right. What was missing was any check that the game **calls** it with a number above one, and that needs a second process.
+
+**Decision — the floor is topped up as the party arrives, and never shrinks.** There is no "the party is complete" moment to wait for, and manufacturing one out of a timer is the fragile kind of fix this project keeps refusing. Instead each arrival brings enemy and loot counts up to what the current party warrants, adding only the difference. Both curves are monotonic, so a floor grown one player at a time is identical to one generated for the final party — which is why an incremental fix is a real fix here and not an approximation of one.
+
+It **does not shrink** when somebody leaves. Despawning an enemy a player is fighting, or loot they were walking towards, is a bug they can *see*; a floor still populated for four after one quits is only a harder run. Between a visible wrong and an invisible imbalance, take the imbalance.
+
+The ring placement had to change with it: the spread angle now depends on the body's index alone and never on the total, or every enemy already standing on the floor would shuffle each time somebody joined.
+
+`run_coop.py` gained the row that catches this — the host's floor sampled while a second player is standing on it, compared against what a solo floor would hold. Commenting out one `connect` reproduces the original bug exactly and the row reads `2 players: 3 enemies (solo 3), 4 loot (solo 4)  FAIL`.
+
+### 2. Three players were asserted by nothing
+
+`DES-012` writes the relationship as 1/2/4 because those are the numbers people quote, and the probe sampled exactly those. The exponent form is continuous, so three was always correct — but nothing *checked* it, and "correct by construction" is the phrase that precedes most of this log's other entries.
+
+**Decision — the probe walks every size from 1 to `Player.MAX_PARTY`**, derived from the constant rather than written out, so raising the cap extends the check instead of quietly leaving the new sizes untested. Three players lands where it should: 2.67 loot and 1.47 clamor per head, between two and four on all three curves.
+
+### 3. The multiplier is on what people *do*, not on what they *hold*
+
+`ClamorSource` has two ways to be loud and only one of them scaled. Transient deposits — footsteps, swings, rummaging, a Waystone channel — pass through `add()` and are multiplied. `carried_floor` is assigned straight from the bag and is not.
+
+That was where the multiplication happened to land, not a decision. It is one now, and it is the right line:
+
+* **What you do** gets sloppier with company. Four people cannot move through a room with the coordination of one, and that is what the super-linear exponent is charging for.
+* **What you hold** does not. Ten kilos of coin clinks the same whoever you came with; nothing about the party changes the object in the bag.
+
+The practical half is what settles it. `carried_floor` is a **floor** — a minimum audible radius that never decays away. Scaling it would put every party above the hearing threshold permanently and delete *"hide and let it pass"*, which `DES-005` lists among the things that must work. Per-capita clamor still rises, which is the property `DES-012` actually asks for. `--scaling-probe` now holds both halves: the same coin reads 0.75 at every party size while the same action rises 1.00 → 6.50, and planting either failure fires the matching row.
+
+**The lesson, which is the third time this log has written a version of it.** ADR-093 moved a measurement to the moment its claim was made. ADR-096 found the same fault in three more fields. This one is its bigger sibling: **a probe that measures a function in isolation proves the function, and nothing else.** Somewhere there also has to be a check that the game reaches it — and for scaling, density, and anything else derived from how many people are playing, that check cannot live in a single process.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

@@ -988,7 +988,17 @@ func _ember_probe() -> void:
 ##    clipped.
 func _scaling_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
-	var sizes: Array[int] = [1, 2, 4]
+	# **Every size, not the three headline ones.** `DES-012` writes the
+	# relationship as 1/2/4 because those are the numbers people quote, and the
+	# first version of this probe sampled exactly those — which left the sizes
+	# in between asserted by nothing. Three players is a real party and it has
+	# to land *between* two and four on all three curves, not merely exist.
+	#
+	# Derived from `Player.MAX_PARTY` rather than written out, so raising the
+	# cap extends the check instead of quietly leaving the new sizes untested.
+	var sizes: Array[int] = []
+	for party: int in range(1, Player.MAX_PARTY + 1):
+		sizes.append(party)
 	var per_head_loot: Array[float] = []
 	var per_head_clamor: Array[float] = []
 	var counts: Array[int] = []
@@ -1039,7 +1049,87 @@ func _scaling_probe() -> void:
 			+ "the range — the curve reads as flat when it is only clipped, and "
 			+ "the per-capita metric stops meaning what it says") % clipped_at)
 
+	_assert_the_multiplier_is_on_behaviour(sizes, problems)
 	_report(problems, "party")
+
+
+## **The party multiplier is on what people do, not on what they hold.**
+##
+## `ClamorSource` has two ways to be loud and only one of them scales. Every
+## transient deposit — a footstep, a swing, a rummage, a Waystone channel —
+## goes through `add()` and is multiplied. `carried_floor` is assigned straight
+## from the bag and is not.
+##
+## That was where the multiplication happened to land rather than a decision,
+## so it is a decision now, and this is the check that holds it:
+##
+## * **What you do** gets sloppier with company. Four people cannot move
+##   through a room with the coordination of one, and that is the fiction the
+##   super-linear exponent is charging for.
+## * **What you hold** does not. Ten kilos of coin clinks exactly the same
+##   whether or not you brought friends, and nothing about the party changes
+##   the object in the bag.
+##
+## And the practical half, which is why the line is in the right place:
+## `carried_floor` is a *floor*, a minimum audible radius that never decays
+## away. Scaling it would put a four-stack permanently above the threshold and
+## delete *"hide and let it pass"* — which `DES-005` lists among the things
+## that must work — for every party except a solo one. Per-capita clamor still
+## rises, which is the property `DES-012` actually asks for.
+func _assert_the_multiplier_is_on_behaviour(sizes: Array[int],
+		problems: PackedStringArray) -> void:
+	var player: Player = _session.local_player()
+	if player == null:
+		problems.append("no local body to measure clamor on")
+		return
+	var coin: ItemResource = ItemCatalogue.by_id(&"glt_hoard_coin")
+	if coin == null:
+		problems.append("glt_hoard_coin is missing from the catalogue")
+		return
+
+	# Stand-ins are *counted*, never simulated: group membership is the entire
+	# input party scaling has, so a marker in the group is indistinguishable
+	# from a body for this measurement. Spawning three networked players
+	# headless to observe one multiplication would be theatre.
+	var stand_ins: Array[Node] = []
+	var held: Array[float] = []
+	var done: Array[float] = []
+	for party: int in sizes:
+		while stand_ins.size() < party - 1:
+			var extra := Node.new()
+			extra.add_to_group("player")
+			add_child(extra)
+			stand_ins.append(extra)
+
+		player.inventory.clear()
+		player.inventory.add(coin)
+		held.append(player.clamor.carried_floor)
+
+		player.inventory.clear()
+		player.clamor.silence()
+		player.clamor.add(1.0)
+		done.append(player.clamor.level)
+
+		print("[party] %d player(s): one coin held %.2f, one unit done %.2f"
+			% [party, held[-1], done[-1]])
+
+	for extra: Node in stand_ins:
+		extra.queue_free()
+	player.inventory.clear()
+	player.clamor.silence()
+
+	for index: int in range(1, sizes.size()):
+		if not is_equal_approx(held[index], held[0]):
+			problems.append(("the same coin is louder at %d players than at 1 "
+				+ "(%.2f vs %.2f) — the party multiplier has reached what the "
+				+ "bag holds, and a carried floor that scales puts every party "
+				+ "above the hearing threshold permanently")
+				% [sizes[index], held[index], held[0]])
+		if done[index] <= done[index - 1]:
+			problems.append(("the same action is no louder at %d players than "
+				+ "at %d (%.2f vs %.2f) — transient noise is the half that has "
+				+ "to scale")
+				% [sizes[index], sizes[index - 1], done[index], done[index - 1]])
 
 
 ## Four embers in a row, photographed (`M2-T05`).
@@ -1128,6 +1218,12 @@ const PROBE_TAKE_FROM: Vector3 = Vector3(9.4, 0.1, -6.8)
 const PROBE_RESCUE_AT: Vector3 = PROBE_WALK_FROM
 const PROBE_TIMEOUT_MSEC: int = 15000
 
+## How much floor has already been laid, so an arriving player tops it up
+## rather than doubling it. See `_on_party_changed`.
+var _enemies_placed: int = 0
+var _loot_placed: int = 0
+
+var _probe_floor: Dictionary = {}
 var _probe_enemies_seen: int = 0
 var _probe_enemy_hp: Dictionary = {}
 var _probe_enemy_at: Dictionary = {}
@@ -1184,6 +1280,19 @@ func _coop_probe(out: String) -> void:
 	# that has existed for half a second cannot have wandered off. That holds at
 	# any party size and any clamor multiplier, which is the point: party
 	# scaling has `--scaling-probe` and does not need re-measuring through this.
+	#
+	# **Sampled before it is emptied**, because this is the only place the two
+	# halves of `M2-T07` meet. `--scaling-probe` proves the arithmetic; only a
+	# second real process proves the game ever calls it with a number above
+	# one — and for one commit it did not, because the host builds its floor in
+	# the frame it creates the session and every other body arrives after that.
+	_probe_floor = {
+		"party": PartyScaling.size_of(self),
+		"enemies": _enemies_placed,
+		"loot": _loot_placed,
+		"solo_enemies": PartyScaling.enemies(ENEMY_POSTS.size(), 1),
+		"solo_loot": mini(LOOT.size(), PartyScaling.loot(_solo_loot(), 1)),
+	}
 	if host:
 		_session.clear_enemies()
 	await _hold(0.6)
@@ -1376,6 +1485,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"connect_seconds": _probe_connect_seconds,
 		"players_seen": _session.players().size(),
 		"enemies_seen": _probe_enemies_seen,
+		"floor": _probe_floor,
 		"positions": _probe_positions(),
 		"walked": _probe_walked,
 		"capsule_heights": _probe_heights,
@@ -1682,15 +1792,22 @@ func _spawn_enemies() -> void:
 	# A ring at `SPREAD` guarantees separation by construction, and being
 	# deterministic it also means the same party always meets the same floor —
 	# which `--scaling-probe` needs, since it compares one against another.
-	for index: int in range(wanted):
+	#
+	# The angle is a function of `index` alone and never of `wanted`, so body
+	# *n* stands in the same place whether the floor was built for two people
+	# or grew to four. A formula that divided by `wanted` would move every
+	# enemy already standing there each time somebody joined.
+	for index: int in range(_enemies_placed, wanted):
 		var post: Vector3 = ENEMY_POSTS[index % ENEMY_POSTS.size()]
 		var ring: int = index / ENEMY_POSTS.size()
 		if ring > 0:
-			var angle: float = TAU * float(index) / float(maxi(wanted, 1))
+			var angle: float = TAU * float(index) / float(ENEMY_POSTS.size())
 			post += Vector3(cos(angle), 0.0, sin(angle)) * SPREAD * float(ring)
 		_session.spawn_enemy(post)
-	# The Guardian faces its prize's doorway and never leaves the room.
-	_session.spawn_enemy(GUARDIAN_POST)
+	if _enemies_placed == 0:
+		# The Guardian faces its prize's doorway and never leaves the room.
+		_session.spawn_enemy(GUARDIAN_POST)
+	_enemies_placed = maxi(_enemies_placed, wanted)
 
 
 ## The authored loot, as much of it as this party gets (`M2-T07`, `DES-012`).
@@ -1708,9 +1825,38 @@ func _spawn_enemies() -> void:
 func _spawn_loot() -> void:
 	var party: int = PartyScaling.size_of(self)
 	var wanted: int = mini(LOOT.size(), PartyScaling.loot(_solo_loot(), party))
-	for index: int in range(wanted):
+	for index: int in range(_loot_placed, wanted):
 		var row: Array = LOOT[index]
 		_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
+	_loot_placed = maxi(_loot_placed, wanted)
+
+
+## **The floor scales to the party as the party arrives, and never shrinks.**
+##
+## `M2-T07` shipped scaling that could not fire. `CoopSession._start_host()`
+## spawns the host's own body and nothing else — every other body arrives later,
+## on `peer_connected` — but `_spawn_actors()` built the floor in the same frame
+## it created the session. So `size_of()` counted **one**, always, and enemy and
+## loot scaling were dead code in every real session. The `--scaling-probe`
+## measured the arithmetic and the arithmetic was right; nothing measured
+## whether the game ever called it with a number above one.
+##
+## There is no "the party is complete" moment to wait for, and inventing one out
+## of a timer would be the fragile kind of fix this project keeps refusing. So
+## the floor is **topped up** instead: each arrival brings the enemy and loot
+## counts to what the current party warrants, adding only the difference. Both
+## curves are monotonic, so a floor grown one player at a time is identical to
+## one generated for the final party.
+##
+## **It never shrinks when somebody leaves.** Despawning an enemy a player is
+## fighting, or loot they were walking towards, is a bug they can *see*; a floor
+## still populated for four after one quits is only a harder run. Between a
+## visible wrong and an invisible imbalance, take the imbalance.
+func _on_party_changed(_player: Player) -> void:
+	if not _session.is_host():
+		return
+	_spawn_enemies()
+	_spawn_loot()
 
 
 ## What a lone player finds. Chosen so the curve reaches the authored ceiling
@@ -1911,6 +2057,10 @@ func _spawn_actors() -> void:
 	# growing a networking branch.
 	_spawn_enemies()
 	_spawn_loot()
+	# …and again for everyone who arrives after this frame, which is everyone
+	# except the host. See `_on_party_changed`: without this, party scaling is
+	# arithmetic the game never reaches.
+	_session.player_spawned.connect(_on_party_changed)
 
 
 # ── the guarantee, asserted rather than eyeballed ─────────────────────────

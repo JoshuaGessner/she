@@ -105,9 +105,16 @@ This is the most important balance relationship in co-op and it needs early inst
 > |---|---|---|---|---|---|
 > | 1 | 4 | **4.00** | 3 | ×1.00 | **1.00** |
 > | 2 | 6 | **3.00** | 6 | ×2.55 | **1.27** |
+> | 3 | 8 | **2.67** | 8 | ×4.41 | **1.47** |
 > | 4 | 9 | **2.25** | 11 | ×6.50 | **1.62** |
 >
-> `--scaling-probe` asserts the **signs**, not the values: per-capita loot must fall, per-capita clamor must rise, enemy count must grow. A balance pass may move the exponents; it cannot flip them without CI refusing the commit. Per-capita *extracted* value, as against spawned, waits on `DES-010`'s metrics sink at `M4`. Elite frequency and contract objective count are absent — `M3` builds ranks and `DES-007` builds contracts.
+> `--scaling-probe` asserts the **signs**, not the values: per-capita loot must fall, per-capita clamor must rise, enemy count must grow. It walks **every** size up to `MAX_PARTY`, not the three headline ones — three players is a real party and has to land between two and four rather than merely exist (ADR-097). A balance pass may move the exponents; it cannot flip them without CI refusing the commit.
+>
+> **The multiplier is on what people do, not what they hold** (ADR-097). Footsteps, swings, rummaging and channels scale; a bag's carried floor does not. A coin clinks the same whoever you came with, and scaling a *floor* would put every non-solo party permanently above the hearing threshold — deleting `DES-005`'s "hide and let it pass" for everyone except a lone player.
+>
+> **The floor grows as the party arrives and never shrinks.** The host lays its floor in the frame it opens the session and every other body arrives after that, so the count is topped up on each arrival rather than fixed at generation; both curves are monotonic, so a floor grown one player at a time equals one built for the final party. Nothing is removed when somebody leaves — despawning an enemy a player is fighting is a bug they can see, while an over-populated floor is only a harder run.
+>
+> Per-capita *extracted* value, as against spawned, waits on `DES-010`'s metrics sink at `M4`. Elite frequency and contract objective count are absent — `M3` builds ranks and `DES-007` builds contracts.
 
 ## Mixed-rank parties
 

@@ -148,6 +148,23 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         enemies[1] == enemies[0] and enemies[0] > 0,
         f"host {enemies[0]}, client {enemies[1]}"))
 
+    # The floor the host actually built, sampled while the second player was
+    # standing on it. This is the only check that can see M2-T07 working: the
+    # --scaling-probe measures the arithmetic in one process, and the
+    # arithmetic was always right. What was wrong for one commit is that the
+    # game never called it with a party above one — the host lays its floor in
+    # the frame it creates the session, and every other body arrives later. A
+    # solo-sized floor under two players is the whole failure, and it is silent.
+    floor = host["floor"]
+    grew = (floor["enemies"] > floor["solo_enemies"]
+            and floor["loot"] > floor["solo_loot"])
+    rows.append(check(
+        "the floor scaled to the party on it",
+        floor["party"] == expected_players and grew,
+        f"{floor['party']} players: {floor['enemies']} enemies "
+        f"(solo {floor['solo_enemies']}), {floor['loot']} loot "
+        f"(solo {floor['solo_loot']})"))
+
     # Positions. Missing keys must fail rather than skip: an absent body is the
     # loudest possible failure and the easiest one to accidentally ignore.
     shared = set(host["positions"]) & set(client["positions"])
