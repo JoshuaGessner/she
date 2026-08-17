@@ -115,7 +115,12 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# aborts the function it happens in, so a probe that errors never reaches
 	# its own `quit()` and would otherwise hang the build forever. Measured the
 	# hard way — this check ran for eight minutes before being killed.
-	churn="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 -- --lifecycle-probe 2>&1)"
+	# The gym **explicitly**, not the main scene. `M2-T06` made the main scene
+	# the Threshold so the game boots into its own loop; the lifecycle probe
+	# belongs to the gym, and inheriting whatever `run/main_scene` happens to be
+	# would have silently stopped running it.
+	churn="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
+		levels/dev/movement_gym.tscn -- --lifecycle-probe 2>&1)"
 	if problems="$(printf '%s\n' "$churn" | grep -E 'SCRIPT ERROR|Parse Error|^ERROR:')"; then
 		echo "FAIL destroying and respawning actors" >&2
 		printf '%s\n' "$problems" | sed 's/^/      /' | sort -u >&2
@@ -226,6 +231,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Does the Settle beat settle anything (`M2-T06`)? `DES-003`'s three tiers,
+	# made testable: what you carried is in your hands on arrival, tribute is
+	# one-way and permanent, and **death wipes the stash and never the hoard.**
+	# That last pair is the economy's whole self-correction — `DES-008`'s great
+	# reset is why this design needs no late-game nerfs — and it is one line away
+	# from being wrong in either direction.
+	lair="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 6000 \
+		levels/lair/chamber.tscn -- --lair-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$lair" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the Settle beat" >&2
+		printf '%s\n' "$lair" | grep -E '\[lair\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Two processes, host and client, over loopback (`M1-T05`). This is the
 	# only check in the sweep that exercises a *second* process, and it is the
 	# only one that can: every claim in `TEC-004` is a claim that two peers
@@ -245,7 +264,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
 	echo "greed costs and dropping it pays, the Hunt tracks noise not transforms,"
 	echo "every mix channel has a visual twin, the way out is never sealed shut,"
-	echo "the fallen can be carried home,"
+	echo "the fallen can be carried home, the hoard outlives every death,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

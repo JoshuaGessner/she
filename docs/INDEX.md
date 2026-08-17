@@ -26,7 +26,7 @@ _What the game is._
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-08-14 | DES-004, DES-003, DES-012, DES-009 |
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
 | `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-08-16 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
-| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
+| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-08-14 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-08-16 | DES-005, DES-013, DES-008, DES-014, DES-018 |

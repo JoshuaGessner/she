@@ -329,14 +329,15 @@ func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0,
 	return made
 
 
-func _on_player_dropped(item: StringName, at: Vector3, yaw: float,
-		launch: Vector3, bound_to: int) -> void:
+func _on_player_dropped(item: ItemInstance, at: Vector3, yaw: float,
+		launch: Vector3) -> void:
 	# Anything a player set down counts as disturbed, thrown or not: a panic
 	# dump is as much an offering as a bait, and the Hunter stopping for the
 	# pile you abandoned is `DES-005`'s counter-play paying out.
+	#
 	# A put-down ember is still somebody's. Losing the binding here would turn
 	# a friend into scenery the moment their rescuer set them down for a fight.
-	spawn_world_item(item, at, yaw, launch, true, bound_to)
+	spawn_world_item(item.definition.id, at, yaw, launch, true, item.bound_to)
 
 
 ## Levels ask for the Hunter. Returns the host's copy so a level can hand it

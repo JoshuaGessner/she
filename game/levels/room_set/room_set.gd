@@ -180,6 +180,9 @@ var _field: ClamorField = null
 var _hunter: Gullsjukr = null
 var _shaft: Shaft = null
 var _descent: int = 1
+## True while a probe is driving this level. Probes measure the floor and must
+## not be dropped into the Lair halfway through a measurement.
+var _probing: bool = false
 
 ## Someone left the floor alive, and what they took. `M2-T07` instruments
 ## per-capita extracted value off this; `M2-T06` will hang the Lair on it.
@@ -206,6 +209,11 @@ func _ready() -> void:
 	var overlays := DebugOverlays.new()
 	_world.add_child(overlays)
 	overlays.show_field(_field)
+	# Any probe at all means this process is measuring the floor rather than
+	# playing the loop, so extraction must not change scene out from under it.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.contains("probe") or arg.contains("shot") or arg.contains("capture"):
+			_probing = true
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
@@ -1608,16 +1616,36 @@ func _on_extracted(player: Player) -> void:
 		rescued.emit(peer, player)
 
 	extracted.emit(player, player.inventory.total_tribute())
-	_descend_again()
+
+	# Home, with what you were holding. `M2-T06` gave the loop somewhere to
+	# close: the Chamber sorts it, and until you have decided, everything you
+	# carried out is still yours and still undecided.
+	var brought: Array[ItemInstance] = []
+	for item: ItemInstance in player.inventory.items():
+		brought.append(item)
+	GameState.bring_home(brought)
+	_go_to_the_chamber()
 
 
-## Put the floor back and send everyone down again.
+## Back to your own Chamber (`M2-T06`, ADR-021).
 ##
-## The Lair belongs between these two things (`M2-T06`) and is **absent, not
-## faked** — there is no fake hub, no fake stash screen. What you keep is
-## printed and then gone, which is honest about there being nowhere yet to
-## put it.
-func _descend_again() -> void:
+## The run ends by **leaving the scene**, which is what makes the Lair a place
+## rather than a screen: `DES-014` puts her, the hoard and the stash somewhere
+## you walk to, and the Settle beat happens there rather than in a panel over
+## the dungeon you just left.
+##
+## The probes still reset the floor in place — they are measuring this level,
+## not the loop — so leaving is only what a real run does.
+func _go_to_the_chamber() -> void:
+	if _probing:
+		_reset_floor()
+		return
+	get_tree().change_scene_to_file("res://levels/lair/chamber.tscn")
+
+
+## Put the floor back, for the probes that need a second descent without a
+## scene change in the middle of their measurement.
+func _reset_floor() -> void:
 	_descent += 1
 	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
 		node.queue_free()

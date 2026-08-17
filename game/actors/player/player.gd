@@ -56,8 +56,12 @@ const MAX_PARTY: int = 4
 ## Loot leaving the bag. `CoopSession` listens and spawns the `WorldItem`,
 ## because a child never reaches into the tree above it for a service — signals
 ## up, calls down (`TEC-002`).
-signal dropped(item: StringName, at: Vector3, yaw: float, launch: Vector3,
-	bound_to: int)
+## The **instance**, not its id. A dungeon turns it into a `WorldItem`; the
+## Chamber turns it into tribute or into stash (`DES-014`). Both need more than
+## a definition name to do that — whose ember it was, which of two identical
+## coins this is — and passing the id alone made *putting something down* mean
+## less than it does.
+signal dropped(item: ItemInstance, at: Vector3, yaw: float, launch: Vector3)
 
 ## Left the floor alive, by Waystone. The level decides what that means — a
 ## body does not get to end its own run (`TEC-004`: consequences have one
@@ -580,7 +584,7 @@ func _put_down(instance_id: int, thrown: bool) -> void:
 		at = global_position + Vector3(0.0, _head.position.y, 0.0) + forward * 0.4
 		var tilt: float = deg_to_rad(THROW_LIFT_DEGREES)
 		launch = (forward * cos(tilt) + Vector3.UP * sin(tilt)) * THROW_SPEED
-	dropped.emit(item.definition.id, at, rotation.y, launch, item.bound_to)
+	dropped.emit(item, at, rotation.y, launch)
 
 
 ## Ask to move something within the grid. Host-authoritative like everything

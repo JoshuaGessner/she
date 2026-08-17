@@ -8,14 +8,14 @@
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
-`16/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`17/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>6/9"]:::current
+  M2["M2 The Loop Prototype<br/>7/9"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `██████████░░░░░` | 6/9 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `████████████░░░` | 7/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -76,17 +76,17 @@ _None. Sequencing is clean._
 - ✔ `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build. *One `HuntMix` computed by `AudioDirector`, rendered by the score **and** the Ear — the twin is structural, and `--ear-probe` refuses a channel nobody draws. Raw Godot, no middleware: `ART-002` chose vertical remixing, which Godot does natively (ADR-090). Score layers are blockout; `M2-T09` authors the theme* `DES-017` `DES-018` `DES-019` `TEC-005`
 - ✔ `M2-T04` Extraction: reach an exit, keep what you carried — **plus the Sealing** (`DES-005` Layer 3), moved here from `M2-T02` by ADR-089 because it seals the Shafts this task builds. *Two ways out: the Shaft (fixed, known, loud) and the Waystone (loot, capped at one, consumed). **The Sealing never locks the Shaft, it makes it worse** — 4.0 s to 12.8 s and 5.0 to 16.0 clamor at full escalation — because on one floor a lock is the trapping ADR-015 forbids (ADR-091). `ExtractionTrait` built. The Settle beat is absent, not faked: the loop closes and reports, the Lair is `M2-T06`* `DES-005` `DES-002`
 - ✔ `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`). *The other half of `DES-002`'s loop: `M2-T04` built "extract", this builds "or die". **The ember is an `ItemResource`**, so the sacrifice falls out of the grid, the scales and the clamor floor rather than being special-cased — 3.40 → 2.94 m/s and silent → heard at 2.2 m for whoever carries it (ADR-092). `ItemInstance` gains `bound_to`, its first mutable field, exactly as ADR-084 said it would. Vörðr **Return** and Scars are absent, not approximated — both need the LIFE `M3` builds* `DES-002` `DES-003` `DES-008` `DES-012`
-- · `M2-T06` Minimal Lair: stash and re-descend — *and with it the **Settle beat** `M2-T04` deliberately left absent: what you brought, the keep-or-give decision made physically at the hoard (`DES-019`)* `DES-002` `DES-008` `DES-014` `DES-019`
+- ✔ `M2-T06` Minimal Lair: stash and re-descend — *and with it the **Settle beat** `M2-T04` deliberately left absent: what you brought, the keep-or-give decision made physically at the hoard (`DES-019`). **Chamber and Threshold as two scenes** (ADR-021); the Chamber has no `CoopSession` in it at all, which is what makes "never networked" structural rather than remembered. Tribute is the drag-out-of-the-bag gesture, and the place you are standing decides what it means. `GameState` holds `DES-003`'s three tiers — **the stash dies with you, the hoard never does**. The game now boots into the Threshold (ADR-095)* `DES-002` `DES-008` `DES-014` `DES-019`
 - · `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players `DES-012`
 - · `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early `ART-002` `ART-003` `TEC-005`
 
 ### M3 — The Pact
 
-- · `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) `DES-003` `DES-004` `DES-008`
+- · `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) — *the Chamber built at `M2-T06` is where this happens: the hoard grows today and buys nothing until this lands* `DES-002` `DES-003` `DES-004` `DES-008` `DES-014`
 - · `M3-T02` **Two classes complete** — Húskarl and Veiðimaðr, opposite loop relationships. **The other four are absent from the class-select screen entirely.** A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064) `DES-011`
 - · `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested `DES-003` `DES-012`
 - · `M3-T04` Tithe and Pact Rank escalation (`DES-003`) — *and with it the rank at which a Gullsjúkr becomes killable, which `M2-T02` left absent rather than stubbed* `DES-003` `DES-017`
-- · `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) `DES-003` `DES-019`
+- · `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) — *in the Chamber, and it reads the `rescued` signal `M2-T05` already emits* `DES-003` `DES-012` `DES-014` `DES-019`
 - · `M3-T06` Save system with versioning and migration from day one (`TEC-003`) `TEC-003`
 - · `M3-T07` **Equipment slots and visible gear** — six slots, per-class bare arms, armour rendering over them, Pack driving grid size `DES-020`
 - · `M3-T08` **Deeds awarded at the Settle beat** — never mid-run; the run must end on evidence of what you did `DES-016`
@@ -96,7 +96,7 @@ _None. Sequencing is clean._
 - · `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* `DES-015` `DES-006` `DES-017` `DES-005`
 - · `M4-T02` ~6 enemy archetypes, 2 hazard types `DES-013`
 - · `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* `DES-011`
-- · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) `DES-007`
+- · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) — *the board hangs in the Threshold, which `M2-T06` built as a fire and a doorway* `DES-007` `DES-014`
 - · `M4-T05` Real art pass, real audio, real UI, ping system `ART-001` `ART-002` `DES-019` `DES-012`
 - · `M4-T06` Full save/load, settings, controls rebinding `TEC-003` `DES-018`
 - · `M4-T11` **The accessibility suite** — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. *Split out of `M4-T06` by ADR-077: "settings" was standing in for a dozen deliverables, several of which are architectural constraints rather than options* `DES-018`
@@ -116,6 +116,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 94 ADRs · 12 open questions · 91 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 95 ADRs · 12 open questions · 92 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

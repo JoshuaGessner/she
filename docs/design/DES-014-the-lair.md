@@ -4,7 +4,7 @@ title: The Lair
 status: accepted
 owner: design
 tags: [hub, lair, retention, social, co-op, ui, progression, networking]
-updated: 2026-08-14
+updated: 2026-08-17
 related: [DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004]
 ---
 
@@ -29,6 +29,10 @@ Pacts are individual (`DES-012`). So a shared hub has no obvious owner: whose La
 **The actual problem is that the Lair was doing two jobs with opposite requirements.**
 
 > **DECIDED (ADR-021): split it in two.**
+>
+> **BUILT AT `M2-T06` (ADR-095), and the split is enforced by absence.** `chamber.tscn` contains **no `CoopSession` at all** — a body is instantiated directly. Nothing can replicate out of a scene with no session in it, however carelessly anyone wires it later, which is a stronger guarantee than a rule saying not to. `TEC-004`'s "progression never touches the wire" therefore falls out of the fiction rather than the fiction being bent to fit it.
+>
+> The **Settle beat** landed with it: tribute is the same drag-out-of-the-bag gesture that abandons loot on a dungeon floor, and **the place you are standing decides what it means** — at the hoard she keeps it, at the stash you do, anywhere else it is on the floor. `DES-019` refuses a confirmation dialog and asks for the decision to be physical; this is what physical costs, and nothing new had to be built for it. The game now boots into the Threshold.
 
 ### Your Chamber — private, local, always yours
 

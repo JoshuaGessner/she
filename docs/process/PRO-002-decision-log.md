@@ -1470,4 +1470,29 @@ Two rendering faults came with it, and both were invisible headless. Emission at
 
 ---
 
+## ADR-095 — `M2-T06`: the Lair is two places, and the Settle beat is a walk
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-014`, `PRO-001`, `project.godot`** · **Implements ADR-021**
+
+**Context:** `M2-T04` closed the loop and deliberately left the Settle beat absent, because there was nowhere to put it. This builds the somewhere.
+
+**Decision 1 — the split is enforced by absence, not by care.** ADR-021 makes the Chamber private and never networked. So `chamber.tscn` **contains no `CoopSession` at all** and instantiates a body directly. Nothing can replicate out of a scene with no session in it, however carelessly anyone wires it later — which is a stronger guarantee than a rule saying not to.
+
+The reasoning runs fiction-first and that is worth preserving: tribute, her voice, and choosing what she keeps of you are *solitary by design*, and four people watching you decide is actively wrong. `TEC-004`'s property — progression never touches the wire — falls out of that rather than the fiction being bent to fit it.
+
+**Decision 2 — the Settle beat is the drag-out-of-the-bag gesture you already have, and the *place* decides what it means.** At the hoard it is tribute; at the stash it is kept; anywhere else it lands on the floor, which is also an answer.
+
+`DES-019` refuses a confirmation dialog for tribute and asks for the decision to be **physical**. This is what physical costs: a walk to one side of the room or the other, with the same verb that abandons loot on a dungeon floor. Nothing new had to be built for it, which is the tell that the verb was right.
+
+**Decision 3 — `GameState` is registered**, the third of `TEC-001`'s six autoloads, on ADR-066's terms: it now has work. It holds `DES-003`'s three tiers and the difference between them is the whole emotional architecture — what you carried survives only if you extracted, **the stash dies with you** (`DES-008`'s great reset), and **the hoard never wipes**. `--lair-probe` asserts that pair in both directions, because it is one line away from being wrong either way and the economy's self-correction depends on it.
+
+**Decision 4 — the main scene is the Threshold.** The game boots into its own loop rather than into a dev gym. `DES-014`'s first-sixty-seconds staging wants the first thing you see to be her and the Descent, and that is now literally what happens.
+
+**The consequence that had to be caught by hand:** `check_scripts.sh` ran the lifecycle probe against *whatever `run/main_scene` happened to be*, so changing it would have silently stopped exercising the gym — a check that quietly stops running is the failure mode this project keeps writing ADRs about. It names the gym explicitly now.
+
+**On the hoard, which is the cheapest good thing in the design.** `DES-014` prices it at *"a growing-pile-of-meshes system and nothing else"* and that is exactly what it cost: one mesh per ⟨tune⟩ 25 tribute, piled from a fixed seed so the mountain you walked past last run is the same mountain. It is visible progress with **zero balance impact** — the safest retention mechanism available — and it turns ADR-004's harshness into something you can walk on.
+
+**Absent, not stubbed.** Boon (`M3-T01` builds the tree tribute buys), the Tithe and Pact Rank (`M3-T04`), the Legacy screen (`M3-T05`), and **saving any of it to disk** (`M3-T06`; `TEC-003` wants a versioned format with a migration path, not whatever is convenient today). In the Threshold: the contract board, the Forge, the Quartermaster, the staves, the campsites, camp momentum, and the NPC Bound. A fire and a doorway is not a placeholder for a bigger Threshold — `DES-010` wants the camp to *fill in* over the first hour, so it is the first hour.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
