@@ -19,6 +19,7 @@ run/main_scene="res://levels/dev/movement_gym.tscn"
 [autoload]
 
 Config="*res://autoload/config.gd"
+AudioDirector="*res://autoload/audio_director.gd"
 
 [debug]
 

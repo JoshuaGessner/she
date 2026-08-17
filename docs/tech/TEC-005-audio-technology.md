@@ -4,7 +4,7 @@ title: Audio Technology
 status: accepted
 owner: tech
 tags: [audio, occlusion, middleware, godot, engine, risk]
-updated: 2026-08-14
+updated: 2026-08-17
 related: [ART-002, ART-003, TEC-001, TEC-004, DES-018]
 ---
 
@@ -105,5 +105,14 @@ Deciding now means guessing. Deciding at M1 means knowing.
 ## Open questions
 
 > **DECIDED (ADR-050):** **Raw Godot first**, migrating to FMOD when the musician is onboarded and their workflow becomes the deciding factor. A week of work, no dependency risk, and it proves the state machine before anyone is handed a pipeline.
+
+> **BUILT AT `M2-T03` (ADR-090), and the reasoning got stronger.** `ART-002` chose **vertical remixing** — layers playing in sync at independent volumes — which is the half Godot does natively. What middleware actually buys is *horizontal* re-sequencing, musically quantised jumps between sections, and `ART-002` rejects it outright (*"crossfades, not cuts"*, *"never stingers"*). So the recommendation above is not a compromise for this design; it is the right tool.
+>
+> Two things this document undersells, worth correcting here:
+>
+> - **FMOD has no official Godot integration** — the table above says "community Godot 4 integration" and that is the decisive fact, not a footnote. It means a GDExtension with per-platform native binaries, tracking Godot releases, landing on the export pipeline ADR-086 established.
+> - **The composer-facing workflow is FMOD's real value, and it benefits nobody until a composer exists.** `ART-003` is a brief, not a hire.
+>
+> **If middleware is ever adopted, this document's own table points at Wwise for this project** — rooms-and-portals is native and matches the cell-based design (ADR-014), and it has official Godot support. Not decided; recorded so the next reader does not inherit "FMOD" as a default.
 
 > **OPEN (Q92):** Confirm FMOD indie licensing terms at the point of adoption. They change, and it affects whether middleware is free.

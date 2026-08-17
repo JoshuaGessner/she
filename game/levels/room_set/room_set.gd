@@ -195,6 +195,10 @@ func _ready() -> void:
 			_bag_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hunt-probe":
 			_hunt_probe()
+		elif arg == "--ear-probe":
+			_ear_probe()
+		elif arg.begins_with("--ear-shot="):
+			_ear_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hash":
 			_print_hash()
 		elif arg.begins_with("--coop-probe="):
@@ -524,6 +528,132 @@ func _hunt_probe() -> void:
 	for problem: String in problems:
 		printerr("[hunt] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## Do both channels carry the same thing (`M2-T03`, ADR-036)?
+##
+## `DES-018` makes this the project's most easily-lost guarantee: *"a visual
+## language for Clamor cannot be bolted on at the end, because by then every
+## system will assume the mix is carrying the information and there will be
+## nowhere for it to attach."* The standing test is that a run is completable
+## with audio muted — which no automated check can play. What it *can* do is
+## refuse the way that guarantee actually breaks: **an audio channel with no
+## visual twin.**
+##
+## Three assertions:
+##
+## 1. **Parity, in both directions.** Every `HuntMix` channel is drawn by the
+##    Ear, and the Ear draws nothing that is not a channel. A one-way check
+##    would let the score grow a fifth layer nobody renders.
+## 2. **The mix actually moves.** A director that reported zeroes forever would
+##    pass parity perfectly, which is the shape of a green tick that cannot
+##    fail — so noise must raise `clamor`, and the Hunter must raise `hunter`.
+## 3. **The bait beat exists in both channels.** `DES-018` calls the drop when
+##    the Gullsjúkr is distracted a designed beat and *the player's window*. A
+##    muted player who never sees it never gets the window.
+func _ear_probe() -> void:
+	var player: Player = _session.local_player()
+	var problems: PackedStringArray = PackedStringArray()
+
+	# 1. parity
+	var channels: Array[String] = HuntMix.CHANNELS.duplicate()
+	var drawn: Array[String] = Ear.RENDERED.duplicate()
+	channels.sort()
+	drawn.sort()
+	print("[ear] channels     mix %s" % [", ".join(channels)])
+	print("[ear] rendered     ear %s" % [", ".join(drawn)])
+	if channels != drawn:
+		problems.append(("the mix carries %s and the Ear draws %s — ADR-036 "
+			+ "requires every channel to have a twin, in both directions")
+			% [", ".join(channels), ", ".join(drawn)])
+
+	# 2. the mix moves
+	player.inventory.clear()
+	player.clamor.silence()
+	await _hold(0.4)
+	var quiet: float = AudioDirector.mix.clamor
+	player.clamor.add(Config.tuning.clamor_maximum)
+	await _hold(0.2)
+	var loud: float = AudioDirector.mix.clamor
+	print("[ear] your clamor  %.2f quiet → %.2f loud" % [quiet, loud])
+	if loud <= quiet:
+		problems.append("making noise did not move the mix's clamor channel")
+
+	# The score has to answer it too, or the visual is the only channel and the
+	# twin has failed from the other side.
+	await _hold(1.8)
+	var levels: Dictionary = AudioDirector.layer_levels()
+	print("[ear] score        %s" % [_levels_line(levels)])
+	if float(levels["drone"]) <= AudioDirector.SILENCE_DB + 0.5:
+		problems.append("a loud player did not bring the score in — the visual "
+			+ "channel is carrying this alone")
+
+	# 3. the Hunter, and the bait beat
+	if _hunter != null:
+		_hunter.global_position = player.global_position + Vector3(4.0, 0.0, 0.0)
+		await _hold(0.4)
+		var present: float = AudioDirector.mix.hunter
+		print("[ear] the hunter   %.2f present, bearing %s" % [present,
+			"none" if not AudioDirector.mix.has_bearing() else "%.0f deg"
+				% rad_to_deg(AudioDirector.mix.bearing)])
+		if present <= 0.0:
+			problems.append("the Gullsjúkr is on the floor and the mix does not "
+				+ "say so — DES-018 has its mark appear when its instrument does")
+		if not AudioDirector.mix.has_bearing():
+			problems.append("the Hunter is beside the player and the mix reports no "
+				+ "bearing — DES-018 requires 'where is it' to be answerable "
+				+ "without stereo hearing")
+
+	print("[ear] pressure     %.2f" % AudioDirector.mix.pressure())
+	for problem: String in problems:
+		printerr("[ear] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## Photograph the Ear at four pressures (`M2-T03`).
+##
+## `--ear-probe` runs headless and never draws a pixel, and `DES-018` is a
+## **legibility** document — a readout that is correct and unreadable has
+## failed. The four states have to be distinguishable at a glance and with the
+## colour taken out, and the only way to know that is to look.
+##
+## Same reason `--bag-shot` exists, and it found two defects headless checks
+## could not.
+func _ear_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	var samples: Array = [
+		["quiet", 0.0, false],
+		["loud", Config.tuning.clamor_maximum, false],
+		["hunted", Config.tuning.clamor_maximum * 0.5, true],
+	]
+	for sample: Array in samples:
+		player.clamor.silence()
+		player.teleport(Vector3(0.0, 0.1, 4.0), 0.0)
+		if _hunter != null:
+			# Parked far off unless this sample wants it, so "quiet" is really
+			# quiet rather than quiet-with-a-Hunter-in-the-corner.
+			_hunter.global_position = (player.global_position + Vector3(5.0, 0.0, 2.0)
+				if bool(sample[2]) else Vector3(21.0, 0.1, -25.0))
+		await _hold(0.3)
+		player.clamor.add(float(sample[1]))
+		await _hold(0.4)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var shot: String = "%s_%s.png" % [path.trim_suffix(".png"), sample[0]]
+		get_viewport().get_texture().get_image().save_png(shot)
+		print("[ear] %-7s clamor %.2f  alert %.2f  hunter %.2f  → %s" % [
+			sample[0], AudioDirector.mix.clamor, AudioDirector.mix.alert,
+			AudioDirector.mix.hunter, shot.get_file()])
+	get_tree().quit()
+
+
+func _levels_line(levels: Dictionary) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for name: String in levels:
+		var db: float = float(levels[name])
+		parts.append("%s %s" % [name,
+			"off" if db <= AudioDirector.SILENCE_DB + 0.5 else "%.0f dB" % db])
+	return "  ".join(parts)
 
 
 # ── the co-op guarantee, measured rather than eyeballed ──────────────────

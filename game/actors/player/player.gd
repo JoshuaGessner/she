@@ -228,6 +228,10 @@ func _ready() -> void:
 		# Only the body this process is playing draws a bag. A teammate's copy
 		# building one would put four inventory screens on one screen.
 		_bag_screen = BagScreen.attach(self)
+		# The Ear, for the same reason and on the same terms (`M2-T03`). It
+		# reports what *this* player is emitting and what has noticed them, so
+		# a teammate's copy would be answering someone else's question.
+		Ear.attach(self)
 	else:
 		_camera.current = false
 

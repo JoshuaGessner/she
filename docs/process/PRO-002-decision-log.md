@@ -1338,4 +1338,33 @@ The bait threshold also gained an absolute floor beside ADR-039's proportional o
 
 ---
 
+## ADR-090 — `M2-T03`: one mix state, two renderers — and no middleware
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-018`, `DES-019`, `TEC-005`** · **Implements ADR-035, ADR-036** · **Registers `AudioDirector`**
+
+**Context:** `DES-018` requires *every channel to have a twin* — everything the audio says, the screen says, and the reverse — and warns that it cannot be retrofitted, *"because by then every system will assume the mix is carrying the information and there will be nowhere for it to attach."* Two sessions of Hunt work had just produced exactly the state it warns about: clamor, the alert ladder, and a Gullsjúkr, all of them mute and invisible.
+
+**Decision 1 — the twin is structural, not a discipline.** `AudioDirector` computes one `HuntMix` per frame; the score is driven from it and the **Ear** renders it. Not two readings of the world — **the same object**. Four channels: `clamor` (you), `alert` (the world), `hunter`, `bearing`.
+
+**Rationale:** a convention that says "remember to add the visual" is a convention that lasts until the first hurried afternoon. With one source there is nothing to keep in step, and the only remaining failure — a channel nobody draws — is exactly what `--ear-probe` refuses, in both directions. Planting a fifth channel called `dread` fails the build.
+
+That mechanism also settles Q80's shape without answering it: the Ear cannot reveal more than the mix does, because it has nothing else to read.
+
+**Decision 2 — no middleware, and the reasoning is now stronger than ADR-050's.** ADR-050 said raw Godot first, FMOD when a musician is onboarded. Building it surfaced a better argument for the same conclusion: **`ART-002` chose vertical remixing**, which is layers playing in sync at independent volumes. That is the half Godot does natively. What middleware actually buys is *horizontal* re-sequencing — musically quantised jumps between sections — and `ART-002` explicitly rejects it (*"crossfades, not cuts"*, *"never stingers"*).
+
+Two further points `TEC-005` undersells: **FMOD has no official Godot integration** (Wwise does), so adopting it means a community GDExtension with per-platform native binaries — landing directly on the export pipeline ADR-086 had just got working. And the composer-facing authoring workflow, which is FMOD's real value, benefits nobody until a composer exists; `ART-003` is still a brief.
+
+> **If middleware is ever adopted, `TEC-005`'s own table points at Wwise for this project** — rooms-and-portals is native and matches the cell-based design (ADR-014), and it has official Godot support. Not decided here; noted so the next reader does not assume FMOD by default.
+
+**Decision 3 — the layers are blockout (ADR-046).** Five synthesised loops: bed, drone, pulse, heartbeat, and the Hunter's reserved note. Obviously placeholder, and the point is that the **driver** is what ships — `M2-T09` authors the Threshold theme that replaces them. Grey-box audio for the same reason M1 had grey-box levels: the system has to be tunable before the content is worth making. **The reserved instrument is honoured even in blockout** — its tone is used for the Gullsjúkr and nothing else, because `DES-018` says it must never be a false alarm and a placeholder that broke that rule would teach the wrong reflex to anyone testing before `M2-T09`.
+
+**On the standing test.** *"Playable to completion with audio muted"* is not automatable — nothing can play a run. What is automatable is the way it breaks, and that is what the probe asserts. Recorded plainly so nobody mistakes a green sweep for a played muted run; the muted playtest is still a human job.
+
+**What the screenshots caught, and headless could not.** The Ear rendered off-screen entirely: a `Control` parented to a `CanvasLayer` gets no laid-out `size` from anchors, so `size.x` was 0 and top-right landed off the left edge. `--ear-probe` passed the whole time, because `_draw` never runs headless. `--ear-shot` now photographs the readout at three pressures, the same role `--bag-shot` plays for the inventory and the second time that pairing has earned itself.
+
+**Measured:** clamor 0.07 → 0.95 moves the drone in at −20 dB and the pulse at −25; an alerted room brings the heartbeat to −17; the Gullsjúkr beside the player reports 0.22 presence at 90°. Quiet reads as a small warm dot, loud as a large pale desaturated disc — `DES-019`'s *"guttering and sick, never warm, never powerful"*, carried by size and fill so it survives monochrome.
+
+**Consequences:** `AudioDirector` is registered, the second of `TEC-001`'s six autoloads, on ADR-066's terms — it now has work. Four buses (`score`/`ambience`/`diegetic`/`ui`) exist for `M4-T11`'s sliders; diegetic is never ducked (`ART-002`). Five probe assertions, **each confirmed by planting a violation**. Absent, not stubbed: rumble as a third twin (ADR-039, `M4-T11`), per-bus sliders, and the authored score.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

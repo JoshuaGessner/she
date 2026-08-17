@@ -185,6 +185,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Do both channels carry the same thing (`M2-T03`, ADR-036)? `DES-018`
+	# requires a run to be completable with audio muted, which nothing automated
+	# can play — but the way that guarantee actually breaks is an audio channel
+	# with no visual twin, and that is checkable. Parity is asserted in both
+	# directions, and the mix is made to move so a director reporting zeroes
+	# forever cannot pass by being silent.
+	ear="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --ear-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$ear" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the twin channels" >&2
+		printf '%s\n' "$ear" | grep -E '\[ear\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Two processes, host and client, over loopback (`M1-T05`). This is the
 	# only check in the sweep that exercises a *second* process, and it is the
 	# only one that can: every claim in `TEC-004` is a claim that two peers
@@ -203,6 +217,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	fi
 	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
 	echo "greed costs and dropping it pays, the Hunt tracks noise not transforms,"
+	echo "every mix channel has a visual twin,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

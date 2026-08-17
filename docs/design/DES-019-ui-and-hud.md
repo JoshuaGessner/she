@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-08-16
+updated: 2026-08-17
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
@@ -65,6 +65,10 @@ The readout is literally the thing your friends carry out of the Deep, which is 
 > **The one risk, and the rule that fixes it:** a brighter flame reads as *good*. **High Clamor must look guttering and sick — never warm, never powerful.** The ember should feel blown-about and giving you away. If a playtester describes the loud state as "cool," the visual language has failed: desaturate it, destabilise it, thin it out.
 
 #### Architecture: a core and a ring
+
+> **BUILT AT `M2-T03` (ADR-090).** Core and ring, eight sectors, the Hunter's heavy mark, and the whole element growing under pressure. It renders the **same `HuntMix` the score is driven by**, so the two channels cannot drift apart (`DES-018`).
+>
+> The guttering rule held up in practice: quiet reads as a small warm dot, loud as a large pale desaturated disc that jitters and breaks at its edge. Size and fill carry it, so it survives monochrome. `--ear-shot` photographs all three states, and it earned itself immediately — the Ear was rendering entirely off-screen, which no headless check could see because `_draw` never runs there.
 
 - **Inner core = you.** Fills, brightens, and quickens with your Clamor output. This is the readout that makes greed legible, and it is the most important pixel in the game.
 - **Outer ring = the world.** Arcs light where attention is coming from. The ring's *character* — solid, broken, pulsing — encodes the `DES-013` alert ladder.

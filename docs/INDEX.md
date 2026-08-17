@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-08-16 · 39 documents_
+_Regenerated 2026-08-17 · 39 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -30,8 +30,8 @@ _What the game is._
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-08-14 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-08-16 | DES-005, DES-013, DES-008, DES-014, DES-018 |
-| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-08-16 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
-| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-16 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
+| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-08-17 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-17 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-08-16 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
 
@@ -45,7 +45,7 @@ _How it gets built._
 | `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✔ accepted | 2026-08-15 | TEC-001, PRO-001 |
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-08-14 | DES-003, TEC-001, TEC-002 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-16 | DES-012, TEC-001, TEC-003, PRO-001 |
-| `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-08-14 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
+| `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-08-17 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 
 ## Process
