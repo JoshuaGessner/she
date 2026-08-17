@@ -70,8 +70,6 @@ func _ready() -> void:
 			_capture_top(player, arg.split("=", true, 1)[1])
 		elif arg == "--lifecycle-probe":
 			_lifecycle_probe()
-		elif arg == "--export-probe":
-			_export_probe()
 
 
 ## Dev convenience only. Death costing you the run is `M2-T05`; nothing here
@@ -79,37 +77,6 @@ func _ready() -> void:
 ## a body now arrives when a peer does rather than at level start.
 func _on_player_spawned(player: Player) -> void:
 	player.health.died.connect(_on_player_died)
-
-
-## Prove the **packed** build contains what the repo does (ADR-086).
-##
-## Booting an export proves the pack loads and the main scene runs. It does not
-## prove the *content* came with it, and two things this project ships are
-## generated rather than committed: `en.en.translation` is gitignored and
-## rebuilt by the importer, and every `.tres` is re-serialised on export.
-##
-## So a build can boot perfectly and still ship with every item called
-## `item.wpn_seax.name` and an empty item table — silently, because nothing in
-## the running game reads either yet. This is the check that would notice.
-## It runs *inside* the exported binary, which is the only place the question
-## can be asked.
-func _export_probe() -> void:
-	# Through `ItemCatalogue`, which is what the running game asks — moved
-	# there rather than kept as a second copy (the ADR-073 rule). The scan this
-	# file used to own is the reason the catalogue matches three extensions,
-	# and a census that walked the folder its own way would stop being a census
-	# of what the game can actually see.
-	var items: Array[ItemResource] = ItemCatalogue.all()
-
-	print("[export] engine        %s" % Engine.get_version_info()["string"])
-	print("[export] items packed  %d" % items.size())
-	print("[export] tuning loaded %s" % (Config.tuning != null))
-	# The translation, read the way the game reads it. A key coming back
-	# unchanged means the table did not ship.
-	var sample: String = tr("item.wpn_seax.name")
-	print("[export] translation   'item.wpn_seax.name' -> '%s'" % sample)
-	print("[export] probe complete")
-	get_tree().quit()
 
 
 ## Reset the gym repeatedly and let the per-frame overlays run over the wreckage.

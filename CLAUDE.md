@@ -128,8 +128,11 @@ A build that boots proves the pack loads; it does not prove the pack contains
 the game. `en.en.translation` is gitignored and every `.tres` is re-serialised
 on export, so a build can launch cleanly at full size while shipping an empty
 item table — reproduced deliberately, and only the packed-content census caught
-it. Windows builds for testers come from `.github/workflows/build.yml`, which
-exports on Linux and then *runs* the result on a Windows runner.
+it. **That census lives in an autoload** (ADR-099): it lived in a level once,
+and a main-scene change stranded it, so every export between ADR-095 and
+`M2-T09` verified nothing at all. Windows builds for testers come from
+`.github/workflows/build.yml`, which exports on Linux and then *runs* the
+result on a Windows runner.
 
 Then **push to `origin main`**. `TEC-002` permits this precisely because *main always launches* — the sweep above is what guarantees that, so it is not optional.
 

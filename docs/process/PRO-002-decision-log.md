@@ -1636,6 +1636,16 @@ Descents are the only camp state that exists yet — the contract board, the For
 
 **And a third thing the tooling caught on the way out.** Ticking this task made `status.py` report `TEC-005` as *fully implemented* — because `M2-T03` and `M2-T09` were its only citers and both were now done. But `TEC-005`'s occlusion and reverb-zone sections are neither built nor planned, and its one remaining ⟨tune⟩ marker belongs to a filter cutoff no code sets. The same fault this project has now hit three times: **a document reads as finished when the tasks that happen to cite it are finished, whatever else it still says.** Split out as `M4-T12` rather than left for whoever eventually wonders why the Deep does not sound like stone.
 
+**And the export gate caught the worst one.** `M2` is task-complete, so ADR-086's rule applies: export, and open the box. It failed — *"the build ran its probe: no probe output"*.
+
+ADR-086 put the packed-content census in the movement gym because the gym was the main scene. Nine commits later ADR-095 made the Threshold the main scene, and the census became **unreachable**. Every export since has verified nothing.
+
+The bitter part is that ADR-095's own text says: *"`check_scripts.sh` ran the lifecycle probe against whatever `run/main_scene` happened to be, so changing it would have silently stopped exercising the gym — a check that quietly stops running is the failure mode this project keeps writing ADRs about."* It fixed that instance and missed the identical one in `export_build.py`, in the same change that caused it.
+
+**So the census moved into an autoload.** Naming the gym explicitly would have fixed this instance and left the shape intact; `Config` runs whatever boots, so there is no main scene anyone can choose that strands it again. It is not Config's job in any other sense — a census of the pack has no natural level, which is exactly why it kept ending up in one.
+
+Then it was planted: restricting `ItemCatalogue` to `.tres` only — ADR-086's original bug — reports `0 packed, 12 in repo` on a **162.5 MB build that boots cleanly**. Which is the whole reason the rule reads *exporting is not the check*.
+
 **On what is blockout and what is not.** Every note here is synthesised and `ART-002` says plainly to consider commissioning the score. What `M2-T09` owns is the **architecture**, and that is what a composer is handed: the stem layout, one key (D natural minor), one phrase length, every layer valid against every other, and the reserved voice already fenced off by a test. `ART-003` warns that a normally-composed soundtrack cannot be retrofitted into this system — the point of building it now, at `M2` rather than `M4`, is that nothing has to be.
 
 *Entries below to be added as design decisions are signed off.*

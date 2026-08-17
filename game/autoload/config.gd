@@ -28,3 +28,42 @@ func _ready() -> void:
 	# produce a subtly unfair game. See TuningProfile.validate().
 	for problem: String in tuning.validate():
 		push_error("Config: %s" % problem)
+	if OS.get_cmdline_user_args().has("--export-probe"):
+		_export_probe()
+
+
+## **The packed-content census** (ADR-086, rehomed by ADR-099).
+##
+## `en.en.translation` is gitignored and rebuilt by the importer, and every
+## `.tres` is re-serialised on export. So a build can boot perfectly, at full
+## size, and still ship an empty item table with every item called
+## `item.wpn_seax.name` — silently, because nothing in the running game reads
+## either yet. This is the check that would notice, and it has to run *inside*
+## the exported binary, which is the only place the question can be asked.
+##
+## **It lives in an autoload because it stopped running when it lived in a
+## level.** ADR-086 put it in the movement gym, which was the main scene; nine
+## commits later ADR-095 made the Threshold the main scene and the census
+## became unreachable — a check that quietly stops running, which is the exact
+## failure ADR-095's own text warns about while fixing the *other* place it had
+## happened. Naming the gym explicitly would have fixed this instance and left
+## the shape intact. An autoload runs whatever boots, so there is no main scene
+## anyone can choose that strands it again.
+##
+## Nothing here is about the Config's own job. It is here because this is the
+## thing that always runs, and a census of the pack has no natural level.
+func _export_probe() -> void:
+	# Through `ItemCatalogue`, which is what the running game asks (the ADR-073
+	# rule — one authority, not a second copy that walks the folder its own way
+	# and stops being a census of what the game can actually see).
+	var items: Array[ItemResource] = ItemCatalogue.all()
+
+	print("[export] engine        %s" % Engine.get_version_info()["string"])
+	print("[export] items packed  %d" % items.size())
+	print("[export] tuning loaded %s" % (tuning != null))
+	# The translation, read the way the game reads it. A key coming back
+	# unchanged means the table did not ship.
+	print("[export] translation   'item.wpn_seax.name' -> '%s'"
+		% tr("item.wpn_seax.name"))
+	print("[export] probe complete")
+	get_tree().quit()
