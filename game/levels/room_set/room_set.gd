@@ -35,7 +35,6 @@ const DOOR_WIDTH: float = 2.4
 
 const FLOOR_COLOUR: Color = Color(0.58, 0.57, 0.56)
 const WALL_COLOUR: Color = Color(0.44, 0.43, 0.43)
-const PRIZE_COLOUR: Color = Color(0.85, 0.66, 0.22)
 
 ## The network boundary (`M1-T05`). Levels ask it for actors and never
 ## instantiate one themselves, which is what keeps `TEC-004`'s "the boundary
@@ -86,7 +85,6 @@ const ENEMY_POSTS: Array[Vector3] = [
 	Vector3(9.0, 0.1, -16.0),
 ]
 const GUARDIAN_POST: Vector3 = Vector3(18.5, 0.1, -21.0)
-const PRIZE_AT: Vector3 = Vector3(20.3, 0.6, -21.0)
 
 ## Where the party starts — one point per player, a stride apart across the
 ## entrance. A single shared point would have two people begin the run standing
@@ -97,24 +95,59 @@ const SPAWNS: Array[Vector3] = [
 	Vector3(-3.6, 0.1, 8.0), Vector3(3.6, 0.1, 8.0),
 ]
 
-## Heavy enough that the walk out is genuinely worse ⟨tune⟩ — 40% of capacity,
-## which is where `DES-005` Layer 1's speed penalty starts to bite. If taking
-## the prize does not change how you get home, the Guardian room is decoration.
-const PRIZE_KILOGRAMS: float = 16.0
-const PRIZE_CLAMOR: float = 6.0
-const PRIZE_REACH: float = 2.2
+## `DES-015`'s Machine is *"a post on a prize, in a room with a single
+## entrance"*, so the prize has to be somewhere specific. Named once and used
+## by the loot table below as well as by `--prize-probe`: a coordinate written
+## in two places is a coordinate that will eventually disagree with itself.
+const PRIZE_AT: Vector3 = Vector3(20.3, 0.1, -21.0)
 
-## Latency slack on the host's reach check. A client presses `interact` from
-## where it believes it is standing; the host tests against a transform that
-## arrived up to a replication interval ago. At walk speed that is about
-## 0.2 m, so half a metre is generous without letting anyone reach the Prize
-## from outside the room.
-const REACH_SLACK: float = 0.5
+## The authored loot (`M2-T01`). Hand-placed, like the enemy posts: `DES-008`'s
+## loot tables need somewhere to place things and the generator is `M4-T01`, so
+## `LootTableResource` is **absent rather than approximated** (ADR-064).
+##
+## The placement is the argument, not decoration. `DES-015` claims the two
+## halves of a cycle should *mean different things*, and ADR-032 already made
+## west the long safe branch and east the short held one. Loot finishes that
+## sentence: **the safe route pays badly.** West carries a lump of bog iron and
+## a working knife; east carries coin and gold; the Guardian room carries the
+## three things worth the fight.
+##
+## And you cannot have it all. Everything here totals **42.0 kg across 34
+## cells**, against a 6x5 grid — four cells more than the bag has, deliberately,
+## and by a margin you notice rather than one you have to measure. Taking the
+## altar-plate costs you the byrnie; `--bag-probe` measures that it does, and
+## fails if a sweep of the floor ever comes back with everything in the bag.
+##
+## Weight is not a second gate and is not meant to be: **space decides what you
+## can carry, weight decides what it costs you** (`--bag-probe` again, and the
+## note there). The greedy sweep ends at 31.0 kg — 78% laden, walking at 2.21
+## rather than 3.40 m/s and audible from 27.7 m. Nothing stopped the player
+## reaching that state; that is `DES-008`'s tug-of-war arriving as a fact about
+## a floor rather than a paragraph about an economy.
+const LOOT: Array = [
+	# west — the bypass route (ADR-032), and it pays for the walk in materials
+	["mat_bog_iron", Vector3(-9.4, 0.1, -6.0)],
+	["wpn_seax", Vector3(-10.2, 0.1, -14.5)],
+	# junction — weightless, valuable, and loud. The purest "is this worth it?"
+	["glt_raw_gemstone", Vector3(-2.0, 0.1, -22.0)],
+	# east — the held corridor. Short, guarded, and where the glitter is
+	["glt_hoard_coin", Vector3(9.4, 0.1, -8.0)],
+	["glt_gilded_torc", Vector3(10.8, 0.1, -13.5)],
+	# the Guardian's room — one entrance, no way out but back past it
+	["glt_altar_plate", PRIZE_AT],
+	["rlc_regin_blade", Vector3(19.2, 0.1, -23.4)],
+	["arm_mail_byrnie", Vector3(19.4, 0.1, -18.8)],
+]
 
 ## Godot's host is always peer 1, offline peer included.
 const HOST_PEER: int = 1
 
-var _prize: MeshInstance3D = null
+## How far apart the heaviest and lightest kilograms-per-cell on this floor
+## must be before `--bag-probe` accepts that space and weight are two different
+## constraints (`DES-019`). Not a tuned value — a floor under "these are not
+## the same instrument twice". The authored set currently spans 59x.
+const DENSITY_SPREAD_FLOOR: float = 3.0
+
 var _session: CoopSession = null
 
 @onready var _world: Node3D = $World
@@ -124,7 +157,6 @@ func _ready() -> void:
 	_build_lighting()
 	for name: String in ROOMS:
 		_build_room(name)
-	_build_prize()
 	_spawn_actors()
 	# What you emit and what they perceive, on the floor (ADR-078). This set has
 	# corners and doorways, which is the only place occlusion has anything to
@@ -137,6 +169,10 @@ func _ready() -> void:
 			_route_probe()
 		elif arg == "--prize-probe":
 			_prize_probe()
+		elif arg == "--bag-probe":
+			_bag_probe()
+		elif arg.begins_with("--bag-shot="):
+			_bag_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hash":
 			_print_hash()
 		elif arg.begins_with("--coop-probe="):
@@ -161,6 +197,12 @@ func _print_hash() -> void:
 ## The Guardian & Prize machine only poses a question if the answer has a
 ## price. This measures the price rather than asserting it: speed and audible
 ## radius before and after, on the same player, seconds apart.
+##
+## `M2-T01` changed what the Prize *is* — an `ItemResource` with a name and a
+## footprint rather than 16 kg of nothing — and deliberately did **not** change
+## what this measures. The item is lighter than the old constant (14.0 kg
+## against 16.0), so if the assertion still holds it holds for the right
+## reason: because weight bites, not because the number was generous.
 func _prize_probe() -> void:
 	var player: Player = _session.local_player()
 	player.teleport(PRIZE_AT + Vector3(0, 0.1, 2.0), 0.0)
@@ -172,7 +214,7 @@ func _prize_probe() -> void:
 	# Through the same host-validated path a real pickup takes, not around it:
 	# a probe that reached past the authority check would stop measuring the
 	# thing that ships.
-	_grant_prize(HOST_PEER)
+	_take_nearest(player)
 	var after_speed: float = await _walk_speed(player)
 	var after_heard: float = player.clamor.audible_radius()
 
@@ -181,9 +223,177 @@ func _prize_probe() -> void:
 		(after_speed / before_speed - 1.0) * 100.0 if before_speed > 0.0 else 0.0])
 	print("[set] heard from   %5.1f → %5.1f m      at the moment of lifting it" % [
 		before_heard, after_heard])
-	print("[set] carrying     %5.1f kg (%.0f%% laden)" % [
-		player.carried.kilograms, player.carried.encumbrance() * 100.0])
+	print("[set] carrying     %5.1f kg (%.0f%% laden)  %s" % [
+		player.carried.kilograms, player.carried.encumbrance() * 100.0,
+		_carried_names(player)])
 	get_tree().quit(0 if after_speed < before_speed else 1)
+
+
+## Walk the floor, take everything, and report what it costs (`M2-T01`).
+##
+## This is the M2 gate question asked in numbers: *a playtester voluntarily
+## abandons loot to survive.* That decision is only real if the bag can be
+## filled past the point of usefulness and if abandoning something visibly
+## buys back speed and quiet — so the probe fills it, records what refused to
+## fit and why, then drops the heaviest thing and measures the relief.
+##
+## ## What the two constraints actually do, which this probe had to learn
+##
+## The first version asserted that space *and* weight each refuse a pickup, and
+## it failed — correctly, and not the way it expected. **Weight never refuses
+## anything.** ADR-050's cap is the *slot* cap, `DES-019` gives the grid the
+## gating job, and `carry_capacity` is the denominator encumbrance is measured
+## against rather than a wall. `CarriedWeight` even clamps its penalty at 1.0
+## on purpose, so that a bad decision stays recoverable.
+##
+## So the two constraints are not two gates. They are:
+##
+## > **Space decides what you can carry. Weight decides what it costs you.**
+##
+## That is a sharper reading of `DES-019` than "two gates" and it makes the M2
+## gate question sharper too: you abandon loot not because nothing else fits,
+## but because what you already have is too expensive to walk home with.
+##
+## Three assertions, all of which can genuinely fail:
+##
+## 1. **The floor holds more than the bag can take.** Otherwise there is no
+##    decision on this level at all, only a shopping trip.
+## 2. **The two constraints measure different things.** Kilograms per cell has
+##    to vary widely across what is on the floor, or the grid and the scales
+##    are the same instrument twice and one of them is redundant — which is
+##    exactly the collapse `DES-019` is guarding against when it asks for a
+##    bulky-light bolt of cloth and a tiny-ruinous bag of coin.
+## 3. **Dropping one item buys back speed and quiet.** `DES-005`'s primal
+##    counter-play, measured rather than assumed.
+func _bag_probe() -> void:
+	var player: Player = _session.local_player()
+	var inventory: Inventory = player.inventory
+	var grid: Vector2i = inventory.grid()
+	print("[bag] grid %dx%d = %d cells, capacity %.0f kg" % [
+		grid.x, grid.y, grid.x * grid.y, Config.tuning.carry_capacity])
+
+	# Kilograms per cell, over what this floor actually offers. The spread is
+	# the measurement: the grid and the scales are only two instruments if the
+	# same square can hold wildly different amounts of trouble.
+	var lightest: float = INF
+	var heaviest: float = 0.0
+	var lightest_name: String = ""
+	var heaviest_name: String = ""
+	for row: Array in LOOT:
+		var known: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
+		var cells: int = known.grid_size.x * known.grid_size.y
+		var density: float = known.weight / float(cells)
+		if density < lightest:
+			lightest = density
+			lightest_name = known.display()
+		if density > heaviest:
+			heaviest = density
+			heaviest_name = known.display()
+	print("[bag] kg per cell  %.2f (%s) … %.2f (%s) — a %.0fx spread" % [
+		lightest, lightest_name, heaviest, heaviest_name,
+		heaviest / lightest if lightest > 0.0 else INF])
+
+	var refused_space: int = 0
+	var offered: int = 0
+	for row: Array in LOOT:
+		offered += 1
+		var at: Vector3 = row[1] as Vector3
+		player.teleport(at + Vector3(0.0, 0.1, 1.0), 0.0)
+		for i: int in range(4):
+			await get_tree().physics_frame
+		var before: int = inventory.count()
+		_take_nearest(player)
+		await get_tree().physics_frame
+		if inventory.count() > before:
+			continue
+		var known: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
+		refused_space += 1
+		print("[bag] no room for %s (%s cells, %d free)" % [
+			known.display(), known.grid_size,
+			grid.x * grid.y - inventory.cells_used()])
+
+	# Captured here, not read at the end: the assertions below run *after* the
+	# drop, and the first version compared a post-drop count against what was
+	# offered. It therefore could not fire — planting an oversized grid proved
+	# the bag taking all eight items passed silently, which is the class of
+	# green-tick-that-cannot-fail ADR-084 was written about.
+	var taken: int = inventory.count()
+	var laden_speed: float = await _walk_speed(player)
+	var laden_heard: float = player.clamor.audible_radius()
+	var laden_still: float = _standing_radius(player)
+	print("[bag] took %d of %d offered — %.1f kg (%.0f%% laden), %d/%d cells" % [
+		taken, offered, player.carried.kilograms,
+		player.carried.encumbrance() * 100.0, inventory.cells_used(),
+		grid.x * grid.y])
+	print("[bag] carrying     %s" % _carried_names(player))
+	print("[bag] laden        %5.2f m/s   heard %4.1f m walking, %4.1f m standing still" % [
+		laden_speed, laden_heard, laden_still])
+
+	# Abandon the worst of it, exactly as a cornered player would: the panic
+	# dump, through the same host-validated path.
+	var dropped: ItemInstance = inventory.heaviest()
+	var dropped_name: String = dropped.definition.display()
+	var dropped_kilograms: float = dropped.weight()
+	player.ask_to_drop_instance(dropped.instance_id)
+	await get_tree().physics_frame
+	player.clamor.silence()
+	var freed_speed: float = await _walk_speed(player)
+	var freed_still: float = _standing_radius(player)
+	print("[bag] dropped      %s (%.1f kg)" % [dropped_name, dropped_kilograms])
+	print("[bag] unladen      %5.2f m/s   heard %4.1f m standing still" % [
+		freed_speed, freed_still])
+	print("[bag] the relief   %+.0f%% speed, %+.1f m of quiet" % [
+		(freed_speed / laden_speed - 1.0) * 100.0 if laden_speed > 0.0 else 0.0,
+		laden_still - freed_still])
+
+	var problems: PackedStringArray = PackedStringArray()
+	if taken >= offered:
+		problems.append("the floor holds %d items and the bag took all of them — "
+			% offered + "there is no decision on this level, only a shopping trip")
+	if refused_space == 0:
+		problems.append("nothing was ever refused for space — the grid is not "
+			+ "constraining anything and DES-019's spatial puzzle is decoration")
+	# Three-to-one is not a tuned number, it is a floor under "these are two
+	# different instruments". The authored corpus currently spans 59x.
+	if lightest <= 0.0 or heaviest / lightest < DENSITY_SPREAD_FLOOR:
+		problems.append(("kg-per-cell spans only %.1fx across this floor — below "
+			+ "%.1fx the grid and the scales measure the same thing, and DES-019's "
+			+ "two constraints have collapsed into one")
+			% [heaviest / maxf(lightest, 0.0001), DENSITY_SPREAD_FLOOR])
+	if freed_speed <= laden_speed:
+		problems.append("dropping the heaviest item did not make the player faster")
+	if freed_still >= laden_still:
+		problems.append("dropping the heaviest item did not make the player quieter")
+	for problem: String in problems:
+		printerr("[bag] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## Reach for whatever is nearest, through the shipping path. Deliberately not a
+## direct `Inventory.add`: the thing worth measuring is the host-validated
+## request, and a probe that reached past the authority check would stop
+## measuring the code that ships (`TEC-004`).
+func _take_nearest(player: Player) -> void:
+	var item: WorldItem = WorldItem.nearest(player, player.global_position,
+		Config.tuning.interact_reach)
+	if item == null:
+		return
+	player.reach_for(item)
+
+
+## Metres this player is heard from with the noise of moving fully decayed —
+## the `ClamorSource` floor their bag imposes, and the number that answers
+## *"can I hide with all this on me?"*
+func _standing_radius(player: Player) -> float:
+	player.clamor.silence()
+	return player.clamor.audible_radius()
+
+
+func _carried_names(player: Player) -> String:
+	var names: PackedStringArray = PackedStringArray()
+	for item: ItemInstance in player.inventory.items():
+		names.append(item.definition.display())
+	return "· ".join(names) if names.size() > 0 else "(nothing)"
 
 
 # ── the co-op guarantee, measured rather than eyeballed ──────────────────
@@ -207,12 +417,18 @@ const PROBE_STRIKE_FROM: Vector3 = Vector3(9.0, 0.1, -3.5)
 ## stationary enemy looks identical either way. A check that cannot fail is not
 ## a check.
 const PROBE_RETREAT_TO: Vector3 = Vector3(9.0, 0.1, -16.0)
+
+## Beside the hoard-coin in the east corridor, which is on the client's route
+## anyway. A `glt_` item on purpose: it has weight *and* clamor, so one pickup
+## exercises both host-owned consequences at once.
+const PROBE_TAKE_FROM: Vector3 = Vector3(9.4, 0.1, -6.8)
 const PROBE_TIMEOUT_MSEC: int = 15000
 
 var _probe_clamor_peak: Dictionary = {}
 var _probe_walk_clamor: Dictionary = {}
 var _probe_walked: Dictionary = {}
 var _probe_heights: Dictionary = {}
+var _probe_bags: Dictionary = {}
 var _probe_connect_seconds: float = 0.0
 var _probe_ending: bool = false
 var _probe_damage_events: int = 0
@@ -311,6 +527,26 @@ func _coop_probe(out: String) -> void:
 		mine.teleport(PROBE_RETREAT_TO, 0.0)
 	await _hold(1.5)
 
+	# 5. The client picks something up (`M2-T01`). Two different claims land in
+	#    one gesture, and they travel in opposite directions:
+	#
+	#    * **weight** is host-derived and replicated host→peer, so the *host*
+	#      reporting the right kilograms for a body it is not playing is
+	#      replication working;
+	#    * **the bag** is host-owned and pushed to its owner by RPC, so the
+	#      *client* knowing what is in its own bag is that push working.
+	#
+	#    Neither peer can fake the other's half. A client that helpfully added
+	#    the item to its own inventory would still show a host that never heard
+	#    of it, and `run_coop.py` compares the two files.
+	if not host:
+		mine.teleport(PROBE_TAKE_FROM, 0.0)
+	await _hold(0.6)
+	if not host:
+		_take_nearest(mine)
+	await _hold(0.8)
+	_probe_bags = _probe_bag_state()
+
 	if host:
 		await _await_probe_end()
 		_probe_write(out, _probe_report(true))
@@ -354,6 +590,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"clamor_peak": _probe_clamor_peak,
 		"walk_clamor_peak": _probe_walk_clamor,
 		"damage_events": _probe_damage_events,
+		"bags": _probe_bags,
 		# The numbers the damage assertion is made of, carried in the report
 		# rather than repeated in the harness. A ⟨tune⟩ value that CI has its
 		# own copy of is a ⟨tune⟩ value nobody can change.
@@ -408,6 +645,19 @@ func _probe_drift(before: Dictionary, after: Dictionary) -> Dictionary:
 		var a: Array = before[key]
 		var b: Array = after[key]
 		out[key] = Vector3(a[0], a[1], a[2]).distance_to(Vector3(b[0], b[1], b[2]))
+	return out
+
+
+## What each body is carrying, as both peers see it. Kilograms come from the
+## replicated `CarriedWeight`; the item count comes from the `Inventory` this
+## process holds, which on a client is only ever what the host sent it.
+func _probe_bag_state() -> Dictionary:
+	var out: Dictionary = {}
+	for player: Player in _session.players():
+		out[player.name] = {
+			"items": player.inventory.count(),
+			"kilograms": player.carried.kilograms,
+		}
 	return out
 
 
@@ -548,93 +798,25 @@ func _build_room(name: String) -> void:
 	_wall(name, "e", max_x, min_z, max_z, false)
 
 
-## The Prize. Gold is the only saturated colour in the game (`ART-005`), so the
-## one thing worth dying for is also the only thing on screen with a hue.
+## The authored loot, asked for rather than built (`M2-T01`).
 ##
-## **It has to cost something or the Guardian room is scenery.** The first
-## version was a gold block you could walk to, and a playtester did exactly
-## that and asked what they were supposed to do — which is ADR-064's complaint
-## about stubs, arriving as feedback. Taking it now makes you heavier and
-## louder, which is the whole greed loop in miniature and needs no system that
-## does not already exist (`DES-005` Layer 1).
+## **Every line of pickup logic this file used to hold is gone.** The Prize was
+## a gold block with a hand-rolled reach check, an RPC pair and a hardcoded
+## 16 kg; it is now `glt_altar_plate` in the same spot, and the reach check, the
+## RPCs and the weight all live on `Player` and `WorldItem` where every other
+## item can use them. Moved, not copied (the ADR-073 rule) — a level-local
+## second loot path would diverge from the real one the first time either was
+## tuned, and the room set would then stop testing what ships.
 ##
-## Not the inventory. `M2-T01` builds loot with real weight, slots and value;
-## this is one object with one consequence, complete in itself.
-func _build_prize() -> void:
-	_prize = MeshInstance3D.new()
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(1.2, 1.2, 1.2)
-	var material := StandardMaterial3D.new()
-	material.albedo_color = PRIZE_COLOUR
-	material.roughness = 0.4
-	_prize.mesh = mesh
-	_prize.material_override = material
-	_prize.position = PRIZE_AT
-	_world.add_child(_prize)
-
-
-func _process(_delta: float) -> void:
-	if _prize == null:
-		return
-	var player: Player = _session.local_player()
-	if player == null:
-		return
-	var near: bool = player.global_position.distance_to(PRIZE_AT) <= PRIZE_REACH
-	# Pulse while in reach. A prompt would need the HUD that `M4-T05` builds;
-	# the object drawing attention to itself is free and needs no text.
-	var pulse: float = 1.0 if not near else 1.0 + sin(Time.get_ticks_msec() * 0.006) * 0.25
-	(_prize.material_override as StandardMaterial3D).albedo_color = PRIZE_COLOUR * pulse
-	if near and Input.is_action_just_pressed("interact"):
-		_reach_for_prize()
-
-
-## Loot is host-authoritative and **pickup is a host-validated request**
-## (`TEC-004`), which is what this is — not ceremony.
+## `_process` went with it: highlighting is `Player._update_reach`, which
+## already runs per frame on the body that can actually reach something.
 ##
-## The client says only "I am reaching for it". The host decides whether they
-## were close enough, using its own copy of where they are, and it is the host
-## that adds the weight and makes the noise. Two players lunging for the same
-## Prize therefore cannot both get it: the second request finds `_prize` gone.
-func _reach_for_prize() -> void:
-	if multiplayer.is_server():
-		_grant_prize(multiplayer.get_unique_id())
-	else:
-		_request_prize.rpc_id(HOST_PEER)
-
-
-@rpc("any_peer", "reliable")
-func _request_prize() -> void:
-	if not multiplayer.is_server():
-		return
-	_grant_prize(multiplayer.get_remote_sender_id())
-
-
-func _grant_prize(peer: int) -> void:
-	if _prize == null:
-		return
-	var player: Player = _session.player_for(peer)
-	if player == null:
-		return
-	if player.global_position.distance_to(PRIZE_AT) > PRIZE_REACH + REACH_SLACK:
-		return
-	player.carried.kilograms += PRIZE_KILOGRAMS
-	# Lifting a hoard-piece off stone is loud. This is the moment the Guardian
-	# gets its chance, which is what makes taking it a decision rather than a
-	# formality.
-	player.clamor.add(PRIZE_CLAMOR)
-	_clear_prize.rpc()
-	print("[set] prize taken by peer %d: +%.0f kg, the room heard it" % [
-		peer, PRIZE_KILOGRAMS])
-
-
-## The Prize is authored geometry, so every peer already built one and every
-## peer has to remove its own. `call_local` so the host runs the same line.
-@rpc("authority", "call_local", "reliable")
-func _clear_prize() -> void:
-	if _prize == null:
-		return
-	_prize.queue_free()
-	_prize = null
+## Gold is still the only saturated colour in the game (`ART-005`), and the
+## altar-plate still carries it — `WorldItem` reads that off the `glitter` tag
+## rather than from a constant in this file.
+func _spawn_loot() -> void:
+	for row: Array in LOOT:
+		_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
 
 
 func _build_lighting() -> void:
@@ -667,6 +849,7 @@ func _spawn_actors() -> void:
 		_session.spawn_enemy(post)
 	# The Guardian faces its prize's doorway and never leaves the room.
 	_session.spawn_enemy(GUARDIAN_POST)
+	_spawn_loot()
 
 
 # ── the guarantee, asserted rather than eyeballed ─────────────────────────
@@ -734,6 +917,52 @@ func _routes(from: String, to: String, visited: Array) -> Array:
 			continue
 		found += _routes(next, to, visited + [from])
 	return found
+
+
+## Fill a bag, open it, and photograph it (`M2-T01`).
+##
+## Two jobs, and the second is the one that justifies it. **`--bag-probe` runs
+## headless and never draws a pixel** — `_draw`, `_process` and the whole cursor
+## path are dead code to it, which is precisely the shape of the untested
+## lifecycle the churn probe was written about. This runs windowed, so every
+## line the bag screen owns actually executes and a runtime error in it fails
+## the run rather than waiting for a playtester.
+##
+## The first job is that `DES-019` is a legibility document and legibility is
+## judged by looking. A grid you cannot read is not a grid that works, however
+## correct its packing arithmetic.
+func _bag_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	for row: Array in LOOT:
+		player.teleport((row[1] as Vector3) + Vector3(0.0, 0.1, 1.0), 0.0)
+		for i: int in range(4):
+			await get_tree().physics_frame
+		_take_nearest(player)
+	player.teleport(PRIZE_AT + Vector3(0.0, 0.1, 2.5), 0.0)
+	# Through the real input path, not a back door: the bag has to open the way
+	# a player opens it or the screenshot is of something nobody can reach.
+	#
+	# `parse_input_event` and **not** `Input.action_press`, which is what the
+	# other probes use. `action_press` only sets the polled state that
+	# `is_action_pressed` reads — it dispatches no event, so `_unhandled_input`
+	# never sees it and an event-driven action silently does nothing. Movement
+	# probes get away with it because movement is polled; this one did not, and
+	# the first screenshot was of a closed bag.
+	var press := InputEventAction.new()
+	press.action = &"bag"
+	press.pressed = true
+	Input.parse_input_event(press)
+	await get_tree().process_frame
+	# Long enough for `bag_open_time` to run out, so this is the fully open
+	# state rather than a frame of it fading in.
+	for i: int in range(40):
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	print("[bag] %d item(s) drawn, %.1f kg, wrote %s" % [
+		player.inventory.count(), player.carried.kilograms, path])
+	get_tree().quit()
 
 
 func _capture_top(path: String) -> void:

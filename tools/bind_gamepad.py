@@ -57,8 +57,15 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     "crouch": [(BUTTON, B, 0.0)],
     "crouch_toggle": [(BUTTON, RIGHT_STICK, 0.0)],
     "attack": [(AXIS, AXIS_TRIGGER_RIGHT, 1.0)],
-    "debug_weight_up": [(BUTTON, DPAD_UP, 0.0)],
-    "debug_weight_down": [(BUTTON, DPAD_DOWN, 0.0)],
+    # The bag (`M2-T01`, DES-019). Opening it is a vulnerable act, so it sits on
+    # a shoulder rather than a face button — nothing you press by accident while
+    # fighting. Moving items needs no bindings of its own: `Player` suspends
+    # look while the bag is open and hands the right stick to the cell cursor,
+    # and `interact` is take-and-place there exactly as it is reach-for-it in
+    # the world. One verb, one button, two contexts.
+    "bag": [(BUTTON, LEFT_SHOULDER, 0.0)],
+    "drop": [(BUTTON, DPAD_DOWN, 0.0)],
+    "rotate_item": [(BUTTON, RIGHT_SHOULDER, 0.0)],
     "debug_reset": [(BUTTON, DPAD_LEFT, 0.0)],
     "debug_ink": [(BUTTON, Y, 0.0)],
     "interact": [(BUTTON, X, 0.0)],

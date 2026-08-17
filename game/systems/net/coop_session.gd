@@ -63,6 +63,10 @@ var _port: int = DEFAULT_PORT
 var _device: String = InputDevices.ALL
 var _next_enemy: int = 0
 var _next_spawn: int = 0
+## Counts every item ever spawned, and never counts back down. Node names have
+## to agree across peers, and reusing an index after something was picked up
+## would give a new item the name of one a client is still despawning.
+var _next_item: int = 0
 
 @onready var _actors: Node3D = $Actors
 @onready var _spawner: MultiplayerSpawner = $Spawner
@@ -188,9 +192,13 @@ func _on_peer_disconnected(peer: int) -> void:
 ## across peers or every RPC and every synchroniser addresses a different node.
 func _spawn_actor(data: Variant) -> Node:
 	var payload: Dictionary = data as Dictionary
-	if String(payload["kind"]) == "player":
-		return _build_player(payload)
-	return _build_enemy(payload)
+	match String(payload["kind"]):
+		"player":
+			return _build_player(payload)
+		"world_item":
+			return _build_world_item(payload)
+		_:
+			return _build_enemy(payload)
 
 
 func _build_player(payload: Dictionary) -> Node:
@@ -203,6 +211,11 @@ func _build_player(payload: Dictionary) -> Node:
 	# its own body. Deciding afterwards means one frame of a remote player
 	# holding the camera and capturing the mouse.
 	player.configure_replication(peer)
+	# Signals up, calls down (`TEC-002`): a player putting something down says
+	# so, and the session — which owns the spawner — is what makes it exist.
+	# `spawn_world_item` is host-only, so a client's copy of this connection is
+	# inert rather than wrong.
+	player.dropped.connect(_on_player_dropped)
 	return player
 
 
@@ -215,6 +228,21 @@ func _build_enemy(payload: Dictionary) -> Node:
 	# and the default authority of a spawned node is already peer 1.
 	enemy.configure_replication()
 	return enemy
+
+
+## Loot, built in code rather than from a scene: a `WorldItem` is a blockout
+## box sized from its own `grid_size`, so a `.tscn` would hold nothing the
+## resource does not already say (ADR-046).
+func _build_world_item(payload: Dictionary) -> Node:
+	var item := WorldItem.new()
+	item.name = "item_%d" % int(payload["index"])
+	# Before `add_child`: `_ready` resolves the id against the catalogue, and a
+	# node that entered the tree not knowing what it is would have to be told
+	# afterwards, which is one frame of an item with no mesh on every peer.
+	item.item_id = payload["item"] as StringName
+	item.position = payload["at"] as Vector3
+	item.rotation.y = float(payload["yaw"])
+	return item
 
 
 func _spawn_player(peer: int) -> void:
@@ -243,6 +271,27 @@ func spawn_enemy(at: Vector3, yaw: float = 0.0) -> void:
 		"kind": "enemy", "index": _next_enemy, "at": at, "yaw": yaw,
 	})
 	_next_enemy += 1
+
+
+## Levels and players ask for loot; neither instantiates one. Host-only for the
+## same reason enemies are: what exists in the world is a consequence, and
+## consequences have one owner (`TEC-004`, ADR-082).
+##
+## Returns the host's copy so a drop can be measured immediately; clients get
+## theirs when the spawn packet lands.
+func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0) -> WorldItem:
+	if not is_host():
+		return null
+	var made: WorldItem = _spawner.spawn({
+		"kind": "world_item", "index": _next_item, "item": item,
+		"at": at, "yaw": yaw,
+	}) as WorldItem
+	_next_item += 1
+	return made
+
+
+func _on_player_dropped(item: StringName, at: Vector3, yaw: float) -> void:
+	spawn_world_item(item, at, yaw)
 
 
 ## Free every enemy. Host-only: the despawn replicates, so a client doing this

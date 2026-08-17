@@ -17,7 +17,7 @@ _What the game is._
 | `DES-002` | [Core Loop](design/DES-002-core-loop.md) | ✔ accepted | 2026-08-14 | DES-001, DES-003, DES-005, DES-006 |
 | `DES-003` | [Persistence & Meta-Progression](design/DES-003-persistence.md) | ✔ accepted | 2026-08-14 | DES-002, DES-004, DES-008, TEC-003 |
 | `DES-004` | [Skill Tree — The Dragon's Aspects](design/DES-004-skill-tree.md) | ✔ accepted | 2026-08-14 | DES-003, DES-007, DES-008 |
-| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-08-14 | DES-002, DES-007, DES-008 |
+| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-08-16 | DES-002, DES-007, DES-008 |
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
 | `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-08-14 | DES-002, DES-006, DES-008 |
 | `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
@@ -31,7 +31,7 @@ _What the game is._
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-08-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-08-16 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
-| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-16 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-16 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-08-16 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
 

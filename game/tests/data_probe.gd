@@ -36,6 +36,12 @@ var _failures: int = 0
 var _frame: int = 0
 var _loaded: int = 0
 var _items: Array[ItemResource] = []
+## Taken from the walk rather than from `Config`. This runs as `--script`,
+## which builds a bare `SceneTree` with **no autoloads registered** — so
+## `Config.tuning` is not merely empty here, it does not compile. The profile
+## is a `.tres` under `data/` like everything else, so the corpus already has
+## it and the rule that needs it can read it from there.
+var _tuning: TuningProfile = null
 
 
 func _process(_delta: float) -> bool:
@@ -52,6 +58,8 @@ func _run() -> void:
 		_check(path)
 
 	_check_unique_ids()
+	_check_catalogue_agrees()
+	_check_items_fit_the_grid()
 
 	# A validator that validated nothing must never report success. This is
 	# the single most important line in the file: every other check here is
@@ -97,6 +105,10 @@ func _check(path: String) -> void:
 		return
 	_loaded += 1
 
+	var tuning := resource as TuningProfile
+	if tuning != null:
+		_tuning = tuning
+
 	var item := resource as ItemResource
 	if item != null:
 		_items.append(item)
@@ -126,6 +138,55 @@ func _check_unique_ids() -> void:
 				% [key, seen[key], item.resource_path.get_file()])
 			continue
 		seen[key] = item.resource_path.get_file()
+
+
+## The corpus on disk and the corpus the *game* can see must be the same set.
+##
+## This walk uses `DirAccess` over `.tres`; `ItemCatalogue` is what every
+## running system actually asks, and it matches `.tres`, `.res` **and**
+## `.remap` because Godot re-serialises text resources when it packs them. Two
+## scans of the same folder is exactly the arrangement that rots silently, so
+## they are compared rather than trusted — and this is the check that fails if
+## the catalogue's idea of the item table ever drifts from the files, which
+## ADR-086 records shipping once as an empty item table in a build that
+## launched perfectly.
+func _check_catalogue_agrees() -> void:
+	var known: Array[String] = ItemCatalogue.ids()
+	if known.size() != _items.size():
+		_fail("the catalogue sees %d item(s), this walk found %d — they are "
+			% [known.size(), _items.size()]
+			+ "reading the same folder and must not disagree")
+		return
+	for item: ItemResource in _items:
+		if ItemCatalogue.by_id(item.id) == null:
+			_fail("'%s' is on disk but the catalogue cannot resolve it" % item.id)
+
+
+## An item bigger than the bag can never be picked up (`M2-T01`, `DES-019`).
+##
+## Cross-resource, so it cannot live on `ItemResource`: the item knows its
+## footprint and `TuningProfile` knows the grid, and neither can see the other.
+## That is the division `TEC-006` draws, and this is the second question this
+## file owns after ID uniqueness.
+##
+## Rotation counts. A 1x4 spear fits a 6-wide, 5-tall grid upright, and would
+## also fit turned; a 7x1 pole fits neither way and is unpickupable content —
+## authored, validating, and dead.
+func _check_items_fit_the_grid() -> void:
+	# No profile means the rule cannot run, and a rule that cannot run must say
+	# so rather than pass (ADR-084). The corpus is required to contain one.
+	if _tuning == null:
+		_fail("no TuningProfile in the corpus — item footprints cannot be "
+			+ "checked against the bag they have to fit in")
+		return
+	var grid: Vector2i = _tuning.inventory_grid
+	for item: ItemResource in _items:
+		var size: Vector2i = item.grid_size
+		var upright: bool = size.x <= grid.x and size.y <= grid.y
+		var turned: bool = size.y <= grid.x and size.x <= grid.y
+		if not upright and not turned:
+			_fail("'%s' is %s and the bag is %s — it can never be picked up, "
+				% [item.id, size, grid] + "in either orientation")
 
 
 func _fail(message: String) -> void:

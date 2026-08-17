@@ -1251,4 +1251,37 @@ That distinction is not theoretical. Excluding `data/items/*` from the macOS pac
 
 ---
 
+## ADR-087 — `M2-T01`: the bag is 6x5, the Prize is an item, and carried clamor is a floor
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `DES-005`, `DES-019`, `TEC-006`** · **Implements ADR-040, ADR-084**
+
+**Context:** Building the inventory. ADR-040 settled the *model* — grid-based, weighted, real-time, one of them — and ADR-083 had to reaffirm it after a stale `PRO-001` line reopened it. Three things were still unsettled, and each of them changes weeks of work.
+
+**Decision 1 — the grid is 6x5, and it lives in `TuningProfile` until the Pack slot exists.** `DES-020` gives inventory dimensions to the **Pack** — *"bigger pack, more grid, more weight, more Clamor"* — and slots arrive at `M3-T07`. So the number has one home now (`inventory_grid`) and one home later (the Pack's `WearableTrait`), never two at once. When `M3-T07` lands, the profile value becomes the Q106 *no pack* grid it already has to be. That is an ordering decision, not a fallback (ADR-064).
+
+**Rationale for 6x5 specifically.** It is RE4's attaché case, which `DES-019` names as the gold standard, and — measured against the ten authored items rather than asserted — it is the size at which the two constraints genuinely disagree. A bag of gear fills 25 of 30 cells at 24.3 kg; a bag of glitter fills all 30 at 48.8 kg. Same squares, twice the price. At 4x5 both bags run out of space and the conflict collapses; at 8x6 neither does.
+
+**Decision 2 — the room set's Prize becomes `glt_altar_plate`, and the level's loot code is deleted.** `M1-T03` built a gold block that added 16 kg of nothing; a playtester walked to it and asked what they were supposed to do, which is ADR-064's complaint about stubs arriving as feedback. It is now an item with a name, a footprint, a tribute value and a translation key — and the hand-rolled reach check, RPC pair and hardcoded weight **moved** to `Player` and `WorldItem` rather than being copied (the ADR-073 rule). There is one loot path in the project and `room_set.gd` has none of it. The floor gained seven more authored items, placed so that the safe west branch pays badly and the Guardian's room holds the three things worth the fight.
+
+**Decision 3 — carried clamor is a floor `ClamorSource` decays *to*, not a constant it adds.** `DES-008` names clamor *"the audible cost of greed"* and `DES-005` makes dropping loot the primal counter-play, so what you carry has to be audible while you are standing still — otherwise "crouch in a corner and wait it out" costs a rich player nothing.
+
+The constant-addition version was checked and **it deletes stealth**: a full glitter bag sums to 8.5, a permanent 13.6 m audible radius against a 16 m enemy vision range, which removes *"hide and let it pass"* from `DES-005`'s own list of things that must work. At `clamor_carried_fraction` ⟨tune⟩ 0.25 the same bag is heard from 3.4 m — sneakable, and never silent. **Dropping the loot drops the floor in the same frame**, which is what gives `DES-017`'s *"shedding carried value can shake it"* something to act on.
+
+**Decision 4 — the debug weight keys are removed, not renamed.** `CarriedWeight`'s own note said its value was driven by hand *until `M2-T01`*. Loot is now the gameplay source, and a dev key writing the same number behind the inventory's back is the second weight path ADR-064 bans. `debug_weight_up`/`down` are gone from `project.godot`, `bind_gamepad.py` and the readout; their D-pad bindings went to `drop`.
+
+**The correction this task produced, which is the part worth keeping.** `--bag-probe` first asserted that space *and* weight each refuse a pickup. It failed, and it was the **assertion** that was wrong: weight refuses nothing. ADR-050's cap is the *slot* cap, `DES-019` gives the grid the gating job, and `CarriedWeight` clamps its penalty at 1.0 precisely so a bad decision stays recoverable. So:
+
+> **Space decides what you can carry. Weight decides what it costs you.**
+
+That is a sharper reading of `DES-019`'s "two constraints that deliberately conflict" than *two gates*, and it sharpens the M2 gate question with it: you abandon loot not because nothing else fits, but because what you have is too expensive to walk home with. Recorded in `Inventory`'s header as well, because the next reader will otherwise notice the missing weight check and helpfully add it.
+
+**Measured, at 6x5 and a 40 kg capacity:** the floor offers eight items; the bag takes seven and refuses the mail byrnie for space. 31.0 kg, 78% laden, 25/30 cells, walking 2.21 m/s against an unladen 3.40, audible 27.7 m moving and 4.3 m standing still. Dropping the altar-plate returns **+24% speed and 1.6 m of quiet**. Kilograms-per-cell spans 59x across the floor, from the gemstone to the hoard-coin.
+
+**Consequences:** `ItemInstance` and `ItemCatalogue` are built, closing out ADR-084's Decision 3. Seven new checks, **each confirmed to fail by planting a violation**: four in `--bag-probe` (now in the pre-commit sweep), two in the data validator (item footprints against the grid; the catalogue's view of the corpus against the walk's), and two in the co-op smoke (the host granting a client's pickup, and the bag reaching the client that owns it). One of them was a green tick that could not fail — `--bag-probe` read the item count *after* the drop, so "the bag took everything" was unreachable; the oversized-grid plant is what exposed it.
+
+**A dashboard correction fell out of ticking the task.** `M2-T01` was the only task citing `DES-008`, so ticking it made `status.py` report *"DES-008 is fully implemented"* — which is plainly false: its primary sink is tribute (`M3-T01`), and the stash (`M2-T06`) and the death wipe (`M2-T05`) are the other half of its economy. Those three tasks now cite `DES-008`, which is what they always implemented. The tool was not wrong; the roadmap was under-referenced, and it took a tick to make that visible.
+
+`--bag-shot` renders the bag windowed and writes a PNG, because `--bag-probe` is headless and never executes a line of the drawing code. It found two defects on its first run that no headless check could: the footer prompt was silently clipped at the panel edge — losing the *drop* prompt, the verb this whole milestone is about — and the 0.04 kg gemstone rendered as `0.0 kg`, which reads as unset rather than as weightless.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

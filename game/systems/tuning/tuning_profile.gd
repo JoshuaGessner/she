@@ -77,6 +77,35 @@ extends Resource
 @export_group("Vitals")
 @export var player_health: float = 100.0
 
+@export_group("Inventory")
+## Cells wide and tall (`DES-019`). **`DES-020` gives this to the Pack slot** —
+## bigger pack, more grid, more weight, more Clamor — and slots arrive at
+## `M3-T07`, at which point the Pack supplies it and this becomes the *no pack*
+## grid Q106 already requires. One home now, one home later, never two.
+##
+## 6x5 is RE4's attaché case, which `DES-019` names as the gold standard, and
+## it is the size at which the two constraints actually disagree across the
+## authored corpus: a bag of gear runs out of squares at 25/30 cells and 24 kg,
+## a bag of glitter runs out of kilograms at 40 kg well short of 30 cells.
+## Tighter (4x5) and both bind on space; looser (8x6) and both bind on weight.
+## `--bag-probe` measures this rather than trusting it.
+@export var inventory_grid: Vector2i = Vector2i(6, 5)
+## Seconds to get the bag open or shut. `DES-019`: *"you kneel, you rummage,
+## and the floor keeps happening"* — the cost has to be time you can be caught
+## in, not a keystroke.
+@export var bag_open_time: float = 0.35
+## Top speed multiplier while the bag is open. Opening your bag is a vulnerable
+## act by design, not by accident (`DES-019`).
+@export var bag_speed_multiplier: float = 0.45
+
+@export_group("Interaction")
+## Metres you can reach a thing from. Latency slack is added on top **on the
+## host**: a client presses interact from where it believes it stands, and the
+## host tests against a transform up to a replication interval old, which is
+## about 0.2 m at walking pace.
+@export var interact_reach: float = 2.2
+@export var interact_reach_slack: float = 0.5
+
 @export_group("Weapon")
 ## DES-009 attack anatomy: Anticipation → Active → Recovery. Attacks commit;
 ## there is no cancelling out of one. Recovery is not dead time — it is the
@@ -140,6 +169,20 @@ extends Resource
 ## fight expensive.
 @export var clamor_swing: float = 2.0
 @export var clamor_hit: float = 4.5
+## Noise made handling one item — rummaging in an open bag, and lifting or
+## setting down anything. Scaled by the item's own clamor.
+@export var clamor_rummage: float = 0.6
+## What fraction of the bag's total clamor you give off **standing perfectly
+## still**. `ClamorSource` decays toward this rather than to zero, so a rich
+## player is never truly silent and dropping the loot is what buys silence
+## back — `DES-005`'s primal counter-play, made mechanical.
+##
+## Deliberately a fraction and not the whole sum. At 1.0 a full glitter bag is
+## a permanent 13.6 m audible radius against a 16 m enemy vision range, which
+## deletes *"hide and let it pass"* from `DES-005`'s own counter-play list. At
+## 0.25 the same bag is heard from 3.4 m — close enough to sneak past, far
+## enough that you can feel it.
+@export var clamor_carried_fraction: float = 0.25
 ## Metres of *equivalent distance* added by each wall between you and a
 ## listener. Walls muffle rather than block: TEC-001's field gets that shape
 ## for free by diffusing through open space, and this reproduces it — sound
@@ -167,4 +210,17 @@ func validate() -> PackedStringArray:
 		problems.append("carry_capacity must be positive or encumbrance is undefined")
 	if stamina_max <= 0.0:
 		problems.append("stamina_max must be positive")
+	if inventory_grid.x < 1 or inventory_grid.y < 1:
+		problems.append("inventory_grid %s has no cells to put anything in"
+			% inventory_grid)
+	# A negative fraction would make carrying loot quieter than carrying
+	# nothing, which inverts the coupling DES-005 Layer 1 is built on.
+	if clamor_carried_fraction < 0.0:
+		problems.append("clamor_carried_fraction cannot be negative — greed does"
+			+ " not make you quieter")
+	if bag_speed_multiplier <= 0.0:
+		problems.append("bag_speed_multiplier must be positive; opening the bag"
+			+ " is meant to slow you, not root you")
+	if interact_reach <= 0.0:
+		problems.append("interact_reach must be positive or nothing can be picked up")
 	return problems

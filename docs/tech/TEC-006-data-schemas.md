@@ -183,6 +183,8 @@ game/data/items/…   enemies/…   skills/…   contracts/…   loot/…   biom
 - `telegraph_ms < 250` (ADR-053) — *not built*: `AttackResource` arrives at `M4-T02`. The floor is enforced today in `TuningProfile.validate()`, where its data actually lives
 - Dangling `requires` references, and keystone nodes with no `effect_tags` (`DES-004`) — *not built*: `SkillNodeResource` arrives at `M3-T01`
 - Loot entries referencing nonexistent items — *not built*: `LootTableResource` arrives with loot spawning
+- An item whose `grid_size` cannot fit the inventory grid in **either** orientation — it is authored, it validates, and it can never be picked up — **built** (`M2-T01`), now that a grid exists to measure against
+- **The catalogue's view of the corpus disagreeing with the walk's** — **built** (`M2-T01`). The probe walks `.tres` with `DirAccess`; `ItemCatalogue` is what the *running game* asks. Two scans of one folder is the arrangement that rots silently, so they are compared rather than trusted — and this is the rule that fires on the ADR-086 failure, where a build shipped an empty item table and launched perfectly
 
 > **A rule arrives with its data (ADR-084).** Writing a check against an empty folder produces a green tick that cannot fail, which is worse than no check — it convinces the next reader the ground is covered. `M1-T05` shipped two such checks and only found them by planting violations.
 
@@ -193,5 +195,9 @@ game/data/items/…   enemies/…   skills/…   contracts/…   loot/…   biom
 ## Open questions
 
 > **CLOSED (Q103, ADR-084): a carried item is an `ItemInstance`, not an `ItemResource`.** The resource is the shared, immutable definition and is never mutated at runtime; an `ItemInstance` is one carried thing — a reference to its definition, a per-instance id, its grid position, and any mutable state. Inventories hold instances. Saves store the instance id plus the **stable string id**, never a path (`TEC-003`). Decided at `M2-T08`, **built at `M2-T01`** with the inventory that first needs it.
+>
+> As built it is a **`RefCounted`, not a `Resource`** — which makes the separation structural rather than a convention: there is no path to load one from, nothing caches it, and two instances of one item are two objects however they were made. It carries `instance_id`, `definition`, `cell` and `rotated`, and **no `condition` or `fuel` field**: neither has a system yet, and a field nothing reads is the stub ADR-064 bans. The class is fully justified without them, because two altar-plates in one bag are already the same definition in two different squares.
+
+> **`ItemCatalogue` is how a stable string id becomes an `ItemResource`** (`M2-T01`). Principle 3 says saves hold `"glt_altar_plate"` and never a path, so something has to map one to the other, and this is the only place that does. It matches `.tres`, `.res` **and** `.remap`, because Godot re-serialises text resources when it packs them — a scan matching only `.tres` finds **zero items in a shipped build** while `load()` on the original path keeps working, which is what makes it silent (ADR-086).
 
 > **CLOSED (Q104, ADR-084): keys, and they are built.** `name_key` and `description_key` are translation keys; `data/locale/en.csv` is loaded as a Godot translation, so English displays today. It cost one CSV and one project setting at ten items.

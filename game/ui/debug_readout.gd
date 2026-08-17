@@ -30,20 +30,30 @@ func _process(_delta: float) -> void:
 	var stamina: Stamina = _player.stamina
 	var health: Health = _player.health
 	var clamor: ClamorSource = _player.clamor
+	var bag: Inventory = _player.inventory
 	var lines: PackedStringArray = PackedStringArray([
 		"health    %5.1f / %.0f%s" % [
 			health.current, health.maximum, "   DEAD" if health.is_dead() else "",
 		],
 		"speed     %5.2f m/s" % _player.planar_speed(),
 		"stamina   %5.1f / %.0f" % [stamina.current, stamina.maximum()],
-		"carrying  %5.1f kg  (%.0f%% laden)" % [
+		# Cells beside kilograms, because `M2-T01` made them two different
+		# constraints and a readout showing only one cannot tell you which of
+		# them is the reason you had to leave something behind.
+		"carrying  %5.1f kg  (%.0f%% laden)   %d/%d cells" % [
 			carried.kilograms, carried.encumbrance() * 100.0,
+			bag.cells_used(), bag.grid().x * bag.grid().y,
 		],
 		# The radius is the number that means something: DES-005 requires the
 		# player to always know how much pressure they have made. "4.8 clamor"
 		# is not actionable; "heard 7.7 m away" is.
-		"clamor    %5.1f      heard %.1f m away" % [
+		# Two radii, because they answer different questions. The first is how
+		# far you carry *right now*; the second is the floor your bag imposes —
+		# how far you carry standing perfectly still, which is the number
+		# `DES-005`'s "drop it and go quiet" counter-play acts on.
+		"clamor    %5.1f      heard %.1f m away   (%.1f m carrying this)" % [
 			clamor.level, clamor.audible_radius(),
+			clamor.carried_floor * Config.tuning.clamor_metres_per_unit,
 		],
 	])
 	# Enemy state is on screen because the awareness ladder is unreadable
@@ -59,6 +69,10 @@ func _process(_delta: float) -> void:
 			"SEES" if enemy.sees_player() else "····",
 			"HEARS" if enemy.hears_player() else "·····",
 		])
-	lines.append("lmb/RT attack   [ ] weight   shift/L3 sprint   "
-		+ "ctrl/B crouch   c/R3 toggle   i/Y ink   r reset")
+	# Every prompt names both devices (`DES-019` rule 7, ADR-075). The weight
+	# keys are gone rather than renamed: loot is the gameplay source of carried
+	# weight from `M2-T01`, and a debug key that sets it behind the inventory's
+	# back would be the second writer ADR-064 bans.
+	lines.append("lmb/RT attack   e/X take   tab/LB bag   g/dpad-down drop   "
+		+ "shift/L3 sprint   ctrl/B crouch   c/R3 toggle   i/Y ink   r reset")
 	text = "\n".join(lines)

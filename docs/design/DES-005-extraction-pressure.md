@@ -4,7 +4,7 @@ title: Extraction Pressure — The Hunt
 status: accepted
 owner: design
 tags: [pressure, pacing, extraction, tension, ai]
-updated: 2026-08-14
+updated: 2026-08-16
 related: [DES-002, DES-007, DES-008]
 ---
 
@@ -30,6 +30,8 @@ Pressure you generate yourself, immediately and legibly.
 - Weight → slower movement, shorter stamina, louder footfalls, worse dodge.
 - Clamor → wider aggro radius, faster Hunt escalation.
 - **You feel your greed in your legs.** The single most important feedback loop in the game.
+
+> **DECIDED (ADR-087):** **carried clamor is a floor your noise decays *to*, not a constant it adds.** A rich player standing perfectly still is never silent — coin shifts, a gem catches every light in the dark — but they are heard from ⟨tune⟩ 3.4 m rather than 13.6 m. That distinction is load-bearing: the constant-addition version was checked and it puts a full glitter bag permanently inside enemy vision range, which deletes *"hide and let it pass"* from the counter-play list below. As a floor it does the opposite — it is precisely what makes **dropping the loot buy silence back**, in the same frame.
 
 *Why this layer:* it means the extraction decision starts at minute one, not at the timer. Even a "safe" run is constantly asking "is this worth carrying?"
 
@@ -80,7 +82,7 @@ The same mechanism that takes you out lets someone in. A player waiting in the L
 
 Pressure must have counters, or it's a tax rather than a system:
 
-- **Drop loot** — the primal one. Instantly reduces weight and clamor. The choice to abandon treasure to survive should happen in *every* good run.
+- **Drop loot** — the primal one. Instantly reduces weight and clamor. The choice to abandon treasure to survive should happen in *every* good run. **Built at `M2-T01`, and measured:** putting down the heaviest thing you carry returns ⟨tune⟩ +24% walking speed and 1.6 m of quiet, in the frame you let go of it.
 - **Cache it** — stash loot in a hidden spot for a later run ⟨tune⟩. Hugely evocative ("my gold is still down there"), and a strong hook. Needs a persistence design (`TEC-003`).
 - **Wrap it** — consumables (cloth, wax, muffling sacks) that reduce clamor at a cost.
 - **Bait & misdirect** — throw a noisy item to pull the Hunter. Cheap to implement, enormous player satisfaction.

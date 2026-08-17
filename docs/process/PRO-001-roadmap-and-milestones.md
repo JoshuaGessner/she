@@ -53,13 +53,13 @@ The most common way a project like this dies is building the meta-progression fi
 <!-- milestone id=M2 depends=M1 size=1.5 -->
 **Goal:** prove the target sentence.
 - [x] `M2-T08` **Data schema base resources** — `ItemResource` + trait resources, stable string IDs, **plus the CI validator**. Built with the first ten resources, not the first thousand. *Moved ahead of `M2-T01` by ADR-083. `WieldableTrait` only — the other six traits describe systems that do not exist yet. Validator implements the rules whose data exists and no others (ADR-084): a rule against an empty folder is a green tick that cannot fail. Item text is translation keys (ADR-084)* → TEC-006
-- [ ] `M2-T01` Loot with weight and clamor; **one inventory: grid-based, weighted, real-time** (ADR-040, reaffirmed by ADR-083 — decided, not a prototype fork) → DES-008, DES-005, DES-019
+- [x] `M2-T01` Loot with weight and clamor; **one inventory: grid-based, weighted, real-time** (ADR-040, reaffirmed by ADR-083 — decided, not a prototype fork). *6×5 grid ⟨tune⟩, `ItemInstance` + `ItemCatalogue`, host-validated pickup and drop, blockout bag screen. The room set's Prize is `glt_altar_plate` and its hand-rolled loot path is deleted. Carried clamor is a decay floor, so dropping loot buys silence back (ADR-087)* → DES-008, DES-005, DES-019
 - [ ] `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (`DES-005`) → DES-017, DES-005
 - [ ] `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build → DES-018, DES-019, TEC-005
 - **Standing test from here on: every milestone must be playable to completion with audio muted**
 - [ ] `M2-T04` Extraction: reach an exit, keep what you carried → DES-005, DES-002
-- [ ] `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) → DES-003, DES-012
-- [ ] `M2-T06` Minimal Lair: stash and re-descend → DES-014
+- [ ] `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) → DES-003, DES-008, DES-012
+- [ ] `M2-T06` Minimal Lair: stash and re-descend → DES-008, DES-014
 - [ ] `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players → DES-012
 - [ ] `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early → ART-002, ART-003, TEC-005
 
@@ -70,7 +70,7 @@ The most common way a project like this dies is building the meta-progression fi
 ## M3 — The Pact  ·  *~2× M1*
 <!-- milestone id=M3 depends=M2 size=2.0 -->
 **Goal:** prove meta-progression makes runs *more* interesting, not easier.
-- [ ] `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) → DES-003, DES-004
+- [ ] `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) → DES-003, DES-004, DES-008
 - [ ] `M3-T02` **Two classes complete** — Húskarl and Veiðimaðr, opposite loop relationships. **The other four are absent from the class-select screen entirely.** A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064) → DES-011
 - [ ] `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested → DES-003, DES-012
 - [ ] `M3-T04` Tithe and Pact Rank escalation (`DES-003`) → DES-003

@@ -56,7 +56,7 @@ Recorded so they are not mistaken for undesigned areas.
 | Shader | Does the ember read as *sick* when loud? | `DES-019`, ADR-042 |
 | Shader | Hatch layer count (Q101); object-ID buffer needed? (Q102) | `ART-005` |
 | Shader | Do player characters get heavier outlines? (Q99) | `ART-005` |
-| Inventory | Grid dimensions, cell sizes, rummage speed | `DES-019` |
+| Inventory | **Cell sizes and rummage speed.** Grid dimensions are settled at 6×5 by ADR-087 — measured, not guessed: it is where a bag of gear runs out of squares and a bag of glitter runs out of legs. Whether 44 px cells read at a glance, and whether `bag_open_time` ⟨tune⟩ 0.35 s feels vulnerable or merely slow, are questions only a playtest answers | `DES-019` |
 | Pressure | **Waystone drop rate** — the strongest single lever in the game | `DES-005` |
 | Audio | Crossfade length between states | `ART-002`, ADR-043 |
 | Co-op | Per-capita extracted value at 1 / 2 / 4 players | `DES-012` |

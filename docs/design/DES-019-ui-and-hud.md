@@ -5,7 +5,7 @@ status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
 updated: 2026-08-16
-related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, PRO-005]
+related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
 # UI & HUD
@@ -137,19 +137,27 @@ Instead the map is **held up**, physically, occupying a hand and most of your at
 
 ## Inventory
 
-> **DECIDED (ADR-040):** **Grid-based, weighted, real-time.** Closes Q23 — no longer a prototype fork, though the grid's dimensions and cell sizes remain tuning work.
+> **DECIDED (ADR-040):** **Grid-based, weighted, real-time.** Closes Q23 — no longer a prototype fork.
+> **DECIDED (ADR-087):** **The grid is 6×5** ⟨tune⟩, RE4's attaché case. Built at `M2-T01`.
 
 **Grid-based, weighted, and real-time.**
 
-Two constraints that deliberately conflict:
-- **Space** — a grid, so hauling is a spatial puzzle (RE4's attaché case is the gold standard for making greed tactile)
-- **Weight** — which drives movement and Clamor (`DES-005`)
+Two constraints that deliberately conflict — but not in the way this section first described them:
 
-So a bulky-but-light bolt of cloth and a tiny-but-ruinous bag of coin pose *different* problems. That's the good version.
+> **Space decides what you can carry. Weight decides what it costs you.**
+
+- **Space** — a grid, so hauling is a spatial puzzle (RE4's attaché case is the gold standard for making greed tactile). **This is the gate.** ADR-050's "modest slot cap" is these squares.
+- **Weight** — which drives movement and Clamor (`DES-005`). **This is the price.** It refuses nothing; `carry_capacity` is the denominator encumbrance is measured against, and that penalty is clamped at 1.0 so a bad decision stays recoverable rather than becoming an unrecoverable one.
+
+ADR-087 records how this was corrected: `--bag-probe` was written asserting that *both* constraints refuse a pickup, and it failed — the assertion was wrong, not the code. One gate and one price is the sharper reading, and it sharpens the M2 gate question with it: **you abandon loot not because nothing else fits, but because what you have is too expensive to walk home with.**
+
+So a bulky-but-light bolt of cloth and a tiny-but-ruinous bag of coin pose *different* problems. Measured across the ten authored items at 6×5, that difference is real rather than aspirational: a bag of gear fills 25 of 30 cells at 24.3 kg, a bag of glitter fills all 30 at 48.8 kg. Same squares, twice the price. Kilograms-per-cell spans 59× across the corpus, and `--bag-probe` fails if it ever collapses toward 1.
+
+**Where the dimensions live.** `DES-020` gives inventory size to the **Pack slot**, and slots arrive at `M3-T07`. Until then the grid is `TuningProfile.inventory_grid`; when the Pack lands it supplies the number and the profile value becomes the *no pack* grid Q106 already requires. One home now, one home later, never two (ADR-087).
 
 **No pause.** Co-op makes pausing impossible anyway, so we design for it deliberately rather than inheriting it: **opening your bag is a vulnerable act.** You kneel, you rummage, and the floor keeps happening. Sorting loot while something approaches is one of the best tension generators available and it costs nothing extra to get.
 
-> **Cost, stated honestly:** a good grid inventory is ⟨a few weeks⟩ of UI work, and it is the single largest UI item in the project. **One model is built, not two (ADR-083).** This line previously said the Q23 prototype fork still stood, twelve lines below the decision that closed it — and `PRO-001` was reading the stale half. Doubling the largest UI item in the project is not how M2 answers *"does a playtester abandon loot to survive?"*; if the grid feels wrong, that is an M4 revision against playtest data.
+> **Cost, stated honestly:** a good grid inventory is ⟨a few weeks⟩ of UI work, and it is the single largest UI item in the project. **One model is built, not two (ADR-083).** Blockout — coloured rectangles carrying name and weight, ADR-046 — landed at `M2-T01` with every function complete: see, move, turn, drop. The art arrives with the rest of the HUD at `M4-T05`. This line previously said the Q23 prototype fork still stood, twelve lines below the decision that closed it — and `PRO-001` was reading the stale half. Doubling the largest UI item in the project is not how M2 answers *"does a playtester abandon loot to survive?"*; if the grid feels wrong, that is an M4 revision against playtest data.
 
 ## The two screens that matter most
 

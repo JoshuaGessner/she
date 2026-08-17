@@ -150,6 +150,23 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Does greed cost anything, and does putting it down buy anything back
+	# (`M2-T01`)? The M2 gate is "a playtester voluntarily abandons loot to
+	# survive", and that decision is only real if the floor holds more than the
+	# bag does and if dropping something visibly returns speed and quiet.
+	#
+	# It runs in the sweep rather than by hand because every number it checks
+	# is one a tuning edit can silently invert: a roomier grid, a lighter item,
+	# a smaller clamor fraction. None of those breaks a test that only parses
+	# code.
+	bag="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --bag-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$bag" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the greed loop" >&2
+		printf '%s\n' "$bag" | grep -E '\[bag\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Two processes, host and client, over loopback (`M1-T05`). This is the
 	# only check in the sweep that exercises a *second* process, and it is the
 	# only one that can: every claim in `TEC-004` is a claim that two peers
@@ -167,6 +184,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
+	echo "greed costs and dropping it pays,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

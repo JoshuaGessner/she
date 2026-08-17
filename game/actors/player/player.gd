@@ -39,11 +39,20 @@ extends CharacterBody3D
 ## every screen and — on the host — arms a hitbox that can actually hurt
 ## something.
 
-const DEBUG_WEIGHT_STEP: float = 4.0
+## Metres in front of your feet a dropped item lands. Far enough that you do
+## not immediately pick it back up, close enough that abandoning something is
+## visibly abandoning it *here* — `DES-005`'s cached loot is a later system,
+## but "my gold is still down there" starts with being able to see where.
+const DROP_DISTANCE: float = 0.9
 
 ## Godot's host is always peer 1, including the offline peer a solo launch
 ## gets, which is why none of this needs a single-player branch.
 const HOST_PEER: int = 1
+
+## Loot leaving the bag. `CoopSession` listens and spawns the `WorldItem`,
+## because a child never reaches into the tree above it for a service — signals
+## up, calls down (`TEC-002`).
+signal dropped(item: StringName, at: Vector3, yaw: float)
 
 ## Replication rate for a player body. `TEC-004`'s budget was measured at 20 Hz
 ## (ADR-068) and the ceiling is ~29 continuously-moving entities, so a party of
@@ -96,6 +105,16 @@ var _crouching: bool = false
 var _crouch_latched: bool = false
 var _is_local: bool = false
 
+## 0 shut, 1 fully open. A float rather than a bool because `DES-019` charges
+## *time* for opening the bag — you kneel and rummage while the floor keeps
+## happening — so the same number drives the screen's fade and the movement
+## penalty, and neither can get ahead of the other.
+var _bag: float = 0.0
+var _bag_wanted: bool = false
+var _bag_screen: BagScreen = null
+## The item the local player would take if they pressed interact right now.
+var _reaching_for: WorldItem = null
+
 @onready var _head: Node3D = $Head
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _collider: CollisionShape3D = $CollisionShape3D
@@ -104,6 +123,7 @@ var _is_local: bool = false
 @onready var _body_mesh: CapsuleMesh = _body.mesh as CapsuleMesh
 @onready var stamina: Stamina = $Stamina
 @onready var carried: CarriedWeight = $CarriedWeight
+@onready var inventory: Inventory = $Inventory
 @onready var health: Health = $Health
 @onready var weapon: MeleeWeapon = $Head/Weapon
 @onready var clamor: ClamorSource = $ClamorSource
@@ -181,6 +201,12 @@ func _ready() -> void:
 	_hurtbox.hit.connect(_on_hurt)
 	weapon.swing_started.connect(_on_swing_started)
 	weapon.connected.connect(_on_swing_connected)
+	# Loot is the only gameplay source of carried weight. `CarriedWeight`'s own
+	# note said the value was driven by hand *until `M2-T01`*, and the dev keys
+	# that did it are gone with this line rather than left beside it — two
+	# writers to one number is the second weight path ADR-064 bans.
+	inventory.changed.connect(_on_inventory_changed)
+	_on_inventory_changed()
 
 	# First person: you are inside your own body, so you never draw it, and
 	# the ink pass is a clip-space quad that would composite over everyone
@@ -192,6 +218,9 @@ func _ready() -> void:
 		_camera.make_current()
 		if InputDevices.pointer_allowed():
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		# Only the body this process is playing draws a bag. A teammate's copy
+		# building one would put four inventory screens on one screen.
+		_bag_screen = BagScreen.attach(self)
 	else:
 		_camera.current = false
 
@@ -237,6 +266,9 @@ func _on_hurt(amount: float, from: Node) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	# Only the owning peer processes input at all; `set_process_unhandled_input`
 	# is switched off on every other copy in `_ready`.
+	# Looking is suspended while the bag is open. You are looking at your bag —
+	# that is the vulnerability `DES-019` is buying, and a player who can still
+	# scan the room while rummaging is not paying for it.
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var motion := event as InputEventMouseMotion
 		var tuning: TuningProfile = Config.tuning
@@ -246,38 +278,259 @@ func _unhandled_input(event: InputEvent) -> void:
 		rotation.y = _yaw
 		_head.rotation.x = _pitch
 	elif event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		if _bag_wanted:
+			_bag_wanted = false
+		else:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	elif event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		if InputDevices.pointer_allowed():
+		if InputDevices.pointer_allowed() and not _bag_wanted:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	# Weight has no gameplay source until inventory lands at `M2-T01`.
-	elif event.is_action_pressed("debug_weight_up"):
-		_ask_for_weight(DEBUG_WEIGHT_STEP)
-	elif event.is_action_pressed("debug_weight_down"):
-		_ask_for_weight(-DEBUG_WEIGHT_STEP)
+	elif event.is_action_pressed("bag"):
+		_bag_wanted = not _bag_wanted
+	elif event.is_action_pressed("drop"):
+		_ask_to_drop()
+	elif event.is_action_pressed("interact") and _bag <= 0.0:
+		_reach_for_loot()
 	elif event.is_action_pressed("debug_ink"):
 		show_ink(not _ink.visible)
 
 
-## Carried weight is host-owned, so even the dev keys ask rather than set.
-##
-## Not ceremony: `CarriedWeight.kilograms` is replicated host→peer, so a client
-## writing it locally would be silently overwritten a twentieth of a second
-## later, and the bug would read as "the weight keys sometimes don't work".
-func _ask_for_weight(kilograms: float) -> void:
+# ── loot ──────────────────────────────────────────────────────────────────
+#
+# `TEC-004` and ADR-082: **loot is host-authoritative and pickup is a
+# host-validated request.** The client says only *"I am reaching for it"*; the
+# host decides, using its own copy of where that client is standing.
+#
+# This is the room set's Prize logic, moved rather than copied (ADR-073). There
+# is one loot path in the project and the level has none of it.
+
+
+## The bag changed on whichever peer holds it.
+func _on_inventory_changed() -> void:
+	# Weight is host-owned and replicated (`STATE_PROPERTIES`). A client
+	# writing it would be overwritten a twentieth of a second later and the bug
+	# would read as "the weight is sometimes wrong".
 	if multiplayer.is_server():
-		carried.kilograms += kilograms
+		carried.kilograms = inventory.total_weight()
+		_push_bag()
+	# Derived on every peer from the bag that peer holds, so no second
+	# replicated property is needed and a client's debug ring cannot disagree
+	# with the host's simulation about what this body gives away.
+	clamor.carried_floor = (inventory.total_clamor()
+		* Config.tuning.clamor_carried_fraction)
+
+
+## Send the owning client its own bag. The whole bag, not a delta: it is a few
+## dozen rows, it changes on pickup rather than per frame, and a full snapshot
+## cannot drift the way an accumulated patch stream can.
+func _push_bag() -> void:
+	var owner_peer: int = get_multiplayer_authority()
+	if owner_peer == HOST_PEER:
+		return
+	_receive_bag.rpc_id(owner_peer, inventory.pack())
+
+
+## `any_peer` with an explicit host check rather than `authority`: this node's
+## multiplayer authority is the *client* playing it (ADR-082), so an
+## `authority` RPC here would mean the opposite of what it reads as.
+@rpc("any_peer", "reliable")
+func _receive_bag(rows: Array) -> void:
+	if multiplayer.get_remote_sender_id() != HOST_PEER:
+		return
+	inventory.unpack(rows)
+
+
+## Highlight whatever the local player could take. Recomputed per frame rather
+## than on an `Area3D` signal so the nearest item is always the one that gets
+## taken, including when two are within reach of each other.
+func _update_reach() -> void:
+	var found: WorldItem = null
+	if _bag <= 0.0:
+		found = WorldItem.nearest(self, global_position, Config.tuning.interact_reach)
+	if found != _reaching_for and is_instance_valid(_reaching_for):
+		_reaching_for.highlight(false)
+	_reaching_for = found
+	if found != null:
+		found.highlight(true)
+
+
+func _reach_for_loot() -> void:
+	if _reaching_for == null or not is_instance_valid(_reaching_for):
+		return
+	reach_for(_reaching_for)
+
+
+## Reach for one specific item. The client says only *this one*; the host
+## decides whether they were close enough, using its own copy of where they
+## are. Public because the probes drive it — through this path and not around
+## it, so what they measure is what ships.
+func reach_for(item: WorldItem) -> void:
+	if item == null or not is_instance_valid(item):
+		return
+	var path: NodePath = item.get_path()
+	if multiplayer.is_server():
+		_take(path)
 	else:
-		_apply_weight.rpc_id(HOST_PEER, kilograms)
+		_request_take.rpc_id(HOST_PEER, path)
 
 
 @rpc("any_peer", "reliable")
-func _apply_weight(kilograms: float) -> void:
+func _request_take(path: NodePath) -> void:
+	if not multiplayer.is_server():
+		return
+	# Only the peer playing this body may reach with it. Not anti-cheat —
+	# `TEC-004` is explicit that co-op cheating mostly harms the cheater — but
+	# a mis-addressed RPC filling the wrong player's bag is a bug that would
+	# take a day to find and one line to reject.
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_take(path)
+
+
+## Host-side. Every refusal here is silent and that is correct: each one is a
+## race the other peer already lost, not an error anyone can act on.
+func _take(path: NodePath) -> void:
+	# Gone means someone else got it first. Two players lunging for one item
+	# therefore cannot both take it — the second request arrives to find the
+	# node already freed, which is the same guarantee the Prize had.
+	var item := get_node_or_null(path) as WorldItem
+	if item == null:
+		return
+	var definition: ItemResource = item.definition()
+	if definition == null:
+		return
+	var tuning: TuningProfile = Config.tuning
+	var span: float = tuning.interact_reach + tuning.interact_reach_slack
+	if global_position.distance_to(item.global_position) > span:
+		return
+	# A full bag refuses, and the item stays on the floor. Silently swallowing
+	# something there was no room for would delete the spatial half of
+	# `DES-019` the first time it mattered.
+	if inventory.add(definition) == null:
+		return
+	clamor.add(_handling_clamor(definition))
+	item.queue_free()
+
+
+## Ask to put something down. Bag open: whatever the cursor is on. Bag shut:
+## **the heaviest thing you have** — the panic dump, and weight rather than
+## value because `DES-005` Layer 1 puts the cost of greed in your legs, so that
+## is the one whose removal you actually feel.
+func _ask_to_drop() -> void:
+	var target: ItemInstance = null
+	if _bag > 0.0:
+		if _bag_screen != null:
+			target = _bag_screen.hovered()
+	else:
+		target = inventory.heaviest()
+	if target == null:
+		return
+	ask_to_drop_instance(target.instance_id)
+
+
+## Put down one specific thing. `BagScreen` calls this when an item is dragged
+## out of the grid — the same gesture as setting something on a table, and the
+## same path the panic dump takes.
+func ask_to_drop_instance(instance_id: int) -> void:
+	if multiplayer.is_server():
+		_put_down(instance_id)
+	else:
+		_request_drop.rpc_id(HOST_PEER, instance_id)
+
+
+@rpc("any_peer", "reliable")
+func _request_drop(instance_id: int) -> void:
 	if not multiplayer.is_server():
 		return
 	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
 		return
-	carried.kilograms += kilograms
+	_put_down(instance_id)
+
+
+func _put_down(instance_id: int) -> void:
+	var item: ItemInstance = inventory.remove(instance_id)
+	if item == null:
+		return
+	var forward: Vector3 = -global_transform.basis.z
+	forward.y = 0.0
+	if forward.length_squared() > 0.0:
+		forward = forward.normalized()
+	else:
+		forward = Vector3.FORWARD
+	# Setting something heavy down is as loud as lifting it. The bag's clamor
+	# floor has already fallen by this point, which is the trade: one loud
+	# moment buys lasting quiet, and that is the decision `DES-005` wants a
+	# player cornered by the Hunt to have to make.
+	clamor.add(_handling_clamor(item.definition))
+	dropped.emit(item.definition.id, global_position + forward * DROP_DISTANCE,
+		rotation.y)
+
+
+## Ask to move something within the grid. Host-authoritative like everything
+## else about the bag: arrangement changes no outcome, but a second writer to
+## the same array costs a reconciliation rule to save about 60 ms of drag
+## latency, and `M1-T05` already recorded why half-prediction is the wrong
+## trade. If it feels laggy on a real link that is an M4 revision with data.
+func ask_to_move(instance_id: int, to: Vector2i, rotated: bool) -> void:
+	if multiplayer.is_server():
+		_move_within_bag(instance_id, to, rotated)
+	else:
+		_request_move.rpc_id(HOST_PEER, instance_id, to, rotated)
+
+
+@rpc("any_peer", "reliable")
+func _request_move(instance_id: int, to: Vector2i, rotated: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_move_within_bag(instance_id, to, rotated)
+
+
+func _move_within_bag(instance_id: int, to: Vector2i, rotated: bool) -> void:
+	if not inventory.move(instance_id, to, rotated):
+		return
+	# Rummaging is audible. `DES-019` makes opening your bag a vulnerable act;
+	# this is what stops it being a free one, and it is why sorting loot while
+	# something approaches is the tension generator the doc says it is.
+	clamor.add(Config.tuning.clamor_rummage)
+
+
+## Noise made picking one thing up or setting it down: a fixed handling cost
+## plus whatever the item itself gives away. An altar-plate coming off stone is
+## most of the level's attention; a gemstone is nearly nothing.
+func _handling_clamor(definition: ItemResource) -> float:
+	return Config.tuning.clamor_rummage + definition.clamor
+
+
+## True while the bag is open at all — the weapon and the sprint both refuse.
+func bag_is_open() -> bool:
+	return _bag > 0.0
+
+
+func bag_openness() -> float:
+	return _bag
+
+
+## Advance the open/shut transition and pay for it in mouse mode.
+func _update_bag(delta: float) -> void:
+	var goal: float = 1.0 if _bag_wanted else 0.0
+	var step: float = delta / maxf(Config.tuning.bag_open_time, 0.001)
+	var before: float = _bag
+	_bag = move_toward(_bag, goal, step)
+	if is_equal_approx(before, _bag):
+		return
+	if _bag_screen != null:
+		_bag_screen.set_openness(_bag)
+	if not InputDevices.pointer_allowed():
+		return
+	# The mouse is released as soon as the bag starts opening and recaptured
+	# only once it is fully shut, so a half-open bag is never a state where
+	# neither the cursor nor the camera answers to the mouse.
+	if _bag > 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif is_zero_approx(_bag) and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 ## Put this body somewhere, whoever is playing it.
@@ -325,6 +578,13 @@ func show_ink(on: bool) -> void:
 ## nowhere — too twitchy for fine aim, too slow for turning round — so small
 ## deflections are compressed and large ones are not.
 func _apply_stick_look(delta: float, tuning: TuningProfile) -> void:
+	# While the bag is open the right stick drives the bag's cell cursor instead
+	# (`BagScreen`). Reusing the look actions rather than adding a pair is what
+	# keeps ADR-075's parity honest without a second binding to maintain: every
+	# bag function is reachable from either device, because the device already
+	# had the input.
+	if bag_is_open():
+		return
 	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
 	if look.length_squared() <= 0.0:
 		return
@@ -343,11 +603,18 @@ func _physics_process(delta: float) -> void:
 	# The weapon runs on every peer. On the owner it is the swing they asked
 	# for; on the host it is the swing whose hitbox decides damage; elsewhere
 	# it is the reason a teammate is visibly swinging rather than gliding.
-	if _is_local and Input.is_action_just_pressed("attack"):
+	#
+	# A swing is refused outright while the bag is open. `DES-019` is explicit
+	# that rummaging leaves you unable to fight well; a player who could still
+	# swing at full strength with their bag open is not paying the cost the
+	# no-pause design charges, and the tension it exists to create evaporates.
+	if _is_local and not bag_is_open() and Input.is_action_just_pressed("attack"):
 		weapon.request_swing(stamina)
 	weapon.advance(delta, stamina)
 
 	if _is_local:
+		_update_bag(delta)
+		_update_reach()
 		_drive(delta, tuning)
 
 	# Noise is a consequence, so the host derives it for *every* body from the
@@ -451,6 +718,10 @@ func _wish_direction() -> Vector3:
 
 
 func _resolve_sprint(wish: Vector3, delta: float, tuning: TuningProfile) -> bool:
+	# No sprinting with your bag open, at any openness. Not a balance number:
+	# you have both hands in a satchel.
+	if bag_is_open():
+		return false
 	if _crouching or wish == Vector3.ZERO or not Input.is_action_pressed("sprint"):
 		return false
 	# The minimum stops a one-step sprint stutter at the bottom of the bar.
@@ -469,7 +740,12 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 		base = tuning.crouch_speed
 	elif sprinting:
 		base = tuning.sprint_speed
-	return base * carried.scale_by_load(tuning.speed_at_capacity)
+	# Two multipliers, and they compound on purpose. Load is `DES-005` Layer 1 —
+	# greed in your legs. The bag term is `DES-019`'s vulnerable act, scaled by
+	# how far open it is so the penalty arrives with the screen rather than
+	# ahead of it.
+	return (base * carried.scale_by_load(tuning.speed_at_capacity)
+		* lerpf(1.0, tuning.bag_speed_multiplier, _bag))
 
 
 func _acceleration(tuning: TuningProfile) -> float:

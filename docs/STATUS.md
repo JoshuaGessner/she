@@ -8,14 +8,14 @@
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
-`11/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`12/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>1/9"]:::current
+  M2["M2 The Loop Prototype<br/>2/9"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `██░░░░░░░░░░░░░` | 1/9 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███░░░░░░░░░░░░` | 2/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -71,18 +71,18 @@ _None. Sequencing is clean._
 ### M2 — The Loop Prototype
 
 - ✔ `M2-T08` **Data schema base resources** — `ItemResource` + trait resources, stable string IDs, **plus the CI validator**. Built with the first ten resources, not the first thousand. *Moved ahead of `M2-T01` by ADR-083. `WieldableTrait` only — the other six traits describe systems that do not exist yet. Validator implements the rules whose data exists and no others (ADR-084): a rule against an empty folder is a green tick that cannot fail. Item text is translation keys (ADR-084)* `TEC-006`
-- · `M2-T01` Loot with weight and clamor; **one inventory: grid-based, weighted, real-time** (ADR-040, reaffirmed by ADR-083 — decided, not a prototype fork) `DES-008` `DES-005` `DES-019`
+- ✔ `M2-T01` Loot with weight and clamor; **one inventory: grid-based, weighted, real-time** (ADR-040, reaffirmed by ADR-083 — decided, not a prototype fork). *6×5 grid ⟨tune⟩, `ItemInstance` + `ItemCatalogue`, host-validated pickup and drop, blockout bag screen. The room set's Prize is `glt_altar_plate` and its hand-rolled loot path is deleted. Carried clamor is a decay floor, so dropping loot buys silence back (ADR-087)* `DES-008` `DES-005` `DES-019`
 - · `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation, the Sealing (`DES-005`) `DES-017` `DES-005`
 - · `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build `DES-018` `DES-019` `TEC-005`
 - · `M2-T04` Extraction: reach an exit, keep what you carried `DES-005` `DES-002`
-- · `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) `DES-003` `DES-012`
-- · `M2-T06` Minimal Lair: stash and re-descend `DES-014`
+- · `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) `DES-003` `DES-008` `DES-012`
+- · `M2-T06` Minimal Lair: stash and re-descend `DES-008` `DES-014`
 - · `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players `DES-012`
 - · `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early `ART-002` `ART-003` `TEC-005`
 
 ### M3 — The Pact
 
-- · `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) `DES-003` `DES-004`
+- · `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) `DES-003` `DES-004` `DES-008`
 - · `M3-T02` **Two classes complete** — Húskarl and Veiðimaðr, opposite loop relationships. **The other four are absent from the class-select screen entirely.** A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064) `DES-011`
 - · `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested `DES-003` `DES-012`
 - · `M3-T04` Tithe and Pact Rank escalation (`DES-003`) `DES-003`
@@ -116,6 +116,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 86 ADRs · 12 open questions · 83 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 87 ADRs · 12 open questions · 88 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

@@ -29,6 +29,24 @@ const MAX_OCCLUDERS: int = 3
 
 var level: float = 0.0
 
+## The level this decays **to** rather than through — what you give away just
+## by having it on you (`M2-T01`). Set by the actor from its inventory:
+## `Inventory.total_clamor()` scaled by `clamor_carried_fraction`.
+##
+## `DES-005` Layer 1 makes greed continuous, player-caused pressure, and
+## `DES-008` names clamor *the audible cost of greed*. A floor is what makes
+## that true when you stop moving: coin rings in the bag, a gem catches every
+## light in the dark, and neither cares that you are standing still. It is also
+## what gives `DES-005`'s primal counter-play something to act on — **drop the
+## loot and the floor drops with it, in the same frame** — and what `DES-017`
+## means by *"shedding carried value can shake it"*.
+##
+## A floor rather than a constant addition, because the addition version was
+## checked and it deletes stealth: a full glitter bag sums to 8.5, which is a
+## permanent 13.6 m audible radius against a 16 m enemy vision range, and
+## *"hide and let it pass"* is on `DES-005`'s own list of things that must work.
+var carried_floor: float = 0.0
+
 
 func _process(delta: float) -> void:
 	# Noise is host-authoritative (`TEC-004`, ADR-082) and `level` is
@@ -38,12 +56,16 @@ func _process(delta: float) -> void:
 	# debug ring disagree with the ears that actually heard you.
 	if not multiplayer.is_server():
 		return
-	if level <= 0.0:
+	if is_equal_approx(level, carried_floor):
 		return
 	# Linear decay, not exponential: a decay curve with a long tail leaves a
 	# faint level hanging around forever, and "am I quiet yet?" has to have a
 	# definite answer the player can act on (DES-005 requirement 1).
-	level = maxf(0.0, level - Config.tuning.clamor_decay * delta)
+	#
+	# `max` against the floor rather than against zero, so a bag that just got
+	# heavier raises the level on its own — and a bag that just got lighter
+	# lets it fall further than it could a moment ago.
+	level = maxf(carried_floor, level - Config.tuning.clamor_decay * delta)
 
 
 func add(amount: float) -> void:
@@ -58,8 +80,12 @@ func audible_radius() -> float:
 	return level * Config.tuning.clamor_metres_per_unit
 
 
+## As quiet as this actor can currently get — which is not zero once it is
+## carrying anything. Used by the gym's measurement probes to start each sample
+## from a known level; making it lie about a loaded bag would let a probe
+## measure a silence the game never actually offers.
 func silence() -> void:
-	level = 0.0
+	level = carried_floor
 
 
 ## How far sound travels from `origin` along `direction` before it runs out.

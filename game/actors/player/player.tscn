@@ -9,6 +9,7 @@
 [ext_resource type="Script" path="res://components/hitbox.gd" id="7_hitbox"]
 [ext_resource type="Script" path="res://components/clamor_source.gd" id="8_clamor"]
 [ext_resource type="Script" path="res://components/ink_pass.gd" id="9_ink"]
+[ext_resource type="Script" path="res://components/inventory.gd" id="10_inventory"]
 
 ; local_to_scene, and this is load-bearing rather than tidy. `_apply_stance`
 ; mutates this shape every frame a player crouches. Shared across instances —
@@ -89,6 +90,13 @@ script = ExtResource("2_stamina")
 
 [node name="CarriedWeight" type="Node" parent="."]
 script = ExtResource("3_weight")
+
+; The bag (`M2-T01`). Holds `ItemInstance`s, which are `RefCounted` and not
+; `Resource` (ADR-084) — so unlike the capsule above there is no sub-resource
+; here for Godot to share between two players. Weight reaches `CarriedWeight`
+; through `Player`, never sideways from one component to another.
+[node name="Inventory" type="Node" parent="."]
+script = ExtResource("10_inventory")
 
 [node name="Health" type="Node" parent="."]
 script = ExtResource("4_health")

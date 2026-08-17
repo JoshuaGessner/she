@@ -94,20 +94,12 @@ func _on_player_spawned(player: Player) -> void:
 ## It runs *inside* the exported binary, which is the only place the question
 ## can be asked.
 func _export_probe() -> void:
-	var items: Array[ItemResource] = []
-	var dir: DirAccess = DirAccess.open("res://data/items")
-	if dir != null:
-		dir.list_dir_begin()
-		var entry: String = dir.get_next()
-		while entry != "":
-			# Godot rewrites `.tres` to `.res` when it packs them, so match on
-			# the stem rather than the extension the repo happens to hold.
-			if not dir.current_is_dir() and entry.get_extension() in ["tres", "res", "remap"]:
-				var item := load("res://data/items/%s" % entry.trim_suffix(".remap")) as ItemResource
-				if item != null:
-					items.append(item)
-			entry = dir.get_next()
-		dir.list_dir_end()
+	# Through `ItemCatalogue`, which is what the running game asks — moved
+	# there rather than kept as a second copy (the ADR-073 rule). The scan this
+	# file used to own is the reason the catalogue matches three extensions,
+	# and a census that walked the folder its own way would stop being a census
+	# of what the game can actually see.
+	var items: Array[ItemResource] = ItemCatalogue.all()
 
 	print("[export] engine        %s" % Engine.get_version_info()["string"])
 	print("[export] items packed  %d" % items.size())

@@ -248,6 +248,32 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         "that clamor came back to the client",
         echoed > 0.0, f"peak {echoed:.2f}"))
 
+    # The client picked something up (`M2-T01`). Two claims travelling in
+    # opposite directions, and neither peer can satisfy the other's half:
+    #
+    #   * the *host* holding the right kilograms for a body it does not play
+    #     is `CarriedWeight` replicating host→peer;
+    #   * the *client* holding the right item count is the host's bag push
+    #     arriving, since a client never adds to its own inventory.
+    #
+    # A client that helpfully filled its own bag would still leave a host that
+    # never heard of the item, and vice versa — which is why both rows exist
+    # rather than one.
+    host_bag = host["bags"].get(client_body, {})
+    client_bag = client["bags"].get(client_body, {})
+    rows.append(check(
+        "the host granted the client's pickup",
+        host_bag.get("items", 0) == 1 and host_bag.get("kilograms", 0.0) > 0.0,
+        f"host sees {host_bag.get('items', 0)} item(s), "
+        f"{host_bag.get('kilograms', 0.0):.1f} kg"))
+    rows.append(check(
+        "the bag reached the client that owns it",
+        client_bag.get("items", 0) == host_bag.get("items", 0)
+        and abs(client_bag.get("kilograms", 0.0)
+                - host_bag.get("kilograms", 0.0)) < 0.01,
+        f"client sees {client_bag.get('items', 0)} item(s), "
+        f"{client_bag.get('kilograms', 0.0):.1f} kg"))
+
     return rows
 
 
