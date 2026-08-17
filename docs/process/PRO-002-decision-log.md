@@ -1449,4 +1449,25 @@ Two rendering faults came with it, and both were invisible headless. Emission at
 
 ---
 
+## ADR-094 — Every ember looks the same; the tag is the identity
+**Date:** 2026-08-17 · **Status:** accepted · **Supersedes ADR-093 decision 2** · **Amends `DES-012`**
+
+**Context:** Directed, reversing a decision made a few hours earlier. ADR-093 gave each party seat its own ember colour and a countable ring of motes, so a rescuer could answer *whose is that* across a room. It was legible, it satisfied `DES-018`, and it was the wrong answer.
+
+**Decision — one ember appearance, for everyone. Whose it is lives in the tag.**
+
+**Rationale, and it is a fiction argument that turns out to be a design argument.** `DES-012` calls the ember *"a piece of **her** fire, the piece she gave you"*. Four colours make four **team markers** — they read as player-identity UI wearing a diegetic costume, which is the thing `DES-019` rule 6 spends its whole existence avoiding. What is lying on the floor is not your friend's personal effect; it is the dragon's, briefly loose. All of them being the same fire *is the point*, and colouring them contradicted the sentence they were built from.
+
+**Nothing legible is actually lost**, which is what makes the reversal cheap: **you know whose ember it is because you watched them fall there.** Position identifies it, diegetically, for free, with no UI and no draw on `ART-005`'s colour budget — the same reasoning that put the map in your hands rather than in a corner of the screen.
+
+**What the tag does instead.** `bound_to` stops being a hint about appearance and becomes the only thing that decides anything: **an ember saves the person it names and nobody else.** Carrying someone else's is inert cargo — it will not save you, and it will not stand in for the ember you should have picked up. That is now asserted rather than assumed, and it is a far better check than the palette one it replaces, because it tests what the object *does* rather than how it looks. Planting an inventory that ignores the tag fails it.
+
+**ADR-093's first decision stands.** `Player.party_slot` is still assigned and replicated — it names the bearer in the bag label, and `DES-019`'s party frames need it regardless. Only the colour ramp and the motes are gone.
+
+**On the check that guarded the palette.** It was a good check for a thing that should not have existed, which is worth noticing on its own: a well-tested wrong answer is still a wrong answer, and a numeric assertion about a palette cannot tell you the palette should not be there. The screenshot could not either. **The direction had to come from a person**, and that is the honest limit of everything else in this project's tooling.
+
+**Consequences:** `--ember-shot` keeps its place with a changed job — *"prove an ember reads as an ember"* rather than *"prove four are distinguishable"*. It had already earned itself twice on this object: it caught all four rendering as seat 0, and it caught emission flattening them into featureless discs.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

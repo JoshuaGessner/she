@@ -323,15 +323,13 @@ func _draw_cells() -> void:
 func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	var font: Font = ThemeDB.fallback_font
 	var colour: Color = WorldItem.colour_for(item.definition)
-	# An **ember** takes its bearer's seat colour rather than the item palette,
-	# and the same one it wears on the floor — so a rescuer carrying two of them
-	# can tell which friend is which without opening anything (`DES-012`). The
-	# label carries the same answer in dots, because `DES-018` forbids hue from
-	# being the only channel.
+	# Every ember is the same colour on the floor and the same colour here
+	# (ADR-094) — it is a piece of *her* fire, not a team marker. Whose it is
+	# lives in the **label**, which is where a rescuer with two of them can
+	# read it without anything having to be encoded in hue.
 	var seat: int = -1
 	if item.is_ember():
 		seat = Player.slot_for_peer(self, item.bound_to)
-		colour = WorldItem.ember_colour(seat)
 	colour.a = alpha
 	draw_rect(rect, colour * Color(0.55, 0.55, 0.55, 1.0))
 	draw_rect(rect, colour, false, 2.0)

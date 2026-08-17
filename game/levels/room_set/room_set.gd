@@ -915,58 +915,48 @@ func _ember_probe() -> void:
 		problems.append("carrying the ember to the exit did not save that life — "
 			+ "which is the whole of the M2 co-op gate")
 
-	# ─ 7. one ember is not another ─
+	# ─ 7. an ember saves the person it names, and nobody else ─
 	#
-	# `DES-012` has up to four of these on a floor and asks a player to answer
-	# *whose is that* — while running. `DES-018` then forbids answering it with
-	# hue, because ~8% of men cannot use hue. So every pair of seats has to
-	# differ in **colour, value and a countable count**, and any one of the
-	# three has to be enough on its own.
+	# **The tag is the identity** (ADR-094). Embers all look alike on purpose —
+	# a piece of *her* fire, not a team marker — so the thing that has to be
+	# unambiguous is what the ember *does*, and that is checkable in a way an
+	# appearance never was.
 	#
-	# Checked across all four seats rather than the two a solo run can produce,
-	# because the failure this guards against is a palette that collapses at
-	# the fourth entry and nobody notices until a four-stack plays.
-	var seats: int = Player.MAX_PARTY
-	var worst_hue: float = INF
-	var worst_value: float = INF
-	var clashing: String = ""
-	for a: int in range(seats):
-		for b: int in range(a + 1, seats):
-			var one: Color = WorldItem.ember_colour(a)
-			var two: Color = WorldItem.ember_colour(b)
-			var apart: float = (absf(one.r - two.r) + absf(one.g - two.g)
-				+ absf(one.b - two.b))
-			var value: float = absf(one.get_luminance() - two.get_luminance())
-			if apart < worst_hue:
-				worst_hue = apart
-			if value < worst_value:
-				worst_value = value
-				clashing = "seats %d and %d" % [a, b]
-	print("[ember] telling apart %d seats: closest pair %s, %.2f apart in "
-		% [seats, clashing, worst_hue] + "colour, %.2f in value, motes 1..%d"
-		% [worst_value, seats])
-	if worst_hue < 0.30:
-		problems.append("two ember seats are nearly the same colour (%.2f apart) "
-			% worst_hue + "— DES-012 puts four of these on a floor at once")
-	# 0.10 rather than a token epsilon. The first palette this had cleared a
-	# 0.05 floor at 0.07 and was still wrong — two seats a colour-blind player
-	# could not separate. A threshold set where a failure squeaks past is a
-	# threshold that has already failed once.
-	if worst_value < 0.10:
-		problems.append(("two ember seats are the same brightness (%.2f apart, %s) "
-			+ "— DES-018 forbids hue being the only channel, and in monochrome "
-			+ "these would be identical") % [worst_value, clashing])
+	# Carrying one out saves its `bound_to` and only that. An ember bound to
+	# somebody else in your bag is inert cargo: it will not save you, it will
+	# not save the person whose ember you *should* have picked up, and it will
+	# not stand in for one. That is the guarantee this asserts, and it is what
+	# stops a rescue from becoming a lottery under pressure.
+	var stranger: int = owner_peer + 1
+	var mine: ItemResource = ItemCatalogue.by_id(&"con_ember")
+	player.inventory.clear()
+	var wrong: ItemInstance = player.inventory.add(mine)
+	wrong.bound_to = stranger
+	var saved: Array[int] = player.inventory.embers()
+	print("[ember] the tag     carrying an ember bound to %d saves %s" % [
+		stranger, str(saved)])
+	if saved.size() != 1 or saved[0] != stranger:
+		problems.append(("an ember bound to %d reports saving %s — the tag is "
+			+ "the only thing that says whose life this is, and carrying "
+			+ "somebody else's must never stand in for your own")
+			% [stranger, str(saved)])
+	player.inventory.clear()
 
 	_report(problems, "ember")
 
 
 ## Four embers in a row, photographed (`M2-T05`).
 ##
-## The probe asserts the palette separates *numerically*. Whether a player can
-## answer *whose is that* while running is a question about seeing, and
-## `DES-018` is a legibility document — so this is the half no headless check
-## can do. The same pairing as `--bag-shot` and `--ear-shot`, both of which
-## found defects nothing else could.
+## Its job changed with ADR-094 and it is worth keeping either way. It was
+## *"prove the four seats are distinguishable"*; now that they are deliberately
+## identical it is **"prove an ember reads as an ember"** — a piece of her fire
+## on the floor rather than a dropped item. That is still a claim about seeing,
+## and still the half no headless check can make.
+##
+## It has already earned itself twice on this one object: it caught every ember
+## rendering as seat 0 (the binding was applied after `spawn`, too late for
+## `_ready`), and it caught emission at 1.4x flattening them into featureless
+## discs.
 func _ember_shot(path: String) -> void:
 	var player: Player = _session.local_player()
 	var at := Vector3(0.0, 0.1, 0.0)

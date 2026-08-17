@@ -70,7 +70,9 @@ The hardest problem co-op creates: ADR-004 wipes your LIFE on death, and in co-o
 >
 > Two consequences worth stating. The ember can be **put down** — the design never forbids it, and the sacrifice is real precisely because it can be abandoned partway home. And it is *disturbed* gold by ADR-089's rule, so **the Gullsjúkr will stop for it**: the thing that would buy you seconds is your friend.
 >
-> **Whose is that? (ADR-093.)** Four of these can be on a floor at once, and answering that while running is a real requirement. Each **party seat** — `party_slot`, assigned at spawn — gives its ember a distinct hue, a distinct **brightness**, and a **countable** number of motes, because `DES-018` forbids hue being the only channel. All four stay in the fire family: a value ramp through one fire reads as *four embers* rather than four team colours, and separates further in greyscale than a rainbow would. At `M3-T02` the class silhouette becomes the real answer (`DES-020`); the seat is what carries it until then.
+> **Whose is that? (ADR-094.)** **Every ember looks the same**, deliberately. It is *her* fire, not yours — four colours would make four team markers, which is player-identity UI wearing a diegetic costume, and it would contradict the sentence the object is built from. ADR-093 tried the coloured version and it was reversed.
+>
+> Nothing is lost, because the question is already answered without UI: **you know whose it is because you watched them fall there.** What the ember carries is a **tag** (`bound_to`), and the tag is mechanical rather than decorative — *an ember saves the person it names and nobody else*. Carrying someone else's is inert cargo; it will not save you and it will not stand in for the one you should have picked up. The bag names the bearer in text for a rescuer holding two.
 >
 > *"Your LIFE survives"* names a tree, a stash and a rank that arrive at `M3`. Carrying an ember out therefore **reports** the life saved today; `M3-T05`'s Legacy screen reads it. What is real is the mechanism, which is what the co-op gate is about.
 
