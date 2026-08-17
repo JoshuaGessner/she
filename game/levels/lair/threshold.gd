@@ -61,6 +61,11 @@ var _session: CoopSession = null
 var _readout: Label = null
 
 
+## True once the descent is under way, so a body standing in the hole does not
+## ask again every frame while the scene is still changing.
+var _descending: bool = false
+
+
 func _ready() -> void:
 	# The only safe sound in the game (`M2-T09`, `ART-002`). Declared before
 	# anything is built, so the first frame here already sounds like here.
@@ -80,6 +85,20 @@ func _ready() -> void:
 			_threshold_shot(arg.split("=", true, 1)[1])
 		elif arg == "--threshold-probe":
 			_threshold_probe()
+		elif arg == "--doorway-probe":
+			_doorway_probe()
+
+
+## Walk the party through the Descent on a timer (`run_doorway.py`).
+##
+## The host waits for company, then descends — which is the whole test, because
+## the transition is what used to drop the connection. Nothing is asserted
+## here; the harness reads both processes' logs, since the question is about
+## what happened to *two* of them.
+func _doorway_probe() -> void:
+	await get_tree().create_timer(6.0).timeout
+	if multiplayer.is_server():
+		_ask_to_descend()
 
 
 ## The camp's own music, and the rules that hold across all three (`M2-T09`).
@@ -211,19 +230,61 @@ func _process(_delta: float) -> void:
 				GameState.stash.size(), GameState.stash_value()],
 			"the hoard  %d" % GameState.hoard_value,
 			"",
+			# Who is actually here. The host presses OPEN THE THRESHOLD and then
+			# has no way to tell whether anybody arrived — and descending alone
+			# by accident is a wasted run and a confusing bug report.
+			"party      %d of %d%s" % [
+				_session.players().size(), Player.MAX_PARTY,
+				"" if multiplayer.get_peers().size() > 0 or not _session.is_host()
+					else "   (nobody has joined yet)"],
+			"",
 			"the fire behind you is the Lodge's",
 			"walk into the dark ahead to descend",
 			"walk back onto the pale slab for your Chamber",
+			"",
+			# The Deep lists these and the camp did not, so the first time a
+			# tester needed them was the first time they were under pressure.
+			"wasd move   mouse look   shift sprint   ctrl crouch",
+			"e take   tab bag   g drop   esc menu",
 		])
 	if player.global_position.distance_to(DESCENT_AT) <= 2.0:
-		_descend()
+		_ask_to_descend()
 	elif player.global_position.distance_to(CHAMBER_AT) <= 1.8:
+		# The Chamber is yours alone (ADR-021), so this one *is* per-player:
+		# walking onto the slab takes you and nobody else.
 		set_process(false)
 		get_tree().change_scene_to_file("res://levels/lair/chamber.tscn")
 
 
+## **The party descends together, or the party is not a party.**
+##
+## Each peer used to change scene the moment its own body reached the hole, so
+## in company one player would drop into the Deep while everybody else stood at
+## the fire looking at a world nobody was simulating for them. `DES-012` has
+## you go down *together* — that is the whole shape of a run.
+##
+## So the hole is the host's decision. Anyone can walk into it; the host is
+## told, and the host takes everyone.
+func _ask_to_descend() -> void:
+	if _descending:
+		return
+	_descending = true
+	if multiplayer.is_server():
+		_descend.rpc()
+	else:
+		_ask_host_to_descend.rpc_id(CoopSession.HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _ask_host_to_descend() -> void:
+	if not multiplayer.is_server():
+		return
+	_descend.rpc()
+
+
 ## Down. Whatever is in the stash is what you take, because `DES-014` puts
 ## loadout choices in the Chamber and this is the doorway rather than a menu.
+@rpc("authority", "call_local", "reliable")
 func _descend() -> void:
 	set_process(false)
 	GameState.descents += 1

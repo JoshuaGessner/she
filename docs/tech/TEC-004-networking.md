@@ -55,6 +55,12 @@ python3 tools/run_coop.py --smoke    # headless, two processes, judged
 
 A body half a second old cannot have wandered, and that holds at any party size. The rule this leaves behind: **an authority probe must control everything except the authority it is measuring** — and every sample must be taken at the moment its claim is made, not at report time, which is the same mistake ADR-093 caught for enemy speeds and ADR-096 found still sitting in three more fields.
 
+**A connection outlives a scene change, and a session adopts one rather than building another (ADR-101).** The peer lives on the `SceneTree`, not on `CoopSession`, so every doorway tore down one session and built the next **on top of a live connection** — calling `create_server` on a port it already held. `Couldn't create an ENet host`, and both players left holding a connection nobody was serving. **Every doorway in the game was a disconnect while the entire sweep was green**, because `run_coop.py` never changes scene and no single-process probe has a second peer to lose. `tools/run_doorway.py` makes two processes walk through a door and asserts they are both still there.
+
+The party also **descends together**: the hole is the host's decision, because each peer changing scene on its own left one player in the Deep and everybody else at the fire watching a world nobody was simulating. The Chamber stays per-player (ADR-021).
+
+**A failed join returns to the menu with a reason — never a quit.** During a remote test a bad address is the most common event there is, and closing the process teaches a tester nothing. Godot's own `connection_failed` never fired at all against a dead port in fifty seconds of frames, so there is an 8-second ⟨tune⟩ deadline of our own and a line on screen while it waits.
+
 **The smoke is also the only place party count is real (ADR-097).** `_start_host()` spawns the host's own body and nothing else; every other body arrives on `peer_connected`, after the level has already built its floor. So anything derived from *how many people are playing* is computed against a party of one in every single-process test, however carefully that test is written — and party scaling shipped dead for exactly one commit because of it. A single-process probe proves a function; **only a second process proves the game calls it.** The floor row exists to catch that whole class, not just the one instance of it.
 
 ## What replicates, and what doesn't

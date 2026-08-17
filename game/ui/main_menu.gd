@@ -15,10 +15,10 @@ extends Control
 ##
 ## ## What HOST and JOIN honestly are
 ##
-## A join code is **a shorter way to write an address**, not matchmaking. There
-## is no relay and no hole-punching, so a second machine reaches this one only
-## if the port is actually reachable: same LAN, a forwarded port, or an overlay
-## network like Tailscale. The host panel says so, because a tester who cannot
+## A join code is **a shorter way to write an address**, not matchmaking. This
+## is a direct connection: no relay, no hole-punching, so a second machine
+## reaches this one only if the port is actually reachable — the same network,
+## or a forwarded port. The host panel says so, because a tester who cannot
 ## connect will otherwise spend the evening assuming the netcode is broken.
 ##
 ## `M4-T07` brings Steam lobbies and relay. It replaces *where the address
@@ -116,6 +116,15 @@ func _show_root() -> void:
 	_column.add_child(quit)
 	play.grab_focus()
 
+	# Why the last attempt ended, if it ended badly. `CoopSession` sends people
+	# back here instead of closing the process, and a bounce with no
+	# explanation is barely better than the quit it replaced.
+	if not NetPlan.last_error.is_empty():
+		_column.add_child(_gap(14))
+		_column.add_child(MenuStyle.line(NetPlan.last_error, 14,
+			Color(0.82, 0.42, 0.36)))
+		NetPlan.last_error = ""
+
 
 func _play_solo() -> void:
 	NetPlan.role = NetPlan.Role.SOLO
@@ -129,29 +138,28 @@ func _show_host() -> void:
 	var code: String = NetPlan.code_for(address, NetPlan.DEFAULT_PORT)
 
 	_column.add_child(MenuStyle.title("HOST", 34))
-	_column.add_child(MenuStyle.line("Your join code", 14))
-	var shown: Label = MenuStyle.line(code, 34, MenuStyle.WARM)
-	shown.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_column.add_child(MenuStyle.line("On this network, join at", 14))
+	var shown: Label = MenuStyle.line("%s : %d" % [address, NetPlan.DEFAULT_PORT],
+		26, MenuStyle.WARM)
 	_column.add_child(shown)
-	_column.add_child(MenuStyle.line("%s : %d" % [address, NetPlan.DEFAULT_PORT],
-		14))
+	_column.add_child(MenuStyle.line("or with the code  %s" % code, 15))
 
 	_column.add_child(_gap(10))
 	# The honest part, where somebody will actually read it.
 	# Parenthesised: `%` binds to the last literal, not to a concatenation, so
 	# the obvious spelling formats only the final fragment and is a parse error.
 	var warning: Label = MenuStyle.line((
-		"This code carries an address, not a relay. It works on the same "
-		+ "network as you, or over the internet if you forward port %d, or "
-		+ "over Tailscale or similar. Steam lobbies and relay arrive at M4-T07."
+		"Direct connection — no relay. Someone on another network joins at "
+		+ "your public IP on port %d, which has to reach this machine. Steam "
+		+ "lobbies and relay arrive at M4-T07."
 		) % NetPlan.DEFAULT_PORT, 13)
 	warning.custom_minimum_size = Vector2(380.0, 0.0)
 	_column.add_child(warning)
 
 	_column.add_child(_gap(10))
-	var copy: Button = MenuStyle.button("COPY CODE")
+	var copy: Button = MenuStyle.button("COPY ADDRESS")
 	copy.pressed.connect(func() -> void:
-		DisplayServer.clipboard_set(code)
+		DisplayServer.clipboard_set("%s:%d" % [address, NetPlan.DEFAULT_PORT])
 		copy.text = "COPIED")
 	_column.add_child(copy)
 
@@ -169,9 +177,10 @@ func _show_join() -> void:
 	_clear()
 	_column.add_child(MenuStyle.title("JOIN", 34))
 	_column.add_child(MenuStyle.line(
-		"Paste a join code, or an address like 192.168.1.20:27015", 14))
+		"The host's address. Port %d is assumed if you leave it off."
+			% NetPlan.DEFAULT_PORT, 14))
 
-	var field: LineEdit = MenuStyle.field("join code")
+	var field: LineEdit = MenuStyle.field("192.168.1.20  or  1.2.3.4:47018")
 	_column.add_child(field)
 
 	var problem: Label = MenuStyle.line("", 14, Color(0.82, 0.42, 0.36))
@@ -230,11 +239,11 @@ func _gap(height: int) -> Control:
 func _menu_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 
-	var round_trip: String = NetPlan.code_for("192.168.1.20", 27015)
+	var round_trip: String = NetPlan.code_for("192.168.1.20", NetPlan.DEFAULT_PORT)
 	var parsed: bool = NetPlan.adopt_code(round_trip)
-	print("[menu] join code    192.168.1.20:27015 -> %s -> %s:%d" % [
-		round_trip, NetPlan.address, NetPlan.port])
-	if not parsed or NetPlan.address != "192.168.1.20" or NetPlan.port != 27015:
+	print("[menu] join code    192.168.1.20:%d -> %s -> %s:%d" % [
+		NetPlan.DEFAULT_PORT, round_trip, NetPlan.address, NetPlan.port])
+	if not parsed or NetPlan.address != "192.168.1.20" or NetPlan.port != NetPlan.DEFAULT_PORT:
 		problems.append(("a join code did not survive the round trip — the host "
 			+ "reads this number out loud and the client types it in, so a code "
 			+ "that decodes to a different address is worse than no code"))

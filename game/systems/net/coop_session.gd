@@ -43,7 +43,13 @@ const HOST_PEER: int = 1
 
 ## `DES-012` / `TEC-004`: 1–4 players, so the host accepts three others.
 const MAX_CLIENTS: int = 3
-const DEFAULT_PORT: int = 47018
+## From `NetPlan`, which owns the number. Two copies is how they diverge.
+const DEFAULT_PORT: int = NetPlan.DEFAULT_PORT
+## Where a failed or lost connection lands. Never a quit — see `_give_up`.
+const MENU_SCENE: String = "res://ui/main_menu.tscn"
+## How long a client waits before deciding nobody is there ⟨tune⟩. Long enough
+## for a slow link, short enough that a mistyped address is a small mistake.
+const CONNECT_TIMEOUT_MSEC: int = 8000
 const LOOPBACK: String = "127.0.0.1"
 
 const PLAYER_SCENE: PackedScene = preload("res://actors/player/player.tscn")
@@ -66,6 +72,9 @@ var _next_spawn: int = 0
 ## would give a new item the name of one a client is still despawning.
 var _next_item: int = 0
 var _next_hunter: int = 0
+## When a client stops waiting, or 0 when it is not waiting. See `_start_client`.
+var _waiting_until: int = 0
+var _waiting_layer: CanvasLayer = null
 
 @onready var _actors: Node3D = $Actors
 @onready var _spawner: MultiplayerSpawner = $Spawner
@@ -79,6 +88,31 @@ func _ready() -> void:
 	# symptom is an empty world rather than an error.
 	_spawner.spawn_function = _spawn_actor
 
+	# **A connection outlives a scene change.** The peer lives on the
+	# `SceneTree`, not on this node, so walking from the Threshold into the
+	# Deep tears down one session and builds another *on top of a live
+	# connection* — and the new one used to call `create_server` again, which
+	# fails with "Couldn't create an ENet host" because the port is already
+	# ours. In co-op that made every doorway in the game a disconnect.
+	#
+	# So a session that finds a working peer adopts it. Host stays host, client
+	# stays client, and the level it happens to be in is not the network's
+	# business.
+	if _already_connected():
+		_log("adopted the existing connection as peer %d"
+			% multiplayer.get_unique_id())
+		if multiplayer.is_server():
+			multiplayer.peer_connected.connect(_on_peer_connected)
+			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
+			# Every body has to exist again in the new scene, including the
+			# ones belonging to peers that joined before this level did.
+			_spawn_player(HOST_PEER)
+			for peer: int in multiplayer.get_peers():
+				_spawn_player(peer)
+		else:
+			multiplayer.server_disconnected.connect(_on_host_lost)
+		return
+
 	match _role:
 		"host":
 			_start_host()
@@ -90,6 +124,20 @@ func _ready() -> void:
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
 			_spawn_player(HOST_PEER)
+
+
+## Is there already a live connection this session should adopt?
+##
+## Deliberately not `has_multiplayer_peer()`, which `TEC-004` records as
+## returning **true with no peer at all** — Godot installs an
+## `OfflineMultiplayerPeer` and it answers yes. The question here is whether
+## real packets are moving, which is `CONNECTION_CONNECTED` on something that
+## is not the offline stand-in.
+func _already_connected() -> bool:
+	var peer: MultiplayerPeer = multiplayer.multiplayer_peer
+	if peer == null or peer is OfflineMultiplayerPeer:
+		return false
+	return peer.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
 
 
 ## Where this process is connecting, from `NetPlan` and nowhere else.
@@ -143,7 +191,7 @@ func _start_client() -> void:
 	var peer := ENetMultiplayerPeer.new()
 	var err: Error = peer.create_client(_address, _port)
 	if err != OK:
-		push_error("CoopSession: create_client(%s:%d) failed: %d" % [_address, _port, err])
+		_give_up("Could not open a connection to %s:%d." % [_address, _port])
 		return
 	_configure(peer)
 	multiplayer.multiplayer_peer = peer
@@ -151,6 +199,24 @@ func _start_client() -> void:
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_host_lost)
 	_log("joining %s:%d, input=%s" % [_address, _port, _device])
+	# **Our own deadline**, because ENet's is not one worth waiting for.
+	#
+	# Measured: joining a dead port never emitted `connection_failed` at all
+	# within fifty seconds of frames. So the failure this was supposed to
+	# handle simply never arrived, and a tester who mistyped an address would
+	# stand in an empty Threshold indefinitely with nothing to read — which is
+	# worse than the process quitting, because at least a quit is a signal.
+	_waiting_until = Time.get_ticks_msec() + CONNECT_TIMEOUT_MSEC
+	_show_waiting()
+
+
+func _process(_delta: float) -> void:
+	if _waiting_until == 0 or Time.get_ticks_msec() < _waiting_until:
+		return
+	_waiting_until = 0
+	_give_up("No answer from %s:%d after %d seconds. Check the address and "
+		% [_address, _port, CONNECT_TIMEOUT_MSEC / 1000]
+		+ "that the host has opened the Threshold.")
 
 
 func _on_connected() -> void:
@@ -158,20 +224,79 @@ func _on_connected() -> void:
 	# other actor, which is what makes "the host owns the world" true from the
 	# first frame instead of true after a handshake.
 	_log("connected as peer %d" % multiplayer.get_unique_id())
+	_waiting_until = 0
+	_hide_waiting()
 
 
+## Something to read while the wire is quiet. A client changes scene the moment
+## it presses JOIN, so without this the whole connection is an empty room.
+func _show_waiting() -> void:
+	if _waiting_layer != null:
+		return
+	_waiting_layer = CanvasLayer.new()
+	_waiting_layer.layer = 30
+	add_child(_waiting_layer)
+	var label: Label = MenuStyle.line("reaching for %s…" % _address, 18,
+		MenuStyle.WARM)
+	label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	label.position = Vector2(label.position.x, 40.0)
+	_waiting_layer.add_child(label)
+
+
+func _hide_waiting() -> void:
+	if _waiting_layer == null:
+		return
+	_waiting_layer.queue_free()
+	_waiting_layer = null
+
+
+## Could not reach the host. **Back to the menu, with a reason** — never a
+## quit.
+##
+## It used to close the process. During a remote playtest this is the single
+## most common thing that happens: a mistyped address, a host not up yet, a
+## port that is not open. Exiting the game in response teaches a tester nothing
+## and costs them a relaunch every time, and the second time it happens they
+## stop trying.
 func _on_connection_failed() -> void:
-	push_error("CoopSession: could not reach a host at %s:%d" % [_address, _port])
-	get_tree().quit(1)
+	_log("could not reach a host at %s:%d" % [_address, _port])
+	_give_up("No answer from %s:%d. Check the address, and that the host has "
+		% [_address, _port] + "opened the Threshold.")
 
 
-## The host going away is `DES-012`'s forced extraction, and forced extraction
-## is `M2-T04`/`M2-T05`. There is no run state to rescue at M1, so the honest
-## behaviour is to say so and stop — not to leave a client walking around a
-## world that nobody is simulating any more.
+## The host went away. Same treatment, and for the same reason: a client whose
+## process vanishes mid-run reports "it crashed", which is both wrong and the
+## most expensive kind of bug report to chase.
+##
+## `DES-012`'s forced extraction — the run ending *in fiction* when the party
+## collapses — is `M3`, and is absent rather than approximated here.
 func _on_host_lost() -> void:
-	_log("host disconnected — forced extraction is M2-T05; ending the session")
-	get_tree().quit()
+	_log("host disconnected")
+	_give_up("The host closed the session.")
+
+
+func _give_up(because: String) -> void:
+	_log("gave up — %s" % because)
+	NetPlan.last_error = because
+	NetPlan.role = NetPlan.Role.SOLO
+	if multiplayer.multiplayer_peer != null:
+		multiplayer.multiplayer_peer.close()
+		multiplayer.multiplayer_peer = null
+	# **Never navigate during a probe.** A measuring process has no menu to
+	# return to, and one that quietly changed scene would report on a level it
+	# was not asked about — or, as happened here, sit in the menu forever while
+	# the harness waited for a report that was never coming.
+	#
+	# Matched loosely on purpose. The first version compared against
+	# `--coop-probe` exactly, and the real argument is `--coop-probe=PATH`, so
+	# the guard never once fired and the co-op smoke hung for half an hour. Same
+	# test `room_set` already uses to decide it is measuring rather than playing.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.contains("probe") or arg.contains("shot"):
+			return
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	get_tree().change_scene_to_file(MENU_SCENE)
+
 
 
 func _on_peer_connected(peer: int) -> void:

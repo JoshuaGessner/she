@@ -1697,4 +1697,27 @@ Headless probes passed while the settings panel rendered at x=0 with its title l
 
 Every control applies live. A slider you must close the panel to hear is one you cannot set by ear, which is the only way anybody sets a volume.
 
+## ADR-101 — Direct connection, and the doorway that disconnected everybody
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `TEC-004`, `DES-012`, `PRO-001`** · **Follows ADR-100**
+
+**Context:** ADR-100 built the shell that makes the `M2` gates runnable. This is the pass that makes them *survivable* — done at Josh's request before testing, and it found three faults, one of which broke co-op entirely.
+
+**Decision 1 — a direct connection, described as one.** The overlay-network suggestion is gone; the host screen leads with `address : port` and offers the code as a shorthand. Port forwarding is the host's business. Nothing else changed, because nothing else needed to: `NetPlan` was always just a destination, and `M4-T07` still replaces only where that destination comes from.
+
+Two ports were also found to be named `DEFAULT_PORT`, with different values — `CoopSession` had 47018 and the file introduced yesterday had 27015. The second was never reached, because `NetPlan` sets the port on every path, but two constants with one name and two values is precisely the drift this log keeps catching in other people's work. One number now, in `NetPlan`, and `CoopSession` reads it.
+
+**Decision 2 — a failed join returns to the menu with a reason. It never quits.** `_on_connection_failed` closed the process and `_on_host_lost` closed the process. During a remote test the first of those is *the single most common event*: a mistyped address, a host not up yet, a port that is not open. Exiting in response teaches a tester nothing, costs a relaunch every time, and after the second one they stop trying. A client whose process vanishes mid-run reports *"it crashed"*, which is both wrong and the most expensive kind of report to chase.
+
+**And the failure never arrived anyway.** Measured: joining a dead port emitted `connection_failed` **not once** in fifty seconds of frames. So the handler being fixed had never run, and the real behaviour was that a mistyped address left you standing in an empty Threshold forever with nothing to read — worse than quitting, because a quit is at least a signal. There is an 8-second ⟨tune⟩ deadline now, and a *"reaching for…"* line while it waits.
+
+**Decision 3 (the serious one) — a connection outlives a scene change, so a session adopts one rather than building another.** The peer lives on the `SceneTree`, not on `CoopSession`. Walking from the Threshold into the Deep tore down one session and built another **on top of a live connection**, and the new one called `create_server` on a port it already held. It failed with `Couldn't create an ENet host`, and both players were left holding a connection nobody was serving.
+
+**Every doorway in the game was a disconnect, and the entire sweep was green.** `run_coop.py` never changes scene; no single-process probe has a second peer to lose. It is the ADR-097 shape a fourth time — correct code the checks never make the game execute — and the only way to see it is to make two processes walk through a door. `tools/run_doorway.py` does exactly that and nothing more, and reverting the adoption reproduces the original error by name.
+
+**Decision 4 — the party descends together.** Each peer changed scene the moment its own body reached the hole, so in company one player dropped into the Deep while everyone else stood at the fire looking at a world nobody was simulating for them. The hole is the host's decision now: anyone may walk into it, the host is told, and the host takes everybody. The Chamber stays per-player, because ADR-021 makes it a room no one else enters.
+
+**Also, for the tester's sake.** The Threshold now shows **who is actually connected** — the host previously pressed OPEN THE THRESHOLD and had no way to tell whether anyone had arrived, and descending alone by accident is a wasted run and a confusing bug report — and lists the controls, which the Deep had and the camp did not, so the first time anybody needed them was the first time they were under pressure.
+
+**What this run of the loop keeps proving.** Four separate faults now — party scaling, the stash, the Ear, and this — have been *code that works, that nothing ever made the game reach*. The checks that find them have nothing in common except that each one made the software do the thing a player would do: count a second body, take something back out, look at the screen, walk through a door.
+
 *Entries below to be added as design decisions are signed off.*

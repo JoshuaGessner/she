@@ -57,6 +57,8 @@ SCENE = "res://levels/room_set/room_set.tscn"
 # produces — a body whose position never arrives sits at its spawn point, tens
 # of metres from where it actually is — and far above 20 Hz of replication lag
 # at walking speed (~0.17 m).
+# Generous against a cold shader cache, and far short of "nobody is watching".
+SMOKE_TIMEOUT = 180
 POSITION_TOLERANCE = 0.35
 ENEMY_TOLERANCE = 0.60
 # The client walks for a second at ⟨tune⟩ 3.4 m/s from a standstill.
@@ -380,7 +382,20 @@ def main() -> int:
         shutil.rmtree(workdir, ignore_errors=True)
         return 0
 
-    logs = {name: (proc.communicate()[0] or "").strip() for name, proc in procs}
+    # **Bounded.** A probe that hangs is a CI job that hangs, and this one did:
+    # a client that navigated away from the probe scene never wrote a report
+    # and never quit, so the harness waited half an hour instead of failing in
+    # sixty seconds. A timeout turns "something is wrong" into a red build
+    # rather than a queue nobody is watching.
+    logs: dict[str, str] = {}
+    for name, proc in procs:
+        try:
+            logs[name] = (proc.communicate(timeout=SMOKE_TIMEOUT)[0] or "").strip()
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            logs[name] = (proc.communicate()[0] or "").strip()
+            print(f"\n{name} did not finish within {SMOKE_TIMEOUT}s — killed",
+                  file=sys.stderr)
 
     def load(path: Path) -> dict | None:
         try:

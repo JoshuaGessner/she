@@ -15,11 +15,10 @@ extends Object
 ## ## What this is not
 ##
 ## **It is not matchmaking, and it does not solve NAT.** There is no relay
-## here, no hole-punching, and no lobby server — a join code is a *shorter way
-## to write an address*, and an address only reaches a host whose port is
-## actually reachable. For two people on different networks that means the host
-## forwards `DEFAULT_PORT`, or both sit on the same overlay network (Tailscale,
-## ZeroTier), or they wait for `M4-T07` to bring Steam's relay.
+## here, no hole-punching, and no lobby server — this is a **direct
+## connection**, and a join code is only a shorter way to write an address. An
+## address reaches a host whose port is actually reachable: the same network,
+## or `DEFAULT_PORT` forwarded to that machine. `M4-T07` brings Steam's relay.
 ##
 ## Saying so plainly matters: a system that looked like matchmaking and quietly
 ## failed for anyone behind a router would waste a tester's evening and read as
@@ -36,7 +35,12 @@ extends Object
 
 enum Role { SOLO, HOST, CLIENT }
 
-const DEFAULT_PORT: int = 27015
+## The project's port, and **the only place it is written down**. `CoopSession`
+## carried its own copy and this file was introduced with a different number —
+## two constants with the same name and different values, which is the drift
+## this project keeps catching in other people's honest mistakes and had just
+## made in its own.
+const DEFAULT_PORT: int = 47018
 
 ## Crockford-style: no I, L, O or U, so a code read aloud over voice chat or
 ## copied off a screenshot cannot become a different code. Case-insensitive on
@@ -68,8 +72,8 @@ static func adopt_cmdline(args: PackedStringArray) -> void:
 
 
 ## A short shareable code for an address, or the address itself when it is not
-## a plain IPv4 (a hostname, an overlay name, a Tailscale MagicDNS name — all
-## of which are more useful to a tester than anything this could encode).
+## a plain IPv4 (a hostname or a DNS name, which is more useful to a tester
+## than anything this could encode).
 static func code_for(host: String, at_port: int) -> String:
 	var octets: PackedStringArray = host.split(".")
 	if octets.size() != 4:
