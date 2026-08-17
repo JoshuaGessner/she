@@ -128,19 +128,21 @@ func validate() -> PackedStringArray:
 	if grid_size.x < 1 or grid_size.y < 1:
 		problems.append("grid_size %s occupies no cells" % grid_size)
 
-	# **Free money, always a bug** (`TEC-006`). An item worth tributing that
-	# costs nothing to carry and nothing to be near breaks the loop the whole
-	# game is built on: DES-005 makes greed felt in your legs and heard through
-	# walls, and this is an item that opts out of both.
+	# **The free-money rule does not live here**, and the reason is worth the
+	# paragraph. It read `tribute_value > 0 and is_zero_approx(weight) and
+	# is_zero_approx(clamor)`, and `is_zero_approx` compares against
+	# `CMP_EPSILON` — 0.00001. So *any* non-zero weight defeated it, and the
+	# raw gemstone it was written about (0.04 kg, 55 tribute) escaped on the
+	# first clause before its clamor was ever consulted. Zeroing that clamor
+	# was tested: the validator passed it. Free money, by the rule that exists
+	# to forbid free money.
 	#
-	# DES-008's own example — "a raw gemstone (high tribute, no weight, no
-	# use)" — reads like a violation and is not: *no weight* is literal, and
-	# the gem's cost is that it is loud, because the Gullsjúkr senses wealth
-	# (`DES-017`). This rule is what forces that reading rather than letting a
-	# costless gem through.
-	if tribute_value > 0 and is_zero_approx(weight) and is_zero_approx(clamor):
-		problems.append(("tribute_value %d with no weight and no clamor — free money; "
-			+ "give it a physical or an audible cost") % tribute_value)
+	# "Costs nothing" is only meaningful against `carry_capacity`, which lives
+	# on `TuningProfile` and which no `ItemResource` can see. So the rule moved
+	# to `tests/data_probe.gd` — moved, not copied — where both halves are in
+	# scope. That is exactly the division `TEC-006` draws: a resource answers
+	# for its own fields, and the probe owns the questions that need two
+	# resources to ask.
 
 	for index: int in range(traits.size()):
 		var item_trait: ItemTrait = traits[index]

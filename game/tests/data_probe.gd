@@ -60,6 +60,7 @@ func _run() -> void:
 	_check_unique_ids()
 	_check_catalogue_agrees()
 	_check_items_fit_the_grid()
+	_check_no_free_money()
 
 	# A validator that validated nothing must never report success. This is
 	# the single most important line in the file: every other check here is
@@ -187,6 +188,51 @@ func _check_items_fit_the_grid() -> void:
 		if not upright and not turned:
 			_fail("'%s' is %s and the bag is %s — it can never be picked up, "
 				% [item.id, size, grid] + "in either orientation")
+
+
+## Fraction of `carry_capacity` below which an item's weight is *no* weight
+## ⟨tune⟩. At a 40 kg capacity this is 0.2 kg — half of one percent of what
+## you can haul, which is nothing you will ever feel in your legs.
+const NEGLIGIBLE_WEIGHT_FRACTION: float = 0.005
+
+
+## **Free money, always a bug** (`TEC-006`). An item worth tributing that costs
+## nothing to carry and nothing to be near breaks the loop the whole game is
+## built on: `DES-005` makes greed felt in your legs and heard through walls,
+## and this is an item that opts out of both.
+##
+## **This rule used to live on `ItemResource` and could not fire.** It asked
+## `is_zero_approx(weight)`, which compares against `CMP_EPSILON` — 0.00001 —
+## so any non-zero weight satisfied it, and the raw gemstone it was written
+## about (0.04 kg, 55 tribute) escaped on that clause before its clamor was
+## ever read. Zeroing the gem's clamor was tried and the validator passed it.
+##
+## The fix needs `carry_capacity` to say what "no weight" *means*, and no
+## single resource can see both, so the rule is here now. `DES-008`'s own
+## example — *"a raw gemstone (high tribute, no weight, no use)"* — is meant to
+## read as legal, and it is: **the gem pays audibly.** The day something gives
+## its wealth a different cost (`DES-017`'s wealth-sensing, `M2-T02`) this rule
+## is what forces that cost to exist before the clamor comes off.
+##
+## Cells are deliberately **not** accepted as the cost. Every item occupies at
+## least one, so counting space would make the rule unfireable — the green tick
+## that cannot fail, which is the thing ADR-084 spends its rationale on.
+func _check_no_free_money() -> void:
+	if _tuning == null:
+		_fail("no TuningProfile in the corpus — 'costs nothing' has no capacity "
+			+ "to be measured against")
+		return
+	var floor_kilograms: float = (_tuning.carry_capacity
+		* NEGLIGIBLE_WEIGHT_FRACTION)
+	for item: ItemResource in _items:
+		if item.tribute_value <= 0:
+			continue
+		if item.weight >= floor_kilograms or item.clamor > 0.0:
+			continue
+		_fail(("'%s' is worth %d and costs nothing — %.2f kg is under the %.2f kg "
+			+ "that registers as weight, and it makes no sound. Free money; give it "
+			+ "a physical or an audible cost")
+			% [item.id, item.tribute_value, item.weight, floor_kilograms])
 
 
 func _fail(message: String) -> void:

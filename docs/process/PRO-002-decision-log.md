@@ -1284,4 +1284,27 @@ That is a sharper reading of `DES-019`'s "two constraints that deliberately conf
 
 ---
 
+## ADR-088 — The free-money rule could not fire, and "costs nothing" needs a capacity to mean anything
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `TEC-006`**
+
+**Context:** `TEC-006` lists *"items with `tribute_value > 0` and zero `weight` and zero `clamor` — free money, always a bug"* as a built validator rule, implemented on `ItemResource.validate()` as:
+
+```gdscript
+if tribute_value > 0 and is_zero_approx(weight) and is_zero_approx(clamor):
+```
+
+`is_zero_approx` compares against `CMP_EPSILON`, which is **0.00001**. So any non-zero weight satisfies the first clause and the rule short-circuits before clamor is ever read. `glt_raw_gemstone` weighs 0.04 kg and is worth 55 — it escaped on that clause, and it is *the item the rule's own comment says it was written about.*
+
+Setting the gem's clamor to `0.0` was tried directly: **55 tribute, 0.04 kg, silent, and the validator reported "every resource loads and validates".** Free money, passed by the rule that exists to forbid free money. Four checks in the previous two sessions were caught this way and this is the fifth — none of them by reading.
+
+**Decision 1 — the rule moves to `tests/data_probe.gd`, and "no weight" is a fraction of `carry_capacity`** ⟨tune⟩ 0.005, which is 0.2 kg at the current 40 kg. Moved, not copied (ADR-073): a second copy would diverge the first time either was tuned.
+
+**Rationale:** *"Costs nothing"* is not a property of an item. It is a relation between an item and how much a player can haul, and `carry_capacity` lives on `TuningProfile` where no `ItemResource` can see it. That is exactly the division `TEC-006` already draws — a resource answers for its own fields, and the probe owns the questions that need two resources to ask. The rule was on the wrong side of it, and `is_zero_approx` was the symptom of trying to ask a comparative question with no yardstick.
+
+**Decision 2 — occupied cells do not count as a cost for this rule.** Space is a real constraint now (ADR-087), so counting it is tempting. But every item occupies at least one cell, so admitting cells would make the rule unfireable — the green tick that cannot fail, which is the failure this ADR is an instance of. Weight or clamor, or it is free money.
+
+**Consequences:** `glt_raw_gemstone` keeps `clamor = 1.2` and the check is now what *enforces* that it cannot simply be removed. The gem's clamor currently encodes two unrelated things — noise, and the wealth `DES-017`'s Gullsjúkr senses — and `M2-T02` is where wealth gets its own sense. **When it does, this rule blocks the clamor coming off until the replacement cost exists**, which is the correct order and no longer depends on anyone remembering it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

@@ -177,7 +177,7 @@ game/data/items/…   enemies/…   skills/…   contracts/…   loot/…   biom
 `game/tests/data_probe.gd` runs in the pre-commit sweep (`tools/check_scripts.sh`) and fails on:
 
 - Duplicate or missing `id`, an `id` outside the prefix set, or a file not named after its `id` — **built** (`M2-T08`)
-- Items with `tribute_value > 0` and zero `weight` *and* zero `clamor` — free money, always a bug — **built**
+- Items with `tribute_value > 0` costing **neither meaningful weight nor any clamor** — free money, always a bug — **built**, and **rewritten by ADR-088**. It lived on `ItemResource` as `is_zero_approx(weight)`, which compares against 0.00001, so any non-zero weight defeated it — including the 0.04 kg gemstone it was written about, demonstrated by zeroing that gem's clamor and watching the validator pass 55 tribute for nothing. *"Costs nothing"* is a relation to `carry_capacity`, not a property of an item, so the rule now lives in the probe where both are in scope. **Occupied cells deliberately do not count as a cost** — every item occupies one, so admitting them would make the rule unfireable
 - A resource with no `validate()`, or whose own `validate()` reports a problem — **built**
 - **Finding zero items at all** — **built**, and the most important one: every other rule is conditional on there being data, so without it a moved folder produces a clean, meaningless pass
 - `telegraph_ms < 250` (ADR-053) — *not built*: `AttackResource` arrives at `M4-T02`. The floor is enforced today in `TuningProfile.validate()`, where its data actually lives
