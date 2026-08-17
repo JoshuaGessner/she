@@ -210,6 +210,11 @@ func _build_player(payload: Dictionary) -> Node:
 	player.name = "player_%d" % peer
 	player.position = payload["at"] as Vector3
 	player.rotation.y = float(payload["yaw"])
+	# Before `add_child`, like the authority, so the seat rides the spawn packet
+	# and every peer derives the same one from the same payload. A slot decided
+	# after the fact would differ per process, and it is what tells one player's
+	# **ember** from another's (`M2-T05`).
+	player.party_slot = int(payload["slot"])
 	# Before `add_child`, so `_ready` already knows whether it is looking at
 	# its own body. Deciding afterwards means one frame of a remote player
 	# holding the camera and capturing the mouse.
@@ -272,8 +277,13 @@ func _spawn_player(peer: int) -> void:
 	# replication bug rather than as arithmetic.
 	var at: Vector3 = spawn_points[_next_spawn % spawn_points.size()]
 	_next_spawn += 1
+	# The seat is the spawn index, wrapped. Same counter as the spawn point, so
+	# the fourth person to arrive stands on the fourth mark and holds the fourth
+	# seat — and after a disconnect and a rejoin, the newcomer takes a free seat
+	# rather than inheriting the departed's identity.
+	var slot: int = (_next_spawn - 1) % Player.MAX_PARTY
 	var player: Player = _spawner.spawn({
-		"kind": "player", "peer": peer, "at": at, "yaw": 0.0,
+		"kind": "player", "peer": peer, "at": at, "yaw": 0.0, "slot": slot,
 	}) as Player
 	if player != null:
 		player_spawned.emit(player)
@@ -300,14 +310,20 @@ func spawn_enemy(at: Vector3, yaw: float = 0.0) -> void:
 ## `disturbed` defaults false, so **authored floor loot is not bait** — levels
 ## place treasure without it becoming something the Gullsjúkr walks off to
 ## collect. Only a player putting something down sets it (`DES-017`).
+## `bound_to` rides the **payload**, not a call afterwards. An ember decides
+## how it looks in `_ready` — whose seat, which colour, how many motes — so a
+## binding applied after `spawn()` arrives too late and every ember renders as
+## seat 0. That is not hypothetical: it shipped for an hour and only a
+## screenshot of four side by side caught it, because the numbers all passed.
 func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0,
-		launch: Vector3 = Vector3.ZERO, disturbed: bool = false) -> WorldItem:
+		launch: Vector3 = Vector3.ZERO, disturbed: bool = false,
+		bound_to: int = 0) -> WorldItem:
 	if not is_host():
 		return null
 	var made: WorldItem = _spawner.spawn({
 		"kind": "world_item", "index": _next_item, "item": item,
 		"at": at, "yaw": yaw, "launch": launch, "disturbed": disturbed,
-		"bound": 0,
+		"bound": bound_to,
 	}) as WorldItem
 	_next_item += 1
 	return made
@@ -318,11 +334,9 @@ func _on_player_dropped(item: StringName, at: Vector3, yaw: float,
 	# Anything a player set down counts as disturbed, thrown or not: a panic
 	# dump is as much an offering as a bait, and the Hunter stopping for the
 	# pile you abandoned is `DES-005`'s counter-play paying out.
-	var made: WorldItem = spawn_world_item(item, at, yaw, launch, true)
 	# A put-down ember is still somebody's. Losing the binding here would turn
 	# a friend into scenery the moment their rescuer set them down for a fight.
-	if made != null and bound_to != 0:
-		made.bind_to(bound_to)
+	spawn_world_item(item, at, yaw, launch, true, bound_to)
 
 
 ## Levels ask for the Hunter. Returns the host's copy so a level can hand it

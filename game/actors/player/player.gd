@@ -49,6 +49,10 @@ const DROP_DISTANCE: float = 0.9
 ## gets, which is why none of this needs a single-player branch.
 const HOST_PEER: int = 1
 
+## `DES-012` targets 1–4 players, so there are four seats and four of anything
+## keyed to them.
+const MAX_PARTY: int = 4
+
 ## Loot leaving the bag. `CoopSession` listens and spawns the `WorldItem`,
 ## because a child never reaches into the tree above it for a service — signals
 ## up, calls down (`TEC-002`).
@@ -87,6 +91,9 @@ const REPLICATION_HZ: float = 20.0
 ## because delta encoding adds overhead and never gets to elide anything — a
 ## body that is walking changes its position every single frame.
 const MOTION_PROPERTIES: Dictionary = {
+	# Assigned before the body enters the tree and never changed after, so it
+	# rides the spawn packet and costs nothing thereafter.
+	".:party_slot": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:rotation:y": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	"Head:rotation:x": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
@@ -111,6 +118,21 @@ const STATE_PROPERTIES: Dictionary = {
 	".:revival": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:spent": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 }
+
+## Which seat in the party this body took, 0-3. Assigned once by `CoopSession`
+## and never reused while a run lasts.
+##
+## **Peer ids are unusable as identity.** Godot's are large arbitrary integers
+## (`player_854569567`), they differ per session, and the host's is always 1 no
+## matter who is hosting — so nothing can be keyed to them that a human has to
+## read or that art has to vary on. A slot is small, stable and countable,
+## which is what `DES-019`'s party frames need and what tells one **ember**
+## from another (`M2-T05`).
+##
+## At `M3-T02` the class silhouette becomes the real answer to *whose is that*
+## (`DES-020`: teammates can read your loadout across a room). The slot is what
+## carries it until there are classes to look at.
+var party_slot: int = 0
 
 ## 0 standing, 1 fully crouched. Replicated, because a crouched teammate must
 ## be crouched on every screen *and* present a shorter capsule to the host's
@@ -791,6 +813,32 @@ func _tell_host_reviving(holding: bool) -> void:
 ## ember drops.
 func fell_at() -> Vector3:
 	return global_position
+
+
+## The body a peer is playing, on this process, or `null`.
+##
+## By group rather than by node path: the path depends on the session's node
+## naming and this has to work from a `WorldItem` that knows only a peer id.
+static func find_by_peer(from: Node, peer: int) -> Player:
+	if peer == 0 or from.get_tree() == null:
+		return null
+	for node: Node in from.get_tree().get_nodes_in_group("player"):
+		var player := node as Player
+		if player != null and player.get_multiplayer_authority() == peer:
+			return player
+	return null
+
+
+## The party seat a peer holds, or `-1` if that body is not here. Falls back to
+## the peer id's low bits rather than guessing zero: two embers must never look
+## identical because one owner happened to disconnect.
+static func slot_for_peer(from: Node, peer: int) -> int:
+	var player: Player = find_by_peer(from, peer)
+	if player != null:
+		return player.party_slot
+	if peer == 0:
+		return -1
+	return peer % MAX_PARTY
 
 
 # ── leaving ───────────────────────────────────────────────────────────────

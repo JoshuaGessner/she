@@ -1426,4 +1426,27 @@ The second: freezing the bleed-out window made the probe **crash instead of fail
 
 ---
 
+## ADR-093 — Party seats, so one ember is not another; and a check that cannot be unlucky
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-012`, `DES-018`** · **Follows ADR-092**
+
+**Context:** Directed, and both halves were right. `M2-T05` shipped embers that were correct and **indistinguishable** — `DES-012` puts up to four on a floor and asks a player to answer *whose is that* while running — and the enemy-simulation check it disturbed had been repaired at the instant rather than at the cause.
+
+**Decision 1 — `Player.party_slot`, assigned once by `CoopSession` and replicated in the spawn packet.**
+
+Peer ids cannot serve as identity: Godot's are large arbitrary integers, they differ every session, and **the host's is always 1 regardless of who is hosting**. Nothing a human reads or that art varies on can be keyed to them. A seat is small, stable and countable — which is also what `DES-019`'s party frames need, so this is owed work brought forward rather than new scope.
+
+**Decision 2 — embers differ in three channels at once: hue, value, and a countable number of motes.**
+
+`DES-018` forbids hue as the only carrier (~8% of men), and four embers on a floor is precisely the case where that rule earns its keep. **All four stay in the fire family** — deep ember red, orange, amber, pale gold — because `DES-012` calls the ember *"a piece of her fire"* and `ART-005` reserves saturated colour for treasure; four arbitrary hues would break the fiction and the colour budget together. A value ramp through one fire separates *further* in greyscale than a rainbow does: 0.20 of luminance between neighbours.
+
+**Decision 3 — the enemy-speed check measures a peak, not an instant.** Reading it at report time broke when `M2-T05` added a rescue phase six seconds later: the enemy had arrived and stopped, and a stopped enemy reads exactly like a client correctly refusing to simulate. Sampling mid-phase fixed that instant and left the fragility — any future phase, any slower enemy, any frame where it is turning rather than running. **A peak cannot be unlucky**, and it is the shape `_probe_clamor_peak` already used for the same reason.
+
+**What the screenshot caught, and the numbers did not.** All four embers rendered identically, because `bind_to()` was called *after* `spawn()` — and an ember decides its colour and mote count in `_ready`. Every ember was seat 0. `--ember-probe` passed throughout, because it compares palette entries rather than pixels. The binding now rides the spawn payload, which is what `_build_world_item`'s own comment had said to do since `M2-T01`.
+
+Two rendering faults came with it, and both were invisible headless. Emission at 1.4× clipped every seat to the same saturated orange and **destroyed the value ramp the palette is built on** — it is now scaled by the seat's own luminance, so the dim one glows dimly. And the motes shared the ember's emissive material and vanished into the bloom; they are dark, unlit beads riding above the core, because a *notch* counts and a spark does not.
+
+**Consequences:** `--ember-shot` joins `--bag-shot` and `--ear-shot` — the third time a screenshot has caught what a headless check could not, and the pattern is now explicit: **anything whose correctness is a claim about seeing gets photographed.** `--ember-probe` gains a palette assertion across all four seats rather than the two a solo run can produce, with a 0.10 luminance floor rather than the 0.05 the first palette squeaked past at 0.07 — *a threshold set where a failure fits through is a threshold that has already failed.*
+
+---
+
 *Entries below to be added as design decisions are signed off.*

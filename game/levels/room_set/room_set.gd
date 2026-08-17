@@ -227,6 +227,8 @@ func _ready() -> void:
 			_exit_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
+		elif arg.begins_with("--ember-shot="):
+			_ember_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hash":
 			_print_hash()
 		elif arg.begins_with("--coop-probe="):
@@ -913,7 +915,74 @@ func _ember_probe() -> void:
 		problems.append("carrying the ember to the exit did not save that life — "
 			+ "which is the whole of the M2 co-op gate")
 
+	# ─ 7. one ember is not another ─
+	#
+	# `DES-012` has up to four of these on a floor and asks a player to answer
+	# *whose is that* — while running. `DES-018` then forbids answering it with
+	# hue, because ~8% of men cannot use hue. So every pair of seats has to
+	# differ in **colour, value and a countable count**, and any one of the
+	# three has to be enough on its own.
+	#
+	# Checked across all four seats rather than the two a solo run can produce,
+	# because the failure this guards against is a palette that collapses at
+	# the fourth entry and nobody notices until a four-stack plays.
+	var seats: int = Player.MAX_PARTY
+	var worst_hue: float = INF
+	var worst_value: float = INF
+	var clashing: String = ""
+	for a: int in range(seats):
+		for b: int in range(a + 1, seats):
+			var one: Color = WorldItem.ember_colour(a)
+			var two: Color = WorldItem.ember_colour(b)
+			var apart: float = (absf(one.r - two.r) + absf(one.g - two.g)
+				+ absf(one.b - two.b))
+			var value: float = absf(one.get_luminance() - two.get_luminance())
+			if apart < worst_hue:
+				worst_hue = apart
+			if value < worst_value:
+				worst_value = value
+				clashing = "seats %d and %d" % [a, b]
+	print("[ember] telling apart %d seats: closest pair %s, %.2f apart in "
+		% [seats, clashing, worst_hue] + "colour, %.2f in value, motes 1..%d"
+		% [worst_value, seats])
+	if worst_hue < 0.30:
+		problems.append("two ember seats are nearly the same colour (%.2f apart) "
+			% worst_hue + "— DES-012 puts four of these on a floor at once")
+	# 0.10 rather than a token epsilon. The first palette this had cleared a
+	# 0.05 floor at 0.07 and was still wrong — two seats a colour-blind player
+	# could not separate. A threshold set where a failure squeaks past is a
+	# threshold that has already failed once.
+	if worst_value < 0.10:
+		problems.append(("two ember seats are the same brightness (%.2f apart, %s) "
+			+ "— DES-018 forbids hue being the only channel, and in monochrome "
+			+ "these would be identical") % [worst_value, clashing])
+
 	_report(problems, "ember")
+
+
+## Four embers in a row, photographed (`M2-T05`).
+##
+## The probe asserts the palette separates *numerically*. Whether a player can
+## answer *whose is that* while running is a question about seeing, and
+## `DES-018` is a legibility document — so this is the half no headless check
+## can do. The same pairing as `--bag-shot` and `--ear-shot`, both of which
+## found defects nothing else could.
+func _ember_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	var at := Vector3(0.0, 0.1, 0.0)
+	for seat: int in range(Player.MAX_PARTY):
+		# Spawned with a peer id that maps to this seat, so what is drawn is what
+		# a real fourth player's ember would look like rather than a swatch.
+		_session.spawn_world_item(&"con_ember",
+			at + Vector3(float(seat) * 1.6 - 2.4, 0.0, 0.0), 0.0, Vector3.ZERO,
+			true, Player.MAX_PARTY * 4 + seat)
+	player.teleport(at + Vector3(0.0, 0.0, 4.6), 0.0)
+	await _hold(0.8)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	print("[ember] four seats drawn — %s" % path.get_file())
+	get_tree().quit()
 
 
 ## Print every problem and quit with the right code.
@@ -1068,15 +1137,20 @@ func _coop_probe(out: String) -> void:
 	#    That difference is what proves the simulation lives in one process.
 	if not host:
 		mine.teleport(PROBE_RETREAT_TO, 0.0)
-	await _hold(1.5)
-	# Captured **here**, mid-chase, not read at the end. The rescue phase below
-	# adds six seconds, by which time the enemy has arrived and stopped and its
-	# velocity is zero on every peer — which reads exactly like a client
-	# correctly refusing to simulate. Adding phase 6 broke this check that way,
-	# and the check caught it, which is the argument for sampling a phase-
-	# sensitive value inside its phase (`_probe_walk_clamor` is captured for the
-	# same reason).
-	_probe_speeds = _probe_enemy_speeds()
+	# The **peak** speed across the chase, not a reading at the end of it.
+	#
+	# Two rounds of this. Reading it at report time broke when the rescue phase
+	# was added six seconds later: the enemy had arrived and stopped, and a
+	# stopped enemy reads exactly like a client correctly refusing to simulate.
+	# Sampling mid-phase fixed that instant and left the *fragility* — any
+	# future phase, any slower enemy, any unlucky frame where it is turning
+	# rather than running, and the check fails for a reason that has nothing to
+	# do with authority.
+	#
+	# A peak cannot be unlucky. It is the same shape `_probe_clamor_peak`
+	# already uses, and for the same reason: **the claim is "did this ever
+	# move", so the measurement has to be "the most it ever moved".**
+	_probe_speeds = await _peak_enemy_speeds(1.5)
 
 	# 5. The client picks something up (`M2-T01`). Two different claims land in
 	#    one gesture, and they travel in opposite directions:
@@ -1288,9 +1362,24 @@ func _probe_enemy_positions() -> Dictionary:
 	return out
 
 
-## Horizontal speed per enemy. Zero on a client is not a rounding artefact:
-## `velocity` is never replicated and never assigned there, so a client that
-## has correctly refused to simulate reports exact zeroes.
+## The fastest each enemy was seen moving over `seconds`, sampled every physics
+## frame. Zero on a client is not a rounding artefact and not bad luck: a peer
+## that never integrated a velocity reports exact zeroes however long it is
+## watched, which is what makes the peak a fair test of *both* halves.
+func _peak_enemy_speeds(seconds: float) -> Dictionary:
+	var peak: Dictionary = {}
+	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < until:
+		var now: Dictionary = _probe_enemy_speeds()
+		for name: String in now:
+			peak[name] = maxf(float(peak.get(name, 0.0)), float(now[name]))
+		await get_tree().physics_frame
+	return peak
+
+
+## Horizontal speed per enemy, right now. Zero on a client is not a rounding
+## artefact: `velocity` is never replicated and never assigned there, so a
+## client that has correctly refused to simulate reports exact zeroes.
 func _probe_enemy_speeds() -> Dictionary:
 	var out: Dictionary = {}
 	for node: Node in get_tree().get_nodes_in_group("enemies"):
@@ -1487,10 +1576,10 @@ func _watch(player: Player) -> void:
 func _on_died_here(player: Player, at: Vector3) -> void:
 	if not multiplayer.is_server():
 		return
-	var ember: WorldItem = _session.spawn_world_item(&"con_ember",
-		at + Vector3(0.0, 0.1, 0.0), 0.0, Vector3.ZERO, true)
-	if ember != null:
-		ember.bind_to(player.get_multiplayer_authority())
+	# The binding rides the spawn, because an ember decides how it looks in
+	# `_ready` — whose seat, which colour, how many motes.
+	_session.spawn_world_item(&"con_ember", at + Vector3(0.0, 0.1, 0.0), 0.0,
+		Vector3.ZERO, true, player.get_multiplayer_authority())
 	print("[death] %s went out — their ember is on the floor at %.0f, %.0f" % [
 		player.name, at.x, at.z])
 

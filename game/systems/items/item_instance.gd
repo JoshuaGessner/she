@@ -71,6 +71,25 @@ func footprint() -> Vector2i:
 	return Vector2i(size.y, size.x) if rotated else size
 
 
+## True when this is somebody's life rather than an object.
+func is_ember() -> bool:
+	return bound_to != 0
+
+
+## What the bag calls this. For almost everything it is the item's name; for an
+## **ember** it also says whose, because a rescuer with two of them needs to
+## know which friend they are about to put down (`DES-012`).
+##
+## The mark is repeated rather than numeric — `Ember ·`, `Ember ··` — so it is
+## *countable* at a glance and survives monochrome, matching the motes the same
+## ember wears on the floor. `DES-018`: shape first, colour second.
+func label(seat: int) -> String:
+	var name: String = definition.display()
+	if not is_ember() or seat < 0:
+		return name
+	return "%s %s" % [name, "·".repeat(seat + 1)]
+
+
 func weight() -> float:
 	return definition.weight
 

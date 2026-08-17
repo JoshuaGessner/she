@@ -323,13 +323,22 @@ func _draw_cells() -> void:
 func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	var font: Font = ThemeDB.fallback_font
 	var colour: Color = WorldItem.colour_for(item.definition)
+	# An **ember** takes its bearer's seat colour rather than the item palette,
+	# and the same one it wears on the floor — so a rescuer carrying two of them
+	# can tell which friend is which without opening anything (`DES-012`). The
+	# label carries the same answer in dots, because `DES-018` forbids hue from
+	# being the only channel.
+	var seat: int = -1
+	if item.is_ember():
+		seat = Player.slot_for_peer(self, item.bound_to)
+		colour = WorldItem.ember_colour(seat)
 	colour.a = alpha
 	draw_rect(rect, colour * Color(0.55, 0.55, 0.55, 1.0))
 	draw_rect(rect, colour, false, 2.0)
 	# Name and weight, clipped to the footprint. A one-cell gemstone gets a
 	# truncated name and its weight; a three-by-three plate gets both in full.
 	var text_colour := Color(TEXT_COLOUR, alpha)
-	draw_string(font, rect.position + Vector2(5.0, 16.0), item.definition.display(),
+	draw_string(font, rect.position + Vector2(5.0, 16.0), item.label(seat),
 		HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, 13, text_colour)
 	draw_string(font, rect.position + Vector2(5.0, rect.size.y - 6.0),
 		_kilograms(item.weight()), HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0,

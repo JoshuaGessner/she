@@ -59,6 +59,36 @@ const TAG_COLOURS: Dictionary = {
 }
 const DEFAULT_COLOUR: Color = Color(0.55, 0.54, 0.52)
 
+## One per party seat (`DES-012` targets four). **Never hue alone** — `DES-018`
+## bans that outright, ~8% of men cannot use it, and four embers on a floor is
+## exactly the case where a player has to answer *whose is that* at a glance.
+##
+## So each seat differs in **three** ways at once: hue, **value**, and a
+## **countable** number of motes ringing it. Any one of the three answers the
+## question on its own; in monochrome the count still does.
+##
+## **All four stay in the fire family, and that is deliberate.** `DES-012` calls
+## the ember *"a piece of her fire"*, and `ART-005` spends saturated colour on
+## treasure — four arbitrary hues would break the fiction *and* the colour
+## budget in one go. So the seats are a **value ramp** through the same fire:
+## deep ember red, orange, amber, pale gold. That reads as four embers rather
+## than four team colours, and it separates further in greyscale than a rainbow
+## does — 0.20 of luminance between neighbours, against 0.07 for the first
+## palette this had, which passed its own check and was wrong anyway.
+##
+## These become the class silhouette at `M3-T02` (`DES-020` — teammates read
+## your loadout across a room). Until there are classes to look at, the seat is
+## what there is.
+const EMBER_SEATS: Array[Color] = [
+	Color(0.62, 0.16, 0.05),
+	Color(0.88, 0.36, 0.08),
+	Color(0.96, 0.62, 0.18),
+	Color(1.00, 0.86, 0.52),
+]
+const EMBER_RADIUS: float = 0.30
+const MOTE_RADIUS: float = 0.075
+const MOTE_ORBIT: float = 0.46
+
 ## Metres per second lost to the floor on landing, and the height below which
 ## it is simply at rest. A thrown purse should stop where it lands rather than
 ## skitter — `DES-017` has the Hunter stooping to *pick it up*, which needs it
@@ -104,6 +134,9 @@ func _ready() -> void:
 	_flying = not launch.is_zero_approx()
 	set_physics_process(_flying)
 	_definition = ItemCatalogue.by_id(item_id)
+	if _definition != null and _definition.tags.has(&"ember"):
+		_build_ember()
+		return
 	if _definition == null:
 		# A spawn naming an item this build does not have. Loud, because it
 		# means the two peers disagree about what exists, and silent divergence
@@ -180,6 +213,74 @@ func _build_mesh() -> void:
 	_mesh.material_override = _material
 	_mesh.position.y = mesh.size.y * 0.5
 	add_child(_mesh)
+
+
+## Whose ember this is, drawn so it can be answered from across a room and
+## with the colour taken out (`M2-T05`, `DES-018`).
+##
+## A sphere rather than a box, so an ember never reads as loot at a glance, and
+## `seat + 1` motes ringing it, so the answer survives monochrome. `DES-018`'s
+## rule is *shape and motion first, colour second* and this is what that costs:
+## three cheap primitives instead of one.
+func _build_ember() -> void:
+	var seat: int = ember_seat()
+	var tint: Color = ember_colour(seat)
+
+	var mesh := SphereMesh.new()
+	mesh.radius = EMBER_RADIUS
+	mesh.height = EMBER_RADIUS * 2.0
+	_material = StandardMaterial3D.new()
+	_material.albedo_color = tint
+	# It is a light, and it is going out — which is the whole of `DES-012`'s
+	# window, said without a word of UI.
+	#
+	# **Weak emission, and that is the fix rather than the flourish.** At 1.4x
+	# every seat clipped to the same saturated orange and the value ramp this
+	# palette is built on vanished; four embers side by side were
+	# indistinguishable. Emission scaled *by* the seat's own brightness keeps
+	# the ramp instead of flattening it, so the dim one glows dimly.
+	_material.emission_enabled = true
+	_material.emission = tint
+	_material.emission_energy_multiplier = 0.30 + tint.get_luminance() * 0.55
+	_mesh = MeshInstance3D.new()
+	_mesh.mesh = mesh
+	_mesh.material_override = _material
+	_mesh.position.y = EMBER_RADIUS + 0.1
+	add_child(_mesh)
+
+	# Countable, and the count *is* the identity. Seat 0 gets one mote, seat 3
+	# gets four — legible in a grey screenshot, legible to a colour-blind
+	# player, and legible at the distance you first see a body on the floor.
+	#
+	# **Dark and unlit**, against a glowing core. The first version made them
+	# the same emissive material as the ember and they disappeared into it;
+	# beads that read as *notches* count far better than sparks that read as
+	# bloom. They also ride above the ember rather than around its equator, so
+	# the count survives being seen from any angle.
+	var beads := StandardMaterial3D.new()
+	beads.albedo_color = Color(0.09, 0.07, 0.06)
+	beads.roughness = 0.9
+	var motes: int = seat + 1
+	for index: int in range(motes):
+		var mote := MeshInstance3D.new()
+		var ball := SphereMesh.new()
+		ball.radius = MOTE_RADIUS
+		ball.height = MOTE_RADIUS * 2.0
+		mote.mesh = ball
+		mote.material_override = beads
+		var angle: float = TAU * float(index) / float(motes)
+		mote.position = Vector3(cos(angle) * MOTE_ORBIT,
+			EMBER_RADIUS * 2.0 + 0.16, sin(angle) * MOTE_ORBIT)
+		add_child(mote)
+
+
+## The party seat this ember belongs to, or `0` when nothing bound it.
+func ember_seat() -> int:
+	return maxi(0, Player.slot_for_peer(self, bound_to))
+
+
+static func ember_colour(seat: int) -> Color:
+	return EMBER_SEATS[posmod(seat, EMBER_SEATS.size())]
 
 
 ## The blockout colour for an item, wherever it is being drawn. `BagScreen`
