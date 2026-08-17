@@ -65,7 +65,9 @@ var _ready_to_mix: bool = false
 
 func _ready() -> void:
 	_build_buses()
-	_build_layers()
+	# No piece until a level says where it is. A director that guessed would
+	# guess the Deep, and the first thing a new player hears would be the Hunt
+	# playing over a campfire.
 	_ready_to_mix = true
 
 
@@ -184,66 +186,183 @@ func _hunter_weight(hunter: Gullsjukr) -> float:
 # ── the layers ────────────────────────────────────────────────────────────
 
 
-## What each layer answers to, and at what level it sits when fully in.
+## **The reserved instrument** (`ART-002`, `ART-003`).
 ##
-## Read as a sentence: the bed is always there; the drone rides your own
-## clamor; the pulse only enters once you are properly loud; the heartbeat is
-## the room listening; the Hunter's note is the Hunter and nothing else.
-const LAYERS: Dictionary = {
-	"bed": {"hz": 0.0, "db": -26.0, "bus": "ambience"},
-	"drone": {"hz": 55.0, "db": -20.0, "bus": "score"},
-	"pulse": {"hz": 82.5, "db": -18.0, "bus": "score"},
-	"heartbeat": {"hz": 110.0, "db": -17.0, "bus": "score"},
-	"hunter": {"hz": 146.8, "db": -14.0, "bus": "score"},
+## > *"One instrument is reserved for the Hunter and appears nowhere else in
+## > the game. Ever. Not in the Threshold, not as texture, not 'just once'
+## > somewhere atmospheric. When the player hears it, it is always true."*
+##
+## A rule that strong is worth making structural rather than remembering. Every
+## layer below declares a `voice`, exactly one layer in the whole game may use
+## this one, and `--threshold-probe` fails if a second ever appears. It is the
+## kind of rule that gets broken by someone reaching for a nice sound at 2am,
+## and by then the false alarm has already cost a player their run.
+const RESERVED_VOICE: String = "bowed"
+
+## Where the player is standing, and therefore what is playing.
+##
+## `ART-002`'s **three sonic worlds** — the Deep, the Threshold, her Chamber —
+## are three different pieces, not one piece with the lights dimmed. Before
+## `M2-T09` there was one flat layer table, which meant the camp and her
+## Chamber were both scored by the Hunt: the safest and the strangest places in
+## the game playing music written to say *how much trouble you are in*.
+##
+## Each layer: `voice` (how it is made), `hz` (its pitch, 0 for air), `db` (the
+## level it sits at when fully in), `bus`.
+##
+## Everything is blockout (ADR-046) and `M2-T09` owns the *architecture* rather
+## than the notes — `ART-002` says outright to consider commissioning the score,
+## and this is what a composer is handed: the stem layout, one key, one tempo,
+## every layer valid against every other.
+const PIECES: Dictionary = {
+	# ── The Deep ──────────────────────────────────────────────────────────
+	# Sparse, cold, mostly diegetic. Music arrives as pressure. Read as a
+	# sentence: the bed is always there; the drone rides your own clamor; the
+	# pulse enters once you are properly loud; the heartbeat is the room
+	# listening; the Hunter's note is the Hunter and nothing else.
+	"deep": {
+		"bed": {"voice": "air", "hz": 0.0, "db": -26.0, "bus": "ambience"},
+		"drone": {"voice": "held", "hz": 55.0, "db": -20.0, "bus": "score"},
+		"pulse": {"voice": "throb", "hz": 82.5, "db": -18.0, "bus": "score"},
+		"heartbeat": {"voice": "throb", "hz": 110.0, "db": -17.0, "bus": "score"},
+		"hunter": {"voice": "bowed", "hz": 146.8, "db": -14.0, "bus": "score"},
+	},
+	# ── The Threshold ─────────────────────────────────────────────────────
+	# **The only safe sound in the game**, and `ART-003` calls it the most
+	# important piece of music in it: *"warm, acoustic, sad, and small… if a
+	# player hums anything from this game a year later, it should be this."*
+	#
+	# So it is the one piece with an actual tune rather than a texture. The
+	# hearth and the drone are always in — safety is not something you have to
+	# earn back each time you arrive — and the arrangement *fills out* as the
+	# camp does (ADR-050), which is the whole reason this needed a driver and
+	# not a looping file.
+	"threshold": {
+		"hearth": {"voice": "air", "hz": 0.0, "db": -22.0, "bus": "ambience"},
+		"warmth": {"voice": "held", "hz": 73.4, "db": -19.0, "bus": "score"},
+		"theme": {"voice": "plucked", "hz": 293.66, "db": -13.0, "bus": "score"},
+		"company": {"voice": "plucked", "hz": 146.83, "db": -17.0, "bus": "score"},
+	},
+	# ── Her Chamber ───────────────────────────────────────────────────────
+	# *"Enormous and close. Deep room tone, a sense of vast air, and beneath it
+	# something slow and breathing."* Not a threat and not a comfort.
+	#
+	# Built here rather than deferred because `M2-T09` is what made a place
+	# able to have its own sound — and leaving the Chamber on the Deep's piece
+	# would have scored the quietest room in the game with the Hunt.
+	"chamber": {
+		"air": {"voice": "air", "hz": 0.0, "db": -20.0, "bus": "ambience"},
+		"vast": {"voice": "held", "hz": 36.7, "db": -16.0, "bus": "score"},
+		"breathing": {"voice": "throb", "hz": 49.0, "db": -21.0, "bus": "score"},
+	},
 }
 
+## D natural minor, which is what the pitches above are drawn from. `ART-003`:
+## *"all layers of a piece share one tempo and one key, so any combination is
+## musically valid."* A constraint on the composer, so it is a constraint here.
+const ROOT_HZ: float = 146.83
+const PHRASE_SECONDS: float = 8.0
 
+## The Threshold's tune, as a descending figure that resolves and then asks
+## again — small, and sad without being funereal. Scale degrees in D Aeolian,
+## as multiples of the root; `-1.0` is a rest, which a tune needs more than it
+## needs another note.
+const THEME_PHRASE: Array[float] = [
+	3.0, 2.5, 2.0, 1.5, -1.0, 2.0, 1.5, 1.0,
+]
+## The second voice, underneath and slower. This is the layer that arrives as
+## the camp fills: somebody else is playing along.
+const COMPANY_PHRASE: Array[float] = [
+	1.0, -1.0, 0.75, -1.0, 1.0, -1.0, 1.5, -1.0,
+]
+
+var _place: String = ""
+
+
+## Move to a place, and with it a piece. Called by the level in `_ready`.
+##
+## Idempotent, so a level re-entering the same place does not restart its own
+## music underneath the player.
+func enter(named: String) -> void:
+	if named == _place:
+		return
+	if not PIECES.has(named):
+		push_error("AudioDirector: no piece for place '%s'" % named)
+		return
+	_place = named
+	_build_layers()
+
+
+func place() -> String:
+	return _place
+
+
+## Tear down the old piece and stand up the new one.
 func _build_layers() -> void:
-	for name: String in LAYERS:
-		var spec: Dictionary = LAYERS[name]
+	for name: String in _players:
+		(_players[name] as AudioStreamPlayer).queue_free()
+	_players = {}
+	_targets = {}
+	_levels = {}
+	for name: String in layers():
+		var spec: Dictionary = layers()[name]
 		var player := AudioStreamPlayer.new()
 		player.name = "layer_%s" % name
-		player.stream = _blockout_stream(float(spec["hz"]))
+		player.stream = _voice_stream(spec)
 		player.bus = String(spec["bus"])
 		player.volume_db = SILENCE_DB
 		add_child(player)
-		player.play()
 		_players[name] = player
 		_targets[name] = SILENCE_DB
 		_levels[name] = SILENCE_DB
 
 
-## One second of looping blockout tone (ADR-046).
+## The layer table for whatever is playing.
+func layers() -> Dictionary:
+	return PIECES.get(_place, {}) as Dictionary
+
+
+## Blockout audio for one layer (ADR-046).
 ##
-## `hz` of zero makes the ambient bed: filtered noise rather than a pitch,
-## because `ART-002` wants air and stone settling, and a pitched bed would be
-## music pretending to be a room.
+## Four voices, each recognisably different by ear — which is the whole job of
+## a blockout layer, and also what lets `--threshold-probe` assert that the
+## reserved one is used once.
+func _voice_stream(spec: Dictionary) -> AudioStreamWAV:
+	var voice: String = String(spec["voice"])
+	var hz: float = float(spec["hz"])
+	match voice:
+		"air":
+			return _render(PHRASE_SECONDS, _air_at, hz)
+		"held":
+			return _render(PHRASE_SECONDS, _held_at, hz)
+		"throb":
+			return _render(PHRASE_SECONDS, _throb_at, hz)
+		"bowed":
+			return _render(PHRASE_SECONDS, _bowed_at, hz)
+		"plucked":
+			return _render(PHRASE_SECONDS, _plucked_at, hz)
+	push_error("AudioDirector: unknown voice '%s'" % voice)
+	return _render(PHRASE_SECONDS, _held_at, hz)
+
+
+const MIX_RATE: int = 22050
+
+## Sample a voice function across a whole phrase and pack it as a looping WAV.
 ##
-## Everything else is a sine with a little odd harmonic — enough that the
-## layers are distinguishable from each other by ear, which is the only thing
-## a blockout layer has to achieve. `M2-T09` replaces all of it.
-func _blockout_stream(hz: float) -> AudioStreamWAV:
-	var rate: int = 22050
-	var frames: int = rate
+## Seeded and deterministic, so two runs sound identical and a probe comparing
+## them is not comparing noise (`TEC-001`).
+func _render(seconds: float, voice: Callable, hz: float) -> AudioStreamWAV:
+	var frames: int = int(float(MIX_RATE) * seconds)
 	var data := PackedByteArray()
 	data.resize(frames * 2)
-	var noise := RandomNumberGenerator.new()
-	# Seeded, so two runs sound identical and a probe comparing them is not
-	# comparing noise (`TEC-001`: determinism where it matters).
-	noise.seed = int(hz * 1000.0) + 17
 	for frame: int in range(frames):
-		var value: float = 0.0
-		if hz <= 0.0:
-			value = noise.randf_range(-0.35, 0.35)
-		else:
-			var phase: float = TAU * hz * (float(frame) / float(rate))
-			value = sin(phase) * 0.7 + sin(phase * 3.0) * 0.12
-		var sample: int = clampi(int(value * 32767.0), -32768, 32767)
-		data.encode_s16(frame * 2, sample)
+		var at: float = float(frame) / float(MIX_RATE)
+		var value: float = voice.call(at, hz, seconds) as float
+		data.encode_s16(frame * 2, clampi(int(value * 32767.0), -32768, 32767))
 
 	var stream := AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS
-	stream.mix_rate = rate
+	stream.mix_rate = MIX_RATE
 	stream.stereo = false
 	stream.data = data
 	# Looped, because these are beds and layers rather than cues. A layer that
@@ -254,18 +373,87 @@ func _blockout_stream(hz: float) -> AudioStreamWAV:
 	return stream
 
 
+## Air and stone settling. Noise rather than a pitch, because a pitched bed is
+## music pretending to be a room.
+func _air_at(at: float, _hz: float, seconds: float) -> float:
+	var wobble: float = 0.75 + 0.25 * sin(TAU * at / seconds)
+	return _noise_at(at) * 0.3 * wobble
+
+
+## A held note with a little odd harmonic. The Deep's cold drone and the
+## Threshold's warm one are the same voice at different pitches, which is
+## `ART-003`'s point about one key: warmth is register, not a different scale.
+func _held_at(at: float, hz: float, _seconds: float) -> float:
+	var phase: float = TAU * hz * at
+	return sin(phase) * 0.7 + sin(phase * 3.0) * 0.12
+
+
+## A slow swell rather than a beat — `ART-002` bans stingers, so the pulse
+## breathes instead of hitting.
+func _throb_at(at: float, hz: float, _seconds: float) -> float:
+	var swell: float = 0.35 + 0.65 * pow(0.5 + 0.5 * sin(TAU * at * 0.5), 2.0)
+	return (sin(TAU * hz * at) * 0.6 + sin(TAU * hz * 2.0 * at) * 0.15) * swell
+
+
+## **The reserved voice.** Bowed: slow attack, rich in odd harmonics, and a
+## vibrato that makes it unmistakably an instrument somebody is playing rather
+## than a tone the game is emitting. `ART-003` proposes tagelharpa or jouhikko
+## and leaves the choice open; what it does not leave open is using it twice.
+func _bowed_at(at: float, hz: float, seconds: float) -> float:
+	var bow: float = smoothstep(0.0, seconds * 0.35, at)
+	var vibrato: float = 1.0 + 0.004 * sin(TAU * 5.5 * at)
+	var phase: float = TAU * hz * vibrato * at
+	var body: float = (sin(phase) * 0.5 + sin(phase * 2.0) * 0.22
+		+ sin(phase * 3.0) * 0.16 + sin(phase * 5.0) * 0.08)
+	return body * bow
+
+
+## Plucked and decaying — a kantele, and the only voice in the game that plays
+## a *tune*. Each note is struck and left to ring, so the phrase loops without
+## a seam: the last note has decayed to nothing before the first returns.
+func _plucked_at(at: float, hz: float, seconds: float) -> float:
+	var phrase: Array[float] = (THEME_PHRASE if hz >= ROOT_HZ * 1.5
+		else COMPANY_PHRASE)
+	var beat: float = seconds / float(phrase.size())
+	var index: int = clampi(int(at / beat), 0, phrase.size() - 1)
+	var degree: float = phrase[index]
+	if degree < 0.0:
+		return 0.0
+	var since: float = at - float(index) * beat
+	var decay: float = exp(-since * 3.2)
+	var note: float = hz * degree
+	var phase: float = TAU * note * since
+	return (sin(phase) * 0.6 + sin(phase * 2.0) * 0.2
+		+ sin(phase * 3.0) * 0.08) * decay
+
+
+## Deterministic value noise, so the ambient bed is identical run to run.
+func _noise_at(at: float) -> float:
+	var seeded: float = sin(at * 12543.7 + 17.0) * 43758.5453
+	return (seeded - floor(seeded)) * 2.0 - 1.0
+
+
 ## Move every layer toward the level the mix asks for.
 ##
 ## Crossfades throughout, and the only fast one is the duck: `DES-018` makes
 ## the drop when the Hunter is baited a *designed beat*, and a beat that eased
 ## in over 1.6 s would read as the music losing its place rather than as relief.
 func _drive_layers(delta: float) -> void:
-	var duck: float = 0.12 if mix.collecting else 1.0
-	_targets["bed"] = _db_for(1.0, "bed")
-	_targets["drone"] = _db_for(smoothstep(0.02, 0.55, mix.clamor) * duck, "drone")
-	_targets["pulse"] = _db_for(smoothstep(0.35, 0.9, mix.clamor) * duck, "pulse")
-	_targets["heartbeat"] = _db_for(mix.alert * duck, "heartbeat")
-	_targets["hunter"] = _db_for(mix.hunter * duck, "hunter")
+	var duck: float = 1.0
+	match _place:
+		"deep":
+			duck = 0.12 if mix.collecting else 1.0
+			_targets["bed"] = _db_for(1.0, "bed")
+			_targets["drone"] = _db_for(
+				smoothstep(0.02, 0.55, mix.clamor) * duck, "drone")
+			_targets["pulse"] = _db_for(
+				smoothstep(0.35, 0.9, mix.clamor) * duck, "pulse")
+			_targets["heartbeat"] = _db_for(mix.alert * duck, "heartbeat")
+			_targets["hunter"] = _db_for(mix.hunter * duck, "hunter")
+		"threshold":
+			_drive_threshold()
+		"chamber":
+			_drive_chamber()
 
 	var rate: float = delta / (DUCK_CROSSFADE if mix.collecting else CROSSFADE)
 	for name: String in _players:
@@ -287,10 +475,44 @@ func _drive_layers(delta: float) -> void:
 			player.stop()
 
 
+## **A fuller camp gets a fuller arrangement** (ADR-050).
+##
+## The hearth and the warmth are unconditional. `ART-002` calls the Threshold
+## *the only safe sound in the game*, and safety that faded in over two seconds
+## every time you walked through the door would be a worse lie than no music.
+##
+## What grows is the *company*. `DES-010` wants the camp to fill in over the
+## first hour rather than arrive complete, and ADR-050 made that audible as
+## well as visible: the second instrument comes in as the place becomes
+## somewhere people live. Descents are the only camp state that exists yet —
+## the contract board, the Forge and the Quartermaster are all absent rather
+## than stubbed — so descents are what it reads. Everything `M3` and `M4` add
+## to the camp adds to this same number; nothing here needs to change for it.
+const CAMP_FULL_AT: float = 6.0
+
+func _drive_threshold() -> void:
+	_targets["hearth"] = _db_for(1.0, "hearth")
+	_targets["warmth"] = _db_for(1.0, "warmth")
+	_targets["theme"] = _db_for(1.0, "theme")
+	var settled: float = clampf(
+		float(GameState.descents - 1) / CAMP_FULL_AT, 0.0, 1.0)
+	_targets["company"] = _db_for(settled, "company")
+
+
+## Her Chamber: always on, and it does not react. Nothing that happens in here
+## is a threat or a reward — you are standing in a room with her, and the room
+## sounds the same whether you brought a fortune or nothing at all. The hoard
+## is the visible readout (`DES-014`); making the *sound* congratulate you as
+## well would turn a felt presence into a scoreboard.
+func _drive_chamber() -> void:
+	for name: String in _players:
+		_targets[name] = _db_for(1.0, name)
+
+
 func _db_for(weight: float, layer: String) -> float:
 	if weight <= 0.001:
 		return SILENCE_DB
-	var full: float = float((LAYERS[layer] as Dictionary)["db"])
+	var full: float = float((layers()[layer] as Dictionary)["db"])
 	return lerpf(SILENCE_DB, full, clampf(weight, 0.0, 1.0))
 
 

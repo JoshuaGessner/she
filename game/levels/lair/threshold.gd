@@ -62,6 +62,9 @@ var _readout: Label = null
 
 
 func _ready() -> void:
+	# The only safe sound in the game (`M2-T09`, `ART-002`). Declared before
+	# anything is built, so the first frame here already sounds like here.
+	AudioDirector.enter("threshold")
 	_build_ground()
 	_build_fire()
 	_build_doors()
@@ -70,6 +73,119 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--threshold-shot="):
 			_threshold_shot(arg.split("=", true, 1)[1])
+		elif arg == "--threshold-probe":
+			_threshold_probe()
+
+
+## The camp's own music, and the rules that hold across all three (`M2-T09`).
+##
+## `ART-002` and `ART-003` both single this piece out — *"the most important
+## piece of music in the game"*, *"the only safe sound"* — and `TEC-005` names
+## the adaptive driver the highest-risk audio tech in the project. `M2-T03`
+## built the driver for the Deep. What was still unproven is that a *place* can
+## have its own, which is what makes three sonic worlds three pieces rather
+## than one piece with the lights dimmed.
+##
+## Five assertions, and two of them are rules rather than behaviours:
+##
+## 1. **The reserved instrument is used once.** `ART-003` states it as an
+##    absolute — the Hunter's voice appears nowhere else, ever, *"not in the
+##    Threshold, not as texture, not 'just once' somewhere atmospheric"* —
+##    because the moment it is a false alarm it is worthless for the rest of
+##    the game. A rule that depends on remembering it is a rule that will be
+##    broken by whoever needs a nice sound late one night.
+## 2. **Every place has its own piece**, and no two are the same table.
+## 3. **Every piece has air.** Somewhere with no room tone is not a place.
+## 4. **The Threshold is warm on arrival.** Safety that fades in over two
+##    seconds each time you walk through the door is a worse lie than silence.
+## 5. **The arrangement fills out as the camp does** (ADR-050) — the thing that
+##    makes this a driver rather than a looping file.
+func _threshold_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ 1. the reserved instrument ─
+	var reserved: Array[String] = []
+	for piece: String in AudioDirector.PIECES:
+		var table: Dictionary = AudioDirector.PIECES[piece]
+		for layer: String in table:
+			var spec: Dictionary = table[layer]
+			if String(spec["voice"]) == AudioDirector.RESERVED_VOICE:
+				reserved.append("%s/%s" % [piece, layer])
+	print("[camp] reserved     %s plays %s" % [
+		AudioDirector.RESERVED_VOICE, ", ".join(reserved)])
+	# Spelt out rather than compared against a literal array: `x != [y] as
+	# Array[T]` binds the cast to the comparison, not the literal, and is a
+	# parse error rather than the check you meant to write.
+	if reserved.size() != 1 or reserved[0] != "deep/hunter":
+		problems.append(("the %s voice is used by %s — ART-003 reserves it for "
+			+ "the Hunter and nothing else, ever, so that hearing it is always "
+			+ "true. A second user makes every first one a coin-flip")
+			% [AudioDirector.RESERVED_VOICE, ", ".join(reserved)])
+
+	# ─ 2 and 3. three places, three pieces, all of them rooms ─
+	var seen: Array[String] = []
+	for piece: String in AudioDirector.PIECES:
+		var table: Dictionary = AudioDirector.PIECES[piece]
+		var signature: String = ",".join(table.keys())
+		var air: bool = false
+		for layer: String in table:
+			if String((table[layer] as Dictionary)["bus"]) == "ambience":
+				air = true
+		print("[camp] %-11s %d layer(s), %s" % [
+			piece, table.size(), "has air" if air else "NO AIR"])
+		if not air:
+			problems.append(("%s has no ambience layer — ART-002 wants air and "
+				+ "stone settling under everything, and a place with no room "
+				+ "tone stops being a place the moment the score rests")
+				% piece)
+		if seen.has(signature):
+			problems.append(("%s is scored by the same layers as another place "
+				+ "— the three sonic worlds are three pieces, not one piece "
+				+ "with the lights dimmed") % piece)
+		seen.append(signature)
+
+	# ─ 4. warm on arrival ─
+	await _hold(AudioDirector.CROSSFADE + 0.6)
+	var here: Dictionary = AudioDirector.layer_levels()
+	print("[camp] on arrival  %s" % [_levels_line(here)])
+	if AudioDirector.place() != "threshold":
+		problems.append("standing in the Threshold and the director is playing "
+			+ "'%s'" % AudioDirector.place())
+	for named: String in ["hearth", "warmth", "theme"]:
+		if float(here.get(named, AudioDirector.SILENCE_DB)) \
+				<= AudioDirector.SILENCE_DB + 0.5:
+			problems.append(("the Threshold's %s is silent on arrival — this is "
+				+ "the only safe sound in the game and it is not something the "
+				+ "player should have to wait out") % named)
+
+	# ─ 5. a fuller camp, a fuller arrangement ─
+	var lonely: float = float(here.get("company", AudioDirector.SILENCE_DB))
+	GameState.descents += int(AudioDirector.CAMP_FULL_AT) + 1
+	await _hold(AudioDirector.CROSSFADE + 0.6)
+	var settled: float = float(AudioDirector.layer_levels().get(
+		"company", AudioDirector.SILENCE_DB))
+	print("[camp] company     %.1f dB at one descent → %.1f dB at %d" % [
+		lonely, settled, GameState.descents])
+	if settled <= lonely + 0.5:
+		problems.append(("the arrangement did not fill out as the camp did — "
+			+ "ADR-050 makes momentum audible as well as visible, and a camp "
+			+ "that sounds the same on descent 1 and descent 8 is a looping "
+			+ "file rather than a driver"))
+
+	for problem: String in problems:
+		printerr("[camp] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+func _levels_line(levels: Dictionary) -> String:
+	var parts: PackedStringArray = PackedStringArray()
+	for name: String in levels:
+		parts.append("%s %.0f" % [name, float(levels[name])])
+	return "  ".join(parts)
+
+
+func _hold(seconds: float) -> void:
+	await get_tree().create_timer(seconds).timeout
 
 
 func _spawn_actors() -> void:

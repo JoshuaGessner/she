@@ -204,6 +204,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Does each place sound like itself (`M2-T09`)? `ART-002`'s three sonic
+	# worlds are three pieces, and the rule worth automating is the absolute
+	# one: **the Hunter's instrument is used exactly once, anywhere, ever.**
+	# When a player hears it, it is true — and a rule that survives only by
+	# being remembered is one that gets broken by whoever needs a nice sound
+	# late one night, months after anybody reads `ART-003`.
+	camp="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/lair/threshold.tscn -- --threshold-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$camp" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the camp's own music" >&2
+		printf '%s\n' "$camp" | grep -E '\[camp\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Can you leave, and does leaving late cost more (`M2-T04`)? The assertion
 	# that earns its place is ADR-015's absolute: **the player is never truly
 	# trapped.** A Sealing implemented as a lock satisfies every reading of
@@ -280,6 +294,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "every mix channel has a visual twin, the way out is never sealed shut,"
 	echo "the fallen can be carried home, the hoard outlives every death,"
 	echo "a bigger party is poorer and louder per head,"
+	echo "each place sounds like itself and her note is hers alone,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

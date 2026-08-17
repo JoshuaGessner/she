@@ -73,6 +73,11 @@ var _readout: Label = null
 
 
 func _ready() -> void:
+	# Her room, and its own piece (`M2-T09`, `ART-002`) — vast air and
+	# something slow underneath it. Before `M2-T09` this scene inherited
+	# whatever the Deep had left playing, which scored the quietest place in
+	# the game with the Hunt.
+	AudioDirector.enter("chamber")
 	# Seeded **before** anything is built, so the probe exercises the real
 	# arrival path rather than reaching past it. Launched on its own this scene
 	# has nothing to sort, because nobody extracted into it.

@@ -204,6 +204,7 @@ signal rescued(saved_peer: int, by: Player)
 
 
 func _ready() -> void:
+	AudioDirector.enter("deep")
 	_build_lighting()
 	for name: String in ROOMS:
 		_build_room(name)
@@ -634,8 +635,38 @@ func _ear_probe() -> void:
 	if loud <= quiet:
 		problems.append("making noise did not move the mix's clamor channel")
 
+	# **Silence is the default** (`ART-002`, `M2-T09`). The check above proves
+	# the score answers a loud player; this proves it says nothing to a quiet
+	# one, and only the pair is worth anything. `ART-002` asks for Floor 1 at
+	# low clamor to be *near-silent* — *"if the music always plays, the layers
+	# have nowhere to go"* — and a score that never rests loses the escalation
+	# it exists to provide, quietly and without ever failing anything.
+	#
+	# **Only the layers that read your own noise.** The first draft of this
+	# check asserted the whole score falls silent, and it failed immediately on
+	# the Hunter's note — correctly. The heartbeat is the room having heard
+	# something and the Hunter's note is the Hunter being on this floor;
+	# neither is untrue because you have since stopped moving, and a score that
+	# went quiet when a Gullsjúkr was thirty metres away would be lying to you
+	# about the most important fact available. The rule is *your* silence gets
+	# quiet, not that the world does.
+	player.clamor.silence()
+	await _hold(AudioDirector.CROSSFADE + 1.2)
+	var resting: Dictionary = AudioDirector.layer_levels()
+	print("[ear] at rest      %s" % _levels_line(resting))
+	for named: String in ["drone", "pulse"]:
+		if float(resting[named]) > AudioDirector.SILENCE_DB + 0.5:
+			problems.append(("the %s is still playing to a silent player — "
+				+ "ART-002 makes the first drone an *event*, and a score with "
+				+ "nowhere left to escalate to is one that has stopped saying "
+				+ "anything") % named)
+	if float(resting["bed"]) <= AudioDirector.SILENCE_DB + 0.5:
+		problems.append("the ambient bed stopped as well — silence is the "
+			+ "score resting, not the room disappearing")
+
 	# The score has to answer it too, or the visual is the only channel and the
 	# twin has failed from the other side.
+	player.clamor.add(Config.tuning.clamor_maximum)
 	await _hold(1.8)
 	var levels: Dictionary = AudioDirector.layer_levels()
 	print("[ear] score        %s" % [_levels_line(levels)])

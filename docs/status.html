@@ -65,7 +65,7 @@ footer{margin-top:1.2rem;color:var(--ink2);font-size:.82rem}
 code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 </style></head><body><main>
 <h1>Project SHE</h1>
-<p class="sub">M2 — The Loop Prototype · 18/44 tasks across the roadmap</p>
+<p class="sub">M2 — The Loop Prototype · 19/45 tasks across the roadmap</p>
 <p class="sub">“a playtester <strong>voluntarily abandons loot to survive</strong>, then talks about it afterwards. That&#x27;s the whole game in one moment. If it doesn&#x27;t happen, the pressure system is wrong, not the content.”</p>
 <h2>Blockers</h2>
 <div class="card"><span class="clean">None. Sequencing is clean — nothing has started ahead of its gate.</span></div>
@@ -89,8 +89,8 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <li><span class="state s-x">✔</span><span class="tid">M1-T10</span><span><strong>Shared humanoid rig — seven sockets, authored to the collider</strong> (ADR-080). <code>sock_head</code> <code>sock_hand_r</code> <code>sock_hand_l</code> <code>sock_back</code> <code>sock_hip_r</code> <code>sock_hip_l</code> <code>sock_shoulders</code>; Body and Arms are <em>skinned</em>, not socketed (ADR-057). Built to 1.80 m standing, 0.35 m radius, 1.62 m eye — the dimensions <code>M1-T01</code> was signed off against. Must exist before <em>any</em> character work; adding a socket later means re-exporting every mesh</span><span class="refs">ART-004 DES-020</span></li>
 </ul></details>
 </div>
-<div class="card now"><div class="row"><h3>M2 — The Loop Prototype</h3><span class="tag">×1.5</span><span class="count">8/9</span></div>
-<div class="track"><span class="done" style="width:88.9%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:11.1%"></span></div>
+<div class="card now"><div class="row"><h3>M2 — The Loop Prototype</h3><span class="tag">×1.5</span><span class="count">9/9</span></div>
+<div class="track"><span class="done" style="width:100.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:0.0%"></span></div>
 <div class="gate"><span class="seal pending">EXIT pending</span><span>a playtester <strong>voluntarily abandons loot to survive</strong>, then talks about it afterwards. That&#x27;s the whole game in one moment. If it doesn&#x27;t happen, the pressure system is wrong, not the content.</span></div>
 <div class="gate"><span class="seal pending">COOP pending</span><span>someone carries a friend&#x27;s ember out and it is the best moment of the session.</span></div>
 <details><summary>9 tasks</summary><ul class="tasks">
@@ -102,7 +102,7 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <li><span class="state s-x">✔</span><span class="tid">M2-T05</span><span>Death: lose it all — plus <strong>downed state and ember rescue</strong> (<code>DES-012</code>). <em>The other half of <code>DES-002</code>&#x27;s loop: <code>M2-T04</code> built &quot;extract&quot;, this builds &quot;or die&quot;. <strong>The ember is an <code>ItemResource</code></strong>, so the sacrifice falls out of the grid, the scales and the clamor floor rather than being special-cased — 3.40 → 2.94 m/s and silent → heard at 2.2 m for whoever carries it (ADR-092). <code>ItemInstance</code> gains <code>bound_to</code>, its first mutable field, exactly as ADR-084 said it would. Vörðr <strong>Return</strong> and Scars are absent, not approximated — both need the LIFE <code>M3</code> builds</em></span><span class="refs">DES-002 DES-003 DES-008 DES-012</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M2-T06</span><span>Minimal Lair: stash and re-descend — <em>and with it the <strong>Settle beat</strong> <code>M2-T04</code> deliberately left absent: what you brought, the keep-or-give decision made physically at the hoard (<code>DES-019</code>). <strong>Chamber and Threshold as two scenes</strong> (ADR-021); the Chamber has no <code>CoopSession</code> in it at all, which is what makes &quot;never networked&quot; structural rather than remembered. Tribute is the drag-out-of-the-bag gesture, and the place you are standing decides what it means. <code>GameState</code> holds <code>DES-003</code>&#x27;s three tiers — <strong>the stash dies with you, the hoard never does</strong>. The game now boots into the Threshold (ADR-095). <strong>The re-descend half was missing and this was ticked anyway</strong> — the stash was write-only for two milestones, because nothing ever called <code>GameState.withdraw()</code> and the doorway that documented itself as the loadout never loaded one. Closed by ADR-098, which found it through an orphaned function rather than through play</em></span><span class="refs">DES-002 DES-008 DES-014 DES-019</span></li>
 <li><span class="state s-x">✔</span><span class="tid">M2-T07</span><span><strong>Party scaling instrumented from the first build</strong>: per-capita extracted value at 1/2/4 players</span><span class="refs">DES-012 TEC-004</span></li>
-<li><span class="state ">·</span><span class="tid">M2-T09</span><span><strong>Threshold theme + adaptive driver prototype</strong> — the emotional anchor and the highest-risk audio tech, both cheap to test early</span><span class="refs">ART-002 ART-003 TEC-005</span></li>
+<li><span class="state s-x">✔</span><span class="tid">M2-T09</span><span><strong>Threshold theme + adaptive driver prototype</strong> — the emotional anchor and the highest-risk audio tech, both cheap to test early</span><span class="refs">ART-002 ART-003 TEC-005</span></li>
 </ul></details>
 </div>
 <div class="card"><div class="row"><h3>M3 — The Pact</h3><span class="tag">×2</span><span class="count">0/8</span></div>
@@ -120,10 +120,10 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <li><span class="state ">·</span><span class="tid">M3-T08</span><span><strong>Deeds awarded at the Settle beat</strong> — never mid-run; the run must end on evidence of what you did</span><span class="refs">DES-016</span></li>
 </ul></details>
 </div>
-<div class="card"><div class="row"><h3>M4 — Vertical Slice</h3><span class="tag">unsized</span><span class="count">0/11</span></div>
+<div class="card"><div class="row"><h3>M4 — Vertical Slice</h3><span class="tag">unsized</span><span class="count">0/12</span></div>
 <div class="track"><span class="done" style="width:0.0%"></span><span class="doing" style="width:0.0%"></span><span class="left" style="width:100.0%"></span></div>
 <div class="gate"><span class="seal pending">EXIT pending</span><span>shippable-quality <strong>25 minutes</strong> ⟨tune⟩, played solo <em>and</em> as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.</span></div>
-<details><summary>11 tasks</summary><ul class="tasks">
+<details><summary>12 tasks</summary><ul class="tasks">
 <li><span class="state ">·</span><span class="tid">M4-T01</span><span>The Delvings: full generation from room modules, 3 floors — <em>first point at which the Hunt can vary by floor and persist across one (<code>DES-017</code>, ADR-037), and at which <strong>the Sealing can lock a Shaft</strong> rather than only make it worse (<code>DES-005</code>, ADR-091) — both need a floor beneath the one you are on</em></span><span class="refs">DES-015 DES-006 DES-017 DES-005</span></li>
 <li><span class="state ">·</span><span class="tid">M4-T02</span><span>~6 enemy archetypes, 2 hazard types</span><span class="refs">DES-013</span></li>
 <li><span class="state ">·</span><span class="tid">M4-T03</span><span><strong>Two classes</strong>, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. <em>The other four move to M5 (ADR-061).</em></span><span class="refs">DES-011</span></li>
@@ -134,6 +134,7 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <li><span class="state ">·</span><span class="tid">M4-T07</span><span><strong>Steam networking integration</strong> (lobbies, invites, relay) — before any external playtest</span><span class="refs">TEC-004</span></li>
 <li><span class="state ">·</span><span class="tid">M4-T08</span><span><strong>Ink shader, complete</strong> — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library</span><span class="refs">ART-005</span></li>
 <li><span class="state ">·</span><span class="tid">M4-T09</span><span><strong>Composer onboarded; first full stem set</strong> — brief handed over as-is, stems authored to one tempo and key</span><span class="refs">ART-003</span></li>
+<li><span class="state ">·</span><span class="tid">M4-T12</span><span><strong>Audio occlusion and reverb zones</strong> — raycast → lerp <code>attenuation_filter_cutoff_hz</code>, and <code>Area3D</code> reverb driven by the player&#x27;s current cell. <em>Split out by ADR-099: <code>M2-T03</code> and <code>M2-T09</code> built the adaptive driver, and <code>TEC-005</code> was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by <code>ART-002</code>&#x27;s own costing, and <strong>portal propagation is for the Gullsjúkr only</strong>, never a general system</em></span><span class="refs">TEC-005 ART-002 DES-015</span></li>
 <li><span class="state ">·</span><span class="tid">M4-T10</span><span><strong>Phase 2→3 asset production</strong> — real models replacing blockout, per the schedule and specs</span><span class="refs">ART-004</span></li>
 </ul></details>
 </div>
@@ -155,6 +156,6 @@ code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace}
 <h2>Warnings (2)</h2>
 <div class="card warn"><span class="code">untuned</span> DES-009 is fully implemented (M1-T01, M1-T02) but still has 4 ⟨tune⟩ marker(s)<br><span class="fix">→ tune the numbers against play, or accept them as final</span></div>
 <div class="card warn"><span class="code">untuned</span> TEC-001 is fully implemented (M1-T07, M1-T08) but still has 1 ⟨tune⟩ marker(s)<br><span class="fix">→ tune the numbers against play, or accept them as final</span></div>
-<div class="stats"><span><b>39</b> docs</span><span><b>39</b> accepted</span><span><b>98</b> ADRs</span><span><b>12</b> open questions</span><span><b>96</b> ⟨tune⟩ markers</span></div>
+<div class="stats"><span><b>39</b> docs</span><span><b>39</b> accepted</span><span><b>99</b> ADRs</span><span><b>12</b> open questions</span><span><b>97</b> ⟨tune⟩ markers</span></div>
 <footer><!-- generated-stamp -->Regenerated 2026-08-17 by <code>tools/status.py --write</code>. Source of truth: <code>PRO-001</code> (ADR-063). Progress is scope covered, never time remaining (ADR-034).</footer>
 </main></body></html>

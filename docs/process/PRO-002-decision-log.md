@@ -1609,4 +1609,33 @@ The floor now loads the local body's stash at generation. Local and host-side ar
 
 Every one of these was invisible to a checker that only asks *"does this work?"* — because each of them worked. The question that found them is **"does anything use this?"**, and the two are not the same question. The stash proves it: `keep()` worked, `stash_changed` fired, the `--lair-probe` asserted the stash survives a run and dies with you, and all of it was true about a container with no way out.
 
+## ADR-099 — `M2-T09`: three places, three pieces, and one note that is only ever hers
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `ART-002`, `TEC-005`, `PRO-001`** · **Implements ADR-050**
+
+**Context:** `M2-T03` built the adaptive driver and ADR-090 settled that raw Godot is the right tool for it. What `M2-T09` owes is `ART-003`'s *"most important piece of music in the game"* — and, underneath it, the thing that was never actually true: that a **place** could have its own.
+
+**Decision 1 — one flat layer table becomes three pieces, and a level says where it is.** Before this, `AudioDirector` had a single `LAYERS` dict driven by `HuntMix`. Every scene inherited it. So the Threshold and her Chamber — the safest and the strangest rooms in the game — were both scored by music written to say *how much trouble you are in*. Nobody had noticed, because a synthesised drone sounds plausible anywhere.
+
+`AudioDirector.enter(place)`, called by the level in `_ready`, and the director starts with **no piece at all**. A director that guessed would guess the Deep, and the first thing a new player hears would be the Hunt playing over a campfire.
+
+Her Chamber got its piece in the same change rather than later. Not scope creep — *adding* place-switching is what made "the Chamber plays the Deep's music" a decision rather than an oversight, and leaving it would have been choosing the wrong one.
+
+**Decision 2 — the reserved instrument is structural, and CI holds it.** `ART-003` states it as an absolute: *"One instrument is reserved for the Hunter and appears nowhere else in the game. Ever. Not in the Threshold, not as texture, not 'just once' somewhere atmospheric… When the player hears it, it is always true."*
+
+That rule is worth more than most systems in the design and it has no defence except memory. It will be broken by whoever needs a nice sound late one night, months after anyone last read `ART-003`, and the damage is not one bad cue — it is that **every previous time the player heard it retroactively becomes a coin-flip.** A warning that is sometimes false is worse than no warning, because players act on it.
+
+So every layer declares a `voice`, and `--threshold-probe` fails if `bowed` appears anywhere but `deep/hunter`. Planting a second user fires it by name.
+
+**Decision 3 — the Threshold is warm on arrival, and fills out as the camp does.** The hearth and the drone are unconditional: `ART-002` calls this *the only safe sound in the game*, and safety you have to wait two seconds for each time you walk through the door is a worse lie than silence. What grows is the **company** — a second instrument, arriving as the place becomes somewhere people live, which is ADR-050's *"a fuller camp gets a fuller arrangement"* and the entire reason this is a driver rather than a looping file.
+
+Descents are the only camp state that exists yet — the contract board, the Forge and the Quartermaster are absent rather than stubbed — so descents are what it reads. Everything `M3` and `M4` add to the camp adds to the same number, and nothing here changes for it.
+
+**Decision 4 — silence is asserted, not merely intended.** `ART-002` is emphatic that the most common mistake in the genre is scoring everything, and that Floor 1 at low clamor should be near-silent so the first drone is an *event*. That is exactly the kind of rule that decays without ever failing anything. `--ear-probe` now checks both directions: the score answers a loud player **and** says nothing to a quiet one.
+
+**And the check corrected me on its first run.** The first draft asserted the whole score falls silent, and it failed immediately on the Hunter's note. It was right to. The heartbeat is the room having heard something; the Hunter's note is the Hunter being on this floor. Neither becomes untrue because you have since stopped moving, and a score that went quiet with a Gullsjúkr thirty metres away would be lying about the most important fact available. **The rule is that your silence gets quiet, not that the world does** — and only the layers reading your own clamor are held to it.
+
+**And a third thing the tooling caught on the way out.** Ticking this task made `status.py` report `TEC-005` as *fully implemented* — because `M2-T03` and `M2-T09` were its only citers and both were now done. But `TEC-005`'s occlusion and reverb-zone sections are neither built nor planned, and its one remaining ⟨tune⟩ marker belongs to a filter cutoff no code sets. The same fault this project has now hit three times: **a document reads as finished when the tasks that happen to cite it are finished, whatever else it still says.** Split out as `M4-T12` rather than left for whoever eventually wonders why the Deep does not sound like stone.
+
+**On what is blockout and what is not.** Every note here is synthesised and `ART-002` says plainly to consider commissioning the score. What `M2-T09` owns is the **architecture**, and that is what a composer is handed: the stem layout, one key (D natural minor), one phrase length, every layer valid against every other, and the reserved voice already fenced off by a test. `ART-003` warns that a normally-composed soundtrack cannot be retrofitted into this system — the point of building it now, at `M2` rather than `M4`, is that nothing has to be.
+
 *Entries below to be added as design decisions are signed off.*

@@ -4,7 +4,7 @@ title: Audio Design
 status: accepted
 owner: art
 tags: [audio, music, sound-design, clamor, godot, budget]
-updated: 2026-08-14
+updated: 2026-08-17
 related: [ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001]
 ---
 
@@ -100,6 +100,16 @@ When everything happens at once, this is the order things survive in:
 - **Reverb zones — built into Godot.** `Area3D.reverb_bus_*` and `audio_bus_override`, driven by the player's current cell (`DES-015`). *Corrected: an earlier draft listed this as a cost. It is not.*
 - **Occlusion — no built-in feature, but cheap to write.** `AudioStreamPlayer3D.attenuation_filter_cutoff_hz` is a per-source low-pass settable at runtime, so occlusion is raycast → lerp the cutoff. ⟨~a week for gradient occlusion⟩. **Portal-based propagation only for the Gullsjúkr**, not as a general system. Full analysis and the engine evaluation it triggered are in **`TEC-005`**.
 - **Networking:** audio is entirely client-side, driven by replicated *state* (`TEC-004`). **Never replicate sounds.** Each client resolves its own mix from Hunt state, alert states, and positions.
+
+> **BUILT AT `M2-T09` (ADR-099).** The **three sonic worlds are three pieces**, and a level declares which by calling `AudioDirector.enter()`. Until this there was one flat layer table, so the Threshold and her Chamber were both scored by the Hunt — the safest and the strangest rooms in the game playing music written to say how much trouble you are in.
+>
+> **The reserved instrument is enforced by CI, not by memory.** Every layer declares a `voice`; the Hunter's may appear exactly once in the whole game, and `--threshold-probe` fails if a second ever does. Worth automating because breaking it does not produce one bad cue — it retroactively makes *every* previous time the player heard it a coin-flip, and a warning that is sometimes false is worse than no warning at all.
+>
+> **Silence is asserted in both directions.** `--ear-probe` checks that the score answers a loud player *and* says nothing to a quiet one. Only the layers reading the player's own clamor are held to it: the heartbeat is the room having heard something, the Hunter's note is the Hunter being on this floor, and neither becomes untrue because you stopped moving. **Your silence gets quiet; the world does not.**
+>
+> The Threshold is **warm on arrival** — safety you have to wait out is a worse lie than silence — and its arrangement fills out as the camp does (ADR-050), driven by descents because descents are the only camp state that exists yet.
+>
+> Blockout notes (ADR-046), real architecture: one key (D natural minor), one phrase length, every layer valid against every other, and the reserved voice already fenced off by a test. Which is precisely the thing this document says cannot be retrofitted onto a normally-composed score — so it is built before there is one.
 
 ## Scope, honestly (solo project — ADR-034)
 
