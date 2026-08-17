@@ -70,6 +70,11 @@ func _ready() -> void:
 	_build_doors()
 	_spawn_actors()
 	_build_readout()
+	var hud := CanvasLayer.new()
+	hud.layer = 5
+	add_child(hud)
+	hud.add_child(Reticle.new())
+	add_child(PauseMenu.new())
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--threshold-shot="):
 			_threshold_shot(arg.split("=", true, 1)[1])

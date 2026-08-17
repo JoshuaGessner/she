@@ -1648,4 +1648,53 @@ Then it was planted: restricting `ItemCatalogue` to `.tres` only — ADR-086's o
 
 **On what is blockout and what is not.** Every note here is synthesised and `ART-002` says plainly to consider commissioning the score. What `M2-T09` owns is the **architecture**, and that is what a composer is handed: the stem layout, one key (D natural minor), one phrase length, every layer valid against every other, and the reserved voice already fenced off by a test. `ART-003` warns that a normally-composed soundtrack cannot be retrofitted into this system — the point of building it now, at `M2` rather than `M4`, is that nothing has to be.
 
+## ADR-100 — A front door, a way out, and the two systems that were built but never shown
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-018`, `TEC-004`, `PRO-001`** · **Precedes the `M2` gates**
+
+**Context:** `M2` is task-complete and both its gates are playtest gates. Neither can be run: there was no main menu, no way to leave a level except killing the process, no way to change a volume except editing a file, no way for two people on different machines to meet, and no sound for anything the world does. This is the pass that makes the two gates *runnable*.
+
+### The front door
+
+`run/main_scene` is now `ui/main_menu.tscn`. **PLAY, HOST, JOIN, SETTINGS, QUIT**, and Escape opens a pause menu in every level with SETTINGS and a way home.
+
+Solo is not a special case: PLAY sets `NetPlan.Role.SOLO` and loads the same scene the host does, because `TEC-004` measured that a host with no peers *is* single-player (ADR-064 — no second path to drift).
+
+**The pause menu does not pause.** `DES-019` makes the bag real-time because rummaging is meant to be vulnerable, and a menu that froze the world would hand back exactly the safety the inventory exists to deny. It is also the only honest reading in co-op, where `get_tree().paused` on one peer pauses nothing for the other three. What it *does* do is stop the body taking orders — you stand still in the Deep while you read it.
+
+**Leaving costs what leaving costs.** `ABANDON THE RUN` calls `GameState.die()`. A menu that let you bank a risky haul by quitting would make every extraction optional.
+
+**Death now ends.** Bleeding out dropped an ember and left you lying on the floor indefinitely; it now runs the great reset and returns you to the Threshold. The Vörðr — `DES-012`'s spectating ghost — is `M3` and is absent rather than approximated.
+
+### Joining, described honestly
+
+`NetPlan` is a static class (no autoload — `TEC-001` budgets six and names them) holding one thing: how this process intends to connect. The command line writes into it *and so does the menu*, and `CoopSession` reads nothing else. A join code is ten Crockford base-32 characters — no I, L, O or U, so a code read aloud cannot become a different code.
+
+**It is not matchmaking and it does not solve NAT**, and the host screen says so where a tester will actually read it. There is no relay and no hole-punching: a second machine reaches this one on the same LAN, through a forwarded port, or over Tailscale. Pretending otherwise would cost somebody an evening and read as a netcode bug.
+
+The shape survives `M4-T07` because Steam changes **where an address comes from** and nothing about what the session does with it. Direct entry stops being the only way rather than becoming a fallback nobody maintains.
+
+### The sound of the world
+
+`Foley` — ten synthesised one-shots on the diegetic bus. `ART-002` is unambiguous that this layer matters more than the music, and the music got built first because it was the risky half.
+
+The one that earns its place: **a footfall drops in pitch and rises in level with what you are carrying.** *"If a player can close their eyes and hear how rich they are, this system works"* — and it cost two lines, because `CarriedWeight` already knew the answer. Second is `NOTICED`, the cue when an enemy hears you, which is what makes `DES-005`'s *"explain your death in one sentence"* answerable at all.
+
+### Two systems that were built, correct, and invisible
+
+**The Ear was never instantiated.** It has existed since `M2-T03`; nothing anywhere created one. `--ear-probe` compares `HuntMix.CHANNELS` against `Ear.RENDERED` — both constants — so the parity check passed for two milestones while the visual channel was **never drawn**. `DES-018`'s standing rule is that from `M2` the build must be completable with sound muted. It was not, and every check said it was.
+
+**`Player._reaching_for` was never shown.** The value has known what you would pick up since `M2-T01`. Without a reticle a tester walks a floor covered in loot pressing the key to find out what is reachable, and every "the pickup feels unreliable" report is really this.
+
+Both are the ADR-097 fault a third and fourth time — *code that is correct, tested, and never reached* — and `check_dead.py` cannot see either, because in both cases the **class** is referenced by the probe that tests it. That limit is real and is written into the tool's own output; the lesson is that a name check and a reachability check are different things, and only playing the game or photographing it finds the second kind.
+
+### The screenshots earned their place again
+
+Headless probes passed while the settings panel rendered at x=0 with its title left of its own buttons, and while every checkbox indicator was clipped. `set_anchors_preset` does not move offsets; `set_anchors_and_offsets_preset` does. **Anything whose correctness is a claim about seeing gets photographed** — that is now four separate defects this rule has caught.
+
+### Settings are preferences, not tuning
+
+`Settings` writes `user://settings.cfg`. Deliberately **not** `TEC-003`'s save system: no run state, no progression, no migration path. Conflating them is how a save migration silently wipes somebody's audio. Per-bus volumes are `DES-018`'s ask; the full accessibility suite is `M4-T11` and is absent rather than half-present, because a greyed row promising high contrast is worse than no row.
+
+Every control applies live. A slider you must close the panel to hear is one you cannot set by ear, which is the only way anybody sets a volume.
+
 *Entries below to be added as design decisions are signed off.*

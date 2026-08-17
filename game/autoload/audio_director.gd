@@ -65,6 +65,10 @@ var _ready_to_mix: bool = false
 
 func _ready() -> void:
 	_build_buses()
+	# The player's volumes, now that there are buses to set them on. `Config`
+	# loads the preferences a frame earlier and cannot apply the audio half,
+	# because these buses did not exist yet.
+	Settings.apply()
 	# No piece until a level says where it is. A director that guessed would
 	# guess the Deep, and the first thing a new player hears would be the Hunt
 	# playing over a campfire.

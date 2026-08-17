@@ -72,9 +72,18 @@ var _state: State = State.UNAWARE:
 	set(next):
 		if next == _state:
 			return
+		var was: State = _state
 		_state = next
 		if is_node_ready():
 			_apply_state()
+			# **You were heard**, and this is the cue `DES-005` needs to exist
+			# for the game to be explainable: *"the player should be able to
+			# explain their death in one sentence"*, and "something noticed me
+			# and I kept going" is only available to someone who was told. It
+			# is deliberately not subtle — being noticed is the moment the run
+			# changes, and a tasteful version of it would be a worse game.
+			if next == State.ALERTED and was != State.STAGGERED:
+				Foley.at(self, Foley.Sound.NOTICED)
 
 ## Drives the telegraph tint, so it has to reach clients: DES-009 puts a 250 ms
 ## floor under the wind-up specifically so a player can *read* it, and a

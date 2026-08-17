@@ -97,6 +97,11 @@ func _ready() -> void:
 	_build_door()
 	_spawn_body()
 	_build_readout()
+	var hud := CanvasLayer.new()
+	hud.layer = 5
+	add_child(hud)
+	hud.add_child(Reticle.new())
+	add_child(PauseMenu.new())
 	for arg: String in OS.get_cmdline_user_args():
 		if arg == "--lair-probe":
 			_lair_probe()

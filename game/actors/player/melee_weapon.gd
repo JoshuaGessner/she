@@ -121,6 +121,7 @@ func begin_owned_swing() -> void:
 		return
 	_enter(Phase.WINDUP, Config.tuning.swing_windup)
 	swing_started.emit()
+	Foley.at(self, Foley.Sound.SWING, randf_range(0.94, 1.08))
 
 
 func _enter(next: Phase, duration: float) -> void:

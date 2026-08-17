@@ -120,7 +120,13 @@ func advance(delta: float) -> void:
 		# Stepped out. `DES-005` wants the Shaft dangerous, not sticky.
 		_reset()
 		return
+	var before: float = _progress
 	_progress += delta / maxf(channel_seconds(), 0.001)
+	# A tick every quarter of the climb, so holding it *sounds* like progress.
+	# `DES-018` wants every audio channel to have a visual twin and vice versa;
+	# a channel with a bar and no sound is the same failure from the other side.
+	if int(before * 4.0) != int(_progress * 4.0):
+		Foley.at(self, Foley.Sound.CHANNEL, 0.9 + _progress * 0.5)
 	# Loud the whole time, not once at the end. The noise is what makes using a
 	# known location dangerous, and a single deposit at the finish would be a
 	# cost you only pay after you have already got away with it.

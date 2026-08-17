@@ -217,6 +217,8 @@ func _ready() -> void:
 	var overlays := DebugOverlays.new()
 	_world.add_child(overlays)
 	overlays.show_field(_field)
+	_build_hud()
+	add_child(PauseMenu.new())
 	# Any probe at all means this process is measuring the floor rather than
 	# playing the loop, so extraction must not change scene out from under it.
 	for arg: String in OS.get_cmdline_user_args():
@@ -1284,6 +1286,30 @@ const PROBE_TAKE_FROM: Vector3 = Vector3(9.4, 0.1, -6.8)
 const PROBE_RESCUE_AT: Vector3 = PROBE_WALK_FROM
 const PROBE_TIMEOUT_MSEC: int = 15000
 
+## Where the loop goes when it ends badly. Extraction goes to the Chamber to
+## sort a haul; death has no haul to sort, so it lands at the fire.
+const THRESHOLD_SCENE: String = "res://levels/lair/threshold.tscn"
+
+
+## **The Ear, on screen at last, and a reticle** (`DES-018`).
+##
+## The Ear has existed since `M2-T03` and **nothing ever instantiated it.**
+## `--ear-probe` compares `HuntMix.CHANNELS` against `Ear.RENDERED` and both
+## are constants, so the parity check passed for two milestones while the
+## visual channel was never drawn at all — the ADR-097 fault again, in the one
+## place `DES-018` cannot tolerate it: *"from M2, the build must be completable
+## with sound muted."* It was not, and nothing said so.
+##
+## The reticle is the other half of the same complaint. `Player._reaching_for`
+## has known what you would pick up since `M2-T01`; a player had no way to see
+## it, so every "the pickup feels unreliable" report was really about this.
+func _build_hud() -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 5
+	add_child(layer)
+	layer.add_child(Ear.new())
+	layer.add_child(Reticle.new())
+
 ## How much floor has already been laid, so an arriving player tops it up
 ## rather than doubling it. See `_on_party_changed`.
 var _enemies_placed: int = 0
@@ -2002,6 +2028,30 @@ func _on_died_here(player: Player, at: Vector3) -> void:
 		Vector3.ZERO, true, player.get_multiplayer_authority())
 	print("[death] %s went out — their ember is on the floor at %.0f, %.0f" % [
 		player.name, at.x, at.z])
+	if player.is_multiplayer_authority():
+		_the_run_ended()
+
+
+## **You went out.** The run is over for this player and the loop has to close
+## for them, or they lie on the floor until they alt-tab.
+##
+## `DES-008`'s great reset: everything carried and everything stashed is gone,
+## and the hoard is untouched. Then home — because `DES-014` makes the Lair the
+## place you return to, and returning to a menu would make death an interruption
+## rather than a beat.
+##
+## **The Vörðr is not this.** `DES-012` has the dead spectate as a ghost that
+## can watch and lure, and `M3` builds it; going home immediately is what
+## happens until there is a LIFE to lose and something to do while dead. Absent
+## rather than approximated (ADR-064) — a grey screen labelled *spectating* that
+## did nothing would be worse than a clean return.
+func _the_run_ended() -> void:
+	if _probing:
+		return
+	GameState.die()
+	print("[death] the great reset — carried and stash gone, hoard intact "
+		+ "at %d" % GameState.hoard_value)
+	get_tree().change_scene_to_file(THRESHOLD_SCENE)
 
 
 ## Someone got out (`M2-T04`). **This is the Settle beat, and almost none of it

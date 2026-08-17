@@ -92,16 +92,23 @@ func _ready() -> void:
 			_spawn_player(HOST_PEER)
 
 
+## Where this process is connecting, from `NetPlan` and nowhere else.
+##
+## The command line writes into the plan first, so probes and CI are unchanged
+## and the main menu writes into the same place. Two callers, one answer — the
+## alternative was a session that read `--host` itself and a menu with nowhere
+## to put what the player chose.
 func _parse_args() -> void:
-	for arg: String in OS.get_cmdline_user_args():
-		if arg == "--host":
+	NetPlan.adopt_cmdline(OS.get_cmdline_user_args())
+	match NetPlan.role:
+		NetPlan.Role.HOST:
 			_role = "host"
-		elif arg.begins_with("--join"):
+		NetPlan.Role.CLIENT:
 			_role = "client"
-			if arg.contains("="):
-				_address = arg.split("=", true, 1)[1]
-		elif arg.begins_with("--port="):
-			_port = int(arg.split("=", true, 1)[1])
+		_:
+			_role = "solo"
+	_address = NetPlan.address
+	_port = NetPlan.port
 
 
 # ── transport ─────────────────────────────────────────────────────────────

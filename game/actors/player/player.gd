@@ -154,6 +154,8 @@ var _pitch: float = 0.0
 var _crouching: bool = false
 var _crouch_latched: bool = false
 var _is_local: bool = false
+## False while a menu has the player's attention. See `set_driving`.
+var _driving: bool = true
 
 ## 0 shut, 1 fully open. A float rather than a bool because `DES-019` charges
 ## *time* for opening the bag — you kneel and rummage while the floor keeps
@@ -351,15 +353,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		var motion := event as InputEventMouseMotion
 		var tuning: TuningProfile = Config.tuning
 		var limit: float = deg_to_rad(tuning.pitch_limit_degrees)
-		_yaw -= motion.relative.x * tuning.mouse_sensitivity
-		_pitch = clampf(_pitch - motion.relative.y * tuning.mouse_sensitivity, -limit, limit)
+		# The tuned value is the baseline; the player's preference scales it, so
+		# "default" always means the number the designer chose (`Settings`).
+		var speed: float = tuning.mouse_sensitivity * Settings.look_scale()
+		_yaw -= motion.relative.x * speed
+		_pitch = clampf(_pitch - motion.relative.y * speed * Settings.pitch_sign(),
+			-limit, limit)
 		rotation.y = _yaw
 		_head.rotation.x = _pitch
-	elif event.is_action_pressed("ui_cancel"):
-		if _bag_wanted:
-			_bag_wanted = false
-		else:
-			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# `ui_cancel` is **not** handled here. `PauseMenu` owns Escape and closes
+	# the bag through `close_bag()` when it is open, because two
+	# `_unhandled_input` handlers competing for one key resolve by tree order —
+	# which is not a thing to rely on for the key that gets you out.
 	elif event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		if InputDevices.pointer_allowed() and not _bag_wanted:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -398,6 +403,36 @@ func _unhandled_input(event: InputEvent) -> void:
 #
 # This is the room set's Prize logic, moved rather than copied (ADR-073). There
 # is one loot path in the project and the level has none of it.
+
+
+## Shut it, without toggling. `PauseMenu` calls this so one press of Escape
+## closes the bag and a second one opens the menu.
+##
+## Reads `_bag_wanted` rather than `bag_is_open()`, which is about the *visual*
+## transition and stays true for a moment after the bag has been told to shut —
+## long enough that a second Escape would be swallowed by a bag already closing.
+func wants_bag() -> bool:
+	return _bag_wanted
+
+
+func close_bag() -> void:
+	_bag_wanted = false
+
+
+## What this body would pick up right now, or null. Read by `Reticle`, which is
+## the first thing that ever drew it — the value has existed since `M2-T01` and
+## the player had no way to see it.
+func reaching_for() -> WorldItem:
+	return _reaching_for
+
+
+## Whether this body is taking orders. `PauseMenu` turns it off while a menu is
+## open — the world keeps running, so the consequence of opening one is that
+## you stand still in it.
+func set_driving(on: bool) -> void:
+	_driving = on
+	if not on:
+		_bag_wanted = false
 
 
 ## The bag changed on whichever peer holds it.
@@ -514,6 +549,10 @@ func _take(path: NodePath) -> void:
 	# somebody (`DES-012`).
 	taken.bound_to = item.bound()
 	clamor.add(_handling_clamor(definition))
+	# Pitched by how heavy the thing is, so a plate and a gemstone are not the
+	# same event (`ART-002` — the player should hear what they are carrying).
+	Foley.at(self, Foley.Sound.EMBER if taken.is_ember() else Foley.Sound.CLINK,
+		lerpf(1.35, 0.75, clampf(definition.weight / 12.0, 0.0, 1.0)))
 	item.queue_free()
 
 
@@ -586,6 +625,10 @@ func _put_down(instance_id: int, thrown: bool) -> void:
 		var tilt: float = deg_to_rad(THROW_LIFT_DEGREES)
 		launch = (forward * cos(tilt) + Vector3.UP * sin(tilt)) * THROW_SPEED
 	dropped.emit(item, at, rotation.y, launch)
+	# A throw is lighter and sharper than setting something down; both are the
+	# sound of your bag getting lighter, which `DES-005` wants to feel like
+	# relief rather than loss.
+	Foley.at(self, Foley.Sound.THUMP, 1.3 if thrown else 0.95)
 
 
 ## Ask to move something within the grid. Host-authoritative like everything
@@ -1133,6 +1176,7 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 		clamor.add(tuning.clamor_landing * carried.scale_by_load(
 			tuning.clamor_footstep_at_capacity
 		))
+		_footfall(0.82)
 		return
 	if not grounded:
 		return
@@ -1147,6 +1191,21 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 	elif _is_sprinting(distance / maxf(delta, 0.0001), tuning):
 		amount *= tuning.clamor_sprint_multiplier
 	clamor.add(amount * carried.scale_by_load(tuning.clamor_footstep_at_capacity))
+	_footfall(1.0 if stance <= 0.5 else 1.22)
+
+
+## **The sound of your own greed** (`ART-002`). A footfall drops in pitch and
+## rises in level with what you are carrying, so a full bag *sounds* heavy on
+## every single step rather than being a number on a bar.
+##
+## This is the cheapest version of the loop `ART-002` says the whole game rests
+## on — *"if a player can close their eyes and hear how rich they are, this
+## system works"* — and it costs two lines because `CarriedWeight` already
+## knows the answer.
+func _footfall(pitch: float) -> void:
+	var load: float = carried.encumbrance()
+	Foley.at(self, Foley.Sound.STEP, pitch * lerpf(1.0, 0.72, load),
+		lerpf(-6.0, 1.0, load))
 
 
 ## Sprinting, as the host can see it: fast enough that walking does not explain
@@ -1158,6 +1217,11 @@ func _is_sprinting(speed: float, tuning: TuningProfile) -> bool:
 
 
 func _wish_direction() -> Vector3:
+	# Hands off the controls while a menu is up. The world does **not** pause
+	# (`PauseMenu`), so this is not safety — it is the opposite: you stopped
+	# driving, and the Deep did not stop with you.
+	if not _driving:
+		return Vector3.ZERO
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction: Vector3 = (transform.basis * Vector3(input.x, 0.0, input.y))
 	direction.y = 0.0

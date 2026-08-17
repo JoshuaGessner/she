@@ -48,7 +48,12 @@ CALLS_UP = re.compile(r"\bget_parent\(\)\s*\.")
 # ADR-064. A placeholder is permitted only with a named replacement task ID and
 # a milestone by which it is gone. The task ID is the thing we can check for.
 PLACEHOLDER_WORDS = re.compile(
-    r"\b(TODO|FIXME|XXX|HACK|stub|stubbed|placeholder|for now)\b", re.IGNORECASE
+    # `(?![\w])` alone is not enough: `placeholder_text` is a Godot property
+    # and `stub` appears inside plenty of ordinary words. The trailing guard
+    # rejects a following underscore too, so an engine identifier that happens
+    # to contain the word is not read as a promise nobody kept.
+    r"(?<![\w])(TODO|FIXME|XXX|HACK|stub|stubbed|placeholder|for now)(?![\w_])",
+    re.IGNORECASE
 )
 # A task ID carries both halves of ADR-064's exception — the replacement and
 # the milestone it lands in. An ADR reference marks prose that is *stating* the

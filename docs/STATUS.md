@@ -8,14 +8,14 @@
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
-`19/45` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`20/46` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>9/9"]:::current
+  M2["M2 The Loop Prototype<br/>10/10"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 9/9 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 10/10 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/12 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -79,6 +79,7 @@ _None. Sequencing is clean._
 - ✔ `M2-T06` Minimal Lair: stash and re-descend — *and with it the **Settle beat** `M2-T04` deliberately left absent: what you brought, the keep-or-give decision made physically at the hoard (`DES-019`). **Chamber and Threshold as two scenes** (ADR-021); the Chamber has no `CoopSession` in it at all, which is what makes "never networked" structural rather than remembered. Tribute is the drag-out-of-the-bag gesture, and the place you are standing decides what it means. `GameState` holds `DES-003`'s three tiers — **the stash dies with you, the hoard never does**. The game now boots into the Threshold (ADR-095). **The re-descend half was missing and this was ticked anyway** — the stash was write-only for two milestones, because nothing ever called `GameState.withdraw()` and the doorway that documented itself as the loadout never loaded one. Closed by ADR-098, which found it through an orphaned function rather than through play* `DES-002` `DES-008` `DES-014` `DES-019`
 - ✔ `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players `DES-012` `TEC-004`
 - ✔ `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early `ART-002` `ART-003` `TEC-005`
+- ✔ `M2-T10` **Playable shell**: main menu, settings, pause and the way back out, join codes, and the diegetic blockout layer — *added by ADR-100 because both `M2` gates are playtest gates and neither could be run: no front door, no way to leave a level but killing the process, no way to change a volume, no way for two machines to meet, and no sound for anything the world does. **A join code is a shorter way to write an address, not matchmaking** — no relay, no hole-punching, and the host screen says so; `M4-T07` replaces where the address comes from and nothing else. Also fixed two systems that were built, correct and **never shown**: the Ear was never instantiated (so `DES-018`'s muted-playable rule was false while every check passed) and `_reaching_for` was never drawn* `DES-018` `DES-019` `TEC-004` `ART-002`
 
 ### M3 — The Pact
 
@@ -117,6 +118,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 99 ADRs · 12 open questions · 97 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 100 ADRs · 12 open questions · 97 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

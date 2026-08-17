@@ -204,6 +204,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Does the game have a front door and a way back out of every room? Each
+	# scene already has its own probe and all of them pass while the *loop
+	# between them* is broken — a mistyped scene path fails only when somebody
+	# presses the button, which in a playtest means it fails in front of a
+	# tester who then stops reporting anything useful.
+	menu="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		ui/main_menu.tscn -- --menu-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$menu" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the way in and out" >&2
+		printf '%s\n' "$menu" | grep -E '\[menu\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Does each place sound like itself (`M2-T09`)? `ART-002`'s three sonic
 	# worlds are three pieces, and the rule worth automating is the absolute
 	# one: **the Hunter's instrument is used exactly once, anywhere, ever.**
@@ -295,6 +308,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the fallen can be carried home, the hoard outlives every death,"
 	echo "a bigger party is poorer and louder per head,"
 	echo "each place sounds like itself and her note is hers alone,"
+	echo "there is a front door and a way back out of every room,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

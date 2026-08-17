@@ -28,6 +28,10 @@ func _ready() -> void:
 	# produce a subtly unfair game. See TuningProfile.validate().
 	for problem: String in tuning.validate():
 		push_error("Config: %s" % problem)
+	# Player preferences, as opposed to design tuning. Loaded here because this
+	# is the autoload that already owns "read the numbers at boot", and applied
+	# immediately so the first frame honours them.
+	Settings.load_once()
 	if OS.get_cmdline_user_args().has("--export-probe"):
 		_export_probe()
 
