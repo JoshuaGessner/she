@@ -221,6 +221,14 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.contains("probe") or arg.contains("shot") or arg.contains("capture"):
 			_probing = true
+	# After `_probing` is known and never before it. A probe that inherited a
+	# loadout would be measuring a bag it did not pack — and the reason this is
+	# a real hazard rather than a hypothetical one is that it reads correct
+	# today only because a fresh process starts with an empty stash. The gate
+	# is here rather than inside, so `--exit-probe` can still call it directly
+	# and assert what it does.
+	if not _probing:
+		_carry_the_stash_down()
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
@@ -762,6 +770,33 @@ func _exit_probe() -> void:
 		problems.append("spending a Waystone did not extract the player")
 	if player.inventory.waystone() != null:
 		problems.append("the Waystone survived being spent — ADR-015 consumes it")
+
+	# ─ and back down again ─
+	#
+	# The other end of the same loop. `DES-014` puts the loadout in the Chamber
+	# and the Descent is the doorway, so what you kept has to arrive in the bag
+	# on the next floor — and for two milestones it did not, because nothing
+	# ever called `GameState.withdraw()` and the stash was write-only (ADR-098).
+	#
+	# **This tests the last hop only**, and says so rather than implying more:
+	# the full claim spans Chamber → Threshold → floor, and a probe living in
+	# one scene can honestly assert that a stash present at generation ends up
+	# in the body. That is the hop that was missing.
+	player.inventory.clear()
+	GameState.stash.clear()
+	GameState.keep(ItemInstance.of(ItemCatalogue.by_id(&"glt_hoard_coin"), 1))
+	_carry_the_stash_down()
+	print("[exit] and down     bag %d item(s), stash %d left" % [
+		player.inventory.count(), GameState.stash.size()])
+	if player.inventory.count() != 1:
+		problems.append("what was kept in the Chamber did not come back down — "
+			+ "DES-014 makes the stash a loadout, and a stash you can only put "
+			+ "things into is a hole")
+	if not GameState.stash.is_empty():
+		problems.append("an item came down and stayed in the stash as well — it "
+			+ "has to move, or keeping something duplicates it every descent")
+	GameState.stash.clear()
+	player.inventory.clear()
 
 	for problem: String in problems:
 		printerr("[exit] FAIL %s" % problem)
@@ -2061,6 +2096,42 @@ func _spawn_actors() -> void:
 	# except the host. See `_on_party_changed`: without this, party scaling is
 	# arithmetic the game never reaches.
 	_session.player_spawned.connect(_on_party_changed)
+
+
+## **What you put aside is what you take down** (`M2-T06`, `DES-014`).
+##
+## `threshold.gd` has always documented the Descent this way — *"whatever is in
+## the stash is what you take, because `DES-014` puts loadout choices in the
+## Chamber and this is the doorway rather than a menu"* — and it was not true.
+## Nothing loaded it. `GameState.withdraw()` existed and nothing called it, and
+## the dead-name audit is what surfaced it (ADR-098): **the stash was
+## write-only.** You could keep things and watch them survive a run and die
+## with you, and never once take one back down. `M2-T06` is called *"stash and
+## re-descend"* and only the first half was built.
+##
+## It is host-side and local, and those are the same thing here. `GameState` is
+## never networked (`TEC-004`, ADR-021) — every peer holds only its own — so
+## each process loads its own stash into its own body. Solo runs as host id 1,
+## so there is no second path for one player.
+##
+## **What does not fit stays in the stash.** `Inventory.add()` returns null when
+## the grid has no room, and the honest answer to "your stash is bigger than
+## your bag" is that you carry what fits and the rest waits — not that the bag
+## silently grows, and not that the overflow is destroyed.
+func _carry_the_stash_down() -> void:
+	if GameState.stash.is_empty():
+		return
+	var body: Player = _session.local_player()
+	if body == null:
+		return
+	var taken: int = 0
+	for item: ItemInstance in GameState.stash.duplicate():
+		if body.inventory.add(item.definition) == null:
+			continue
+		GameState.withdraw(item)
+		taken += 1
+	print("[descent] carried %d of %d stashed item(s) down, %.1f kg" % [
+		taken, taken + GameState.stash.size(), body.inventory.total_weight()])
 
 
 # ── the guarantee, asserted rather than eyeballed ─────────────────────────

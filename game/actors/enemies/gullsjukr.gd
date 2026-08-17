@@ -80,8 +80,6 @@ const REPLICATED_PROPERTIES: Dictionary = {
 	".:state_index": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 }
 
-signal state_changed(to: State)
-
 ## Replicated as an int, because `MultiplayerSynchronizer` carries properties
 ## and an enum is one. Clients need it to tint their copy — `DES-018` requires
 ## every state change to be legible, and a teammate's screen has to show the
@@ -93,7 +91,6 @@ var state_index: int = State.DISTANT:
 		state_index = value
 		if is_node_ready():
 			_apply_tint()
-		state_changed.emit(state_index as State)
 
 ## Seconds since it entered the floor. Escalation reads this: `DES-017` says it
 ## gets faster and reads you more accurately the longer you stay.
@@ -169,10 +166,6 @@ func target() -> Player:
 ## simulation is not possible (the ADR-073 rule).
 func goal() -> Vector3:
 	return _goal
-
-
-func has_goal() -> bool:
-	return _has_goal
 
 
 # ── senses ────────────────────────────────────────────────────────────────

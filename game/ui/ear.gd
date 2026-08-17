@@ -124,11 +124,6 @@ func _process(delta: float) -> void:
 	_flicker += delta * (1.0 + _mix.clamor * 7.0)
 
 
-## What this element currently draws, for the parity probe.
-func rendered_channels() -> Array[String]:
-	return RENDERED.duplicate()
-
-
 func _draw() -> void:
 	var grown: float = 1.0 + GROWTH * _mix.pressure()
 	# `get_viewport_rect()`, **not** `size`. A `Control` whose parent is a

@@ -6,15 +6,13 @@ extends Node
 ## consumers across three future systems — so it belongs on its own node from
 ## the start rather than being extracted later.
 ##
-## Signals up, calls down: an owner *calls* spend() and drain(); this node
-## never reaches upward and only reports through signals.
-
-signal emptied
-signal replenished
+## Calls down, and nothing up yet. It carried `emptied`/`replenished` edge
+## signals that nothing ever connected to, so ADR-098 removed them along with
+## the `_was_empty` bookkeeping that existed only to fire them. Owners poll
+## `is_empty()` and `fraction()`, which is what they were already doing.
 
 var current: float = 0.0
 var _since_spend: float = 0.0
-var _was_empty: bool = false
 
 
 func _ready() -> void:
@@ -40,7 +38,6 @@ func spend(amount: float) -> bool:
 		return false
 	current -= amount
 	_since_spend = 0.0
-	_check_edges()
 	return true
 
 
@@ -51,13 +48,11 @@ func drain(rate: float, delta: float) -> bool:
 		return false
 	current = maxf(0.0, current - rate * delta)
 	_since_spend = 0.0
-	_check_edges()
 	return true
 
 
 func refill() -> void:
 	current = maximum()
-	_check_edges()
 
 
 func _process(delta: float) -> void:
@@ -68,13 +63,5 @@ func _process(delta: float) -> void:
 	if _since_spend < tuning.stamina_regen_delay or current >= tuning.stamina_max:
 		return
 	current = minf(tuning.stamina_max, current + tuning.stamina_regen * delta)
-	_check_edges()
 
 
-func _check_edges() -> void:
-	var empty: bool = current <= 0.0
-	if empty and not _was_empty:
-		emptied.emit()
-	elif not empty and _was_empty:
-		replenished.emit()
-	_was_empty = empty

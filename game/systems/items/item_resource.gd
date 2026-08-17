@@ -94,10 +94,6 @@ func display() -> String:
 	return tr(name_key)
 
 
-func described() -> String:
-	return tr(description_key)
-
-
 ## True if any trait of the given class is present — the composition question
 ## every consuming system actually asks.
 func has_trait(type: Script) -> bool:

@@ -213,12 +213,6 @@ func placement_for(definition: ItemResource) -> Dictionary:
 	return {"cell": at, "rotated": true}
 
 
-func has_room_for(definition: ItemResource) -> bool:
-	if not within_cap(definition):
-		return false
-	return (placement_for(definition)["cell"] as Vector2i).x >= 0
-
-
 ## How many of this definition the bag already holds.
 func count_of(definition: ItemResource) -> int:
 	var found: int = 0

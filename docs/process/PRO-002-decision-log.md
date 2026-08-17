@@ -1577,4 +1577,36 @@ The practical half is what settles it. `carried_floor` is a **floor** — a mini
 
 ---
 
+## ADR-098 — Nothing orphaned: 29 dead names, one write-only stash, and physics layers that could not be wrong
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `TEC-001`, `TEC-002`, `PRO-001`** · **Extends ADR-064**
+
+**Context:** ADR-064 bans stubs because a thing that is present and does nothing lies to whoever finds it. ADR-097 found the harder version — code that is correct, tested, and never executed. This is the sweep for the rest of it, and the tool that keeps it swept.
+
+**Decision — `tools/check_dead.py`, in the sweep and in CI.** Four kinds, in rough order of how quietly they fail: a function nothing calls, a signal nobody connects or nobody emits, a `TuningProfile` field nothing reads, a const nothing reads. It found **29** on its first run across 45 scripts.
+
+It is a *name* checker and says so in its own output. It cannot tell that a function is called only from a branch that never runs — the exact shape of ADR-097 — and a tool that implied otherwise would be worse than no tool. Reachability stays the job of a probe run in the situation the code claims to work in. This proves only that nothing is orphaned, which is the half that can be proved cheaply and had never been proved at all.
+
+### What it found
+
+**Thirteen functions and ten signals, deleted.** Almost all were accessors written for a consumer that never arrived — `bag_openness()`, `spending_waystone()`, `shaft.progress()`, `hitbox.is_armed()`, `ear.rendered_channels()` (the probe reads the const directly), and so on. Two deserve naming:
+
+* `Health.heal()`. `DES-009` bans regeneration within a run. A heal method sitting on the component is an invitation to break that quietly, and its absence is now the enforcement.
+* `WorldItem.bind_to()`, orphaned by ADR-093 when ember binding moved into the spawn payload — the old path left standing beside the new one, which is the parallel fallback ADR-064 bans, arrived at by subtraction rather than by design.
+
+`Stamina.emptied`/`replenished` took `_was_empty` and `_check_edges()` with them: the bookkeeping existed only to fire signals nobody heard. **"Signals up, calls down" is an architecture rule, not a licence to emit speculatively.**
+
+**The stash was write-only, and this is the serious one.** `GameState.withdraw()` existed and nothing called it. `threshold.gd` has documented the Descent since `M2-T06` as *"whatever is in the stash is what you take, because `DES-014` puts loadout choices in the Chamber and this is the doorway rather than a menu"* — and nothing ever loaded it. You could keep things, watch them survive a run and die with you, and never once take one back down. `M2-T06` is called **"stash and re-descend"** and only the first half was built; I ticked it.
+
+The floor now loads the local body's stash at generation. Local and host-side are the same thing here — `GameState` is never networked (`TEC-004`, ADR-021), so each process loads its own. **What does not fit stays in the stash**: `Inventory.add()` refuses when the grid is full, and the honest answer to a stash bigger than a bag is that you carry what fits and the rest waits — not that the bag silently grows, and not that the overflow is destroyed. `--exit-probe` asserts the hop, and asserts the item *moved* rather than being copied, because a stash that keeps its copy duplicates your loadout every descent.
+
+**Three physics layers nothing read.** `CollisionLayers` opens by saying a mismatched mask is invisible — *"nothing errors, the swing simply passes through"* — and then the scenes set raw integers that nothing compared against it. `PLAYER_BODY`, `PLAYER_HURTBOX` and `ENEMY_HURTBOX` were read by no code at all, which left the file documenting the layout with no way to be wrong **and** no way to be right.
+
+`check_project.py` now asserts every scene's layer and mask against the named constant. A deliberate duplicate, in the way a checksum is one: changing either side alone fires. Flipping the player's hitbox mask from `ENEMY_HURTBOX` to `PLAYER_HURTBOX` — a swing that hits your friends and not the enemies, and which nothing else in the sweep would notice — reports `layer-drift` and blocks the commit.
+
+**The tooling counts as a reader.** A constant read only by the check that enforces it is doing its job, so `check_dead.py` scans `tools/*.py` alongside the game.
+
+### The pattern worth keeping
+
+Every one of these was invisible to a checker that only asks *"does this work?"* — because each of them worked. The question that found them is **"does anything use this?"**, and the two are not the same question. The stash proves it: `keep()` worked, `stash_changed` fired, the `--lair-probe` asserted the stash survives a run and dies with you, and all of it was true about a container with no way out.
+
 *Entries below to be added as design decisions are signed off.*

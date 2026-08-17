@@ -138,13 +138,6 @@ func definition() -> ItemResource:
 	return _definition
 
 
-## Whose life this carries, or `0`. Only the ember uses it (`DES-012`), and it
-## rides through `ItemInstance.bound_to` into the bag of whoever picks it up —
-## which is how a rescue knows *who* was rescued.
-func bind_to(peer: int) -> void:
-	bound_to = peer
-
-
 func bound() -> int:
 	return bound_to
 

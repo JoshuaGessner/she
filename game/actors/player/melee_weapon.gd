@@ -19,11 +19,8 @@ extends Node3D
 ## voluntarily swing at something they could have walked past?" — and four
 ## verbs built partly does not.
 
-signal phase_changed(phase: Phase)
 signal swing_started
 signal connected(hurtbox: Hurtbox)
-signal refused(reason: String)
-
 enum Phase { IDLE, WINDUP, ACTIVE, RECOVERY }
 
 ## Blockout poses, as (position, rotation-in-degrees). Not juice: without a
@@ -101,7 +98,6 @@ func request_swing(stamina: Stamina) -> bool:
 
 func _begin(stamina: Stamina, tuning: TuningProfile) -> bool:
 	if not stamina.spend(tuning.swing_stamina_cost):
-		refused.emit("stamina")
 		return false
 	begin_owned_swing()
 	return true
@@ -136,7 +132,6 @@ func _enter(next: Phase, duration: float) -> void:
 	else:
 		_hitbox.disarm()
 	_update_pose()
-	phase_changed.emit(next)
 
 
 func advance(delta: float, stamina: Stamina) -> void:

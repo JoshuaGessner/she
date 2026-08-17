@@ -23,7 +23,6 @@ extends CharacterBody3D
 ## visual channel DES-013 demands, not polish. Hue is not used: ART-005 reserves
 ## saturated colour for treasure, so states read as brightness.
 
-signal state_changed(state: State)
 signal died
 
 enum State { UNAWARE, SUSPICIOUS, ALERTED, STAGGERED, DEAD }
@@ -76,7 +75,6 @@ var _state: State = State.UNAWARE:
 		_state = next
 		if is_node_ready():
 			_apply_state()
-		state_changed.emit(next)
 
 ## Drives the telegraph tint, so it has to reach clients: DES-009 puts a 250 ms
 ## floor under the wind-up specifically so a player can *read* it, and a

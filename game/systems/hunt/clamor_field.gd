@@ -49,8 +49,6 @@ const CELL_METRES: float = 2.0
 ## footstep still spreads across a room in well under a second.
 const TICK_HZ: float = 10.0
 
-signal ticked()
-
 var _cells: PackedFloat32Array = PackedFloat32Array()
 var _scratch: PackedFloat32Array = PackedFloat32Array()
 var _width: int = 0
@@ -187,7 +185,6 @@ func _physics_process(delta: float) -> void:
 	while _accumulated >= step:
 		_accumulated -= step
 		_propagate(step)
-		ticked.emit()
 
 
 ## Sources arrive and leave as players and actors spawn, so the subscription

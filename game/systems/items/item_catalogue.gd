@@ -60,14 +60,6 @@ static func by_id(id: StringName) -> ItemResource:
 	return _by_id.get(String(id)) as ItemResource
 
 
-## Drop the cache. Only the data validator needs this — it plants deliberately
-## broken resources and has to see the corpus as it now stands.
-static func forget() -> void:
-	_by_id = {}
-	_ids = []
-	_scanned = false
-
-
 static func _scan() -> void:
 	if _scanned:
 		return

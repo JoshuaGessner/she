@@ -46,14 +46,6 @@ func apply_damage(amount: float, from: Node = null) -> void:
 		died.emit(from)
 
 
-## Scarce, slow, and never mid-fight (DES-009). The scarcity is the consumable's
-## job; this only enforces that healing cannot exceed the maximum or revive.
-func heal(amount: float) -> void:
-	if _dead or amount <= 0.0:
-		return
-	current = minf(maximum, current + amount)
-
-
 ## Back on your feet, with `amount` hit points (`M2-T05`, `DES-012`).
 ##
 ## Separate from `heal()`, which deliberately refuses to work on the dead — and

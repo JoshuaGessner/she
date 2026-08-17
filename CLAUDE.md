@@ -110,6 +110,7 @@ python3 tools/reindex.py
 python3 tools/status.py --write
 python3 tools/status.py --check      # must pass
 python3 tools/check_project.py       # locked settings + TEC-002 conventions
+python3 tools/check_dead.py          # nothing orphaned (ADR-098)
 tools/check_scripts.sh               # parse, boot, teardown, rig, data, 2-player co-op
 ```
 
@@ -186,6 +187,8 @@ Anything else needs an ADR naming the stub, why it is unavoidable, and when it d
 **Legitimately permitted:** blockout art (ADR-046 — a named production phase with a scheduled replacement), grey-box levels at M1, and `⟨tune⟩` numbers (data, not systems).
 
 **Never say "for now"** in a commit or a doc without the paired removal task ID.
+
+**"Does it work?" and "does anything use it?" are different questions** (ADR-098). Every dead name found in the M2 sweep *worked*: `keep()` filed to the stash, its signal fired, and a probe asserted the stash survived a run and died with you — all true about a container with no way out, because nothing ever called `withdraw()`. `tools/check_dead.py` asks the second question. It checks **names, not reachability** — a function called only from a branch that never runs still reads as alive — so probes remain the only thing that proves the game reaches its own code.
 
 ---
 

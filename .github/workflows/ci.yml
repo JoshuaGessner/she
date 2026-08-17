@@ -52,6 +52,11 @@ jobs:
       - name: Locked settings and conventions
         run: python3 tools/check_project.py
 
+      # ADR-098: a function nobody calls and a signal nobody hears are ADR-064
+      # stubs that pass every other check in this file.
+      - name: Nothing orphaned
+        run: python3 tools/check_dead.py
+
       # ADR-075: parity that is merely intended is parity that regresses the
       # next time an action is added.
       - name: Every action has a gamepad binding

@@ -50,8 +50,6 @@ const PLAYER_SCENE: PackedScene = preload("res://actors/player/player.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
 
 signal player_spawned(player: Player)
-signal player_left(peer: int)
-
 ## Where each successive player starts. Cycled, so a fourth player in a
 ## three-point level stands on the first point rather than at the origin.
 ## Levels set this before adding the session to the tree.
@@ -179,7 +177,6 @@ func _on_peer_disconnected(peer: int) -> void:
 	var player: Player = player_for(peer)
 	if player != null:
 		player.queue_free()
-	player_left.emit(peer)
 
 
 # ── spawning ──────────────────────────────────────────────────────────────

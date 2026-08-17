@@ -97,14 +97,6 @@ func _escalation() -> float:
 	return clampf(oldest / maxf(Config.tuning.shaft_seal_seconds, 0.001), 0.0, 1.0)
 
 
-func progress() -> float:
-	return _progress
-
-
-func claimant() -> Player:
-	return _claimant
-
-
 ## True if this player is close enough to use it. The host re-runs this with
 ## its own copy of where they are, which is what makes the client's request a
 ## request rather than an instruction.

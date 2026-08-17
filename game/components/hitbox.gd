@@ -48,10 +48,6 @@ func disarm() -> void:
 	_armed = false
 
 
-func is_armed() -> bool:
-	return _armed
-
-
 ## The actor this hitbox was authored under — who swung, not what swung.
 ##
 ## `owner` rather than a walk up the tree: a node instantiated from a scene has

@@ -165,6 +165,90 @@ def check_settings() -> list[Issue]:
     return issues
 
 
+# What each physics body is, by name rather than by integer. Compared against
+# `CollisionLayers` and against the scenes themselves by `check_collision_layers`.
+LAYER_CONTRACT: dict[tuple[str, str], tuple[str | None, str | None]] = {
+    # (scene, node)                     (layer constant, mask constant)
+    ("actors/player/player.tscn", "Player"): ("PLAYER_BODY", "WORLD"),
+    ("actors/player/player.tscn", "Hurtbox"): ("PLAYER_HURTBOX", None),
+    ("actors/player/player.tscn", "Hitbox"): (None, "ENEMY_HURTBOX"),
+    ("actors/enemies/enemy.tscn", "Enemy"): ("ENEMY_BODY", "WORLD"),
+    ("actors/enemies/enemy.tscn", "Hurtbox"): ("ENEMY_HURTBOX", None),
+    ("actors/enemies/enemy.tscn", "Hitbox"): (None, "PLAYER_HURTBOX"),
+}
+
+
+def check_collision_layers() -> list[Issue]:
+    """Assert every scene's physics layers match the names in the one file.
+
+    `CollisionLayers` says of itself that a mismatched mask is invisible —
+    "nothing errors, the swing simply passes through" — and then the scenes
+    set raw integers that nothing compared against it. Three of its five
+    constants were read by no code at all (ADR-098), which meant the file
+    documenting the layout had no way to be wrong *and* no way to be right.
+
+    This is a deliberate duplicate, in the way a checksum is one: the table
+    below and the scenes have to agree, so changing either alone fires. It is
+    also what makes the constants load-bearing rather than decorative.
+    """
+    issues: list[Issue] = []
+    source = GAME / "systems/collision_layers.gd"
+    if not source.exists():
+        return [Issue("error", "no-layers", rel(source),
+                      "CollisionLayers is missing",
+                      "physics layers must be named in one place")]
+
+    named: dict[str, int] = {}
+    for line in source.read_text(encoding="utf-8").splitlines():
+        match = re.match(r"\s*const\s+([A-Z_]+):\s*int\s*=\s*1\s*<<\s*(\d+)", line)
+        if match:
+            named[match.group(1)] = 1 << int(match.group(2))
+
+    for (scene, node), (layer, mask) in LAYER_CONTRACT.items():
+        path = GAME / scene
+        if not path.exists():
+            issues.append(Issue("error", "layer-scene", scene,
+                                f"{scene} is missing but the layer contract names it",
+                                "update LAYER_CONTRACT or restore the scene"))
+            continue
+        found = _scene_layers(path, node)
+        if found is None:
+            issues.append(Issue("error", "layer-node", scene,
+                                f"no node named {node}",
+                                "update LAYER_CONTRACT or restore the node"))
+            continue
+        for kind, want in (("collision_layer", layer), ("collision_mask", mask)):
+            expected = named.get(want, 0) if want else 0
+            actual = found[kind]
+            if actual != expected:
+                issues.append(Issue(
+                    "error", "layer-drift", f"{scene}:{node}",
+                    f"{kind} is {actual}, but CollisionLayers says "
+                    f"{want or 'nothing'} = {expected}",
+                    "a mismatched mask fails silently — the swing simply "
+                    "passes through. Fix the scene or the constant."))
+    return issues
+
+
+def _scene_layers(path: Path, node: str) -> dict[str, int] | None:
+    """The collision layer and mask a .tscn sets on one named node."""
+    wanted = re.compile(rf'^\[node name="{re.escape(node)}"')
+    found: dict[str, int] | None = None
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("[node "):
+            if found is not None:
+                return found
+            found = {"collision_layer": 0, "collision_mask": 0} \
+                if wanted.match(line) else None
+            continue
+        if found is None:
+            continue
+        match = re.match(r"(collision_layer|collision_mask)\s*=\s*(\d+)", line)
+        if match:
+            found[match.group(1)] = int(match.group(2))
+    return found
+
+
 def check_layout() -> list[Issue]:
     issues = []
     for name in REQUIRED_DIRS:
@@ -276,6 +360,7 @@ def main() -> int:
     issues = check_settings()
     if not any(i.code == "no-project" for i in issues):
         issues += check_layout()
+        issues += check_collision_layers()
         scripts = 0
         for path in game_files():
             issues += check_naming(path)

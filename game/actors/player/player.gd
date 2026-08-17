@@ -72,10 +72,6 @@ signal extracted(player: Player)
 ## life ends up is the level's business and the body is past having opinions.
 signal died_here(player: Player, at: Vector3)
 
-## Went down, or got back up. Two arguments rather than two signals so a
-## readout can bind once and never miss an edge.
-signal downed_changed(player: Player, down: bool)
-
 ## Metres per second a thrown item leaves the hand at, and how far the arc is
 ## tilted up from where you are looking ⟨tune⟩. `DES-017` wants a purse to go
 ## *down a side corridor*, so the throw has to buy real distance — baiting is
@@ -667,7 +663,6 @@ func _go_down() -> void:
 	# the moment to be sorting loot.
 	_bag_wanted = false
 	_spending = 0.0
-	downed_changed.emit(self, true)
 
 
 ## Host-side, per frame. The window shortens whatever anyone is doing about it,
@@ -683,7 +678,6 @@ func _tick_bleeding(delta: float) -> void:
 	# Nobody got here in time.
 	spent = true
 	revival = 0.0
-	downed_changed.emit(self, false)
 	# Everything you were carrying stays with the body. `DES-012`: rescue saves
 	# your LIFE, never your loot — *"you lose the run, your carried loot, and
 	# take a Scar."*
@@ -747,7 +741,6 @@ func _stand_up(fraction: float) -> void:
 	bleeding = 0.0
 	revival = 0.0
 	health.revive(health.maximum * fraction)
-	downed_changed.emit(self, false)
 
 
 ## Host-side, per frame, on the *rescuer*. Whoever is holding interact next to
@@ -945,11 +938,6 @@ func _tick_waystone(delta: float) -> void:
 	extracted.emit(self)
 
 
-## Seconds left on the Waystone, for the readout. Zero when not spending one.
-func spending_waystone() -> float:
-	return _spending
-
-
 ## Noise made picking one thing up or setting it down: a fixed handling cost
 ## plus whatever the item itself gives away. An altar-plate coming off stone is
 ## most of the level's attention; a gemstone is nearly nothing.
@@ -960,10 +948,6 @@ func _handling_clamor(definition: ItemResource) -> float:
 ## True while the bag is open at all — the weapon and the sprint both refuse.
 func bag_is_open() -> bool:
 	return _bag > 0.0
-
-
-func bag_openness() -> float:
-	return _bag
 
 
 ## Advance the open/shut transition and pay for it in mouse mode.

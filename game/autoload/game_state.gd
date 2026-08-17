@@ -38,9 +38,6 @@ extends Node
 ## person sitting at that machine. ADR-021 makes that structural rather than
 ## careful: the Chamber where it all lives is a scene no other player enters.
 
-signal stash_changed()
-signal hoard_changed(total: int)
-
 ## What you walked out of the Deep with, waiting to be sorted. Emptied by the
 ## Chamber once you have decided what she keeps.
 var carried: Array[ItemInstance] = []
@@ -73,8 +70,6 @@ func tribute(item: ItemInstance) -> void:
 	hoard_value += item.definition.tribute_value
 	carried.erase(item)
 	stash.erase(item)
-	hoard_changed.emit(hoard_value)
-	stash_changed.emit()
 
 
 ## Kept for next time.
@@ -82,13 +77,11 @@ func keep(item: ItemInstance) -> void:
 	if not stash.has(item):
 		stash.append(item)
 	carried.erase(item)
-	stash_changed.emit()
 
 
 ## Take something back out of the stash for a descent.
 func withdraw(item: ItemInstance) -> void:
 	stash.erase(item)
-	stash_changed.emit()
 
 
 ## **The great reset** (`DES-008`, ADR-004). Everything you were carrying and
@@ -97,18 +90,10 @@ func withdraw(item: ItemInstance) -> void:
 func die() -> void:
 	carried.clear()
 	stash.clear()
-	stash_changed.emit()
 
 
 func stash_value() -> int:
 	var sum: int = 0
 	for item: ItemInstance in stash:
-		sum += item.definition.tribute_value
-	return sum
-
-
-func carried_value() -> int:
-	var sum: int = 0
-	for item: ItemInstance in carried:
 		sum += item.definition.tribute_value
 	return sum
