@@ -137,6 +137,12 @@ const LOOT: Array = [
 	["glt_altar_plate", PRIZE_AT],
 	["rlc_regin_blade", Vector3(19.2, 0.1, -23.4)],
 	["arm_mail_byrnie", Vector3(19.4, 0.1, -18.8)],
+	# One Waystone, in the guarded half. **Hand-placed, and its rarity is not
+	# tuned here** — `DES-005` calls the drop rate *"the strongest single lever
+	# in the game"*, and a drop *rate* needs the loot tables `M4-T01` builds.
+	# What this floor can answer is the question underneath it: is a way out
+	# worth two squares and a walk past the Guardian?
+	["con_waystone", Vector3(17.6, 0.1, -21.0)],
 ]
 
 ## Godot's host is always peer 1, offline peer included.
@@ -157,6 +163,12 @@ const HUNTER_POST: Vector3 = Vector3(21.0, 0.1, -25.0)
 const FIELD_FROM: Vector3 = Vector3(-16.0, 0.0, -36.0)
 const FIELD_TO: Vector3 = Vector3(26.0, 0.0, 14.0)
 
+## The Shaft, in the room the layout has called "exit" since `M1-T03` — which
+## `--route-probe` already proves is reachable without crossing an encounter
+## (ADR-032). `DES-005` requires the Shaft's location to be *known*, and a
+## fixed point in a hand-built level is as known as it gets.
+const SHAFT_AT: Vector3 = Vector3(0.0, 0.05, -29.0)
+
 ## How far apart the heaviest and lightest kilograms-per-cell on this floor
 ## must be before `--bag-probe` accepts that space and weight are two different
 ## constraints (`DES-019`). Not a tuned value — a floor under "these are not
@@ -166,6 +178,12 @@ const DENSITY_SPREAD_FLOOR: float = 3.0
 var _session: CoopSession = null
 var _field: ClamorField = null
 var _hunter: Gullsjukr = null
+var _shaft: Shaft = null
+var _descent: int = 1
+
+## Someone left the floor alive, and what they took. `M2-T07` instruments
+## per-capita extracted value off this; `M2-T06` will hang the Lair on it.
+signal extracted(player: Player, tribute: int)
 
 @onready var _world: Node3D = $World
 
@@ -179,6 +197,7 @@ func _ready() -> void:
 	# corners and doorways, which is the only place occlusion has anything to
 	# show — the gym it came from is mostly open ground.
 	_build_hunt()
+	_build_shaft()
 	var overlays := DebugOverlays.new()
 	_world.add_child(overlays)
 	overlays.show_field(_field)
@@ -199,6 +218,8 @@ func _ready() -> void:
 			_ear_probe()
 		elif arg.begins_with("--ear-shot="):
 			_ear_shot(arg.split("=", true, 1)[1])
+		elif arg == "--exit-probe":
+			_exit_probe()
 		elif arg == "--hash":
 			_print_hash()
 		elif arg.begins_with("--coop-probe="):
@@ -647,6 +668,87 @@ func _ear_shot(path: String) -> void:
 	get_tree().quit()
 
 
+## Can you leave, and does leaving late cost more (`M2-T04`, `DES-005`)?
+##
+## Five assertions, and the first is the one ADR-015 states as an absolute:
+##
+## 1. **You are never trapped.** *"The player is never truly trapped — the
+##    Shaft is always reachable, just increasingly expensive."* Checked at full
+##    escalation, which is precisely where a Sealing implemented as a lock
+##    would have quietly broken it.
+## 2. **The Sealing bites.** The channel and the noise both grow with the
+##    Hunt's age, or staying costs nothing and `DES-005` Layer 3 is decoration.
+## 3. **The Waystone caps at one** (ADR-015, Q54), or `DES-019`'s binary
+##    indicator is a lie.
+## 4. **Spending it consumes it**, and what leaves with you does not include it.
+## 5. **Extraction reports what you carried** — the loop closing, and the thing
+##    that makes `--bag-probe`'s agonising mean anything.
+func _exit_probe() -> void:
+	var player: Player = _session.local_player()
+	var problems: PackedStringArray = PackedStringArray()
+	var waystone: ItemResource = ItemCatalogue.by_id(&"con_waystone")
+
+	# ─ 2 and 1. the price of leaving late, and that it stays payable ─
+	_hunter.age = 0.0
+	await get_tree().physics_frame
+	var early_seconds: float = _shaft.channel_seconds()
+	var early_clamor: float = _shaft.channel_clamor()
+	_hunter.age = Config.tuning.shaft_seal_seconds * 2.0
+	await get_tree().physics_frame
+	var late_seconds: float = _shaft.channel_seconds()
+	var late_clamor: float = _shaft.channel_clamor()
+	print("[exit] the shaft    %.1f s / %.1f clamor early → %.1f s / %.1f late" % [
+		early_seconds, early_clamor, late_seconds, late_clamor])
+	if late_seconds <= early_seconds or late_clamor <= early_clamor:
+		problems.append("the Shaft costs no more late than early — DES-005 Layer 3 "
+			+ "is decoration if staying is free")
+	if not is_finite(late_seconds) or late_seconds <= 0.0:
+		problems.append(("the Shaft is unusable at full escalation (%.1f s) — ADR-015 "
+			+ "guarantees the player is never truly trapped") % late_seconds)
+
+	# ─ 3. one Waystone, never two ─
+	player.inventory.clear()
+	var first: ItemInstance = player.inventory.add(waystone)
+	var second: ItemInstance = player.inventory.add(waystone)
+	print("[exit] the cap      first %s, second %s" % [
+		"taken" if first != null else "refused",
+		"taken" if second != null else "refused"])
+	if first == null:
+		problems.append("a Waystone could not be picked up at all")
+	if second != null:
+		problems.append("a second Waystone was accepted — ADR-015 caps it at one so "
+			+ "DES-019's indicator can stay a single lit or unlit mark")
+
+	# ─ 4 and 5. spending it, and what leaves with you ─
+	var coin: ItemResource = ItemCatalogue.by_id(&"glt_hoard_coin")
+	player.inventory.add(coin)
+	var before_tribute: int = player.inventory.total_tribute()
+	_extracted_tribute = -1
+	if not extracted.is_connected(_on_probe_extracted):
+		extracted.connect(_on_probe_extracted)
+	player.teleport(SHAFT_AT + Vector3(0.0, 0.1, 0.0), 0.0)
+	player.ask_to_spend_waystone()
+	await _hold(2.0)
+	print("[exit] the waystone carried %d tribute in, reported %d out, %s left" % [
+		before_tribute, _extracted_tribute,
+		"a stone" if player.inventory.waystone() != null else "no stone"])
+	if _extracted_tribute < 0:
+		problems.append("spending a Waystone did not extract the player")
+	if player.inventory.waystone() != null:
+		problems.append("the Waystone survived being spent — ADR-015 consumes it")
+
+	for problem: String in problems:
+		printerr("[exit] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+var _extracted_tribute: int = -1
+
+
+func _on_probe_extracted(_player: Player, tribute: int) -> void:
+	_extracted_tribute = tribute
+
+
 func _levels_line(levels: Dictionary) -> String:
 	var parts: PackedStringArray = PackedStringArray()
 	for name: String in levels:
@@ -1093,6 +1195,87 @@ func _build_hunt() -> void:
 	_hunter = _session.spawn_hunter(HUNTER_POST)
 	if _hunter != null:
 		_hunter.hunt_with(_field)
+
+
+## The way out (`M2-T04`). Authored geometry in the room the layout has always
+## called "exit" — `DES-005` says the Shaft's *location is known*, and a fixed
+## place `--route-probe` already asserts a clean path to is exactly that.
+##
+## Built on every peer rather than spawned: it never moves and never varies, so
+## a spawn packet would be describing something both sides could already
+## derive. Its **use** is a host-validated request all the same.
+func _build_shaft() -> void:
+	_shaft = Shaft.new()
+	_shaft.name = "Shaft"
+	_shaft.position = SHAFT_AT
+	_world.add_child(_shaft)
+	_shaft.claimed.connect(_on_extracted)
+	for player: Player in _session.players():
+		player.extracted.connect(_on_extracted)
+	_session.player_spawned.connect(func(player: Player) -> void:
+		player.extracted.connect(_on_extracted))
+
+
+## The Shaft is channelled here rather than driving itself, so the level owns
+## the one clock that can end a run. `Shaft.advance` is host-guarded, so this
+## costs a client nothing.
+func _physics_process(delta: float) -> void:
+	if _shaft != null:
+		_shaft.advance(delta)
+
+
+## Someone got out (`M2-T04`). **This is the Settle beat, and almost none of it
+## is built** — `DES-019` wants punch, the hoard, the keep-or-give decision made
+## physically, and deeds surfaced here and nowhere else. Those need the Lair
+## (`M2-T06`) and `DES-016`, so what happens today is: report what came out, and
+## descend again.
+##
+## Reporting and re-descending is not a stand-in for the Settle screen. It is
+## the *loop closing*, which is the thing `M2-T04` owes and the thing that makes
+## `--bag-probe`'s question answerable at all: you now find out whether the loot
+## you agonised over actually left with you.
+func _on_extracted(player: Player) -> void:
+	if not multiplayer.is_server():
+		return
+	var carried: Array[String] = []
+	for item: ItemInstance in player.inventory.items():
+		carried.append(item.definition.display())
+	print("[exit] descent %d — %s left with %.1f kg, %d tribute: %s" % [
+		_descent, player.name, player.carried.kilograms,
+		player.inventory.total_tribute(),
+		"· ".join(carried) if carried.size() > 0 else "(nothing)"])
+	extracted.emit(player, player.inventory.total_tribute())
+	_descend_again()
+
+
+## Put the floor back and send everyone down again.
+##
+## The Lair belongs between these two things (`M2-T06`) and is **absent, not
+## faked** — there is no fake hub, no fake stash screen. What you keep is
+## printed and then gone, which is honest about there being nowhere yet to
+## put it.
+func _descend_again() -> void:
+	_descent += 1
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		node.queue_free()
+	_session.clear_enemies()
+	await get_tree().process_frame
+	for post: Vector3 in ENEMY_POSTS:
+		_session.spawn_enemy(post)
+	_session.spawn_enemy(GUARDIAN_POST)
+	_spawn_loot()
+	var index: int = 0
+	for player: Player in _session.players():
+		player.inventory.clear()
+		player.clamor.silence()
+		player.teleport(SPAWNS[index % SPAWNS.size()], 0.0)
+		index += 1
+	if _hunter != null:
+		_hunter.global_position = HUNTER_POST
+		# A fresh floor is a fresh Hunt. Cross-floor persistence (ADR-037) is
+		# about descending *within* a run and needs the floors `M4-T01` builds;
+		# this is a new descent, which is the one case where resetting is right.
+		_hunter.age = 0.0
 
 
 func _build_lighting() -> void:

@@ -202,7 +202,46 @@ func placement_for(definition: ItemResource) -> Dictionary:
 
 
 func has_room_for(definition: ItemResource) -> bool:
+	if not within_cap(definition):
+		return false
 	return (placement_for(definition)["cell"] as Vector2i).x >= 0
+
+
+## How many of this definition the bag already holds.
+func count_of(definition: ItemResource) -> int:
+	var found: int = 0
+	for item: ItemInstance in _items:
+		if item.definition.id == definition.id:
+			found += 1
+	return found
+
+
+## Some items cap below what the grid would allow — today only the Waystone,
+## at one (ADR-015, Q54). **That cap is a UI decision as much as a balance
+## one:** `DES-019` requires the Waystone indicator to be binary and
+## answerable in a glance, one lit or unlit mark, and a player holding two
+## would make that mark a lie.
+##
+## Enforced here rather than by trusting loot never to offer a second, because
+## `M4-T01`'s tables will be generated and generated things offer seconds.
+func within_cap(definition: ItemResource) -> bool:
+	for item_trait: ItemTrait in definition.traits:
+		var extraction := item_trait as ExtractionTrait
+		if extraction == null:
+			continue
+		if count_of(definition) >= extraction.carry_cap:
+			return false
+	return true
+
+
+## The way out you are carrying, or `null`. `DES-019`'s Burden layer asks one
+## question of this — *do I still have my way out?* — and the cap above is what
+## keeps the answer to it a single bit.
+func waystone() -> ItemInstance:
+	for item: ItemInstance in _items:
+		if item.definition.has_trait(ExtractionTrait):
+			return item
+	return null
 
 
 static func _overlaps(a_at: Vector2i, a_size: Vector2i,
@@ -218,6 +257,8 @@ static func _overlaps(a_at: Vector2i, a_size: Vector2i,
 ## which is the answer a pickup request needs — a bag that silently swallowed
 ## an item it had no room for would break the spatial half of the design.
 func add(definition: ItemResource) -> ItemInstance:
+	if not within_cap(definition):
+		return null
 	var placement: Dictionary = placement_for(definition)
 	var at: Vector2i = placement["cell"] as Vector2i
 	if at.x < 0:

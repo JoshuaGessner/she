@@ -19,3 +19,5 @@ item.mat_bog_iron.name,Bog Iron
 item.mat_bog_iron.desc,"Dull, rust-flecked, and worth almost nothing to her. The forge disagrees."
 item.rlc_regin_blade.name,Regin's Blade
 item.rlc_regin_blade.desc,"Reforged by a smith who knew what it would be used for. She wants it badly — which is the problem, because so do you."
+item.con_waystone.name,Waystone
+item.con_waystone.desc,"Grey, unremarkable, and the only thing down here that is worth more than what you came for. Spending it ends the run with whatever is in your hands."

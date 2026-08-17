@@ -199,6 +199,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Can you leave, and does leaving late cost more (`M2-T04`)? The assertion
+	# that earns its place is ADR-015's absolute: **the player is never truly
+	# trapped.** A Sealing implemented as a lock satisfies every reading of
+	# `DES-005`'s table and breaks that guarantee outright — planting exactly
+	# that is what this refuses.
+	exits="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --exit-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$exits" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the way out" >&2
+		printf '%s\n' "$exits" | grep -E '\[exit\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Two processes, host and client, over loopback (`M1-T05`). This is the
 	# only check in the sweep that exercises a *second* process, and it is the
 	# only one that can: every claim in `TEC-004` is a claim that two peers
@@ -217,7 +230,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	fi
 	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
 	echo "greed costs and dropping it pays, the Hunt tracks noise not transforms,"
-	echo "every mix channel has a visual twin,"
+	echo "every mix channel has a visual twin, the way out is never sealed shut,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

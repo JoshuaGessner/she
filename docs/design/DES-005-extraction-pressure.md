@@ -4,7 +4,7 @@ title: Extraction Pressure — The Hunt
 status: accepted
 owner: design
 tags: [pressure, pacing, extraction, tension, ai]
-updated: 2026-08-16
+updated: 2026-08-17
 related: [DES-002, DES-007, DES-008]
 ---
 
@@ -57,6 +57,14 @@ At ~⟨tune⟩ 12–15 minutes, or when the floor's Clamor threshold is crossed 
 > **REWRITTEN BY ADR-015.** Extraction is now a **resource** problem, not a routing problem.
 >
 > **DEFERRED TO `M2-T04` (ADR-089).** The Sealing seals Shafts, and Shafts are what `M2-T04` builds. It was listed under `M2-T02` with the rest of the Hunt; building it there would have meant inventing an extraction point inside a pressure task, ahead of the task that owns it. The Hunt itself — field, Gullsjúkr, escalation — landed at `M2-T02` without it.
+>
+> **BUILT AT `M2-T04`, and it resolved a contradiction in this section (ADR-091).** The table below says Shafts *seal*; the guarantee further down says the Shaft is *always reachable*. Both hold across three floors, where sealing floor 1 pushes you down and down is still a way out. On one floor a sealed Shaft is a locked door with nothing beneath it — the trapping ADR-015 forbids.
+>
+> So the Sealing is built as the **guarantee**, not the table:
+>
+> > **The Shaft never locks. It gets worse.**
+>
+> Escalation multiplies the channel time *and* the noise ⟨tune⟩ — measured at 4.0 s / 5.0 clamor early against **12.8 s / 16.0 late**. Leaving late means standing exposed in a known location, for longer, screaming, with the Gullsjúkr already coming. Floor-by-floor locking needs floors and arrives with them at `M4-T01`. `--exit-probe` fails if the Shaft ever becomes unusable, which is precisely what a lock-shaped Sealing would do.
 
 A run is all three floors (ADR-015). Leaving before the bottom is possible on every floor, but it must be *earned* — there are three ways out, and they cost different things:
 

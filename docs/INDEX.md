@@ -17,7 +17,7 @@ _What the game is._
 | `DES-002` | [Core Loop](design/DES-002-core-loop.md) | ✔ accepted | 2026-08-14 | DES-001, DES-003, DES-005, DES-006 |
 | `DES-003` | [Persistence & Meta-Progression](design/DES-003-persistence.md) | ✔ accepted | 2026-08-14 | DES-002, DES-004, DES-008, TEC-003 |
 | `DES-004` | [Skill Tree — The Dragon's Aspects](design/DES-004-skill-tree.md) | ✔ accepted | 2026-08-14 | DES-003, DES-007, DES-008 |
-| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-08-16 | DES-002, DES-007, DES-008 |
+| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-08-17 | DES-002, DES-007, DES-008 |
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
 | `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-08-14 | DES-002, DES-006, DES-008 |
 | `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
@@ -46,7 +46,7 @@ _How it gets built._
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-08-14 | DES-003, TEC-001, TEC-002 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-16 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-08-17 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
-| `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
+| `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-17 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 
 ## Process
 

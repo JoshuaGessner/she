@@ -54,6 +54,11 @@ const HOST_PEER: int = 1
 ## up, calls down (`TEC-002`).
 signal dropped(item: StringName, at: Vector3, yaw: float, launch: Vector3)
 
+## Left the floor alive, by Waystone. The level decides what that means — a
+## body does not get to end its own run (`TEC-004`: consequences have one
+## owner, and this is the largest one there is).
+signal extracted(player: Player)
+
 ## Metres per second a thrown item leaves the hand at, and how far the arc is
 ## tilted up from where you are looking ⟨tune⟩. `DES-017` wants a purse to go
 ## *down a side corridor*, so the throw has to buy real distance — baiting is
@@ -121,6 +126,8 @@ var _bag_wanted: bool = false
 var _bag_screen: BagScreen = null
 ## The item the local player would take if they pressed interact right now.
 var _reaching_for: WorldItem = null
+## Seconds left on a Waystone being spent. Host-side; zero when not leaving.
+var _spending: float = 0.0
 
 @onready var _head: Node3D = $Head
 @onready var _camera: Camera3D = $Head/Camera3D
@@ -302,8 +309,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		_ask_to_drop(false)
 	elif event.is_action_pressed("throw"):
 		_ask_to_drop(true)
+	elif event.is_action_pressed("use_waystone"):
+		ask_to_spend_waystone()
 	elif event.is_action_pressed("interact") and _bag <= 0.0:
-		_reach_for_loot()
+		# The Shaft first: standing in one and pressing interact means leaving,
+		# not picking up whatever is also lying there. A player in the exit
+		# reaching for their way home should never get a lump of bog iron.
+		if not _reach_for_shaft():
+			_reach_for_loot()
 	elif event.is_action_pressed("debug_ink"):
 		show_ink(not _ink.visible)
 
@@ -523,6 +536,100 @@ func _move_within_bag(instance_id: int, to: Vector2i, rotated: bool) -> void:
 	clamor.add(Config.tuning.clamor_rummage)
 
 
+# ── leaving ──────────────────────────────────────────────────
+#
+# Two ways out, and ADR-015 makes them cost different things: the **Shaft** is
+# always there and charges you time in a known place, the **Waystone** is loot
+# you had to find and charges you the squares it occupied all run.
+
+
+## True if a Shaft was reached for, so the caller knows not to grab loot too.
+func _reach_for_shaft() -> bool:
+	var shaft: Shaft = Shaft.nearest(self, global_position)
+	if shaft == null:
+		return false
+	if multiplayer.is_server():
+		shaft.begin(self)
+	else:
+		_request_shaft.rpc_id(HOST_PEER)
+	return true
+
+
+@rpc("any_peer", "reliable")
+func _request_shaft() -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	# The host finds it from **its** copy of where this body is, which is the
+	# whole point of the request being a request.
+	var shaft: Shaft = Shaft.nearest(self, global_position)
+	if shaft != null:
+		shaft.begin(self)
+
+
+## Spend the way home. `DES-005`: *"choosing to end the run now, with what you
+## have"* — which is why it is deliberately not a confirmation dialog
+## (`DES-019` refuses those) and deliberately not instantaneous either. It
+## costs a moment you can be interrupted in.
+func ask_to_spend_waystone() -> void:
+	if multiplayer.is_server():
+		_spend_waystone()
+	else:
+		_request_waystone.rpc_id(HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _request_waystone() -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_spend_waystone()
+
+
+func _spend_waystone() -> void:
+	var stone: ItemInstance = inventory.waystone()
+	if stone == null or _spending > 0.0:
+		return
+	_spending = _waystone_seconds(stone)
+
+
+func _waystone_seconds(stone: ItemInstance) -> float:
+	for item_trait: ItemTrait in stone.definition.traits:
+		var extraction := item_trait as ExtractionTrait
+		if extraction != null:
+			return maxf(extraction.channel_seconds, 0.01)
+	return 0.01
+
+
+## Host-side, per frame. Finishing consumes the stone and takes you out.
+func _tick_waystone(delta: float) -> void:
+	if _spending <= 0.0:
+		return
+	var stone: ItemInstance = inventory.waystone()
+	if stone == null:
+		_spending = 0.0
+		return
+	_spending -= delta
+	if _spending > 0.0:
+		return
+	_spending = 0.0
+	for item_trait: ItemTrait in stone.definition.traits:
+		var extraction := item_trait as ExtractionTrait
+		if extraction != null:
+			clamor.add(extraction.clamor)
+	# Consumed. It leaves the bag before extraction is announced, so what you
+	# carried out never includes the thing that carried you.
+	inventory.remove(stone.instance_id)
+	extracted.emit(self)
+
+
+## Seconds left on the Waystone, for the readout. Zero when not spending one.
+func spending_waystone() -> float:
+	return _spending
+
+
 ## Noise made picking one thing up or setting it down: a fixed handling cost
 ## plus whatever the item itself gives away. An altar-plate coming off stone is
 ## most of the level's attention; a gemstone is nearly nothing.
@@ -650,6 +757,7 @@ func _physics_process(delta: float) -> void:
 	# you cannot disagree.
 	if multiplayer.is_server():
 		_emit_movement_clamor(delta, tuning)
+		_tick_waystone(delta)
 
 
 ## Everything the owning peer simulates for itself. `TEC-004`: prediction for

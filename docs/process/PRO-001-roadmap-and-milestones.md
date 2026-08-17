@@ -57,9 +57,9 @@ The most common way a project like this dies is building the meta-progression fi
 - [x] `M2-T02` The Hunt: clamor field, **the Gullsjúkr** (`DES-017` — wealth-sensing, gold-baiting, the whole point), escalation. *It navigates the clamor gradient and never a player transform (`TEC-001`), feels carried tribute through walls, and stops for gold a player disturbed — authored floor treasure is scenery to it (ADR-089). The throw verb is built. **The Sealing moved to `M2-T04`**, where the Shafts it seals exist* → DES-017, DES-005
 - [x] `M2-T03` **The Ear + adaptive audio driver** (`DES-018`, ADR-035/036) — both channels together, from the first build. *One `HuntMix` computed by `AudioDirector`, rendered by the score **and** the Ear — the twin is structural, and `--ear-probe` refuses a channel nobody draws. Raw Godot, no middleware: `ART-002` chose vertical remixing, which Godot does natively (ADR-090). Score layers are blockout; `M2-T09` authors the theme* → DES-017, DES-018, DES-019, TEC-005
 - **Standing test from here on: every milestone must be playable to completion with audio muted**
-- [ ] `M2-T04` Extraction: reach an exit, keep what you carried — **plus the Sealing** (`DES-005` Layer 3), moved here from `M2-T02` by ADR-089 because it seals the Shafts this task builds → DES-005, DES-002
-- [ ] `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`) → DES-003, DES-008, DES-012
-- [ ] `M2-T06` Minimal Lair: stash and re-descend → DES-008, DES-014
+- [x] `M2-T04` Extraction: reach an exit, keep what you carried — **plus the Sealing** (`DES-005` Layer 3), moved here from `M2-T02` by ADR-089 because it seals the Shafts this task builds. *Two ways out: the Shaft (fixed, known, loud) and the Waystone (loot, capped at one, consumed). **The Sealing never locks the Shaft, it makes it worse** — 4.0 s to 12.8 s and 5.0 to 16.0 clamor at full escalation — because on one floor a lock is the trapping ADR-015 forbids (ADR-091). `ExtractionTrait` built. The Settle beat is absent, not faked: the loop closes and reports, the Lair is `M2-T06`* → DES-005, DES-002
+- [ ] `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`). *The other half of `DES-002`'s loop: `M2-T04` built "extract", this builds "or die"* → DES-002, DES-003, DES-008, DES-012
+- [ ] `M2-T06` Minimal Lair: stash and re-descend — *and with it the **Settle beat** `M2-T04` deliberately left absent: what you brought, the keep-or-give decision made physically at the hoard (`DES-019`)* → DES-002, DES-008, DES-014, DES-019
 - [ ] `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players → DES-012
 - [ ] `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early → ART-002, ART-003, TEC-005
 
@@ -90,7 +90,7 @@ The most common way a project like this dies is building the meta-progression fi
 > **M4 ships two classes, not six.** All six remain required *for launch* (ADR-012 — they are available from the start), but they move to **M5**. The slice's job is to prove the game is worth finishing; class breadth is what you build once you know it is.
 <!-- milestone id=M4 depends=M3 size=unknown -->
 **Goal:** one biome, complete and polished, representative of the final game.
-- [ ] `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037); `M2-T02` has one floor to hunt on* → DES-015, DES-006, DES-017
+- [ ] `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* → DES-015, DES-006, DES-017, DES-005
 - [ ] `M4-T02` ~6 enemy archetypes, 2 hazard types → DES-013
 - [ ] `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* → DES-011
 - [ ] `M4-T04` Contracts tier 1–3, one faction (`DES-007`) → DES-007

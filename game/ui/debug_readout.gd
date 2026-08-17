@@ -56,6 +56,13 @@ func _process(_delta: float) -> void:
 			clamor.carried_floor * Config.tuning.clamor_metres_per_unit,
 		],
 	])
+	# `DES-019` Layer 3 puts the Waystone on the Burden layer and requires one
+	# question to be answerable in a glance: **do I still have my way out?**
+	# Binary, which only holds because ADR-015 caps it at one. The real Burden
+	# layer is `M4-T05`; this is where it lives until then.
+	lines.append("waystone  %s" % [
+		"CARRIED" if bag.waystone() != null else "none",
+	])
 	# Enemy state is on screen because the awareness ladder is unreadable
 	# without audio, and DES-013 requires every transition to be legible in
 	# both channels. The audio half is `M2-T03`; until then this is the only

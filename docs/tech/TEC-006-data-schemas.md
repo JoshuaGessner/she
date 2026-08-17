@@ -4,7 +4,7 @@ title: Data Schemas
 status: accepted
 owner: tech
 tags: [data, resources, godot, tres, schema, tooling]
-updated: 2026-08-16
+updated: 2026-08-17
 related: [TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007]
 ---
 
@@ -63,7 +63,7 @@ class_name ItemResource extends Resource
 | `LightTrait` | radius, colour, fuel, whether it can be dropped lit |
 | `ConsumableTrait` | effect tag, use time, whether usable in combat |
 | `CursedTrait` | curse tag, what triggers it, whether it can be dropped |
-| `ExtractionTrait` | Waystone behaviour — cap of one, not tributable (ADR-015) |
+| `ExtractionTrait` | Waystone behaviour — cap of one, not tributable (ADR-015). **Built at `M2-T04`**, second of the seven, and for the same reason `WieldableTrait` was: its system now exists. `Inventory` enforces the cap rather than trusting loot never to offer a second — `M4-T01`'s tables are generated, and generated things offer seconds |
 | `IdentifiableTrait` | unknown until appraised; what Lineage reveals it |
 
 A jewelled sword is `[Wieldable]` with a high `tribute_value`. **No new class needed.** That is the whole point.

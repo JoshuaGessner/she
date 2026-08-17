@@ -70,6 +70,10 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # because it is the other thing you do with a full hand under pressure and
     # the two must never be confused at the moment it matters.
     "throw": [(AXIS, AXIS_TRIGGER_LEFT, 1.0)],
+    # Spending the way home (`M2-T04`, ADR-015). Deliberately off on the d-pad,
+    # away from the face buttons and the triggers: it ends the run, and the one
+    # input you must never press by accident should not sit under your thumb.
+    "use_waystone": [(BUTTON, DPAD_UP, 0.0)],
     "debug_reset": [(BUTTON, DPAD_LEFT, 0.0)],
     "debug_ink": [(BUTTON, Y, 0.0)],
     "interact": [(BUTTON, X, 0.0)],

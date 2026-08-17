@@ -144,6 +144,24 @@ extends Resource
 @export var hunter_bait_fraction: float = 0.34
 @export var hunter_reach: float = 2.0
 
+@export_group("Extraction")
+## Seconds standing in the Shaft to leave, before escalation ⟨tune⟩. Long
+## enough that a known, fixed location is a real exposure and short enough that
+## an early exit is genuinely the cheap one (`DES-005`).
+@export var shaft_channel_seconds: float = 4.0
+## Clamor per second while using it. The Shaft is *"reliable but dangerous and
+## loud"* — this is the loud.
+@export var shaft_clamor: float = 5.0
+## **The Sealing** (ADR-091). At full escalation the channel and the noise are
+## both multiplied by `1 + this`, so leaving late is longer *and* louder. The
+## Shaft never locks — `DES-005` guarantees it stays reachable, and on one
+## floor a locked Shaft is a trap with nothing beneath it.
+@export var shaft_seal_factor: float = 2.2
+## Seconds of Hunt on the floor for escalation to reach full ⟨tune⟩. Read off
+## the Gullsjúkr's age, so the price of leaving and the pressure you feel come
+## from the same clock.
+@export var shaft_seal_seconds: float = 300.0
+
 @export_group("Interaction")
 ## Metres you can reach a thing from. Latency slack is added on top **on the
 ## host**: a client presses interact from where it believes it stands, and the

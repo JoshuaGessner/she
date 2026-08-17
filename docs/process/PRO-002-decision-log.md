@@ -1367,4 +1367,34 @@ Two further points `TEC-005` undersells: **FMOD has no official Godot integratio
 
 ---
 
+## ADR-091 — `M2-T04`: the Shaft never locks, it gets worse
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-005` Layer 3, `TEC-006`** · **Implements ADR-015** · **Refines ADR-089**
+
+**Context:** ADR-089 moved the Sealing from `M2-T02` to here, on the grounds that it seals the Shafts this task builds. That was right about *where* and incomplete about *whether one floor can express it*. Building it surfaced a contradiction inside `DES-005` itself:
+
+> *"As the Hunt escalates, **the Shafts seal, floor by floor.**"*
+> *"The player is never truly trapped — **the Shaft is always reachable**, just increasingly expensive."*
+
+Both hold on a three-floor run: sealing floor 1 pushes you *down*, and down is still a way out. On the one hand-built floor that exists until `M4-T01`, a sealed Shaft is a locked door with nothing beneath it — the trapping ADR-015 forbids outright.
+
+**Decision — the Sealing is built as the second sentence, not the first.**
+
+> **The Shaft never locks. It gets worse.**
+
+Escalation multiplies the channel time *and* the noise, so leaving late means standing exposed in a **known location**, for longer, screaming, with the thing that hunts wealth already coming. That is *"your cheap exit is gone"* delivered as a price rather than as a wall.
+
+**Rationale:** it is what `DES-005`'s own guarantee describes, it needs no floor beneath it to be honest, and it keeps the felt content of the Sealing — staying costs you the cheap way out. **Floor-by-floor locking is not built and is not faked**; it needs floors and arrives with them at `M4-T01`, alongside the cross-floor Hunt (ADR-037). The two statements in `DES-005` are now consistent rather than in tension, which they quietly were.
+
+**Measured:** 4.0 s and 5.0 clamor early; **12.8 s and 16.0 clamor** at full escalation. Still payable, three times worse.
+
+**Decision 2 — `ExtractionTrait` is built**, the second of `TEC-006`'s seven traits, and for the same reason `WieldableTrait` was: its system now exists. It carries the **cap of one** (ADR-015, Q54), which `Inventory` enforces rather than trusting loot never to offer a second — `M4-T01`'s tables are generated, and generated things offer seconds. The cap is a UI decision as much as a balance one: `DES-019` requires the Waystone indicator to be *"binary and answerable in a glance"*, and a player holding two would make that mark a lie.
+
+**Decision 3 — the Waystone is hand-placed, and its drop rate is explicitly not tuned here.** `DES-005` calls the rate *"the strongest single lever in the game"*, and a drop **rate** needs the loot tables `M4-T01` builds. One is placed in the guarded half, which lets this floor answer the question underneath the lever — *is a way out worth two squares and a walk past the Guardian?* — without pretending to answer the lever itself.
+
+**On what extraction does today.** It reports what left with you and starts another descent. **The Settle beat is almost entirely absent** — `DES-019` wants punch, the hoard, the keep-or-give decision made physically, and deeds surfaced there and nowhere else; those need the Lair (`M2-T06`) and `DES-016`. Nothing fakes them: there is no hub, no stash screen, no summary panel. What you kept is printed and then gone, which is honest about there being nowhere yet to put it. What *is* built is the loop closing, and that is what makes `--bag-probe`'s agonising mean anything — you finally find out whether the loot you chose over the mail byrnie actually left with you.
+
+**Consequences:** `--exit-probe` joins the sweep with five assertions, **each confirmed by planting a violation**. The one that earns its place is ADR-015's absolute: implementing the Sealing as a lock passes every reading of `DES-005`'s table and fails this check immediately, which is exactly what it is for. `use_waystone` is bound to the d-pad, deliberately away from the face buttons and triggers — the one input that ends a run should not sit under a thumb. The Waystone indicator lives on the debug readout until `M4-T05` builds the Burden layer.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
