@@ -99,6 +99,16 @@ The classic co-op failure is that 4-player becomes the optimal farm and everyone
 
 This is the most important balance relationship in co-op and it needs early instrumentation (`DES-010` metrics): per-capita extracted value by party size, tracked from the first playable build.
 
+> **Built (`M2-T07`, ADR-096).** `PartyScaling` — three ⟨tune⟩ exponents, and the two that matter are the two that are not linear. Clamor scales at the single point noise enters the world (`ClamorSource.add()`), so every consumer built since `M2-T02` sits downstream of one multiply and none of them knows why a four-stack meets the Hunt sooner.
+>
+> | Party | Loot | **Per head** | Enemies | Clamor | **Per head** |
+> |---|---|---|---|---|---|
+> | 1 | 4 | **4.00** | 3 | ×1.00 | **1.00** |
+> | 2 | 6 | **3.00** | 6 | ×2.55 | **1.27** |
+> | 4 | 9 | **2.25** | 11 | ×6.50 | **1.62** |
+>
+> `--scaling-probe` asserts the **signs**, not the values: per-capita loot must fall, per-capita clamor must rise, enemy count must grow. A balance pass may move the exponents; it cannot flip them without CI refusing the commit. Per-capita *extracted* value, as against spawned, waits on `DES-010`'s metrics sink at `M4`. Elite frequency and contract objective count are absent — `M3` builds ranks and `DES-007` builds contracts.
+
 ## Mixed-rank parties
 
 > **DECIDED (ADR-010/011).**

@@ -4,7 +4,7 @@ title: Networking Architecture
 status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-08-16
+updated: 2026-08-17
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
@@ -50,6 +50,10 @@ The M1 feel prototype ships with **two players connected over localhost**, even 
 python3 tools/run_coop.py            # two windows, host on keyboard, client on pad
 python3 tools/run_coop.py --smoke    # headless, two processes, judged
 ```
+
+**The probe builds its floor; it never inherits one (`M2-T07`, ADR-096).** It empties the level on connect and spawns exactly the enemy each phase needs, immediately before that phase needs it — then clears the floor again for the rescue. This is not making the test easy. Party scaling broke the smoke in five places at once and **none of them were replication faults**: extra bodies shoved each other apart, 2.55× clamor walked every enemy off its post before the strike phase swung at it, and the floor got dangerous enough that the *host* was beaten down before it could offer a hand. Two of those failed **quietly**, by hitting a different body than they meant to.
+
+A body half a second old cannot have wandered, and that holds at any party size. The rule this leaves behind: **an authority probe must control everything except the authority it is measuring** — and every sample must be taken at the moment its claim is made, not at report time, which is the same mistake ADR-093 caught for enemy speeds and ADR-096 found still sitting in three more fields.
 
 ## What replicates, and what doesn't
 

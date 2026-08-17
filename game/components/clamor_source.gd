@@ -71,6 +71,16 @@ func _process(delta: float) -> void:
 func add(amount: float) -> void:
 	if amount <= 0.0:
 		return
+	# **Party scaling lives here, at the one place noise enters the world**
+	# (`M2-T07`, `DES-012`). Every footstep, swing, pickup and rummage from
+	# every source passes through this function, so one multiplication makes a
+	# four-stack super-linearly loud without a single system having to know how
+	# many people are playing.
+	#
+	# Putting it on each emitter instead would have meant remembering it at a
+	# dozen call sites, and the one forgotten site would be the one that made
+	# the metric lie.
+	amount *= PartyScaling.clamor(PartyScaling.size_of(self))
 	level = minf(Config.tuning.clamor_maximum, level + amount)
 	made_noise.emit(amount, level)
 

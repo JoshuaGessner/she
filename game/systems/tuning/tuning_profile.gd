@@ -144,6 +144,22 @@ extends Resource
 @export var hunter_bait_fraction: float = 0.34
 @export var hunter_reach: float = 2.0
 
+@export_group("The party")
+## Extra enemies per additional player, as a fraction of the base count ⟨tune⟩.
+## Near-linear (`DES-012`) so combat stays meaningful with four swords in the
+## room rather than becoming a formality.
+@export var party_enemy_slope: float = 0.85
+## Loot present scales as `party ^ this` ⟨tune⟩. **Below 1 on purpose**, which
+## is what makes per-capita yield *fall* with party size — you are splitting a
+## floor, and four people splitting it get less each without any rule saying
+## four people get less.
+@export var party_loot_exponent: float = 0.6
+## Every clamor deposit is multiplied by `party ^ this` ⟨tune⟩. **Above 1 on
+## purpose**: `DES-012` says four bodies are far more than twice as loud as
+## two, and since `M2-T02` the Gullsjúkr navigates that noise, so a four-stack
+## meets it sooner as a consequence rather than as a rule.
+@export var party_clamor_exponent: float = 1.35
+
 @export_group("Down and out")
 ## Seconds on the floor before the ember goes out ⟨tune⟩ (`DES-012`, ADR-050).
 ## **The window is the decision** — it shortens whatever anyone does about it,

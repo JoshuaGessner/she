@@ -86,6 +86,13 @@ const ENEMY_POSTS: Array[Vector3] = [
 ]
 const GUARDIAN_POST: Vector3 = Vector3(18.5, 0.1, -21.0)
 
+## Metres between an authored post and the extra bodies a larger party brings.
+## Comfortably more than two body radii (0.35 each), because two capsules
+## spawned inside each other shove each other apart and the shove is
+## host-side — which reads on a client as the two peers disagreeing about
+## where an enemy nobody has touched is standing.
+const SPREAD: float = 1.6
+
 ## Where the party starts — one point per player, a stride apart across the
 ## entrance. A single shared point would have two people begin the run standing
 ## inside each other, which reads as a replication bug on the first frame
@@ -235,6 +242,8 @@ func _ready() -> void:
 			_exit_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
+		elif arg == "--scaling-probe":
+			_scaling_probe()
 		elif arg.begins_with("--ember-shot="):
 			_ember_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hash":
@@ -953,6 +962,86 @@ func _ember_probe() -> void:
 	_report(problems, "ember")
 
 
+## Per-capita yield and noise by party size (`M2-T07`, `DES-012`).
+##
+## `DES-012` asks for exactly this, from the first playable build: *"per-capita
+## extracted value by party size, tracked from the first playable build"* —
+## because it is the number that tells you whether one way of playing has
+## quietly become the correct one, and by the time that is obvious in play it
+## is a year of balance debt.
+##
+## **What is measured and what is not.** Actual extracted value needs real
+## players making real choices, and no probe can produce that; it is a playtest
+## metric and stays one. What a probe *can* do is measure the thing that value
+## is drawn from — how much is on the floor per person, and how loud each
+## person's noise makes the party — and refuse the shapes that would break the
+## relationship:
+##
+## 1. **Per-capita loot falls** as the party grows. If it rises or holds, a
+##    four-stack is the optimal farm and solo is a handicap.
+## 2. **Per-capita clamor rises.** If it falls, a big party is *quieter* per
+##    person and the pressure system rewards bringing friends.
+## 3. **Enemies scale up**, or four people trivialise a floor built for one.
+## 4. **The pool is not exhausted below the top of the range.** A floor that
+##    runs out of authored loot at two players is one whose numbers stop
+##    meaning what they say — the curve would read as flat when it is only
+##    clipped.
+func _scaling_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var sizes: Array[int] = [1, 2, 4]
+	var per_head_loot: Array[float] = []
+	var per_head_clamor: Array[float] = []
+	var counts: Array[int] = []
+	var pool: int = LOOT.size()
+
+	print("[party] pool %d authored item(s), %d authored post(s)" % [
+		pool, ENEMY_POSTS.size()])
+	for party: int in sizes:
+		var wanted: int = PartyScaling.loot(_solo_loot(), party)
+		var present: int = mini(pool, wanted)
+		var enemies: int = PartyScaling.enemies(ENEMY_POSTS.size(), party)
+		var noise: float = PartyScaling.clamor(party)
+		per_head_loot.append(float(present) / float(party))
+		per_head_clamor.append(noise / float(party))
+		counts.append(enemies)
+		print(("[party] %d player(s): %d loot (%.2f each), %d enemies, "
+			+ "clamor x%.2f (%.2f each)%s") % [
+			party, present, per_head_loot[-1], enemies, noise,
+			per_head_clamor[-1],
+			"" if wanted <= pool else "  — POOL EXHAUSTED, wanted %d" % wanted])
+
+	for index: int in range(1, sizes.size()):
+		if per_head_loot[index] >= per_head_loot[index - 1]:
+			problems.append(("per-capita loot does not fall from %d to %d players "
+				+ "(%.2f → %.2f) — DES-012 needs a bigger party to be individually "
+				+ "poorer, or four-player becomes the optimal farm")
+				% [sizes[index - 1], sizes[index], per_head_loot[index - 1],
+				per_head_loot[index]])
+		if per_head_clamor[index] <= per_head_clamor[index - 1]:
+			problems.append(("per-capita clamor does not rise from %d to %d players "
+				+ "(%.2f → %.2f) — four bodies must be far more than twice as loud "
+				+ "as two, or bringing friends makes you quieter")
+				% [sizes[index - 1], sizes[index], per_head_clamor[index - 1],
+				per_head_clamor[index]])
+		if counts[index] <= counts[index - 1]:
+			problems.append("enemies do not grow from %d to %d players — combat has "
+				% [sizes[index - 1], sizes[index]]
+				+ "to stay meaningful with more swords in the room")
+
+	# The authored ceiling. Clipping *at* the top of the range is by design;
+	# clipping below it makes the curve unmeasurable rather than merely bounded.
+	var clipped_at: int = 0
+	for party: int in sizes:
+		if PartyScaling.loot(_solo_loot(), party) > pool and clipped_at == 0:
+			clipped_at = party
+	if clipped_at != 0 and clipped_at < sizes[-1]:
+		problems.append(("the loot pool runs out at %d players, below the top of "
+			+ "the range — the curve reads as flat when it is only clipped, and "
+			+ "the per-capita metric stops meaning what it says") % clipped_at)
+
+	_report(problems, "party")
+
+
 ## Four embers in a row, photographed (`M2-T05`).
 ##
 ## Its job changed with ADR-094 and it is worth keeping either way. It was
@@ -1013,6 +1102,11 @@ func _levels_line(levels: Dictionary) -> String:
 ## rather than a race against a body walking out of the arc.
 const PROBE_WALK_FROM: Vector3 = Vector3(0.0, 0.1, 6.0)
 const PROBE_STRIKE_FROM: Vector3 = Vector3(9.0, 0.1, -3.5)
+## Where the probe puts the one enemy it needs — the authored first post, spelt
+## out rather than read from `ENEMY_POSTS[0]` because indexing an array is not
+## a constant expression. Spawned by the phase that swings at it, so no amount
+## of party-scaled clamor can have walked it away first.
+const PROBE_STRIKE_AT: Vector3 = Vector3(9.0, 0.1, -5.0)
 
 ## Far enough down the same corridor that the struck enemy has to *run* to
 ## reach it, and does not arrive before the probe samples.
@@ -1029,8 +1123,14 @@ const PROBE_RETREAT_TO: Vector3 = Vector3(9.0, 0.1, -16.0)
 ## anyway. A `glt_` item on purpose: it has weight *and* clamor, so one pickup
 ## exercises both host-owned consequences at once.
 const PROBE_TAKE_FROM: Vector3 = Vector3(9.4, 0.1, -6.8)
+## The entrance, which holds no enemy post by construction. The rescue phase
+## happens here so it measures the revive rather than the fight around it.
+const PROBE_RESCUE_AT: Vector3 = PROBE_WALK_FROM
 const PROBE_TIMEOUT_MSEC: int = 15000
 
+var _probe_enemies_seen: int = 0
+var _probe_enemy_hp: Dictionary = {}
+var _probe_enemy_at: Dictionary = {}
 var _probe_clamor_peak: Dictionary = {}
 var _probe_walk_clamor: Dictionary = {}
 var _probe_walked: Dictionary = {}
@@ -1071,17 +1171,22 @@ func _coop_probe(out: String) -> void:
 	_probe_connect_seconds = await _await_party()
 	var mine: Player = _session.local_player()
 
-	# Count damage *events on this peer*, which is the only thing that can tell
-	# host-authoritative damage from damage that merely agrees.
+	# **Empty the floor.** This probe measures the authority split, not the
+	# floor's contents, and `M2-T07` made the contents depend on how many people
+	# are standing on it: a party of two gets six enemies and **2.55× clamor**,
+	# so by the time the strike phase swung, every enemy had heard the walk
+	# phase and left its post. Three assertions then failed for reasons with
+	# nothing to do with replication — including two that fail *quietly*, by
+	# hitting a different body than they meant to.
 	#
-	# Comparing hit points cannot do it: a client that resolved the swing
-	# itself would arrive at the same 35 as the host and the replicated value
-	# would overwrite it with itself. `Health.damaged` fires only from
-	# `apply_damage`, and replication assigns `current` directly — so a client
-	# that has correctly refused to resolve anything counts **zero**, and a
-	# client that resolved its own copy counts one. That is the assertion.
-	for node: Node in get_tree().get_nodes_in_group("enemies"):
-		(node as Enemy).health.damaged.connect(_on_probe_damage)
+	# So the probe stops inheriting a floor and builds one. Each phase spawns
+	# exactly the enemy it needs, immediately before it needs it, and a body
+	# that has existed for half a second cannot have wandered off. That holds at
+	# any party size and any clamor multiplier, which is the point: party
+	# scaling has `--scaling-probe` and does not need re-measuring through this.
+	if host:
+		_session.clear_enemies()
+	await _hold(0.6)
 
 	# 1. The client walks. Nothing else in the level moves, so the host's view
 	#    of this body is replication and nothing but.
@@ -1118,12 +1223,31 @@ func _coop_probe(out: String) -> void:
 		Input.action_release("crouch")
 	await _hold(0.5)
 
-	# 3. The client swings once at the first post. The client's own hitbox is
-	#    inert; if the enemy loses exactly one swing of health on both peers,
-	#    the host resolved it, resolved it once, and told the client.
+	# 3. **One enemy, spawned now**, and the client swings once at it. The
+	#    client's own hitbox is inert; if the enemy loses exactly one swing of
+	#    health on both peers, the host resolved it, resolved it once, and told
+	#    the client.
+	if host:
+		_session.spawn_enemy(PROBE_STRIKE_AT)
 	if not host:
 		mine.teleport(PROBE_STRIKE_FROM, 0.0)
 	await _hold(0.6)
+
+	# Count damage *events on this peer*, which is the only thing that can tell
+	# host-authoritative damage from damage that merely agrees.
+	#
+	# Comparing hit points cannot do it: a client that resolved the swing
+	# itself would arrive at the same 35 as the host and the replicated value
+	# would overwrite it with itself. `Health.damaged` fires only from
+	# `apply_damage`, and replication assigns `current` directly — so a client
+	# that has correctly refused to resolve anything counts **zero**, and a
+	# client that resolved its own copy counts one. That is the assertion.
+	#
+	# Connected here rather than at the top, because the body it listens to did
+	# not exist until three lines ago.
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		(node as Enemy).health.damaged.connect(_on_probe_damage)
+
 	if not host:
 		mine.weapon.request_swing(mine.stamina)
 	await _hold(0.8)
@@ -1149,6 +1273,14 @@ func _coop_probe(out: String) -> void:
 	# already uses, and for the same reason: **the claim is "did this ever
 	# move", so the measurement has to be "the most it ever moved".**
 	_probe_speeds = await _peak_enemy_speeds(1.5)
+	# Health and position are sampled *here*, with the chase, for the same
+	# reason the speeds are: they are claims about the swing and about where
+	# two peers think a running enemy is, and reading them at report time reads
+	# a different moment entirely — one the rescue phase below deliberately
+	# clears the floor for.
+	_probe_enemy_hp = _probe_enemy_health()
+	_probe_enemy_at = _probe_enemy_positions()
+	_probe_enemies_seen = get_tree().get_nodes_in_group("enemies").size()
 
 	# 5. The client picks something up (`M2-T01`). Two different claims land in
 	#    one gesture, and they travel in opposite directions:
@@ -1178,6 +1310,21 @@ func _coop_probe(out: String) -> void:
 	#    If the client comes back up, then the downed state replicated *and* the
 	#    host's hand reached across the wire, and the M2 co-op gate has a
 	#    mechanism under it.
+	#
+	#    The floor is cleared first and both bodies move to the empty entrance.
+	#    That is not making the test easy: this phase is a claim about a hand
+	#    reaching across the wire, and `M2-T07` made the floor genuinely more
+	#    dangerous enough that the *host* was being beaten down before it could
+	#    offer one — a rescuer that is itself incapacitated cannot revive
+	#    anybody, and the check failed for a reason with nothing to do with
+	#    replication. Every enemy claim above has already been sampled by here.
+	if not host:
+		mine.teleport(PROBE_RESCUE_AT + Vector3(1.4, 0.0, 0.0), 0.0)
+	if host:
+		_session.clear_enemies()
+		mine.restore_for_descent()
+		mine.teleport(PROBE_RESCUE_AT, 0.0)
+	await _hold(0.6)
 	if host:
 		var fallen: Player = _client_body()
 		if fallen != null:
@@ -1186,9 +1333,8 @@ func _coop_probe(out: String) -> void:
 	_probe_downed = _probe_down_state()
 	if host:
 		var fallen: Player = _client_body()
-		var helper: Player = _session.local_player()
-		if fallen != null and helper != null:
-			helper.teleport(fallen.global_position + Vector3(1.0, 0.0, 0.0), 0.0)
+		if fallen != null:
+			mine.teleport(fallen.global_position + Vector3(1.0, 0.0, 0.0), 0.0)
 			await _hold(0.4)
 			Input.action_press("interact")
 	await _hold(Config.tuning.revive_seconds + 1.2)
@@ -1229,12 +1375,12 @@ func _probe_report(host: bool) -> Dictionary:
 		"peer": multiplayer.get_unique_id(),
 		"connect_seconds": _probe_connect_seconds,
 		"players_seen": _session.players().size(),
-		"enemies_seen": get_tree().get_nodes_in_group("enemies").size(),
+		"enemies_seen": _probe_enemies_seen,
 		"positions": _probe_positions(),
 		"walked": _probe_walked,
 		"capsule_heights": _probe_heights,
-		"enemy_health": _probe_enemy_health(),
-		"enemy_positions": _probe_enemy_positions(),
+		"enemy_health": _probe_enemy_hp,
+		"enemy_positions": _probe_enemy_at,
 		"enemy_speeds": _probe_speeds,
 		"clamor_peak": _probe_clamor_peak,
 		"walk_clamor_peak": _probe_walk_clamor,
@@ -1312,6 +1458,11 @@ func _probe_down_state() -> Dictionary:
 			"downed": player.is_downed(),
 			"bleeding": player.bleeding,
 			"health": player.health.current,
+			# Carried so a failed rescue says *why*: no progress at all means
+			# nobody's hand was on them, partial progress means it was and
+			# something interrupted it.
+			"revival": player.revival,
+			"spent": player.spent,
 		}
 	return out
 
@@ -1506,9 +1657,68 @@ func _build_room(name: String) -> void:
 ## Gold is still the only saturated colour in the game (`ART-005`), and the
 ## altar-plate still carries it — `WorldItem` reads that off the `glitter` tag
 ## rather than from a constant in this file.
+## Enemies, scaled near-linearly with the party (`M2-T07`, `DES-012`).
+##
+## The authored posts are the shape of the floor — ADR-032's clean west branch
+## depends on *which rooms* hold enemies, not how many are in them — so extra
+## bodies stack around the existing posts rather than appearing anywhere new.
+## The bypass route stays empty at four players, which it has to: that
+## guarantee is about the layout, and party size must not quietly delete it.
+##
+## The Guardian is spawned once regardless. It is a Machine (`DES-015`), not
+## density; four of it in one room would be a different encounter rather than a
+## scaled one.
+func _spawn_enemies() -> void:
+	var party: int = PartyScaling.size_of(self)
+	var wanted: int = PartyScaling.enemies(ENEMY_POSTS.size(), party)
+	# Spread on a **ring**, not jittered.
+	#
+	# Random offsets put two bodies in the same place, and two capsules in the
+	# same place shove each other apart — host-side, so a client's copies lag
+	# the push and the two peers stop agreeing about where anything is. The
+	# co-op smoke caught it the moment density scaling landed: 0.83 m of
+	# disagreement on an enemy nobody had touched.
+	#
+	# A ring at `SPREAD` guarantees separation by construction, and being
+	# deterministic it also means the same party always meets the same floor —
+	# which `--scaling-probe` needs, since it compares one against another.
+	for index: int in range(wanted):
+		var post: Vector3 = ENEMY_POSTS[index % ENEMY_POSTS.size()]
+		var ring: int = index / ENEMY_POSTS.size()
+		if ring > 0:
+			var angle: float = TAU * float(index) / float(maxi(wanted, 1))
+			post += Vector3(cos(angle), 0.0, sin(angle)) * SPREAD * float(ring)
+		_session.spawn_enemy(post)
+	# The Guardian faces its prize's doorway and never leaves the room.
+	_session.spawn_enemy(GUARDIAN_POST)
+
+
+## The authored loot, as much of it as this party gets (`M2-T07`, `DES-012`).
+##
+## **Sub-linear**: the list is the floor's pool and party size decides how much
+## of it is lying there. So a solo run finds most of it and a four-stack finds
+## all of it *between them* — which is far less each, and is the mechanism that
+## stops four-player becoming the optimal farm.
+##
+## The pool is a hand-placed list until `M4-T01`, so the scaling is bounded by
+## what a designer authored rather than by the curve. That bound is real and it
+## is reported by `--scaling-probe` rather than hidden: a floor that runs out of
+## loot before it runs out of curve is a floor whose numbers stop meaning what
+## they say.
 func _spawn_loot() -> void:
-	for row: Array in LOOT:
+	var party: int = PartyScaling.size_of(self)
+	var wanted: int = mini(LOOT.size(), PartyScaling.loot(_solo_loot(), party))
+	for index: int in range(wanted):
+		var row: Array = LOOT[index]
 		_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
+
+
+## What a lone player finds. Chosen so the curve reaches the authored ceiling
+## at four — the point where the pool runs out is exactly the top of the party
+## range rather than somewhere in the middle of it.
+func _solo_loot() -> int:
+	return int(round(float(LOOT.size())
+		/ pow(float(Player.MAX_PARTY), Config.tuning.party_loot_exponent)))
 
 
 ## The Hunt (`M2-T02`): the field, then the thing that navigates it.
@@ -1651,9 +1861,7 @@ func _reset_floor() -> void:
 		node.queue_free()
 	_session.clear_enemies()
 	await get_tree().process_frame
-	for post: Vector3 in ENEMY_POSTS:
-		_session.spawn_enemy(post)
-	_session.spawn_enemy(GUARDIAN_POST)
+	_spawn_enemies()
 	_spawn_loot()
 	var index: int = 0
 	for player: Player in _session.players():
@@ -1701,10 +1909,7 @@ func _spawn_actors() -> void:
 	# host's spawns arrive on their own. The level does not need to know which
 	# process it is, which is the property that keeps every future level from
 	# growing a networking branch.
-	for post: Vector3 in ENEMY_POSTS:
-		_session.spawn_enemy(post)
-	# The Guardian faces its prize's doorway and never leaves the room.
-	_session.spawn_enemy(GUARDIAN_POST)
+	_spawn_enemies()
 	_spawn_loot()
 
 

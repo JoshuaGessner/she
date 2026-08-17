@@ -8,14 +8,14 @@
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
-`17/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`18/44` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>7/9"]:::current
+  M2["M2 The Loop Prototype<br/>8/9"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/8"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `████████████░░░` | 7/9 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `█████████████░░` | 8/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/11 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -77,7 +77,7 @@ _None. Sequencing is clean._
 - ✔ `M2-T04` Extraction: reach an exit, keep what you carried — **plus the Sealing** (`DES-005` Layer 3), moved here from `M2-T02` by ADR-089 because it seals the Shafts this task builds. *Two ways out: the Shaft (fixed, known, loud) and the Waystone (loot, capped at one, consumed). **The Sealing never locks the Shaft, it makes it worse** — 4.0 s to 12.8 s and 5.0 to 16.0 clamor at full escalation — because on one floor a lock is the trapping ADR-015 forbids (ADR-091). `ExtractionTrait` built. The Settle beat is absent, not faked: the loop closes and reports, the Lair is `M2-T06`* `DES-005` `DES-002`
 - ✔ `M2-T05` Death: lose it all — plus **downed state and ember rescue** (`DES-012`). *The other half of `DES-002`'s loop: `M2-T04` built "extract", this builds "or die". **The ember is an `ItemResource`**, so the sacrifice falls out of the grid, the scales and the clamor floor rather than being special-cased — 3.40 → 2.94 m/s and silent → heard at 2.2 m for whoever carries it (ADR-092). `ItemInstance` gains `bound_to`, its first mutable field, exactly as ADR-084 said it would. Vörðr **Return** and Scars are absent, not approximated — both need the LIFE `M3` builds* `DES-002` `DES-003` `DES-008` `DES-012`
 - ✔ `M2-T06` Minimal Lair: stash and re-descend — *and with it the **Settle beat** `M2-T04` deliberately left absent: what you brought, the keep-or-give decision made physically at the hoard (`DES-019`). **Chamber and Threshold as two scenes** (ADR-021); the Chamber has no `CoopSession` in it at all, which is what makes "never networked" structural rather than remembered. Tribute is the drag-out-of-the-bag gesture, and the place you are standing decides what it means. `GameState` holds `DES-003`'s three tiers — **the stash dies with you, the hoard never does**. The game now boots into the Threshold (ADR-095)* `DES-002` `DES-008` `DES-014` `DES-019`
-- · `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players `DES-012`
+- ✔ `M2-T07` **Party scaling instrumented from the first build**: per-capita extracted value at 1/2/4 players `DES-012` `TEC-004`
 - · `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early `ART-002` `ART-003` `TEC-005`
 
 ### M3 — The Pact
@@ -116,6 +116,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 95 ADRs · 12 open questions · 92 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 96 ADRs · 12 open questions · 96 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

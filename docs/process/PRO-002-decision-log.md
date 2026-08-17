@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-16
+updated: 2026-08-17
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -1492,6 +1492,48 @@ The reasoning runs fiction-first and that is worth preserving: tribute, her voic
 **On the hoard, which is the cheapest good thing in the design.** `DES-014` prices it at *"a growing-pile-of-meshes system and nothing else"* and that is exactly what it cost: one mesh per ⟨tune⟩ 25 tribute, piled from a fixed seed so the mountain you walked past last run is the same mountain. It is visible progress with **zero balance impact** — the safest retention mechanism available — and it turns ADR-004's harshness into something you can walk on.
 
 **Absent, not stubbed.** Boon (`M3-T01` builds the tree tribute buys), the Tithe and Pact Rank (`M3-T04`), the Legacy screen (`M3-T05`), and **saving any of it to disk** (`M3-T06`; `TEC-003` wants a versioned format with a migration path, not whatever is convenient today). In the Threshold: the contract board, the Forge, the Quartermaster, the staves, the campsites, camp momentum, and the NPC Bound. A fire and a doorway is not a placeholder for a bigger Threshold — `DES-010` wants the camp to *fill in* over the first hour, so it is the first hour.
+
+---
+
+## ADR-096 — `M2-T07`: two exponents, and the probe that had to stop inheriting a floor
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `DES-012`, `PRO-001`, `TEC-004`**
+
+**Context:** `DES-012` calls party scaling *"the most important balance relationship in co-op"* and asks for it to be instrumented **from the first playable build** — not balanced early, *measured* early, because the failure it prevents is silent: four-player quietly becomes the optimal way to farm and solo stops being played, and by the time anyone notices, the economy has been built on top of it.
+
+**Decision 1 — the whole mechanism is two exponents, and the signs are the design.** Enemies scale near-linearly, loot **sub**-linearly, clamor **super**-linearly. What makes it work is that the interesting arithmetic is per-capita and nobody had to write it:
+
+```
+loot   per person = base · N^p / N = base · N^(p-1)   → falls, since p < 1
+clamor per person =        N^q / N =        N^(q-1)   → rises, since q > 1
+```
+
+So a bigger party is **individually poorer and collectively louder** without a single rule saying "four players get less". Nobody is punished; the floor is being divided, and being divided by more people is worse for each of them. Measured at ⟨tune⟩ `0.6` / `1.35`:
+
+| Party | Loot | Per head | Enemies | Clamor | Per head |
+|---|---|---|---|---|---|
+| 1 | 4 | 4.00 | 3 | ×1.00 | 1.00 |
+| 2 | 6 | 3.00 | 6 | ×2.55 | 1.27 |
+| 4 | 9 | 2.25 | 11 | ×6.50 | 1.62 |
+
+Extraction points stay **flat**, deliberately: everyone converges on the same doors, which is where a scattered party becomes a crowd at the exit.
+
+**Decision 2 — clamor scales at the one place noise enters the world.** `ClamorSource.add()` and nowhere else. Every consumer built since `M2-T02` — the field, the Gullsjúkr's three senses, the Ear, the mix — is downstream of that single multiply, so a four-stack meets the Hunt far sooner and not one line of the Hunt knows why. That is `TEC-001`'s "the Hunt tracks noise, never transforms" paying for itself a second time.
+
+**Decision 3 — party size is counted from the group, not the peer list.** A body that has spawned is a body making noise and pulling loot, whether or not its owner's connection has finished settling.
+
+**Decision 4 (the one that cost the time) — `--coop-probe` builds its own floor instead of inheriting one.** Party scaling broke the co-op smoke in five different places at once, and *none* of the failures were replication faults:
+
+- extra enemies spawned into each other and shoved, so the two peers disagreed by 0.83 m;
+- 2.55× clamor pulled every enemy off its post during the *walk* phase, so the strike phase swung at empty air — and the two checks that "passed" by hitting a different body than they meant to are the dangerous half of that;
+- the floor got dangerous enough that the **host** was beaten down before the rescue phase, and a rescuer that is itself incapacitated cannot revive anybody. Three revive assertions failed for a reason with nothing to do with the wire.
+
+The fix is not more tolerance. The probe now **empties the floor and spawns exactly the enemy each phase needs, immediately before it needs it** — a body half a second old cannot have wandered — and clears it again for the rescue. That holds at any party size and any clamor multiplier, which is the point: party scaling has `--scaling-probe` and does not need re-measuring through a probe about authority.
+
+**The same bug, a third time.** `enemy_health`, `enemy_positions` and `enemies_seen` were read at *report* time rather than when the claim was made — the identical mistake ADR-093 fixed for enemy speeds, still sitting in three fields nobody had needed to move yet. It only surfaced because clearing the floor made "read it later" produce an empty dictionary instead of a plausible-looking one. **A measurement taken at a different moment than the claim is not a measurement of the claim**, and it fails silently until something makes the gap visible.
+
+**Every number here is ⟨tune⟩ and the shape is what `M2-T07` owes.** `--scaling-probe` asserts the *signs*: per-capita loot must fall, per-capita clamor must rise, enemies must grow. Planting the linear values (`1.0`, `1.0`, `0.0`) makes each of the three fire. A future balance pass moves the exponents; it cannot flip them without CI saying so.
+
+**Absent, not stubbed.** Elite frequency and contract objective count both scale in `DES-012`'s table and neither exists yet — `M3` builds ranks and `DES-007` builds contracts. Per-capita **extracted** value, as opposed to per-capita spawned value, needs the metrics sink `DES-010` describes and `M4` builds; what exists now is the generator, measured at the point it generates.
 
 ---
 
