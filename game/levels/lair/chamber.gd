@@ -53,6 +53,10 @@ const GOLD: Color = Color(0.86, 0.67, 0.22)
 const HER: Color = Color(0.20, 0.19, 0.18)
 const STASH_COLOUR: Color = Color(0.38, 0.33, 0.26)
 
+## Raised when you walk back out. The Threshold opened this room and is the
+## thing that puts you back in the world.
+signal left()
+
 const HOARD_AT: Vector3 = Vector3(0.0, 0.0, -4.0)
 const STASH_AT: Vector3 = Vector3(-5.0, 0.0, 1.0)
 const DOOR_AT: Vector3 = Vector3(0.0, 0.0, 6.0)
@@ -105,6 +109,8 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg == "--lair-probe":
 			_lair_probe()
+		elif arg == "--chamber-probe":
+			_leave_soon()
 		elif arg.begins_with("--chamber-shot="):
 			_chamber_shot(arg.split("=", true, 1)[1])
 
@@ -113,7 +119,17 @@ func _ready() -> void:
 ## a session is what makes "never networked" structural instead of remembered.
 func _spawn_body() -> void:
 	_player = preload("res://actors/player/player.tscn").instantiate() as Player
-	_player.name = "player_1"
+	_player.name = "chamber_body"
+	# **Yours, whoever you are** (ADR-102). Authority defaults to peer 1, so on
+	# a client this body reported `is_multiplayer_authority()` false and
+	# `Player._ready` took the remote branch: no camera made current, no input,
+	# no bag. `chamber.tscn` holds no camera of its own, so the second player
+	# walked into their own hoard room and got a viewport with nothing in it.
+	#
+	# Nothing here is replicated: this body carries no synchronisers, because
+	# `configure_replication` builds those and only `CoopSession` calls it.
+	# ADR-021 holds — the room is private by construction, not by care.
+	_player.set_multiplayer_authority(multiplayer.get_unique_id())
 	_player.position = SPAWN_AT
 	add_child(_player)
 	_player.dropped.connect(_on_put_down)
@@ -272,7 +288,10 @@ func _leave() -> void:
 	for item: ItemInstance in _player.inventory.items():
 		undecided.append(item)
 	GameState.carried = undecided
-	get_tree().change_scene_to_file("res://levels/lair/threshold.tscn")
+	# Emitted, never a scene change (ADR-102). Whoever opened this room closes
+	# it — the Chamber floats above a live level now, and tearing down the
+	# scene from in here would take the party's world with it.
+	left.emit()
 
 
 func _build_readout() -> void:
@@ -400,3 +419,14 @@ func _chamber_shot(path: String) -> void:
 
 func _hold(seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout
+
+
+## Turn around and walk back out (`run_doorway.py`).
+##
+## The visit itself is not what is being measured — coming back is. A player
+## who reaches their Chamber and cannot return to the party has lost the run
+## just as surely as one who never arrived.
+func _leave_soon() -> void:
+	await get_tree().create_timer(4.0).timeout
+	print("[chamber] leaving the chamber")
+	_leave()

@@ -62,6 +62,9 @@ SMOKE_TIMEOUT = 180
 POSITION_TOLERANCE = 0.35
 ENEMY_TOLERANCE = 0.60
 # The client walks for a second at ⟨tune⟩ 3.4 m/s from a standstill.
+# Stepped 20 Hz motion sits near 0.67 — two frames in three with no
+# movement at all. Anything under this is carrying the gap smoothly.
+MAX_STILLNESS = 0.25
 MIN_WALK_METRES = 1.0
 # stand 1.80 − crouch 1.15 = 0.65 m. Half of that is unambiguous while leaving
 # room for the crouch blend not being quite finished.
@@ -166,6 +169,17 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"{floor['party']} players: {floor['enemies']} enemies "
         f"(solo {floor['solo_enemies']}), {floor['loot']} loot "
         f"(solo {floor['solo_loot']})"))
+
+    # Jitter, as a number rather than an impression (ADR-102). A remote body
+    # that is walking should be moving on every frame. Writing 20 Hz positions
+    # straight onto the transform left it frozen on two frames in three, which
+    # is what a tester reports as "a little jittery" and what no probe in the
+    # sweep could see. Interpolated, it lands near zero.
+    stillness = host["stillness"]
+    rows.append(check(
+        "a walking teammate is never frozen",
+        0.0 <= stillness <= MAX_STILLNESS,
+        f"still on {stillness * 100:.0f}% of frames"))
 
     # Positions. Missing keys must fail rather than skip: an absent body is the
     # loudest possible failure and the easiest one to accidentally ignore.

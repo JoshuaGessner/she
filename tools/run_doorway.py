@@ -16,9 +16,19 @@ ADR-097 and ADR-100 — code that is correct until the game does something no
 check does — and the only way to catch it is to make two processes walk through
 a door.
 
-The assertion is deliberately narrow: after the transition, does the host still
-have a peer and does the client still have a host? Anything more belongs in
-`run_coop.py`, which owns the authority split.
+Two doors, because there are two kinds.
+
+**The party door** — the Descent, which everybody walks through together. That
+is what the first version covered, and its assertion was deliberately narrow:
+after the transition, does the host still have a peer and the client still have
+a host?
+
+**The private door** — a Chamber, which exactly one player walks through while
+the others stay where they are. Nothing covered it, and ADR-102 found four
+faults living in it at once: the client lost its camera, lost its body on the
+way back, and both endgame transitions acted on the wrong peer. Narrowness is
+how all four survived a green sweep, so this half asks the blunt questions
+instead: afterwards, does everyone still have a body, and is it the same seat?
 """
 
 from __future__ import annotations
@@ -37,27 +47,55 @@ PORT = 47019  # not run_coop's, so the two can be run at once
 GODOT = os.environ.get("GODOT", "godot")
 # Long enough to connect, walk through, and settle on the far side.
 SECONDS = 25
+# The private door needs a visit and a return on top of a connect.
+PRIVATE_SECONDS = 34
 
 
 def launch(args: list[str]) -> subprocess.Popen:
     return subprocess.Popen(
-        [GODOT, "--headless", "--path", str(GAME), "--quit-after", "4000",
+        [GODOT, "--headless", "--path", str(GAME), "--quit-after", "9000",
          "levels/lair/threshold.tscn", "--"] + args,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 
-def main() -> int:
-    host = launch(["--host", f"--port={PORT}", "--doorway-probe"])
+def run(probe: str, port: int, seconds: int) -> dict[str, str]:
+    """One scenario: a host, a client, and a door."""
+    host = launch(["--host", f"--port={port}", probe])
     time.sleep(3.0)
-    client = launch([f"--join=127.0.0.1", f"--port={PORT}"])
+    client = launch(["--join=127.0.0.1", f"--port={port}", probe])
 
-    logs: dict[str, str] = {}
-    for name, process in (("host", host), ("client", client)):
-        try:
-            logs[name] = process.communicate(timeout=SECONDS)[0] or ""
-        except subprocess.TimeoutExpired:
-            process.kill()
-            logs[name] = process.communicate()[0] or ""
+    # Both stopped on **one** deadline, then both read. Reading them in turn
+    # killed the host first, and the client — still running — dutifully
+    # reported the host vanishing and gave up, which reads in the results as a
+    # dropped connection the product never dropped.
+    time.sleep(seconds)
+    for process in (host, client):
+        process.kill()
+    return {"host": host.communicate()[0] or "",
+            "client": client.communicate()[0] or ""}
+
+
+def census(log: str, tag: str) -> dict[str, str] | None:
+    """The census line a peer printed for one phase.
+
+    First match, not last. A client that returns from its Chamber builds a
+    second Threshold, and reading the last `before` would report the state of
+    a process that had already lost everything — which looked like the client
+    never having a body at all.
+    """
+    found = None
+    pattern = re.compile(
+        r"\[chamber\] \w+ " + tag + r" bodies=(\d+) mine=(\w+) slot=(-?\d+)")
+    for line in log.splitlines():
+        match = pattern.search(line)
+        if match and found is None:
+            found = {"bodies": match.group(1), "mine": match.group(2),
+                     "slot": match.group(3)}
+    return found
+
+
+def main() -> int:
+    logs = run("--doorway-probe", PORT, SECONDS)
 
     rows: list[tuple[str, bool, str]] = []
 
@@ -83,6 +121,41 @@ def main() -> int:
     rows.append(("nobody was dropped", not lost,
                  "held" if not lost else "client gave up"))
 
+    # ── the private door ──────────────────────────────────────────────────
+    private = run("--chamber-probe", PORT + 1, PRIVATE_SECONDS)
+
+    before = census(private["client"], "before")
+    rows.append(("the client had a body to begin with",
+                 before is not None and before["mine"] == "yes",
+                 "slot " + before["slot"] if before else "no census"))
+
+    # The Chamber is one player's. The host must not be moved by it, which is
+    # exactly what a host-only extraction handler used to do.
+    stayed = census(private["host"], "settled") is not None
+    rows.append(("the host stayed where it was", stayed,
+                 "still at the fire" if stayed else "left with them"))
+
+    after = census(private["client"], "settled")
+    rows.append(("the client came back with a body",
+                 after is not None and after["mine"] == "yes",
+                 "mine=" + after["mine"] if after else "never came back"))
+
+    same_seat = (before is not None and after is not None
+                 and before["slot"] == after["slot"])
+    rows.append(("and came back as the same person", same_seat,
+                 (before["slot"] + " -> " + after["slot"])
+                 if before and after else "no seat to compare"))
+
+    whole = after is not None and after["bodies"] == "2"
+    rows.append(("with everyone else still there", whole,
+                 after["bodies"] + " bodies" if after else "nothing to count"))
+
+    for who in ("host", "client"):
+        clean = ("Node not found" not in private[who]
+                 and "Cannot call RPC" not in private[who])
+        rows.append(("no packets into freed nodes, on the " + who, clean,
+                     "clean" if clean else "orphaned paths"))
+
     ok = True
     print()
     for label, passed, detail in rows:
@@ -91,14 +164,15 @@ def main() -> int:
 
     if not ok:
         print("\nDOORWAY FAILED — a scene change breaks co-op", file=sys.stderr)
-        for name in ("host", "client"):
-            print(f"\n--- {name} ---", file=sys.stderr)
-            for line in logs[name].splitlines():
-                if re.search(r"coop|ERROR|SCRIPT", line):
-                    print(f"    {line}", file=sys.stderr)
+        for label, source in (("party door", logs), ("private door", private)):
+            for name in ("host", "client"):
+                print(f"\n--- {label}: {name} ---", file=sys.stderr)
+                for line in source[name].splitlines():
+                    if re.search(r"chamber|coop|ERROR|SCRIPT", line):
+                        print(f"    {line}", file=sys.stderr)
         return 1
 
-    print("\na connection survives a doorway — verified")
+    print("\nboth kinds of doorway hold — verified")
     return 0
 
 

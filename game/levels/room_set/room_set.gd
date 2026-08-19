@@ -1316,6 +1316,7 @@ var _enemies_placed: int = 0
 var _loot_placed: int = 0
 
 var _probe_floor: Dictionary = {}
+var _probe_stillness: float = -1.0
 var _probe_enemies_seen: int = 0
 var _probe_enemy_hp: Dictionary = {}
 var _probe_enemy_at: Dictionary = {}
@@ -1403,7 +1404,12 @@ func _coop_probe(out: String) -> void:
 	_probe_clamor_peak = {}
 	if not host:
 		Input.action_press("move_forward")
-	await _hold(1.0)
+	if host:
+		# Watched from the host, on the body it is not driving. See
+		# `_stillness_of` — this is the jitter measurement.
+		_probe_stillness = await _stillness_of(1.0)
+	else:
+		await _hold(1.0)
 	if not host:
 		Input.action_release("move_forward")
 	await _hold(0.4)
@@ -1570,6 +1576,37 @@ func _await_probe_end() -> void:
 		await get_tree().physics_frame
 
 
+## **How often a remote body is standing perfectly still while it walks.**
+##
+## Positions arrive at `REPLICATION_HZ` and used to be written straight onto
+## the transform, so at 60 fps a teammate held one spot for three frames and
+## then jumped to the next — moving on one frame in three and frozen on the
+## other two. That is what "a little jittery" is, and it is measurable without
+## anybody having to look at it: count the frames on which a body that is
+## definitely walking did not move at all.
+##
+## Stepped motion lands near 0.67. Interpolated motion lands near zero, because
+## every frame carries a little of the gap.
+func _stillness_of(seconds: float) -> float:
+	var body: Player = _client_body()
+	if body == null:
+		return 1.0
+	var frames: int = 0
+	var still: int = 0
+	var was: Vector3 = body.global_position
+	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < until:
+		await get_tree().physics_frame
+		if not is_instance_valid(body):
+			break
+		var now: Vector3 = body.global_position
+		frames += 1
+		if now.distance_to(was) < 0.0005:
+			still += 1
+		was = now
+	return float(still) / float(maxi(frames, 1))
+
+
 func _probe_report(host: bool) -> Dictionary:
 	return {
 		"role": "host" if host else "client",
@@ -1578,6 +1615,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"players_seen": _session.players().size(),
 		"enemies_seen": _probe_enemies_seen,
 		"floor": _probe_floor,
+		"stillness": _probe_stillness,
 		"positions": _probe_positions(),
 		"walked": _probe_walked,
 		"capsule_heights": _probe_heights,
@@ -2028,29 +2066,73 @@ func _on_died_here(player: Player, at: Vector3) -> void:
 		Vector3.ZERO, true, player.get_multiplayer_authority())
 	print("[death] %s went out — their ember is on the floor at %.0f, %.0f" % [
 		player.name, at.x, at.z])
-	if player.is_multiplayer_authority():
-		_the_run_ended()
+	# **Dying does not end the run**, and it especially does not end anybody
+	# else's. `DES-012` has your ember lying there for a teammate to carry
+	# out — a run that stopped the moment you went out would delete the M2
+	# co-op gate. You are spent on the floor until somebody leaves the floor.
+	#
+	# This used to call the run-ended path, but only when the body belonged to
+	# the host: a client who died was simply never told, and lay there until
+	# they alt-tabbed.
 
 
-## **You went out.** The run is over for this player and the loop has to close
-## for them, or they lie on the floor until they alt-tab.
+## **The run is over, and everybody goes home together** (ADR-102).
 ##
-## `DES-008`'s great reset: everything carried and everything stashed is gone,
-## and the hoard is untouched. Then home — because `DES-014` makes the Lair the
-## place you return to, and returning to a menu would make death an interruption
-## rather than a beat.
+## Host-side, and it acts on *every* peer rather than on whoever happened to
+## touch the exit. The old handler was guarded with `is_server()` and then
+## worked on whichever body extracted — so a client reaching the Shaft ran
+## `GameState.bring_home()` on the **host's** machine with the **client's**
+## loot, and sent the host to the hoard room while the client stood in the
+## Deep. The mirror image lost a dying client entirely.
 ##
-## **The Vörðr is not this.** `DES-012` has the dead spectate as a ghost that
-## can watch and lure, and `M3` builds it; going home immediately is what
-## happens until there is a LIFE to lose and something to do while dead. Absent
-## rather than approximated (ADR-064) — a grey screen labelled *spectating* that
-## did nothing would be worse than a clean return.
-func _the_run_ended() -> void:
-	if _probing:
+## Everybody moving at once is the same rule as the Descent (ADR-101): peers
+## cannot stand in different levels, because the host owns the world and a
+## client in a scene the host is not in has nothing to receive.
+##
+## **Individual extract-and-wait is `M3-T09`**, and it needs the Vörðr —
+## somewhere to *be* while the others finish. Absent rather than approximated:
+## a player parked in an empty room with no way to watch or help would be worse
+## than a short run that ends cleanly.
+func _end_the_run() -> void:
+	if not multiplayer.is_server():
 		return
-	GameState.die()
-	print("[death] the great reset — carried and stash gone, hoard intact "
-		+ "at %d" % GameState.hoard_value)
+	for body: Player in _session.players():
+		var peer: int = body.get_multiplayer_authority()
+		# Spent means you went out down there. Everything you were carrying
+		# stayed with your body, so there is nothing to hand back.
+		var packed: Array = [] if body.spent else body.inventory.pack()
+		if peer == CoopSession.HOST_PEER:
+			_take_the_outcome(packed, body.spent)
+		else:
+			_take_the_outcome.rpc_id(peer, packed, body.spent)
+
+
+## What this peer walked away with, delivered to the peer it belongs to.
+##
+## `GameState` is never networked (`TEC-004`), so the host cannot write another
+## player's progression — it can only tell them what happened and let them
+## write their own.
+@rpc("any_peer", "reliable")
+func _take_the_outcome(packed: Array, lost: bool) -> void:
+	# Sender 0 is the host calling this on itself, which is not an RPC at all.
+	var from: int = multiplayer.get_remote_sender_id()
+	if from != 0 and from != CoopSession.HOST_PEER:
+		return
+	if lost:
+		# `DES-008`'s great reset. The hoard is untouched; it always is.
+		GameState.die()
+		print("[death] the great reset — carried and stash gone, hoard intact "
+			+ "at %d" % GameState.hoard_value)
+	else:
+		var brought: Array[ItemInstance] = []
+		for row: Variant in packed:
+			brought.append(ItemInstance.from_wire(row as Dictionary))
+		GameState.bring_home(brought)
+	# The probes measure this floor rather than the loop leaving it, so they
+	# put it back instead of walking out of the scene they are measuring.
+	if _probing:
+		_reset_floor()
+		return
 	get_tree().change_scene_to_file(THRESHOLD_SCENE)
 
 
@@ -2089,30 +2171,8 @@ func _on_extracted(player: Player) -> void:
 
 	extracted.emit(player, player.inventory.total_tribute())
 
-	# Home, with what you were holding. `M2-T06` gave the loop somewhere to
-	# close: the Chamber sorts it, and until you have decided, everything you
-	# carried out is still yours and still undecided.
-	var brought: Array[ItemInstance] = []
-	for item: ItemInstance in player.inventory.items():
-		brought.append(item)
-	GameState.bring_home(brought)
-	_go_to_the_chamber()
-
-
-## Back to your own Chamber (`M2-T06`, ADR-021).
-##
-## The run ends by **leaving the scene**, which is what makes the Lair a place
-## rather than a screen: `DES-014` puts her, the hoard and the stash somewhere
-## you walk to, and the Settle beat happens there rather than in a panel over
-## the dungeon you just left.
-##
-## The probes still reset the floor in place — they are measuring this level,
-## not the loop — so leaving is only what a real run does.
-func _go_to_the_chamber() -> void:
-	if _probing:
-		_reset_floor()
-		return
-	get_tree().change_scene_to_file("res://levels/lair/chamber.tscn")
+	# Home — everybody, each with their own bag, on their own machine.
+	_end_the_run()
 
 
 ## Put the floor back, for the probes that need a second descent without a

@@ -2,22 +2,22 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-17_
+<!-- generated-stamp --> _Regenerated 2026-08-19_
 
 **Current milestone: M2 — The Loop Prototype**
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
 
-`21/47` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`22/49` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>11/11"]:::current
+  M2["M2 The Loop Prototype<br/>12/12"]:::current
   M1 --> M2
-  M3["M3 The Pact<br/>0/8"]:::ahead
+  M3["M3 The Pact<br/>0/9"]:::ahead
   M2 --> M3
   M4["M4 Vertical Slice<br/>0/12"]:::ahead
   M3 --> M4
@@ -36,8 +36,8 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 11/11 | `EXIT` pending<br>`COOP` pending |
-|  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/8 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 12/12 | `EXIT` pending<br>`COOP` pending |
+|  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/12 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
@@ -81,6 +81,7 @@ _None. Sequencing is clean._
 - ✔ `M2-T09` **Threshold theme + adaptive driver prototype** — the emotional anchor and the highest-risk audio tech, both cheap to test early `ART-002` `ART-003` `TEC-005`
 - ✔ `M2-T10` **Playable shell**: main menu, settings, pause and the way back out, join codes, and the diegetic blockout layer — *added by ADR-100 because both `M2` gates are playtest gates and neither could be run: no front door, no way to leave a level but killing the process, no way to change a volume, no way for two machines to meet, and no sound for anything the world does. **A join code is a shorter way to write an address, not matchmaking** — no relay, no hole-punching, and the host screen says so; `M4-T07` replaces where the address comes from and nothing else. Also fixed two systems that were built, correct and **never shown**: the Ear was never instantiated (so `DES-018`'s muted-playable rule was false while every check passed) and `_reaching_for` was never drawn* `DES-018` `DES-019` `TEC-004` `ART-002`
 - ✔ `M2-T11` **The pass before testing** — *ADR-101, and it found the one that mattered: **every doorway in the game was a disconnect.** The peer outlives the level, so walking from the Threshold into the Deep built a second session on a live connection and called `create_server` on a port it already held — with the whole sweep green, because `run_coop.py` never changes scene and no single-process probe has a peer to lose. `run_doorway.py` walks two processes through a door. Also: **the party descends together** (the hole is the host's decision), a failed join **returns to the menu with a reason instead of quitting the game** — and Godot's own `connection_failed` never fired against a dead port at all, so there is an 8 s ⟨tune⟩ deadline of our own — plus who-is-connected and the control list at the fire* `TEC-004` `DES-012`
+- ✔ `M2-T12` **The first remote test, and the private door** — *ADR-102. Two players connected over the internet and then found five faults with one shape: **every one was a per-player transition.** `M2-T11` fixed the door the party walks through together and nothing had looked at the door exactly one player walks through. A client could not extract (the handler ran host-side on whichever body reached the Shaft, so the **host** went to the hoard room holding the **client's** loot); a dying client was never told and lay on the floor; the Chamber gave anyone but the host a **black screen** (authority defaulted to peer 1, and that room has no camera of its own); returning from it left a client with **no body at all**; and remote movement was never interpolated — **still on 70% of frames**. Now: the door **despawns** you rather than hiding you, the room is an overlay with **its own peerless multiplayer** so nothing in it can reach the wire, seats are keyed to the peer so a door is not an identity change, and remote bodies are eased — **7%**. `run_doorway.py` walks a client through a private door; all four rows fail on the previous commit by name* `TEC-004` `DES-012` `DES-014`
 
 ### M3 — The Pact
 
@@ -90,6 +91,7 @@ _None. Sequencing is clean._
 - · `M3-T04` Tithe and Pact Rank escalation (`DES-003`) — *and with it the rank at which a Gullsjúkr becomes killable, which `M2-T02` left absent rather than stubbed* `DES-003` `DES-017`
 - · `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) — *in the Chamber, and it reads the `rescued` signal `M2-T05` already emits* `DES-003` `DES-012` `DES-014` `DES-019`
 - · `M3-T06` Save system with versioning and migration from day one (`TEC-003`) `TEC-003`
+- · `M3-T09` **Extract and wait** — individual extraction, with somewhere to *be* while the rest of the party finishes. *Split out by ADR-102: peers cannot stand in different levels, so `M2` ends the run for everyone at the first extraction. This needs the **Vörðr** (`DES-012`) — a player parked in an empty room with no way to watch or help is worse than a short run that ends cleanly* `DES-012` `DES-002`
 - · `M3-T07` **Equipment slots and visible gear** — six slots, per-class bare arms, armour rendering over them, Pack driving grid size `DES-020`
 - · `M3-T08` **Deeds awarded at the Settle beat** — never mid-run; the run must end on evidence of what you did `DES-016`
 
@@ -119,6 +121,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 101 ADRs · 12 open questions · 100 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 102 ADRs · 12 open questions · 100 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

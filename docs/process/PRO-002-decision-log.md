@@ -1720,4 +1720,51 @@ Two ports were also found to be named `DEFAULT_PORT`, with different values — 
 
 **What this run of the loop keeps proving.** Four separate faults now — party scaling, the stash, the Ear, and this — have been *code that works, that nothing ever made the game reach*. The checks that find them have nothing in common except that each one made the software do the thing a player would do: count a second body, take something back out, look at the screen, walk through a door.
 
+## ADR-102 — The private door: your body leaves, and the room it goes to cannot reach the wire
+**Date:** 2026-08-17 · **Status:** accepted · **Amends `TEC-004`, `PRO-001`** · **Reinforces ADR-021** · **Extends ADR-101**
+
+**Context:** The first two-player remote test. It connected — ADR-101's work held — and then reported jittery remote movement, "quite a few issues" traversing menus from start to endgame and back, and crashes around the hoard room as the second player.
+
+Five faults, and one shape: **every one of them was a per-player transition.** ADR-101 established that the party descends together and fixed the door everybody walks through. Nothing had looked at the door exactly one player walks through.
+
+### What was actually wrong
+
+**1. The client could not extract.** `_on_extracted` was guarded with `is_server()` and then acted on whichever body reached the Shaft. So a client extracting ran `GameState.bring_home()` **on the host's machine, with the client's loot**, and sent the *host* to the hoard room while the client stood in the Deep. That is the reported "jumping in and out of the hoard room as the second player", seen from the other side.
+
+**2. A dying client was never told.** The mirror image: the run-end was gated on `player.is_multiplayer_authority()`, true on the host only for its own body. The client's ember dropped correctly and then they lay on the floor permanently.
+
+**3. The Chamber was a black screen for anyone but the host.** It instantiated its body directly and never called `configure_replication`, so authority defaulted to peer 1 and `Player._ready` took the *remote* branch: no camera made current, no input, no bag. `chamber.tscn` contains no camera of its own. Deterministic, every time, for every client.
+
+**4. Returning from the Chamber left a client with no body at all.** `MultiplayerSpawner` replicates spawns *as they happen* and never the existing world to an already-connected peer, so a client that changed scene and came back received nothing, forever.
+
+**5. Remote movement was not interpolated at all.** Positions replicate at 20 Hz and were written straight onto the transform, so at 60 fps a teammate moved on one frame in three and was frozen on the other two. Measured: **still on 70% of frames.** `TEC-004` has described enemy transforms as *"synchronized, interpolated"* since it was written — a documented behaviour nothing ever implemented.
+
+### The decision
+
+**The door takes you out of the world.** Walking into your Chamber asks the host to **despawn your body**, and the room opens as an overlay above the camp rather than as a scene change.
+
+Hiding the body was the obvious cheaper fix and it is a lie: an invisible body still collides, still holds a doorway, still makes noise, still occupies a seat. Other players now watch you walk to a door and go through it, which is what happened. **Reference:** Warframe's Orbiter/Relay split — a private ship, a squad that survives you entering it, and a door rather than a fade-out.
+
+Not changing scene is what fixes fault 4 outright, and it does so by *removing* the problem: a returning player is a **re-spawn**, which replicates through the path that already works. The alternative was a world-resync protocol, which is real work that genuine late-join will still need one day and which a private room has no business requiring.
+
+**The Chamber gets its own peerless `MultiplayerAPI`.** ADR-021 keeps a `CoopSession` out of that room to make privacy structural. That stopped being sufficient the moment the room floated above a live connection: the body in there is *local*, so it cheerfully fired an RPC at the host, which answered `Node not found: Chamber/chamber_body` — a private body reaching the wire, the exact thing ADR-021 exists to prevent. Guarding `Player`'s eleven outbound RPC sites one at a time would have worked until somebody added a twelfth. A subtree with its own multiplayer instance and no peer **cannot reach anybody by construction**, whatever gets written inside it later. ADR-021 is not amended; it is finally enforced.
+
+**Seats are keyed to the peer, not to arrival order.** The seat came from the spawn counter, so a despawn/respawn brought you back wearing a different one — and since `party_slot` is what tells one ember from another (`M2-T05`), a player returning from their Chamber would have come home as somebody else, with their own ember on the floor naming a seat nobody held. Released on a real disconnect, so a door is not an identity change and a genuine newcomer still does not inherit a departed player's identity.
+
+**The run ends for the party, and each player gets their own haul.** Peers cannot stand in different levels — the host owns the world, and a client in a scene the host is not in has nothing to receive. So extraction hands every peer its own bag over the wire and moves everybody at once, which is the Descent's rule (ADR-101) in reverse. **Dying no longer ends anybody's run**, including the dead player's: `DES-012` has your ember lying there for a teammate to carry out, and a run that stopped when you went out would delete the M2 co-op gate.
+
+**Individual extract-and-wait is `M3-T09`** and is absent rather than approximated. It needs the Vörðr — somewhere to *be* while the others finish. A player parked in an empty room with no way to watch or help is worse than a short run that ends cleanly.
+
+**Remote bodies are eased toward the wire.** Motion replicates into `net_position`/`net_yaw`/`net_pitch` and the body covers the gap in about one replication interval, so it is always roughly one packet behind and never waiting. **Still on 7% of frames, down from 70%.**
+
+### The check that should have existed
+
+`run_doorway.py` asked one narrow question about one door: does the connection survive? Every one of these five faults was downstream of a door and none of them touched the connection.
+
+It walks a **client** through a **private** door now and asks the blunt questions instead — afterwards, does everyone still have a body, is it the same seat, and did either side send packets into freed nodes? All four rows fail on the previous commit by name. The jitter is a number in `run_coop.py`: how often a body that is definitely walking does not move at all, which is a thing a probe can see and a person can only feel.
+
+**The recurring lesson, in a new place.** ADR-097: a probe that measures a function proves the function. ADR-099: a check that lives in the wrong scene stops running. This one is the same family — **a test that covers the transition everybody takes will not cover the transition one person takes**, and the difference is invisible until somebody plays it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

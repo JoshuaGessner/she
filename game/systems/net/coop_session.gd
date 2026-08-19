@@ -51,6 +51,9 @@ const MENU_SCENE: String = "res://ui/main_menu.tscn"
 ## for a slow link, short enough that a mistyped address is a small mistake.
 const CONNECT_TIMEOUT_MSEC: int = 8000
 const LOOPBACK: String = "127.0.0.1"
+## Sentinel for "wherever the next spawn mark is". A real position, never used
+## as one, because `Vector3` has no null.
+const NO_PLACE: Vector3 = Vector3(-99999.0, -99999.0, -99999.0)
 
 const PLAYER_SCENE: PackedScene = preload("res://actors/player/player.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
@@ -65,6 +68,8 @@ var _role: String = "solo"
 var _address: String = LOOPBACK
 var _port: int = DEFAULT_PORT
 var _device: String = InputDevices.ALL
+## Peer to seat, for as long as the peer is connected. See `seat_for`.
+var _seats: Dictionary = {}
 var _next_enemy: int = 0
 var _next_spawn: int = 0
 ## Counts every item ever spawned, and never counts back down. Node names have
@@ -106,9 +111,9 @@ func _ready() -> void:
 			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 			# Every body has to exist again in the new scene, including the
 			# ones belonging to peers that joined before this level did.
-			_spawn_player(HOST_PEER)
+			spawn_player(HOST_PEER)
 			for peer: int in multiplayer.get_peers():
-				_spawn_player(peer)
+				spawn_player(peer)
 		else:
 			multiplayer.server_disconnected.connect(_on_host_lost)
 		return
@@ -123,7 +128,7 @@ func _ready() -> void:
 			# already reports us as server 1, so the host path below is simply
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
-			_spawn_player(HOST_PEER)
+			spawn_player(HOST_PEER)
 
 
 ## Is there already a live connection this session should adopt?
@@ -184,7 +189,7 @@ func _start_host() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
-	_spawn_player(HOST_PEER)
+	spawn_player(HOST_PEER)
 
 
 func _start_client() -> void:
@@ -301,7 +306,7 @@ func _give_up(because: String) -> void:
 
 func _on_peer_connected(peer: int) -> void:
 	_log("peer %d joined" % peer)
-	_spawn_player(peer)
+	spawn_player(peer)
 
 
 func _on_peer_disconnected(peer: int) -> void:
@@ -309,6 +314,9 @@ func _on_peer_disconnected(peer: int) -> void:
 	var player: Player = player_for(peer)
 	if player != null:
 		player.queue_free()
+	# The seat is theirs until they are actually gone. A door does not free it;
+	# leaving does, so the next arrival is a new person rather than an heir.
+	_seats.erase(peer)
 
 
 # ── spawning ──────────────────────────────────────────────────────────────
@@ -397,25 +405,64 @@ func _build_hunter(payload: Dictionary) -> Node:
 	return hunter
 
 
-func _spawn_player(peer: int) -> void:
+## Give this peer a body.
+##
+## `at` overrides the spawn mark for somebody coming back through a door rather
+## than arriving for the first time — you step out of the door you went in by,
+## not onto the next free mark across the camp.
+func spawn_player(peer: int, at: Vector3 = NO_PLACE) -> Player:
 	if not is_host():
-		return
-	# A counter rather than the current peer count: after someone disconnects
-	# and someone else joins, a count would put the new arrival on an occupied
-	# point, and two players standing inside each other on spawn reads as a
-	# replication bug rather than as arithmetic.
-	var at: Vector3 = spawn_points[_next_spawn % spawn_points.size()]
-	_next_spawn += 1
-	# The seat is the spawn index, wrapped. Same counter as the spawn point, so
-	# the fourth person to arrive stands on the fourth mark and holds the fourth
-	# seat — and after a disconnect and a rejoin, the newcomer takes a free seat
-	# rather than inheriting the departed's identity.
-	var slot: int = (_next_spawn - 1) % Player.MAX_PARTY
+		return null
+	if at.is_equal_approx(NO_PLACE):
+		# A counter rather than the current peer count: after someone
+		# disconnects and someone else joins, a count would put the new arrival
+		# on an occupied point, and two players standing inside each other on
+		# spawn reads as a replication bug rather than as arithmetic.
+		at = spawn_points[_next_spawn % spawn_points.size()]
+		_next_spawn += 1
 	var player: Player = _spawner.spawn({
-		"kind": "player", "peer": peer, "at": at, "yaw": 0.0, "slot": slot,
+		"kind": "player", "peer": peer, "at": at, "yaw": 0.0,
+		"slot": seat_for(peer),
 	}) as Player
 	if player != null:
 		player_spawned.emit(player)
+	return player
+
+
+## Take this peer's body out of the world (ADR-102).
+##
+## Used by a private door: a player who steps into their own Chamber is not in
+## the camp any more, and hiding the body instead would leave an invisible
+## person still colliding, still holding a doorway, still making noise. The
+## despawn replicates like any other, so everyone else watches them leave.
+func despawn_player(peer: int) -> void:
+	if not is_host():
+		return
+	var body: Player = player_for(peer)
+	if body != null:
+		body.queue_free()
+
+
+## Which seat this peer holds, assigned once and **remembered**.
+##
+## It used to be the spawn counter, so a body that was despawned and spawned
+## again came back wearing a different seat — and since `party_slot` is what
+## tells one ember from another (`M2-T05`), a player returning from their
+## Chamber would come home as somebody else, with their own ember on the floor
+## naming a seat nobody held. Keyed to the peer, released only when the peer
+## actually leaves, so a door is not an identity change.
+func seat_for(peer: int) -> int:
+	if _seats.has(peer):
+		return int(_seats[peer])
+	var taken: Array = _seats.values()
+	for seat: int in range(Player.MAX_PARTY):
+		if not taken.has(seat):
+			_seats[peer] = seat
+			return seat
+	# More bodies than seats is a bug elsewhere, but wrapping is better than
+	# refusing to spawn somebody who is already connected.
+	_seats[peer] = _seats.size() % Player.MAX_PARTY
+	return int(_seats[peer])
 
 
 ## Levels ask for enemies; they never instantiate one. Silently does nothing on

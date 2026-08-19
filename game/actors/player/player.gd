@@ -94,9 +94,14 @@ const MOTION_PROPERTIES: Dictionary = {
 	# Assigned before the body enters the tree and never changed after, so it
 	# rides the spawn packet and costs nothing thereafter.
 	".:party_slot": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
-	".:position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
-	".:rotation:y": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
-	"Head:rotation:x": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# **Shadows, not the transform itself** (ADR-102). Writing straight to
+	# `position` meant a remote body held still for three rendered frames and
+	# then jumped, twenty times a second — which is exactly what "a little
+	# jittery" looks like. These land in `net_*` and `_ease_toward_the_wire`
+	# carries the body there.
+	".:net_position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:net_yaw": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:net_pitch": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	# These two genuinely idle — you are standing or crouched, on the floor or
 	# not — which is the case `ON_CHANGE` is actually for.
 	".:stance": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
@@ -156,6 +161,19 @@ var _crouch_latched: bool = false
 var _is_local: bool = false
 ## False while a menu has the player's attention. See `set_driving`.
 var _driving: bool = true
+
+## Where the wire says this body is. The owner writes them from its own
+## simulation; everybody else reads them and eases toward them.
+##
+## `TEC-004` has described enemy transforms as *"synchronized, interpolated"*
+## since it was written, and nothing in the project interpolated anything —
+## another line of documentation describing a thing that was never built.
+var net_position: Vector3 = Vector3.ZERO
+var net_yaw: float = 0.0
+var net_pitch: float = 0.0
+## Host-side: has the peer that owns this body confirmed it has a copy? Until
+## it has, there is nothing to send a bag to. See `_push_bag`.
+var _owner_ready_for_bag: bool = false
 
 ## 0 shut, 1 fully open. A float rather than a bool because `DES-019` charges
 ## *time* for opening the bag — you kneel and rummage while the floor keeps
@@ -283,6 +301,10 @@ func _ready() -> void:
 	# writers to one number is the second weight path ADR-064 bans.
 	inventory.changed.connect(_on_inventory_changed)
 	_on_inventory_changed()
+	# A remote owner tells the host it is ready to be handed its bag. The host
+	# plays its own body, so it never has to ask itself.
+	if _is_local and not multiplayer.is_server():
+		_ask_for_my_bag.rpc_id(HOST_PEER)
 
 	# First person: you are inside your own body, so you never draw it, and
 	# the ink pass is a clip-space quad that would composite over everyone
@@ -462,7 +484,28 @@ func _push_bag() -> void:
 	var owner_peer: int = get_multiplayer_authority()
 	if owner_peer == HOST_PEER:
 		return
+	# **Not until they have asked** (ADR-102). `_ready` recomputes the bag, so
+	# the host used to push it in the same frame the body was created — before
+	# the spawn had been replicated, into a node path the client did not have
+	# yet. Every join and every return through a door printed "Node not found
+	# … Invalid packet received", twice, for a body that was about to exist.
+	#
+	# The client asks once its own copy is in the tree, which is the only
+	# moment either side can be sure the other has it.
+	if not _owner_ready_for_bag:
+		return
 	_receive_bag.rpc_id(owner_peer, inventory.pack())
+
+
+## The owning client, reporting that its body exists and it can be spoken to.
+@rpc("any_peer", "reliable")
+func _ask_for_my_bag() -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_owner_ready_for_bag = true
+	_push_bag()
 
 
 ## `any_peer` with an explicit host check rather than `authority`: this node's
@@ -1080,6 +1123,12 @@ func _apply_stick_look(delta: float, tuning: TuningProfile) -> void:
 
 func _physics_process(delta: float) -> void:
 	var tuning: TuningProfile = Config.tuning
+	if _is_local:
+		net_position = position
+		net_yaw = _yaw
+		net_pitch = _pitch
+	else:
+		_ease_toward_the_wire(delta)
 
 	# The weapon runs on every peer. On the owner it is the swing they asked
 	# for; on the host it is the swing whose hitbox decides damage; elsewhere
@@ -1214,6 +1263,25 @@ func _footfall(pitch: float) -> void:
 func _is_sprinting(speed: float, tuning: TuningProfile) -> bool:
 	var scale: float = carried.scale_by_load(tuning.speed_at_capacity)
 	return speed > (tuning.walk_speed + tuning.sprint_speed) * 0.5 * scale
+
+
+## Carry a remote body toward where the wire last said it was.
+##
+## Snapshot interpolation, and the rate is the thing that matters: cover the
+## gap in roughly one replication interval, so the body is always about one
+## packet behind and never waiting. Faster and it snaps — which is the jitter
+## this exists to remove; slower and a teammate is somewhere they left.
+##
+## `move_toward` on the angles rather than `lerp_angle` alone, so a body
+## turning through the wrap at ±180° takes the short way round instead of
+## spinning the long way.
+func _ease_toward_the_wire(delta: float) -> void:
+	var rate: float = clampf(delta * REPLICATION_HZ, 0.0, 1.0)
+	position = position.lerp(net_position, rate)
+	_yaw = lerp_angle(_yaw, net_yaw, rate)
+	_pitch = lerp_angle(_pitch, net_pitch, rate)
+	rotation.y = _yaw
+	_head.rotation.x = _pitch
 
 
 func _wish_direction() -> Vector3:

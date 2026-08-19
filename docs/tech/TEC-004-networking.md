@@ -61,6 +61,15 @@ The party also **descends together**: the hole is the host's decision, because e
 
 **A failed join returns to the menu with a reason — never a quit.** During a remote test a bad address is the most common event there is, and closing the process teaches a tester nothing. Godot's own `connection_failed` never fired at all against a dead port in fifty seconds of frames, so there is an 8-second ⟨tune⟩ deadline of our own and a line on screen while it waits.
 
+**Two kinds of doorway, and the second one is where the bugs live (ADR-102).** A transition the *party* takes together and a transition *one player* takes are different problems, and a test covering the first will not cover the second. Everything about a private door — a Chamber — is per-peer: who despawns, who re-spawns, whose `GameState` the haul lands in, and which seat they come back wearing.
+
+The rules that fell out of it:
+
+* **A private room is an overlay, never a scene change.** Peers cannot stand in different levels — the host owns the world, and a client in a scene the host is not in has nothing to receive. `MultiplayerSpawner` replicates spawns as they happen and never the existing world to an already-connected peer, so a client that leaves and returns gets nothing.
+* **Leaving the world is a despawn, not a hide.** An invisible body still collides, still holds a doorway, still makes noise, still holds a seat.
+* **A private subtree gets its own peerless `MultiplayerAPI`.** Keeping a `CoopSession` out of it is not enough once it floats above a live connection: the body inside is local and will happily RPC the host. One multiplayer instance with no peer makes it structural for every RPC anybody writes later.
+* **Seats are keyed to the peer.** A despawn/respawn must not change who you are, because `party_slot` is what tells one ember from another.
+
 **The smoke is also the only place party count is real (ADR-097).** `_start_host()` spawns the host's own body and nothing else; every other body arrives on `peer_connected`, after the level has already built its floor. So anything derived from *how many people are playing* is computed against a party of one in every single-process test, however carefully that test is written — and party scaling shipped dead for exactly one commit because of it. A single-process probe proves a function; **only a second process proves the game calls it.** The floor row exists to catch that whole class, not just the one instance of it.
 
 ## What replicates, and what doesn't
@@ -72,7 +81,7 @@ The seeded generator (`TEC-001`) pays off enormously here.
 | **Level geometry** | **Not replicated.** Host sends the seed; every client generates an identical floor. Requires bit-exact determinism in generation — already a requirement, now load-bearing. |
 | Player transforms | Owned by the peer playing them (`MotionSync`) — position, yaw, pitch, stance, grounded |
 | Player health, carried weight, clamor | Owned by the host (`StateSync`). One body, two synchronisers, two authorities — ADR-082 |
-| Enemy transforms & state | Host-authoritative, synchronized, interpolated |
+| Enemy transforms & state | Host-authoritative, synchronized, interpolated (ADR-102 — described here from the first draft and not actually built until then) |
 | **Clamor field** | **Host only.** Never replicated — it's a coarse grid updated continuously and would dominate bandwidth. Clients receive only its *effects* (Hunt state, enemy alerts). **Not the same thing as a `ClamorSource`'s scalar level**, which is one float per actor, derived on the host for *every* body from the motion it can see, and replicated back down so your own audible-footprint overlay and the ears that heard you cannot disagree. |
 | Hunt / Hunter state | Host-authoritative, replicated as compact state |
 | Loot in world | Host-authoritative spawn, replicated; **pickup is a host-validated request** |

@@ -87,6 +87,8 @@ func _ready() -> void:
 			_threshold_probe()
 		elif arg == "--doorway-probe":
 			_doorway_probe()
+		elif arg == "--chamber-probe":
+			_chamber_probe()
 
 
 ## Walk the party through the Descent on a timer (`run_doorway.py`).
@@ -249,11 +251,14 @@ func _process(_delta: float) -> void:
 		])
 	if player.global_position.distance_to(DESCENT_AT) <= 2.0:
 		_ask_to_descend()
-	elif player.global_position.distance_to(CHAMBER_AT) <= 1.8:
-		# The Chamber is yours alone (ADR-021), so this one *is* per-player:
-		# walking onto the slab takes you and nobody else.
-		set_process(false)
-		get_tree().change_scene_to_file("res://levels/lair/chamber.tscn")
+	elif (_chamber_armed
+			and player.global_position.distance_to(CHAMBER_AT) <= 1.8):
+		_open_the_chamber()
+	elif player.global_position.distance_to(CHAMBER_AT) > 3.0:
+		# Stepped clear of the slab, so the door will take you again. Without
+		# this a player who came back out would be standing close enough to
+		# re-enter on the very next frame, forever.
+		_chamber_armed = true
 
 
 ## **The party descends together, or the party is not a party.**
@@ -382,3 +387,152 @@ func _threshold_shot(path: String) -> void:
 	get_viewport().get_texture().get_image().save_png(path)
 	print("[lair] threshold — %s" % path.get_file())
 	get_tree().quit()
+
+
+## Send the **client** into its own Chamber and back (`run_doorway.py`).
+##
+## The doorway probe walks the *host* through the Descent, which is the
+## transition the party takes together. This is the other kind: a doorway only
+## one player goes through, while everybody else stays where they are. Nothing
+## covered it, and ADR-102 found four faults living in it at once.
+##
+## Drives the real slab rather than a test-only entry point — the client
+## teleports onto the Chamber door and whatever the game does next is what is
+## being measured.
+##
+func _chamber_probe() -> void:
+	await get_tree().create_timer(5.0).timeout
+	_census("before")
+	if not multiplayer.is_server():
+		var mine: Player = _session.local_player()
+		if mine != null:
+			mine.teleport(CHAMBER_AT, 0.0)
+	# Long enough to walk in, look around, and come back out.
+	await get_tree().create_timer(13.0).timeout
+	_census("settled")
+
+
+## What this peer can see, in one line. The whole assertion surface: how many
+## bodies exist, whether one of them is mine, and which seat it holds — a seat
+## that changes across a Chamber visit means I came back as somebody else.
+func _census(tag: String) -> void:
+	var bodies: int = get_tree().get_nodes_in_group("player").size()
+	var mine: Player = _session.local_player() if _session != null else null
+	print("[chamber] %s %s bodies=%d mine=%s slot=%d" % [
+		"host" if multiplayer.is_server() else "client", tag, bodies,
+		"yes" if mine != null else "NO",
+		mine.party_slot if mine != null else -1])
+
+
+## **The door takes you out of the world** (ADR-102).
+##
+## The Chamber is yours alone (ADR-021), so this is the one doorway exactly one
+## player walks through while everybody else stays at the fire. It used to be a
+## `change_scene_to_file`, and that was the wrong shape three times over: the
+## client lost its camera, lost its body on the way back, and left the host
+## sending packets into a scene that no longer existed.
+##
+## So the room opens *above* the camp instead, and your body is **despawned**
+## rather than hidden. Hiding was the tempting fix and it is a lie: an
+## invisible body still collides, still holds a doorway, still makes noise, and
+## still occupies a seat. Other players see you walk to the door and go through
+## it, which is what happened.
+##
+## The offset is what keeps two rooms built around the origin from standing
+## inside each other. Both are lit by omni lights only, so at this distance
+## neither one reaches the other.
+const CHAMBER_SCENE: PackedScene = preload("res://levels/lair/chamber.tscn")
+const CHAMBER_OFFSET: Vector3 = Vector3(0.0, -2000.0, 0.0)
+## Where you are standing when you come back out — off the slab, facing the
+## camp. On it, and the door would swallow you again immediately.
+const CHAMBER_STEP: Vector3 = Vector3(0.0, 0.1, 4.6)
+## The room's node name, which is also the path its private multiplayer is
+## keyed to. One constant, because the two must agree.
+const CHAMBER_NODE: String = "Chamber"
+
+var _chamber: Chamber = null
+## False from the moment you step onto the slab until you step off it again.
+var _chamber_armed: bool = true
+
+
+func _open_the_chamber() -> void:
+	if _chamber != null:
+		return
+	_chamber_armed = false
+	set_process(false)
+	# Out of the world first, so nobody watches a statue of you standing at the
+	# door while you are inside.
+	_ask_to_leave_the_world()
+
+	_chamber = CHAMBER_SCENE.instantiate() as Chamber
+	_chamber.name = CHAMBER_NODE
+	_chamber.position = CHAMBER_OFFSET
+	_chamber.left.connect(_close_the_chamber)
+	# **The room gets its own multiplayer, with nobody on the other end.**
+	#
+	# ADR-021 says the Chamber is never networked and makes that structural by
+	# keeping a `CoopSession` out of it. That was not enough once the room
+	# started floating above a live connection: the body in here is *local*, so
+	# it happily fired `_ask_for_my_bag` at the host, which answered "Node not
+	# found: Chamber/chamber_body" — a private body reaching the wire, which is
+	# the exact thing the ADR exists to prevent.
+	#
+	# Guarding the eleven RPC sites on `Player` one at a time would have worked
+	# until somebody added a twelfth. A subtree with its own peerless
+	# `MultiplayerAPI` cannot reach anybody by construction, whatever is written
+	# inside it later. Set **before** it enters the tree, because `_ready` is
+	# where the body decides whose it is.
+	var island := MultiplayerAPI.create_default_interface()
+	island.multiplayer_peer = OfflineMultiplayerPeer.new()
+	get_tree().set_multiplayer(island, NodePath("/root/%s" % CHAMBER_NODE))
+	# A sibling of this level rather than a child, so hiding the camp does not
+	# hide the room floating above it.
+	get_tree().root.add_child(_chamber)
+	visible = false
+	AudioDirector.enter("chamber")
+
+
+func _close_the_chamber() -> void:
+	if _chamber == null:
+		return
+	_chamber.queue_free()
+	_chamber = null
+	get_tree().set_multiplayer(null, NodePath("/root/%s" % CHAMBER_NODE))
+	visible = true
+	AudioDirector.enter("threshold")
+	_ask_to_rejoin_the_world()
+	set_process(true)
+
+
+## Ask the host to take my body out. The host owns every spawn and despawn
+## (`TEC-004`), so a client cannot simply free its own copy — it would come
+## straight back on the next synchroniser packet.
+func _ask_to_leave_the_world() -> void:
+	if multiplayer.is_server():
+		_session.despawn_player(CoopSession.HOST_PEER)
+	else:
+		_leave_the_world.rpc_id(CoopSession.HOST_PEER)
+
+
+func _ask_to_rejoin_the_world() -> void:
+	if multiplayer.is_server():
+		_session.spawn_player(CoopSession.HOST_PEER, CHAMBER_STEP)
+	else:
+		_rejoin_the_world.rpc_id(CoopSession.HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _leave_the_world() -> void:
+	if not multiplayer.is_server():
+		return
+	_session.despawn_player(multiplayer.get_remote_sender_id())
+
+
+## Back through the door you went in by, rather than onto the next free spawn
+## mark across the camp. **Beside** the slab rather than on it: landing on the
+## trigger you just used sends you straight back in.
+@rpc("any_peer", "reliable")
+func _rejoin_the_world() -> void:
+	if not multiplayer.is_server():
+		return
+	_session.spawn_player(multiplayer.get_remote_sender_id(), CHAMBER_STEP)

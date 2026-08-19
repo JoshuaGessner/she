@@ -204,11 +204,16 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
-	# Does a connection survive a doorway (ADR-101)? `run_coop.py` never
+	# Do both kinds of doorway hold (ADR-101, ADR-102)? `run_coop.py` never
 	# changes scene and no single-process probe has a second peer to lose, so
 	# every check in this file passed while walking from the Threshold into the
 	# Deep disconnected both players — the peer outlives the level, and the new
 	# level's session called `create_server` on a port it already held.
+	#
+	# ADR-102 added the other kind: a door exactly one player walks through.
+	# Four faults were living in it at once, and the reason all four survived
+	# is that the first version of this test asked one narrow question about
+	# one door the whole party uses.
 	doorway="$(GODOT="$GODOT_BIN" python3 "$ROOT/tools/run_doorway.py" 2>&1)"
 	if [[ $? -ne 0 ]]; then
 		echo "FAIL a doorway breaks co-op" >&2
@@ -321,7 +326,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a bigger party is poorer and louder per head,"
 	echo "each place sounds like itself and her note is hers alone,"
 	echo "there is a front door and a way back out of every room,"
-	echo "a connection survives a doorway,"
+	echo "both kinds of doorway hold and nobody comes back a stranger,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
