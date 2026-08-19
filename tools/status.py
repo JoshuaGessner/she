@@ -1585,12 +1585,42 @@ def render_app(milestones: list[Milestone], docs: dict[str, Doc], adrs: dict[int
     if not standalone:
         # Published artifacts are wrapped in their own doctype/head/body; the title
         # tag still gets picked up from the top of the fragment.
-        return f"{head}\n{body}\n"
+        #
+        # Only this copy carries the commit marker. The committed views must not:
+        # the SHA is necessarily the one *before* the commit that contains them,
+        # so it would be wrong in the file it shipped in and would rewrite a
+        # generated view on every single commit.
+        return f"{head}\n<!-- {provenance()} -->\n{body}\n"
     return (
         '<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
         f"{head}\n</head>\n<body>\n{body}\n</body>\n</html>\n"
     )
+
+
+## Which commit this view was built from, stamped into the page itself.
+##
+## The published board is a snapshot with no memory: a session that loses track
+## of what it last published — across a compaction, or simply by being a
+## different session — cannot tell whether the live copy is behind it, ahead of
+## it, or identical, and the publish tool can only say "someone else got there
+## first". That turned a mechanical question into one somebody had to be asked.
+##
+## An artefact that carries its own provenance answers it without any local
+## bookkeeping to forget or to lie: read the marker off the live page, and if
+## that commit is an ancestor of HEAD, the live copy is simply older.
+PROVENANCE = "descent-board commit"
+
+
+def provenance() -> str:
+    import subprocess
+    try:
+        sha = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True,
+            capture_output=True, check=True).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return f"{PROVENANCE} unknown"
+    return f"{PROVENANCE} {sha}"
 
 
 # ── entry point ───────────────────────────────────────────────────────────

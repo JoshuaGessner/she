@@ -2,5 +2,5 @@
   "url": "https://claude.ai/code/artifact/3927d5e2-2b3b-49bc-8de4-952c022cc276",
   "view": "docs/status-app.html",
   "favicon": "🐉",
-  "note": "Published copy of the descent board (ADR-063). Regenerate with `python3 tools/status.py --fragment <path>` and republish to the url above — publishing without it creates a second, orphaned artifact. tools/artifact_sync.sh does this automatically after a push that lands."
+  "note": "Published copy of the descent board (ADR-063). Regenerate with `python3 tools/status.py --fragment <path>` and republish to the url above — publishing without it creates a second, orphaned artifact. tools/artifact_sync.sh rebuilds the fragment after a push that lands. The fragment carries an HTML comment reading `descent-board commit <sha>`; on a publish conflict, read that off the live page to find out whether the published copy is simply older than yours (ADR-103)."
 }

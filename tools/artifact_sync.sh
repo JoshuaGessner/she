@@ -58,7 +58,11 @@ jq -n --arg f "$FRAGMENT" --arg u "$url" --arg h "$short" --arg i "$favicon" '{
       + "\", url \"" + $u + "\", and favicon \"" + $i + "\". "
       + "Passing that exact url updates the existing artifact in place — omitting it creates a "
       + "second, orphaned one. The fragment is already regenerated from the current PRO-001; do "
-      + "not rewrite or re-render it. Afterwards mention the refreshed board in one short line."
+      + "not rewrite or re-render it. Afterwards mention the refreshed board in one short line. "
+      + "If the publish comes back as a conflict, WebFetch the url and read the HTML comment "
+      + "`descent-board commit <sha>`: if `git merge-base --is-ancestor <sha> HEAD` succeeds the "
+      + "published copy is simply older, so republish with force:true; if it does not, the two "
+      + "have genuinely diverged — stop and ask rather than discarding work that is not yours."
     )
   }
 }'

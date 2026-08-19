@@ -151,6 +151,23 @@ updates the board in place** — publishing without it silently creates a second
 orphaned artifact, and the link the user already has stops being the one that
 gets updated.
 
+**On a publish conflict, the board tells you who is behind.** The fragment
+carries an HTML comment — `descent-board commit <sha>` — naming the commit it
+was built from, because the published copy is a snapshot with no memory and a
+session that has lost track of what it last published cannot otherwise tell
+whether the live page is behind it or ahead of it. Read it off the live page
+with WebFetch, then:
+
+```bash
+git merge-base --is-ancestor <sha> HEAD   # exit 0 = the live copy is older
+```
+
+Exit 0 means yours is strictly newer — republish with `force: true`. A non-zero
+exit means the two have genuinely diverged: **stop and ask**, because forcing
+would discard work that is not yours. The board is a pure function of `PRO-001`
+at a commit, so nothing unique can be lost either way — but the ancestry test is
+what tells a mechanical decision apart from one that needs a person (ADR-103).
+
 `tools/artifact_sync.sh` runs as a `PostToolUse` hook and does the first half
 automatically: it notices a `git push`, confirms HEAD now matches its upstream
 so a *rejected* push can't be mistaken for a landed one, rebuilds the fragment,

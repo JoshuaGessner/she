@@ -1767,4 +1767,27 @@ It walks a **client** through a **private** door now and asks the blunt question
 
 ---
 
+## ADR-103 — The published board says which commit it came from
+**Date:** 2026-08-19 · **Status:** accepted · **Amends `CLAUDE.md`, `tools/status.py`, `tools/artifact_sync.sh`**
+
+**Context:** Publishing the descent board after `M2-T12` came back as a conflict — *"another session published a newer version"*. Resolving it took a WebFetch, a task-count comparison against two commits, and a question to the user, for what turned out to be a mechanical fact: the live copy had been published from `22ac90c` and the local one was built from `c9bddd8`, a descendant. Nothing had diverged. Nobody else was involved.
+
+**The actual failure is that a snapshot has no memory.** The board is a pure function of `PRO-001` at a commit — same commit in, same bytes out, no hand-written content, nothing unique that can be lost. But the published copy carried no record of *which* commit, so a session that had lost track of what it last published — across a compaction, or simply by being a different session — could not tell whether the live page was behind it, ahead of it, or identical. The publish tool can only report that someone got there first; it cannot know that "someone" was the same agent an hour earlier.
+
+**Decision — the fragment stamps its own provenance.** `tools/status.py --fragment` embeds an HTML comment reading `descent-board commit <sha>`. On a conflict, read it off the live page and ask git one question:
+
+```bash
+git merge-base --is-ancestor <sha> HEAD
+```
+
+Exit 0 means the published copy is strictly older and republishing with `force: true` discards nothing. A non-zero exit means the two genuinely diverged, which is the only case that needs a person. The rule is in `CLAUDE.md` and the hook hands it to the agent verbatim, so the next session resolves this in one step instead of stopping to ask.
+
+**Only the fragment carries it.** The committed views (`status.html`, `status-app.html`) must not: the SHA available while generating them is necessarily the commit *before* the one that contains them, so it would be wrong in the file it shipped in — and it would rewrite a generated view on every single commit, which is noise in exactly the artefacts this project insists must never disagree with their source.
+
+**On forcing, and why it was safe here.** ADR-063 makes the board a generated view. That is what made the overwrite recoverable rather than destructive: the worst case is that another session republishes from an older commit and the two ping-pong until somebody runs the generator again. The ancestry test is not protecting data — it is telling a decision an agent can make from one a person has to.
+
+**A quoting fault, caught by testing the hook rather than reading it.** The rule went into `artifact_sync.sh`, whose `jq` program is a single-quoted shell string; the word *"somebody's"* closed it early and broke the hook outright. `bash -n` caught the syntax error, and running the hook against a real payload confirmed it still emits valid JSON. A hook is a thing that only runs at push time — the moment it is least welcome to discover it is broken.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
