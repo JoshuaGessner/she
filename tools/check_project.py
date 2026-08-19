@@ -272,6 +272,94 @@ def check_layout() -> list[Issue]:
     return issues
 
 
+# ── CI must check out the same repository a developer has (ADR-104) ───────
+
+
+def _lfs_patterns() -> list[str]:
+    """Extensions `.gitattributes` routes through LFS, if any."""
+    attrs = ROOT / ".gitattributes"
+    if not attrs.is_file():
+        return []
+    found = []
+    for line in attrs.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "filter=lfs" not in line:
+            continue
+        found.append(line.split()[0])
+    return found
+
+
+def check_lfs_content() -> list[Issue]:
+    """Every LFS-tracked file in the tree is real content, not a pointer.
+
+    The other half of ADR-104, and the half that speaks to a person rather
+    than to CI. A clone made without `git lfs install` leaves ~130 bytes of
+    text where the art should be; the first thing to complain is Godot, and
+    what it says is that the glTF is malformed. That sends you looking for a
+    corrupt export instead of a missing fetch.
+    """
+    issues: list[Issue] = []
+    for pattern in _lfs_patterns():
+        for path in ROOT.rglob(pattern):
+            if ".git" in path.parts or not path.is_file():
+                continue
+            with path.open("rb") as handle:
+                if handle.read(43) != b"version https://git-lfs.github.com/spec/v1\n":
+                    continue
+            issues.append(Issue(
+                "error", "lfs-pointer", rel(path),
+                "is an LFS pointer, not the file itself",
+                "run `git lfs install --local && git lfs pull` — the engine "
+                "will otherwise report this as corrupt art",
+            ))
+    return issues
+
+
+def check_workflows() -> list[Issue]:
+    """A CI job that runs Godot must fetch LFS content, not pointer files.
+
+    ADR-104. `actions/checkout` leaves LFS files as ~130-byte text pointers
+    unless told otherwise, and nothing downstream announces that: Godot reports
+    a glTF *parse* error, which reads like corrupt art rather than art that was
+    never fetched. The Godot job stayed red for fourteen commits on exactly
+    this, and the export job is worse — it goes *green* while shipping a build
+    with the art missing.
+
+    Checked statically because the alternative is noticing. Nothing in the
+    pre-commit sweep can see it: every developer clone has LFS smudged, so the
+    files are real locally and only ever pointers on a fresh CI checkout.
+    """
+    workflows = ROOT / ".github" / "workflows"
+    if not _lfs_patterns() or not workflows.is_dir():
+        return []
+
+    issues: list[Issue] = []
+    for path in sorted(workflows.glob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        # Split on job headers — two-space keys under `jobs:` — so the rule
+        # applies per job. A docs-only job has no business paying for LFS.
+        blocks = re.split(r"^  (?=[A-Za-z0-9_-]+:\s*$)", text, flags=re.M)
+        for block in blocks:
+            if not re.search(r"\bgodot\b", block, re.I):
+                continue
+            job = block.split(":", 1)[0].strip() or path.stem
+            for match in re.finditer(r"^(\s*)- uses:\s*actions/checkout",
+                                     block, re.M):
+                # The step runs to the next list item at the same indent.
+                rest = block[match.end():]
+                end = re.search(r"^%s- " % match.group(1), rest, re.M)
+                step = rest[:end.start()] if end else rest
+                if re.search(r"^\s*lfs:\s*true\s*$", step, re.M):
+                    continue
+                issues.append(Issue(
+                    "error", "ci-lfs-pointer", f"{rel(path)}:{job}",
+                    "runs Godot but checks out without `lfs: true`",
+                    "add `with: {lfs: true}` — otherwise LFS art arrives as "
+                    "text pointers and the job tests a repository nobody has",
+                ))
+    return issues
+
+
 # ── naming and GDScript conventions (TEC-002) ─────────────────────────────
 
 
@@ -366,6 +454,8 @@ def main() -> int:
     if not any(i.code == "no-project" for i in issues):
         issues += check_layout()
         issues += check_collision_layers()
+        issues += check_workflows()
+        issues += check_lfs_content()
         scripts = 0
         for path in game_files():
             issues += check_naming(path)

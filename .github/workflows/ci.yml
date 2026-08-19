@@ -44,7 +44,15 @@ jobs:
       # engine would break CI on someone else's release schedule.
       GODOT_VERSION: "4.7"
     steps:
+      # `lfs: true` is load-bearing, not tidiness. `.gitattributes` puts .glb
+      # through LFS, and checkout's default is to leave pointer files in place
+      # — so without this the rig arrives as 131 bytes of text beginning
+      # `version https://git-lfs...`, Godot tries to parse it as glTF JSON, and
+      # the sweep dies four assertions in. That is ADR-104: this job was red
+      # for fourteen commits and the ten checks after the rig never ran at all.
       - uses: actions/checkout@v7
+        with:
+          lfs: true
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"

@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-17
+updated: 2026-08-19
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -1787,6 +1787,30 @@ Exit 0 means the published copy is strictly older and republishing with `force: 
 **On forcing, and why it was safe here.** ADR-063 makes the board a generated view. That is what made the overwrite recoverable rather than destructive: the worst case is that another session republishes from an older commit and the two ping-pong until somebody runs the generator again. The ancestry test is not protecting data — it is telling a decision an agent can make from one a person has to.
 
 **A quoting fault, caught by testing the hook rather than reading it.** The rule went into `artifact_sync.sh`, whose `jq` program is a single-quoted shell string; the word *"somebody's"* closed it early and broke the hook outright. `bash -n` caught the syntax error, and running the hook against a real payload confirmed it still emits valid JSON. A hook is a thing that only runs at push time — the moment it is least welcome to discover it is broken.
+
+---
+
+## ADR-104 — CI checked out a repository nobody has
+**Date:** 2026-08-19 · **Status:** accepted · **Amends `.github/workflows/ci.yml`, `.github/workflows/build.yml`, `tools/check_project.py`, `tools/test_checks.py`**
+
+**Context:** A position audit found the Godot job in CI failing, and then found it had been failing since `M1-T10` — **fourteen commits and three days**, every one of them pushed on a green local sweep. The error was `glTF: Error parsing .gltf JSON data: Expected 'true', 'false', or 'null', got 'version' at line: 0`.
+
+That message is the whole story once read closely. `version` is the first word of a **Git LFS pointer file**. `.gitattributes` routes `*.glb` through LFS, `actions/checkout` leaves LFS files as ~130-byte text stubs unless told `lfs: true`, and no workflow said so. CI was parsing `version https://git-lfs.github.com/spec/v1` as glTF.
+
+**Nothing local could have caught it.** Every developer clone has the LFS smudge filter installed, so `humanoid_rig.glb` is 295,704 real bytes here and 131 bytes of text there. The sweep is not weaker than CI — it was running against different content. This is the inverse of the usual complaint about local checks: not that they are laxer, but that they were never looking at the same repository.
+
+**The damage is what the failure hid, not what it broke.** `check_scripts.sh` asserts the rig fourth of fourteen, and exits on failure — so **the ten assertions after it have not run on a clean checkout since 16 August**: boot, teardown, data, the way out, the fallen, the hoard, party scaling, the three places, the front door, both doorways, two-player co-op. `CLAUDE.md` justifies pushing on the grounds that *"CI is the only thing that runs the full sweep on a clean checkout."* For fourteen commits that sentence was false, and the argument it supports was resting on nothing.
+
+**The export job is the more dangerous half, because it was green.** `build.yml` had the same omission, and an export from pointer files does not fail — it succeeds and ships a build with the art missing. Today nothing is lost: the rig is referenced by `tests/rig_probe.gd` and by no scene, the player is still ADR-046 blockout capsules, so **no build a playtester has received was wrong**. But `M3-T07` puts authored gear on screen, and at that point a green tick here would have meant the opposite of what it says. This is ADR-099's shape exactly — *a build that boots proves the pack loads, not that it contains the game* — arriving by a different road.
+
+**Decision — two static checks, because the alternative is noticing.**
+
+- `check_workflows()` fails any workflow job that runs Godot and checks out without `lfs: true`. Per job, not per file: a docs-only job has no business paying for LFS.
+- `check_lfs_content()` fails any LFS-tracked file in the tree that is still a pointer. That one speaks to a person rather than to CI — a clone made without `git lfs install` currently gets told its art is corrupt, which sends you hunting a bad export instead of a missing fetch.
+
+Both are exercised by `tools/test_checks.py`, which grew a `tool` field to do it: every trial before this one targeted `status.py`, and a trial pointed at the wrong checker passes by being silent — the precise failure that script exists to catch.
+
+**What actually failed here is that a red CI run is invisible.** The pre-push sweep is thorough and the `PostToolUse` hook confirms a push landed, but nothing looks at the result, and CI finishes about fifty seconds after the agent has moved on. The checks above close this particular hole for good; they do not close the general one. **Read the CI conclusion at the start of a session** — it is one `gh run list` — because a check that has silently stopped running is worth less than no check at all, and this project has now proved that twice (ADR-099 was the first).
 
 ---
 

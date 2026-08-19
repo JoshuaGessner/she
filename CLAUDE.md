@@ -116,6 +116,21 @@ tools/check_scripts.sh               # parse, boot, teardown, rig, data, 2-playe
 
 **A failing check is a blocked commit, not a note in the commit message.**
 
+**Read the CI result at the start of every session** (ADR-104). One command:
+
+```bash
+gh run list --workflow=CI --limit 5
+```
+
+The sweep above runs before a push; CI finishes about fifty seconds *after* it,
+by which time the session has moved on — so a red run is invisible unless
+somebody looks. The Godot job was red for **fourteen commits** because LFS art
+reaches `actions/checkout` as text pointers unless the job says `lfs: true`, and
+`check_scripts.sh` exits at the rig — so the ten assertions after it had not run
+on a clean checkout for three days, while every local sweep passed. A green
+local tree and a green CI are different claims; only the second one is about a
+repository somebody else could clone.
+
 **At every milestone gate, additionally export and open the box (ADR-086):**
 
 ```bash
@@ -248,7 +263,7 @@ Run `--check` before committing; run `--write` whenever a task or gate changes.
 
 - Repo: **https://github.com/JoshuaGessner/she** · `main` · PolyForm Noncommercial 1.0.0.
 - `lean-ctx` MCP tools are preferred over native Read/Grep/Shell/Glob per global config.
-- Godot `.tscn`/`.tres` are text and diff reasonably. **Add Git LFS before the first binary art commit**, not after.
+- Godot `.tscn`/`.tres` are text and diff reasonably. **Git LFS is configured** (`.gitattributes`) and was in place before the first binary art commit, as `TEC-002` requires. Setting it up is only half the job: **every CI job that runs Godot must check out with `lfs: true`**, or it gets 130-byte text pointers where the art should be and reports them as corrupt assets (ADR-104). `check_project.py` now enforces both halves.
 
 ---
 

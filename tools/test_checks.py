@@ -26,6 +26,7 @@ ROADMAP = ROOT / "docs" / "process" / "PRO-001-roadmap-and-milestones.md"
 TEC005 = ROOT / "docs" / "tech" / "TEC-005-audio-technology.md"
 TEC002 = ROOT / "docs" / "tech" / "TEC-002-project-structure.md"
 QUESTIONS = ROOT / "docs" / "OPEN-QUESTIONS.md"
+WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
 
 # Every file this script can disturb, including the generated views, which
 # `status.py --write` re-stamps with today's date. Restoring these verbatim is
@@ -39,7 +40,7 @@ QUESTIONS = ROOT / "docs" / "OPEN-QUESTIONS.md"
 # after this comment was written. The bug it caused is latent rather than
 # visible — it only bites when a run crosses UTC midnight relative to the
 # commit — which is precisely why nothing had noticed.
-TOUCHED = [ROADMAP, TEC005, TEC002, QUESTIONS,
+TOUCHED = [ROADMAP, TEC005, TEC002, QUESTIONS, WORKFLOW,
            ROOT / "docs" / "STATUS.md", ROOT / "docs" / "status.html",
            ROOT / "docs" / "status-app.html"]
 
@@ -50,6 +51,11 @@ class Trial(NamedTuple):
     path: Path
     old: str
     new: str
+    # Which checker is expected to notice. Defaults to status.py because every
+    # trial did until ADR-104 added one that guards a workflow file rather than
+    # a document, and a trial pointed at the wrong tool passes by being silent
+    # — the exact failure this whole script exists to catch.
+    tool: str = "status.py"
 
 
 TRIALS = [
@@ -97,6 +103,16 @@ TRIALS = [
         "## Needed at M2\n\n| Q104 | reopened to exercise the check | `TEC-006` | — |",
     ),
     Trial(
+        # The one check here that guards a workflow rather than a document,
+        # and the only one whose absence had already cost something: fourteen
+        # commits of a red Godot job, because LFS art reaches CI as text.
+        "ci-lfs-pointer", "ADR-104 — a job running Godot checks out LFS content",
+        WORKFLOW,
+        "        with:\n          lfs: true\n",
+        "",
+        "check_project.py",
+    ),
+    Trial(
         "doc-parked-and-scheduled", "ADR-065 — parked and scheduled are exclusive",
         TEC005,
         "owner: tech",
@@ -122,11 +138,13 @@ TRIALS = [
 ]
 
 
-def run_check() -> str:
-    proc = subprocess.run(
-        [sys.executable, str(ROOT / "tools" / "status.py"), "--check"],
-        capture_output=True, text=True, cwd=ROOT,
-    )
+def run_check(tool: str = "status.py") -> str:
+    # `--check` is status.py's flag; check_project.py reports by default and
+    # takes no such argument.
+    argv = [sys.executable, str(ROOT / "tools" / tool)]
+    if tool == "status.py":
+        argv.append("--check")
+    proc = subprocess.run(argv, capture_output=True, text=True, cwd=ROOT)
     return proc.stdout + proc.stderr
 
 
@@ -145,7 +163,7 @@ def run_trials() -> int:
             continue
         try:
             trial.path.write_text(original.replace(trial.old, trial.new, 1), encoding="utf-8")
-            output = run_check()
+            output = run_check(trial.tool)
         finally:
             trial.path.write_text(original, encoding="utf-8")
 

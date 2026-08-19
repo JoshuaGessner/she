@@ -21,7 +21,14 @@ jobs:
       # engine exactly or the export fails with a misleading message.
       GODOT_VERSION: "4.7"
     steps:
+      # ADR-104. This one is the quieter half: an export from LFS pointer files
+      # does not fail, it *succeeds* and ships a build with no art in it. The
+      # rig is used by nothing but its probe today, so no released build has
+      # been wrong yet — but `M3-T07` puts it on screen, and by then a green
+      # tick here would mean the opposite of what it says.
       - uses: actions/checkout@v7
+        with:
+          lfs: true
 
       - name: Install Godot ${{ env.GODOT_VERSION }}
         run: |
