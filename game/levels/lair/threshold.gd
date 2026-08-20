@@ -246,8 +246,15 @@ func _process(_delta: float) -> void:
 			"",
 			# The Deep lists these and the camp did not, so the first time a
 			# tester needed them was the first time they were under pressure.
+			# `M2-T13`: attack, throw and the waystone were on no list anywhere
+			# in the game. A verb a tester cannot discover is worse than one
+			# that does not exist — it is maintenance paid for nothing, and it
+			# makes every report about the run describe a smaller game than the
+			# one that was built. The throw is the Hunt's counter-play and the
+			# waystone is half of `DES-005`'s way out.
 			"wasd move   mouse look   shift sprint   ctrl crouch",
-			"e take   tab bag   g drop   esc menu",
+			"lmb attack   e take   tab bag   g drop",
+			"t throw   v waystone   esc menu",
 		])
 	if player.global_position.distance_to(DESCENT_AT) <= 2.0:
 		_ask_to_descend()

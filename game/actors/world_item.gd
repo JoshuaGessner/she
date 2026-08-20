@@ -74,6 +74,12 @@ const DEFAULT_COLOUR: Color = Color(0.55, 0.54, 0.52)
 ## ember *carries* is a tag (`bound_to`), and the tag is mechanical rather than
 ## decorative: it decides whose life the thing saves, and an ember in anyone
 ## else's hands saves that same person and nobody else.
+## Every light that is allowed to be warm (`M2-T13`, ADR-105). `ART-005` gives
+## the game one saturated hue and spends it on treasure, her fire and the ember;
+## `--sight-probe` fails if anything outside this group is gold, because a warm
+## wall sconce would say "valuable" in the only vocabulary the Deep has for it.
+const TREASURE_LIGHT_GROUP: StringName = &"treasure_light"
+
 const EMBER_COLOUR: Color = Color(0.95, 0.45, 0.14)
 const EMBER_RADIUS: float = 0.30
 
@@ -194,6 +200,45 @@ func _build_mesh() -> void:
 	_mesh.material_override = _material
 	_mesh.position.y = mesh.size.y * 0.5
 	add_child(_mesh)
+	_build_glimmer()
+
+
+## **Gold light is what it will cost you** (`M2-T13`, ADR-105).
+##
+## The other half of the Deep's lighting rule, and the half that does the design
+## work. `ART-005`: *"in a game about greed, the only thing in colour is
+## treasure — the player's eye is pulled to exactly the thing that will get them
+## killed, and that is not a metaphor we have to explain, it is just how the
+## screen looks."* That only holds if treasure is **lit**. In a flatly-lit
+## level, gold is a colour on a box; in a dark one it is the thing you can see
+## from the doorway, and walking toward it is a decision you made.
+##
+## **Glitter only.** Gear, materials and relics are coloured but do not glow —
+## if everything glowed, nothing would be worth crossing a room for, and the
+## pull would go back to being decoration. `DES-017` also has the Gullsjúkr
+## *baited* by disturbed gold, so the thing drawing your eye is the same thing
+## drawing its attention, which is the joke the whole level is built on.
+func _build_glimmer() -> void:
+	if not _definition.tags.has(&"glitter"):
+		return
+	_material.emission_enabled = true
+	_material.emission = _colour()
+	_material.emission_energy_multiplier = 0.55
+	var glow := OmniLight3D.new()
+	# Declares itself as treasure rather than being recognised by what it hangs
+	# off. `--sight-probe` asserts that gold is spent only here, and its first
+	# version identified a light's owner with `get_parent()` — which `TEC-001`
+	# forbids outright ("signals up, calls down") and `check_project.py` caught
+	# on the first run.
+	glow.add_to_group(TREASURE_LIGHT_GROUP)
+	glow.light_color = _colour()
+	# Small and weak on purpose. This marks a place, it does not light a room —
+	# a treasure that lit its surroundings would make the greedy route the
+	# *easiest* one to walk, which inverts the entire point.
+	glow.light_energy = 0.9      # ⟨tune⟩
+	glow.omni_range = 4.2        # ⟨tune⟩
+	glow.position.y = 0.45
+	add_child(glow)
 
 
 ## An ember on the floor (`M2-T05`). A glowing sphere rather than a box, so it

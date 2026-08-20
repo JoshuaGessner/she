@@ -2,24 +2,24 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-19_
+<!-- generated-stamp --> _Regenerated 2026-08-20_
 
 **Current milestone: M2 — The Loop Prototype**
 
-> **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
+> **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment.
 
-`22/49` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`23/51` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>12/12"]:::current
+  M2["M2 The Loop Prototype<br/>13/13"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/9"]:::ahead
   M2 --> M3
-  M4["M4 Vertical Slice<br/>0/12"]:::ahead
+  M4["M4 Vertical Slice<br/>0/13"]:::ahead
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -36,9 +36,9 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 12/12 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 13/13 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
-|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/12 | `EXIT` pending |
+|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -82,6 +82,7 @@ _None. Sequencing is clean._
 - ✔ `M2-T10` **Playable shell**: main menu, settings, pause and the way back out, join codes, and the diegetic blockout layer — *added by ADR-100 because both `M2` gates are playtest gates and neither could be run: no front door, no way to leave a level but killing the process, no way to change a volume, no way for two machines to meet, and no sound for anything the world does. **A join code is a shorter way to write an address, not matchmaking** — no relay, no hole-punching, and the host screen says so; `M4-T07` replaces where the address comes from and nothing else. Also fixed two systems that were built, correct and **never shown**: the Ear was never instantiated (so `DES-018`'s muted-playable rule was false while every check passed) and `_reaching_for` was never drawn* `DES-018` `DES-019` `TEC-004` `ART-002`
 - ✔ `M2-T11` **The pass before testing** — *ADR-101, and it found the one that mattered: **every doorway in the game was a disconnect.** The peer outlives the level, so walking from the Threshold into the Deep built a second session on a live connection and called `create_server` on a port it already held — with the whole sweep green, because `run_coop.py` never changes scene and no single-process probe has a peer to lose. `run_doorway.py` walks two processes through a door. Also: **the party descends together** (the hole is the host's decision), a failed join **returns to the menu with a reason instead of quitting the game** — and Godot's own `connection_failed` never fired against a dead port at all, so there is an 8 s ⟨tune⟩ deadline of our own — plus who-is-connected and the control list at the fire* `TEC-004` `DES-012`
 - ✔ `M2-T12` **The first remote test, and the private door** — *ADR-102. Two players connected over the internet and then found five faults with one shape: **every one was a per-player transition.** `M2-T11` fixed the door the party walks through together and nothing had looked at the door exactly one player walks through. A client could not extract (the handler ran host-side on whichever body reached the Shaft, so the **host** went to the hoard room holding the **client's** loot); a dying client was never told and lay on the floor; the Chamber gave anyone but the host a **black screen** (authority defaulted to peer 1, and that room has no camera of its own); returning from it left a client with **no body at all**; and remote movement was never interpolated — **still on 70% of frames**. Now: the door **despawns** you rather than hiding you, the room is an overlay with **its own peerless multiplayer** so nothing in it can reach the wire, seats are keyed to the peer so a door is not an identity change, and remote bodies are eased — **7%**. `run_doorway.py` walks a client through a private door; all four rows fail on the previous commit by name* `TEC-004` `DES-012` `DES-014`
+- ✔ `M2-T13` **You can see where to go** — the lighting language, the landmarks, and the two x-rays that were corrupting the gate. *ADR-105. `ART-001` says lighting design **is** gameplay design and cannot be handed off as polish; `PRO-001` had handed all of it to `M4-T05` and no task anywhere mentioned wayfinding, so the floor ran on one directional sun and flat 0.85 ambient — six identically-lit boxes, and a way out that was a pale disc on the floor of one of them. `--route-probe` passed throughout: it asserts a clean route **exists**, never that anyone could find it. Now one rule — **pale light is the way through, gold light is what it will cost you** — with `ART-005` choosing the palette rather than this task: gold is the game's only saturated hue and it is spent on treasure, so the exit reads by **value** and is never warm. Doorways carry pale light (a room shows its own exits), the Shaft gets a light column and an idle hum, glitter lights itself, and every room gets one silhouette. **Two x-rays removed**: the debug readout listed every enemy's state and hit points — which `DES-019` forbids in as many words — and `DebugOverlays` drew every vision cone and the whole clamor field in **every session**, so a tester was consulting the awareness ladder rather than experiencing it and nothing they said about pressure could mean anything. The overlay is now off until `o`/d-pad-right. `--sight-probe` asserts the rule and `--sight-shot` photographs it, because the probe counted twelve lights and passed while the spawn view was solid black* `DES-015` `DES-019` `ART-001` `ART-005`
 
 ### M3 — The Pact
 
@@ -108,6 +109,7 @@ _None. Sequencing is clean._
 - · `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library `ART-005`
 - · `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key `ART-003`
 - · `M4-T12` **Audio occlusion and reverb zones** — raycast → lerp `attenuation_filter_cutoff_hz`, and `Area3D` reverb driven by the player's current cell. *Split out by ADR-099: `M2-T03` and `M2-T09` built the adaptive driver, and `TEC-005` was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by `ART-002`'s own costing, and **portal propagation is for the Gullsjúkr only**, never a general system* `TEC-005` `ART-002` `DES-015`
+- · `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* `ART-001` `ART-005` `DES-008`
 - · `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs `ART-004`
 
 ### M5 — Content & Breadth
@@ -121,6 +123,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 104 ADRs · 12 open questions · 100 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 105 ADRs · 12 open questions · 102 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

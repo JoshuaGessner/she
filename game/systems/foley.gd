@@ -90,6 +90,22 @@ static func stream_for(sound: Sound) -> AudioStreamWAV:
 	return _cache[sound] as AudioStreamWAV
 
 
+## The same sample, as a **loop**, for a sound that is a continuous presence
+## rather than an event — the Shaft's idle hum is the only one today.
+##
+## Returns a duplicate, always. `stream_for` hands back the cached instance
+## every caller shares, so setting `loop_mode` on it would turn every one-shot
+## of that sound into a drone — the exact bug the comment below warns about,
+## reached from the other direction. The frame arithmetic lives here because
+## this is where the format is decided: 16-bit mono, so two bytes a frame.
+static func looping_stream_for(sound: Sound) -> AudioStreamWAV:
+	var stream: AudioStreamWAV = (stream_for(sound).duplicate()) as AudioStreamWAV
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_begin = 0
+	stream.loop_end = stream.data.size() / 2
+	return stream
+
+
 static func _render(sound: Sound) -> AudioStreamWAV:
 	var seconds: float = 0.32
 	match sound:

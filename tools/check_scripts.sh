@@ -248,6 +248,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Can a player *find* their way (`M2-T13`)? `--route-probe` has always
+	# asserted a clean route exists and has always passed — it cannot see that
+	# nobody could find it, which is exactly what six identically-lit box rooms
+	# and a pale disc on the floor produced. This asserts the lighting language
+	# instead: doorways lit, every room nameable, the way out visible from the
+	# room every route crosses, and the game's one saturated colour spent on
+	# treasure and nothing else.
+	sight="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
+		levels/room_set/room_set.tscn -- --sight-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$sight" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL you can see where to go" >&2
+		printf '%s\n' "$sight" | grep -E '\[sight\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Can you leave, and does leaving late cost more (`M2-T04`)? The assertion
 	# that earns its place is ADR-015's absolute: **the player is never truly
 	# trapped.** A Sealing implemented as a lock satisfies every reading of
@@ -327,6 +342,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "each place sounds like itself and her note is hers alone,"
 	echo "there is a front door and a way back out of every room,"
 	echo "both kinds of doorway hold and nobody comes back a stranger,"
+	echo "the way out can be seen and the gold is the only warm thing,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

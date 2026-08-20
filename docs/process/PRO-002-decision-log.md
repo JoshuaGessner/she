@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-19
+updated: 2026-08-20
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -1811,6 +1811,43 @@ That message is the whole story once read closely. `version` is the first word o
 Both are exercised by `tools/test_checks.py`, which grew a `tool` field to do it: every trial before this one targeted `status.py`, and a trial pointed at the wrong checker passes by being silent — the precise failure that script exists to catch.
 
 **What actually failed here is that a red CI run is invisible.** The pre-push sweep is thorough and the `PostToolUse` hook confirms a push landed, but nothing looks at the result, and CI finishes about fifty seconds after the agent has moved on. The checks above close this particular hole for good; they do not close the general one. **Read the CI conclusion at the start of a session** — it is one `gh run list` — because a check that has silently stopped running is worth less than no check at all, and this project has now proved that twice (ADR-099 was the first).
+
+---
+
+## ADR-105 — Lighting was handed off as polish, so nobody could find the way out
+**Date:** 2026-08-20 · **Status:** accepted · **Adds `M2-T13`, `M4-T13`; rewrites both `M2` gates; amends `DES-019`'s HUD scope**
+
+**Context:** After the first two-player remote test the objection was that the `M2` gates are *"arbitrary test cases that are more opinion than actual analysis"*, that the level offers no guidance on where to go, and that combat amounts to *"swing until you die."* Checking the build rather than the memory of it: the first two are correct, the third is correct **and on-plan**, and the reason for the first is a scheduling fault nobody had noticed.
+
+**Thin combat is a deliberate deferral.** `DES-009`'s M1 protocol builds one attack completely — wind-up, active, recovery, input buffering — and withholds block, heavy and shove precisely so that four verbs are not built partly. *"Blockout must feel good unjuiced"* is a standing rule. Nothing to fix here, and adding a verb now would be the ADR-064 failure wearing a design hat.
+
+**Wayfinding is not a deferral. It is a hole.** `ART-001` says, in as many words, that **"darkness is a mechanic, not an effect [...] lighting design is gameplay design here, so it can't be handed off as polish."** `PRO-001` then handed every part of it to `M4-T05` — *"real art pass, real audio, real UI"* — which is handing it off as polish. Searching every milestone for wayfinding, landmarks, signposting, orientation or navigation returns nothing. The floor therefore ran on **one directional light at -42° in an underground level, with flat 0.85 ambient**: six rooms lit identically, so no room looked like anywhere and nothing drew the eye toward anything. The Shaft — the way out — was a pale disc on the floor of one of them, with no light and no sound.
+
+**And every check passed.** `--route-probe` asserts a clean route from entrance to exit exists and it has always been right. It cannot see that nobody could *find* the route. `DES-005`'s *"the Shaft's location is known"* was true of the layout and false of the experience, and no probe in this project was asking about the experience.
+
+**Decision — one rule, and `ART-005` chooses the palette.**
+
+> **Pale light is the way through. Gold light is what it will cost you.**
+
+The first draft of this rule was *"the way out is warm"*, which is the natural instinct and is **forbidden**: gold is the only saturated hue in the game and it is spent on treasure, her fire and the ember, with the Threshold as the one warm place. A gold exit would say "safety" in the vocabulary this game reserves for "this will kill you." So the exit reads by **value** instead — a pale column, bright, never warm. Doorways carry pale light, which is the single largest win available: the rooms did not need to become distinct nearly as much as the *ways out of them* did. Glitter lights itself, because `ART-005`'s *"the player's eye is pulled to exactly the thing that will get them killed"* only holds if treasure is lit; in a flatly-lit level gold is a colour on a box.
+
+**Wayfinding is level design, never UI.** `DES-019` makes orientation *"a thing you equipped rather than a thing the HUD gave you"*, so a marker or a minimap was never available and should not be.
+
+**Two x-rays were corrupting the gate, and both were once justified.**
+
+The debug readout listed **every enemy's state and hit points**. Its own comment explained why — *"the awareness ladder is unreadable without audio [...] the audio half is `M2-T03`; **until then** this is the only channel there is"* — and `M2-T03` is done. So it was a third channel, strictly more informative than either designed one, whose stated expiry condition had already passed. It also broke `DES-019` outright, which says of the Ear: **"never shows enemy count, health, or type."**
+
+Worse, `DebugOverlays` drew every vision cone and the entire clamor field **in every session**, with no toggle. A tester reading that is not experiencing the awareness ladder, they are consulting it — and nothing they then say about how legible the pressure feels means anything. It stays, because `TEC-001` is right that the field is untunable blind; it is now off until `o` / d-pad-right. Removing the text list orphaned `Enemy.hears_player()`, which `check_dead.py` caught within the minute; it is now the overlay's third cone state, which is where ADR-074's *"sight and hearing are separate signals"* wanted it all along.
+
+**`DES-019` asked for a wound vignette and nothing drew it** — *"wounds in gait, in a hand that won't come all the way up, in vignette."* Until now the only channel saying you were being hurt was a sample and a number in a debug label, which is the honest source of *"swing until you die"*: you could hear that something had happened and read afterwards that it had. The vignette carries damage **bearing**, and only for hits you could not see — a thing in front of you is already on screen, so flashing for it would spend the channel on information the player has. This is not the juice `DES-009` defers: the test is whether removing it costs a **fact** or only a feeling, and without it *"which side is hitting me"* is unanswerable.
+
+**The gates are rewritten as experiments, not verdicts.** The sentences were right and unusable. *"Voluntarily abandons loot to survive"* assumes a choice between loot and escape; with no findable exit the run ends in wandering and the gate measures navigation while calling it greed. And a failure localised nothing — one bit of information against five candidate causes. Each gate now carries a protocol and a short list of preconditions, each of which names its own fix. **A failed precondition is the finding.** This project instruments everything else and the gates were the one place the standard dropped to *"we'll know it when we see it."*
+
+**A probe that counts is not a probe that looks.** `--sight-probe` asserts the rule against the built scene tree — never against the constants it was built from, since a check reading `DOORS.size()` would pass with every light missing. All five claims were validated by planting their violations. It then passed twelve-of-twelve while the spawn view was **solid black**, because the first `--sight-shot` faced 180° into the wall behind the player. That is `--ear-shot`'s lesson arriving a second time, and the photograph earned its place immediately: it also caught the well rendering as an eight-spoked asterisk, because the segments were axis-aligned on a circle whose tangent they were meant to follow.
+
+**The check that mattered most was the one asking the geometry.** Landmarks are solid, and the altar landed on top of the Waystone — which surfaced three probes away as *"dropping the heaviest item did not make the player faster."* True, and nothing to do with weight: the player was standing inside a block of stone at 0.00 m/s laden and unladen alike. The first fix declared a clearance radius per landmark, which is wrong twice over — it cannot describe a shape with a hole in it, and a number written beside a shape is one more thing that can disagree with the shape. Dropping a body-sized sphere at every authored position instead found **two more collisions immediately**: the exit stair clipped the Shaft, and the junction well clipped a piece of authored loot by 20 cm, which would have made it unpickupable and would have been invisible in every screenshot.
+
+**The lantern is what finishes this, and it was never scheduled either** — filed as `M4-T13`. Until it exists the ambient floor stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one `M4-T13` exists to lower.
 
 ---
 

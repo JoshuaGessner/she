@@ -36,6 +36,10 @@ const RING_COLOUR: Color = Color(0.08, 0.08, 0.09, 0.9)
 ## Low enough that three overlapping cones stay readable.
 const VISION_IDLE: Color = Color(0.10, 0.10, 0.12, 0.16)
 const VISION_SEEING: Color = Color(0.02, 0.02, 0.03, 0.42)
+## Between the two, because hearing you is between not knowing and knowing.
+## Value rather than hue, like everything else here: `ART-005` spends colour on
+## treasure, and a diagnostic overlay is the last thing that should borrow it.
+const VISION_HEARING: Color = Color(0.05, 0.05, 0.07, 0.28)
 
 ## 127 is Godot's `MATERIAL_RENDER_PRIORITY_MAX`; anything higher is rejected at
 ## runtime rather than clamped. Diagnostics sit above the ink pass, which is a
@@ -63,7 +67,23 @@ var _field: ClamorField = null
 var _player: Player = null
 
 
+## **Off until asked for** (`M2-T13`, ADR-105).
+##
+## This used to draw in every session, which made it an x-ray rather than a
+## diagnostic: a playtester could see every enemy's vision cone and the whole
+## clamor field painted on the floor. `DES-019` forbids the Ear from showing
+## enemy count, health or type precisely so that noticing is a skill — and this
+## handed all three to anyone standing still, then invited them to report on how
+## legible the pressure felt.
+##
+## It stays because `TEC-001` is right that the field is untunable blind. It is
+## simply not a thing to hand a tester by default. `o` / d-pad-right, next to
+## the other two debug keys.
+var _shown: bool = false
+
+
 func _ready() -> void:
+	visible = false
 	_ring = MeshInstance3D.new()
 	_ring.mesh = ImmediateMesh.new()
 	_ring.material_override = _material(RING_COLOUR)
@@ -89,7 +109,25 @@ func show_field(field: ClamorField) -> void:
 	_field = field
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("debug_overlays"):
+		return
+	_shown = not _shown
+	visible = _shown
+	# The vision cones live on the enemies (`top_level`, so they draw on the
+	# floor rather than inside a body), which puts them outside this node's
+	# visibility. Hiding only the ring and the field would leave the loudest
+	# part of the x-ray on screen — and it is the part a tester would most
+	# obviously read.
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var cone: Node = node.get_node_or_null("VisionOverlay")
+		if cone != null:
+			(cone as MeshInstance3D).visible = _shown
+
+
 func _process(_delta: float) -> void:
+	if not _shown:
+		return
 	if _player == null or not is_instance_valid(_player):
 		# `local_player`, not `player`: the ring is *what you are emitting*, so
 		# with a party it has to follow the body this process is playing rather
@@ -202,9 +240,19 @@ func _sync_vision() -> void:
 			(cone.material_override as StandardMaterial3D).cull_mode = \
 				BaseMaterial3D.CULL_DISABLED
 			enemy.add_child(cone)
-		# Seeing you is the one state that must be unmissable at a glance.
+		# Seeing you is the one state that must be unmissable at a glance, and
+		# **hearing you is a different state** (ADR-074: sight and hearing are
+		# separate signals). The overlay drew only sight, so the one question it
+		# could not answer was the one the Clamor system exists to raise —
+		# *has this thing noticed the noise I am making?* — and the answer lived
+		# in a text readout instead, where a playtester could read it.
 		var material := cone.material_override as StandardMaterial3D
-		material.albedo_color = VISION_SEEING if enemy.sees_player() else VISION_IDLE
+		if enemy.sees_player():
+			material.albedo_color = VISION_SEEING
+		elif enemy.hears_player():
+			material.albedo_color = VISION_HEARING
+		else:
+			material.albedo_color = VISION_IDLE
 		_redraw_cone(enemy, cone.mesh as ImmediateMesh)
 
 

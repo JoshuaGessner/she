@@ -76,6 +76,10 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     "use_waystone": [(BUTTON, DPAD_UP, 0.0)],
     "debug_reset": [(BUTTON, DPAD_LEFT, 0.0)],
     "debug_ink": [(BUTTON, Y, 0.0)],
+    # The diagnostic overlay (`M2-T13`, ADR-105). Beside the other two debug
+    # keys, because it is one: vision cones and the clamor field are for tuning,
+    # and they were drawn in every session including a playtester's.
+    "debug_overlays": [(BUTTON, DPAD_RIGHT, 0.0)],
     "interact": [(BUTTON, X, 0.0)],
 }
 

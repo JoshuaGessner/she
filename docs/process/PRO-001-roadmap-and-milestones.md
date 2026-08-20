@@ -4,7 +4,7 @@ title: Roadmap & Milestones
 status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-08-17
+updated: 2026-08-20
 related: [DES-001, TEC-001, TEC-003]
 ---
 
@@ -69,9 +69,32 @@ The most common way a project like this dies is building the meta-progression fi
 - [x] `M2-T11` **The pass before testing** — *ADR-101, and it found the one that mattered: **every doorway in the game was a disconnect.** The peer outlives the level, so walking from the Threshold into the Deep built a second session on a live connection and called `create_server` on a port it already held — with the whole sweep green, because `run_coop.py` never changes scene and no single-process probe has a peer to lose. `run_doorway.py` walks two processes through a door. Also: **the party descends together** (the hole is the host's decision), a failed join **returns to the menu with a reason instead of quitting the game** — and Godot's own `connection_failed` never fired against a dead port at all, so there is an 8 s ⟨tune⟩ deadline of our own — plus who-is-connected and the control list at the fire* → TEC-004, DES-012
 - [x] `M2-T12` **The first remote test, and the private door** — *ADR-102. Two players connected over the internet and then found five faults with one shape: **every one was a per-player transition.** `M2-T11` fixed the door the party walks through together and nothing had looked at the door exactly one player walks through. A client could not extract (the handler ran host-side on whichever body reached the Shaft, so the **host** went to the hoard room holding the **client's** loot); a dying client was never told and lay on the floor; the Chamber gave anyone but the host a **black screen** (authority defaulted to peer 1, and that room has no camera of its own); returning from it left a client with **no body at all**; and remote movement was never interpolated — **still on 70% of frames**. Now: the door **despawns** you rather than hiding you, the room is an overlay with **its own peerless multiplayer** so nothing in it can reach the wire, seats are keyed to the peer so a door is not an identity change, and remote bodies are eased — **7%**. `run_doorway.py` walks a client through a private door; all four rows fail on the previous commit by name* → TEC-004, DES-012, DES-014
 
-> **GATE M2 EXIT** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment. If it doesn't happen, the pressure system is wrong, not the content.
+- [x] `M2-T13` **You can see where to go** — the lighting language, the landmarks, and the two x-rays that were corrupting the gate. *ADR-105. `ART-001` says lighting design **is** gameplay design and cannot be handed off as polish; `PRO-001` had handed all of it to `M4-T05` and no task anywhere mentioned wayfinding, so the floor ran on one directional sun and flat 0.85 ambient — six identically-lit boxes, and a way out that was a pale disc on the floor of one of them. `--route-probe` passed throughout: it asserts a clean route **exists**, never that anyone could find it. Now one rule — **pale light is the way through, gold light is what it will cost you** — with `ART-005` choosing the palette rather than this task: gold is the game's only saturated hue and it is spent on treasure, so the exit reads by **value** and is never warm. Doorways carry pale light (a room shows its own exits), the Shaft gets a light column and an idle hum, glitter lights itself, and every room gets one silhouette. **Two x-rays removed**: the debug readout listed every enemy's state and hit points — which `DES-019` forbids in as many words — and `DebugOverlays` drew every vision cone and the whole clamor field in **every session**, so a tester was consulting the awareness ladder rather than experiencing it and nothing they said about pressure could mean anything. The overlay is now off until `o`/d-pad-right. `--sight-probe` asserts the rule and `--sight-shot` photographs it, because the probe counted twelve lights and passed while the spawn view was solid black* → DES-015, DES-019, ART-001, ART-005
+
+> **GATE M2 EXIT** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment.
+>
+> **Rewritten as an experiment by ADR-105.** The sentence was right and unusable: it assumes the player is choosing between loot and escape, so if they cannot find the exit the run ends in wandering and the gate measures navigation while calling it greed. A failure also localised nothing — one bit of information against five candidate causes.
+>
+> **Protocol.** Three testers × three runs, no coaching beyond the in-game control list, and the diagnostic overlay off.
+>
+> **Preconditions — each names its own fix, and a failure here *is* the finding:**
+> - a first-time tester reaches the Shaft having entered **≤4 of the 6 rooms**. Fails ⇒ wayfinding, not pressure.
+> - asked mid-run *"how much noise are you making?"*, they answer roughly right. Fails ⇒ the Ear, or clamor legibility.
+> - asked after a death, they explain it in **one sentence** (principle 4). Fails ⇒ combat readability or damage feedback.
+> - they discover they can drop loot **without being told**. Fails ⇒ the control list, or the bag.
+>
+> **Then the gate.** With all four holding, does somebody abandon loot to survive and raise it unprompted? If not, the pressure system is wrong — and that conclusion is now trustworthy, because the four things that could have masqueraded as it have been ruled out.
 
 > **GATE M2 COOP** `pending` — someone carries a friend's ember out and it is the best moment of the session.
+>
+> **Protocol.** Two machines, remote, not two windows on one desk — `M2-T12` found five faults that only exist over a real connection. One run where a death is allowed to happen rather than staged.
+>
+> **Preconditions:**
+> - the surviving player notices the ember **without being told it exists**. Fails ⇒ the ember's presentation, not the rescue design.
+> - they can say what carrying it costs them — squares, weight, or noise. Fails ⇒ `DES-012`'s sacrifice is invisible, and a sacrifice nobody can feel is not one.
+> - the downed player can tell what is happening to them while down. Fails ⇒ the downed state, which currently has no readout at all.
+>
+> **Then the gate.** If the rescue happens and lands flat, the ember economy is wrong. If it never happens because nobody saw the ember, that is a different fix entirely — and telling those two apart is the whole reason for the list above.
 
 ## M3 — The Pact  ·  *~2× M1*
 <!-- milestone id=M3 depends=M2 size=2.0 -->
@@ -108,6 +131,7 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library → ART-005
 - [ ] `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key → ART-003
 - [ ] `M4-T12` **Audio occlusion and reverb zones** — raycast → lerp `attenuation_filter_cutoff_hz`, and `Area3D` reverb driven by the player's current cell. *Split out by ADR-099: `M2-T03` and `M2-T09` built the adaptive driver, and `TEC-005` was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by `ART-002`'s own costing, and **portal propagation is for the Gullsjúkr only**, never a general system* → TEC-005, ART-002, DES-015
+- [ ] `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* → ART-001, ART-005, DES-008
 - [ ] `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs → ART-004
 
 > **GATE M4 EXIT** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.

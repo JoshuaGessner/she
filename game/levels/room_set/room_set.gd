@@ -36,6 +36,104 @@ const DOOR_WIDTH: float = 2.4
 const FLOOR_COLOUR: Color = Color(0.58, 0.57, 0.56)
 const WALL_COLOUR: Color = Color(0.44, 0.43, 0.43)
 
+# ── the lighting language (`M2-T13`, ADR-105) ─────────────────────────────
+#
+# One rule, and nothing in the Deep may break it:
+#
+#   > **Pale light is the way through. Gold light is what it will cost you.**
+#
+# This is wayfinding done as level design rather than as UI, which is what
+# `DES-019` requires: orientation is a thing you *equip*, never a thing the HUD
+# hands you, so a quest marker or a minimap is not available to us and should
+# not be. The player follows pale light to move and reads gold light as greed.
+#
+# **`ART-005` chose the palette, not this file.** Gold is the only saturated
+# hue in the game and it is spent on treasure, the ember and her fire — so the
+# way out must *not* be warm, however natural that feels. Warm belongs to the
+# Threshold, which `ART-002` and `ART-005` both make the only resolved, safe,
+# finished place. A gold exit would say "safety" in the vocabulary the game
+# uses for "this will kill you", and the two readings are not compatible.
+#
+# The floor previously had **one directional sun and flat 0.85 ambient**, which
+# is the exact inverse of the accepted direction (*"darkness is the paper"*) and
+# is why six rooms were indistinguishable: with everything lit equally, placed
+# light carries no information at all.
+#
+# **The lantern is what finishes this** and it is not built — see `M4-T13`.
+# Until it exists the ambient floor stays navigable rather than truly dark,
+# because a dark level with no light source is not a mechanic, it is a bug.
+# That floor is the one number here expected to fall.
+## Groups rather than counted children, so `--sight-probe` asserts the rule
+## against the built world instead of against the constants it was built from.
+## A probe that reads `DOORS.size()` would pass with every light missing.
+const DOOR_LIGHT_GROUP: StringName = &"door_light"
+const LANDMARK_GROUP: StringName = &"landmark"
+
+## How much redder than bluer a light has to be before `--sight-probe` calls it
+## warm. Generous: `PALE` is very slightly blue and the treasure gold is far
+## past this, so the margin only has to separate two things that are nowhere
+## near each other — a tight threshold here would be a false alarm waiting for
+## the first time somebody nudges a colour.
+const GOLD_MARGIN: float = 0.08
+
+const PALE: Color = Color(0.82, 0.85, 0.90)
+const AMBIENT: Color = Color(0.30, 0.31, 0.36)
+const AMBIENT_ENERGY: float = 0.34  # ⟨tune⟩ — drops when the lantern lands
+const PAPER: Color = Color(0.04, 0.04, 0.05)
+
+## Doorways carry the pale light, so a room shows you its exits from inside it.
+## This is the single largest wayfinding win available here: the rooms did not
+## need to become more distinct nearly as much as the *ways out of them* did.
+const DOOR_LIGHT_ENERGY: float = 1.5  # ⟨tune⟩
+const DOOR_LIGHT_RANGE: float = 7.0   # ⟨tune⟩
+const DOOR_LIGHT_HEIGHT: float = 2.6
+
+## One silhouette per room, so "the room with the well" is a sentence a player
+## can say to a teammate. `DES-015`'s legibility rule — *readable within 30
+## seconds of arriving* — written for authored biomes at `M4`, applied here at
+## blockout scale because the gate needs it now.
+##
+## Shape only, no colour: `ART-005` gives the Deep bone-white ink on black, and
+## a landmark that announced itself with hue would be spending the treasure
+## budget on scenery.
+## These are **solid**, so where they stand matters as much as what they look
+## like: the first draft put the guardian room's altar squarely on top of the
+## Waystone, and the symptom appeared three probes away as *"dropping the
+## heaviest item did not make the player faster"* — true, about a player standing
+## inside a block of stone. `--sight-probe` now drops a body-sized sphere at
+## every authored position and fails if anything is in the way.
+const LANDMARKS: Dictionary = {
+	"entrance": ["arch", Vector3(0.0, 0.0, 4.0)],
+	"west": ["barricade", Vector3(-9.0, 0.0, -10.0)],
+	"east": ["pillar", Vector3(9.0, 0.0, -13.0)],
+	# Off the exit line on purpose. Dead centre is the most memorable place to
+	# put the landmark and the worst place to put an obstacle: the junction's
+	# north door is at x = 0, so a well there sits square in everybody's path
+	# out. Four and a half metres west keeps it the first thing you see on
+	# entering and stops it being the thing you walk into while leaving.
+	# Far enough west to clear the Raw Gemstone at x = -2. At -4.5 the well's
+	# outer kerb and a body's width overlapped it by 20 cm, which would have
+	# made one piece of authored loot unpickupable — invisible in every
+	# screenshot, and exactly what the sphere check is for.
+	"junction": ["well", Vector3(-6.5, 0.0, -22.0)],
+	# Well clear of the prize cluster (x ≥ 17.6) and off the door line at
+	# z = -21. The guardian room needs a landmark least of anywhere — it already
+	# has the only gold thing in the game standing in it — so it gives way.
+	"guardian": ["altar", Vector3(14.2, 0.0, -24.4)],
+	# **Not a stair.** The exit room is 6 m square with the way out in the middle
+	# of it: a three-step stair needs 2.4 m and there are 2.2 m between the
+	# Shaft and the north wall, so every placement either clipped the Shaft or
+	# buried a step in masonry. Two pillars flanking it instead — they frame the
+	# way out without standing on it, they fit, and they rhyme with the arch at
+	# the entrance, so the two ends of a run are marked the same way.
+	"exit": ["gate", Vector3(0.0, 0.0, -29.0)],
+}
+
+## A player capsule is 0.35 across; a little more than that is what "somewhere
+## you could stand" means. Used by `--sight-probe` and nothing else — the real
+## body's radius lives on its own collision shape and is not this constant.
+const BODY_RADIUS: float = 0.45
+
 ## The network boundary (`M1-T05`). Levels ask it for actors and never
 ## instantiate one themselves, which is what keeps `TEC-004`'s "the boundary
 ## already exists" true rather than aspirational. A solo launch runs the same
@@ -208,6 +306,7 @@ func _ready() -> void:
 	_build_lighting()
 	for name: String in ROOMS:
 		_build_room(name)
+		_build_landmark(name)
 	_spawn_actors()
 	# What you emit and what they perceive, on the floor (ADR-078). This set has
 	# corners and doorways, which is the only place occlusion has anything to
@@ -237,6 +336,10 @@ func _ready() -> void:
 			_capture_top(arg.split("=", true, 1)[1])
 		elif arg == "--route-probe":
 			_route_probe()
+		elif arg == "--sight-probe":
+			_sight_probe()
+		elif arg.begins_with("--sight-shot="):
+			_sight_shot(arg.split("=", true, 1)[1])
 		elif arg == "--prize-probe":
 			_prize_probe()
 		elif arg == "--bag-probe":
@@ -707,6 +810,43 @@ func _ear_probe() -> void:
 ##
 ## Same reason `--bag-shot` exists, and it found two defects headless checks
 ## could not.
+## The eye's half of `--sight-probe` (`M2-T13`, ADR-105).
+##
+## The probe counts lights, checks colours and casts one ray. **None of that is
+## the question.** The question is whether a person standing at the spawn can
+## tell where to go, and the only way to answer it is to look — which is the
+## same lesson `--ear-shot` earned the hard way when it found the Ear rendering
+## entirely off-screen while every headless check passed.
+##
+## Four places on the route out, each photographed from standing height:
+## the spawn, the fork where the loop splits, the junction every route crosses,
+## and the guardian's doorway — the one committal choice on the floor.
+func _sight_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	# Ink off, for the same reason `_capture_top` turns it off: `ART-005`'s pass
+	# is a treatment on top of the lighting and would be judged here instead of
+	# it. What is being looked at is where the light is.
+	player.show_ink(false)
+	# Yaw 0 is -Z, which is *into* the level: the rooms run north from the
+	# entrance at +Z. Facing 180 photographs the wall behind the spawn, which
+	# is the first thing this shot did and the reason it is worth stating.
+	var views: Array = [
+		["spawn", Vector3(0.0, 0.1, 8.0), 0.0],
+		["fork", Vector3(0.0, 0.1, 1.0), 0.0],
+		["junction", Vector3(0.0, 0.1, -22.0), 0.0],
+		["guardian", Vector3(11.0, 0.1, -21.0), -90.0],
+	]
+	for view: Array in views:
+		player.teleport(view[1] as Vector3, deg_to_rad(float(view[2])))
+		await _hold(0.3)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var shot: String = "%s_%s.png" % [path.trim_suffix(".png"), view[0]]
+		get_viewport().get_texture().get_image().save_png(shot)
+		print("[sight] %-9s → %s" % [view[0], shot.get_file()])
+	get_tree().quit()
+
+
 func _ear_shot(path: String) -> void:
 	var player: Player = _session.local_player()
 	var samples: Array = [
@@ -1307,6 +1447,11 @@ func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 5
 	add_child(layer)
+	# Vignette first, so it sits *behind* the Ear and the Reticle rather than
+	# darkening them. It is the only full-screen element here and the two
+	# readouts have to stay legible while you are being hit — which is exactly
+	# the moment they matter most.
+	layer.add_child(WoundVignette.new())
 	layer.add_child(Ear.new())
 	layer.add_child(Reticle.new())
 
@@ -1803,7 +1948,7 @@ func _walk_speed(player: Player) -> float:
 # ── geometry ──────────────────────────────────────────────────────────────
 
 
-func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
+func _slab(size: Vector3, centre: Vector3, colour: Color, yaw: float = 0.0) -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var material := StandardMaterial3D.new()
@@ -1812,6 +1957,7 @@ func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
 	var node := MeshInstance3D.new()
 	node.mesh = mesh
 	node.position = centre
+	node.rotation.y = yaw
 	node.material_override = material
 	var body := StaticBody3D.new()
 	body.collision_layer = CollisionLayers.WORLD
@@ -1863,6 +2009,91 @@ func _wall(room: String, side: String, fixed: float, from: float, to: float,
 		var centre: Vector3 = (Vector3(middle, WALL_HEIGHT * 0.5, fixed) if horizontal
 			else Vector3(fixed, WALL_HEIGHT * 0.5, middle))
 		_slab(size, centre, WALL_COLOUR)
+
+
+## One thing per room that is not a box, so the rooms can be told apart and
+## talked about. Blockout shapes only (ADR-046) — a named production phase with
+## a scheduled replacement at `M4-T05`, not a placeholder standing in for a
+## system that does not exist.
+##
+## They are built with `_slab`, so they are **solid**, and that is deliberate
+## rather than incidental: a barricade you can walk through is worse than no
+## barricade, because it teaches the player that this level's furniture is
+## scenery — and then the one piece of cover that does matter reads as scenery
+## too. Solid also means they occlude, which is what makes them landmarks at
+## all rather than decals.
+func _build_landmark(room: String) -> void:
+	if not LANDMARKS.has(room):
+		return
+	var row: Array = LANDMARKS[room]
+	var kind: String = row[0]
+	var at: Vector3 = row[1] as Vector3
+	var marker := Node3D.new()
+	marker.name = "landmark_%s" % room
+	marker.position = at
+	marker.add_to_group(LANDMARK_GROUP)
+	_world.add_child(marker)
+	match kind:
+		"arch":
+			# Behind the spawn, framing the way you came in. It exists so the
+			# entrance is recognisable from inside the loop — this level is a
+			# cycle, and the whole hazard of a cycle is arriving somewhere you
+			# have already been without noticing (`DES-015` Layer 1).
+			_pillar(at + Vector3(-2.2, 0.0, 0.0), 3.2, 0.5)
+			_pillar(at + Vector3(2.2, 0.0, 0.0), 3.2, 0.5)
+			_beam(at + Vector3(0.0, 3.2, 0.0), 4.9, 0.5)
+		"barricade":
+			# `DES-015`'s Retreat, at blockout scale: *"barricades facing the
+			# wrong way"*. The safe corridor is the one where somebody already
+			# tried to hold a line and failed, which is the cheapest possible
+			# way to say something about this place without writing any lore.
+			_beam(at + Vector3(0.0, 0.5, 0.0), 3.4, 0.42)
+			_beam(at + Vector3(0.3, 1.1, 0.6), 3.0, 0.34)
+		"pillar":
+			_pillar(at, 3.6, 0.62)
+		"well":
+			# The junction is the room every route crosses, so it is the room
+			# most worth being able to name.
+			_ring(at, 1.5, 0.7)
+		"altar":
+			_slab(Vector3(2.4, 0.9, 2.4), at + Vector3(0.0, 0.45, 0.0), WALL_COLOUR)
+		"gate":
+			# The way out, framed. Taller and thinner than the entrance arch and
+			# with no beam across the top, so the two read as a pair without
+			# reading as the same thing — and so nothing crosses the Shaft's
+			# light column, which is the one sightline in the level that has to
+			# survive from the far side of the floor.
+			_pillar(at + Vector3(-2.4, 0.0, 0.0), 3.8, 0.45)
+			_pillar(at + Vector3(2.4, 0.0, 0.0), 3.8, 0.45)
+
+
+func _pillar(at: Vector3, height: float, thick: float) -> void:
+	_slab(Vector3(thick, height, thick), at + Vector3(0.0, height * 0.5, 0.0),
+		WALL_COLOUR)
+
+
+func _beam(at: Vector3, length: float, thick: float) -> void:
+	_slab(Vector3(length, thick, thick), at + Vector3(0.0, thick * 0.5, 0.0),
+		WALL_COLOUR)
+
+
+## A low circular kerb, approximated with eight segments — round enough to read
+## as a well from across the room, cheap enough to be blockout.
+##
+## Each segment is turned to lie **along** the circle. The first version left
+## them axis-aligned, which puts a long box at the +X point of a circle whose
+## tangent there runs along Z — so the eight segments pointed outward and the
+## well was an eight-spoked asterisk. Only visible by looking at it: nothing
+## about the arithmetic is wrong, the shapes were simply facing the wrong way.
+func _ring(at: Vector3, radius: float, height: float) -> void:
+	var segments: int = 8
+	for index: int in range(segments):
+		var angle: float = TAU * float(index) / float(segments)
+		var offset := Vector3(cos(angle) * radius, height * 0.5, sin(angle) * radius)
+		# A little longer than the chord, so neighbours overlap at the corners
+		# instead of leaving eight gaps you can see the floor through.
+		var chord: float = TAU * radius / float(segments) * 1.25
+		_slab(Vector3(chord, height, 0.34), at + offset, WALL_COLOUR, -angle)
 
 
 func _build_room(name: String) -> void:
@@ -2205,21 +2436,51 @@ func _reset_floor() -> void:
 		_hunter.age = 0.0
 
 
+## Darkness is the paper, and every light placed on it means something.
+##
+## **The sun is gone.** It was a `DirectionalLight3D` at -42° in a level that is
+## underground, lighting all six rooms identically — so no room looked like
+## anywhere in particular and nothing drew the eye toward anything. It was not
+## a bad light; it was a light that could not carry information, which is the
+## only job lighting has here (`ART-001`: *"lighting design is gameplay design,
+## so it can't be handed off as polish"*).
 func _build_lighting() -> void:
-	var sun := DirectionalLight3D.new()
-	sun.rotation_degrees = Vector3(-42, 32, 0)
-	sun.light_energy = 0.9
-	_world.add_child(sun)
-
 	var env := WorldEnvironment.new()
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0.16, 0.16, 0.18)
+	environment.background_color = PAPER
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color(0.55, 0.55, 0.60)
-	environment.ambient_light_energy = 0.85
+	environment.ambient_light_color = AMBIENT
+	environment.ambient_light_energy = AMBIENT_ENERGY
 	env.environment = environment
 	_world.add_child(env)
+
+	for door: Array in DOORS:
+		_door_light(door[0] as String, door[1] as String, float(door[2]))
+
+
+## A pale light in every doorway, on the near side of the wall it is cut from.
+##
+## Every doorway is listed twice in `DOORS` — once per room it joins — so this
+## lights both approaches without knowing anything about which side you are on.
+## That duplication was already there to cut the hole from both rooms; it turns
+## out to be exactly what "visible from either side" needs.
+func _door_light(room: String, side: String, offset: float) -> void:
+	var rect: Array = ROOMS[room]
+	var light := OmniLight3D.new()
+	light.light_color = PALE
+	light.light_energy = DOOR_LIGHT_ENERGY
+	light.omni_range = DOOR_LIGHT_RANGE
+	# Inside the room by a little more than the wall is thick, so the lamp is
+	# in the room it belongs to rather than buried in the masonry.
+	var inset: float = WALL_THICK * 1.5
+	match side:
+		"n": light.position = Vector3(offset, DOOR_LIGHT_HEIGHT, float(rect[2]) + inset)
+		"s": light.position = Vector3(offset, DOOR_LIGHT_HEIGHT, float(rect[3]) - inset)
+		"w": light.position = Vector3(float(rect[0]) + inset, DOOR_LIGHT_HEIGHT, offset)
+		"e": light.position = Vector3(float(rect[1]) - inset, DOOR_LIGHT_HEIGHT, offset)
+	light.add_to_group(DOOR_LIGHT_GROUP)
+	_world.add_child(light)
 
 
 func _spawn_actors() -> void:
@@ -2276,6 +2537,147 @@ func _carry_the_stash_down() -> void:
 
 
 # ── the guarantee, asserted rather than eyeballed ─────────────────────────
+
+
+## **Can a player find their way?** (`M2-T13`, ADR-105)
+##
+## `--route-probe` has always asserted that a clean *path* exists, and it always
+## passed. It could not see that nobody could *find* the path: the level had one
+## directional sun, flat ambient, six identically-lit box rooms and a pale disc
+## on the floor of one of them. "The Shaft's location is known" (`DES-005`) was
+## true of the layout and false of the experience, and no check in this project
+## was asking about the experience.
+##
+## So this asserts the lighting language holds, in the built world rather than
+## in the constants it was built from — every claim below reads the scene tree,
+## because a probe that counted `DOORS` would pass with every light missing.
+##
+## It asserts **rules, never ⟨tune⟩ values** (the ADR-096 discipline): that the
+## exit is visible from the room every route crosses, that gold is spent only on
+## treasure, that every room has something to name it by. How bright any of it
+## is remains a question for play.
+func _sight_probe() -> void:
+	var problems := PackedStringArray()
+
+	# ─ 1. every doorway is lit, from both sides ─
+	var lights: int = get_tree().get_nodes_in_group(DOOR_LIGHT_GROUP).size()
+	print("[sight] doorway lights          %d of %d" % [lights, DOORS.size()])
+	if lights < DOORS.size():
+		problems.append("%d of %d doorways are unlit — a room that does not "
+			% [DOORS.size() - lights, DOORS.size()]
+			+ "show its own exits is the whole navigation problem")
+
+	# ─ 2. every room has a landmark ─
+	var landmarks: int = get_tree().get_nodes_in_group(LANDMARK_GROUP).size()
+	print("[sight] rooms with a landmark   %d of %d" % [landmarks, ROOMS.size()])
+	if landmarks < ROOMS.size():
+		problems.append("%d room(s) have no landmark — `DES-015` wants a place "
+			% (ROOMS.size() - landmarks)
+			+ "readable within 30 seconds, and a bare box is not one")
+
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+
+	# ─ 3. every authored position is somewhere a body can actually stand ─
+	#
+	# Landmarks are solid, so one on top of an authored position does not *look*
+	# wrong — it makes something unreachable, or a body unable to move, and the
+	# symptom surfaces somewhere else entirely. This exact collision cost a
+	# debugging round: the altar landed on the Waystone, and `--bag-probe` duly
+	# reported that dropping the heaviest item in the bag had not made the
+	# player any faster. True, and nothing to do with weight — the player was
+	# standing inside a block of stone at 0.00 m/s either way.
+	#
+	# Asked of the **built world**, not of a declared radius. The first version
+	# gave each landmark a clearance number and compared distances, and it was
+	# wrong twice over: it cannot describe a shape with a hole in it (the arch
+	# is two pillars and open air between them, which is exactly where a player
+	# walks), and a number written next to a shape is one more thing that can
+	# disagree with the shape. A sphere the size of a body, dropped at every
+	# authored position, asks the only question that matters — *can anything
+	# stand here?* — and it asks the geometry rather than the intent.
+	var occupied: Dictionary = {"the Shaft": SHAFT_AT, "the Hunter": HUNTER_POST,
+		"the Guardian": GUARDIAN_POST, "the Prize": PRIZE_AT}
+	for index: int in range(ENEMY_POSTS.size()):
+		occupied["enemy post %d" % index] = ENEMY_POSTS[index]
+	for index: int in range(SPAWNS.size()):
+		occupied["spawn %d" % index] = SPAWNS[index]
+	for row: Array in LOOT:
+		occupied["%s" % row[0]] = row[1] as Vector3
+
+	var body := SphereShape3D.new()
+	body.radius = BODY_RADIUS
+	var blocked_count: int = 0
+	for what: String in occupied:
+		var point: Vector3 = occupied[what] as Vector3
+		var shape_query := PhysicsShapeQueryParameters3D.new()
+		shape_query.shape = body
+		shape_query.collision_mask = CollisionLayers.WORLD
+		shape_query.transform = Transform3D(Basis.IDENTITY,
+			Vector3(point.x, BODY_RADIUS + 0.05, point.z))
+		if space.intersect_shape(shape_query, 1).size() > 0:
+			blocked_count += 1
+			problems.append(("%s is inside solid geometry at %.1f, %.1f — "
+				+ "landmarks are solid, and one standing on an authored "
+				+ "position makes something unreachable somewhere else")
+				% [what, point.x, point.z])
+	print("[sight] authored spots blocked  %d of %d" % [
+		blocked_count, occupied.size()])
+
+	# ─ 4. the way out is visible from the room every route crosses ─
+	#
+	# The junction, specifically. `--route-probe` proves every path to the exit
+	# goes through it, so a beacon visible from there is visible on every route
+	# anybody can take — which is a much stronger claim than "visible from
+	# somewhere" and a much cheaper one to check than sampling the whole floor.
+	var from: Vector3 = _room_centre("junction") + Vector3(0.0, 1.6, 0.0)
+	var to: Vector3 = SHAFT_AT + Vector3(0.0, Shaft.BEACON_HEIGHT * 0.6, 0.0)
+	var query := PhysicsRayQueryParameters3D.create(from, to)
+	query.collision_mask = CollisionLayers.WORLD
+	var blocked: Dictionary = space.intersect_ray(query)
+	print("[sight] shaft seen from junction %s" % ("yes" if blocked.is_empty() else "NO"))
+	if not blocked.is_empty():
+		problems.append("the Shaft's beacon is behind geometry from the "
+			+ "junction — `DES-005` says the way out is *known*, and every "
+			+ "route to it crosses that room")
+
+	# ─ 5. gold is spent on treasure and nothing else ─
+	#
+	# `ART-005` gives the game exactly one saturated hue and spends it on what
+	# will get you killed. The moment a wall sconce or a doorway is warm, the
+	# rule stops carrying information — and it would stop silently, because
+	# nothing about a nice-looking light announces that it has broken a budget.
+	var warm: Array[String] = []
+	for node: Node in _all_lights(self):
+		var light := node as Light3D
+		var colour: Color = light.light_color
+		if colour.r > colour.b + GOLD_MARGIN \
+				and not light.is_in_group(WorldItem.TREASURE_LIGHT_GROUP):
+			warm.append(light.name)
+	print("[sight] warm lights not treasure %d" % warm.size())
+	if warm.size() > 0:
+		problems.append("gold light on %s — `ART-005` spends the game's only "
+			% ", ".join(warm)
+			+ "saturated colour on treasure, her fire and the ember, so a warm "
+			+ "anything-else says 'valuable' about a wall")
+
+	_report(problems, "sight")
+
+
+## Every `Light3D` under a node, wherever it was added.
+func _all_lights(root: Node) -> Array[Node]:
+	var found: Array[Node] = []
+	for child: Node in root.get_children():
+		if child is Light3D:
+			found.append(child)
+		found.append_array(_all_lights(child))
+	return found
+
+
+## The middle of a room, for a probe that needs somewhere to stand in it.
+func _room_centre(room: String) -> Vector3:
+	var rect: Array = ROOMS[room]
+	return Vector3((float(rect[0]) + float(rect[1])) * 0.5, 0.0,
+		(float(rect[2]) + float(rect[3])) * 0.5)
 
 
 func _route_probe() -> void:

@@ -52,7 +52,37 @@ const HEIGHT: float = 0.35
 const IDLE: Color = Color(0.62, 0.68, 0.74)
 const WORKING: Color = Color(0.88, 0.93, 0.97)
 
+## The beacon (`M2-T13`, ADR-105). **`DES-005` says the Shaft's location is
+## *known*, and until now nothing made it so** — it was a pale disc on the floor
+## of one room among six, invisible from anywhere else, in a level lit flatly
+## enough that no room looked like a destination. "Known" was true of the
+## layout and false of the experience, which is the gap `--route-probe` could
+## not see: it asserts a clean *path* exists, never that a player could find it.
+##
+## A column of pale light, tall enough to clear the walls in sightline terms and
+## bright enough to read through a doorway from the junction — the room every
+## route crosses. It does not tell you where you are; it tells you which way
+## out is, which is the one piece of orientation `DES-005` actually promises.
+##
+## Pale, never gold. `ART-005` spends saturated colour on treasure and her fire,
+## so a warm exit would say "safety" using the vocabulary this game reserves for
+## "this will kill you."
+const BEACON_HEIGHT: float = 5.2
+const BEACON_RADIUS: float = 0.18
+const BEACON_ENERGY: float = 2.4   # ⟨tune⟩
+const BEACON_RANGE: float = 26.0   # ⟨tune⟩
+
+## The audible half. `DES-018` requires every channel to have a twin, and this
+## is the twin of the column above rather than a separate cue: a player with the
+## sound muted has the light, and a player who cannot see the light from where
+## they are standing has the hum. Quiet, and it does not carry as far as the
+## light does — it is a confirmation once you are close, not a second beacon.
+const HUM_DECIBELS: float = -22.0  # ⟨tune⟩
+const HUM_RANGE: float = 14.0      # ⟨tune⟩
+
 var _mesh: MeshInstance3D = null
+var _beacon: MeshInstance3D = null
+var _light: OmniLight3D = null
 var _material: StandardMaterial3D = null
 ## Who is currently standing in it, and how far through. Host-side only: the
 ## channel is a consequence and consequences have one owner.
@@ -176,6 +206,46 @@ func _build_body() -> void:
 	_mesh.material_override = _material
 	_mesh.position.y = HEIGHT * 0.5
 	add_child(_mesh)
+	_build_beacon()
+
+
+## The column, the light and the hum — the three halves of "you can find this".
+func _build_beacon() -> void:
+	var column := CylinderMesh.new()
+	column.top_radius = BEACON_RADIUS
+	column.bottom_radius = BEACON_RADIUS
+	column.height = BEACON_HEIGHT
+	var glow := StandardMaterial3D.new()
+	glow.albedo_color = WORKING
+	glow.emission_enabled = true
+	glow.emission = WORKING
+	glow.emission_energy_multiplier = 1.6
+	# Unshaded, so the column reads at the same value from every angle. A
+	# beacon that dims as you walk round it is not a beacon.
+	glow.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_beacon = MeshInstance3D.new()
+	_beacon.mesh = column
+	_beacon.material_override = glow
+	_beacon.position.y = BEACON_HEIGHT * 0.5
+	add_child(_beacon)
+
+	_light = OmniLight3D.new()
+	_light.light_color = IDLE
+	_light.light_energy = BEACON_ENERGY
+	_light.omni_range = BEACON_RANGE
+	_light.position.y = BEACON_HEIGHT * 0.6
+	add_child(_light)
+
+	var hum := AudioStreamPlayer3D.new()
+	# The same sample the Shaft plays when it is working, looped — so the idle
+	# hum and the channelling sound are recognisably one object rather than two
+	# unrelated noises that happen to share a location.
+	hum.stream = Foley.looping_stream_for(Foley.Sound.CHANNEL)
+	hum.volume_db = HUM_DECIBELS
+	hum.max_distance = HUM_RANGE
+	hum.pitch_scale = 0.55
+	hum.autoplay = true
+	add_child(hum)
 
 
 ## The nearest Shaft within reach of a point, or `null`.

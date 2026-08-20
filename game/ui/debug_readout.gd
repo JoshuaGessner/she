@@ -63,23 +63,33 @@ func _process(_delta: float) -> void:
 	lines.append("waystone  %s" % [
 		"CARRIED" if bag.waystone() != null else "none",
 	])
-	# Enemy state is on screen because the awareness ladder is unreadable
-	# without audio, and DES-013 requires every transition to be legible in
-	# both channels. The audio half is `M2-T03`; until then this is the only
-	# channel there is, and judging the ladder blind is not possible.
-	for enemy: Enemy in get_tree().get_nodes_in_group("enemies"):
-		# Sight and hearing shown apart from the ladder state. The state says
-		# what the enemy is doing; these say which sense is feeding it, which
-		# is the difference between "spotted" and "it heard something".
-		lines.append("enemy     %-10s %5.1f hp   %s %s" % [
-			Enemy.State.keys()[enemy.state()].to_lower(), enemy.health.current,
-			"SEES" if enemy.sees_player() else "····",
-			"HEARS" if enemy.hears_player() else "·····",
-		])
+	# **The per-enemy list is gone, and its own comment is why** (`M2-T13`,
+	# ADR-105). It read:
+	#
+	#   > "Enemy state is on screen because the awareness ladder is unreadable
+	#   > without audio [...] The audio half is `M2-T03`; **until then** this is
+	#   > the only channel there is."
+	#
+	# `M2-T03` is done. The Ear draws the whole ladder, the mix carries it, and
+	# `--ear-probe` fails if a channel exists that nothing renders — so this was
+	# a third channel, strictly more informative than either designed one, whose
+	# stated expiry condition had already passed.
+	#
+	# It also broke an explicit rule. `DES-019` on the Ear: **"never shows enemy
+	# count, health, or type."** This showed all three, and it corrupted the very
+	# gate it was meant to serve — a tester reading every enemy's hit points is
+	# not experiencing the awareness ladder, they are consulting it, and nothing
+	# they then say about pressure means anything.
+	#
 	# Every prompt names both devices (`DES-019` rule 7, ADR-075). The weight
 	# keys are gone rather than renamed: loot is the gameplay source of carried
 	# weight from `M2-T01`, and a debug key that sets it behind the inventory's
 	# back would be the second writer ADR-064 bans.
+	#
+	# `t/LT throw` and `v/dpad-up waystone` were missing from every list in the
+	# game, so two built verbs — one of them the Hunt's whole counter-play — had
+	# no way of being discovered.
 	lines.append("lmb/RT attack   e/X take   tab/LB bag   g/dpad-down drop   "
-		+ "shift/L3 sprint   ctrl/B crouch   c/R3 toggle   i/Y ink   r reset")
+		+ "t/LT throw   v/dpad-up waystone")
+	lines.append("shift/L3 sprint   ctrl/B crouch   c/R3 toggle   i/Y ink   r reset")
 	text = "\n".join(lines)
