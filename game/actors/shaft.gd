@@ -59,16 +59,32 @@ const WORKING: Color = Color(0.88, 0.93, 0.97)
 ## layout and false of the experience, which is the gap `--route-probe` could
 ## not see: it asserts a clean *path* exists, never that a player could find it.
 ##
-## A column of pale light, tall enough to clear the walls in sightline terms and
-## bright enough to read through a doorway from the junction — the room every
-## route crosses. It does not tell you where you are; it tells you which way
-## out is, which is the one piece of orientation `DES-005` actually promises.
-##
 ## Pale, never gold. `ART-005` spends saturated colour on treasure and her fire,
 ## so a warm exit would say "safety" using the vocabulary this game reserves for
 ## "this will kill you."
-const BEACON_HEIGHT: float = 5.2
-const BEACON_RADIUS: float = 0.18
+##
+## ## Tall enough to clear the walls, which is the whole job
+##
+## The first version was **5.2 m** and stood 1.2 m above a 4 m wall. It passed
+## its check — which asked only whether the junction could see it — and a
+## playtester then crossed the floor without ever finding the way out. Measured
+## against every room instead: **two of six, and the room you spawn in was not
+## one of them.**
+##
+## The binding sightline is the worst one, not the best. From the middle of the
+## entrance the room's own north wall is 6 m away, so clearing it from an eye
+## height of 1.6 m needs a slope of 0.4 — and carried to a Shaft 33 m off, that
+## alone puts the beam's top near 15 m. At exactly 16 m it failed by **one
+## centimetre**, which is the kind of pass that is really a coin toss. 24 m
+## clears every room with room to spare.
+##
+## Not an arbitrary big number: it is the fiction catching up with the name. A
+## **Shaft** is a hole to the surface, so light falls down it. From the far end
+## of the floor it reads as a thin bright line standing above the wall tops in
+## the black — the oldest legible beacon in the medium, and the same read as a
+## Destiny public-event beam or a supply-drop column.
+const BEACON_HEIGHT: float = 24.0
+const BEACON_RADIUS: float = 0.30
 const BEACON_ENERGY: float = 2.4   # ⟨tune⟩
 const BEACON_RANGE: float = 26.0   # ⟨tune⟩
 
@@ -80,6 +96,11 @@ const BEACON_RANGE: float = 26.0   # ⟨tune⟩
 const HUM_DECIBELS: float = -22.0  # ⟨tune⟩
 const HUM_RANGE: float = 14.0      # ⟨tune⟩
 
+## How often the channel's progress reaches the other peers. The same rate the
+## enemies use (ADR-068), and for the same reason: this drives a bar somebody is
+## watching, so it has to be smooth, but it is one float on one object.
+const REPLICATION_HZ: float = 20.0
+
 var _mesh: MeshInstance3D = null
 var _beacon: MeshInstance3D = null
 var _light: OmniLight3D = null
@@ -90,9 +111,49 @@ var _claimant: Player = null
 var _progress: float = 0.0
 
 
+## **The channel's progress has to reach the other peers, and never did.**
+##
+## `_process` lerps the pad's colour by `_progress`, and the comment beside it
+## claimed *"every peer can see it, because a teammate standing in the Shaft is
+## information the whole party needs."* That was true of the intent and false of
+## the build: `advance()` is host-guarded, so on a client `_progress` sat at
+## zero forever and the pad never brightened. The one visual saying *somebody is
+## leaving* was invisible to everybody except the person leaving.
+##
+## Authority stays at peer 1, like the enemies: the channel is a consequence,
+## and `TEC-004` gives consequences one owner.
+func configure_replication() -> void:
+	var config := SceneReplicationConfig.new()
+	var property := NodePath(".:_progress")
+	config.add_property(property)
+	# Spawn state as well as stream, so a peer arriving mid-channel sees a
+	# part-full bar rather than one that starts over.
+	config.property_set_spawn(property, true)
+	config.property_set_replication_mode(property,
+		SceneReplicationConfig.REPLICATION_MODE_ALWAYS)
+	var sync := MultiplayerSynchronizer.new()
+	sync.name = "ChannelSync"
+	sync.replication_config = config
+	sync.replication_interval = 1.0 / REPLICATION_HZ
+	sync.delta_interval = 1.0 / REPLICATION_HZ
+	add_child(sync)
+
+
 func _ready() -> void:
 	add_to_group(GROUP)
 	_build_body()
+
+
+## How far through the climb, 0–1, on any peer. Drives the Reticle's ring.
+func progress() -> float:
+	return _progress
+
+
+## True while somebody is actually climbing. Distinct from `in_reach`: standing
+## on the pad is not the same as having started, and the prompt has to tell
+## those two apart or it cannot say what the player should do next.
+func is_channelling() -> bool:
+	return _progress > 0.0
 
 
 ## Seconds this takes to use, right now. **This is the Sealing.**

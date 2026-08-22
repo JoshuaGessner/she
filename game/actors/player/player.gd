@@ -122,6 +122,12 @@ const STATE_PROPERTIES: Dictionary = {
 	".:bleeding": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:revival": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:spent": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# Spending a Waystone (`M2-T14`). `ALWAYS`, for the same reason as the two
+	# above: it moves every frame while it matters, and it is driving a ring
+	# somebody is watching. It has to replicate at all because `_spending` is
+	# host-side — so a client spending their way home saw **nothing happen**
+	# for the whole channel, exactly as they saw nothing standing in the Shaft.
+	".:leaving": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 }
 
 ## Which seat in the party this body took, 0-3. Assigned once by `CoopSession`
@@ -186,6 +192,13 @@ var _bag_screen: BagScreen = null
 var _reaching_for: WorldItem = null
 ## Seconds left on a Waystone being spent. Host-side; zero when not leaving.
 var _spending: float = 0.0
+## Seconds the current spend started with, so the fraction below has a
+## denominator. Host-side; the fraction is what travels.
+var _spending_total: float = 0.0
+
+## How far through spending a Waystone, 0–1, on every peer. Replicated because
+## the countdown that drives it is not.
+var leaving: float = 0.0
 
 ## Seconds of bleeding left, or 0 when up. **Replicated**, because `DES-012`
 ## makes the window itself the decision — *"a visible, shortening window; your
@@ -749,6 +762,7 @@ func _go_down() -> void:
 	# the moment to be sorting loot.
 	_bag_wanted = false
 	_spending = 0.0
+	leaving = 0.0
 
 
 ## Host-side, per frame. The window shortens whatever anyone is doing about it,
@@ -884,6 +898,7 @@ func restore_for_descent() -> void:
 	revival = 0.0
 	spent = false
 	_spending = 0.0
+	leaving = 0.0
 	_reviving = false
 	_self_recovery = true
 	health.restore()
@@ -934,6 +949,18 @@ static func slot_for_peer(from: Node, peer: int) -> int:
 # Two ways out, and ADR-015 makes them cost different things: the **Shaft** is
 # always there and charges you time in a known place, the **Waystone** is loot
 # you had to find and charges you the squares it occupied all run.
+
+
+## The Shaft underfoot, or `null` (`M2-T14`, ADR-106).
+##
+## Read by the Reticle so the way out can announce itself. Until this existed
+## the exit was the only interaction in the game with **no prompt of any kind**:
+## you had to stand on an unmarked pad, press a key nothing suggested, and then
+## hold position for four seconds with no progress shown anywhere. A playtester
+## crossed the whole floor and reported that there was no way out — and on the
+## evidence available to them, there wasn't.
+func shaft_underfoot() -> Shaft:
+	return Shaft.nearest(self, global_position)
 
 
 ## Start using whatever Shaft is underfoot. Public for the probes, which drive
@@ -992,6 +1019,8 @@ func _spend_waystone() -> void:
 	if stone == null or _spending > 0.0:
 		return
 	_spending = _waystone_seconds(stone)
+	_spending_total = _spending
+	leaving = 0.0
 
 
 func _waystone_seconds(stone: ItemInstance) -> float:
@@ -1009,11 +1038,14 @@ func _tick_waystone(delta: float) -> void:
 	var stone: ItemInstance = inventory.waystone()
 	if stone == null:
 		_spending = 0.0
+		leaving = 0.0
 		return
 	_spending -= delta
+	leaving = clampf(1.0 - _spending / maxf(_spending_total, 0.001), 0.0, 1.0)
 	if _spending > 0.0:
 		return
 	_spending = 0.0
+	leaving = 0.0
 	for item_trait: ItemTrait in stone.definition.traits:
 		var extraction := item_trait as ExtractionTrait
 		if extraction != null:

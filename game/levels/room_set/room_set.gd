@@ -134,6 +134,19 @@ const LANDMARKS: Dictionary = {
 ## body's radius lives on its own collision shape and is not this constant.
 const BODY_RADIUS: float = 0.45
 
+## Where a standing player's eyes are, for sightline checks. The camera's real
+## height lives on the player scene; this is the probe's approximation of it and
+## is deliberately a little low, so a beacon that only just passes here is
+## comfortably visible in play rather than marginally so.
+const EYE_HEIGHT: float = 1.6
+
+## Navigation bake settings (`M2-T14`). The radius matches `Enemy.NAV_RADIUS`:
+## baking a mesh narrower than the agents that walk it produces paths they
+## cannot follow, which looks exactly like no pathfinding at all.
+const NAV_AGENT_RADIUS: float = 0.45
+const NAV_AGENT_HEIGHT: float = 1.8
+const NAV_SOURCE_GROUP: StringName = &"navigation_source"
+
 ## The network boundary (`M1-T05`). Levels ask it for actors and never
 ## instantiate one themselves, which is what keeps `TEC-004`'s "the boundary
 ## already exists" true rather than aspirational. A solo launch runs the same
@@ -284,6 +297,7 @@ var _session: CoopSession = null
 var _field: ClamorField = null
 var _hunter: Gullsjukr = null
 var _shaft: Shaft = null
+var _navigation: NavigationRegion3D = null
 var _descent: int = 1
 ## True while a probe is driving this level. Probes measure the floor and must
 ## not be dropped into the Lair halfway through a measurement.
@@ -302,6 +316,14 @@ signal rescued(saved_peer: int, by: Player)
 
 
 func _ready() -> void:
+	# **First, before anything reads it.** Any probe at all means this process
+	# is measuring the floor rather than playing the loop — extraction must not
+	# change scene out from under it, and the arrival brief must not fade three
+	# labels across a screenshot. This used to be decided *after* `_build_hud`,
+	# so a HUD element asking `_probing` would silently always see `false`.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.contains("probe") or arg.contains("shot") or arg.contains("capture"):
+			_probing = true
 	AudioDirector.enter("deep")
 	_build_lighting()
 	for name: String in ROOMS:
@@ -311,6 +333,8 @@ func _ready() -> void:
 	# What you emit and what they perceive, on the floor (ADR-078). This set has
 	# corners and doorways, which is the only place occlusion has anything to
 	# show — the gym it came from is mostly open ground.
+	# Before the actors, so the first enemy to think has a map to think on.
+	_build_navigation()
 	_build_hunt()
 	_build_shaft()
 	var overlays := DebugOverlays.new()
@@ -318,11 +342,6 @@ func _ready() -> void:
 	overlays.show_field(_field)
 	_build_hud()
 	add_child(PauseMenu.new())
-	# Any probe at all means this process is measuring the floor rather than
-	# playing the loop, so extraction must not change scene out from under it.
-	for arg: String in OS.get_cmdline_user_args():
-		if arg.contains("probe") or arg.contains("shot") or arg.contains("capture"):
-			_probing = true
 	# After `_probing` is known and never before it. A probe that inherited a
 	# loadout would be measuring a bag it did not pack — and the reason this is
 	# a real hazard rather than a hypothetical one is that it reads correct
@@ -338,6 +357,8 @@ func _ready() -> void:
 			_route_probe()
 		elif arg == "--sight-probe":
 			_sight_probe()
+		elif arg == "--nav-probe":
+			_nav_probe()
 		elif arg.begins_with("--sight-shot="):
 			_sight_shot(arg.split("=", true, 1)[1])
 		elif arg == "--prize-probe":
@@ -1454,6 +1475,11 @@ func _build_hud() -> void:
 	layer.add_child(WoundVignette.new())
 	layer.add_child(Ear.new())
 	layer.add_child(Reticle.new())
+	# Not while a probe is measuring the floor: it would be three labels
+	# fading over a screenshot, and `--ear-shot` in particular photographs
+	# exactly the frames this covers.
+	if not _probing:
+		layer.add_child(ArrivalBrief.new())
 
 ## How much floor has already been laid, so an arriving player tops it up
 ## rather than doubling it. See `_on_party_changed`.
@@ -2228,6 +2254,71 @@ func _solo_loot() -> int:
 		/ pow(float(Player.MAX_PARTY), Config.tuning.party_loot_exponent)))
 
 
+## Somewhere for the enemies to path (`M2-T14`, ADR-106).
+##
+## There was no navigation in this project at all. Every enemy walked in a
+## straight line at whatever it was interested in, which is the right technique
+## for an open arena and the wrong one for a floor whose own header boasts that
+## it has *"corners, doorways and a room you"* must commit to enter. The result
+## reads exactly as a playtester described it: the AI does not path.
+##
+## Baked from the level's own collision, so it can never disagree with the
+## geometry — the walls, the landmarks and the doorway gaps are all already
+## `StaticBody3D`s built by `_slab`, and parsing those means the mesh is a
+## function of the level rather than a second description of it that has to be
+## kept in step (the ADR-073 rule).
+##
+## Built on every peer even though only the host steers anything, exactly as
+## `_build_hunt` is: the alternative is a networking branch inside the level,
+## and `TEC-004`'s boundary is supposed to be invisible from here.
+func _build_navigation() -> void:
+	var mesh := NavigationMesh.new()
+	mesh.agent_radius = NAV_AGENT_RADIUS
+	mesh.agent_height = NAV_AGENT_HEIGHT
+	# Nothing here is climbable. The well kerb and the barricade are meant to
+	# be walked *around*; a generous step height would quietly turn both into
+	# ramps and undo the reason they are solid.
+	mesh.agent_max_climb = 0.3
+	mesh.agent_max_slope = 45.0
+	# **0.15, and this number closed every doorway in the level at 0.2.**
+	#
+	# Recast erodes the walkable surface by `ceil(agent_radius / cell_size)`
+	# *cells*, not by the radius. At a 0.2 cell that rounds 0.45 m up to three
+	# cells — 0.6 m a side, 1.2 m off the width of every opening — and the
+	# doorways here have only about 1.4 m of true clearance, because each one is
+	# flanked by the two rooms' own side walls. So the mesh baked, every room
+	# had surface on it, and not one doorway connected: six navigable islands
+	# and no route between them.
+	#
+	# It looked exactly like an agent problem and was not. Dropping the radius
+	# to 0.2 "fixed" it and would have shipped agents thinner than the bodies
+	# they steer; at a 0.15 cell the erosion matches the radius it is supposed
+	# to represent and the full 0.45 m — wider than the 0.35 m body — connects
+	# the whole floor.
+	mesh.cell_size = 0.15
+	mesh.cell_height = 0.15
+	mesh.geometry_parsed_geometry_type = \
+		NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	# By group rather than by children: the geometry hangs off `_world` as a
+	# flat list of slabs, and re-parenting all of it under the region purely to
+	# be baked would change every node path in the level for no gain.
+	mesh.geometry_source_geometry_mode = \
+		NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	mesh.geometry_source_group_name = NAV_SOURCE_GROUP
+	_world.add_to_group(NAV_SOURCE_GROUP)
+
+	_navigation = NavigationRegion3D.new()
+	_navigation.name = "Navigation"
+	_navigation.navigation_mesh = mesh
+	add_child(_navigation)
+	var region: NavigationRegion3D = _navigation
+	# Synchronous, so the map exists before the first enemy asks. Baking this
+	# floor is a few milliseconds; a threaded bake would mean the first seconds
+	# of every run had no navigation, which is precisely the window in which
+	# the player is deciding whether the game works.
+	region.bake_navigation_mesh(false)
+
+
 ## The Hunt (`M2-T02`): the field, then the thing that navigates it.
 ##
 ## The field is added on every peer and simply does nothing on a client — it
@@ -2255,6 +2346,10 @@ func _build_shaft() -> void:
 	_shaft = Shaft.new()
 	_shaft.name = "Shaft"
 	_shaft.position = SHAFT_AT
+	# Before it enters the tree, so the synchronizer exists at the same node
+	# path on every peer. Both sides build this identically — it is authored
+	# geometry rather than a spawn — so the paths match by construction.
+	_shaft.configure_replication()
 	_world.add_child(_shaft)
 	_shaft.claimed.connect(_on_extracted)
 	for player: Player in _session.players():
@@ -2623,22 +2718,35 @@ func _sight_probe() -> void:
 	print("[sight] authored spots blocked  %d of %d" % [
 		blocked_count, occupied.size()])
 
-	# ─ 4. the way out is visible from the room every route crosses ─
+	# ─ 4. the way out is visible from **every** room ─
 	#
-	# The junction, specifically. `--route-probe` proves every path to the exit
-	# goes through it, so a beacon visible from there is visible on every route
-	# anybody can take — which is a much stronger claim than "visible from
-	# somewhere" and a much cheaper one to check than sampling the whole floor.
-	var from: Vector3 = _room_centre("junction") + Vector3(0.0, 1.6, 0.0)
-	var to: Vector3 = SHAFT_AT + Vector3(0.0, Shaft.BEACON_HEIGHT * 0.6, 0.0)
-	var query := PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = CollisionLayers.WORLD
-	var blocked: Dictionary = space.intersect_ray(query)
-	print("[sight] shaft seen from junction %s" % ("yes" if blocked.is_empty() else "NO"))
-	if not blocked.is_empty():
-		problems.append("the Shaft's beacon is behind geometry from the "
-			+ "junction — `DES-005` says the way out is *known*, and every "
-			+ "route to it crosses that room")
+	# This check used to ask about the junction alone, on the reasoning that
+	# every route crosses it. It passed, and it was worth almost nothing: the
+	# beacon was visible from **two rooms of six, and the room you spawn in was
+	# not one of them.** A playtester walked the floor and never found the exit
+	# while this reported success, because the probe was measuring the thing
+	# that had been built rather than the thing a player needs.
+	#
+	# `DES-005` says the Shaft's location is *known*. Known means known from
+	# where you are standing, not known to the layout — so the bar is every
+	# room, and the beacon is sized to clear the walls rather than to satisfy
+	# one sightline.
+	var blind := PackedStringArray()
+	for room: String in ROOMS:
+		var eye: Vector3 = _room_centre(room) + Vector3(0.0, EYE_HEIGHT, 0.0)
+		var aim: Vector3 = SHAFT_AT + Vector3(0.0, Shaft.BEACON_HEIGHT * 0.92, 0.0)
+		var query := PhysicsRayQueryParameters3D.create(eye, aim)
+		query.collision_mask = CollisionLayers.WORLD
+		if not space.intersect_ray(query).is_empty():
+			blind.append(room)
+	print("[sight] rooms seeing the way out %d of %d%s" % [
+		ROOMS.size() - blind.size(), ROOMS.size(),
+		"   blind: " + ", ".join(blind) if blind.size() > 0 else ""])
+	if blind.size() > 0:
+		problems.append("the way out cannot be seen from %s — `DES-005` makes "
+			% ", ".join(blind)
+			+ "the Shaft's location *known*, and a beacon behind a wall is a "
+			+ "beacon a player walks past")
 
 	# ─ 5. gold is spent on treasure and nothing else ─
 	#
@@ -2678,6 +2786,87 @@ func _room_centre(room: String) -> Vector3:
 	var rect: Array = ROOMS[room]
 	return Vector3((float(rect[0]) + float(rect[1])) * 0.5, 0.0,
 		(float(rect[2]) + float(rect[3])) * 0.5)
+
+
+## **Do the enemies actually path, or did a navmesh just get baked?**
+## (`M2-T14`, ADR-106)
+##
+## Two different claims, and this project has now been caught confusing them
+## twice — ADR-097 shipped party scaling that could not fire, and ADR-105
+## shipped a beacon two rooms could see. So this asserts traversal rather than
+## existence: a route across the floor must **bend**, because a straight line
+## between those two points goes through three walls, and an agent that reports
+## a two-point path is an agent walking through the level rather than around it.
+func _nav_probe() -> void:
+	var problems := PackedStringArray()
+	# **The map is not queryable in the frame it is baked in.** Godot syncs
+	# navigation once per physics frame, and asking before that returns
+	# "query failed because it was made before first map synchronization" and
+	# an empty path — which reads exactly like a bake that found no floor.
+	# The game is unaffected: `Enemy._steer_toward` walks straight whenever the
+	# agent has no path, so the first two frames of a run steer the old way and
+	# then the mesh takes over. A probe has no such fallback and must wait.
+	await _hold(0.5)
+	var map: RID = get_world_3d().navigation_map
+
+	# ─ 0. the bake produced a surface at all ─
+	#
+	# Reported before anything else because every other failure here looks the
+	# same when the mesh is empty: closest-point answers with the world origin,
+	# paths come back with no waypoints, and the whole thing reads as "the
+	# agents are ignoring the mesh" when in fact there is no mesh to ignore.
+	var vertices: int = 0
+	if _navigation != null and _navigation.navigation_mesh != null:
+		vertices = _navigation.navigation_mesh.get_vertices().size()
+	print("[nav] baked mesh                 %d vertices" % vertices)
+	if vertices == 0:
+		problems.append("the navigation bake produced an empty mesh — nothing "
+			+ "was parsed, so no agent has anywhere to walk")
+
+	# ─ 1. there is a map, and it has surface on it ─
+	var from: Vector3 = _room_centre("entrance")
+	var landed: Vector3 = NavigationServer3D.map_get_closest_point(map, from)
+	var drift: float = landed.distance_to(from)
+	print("[nav] floor under the spawn      %.2f m from the point asked for" % drift)
+	if drift > 1.5:
+		problems.append(("no navigable floor near the entrance (nearest is "
+			+ "%.1f m away) — the bake found nothing, so every enemy is "
+			+ "walking in a straight line exactly as before") % drift)
+
+	# ─ 2. a route across the floor bends around the walls ─
+	var to: Vector3 = _room_centre("exit")
+	var path: PackedVector3Array = NavigationServer3D.map_get_path(
+		map, from, to, true)
+	var walked: float = 0.0
+	for index: int in range(1, path.size()):
+		walked += path[index - 1].distance_to(path[index])
+	var direct: float = from.distance_to(to)
+	print("[nav] entrance → exit            %d waypoint(s), %.1f m walked vs %.1f m direct"
+		% [path.size(), walked, direct])
+	if path.size() < 3:
+		problems.append("the entrance→exit path has %d waypoint(s) — a route "
+			% path.size()
+			+ "that does not bend is a route through the walls, which means "
+			+ "the agents are not using the mesh")
+	elif walked < direct * 1.05:
+		problems.append(("the entrance→exit path is %.1f m against %.1f m "
+			+ "straight — it is not going around anything") % [walked, direct])
+
+	# ─ 3. the enemies are carrying agents bound to that map ─
+	var agentless: int = 0
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var agent := node.get_node_or_null("Nav") as NavigationAgent3D
+		if agent == null or not agent.get_navigation_map().is_valid():
+			agentless += 1
+	var total: int = get_tree().get_nodes_in_group("enemies").size()
+	print("[nav] enemies on the map         %d of %d" % [total - agentless, total])
+	if agentless > 0:
+		problems.append("%d enemy/enemies have no navigation agent on a valid "
+			% agentless
+			+ "map — the mesh exists and nothing is reading it, which is "
+			+ "ADR-098's question rather than ADR-097's")
+
+	_report(problems, "nav")
 
 
 func _route_probe() -> void:

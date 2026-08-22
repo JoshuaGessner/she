@@ -2,20 +2,20 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-20_
+<!-- generated-stamp --> _Regenerated 2026-08-22_
 
 **Current milestone: M2 — The Loop Prototype**
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment.
 
-`23/51` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`23/52` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>13/13"]:::current
+  M2["M2 The Loop Prototype<br/>13/14"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/9"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 13/13 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `██████████████▒` | 13/14 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -50,7 +50,7 @@ _None. Sequencing is clean._
 
 | Check | Note |
 |---|---|
-| `untuned` | DES-009 is fully implemented (M1-T01, M1-T02) but still has 4 ⟨tune⟩ marker(s) |
+| `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14) but still has 4 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08) but still has 1 ⟨tune⟩ marker(s) |
 
 ## Tasks
@@ -82,7 +82,8 @@ _None. Sequencing is clean._
 - ✔ `M2-T10` **Playable shell**: main menu, settings, pause and the way back out, join codes, and the diegetic blockout layer — *added by ADR-100 because both `M2` gates are playtest gates and neither could be run: no front door, no way to leave a level but killing the process, no way to change a volume, no way for two machines to meet, and no sound for anything the world does. **A join code is a shorter way to write an address, not matchmaking** — no relay, no hole-punching, and the host screen says so; `M4-T07` replaces where the address comes from and nothing else. Also fixed two systems that were built, correct and **never shown**: the Ear was never instantiated (so `DES-018`'s muted-playable rule was false while every check passed) and `_reaching_for` was never drawn* `DES-018` `DES-019` `TEC-004` `ART-002`
 - ✔ `M2-T11` **The pass before testing** — *ADR-101, and it found the one that mattered: **every doorway in the game was a disconnect.** The peer outlives the level, so walking from the Threshold into the Deep built a second session on a live connection and called `create_server` on a port it already held — with the whole sweep green, because `run_coop.py` never changes scene and no single-process probe has a peer to lose. `run_doorway.py` walks two processes through a door. Also: **the party descends together** (the hole is the host's decision), a failed join **returns to the menu with a reason instead of quitting the game** — and Godot's own `connection_failed` never fired against a dead port at all, so there is an 8 s ⟨tune⟩ deadline of our own — plus who-is-connected and the control list at the fire* `TEC-004` `DES-012`
 - ✔ `M2-T12` **The first remote test, and the private door** — *ADR-102. Two players connected over the internet and then found five faults with one shape: **every one was a per-player transition.** `M2-T11` fixed the door the party walks through together and nothing had looked at the door exactly one player walks through. A client could not extract (the handler ran host-side on whichever body reached the Shaft, so the **host** went to the hoard room holding the **client's** loot); a dying client was never told and lay on the floor; the Chamber gave anyone but the host a **black screen** (authority defaulted to peer 1, and that room has no camera of its own); returning from it left a client with **no body at all**; and remote movement was never interpolated — **still on 70% of frames**. Now: the door **despawns** you rather than hiding you, the room is an overlay with **its own peerless multiplayer** so nothing in it can reach the wire, seats are keyed to the peer so a door is not an identity change, and remote bodies are eased — **7%**. `run_doorway.py` walks a client through a private door; all four rows fail on the previous commit by name* `TEC-004` `DES-012` `DES-014`
-- ✔ `M2-T13` **You can see where to go** — the lighting language, the landmarks, and the two x-rays that were corrupting the gate. *ADR-105. `ART-001` says lighting design **is** gameplay design and cannot be handed off as polish; `PRO-001` had handed all of it to `M4-T05` and no task anywhere mentioned wayfinding, so the floor ran on one directional sun and flat 0.85 ambient — six identically-lit boxes, and a way out that was a pale disc on the floor of one of them. `--route-probe` passed throughout: it asserts a clean route **exists**, never that anyone could find it. Now one rule — **pale light is the way through, gold light is what it will cost you** — with `ART-005` choosing the palette rather than this task: gold is the game's only saturated hue and it is spent on treasure, so the exit reads by **value** and is never warm. Doorways carry pale light (a room shows its own exits), the Shaft gets a light column and an idle hum, glitter lights itself, and every room gets one silhouette. **Two x-rays removed**: the debug readout listed every enemy's state and hit points — which `DES-019` forbids in as many words — and `DebugOverlays` drew every vision cone and the whole clamor field in **every session**, so a tester was consulting the awareness ladder rather than experiencing it and nothing they said about pressure could mean anything. The overlay is now off until `o`/d-pad-right. `--sight-probe` asserts the rule and `--sight-shot` photographs it, because the probe counted twelve lights and passed while the spawn view was solid black* `DES-015` `DES-019` `ART-001` `ART-005`
+- ▶ `M2-T13` **You can see where to go** — the lighting language, the landmarks, and the two x-rays that were corrupting the gate. *ADR-105. `ART-001` says lighting design **is** gameplay design and cannot be handed off as polish; `PRO-001` had handed all of it to `M4-T05` and no task anywhere mentioned wayfinding, so the floor ran on one directional sun and flat 0.85 ambient — six identically-lit boxes, and a way out that was a pale disc on the floor of one of them. `--route-probe` passed throughout: it asserts a clean route **exists**, never that anyone could find it. Now one rule — **pale light is the way through, gold light is what it will cost you** — with `ART-005` choosing the palette rather than this task: gold is the game's only saturated hue and it is spent on treasure, so the exit reads by **value** and is never warm. Doorways carry pale light (a room shows its own exits), the Shaft gets a light column and an idle hum, glitter lights itself, and every room gets one silhouette. **Two x-rays removed**: the debug readout listed every enemy's state and hit points — which `DES-019` forbids in as many words — and `DebugOverlays` drew every vision cone and the whole clamor field in **every session**, so a tester was consulting the awareness ladder rather than experiencing it and nothing they said about pressure could mean anything. The overlay is now off until `o`/d-pad-right. `--sight-probe` asserts the rule and `--sight-shot` photographs it, because the probe counted twelve lights and passed while the spawn view was solid black* *Un-ticked by ADR-106: the beacon this shipped was visible from **two rooms of six**, the spawn not among them, and its probe passed because it asked only about the junction. `M2-T14` is the rest of it.* `DES-015` `DES-019` `ART-001` `ART-005`
+- ✔ `M2-T14` **A stranger can finish a run** — the way out as a real interaction, an objective, enemies that read as dead, and the first pathfinding this project has ever had. *ADR-106, and the four faults a playtest returned were all one thing: **every system had a probe proving it worked and nothing proved a person could operate it.** The Shaft had **no prompt of any kind** — stand on an unmarked pad, press a key nothing suggests, hold four seconds with no progress anywhere — and the Waystone was identical; both now draw the same ring at the crosshair, and both channels **replicate**, because each was host-side and invisible to the client running it. `ArrivalBrief` states the goal once and goes. Dead enemies **topple, thump and sink** rather than tinting 0.28 grey to 0.12 — *did I kill it* is information, not the polish `DES-009` defers. And there was **no pathfinding at all**: straight-line steering, in a floor built out of corners. A baked `NavigationRegion3D` and an agent per body now, with the straight line kept as the deliberate fallback. **`cell_size` closed every doorway** — Recast erodes by whole cells, so 0.2 rounded a 0.45 m agent to 0.6 m a side and left six navigable islands with no route between them; 0.15 connects the floor at the full radius. `--sight-probe` now asks about **every** room, `--nav-probe` asserts a route that bends, and every claim in both fails when planted* `DES-005` `DES-009` `DES-019` `TEC-004`
 
 ### M3 — The Pact
 
@@ -123,6 +124,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 105 ADRs · 12 open questions · 102 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 106 ADRs · 12 open questions · 102 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

@@ -27,7 +27,13 @@ const DOT: float = 2.0
 const REACH_DOT: float = 3.4
 const GROW: float = 12.0
 
+## Radius of the channel ring, outside the reach ticks so the two never sit on
+## top of each other.
+const RING: float = 26.0
+const RING_SEGMENTS: int = 48
+
 var _body: Player = null
+var _shaft: Shaft = null
 var _grown: float = 0.0
 var _name: Label
 
@@ -47,17 +53,26 @@ func _process(delta: float) -> void:
 		_body = _local_body()
 	var reaching: WorldItem = null
 	var hidden: bool = true
+	_shaft = null
 	if _body != null and is_instance_valid(_body):
 		reaching = _body.reaching_for()
+		_shaft = _body.shaft_underfoot()
 		# Gone while the bag is open: you are looking into a satchel, not down
 		# a corridor, and `DES-019` wants that to feel like a different posture.
 		hidden = _body.bag_is_open() or _body.is_incapacitated()
 
-	var wanted: float = 1.0 if reaching != null else 0.0
+	var wanted: float = 1.0 if reaching != null or _shaft != null else 0.0
 	_grown = move_toward(_grown, wanted, delta * 6.0)
 	visible = not hidden
-	_name.text = "" if reaching == null or reaching.definition() == null \
-		else reaching.definition().display()
+	# **The way out speaks first.** Standing in the Shaft while looking at a
+	# coin, the thing worth saying is that you are standing in the way out —
+	# and `DES-005` makes leaving the decision the whole floor is about.
+	if _shaft != null:
+		_name.text = ("climbing out — hold still" if _shaft.is_channelling()
+			else "hold E — climb out")
+	else:
+		_name.text = "" if reaching == null or reaching.definition() == null \
+			else reaching.definition().display()
 	# Below the dot rather than beside it, so a long item name does not drag
 	# the eye off centre.
 	_name.position = Vector2(
@@ -86,6 +101,60 @@ func _draw() -> void:
 		var direction := Vector2(cos(angle), sin(angle))
 		draw_line(middle + direction * gap,
 			middle + direction * (gap + 5.0), tint, 1.5)
+	_draw_channel(middle)
+
+
+## The climb, as a ring filling clockwise from the top.
+##
+## A hold with no progress indicator is the one thing every reference on
+## hold-to-interact agrees you must not ship: the hold is *chosen over a press*
+## precisely so the player can see it happening and back out. This one had a
+## four-second hold, a cost in noise the whole time, and nothing on screen —
+## which is why the exit read as broken rather than as slow.
+##
+## At the crosshair rather than as a bar somewhere else, because that is where
+## the player is already looking and because the Shaft is used by standing
+## still: there is nothing else to watch.
+func _draw_channel(middle: Vector2) -> void:
+	# **Both ways out draw the same ring** (ADR-015 gives them different costs,
+	# not different grammars). The Waystone had the identical fault: a timed
+	# channel, host-side, with nothing on screen — you pressed the key that ends
+	# your run and the game appeared to ignore you.
+	var progress: float = 0.0
+	var waiting: bool = false
+	if _shaft != null and is_instance_valid(_shaft):
+		progress = _shaft.progress()
+		waiting = true
+	elif _body != null and is_instance_valid(_body) and _body.leaving > 0.0:
+		progress = _body.leaving
+		waiting = true
+	if not waiting:
+		return
+	# The empty track is drawn whenever you are in reach, so the ring is not a
+	# thing that appears from nowhere the instant you press the key — you can
+	# see what is about to fill before you commit to filling it.
+	var track: Color = MenuStyle.TEXT
+	track.a = 0.22
+	_arc(middle, RING, 0.0, 1.0, track, 1.5)
+	if progress <= 0.0:
+		return
+	var done: Color = MenuStyle.WARM
+	done.a = 0.95
+	_arc(middle, RING, 0.0, progress, done, 2.5)
+
+
+## An arc from `start` to `finish`, both 0–1 of a full turn, beginning at the
+## top and running clockwise — the direction every clock and every progress
+## ring in the medium already reads as "time passing".
+func _arc(middle: Vector2, radius: float, start: float, finish: float,
+		colour: Color, width: float) -> void:
+	var steps: int = maxi(2, int(ceil(float(RING_SEGMENTS) * (finish - start))))
+	var points := PackedVector2Array()
+	for step: int in range(steps + 1):
+		var through: float = start + (finish - start) * float(step) / float(steps)
+		var angle: float = -PI * 0.5 + TAU * through
+		points.append(middle + Vector2(cos(angle), sin(angle)) * radius)
+	draw_polyline(points, colour, width)
 
 
 func _local_body() -> Player:

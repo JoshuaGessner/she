@@ -47,6 +47,24 @@ const SENSE_OFF: Color = Color(0.14, 0.14, 0.15)
 ## with four enemies and two players is a rounding error of that.
 const REPLICATION_HZ: float = 20.0
 
+## Death, in three beats (`M2-T14`). Quick enough to read as a consequence of
+## the blow that caused it, slow enough to be seen.
+const FALL_SECONDS: float = 0.45     # ⟨tune⟩
+const CORPSE_SECONDS: float = 12.0   # ⟨tune⟩ — how long it lies there
+const SINK_SECONDS: float = 1.6      # ⟨tune⟩
+
+## Navigation (`M2-T14`). Repathing five times a second rather than sixty is the
+## standard trade and is invisible in play.
+const REPATH_SECONDS: float = 0.2
+## Inside this, walk straight at the target. A path node between two bodies
+## already in the same room makes the approach worse, not better.
+const DIRECT_RANGE: float = 2.5
+## Close enough to have arrived.
+const ARRIVED: float = 0.25
+## A body is 0.35 across; the agent is a little wider so paths keep off walls.
+const NAV_RADIUS: float = 0.45
+const NAV_HEIGHT: float = 1.8
+
 ## Host→client. The transform moves continuously, so `ALWAYS` — ADR-068
 ## measured `ON_CHANGE` costing *more* for values like that. Everything else
 ## here genuinely idles: an enemy holds a state for seconds at a time, and an
@@ -102,6 +120,8 @@ var _patience: float = 0.0
 var _last_seen: Vector3 = Vector3.ZERO
 var _home: Vector3 = Vector3.ZERO
 var _target: Node3D = null
+var _agent: NavigationAgent3D = null
+var _repath_in: float = 0.0
 var _material: StandardMaterial3D = null
 var _sight_lamp: StandardMaterial3D = null
 var _hearing_lamp: StandardMaterial3D = null
@@ -157,6 +177,21 @@ func _ready() -> void:
 	add_to_group("enemies")
 	_ears.heard.connect(_on_heard)
 	_home = global_position
+	# One agent per body (`M2-T14`). Built here rather than in the scene so an
+	# enemy dropped into a level with no baked region still works — it simply
+	# finds no map and falls back to walking straight, which is what every
+	# enemy did everywhere until now.
+	_agent = NavigationAgent3D.new()
+	_agent.name = "Nav"
+	_agent.radius = NAV_RADIUS
+	_agent.height = NAV_HEIGHT
+	# Off: avoidance is a second steering system with its own tuning, and
+	# `_spawn_enemies` already guarantees separation by construction (the ring
+	# in `room_set.gd`). Turning it on would be two things pushing one body.
+	_agent.avoidance_enabled = false
+	_agent.path_desired_distance = 0.5
+	_agent.target_desired_distance = ARRIVED
+	add_child(_agent)
 	var tuning: TuningProfile = Config.tuning
 	health.maximum = tuning.enemy_health
 	health.restore()
@@ -393,14 +428,50 @@ func _settle(tuning: TuningProfile) -> void:
 		velocity.z = 0.0
 
 
+## Move toward a point, **around the level rather than into it** (`M2-T14`).
+##
+## This was a straight line: point the velocity at the target and walk. That is
+## the correct technique for an open arena and the wrong one here — the room set
+## is explicitly built with *"corners, doorways and a room you"* have to commit
+## to enter, so a straight line spends most of its time pressed against a wall.
+## A playtester's report that *"the ai needs to path better"* was not a tuning
+## observation; it was the observation that there was no pathfinding at all.
+##
+## Standard Godot practice is a baked `NavigationRegion3D` plus a
+## `NavigationAgent3D` per body, repathing a few times a second rather than
+## every frame. Both are here now. **The straight line survives as the
+## fallback**, and deliberately: the navigation map takes a frame or two to come
+## up, an agent asked too early answers with its own position, and up close a
+## path node is worse than simply walking at the thing. So — path at range,
+## walk directly when near or when the map has nothing to say.
 func _steer_toward(point: Vector3, speed: float, tuning: TuningProfile) -> void:
 	var to_point: Vector3 = point - global_position
 	to_point.y = 0.0
-	if to_point.length() < 0.25:
+	if to_point.length() < ARRIVED:
 		velocity.x = 0.0
 		velocity.z = 0.0
 		return
-	var direction: Vector3 = to_point.normalized()
+
+	var steer_to: Vector3 = point
+	if _agent != null and to_point.length() > DIRECT_RANGE \
+			and _agent.get_navigation_map().is_valid():
+		# Throttled: recomputing a path every frame is the single most common
+		# way to make navigation expensive, and nobody can see the difference
+		# between 60 repaths a second and five.
+		_repath_in -= get_physics_process_delta_time()
+		if _repath_in <= 0.0 or not _agent.target_position.is_equal_approx(point):
+			_agent.target_position = point
+			_repath_in = REPATH_SECONDS
+		if not _agent.is_navigation_finished():
+			steer_to = _agent.get_next_path_position()
+
+	var direction: Vector3 = steer_to - global_position
+	direction.y = 0.0
+	if direction.length() < 0.01:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		return
+	direction = direction.normalized()
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
 	_face(direction, tuning)
@@ -506,10 +577,24 @@ func _apply_state() -> void:
 		_become_a_corpse()
 
 
+## **It falls over** (`M2-T14`, ADR-106).
+##
+## This used to be a tint change on a body that stayed standing, and the comment
+## here said so proudly: *"No ragdoll, no death animation, no corpse fade — all
+## polish, all absent."* That was a defensible ADR-064 call at `M1` and it is
+## the wrong call at a playtest, for the same reason the wound vignette was:
+## **"did I kill it?" is information, not polish.** A playtester reported that
+## enemies needed to be *"more apparent they are dead when defeated"*, and in a
+## level that is now deliberately dark, a standing capsule going from 0.28 grey
+## to 0.12 grey is close to no signal at all.
+##
+## Still not a ragdoll — that is an animation system this project does not have
+## and does not need yet. A body that **topples**, makes a sound, and sinks is
+## three unambiguous cues from primitives, and it answers the question the
+## player is actually asking.
 func _become_a_corpse() -> void:
 	_hitbox.disarm()
 	velocity = Vector3.ZERO
-	# No ragdoll, no death animation, no corpse fade — all polish, all absent.
 	# Collision is dropped so a body never becomes an invisible wall.
 	#
 	# Deferred because on the host this runs inside the hurtbox's own signal,
@@ -518,6 +603,41 @@ func _become_a_corpse() -> void:
 	# correct anyway — the hit that killed it has to finish resolving first.
 	_hurtbox.set_deferred("monitorable", false)
 	set_deferred("collision_layer", 0)
+	_fall_over()
+
+
+## Topple, thump, and sink out of sight.
+##
+## Runs on **every** peer, because `_apply_state` is reached by the host
+## deciding and a client receiving the replicated value — which is the same
+## property that already made a corpse a corpse on every screen without a death
+## message, now carrying the animation with it for free.
+func _fall_over() -> void:
+	var tip := create_tween()
+	tip.set_parallel(true)
+	# Away from whatever was in front of it. Rotation only on the body's visual
+	# transform: the collision is already gone, so nothing here can wedge.
+	var away: float = -1.0 if randf() < 0.5 else 1.0
+	tip.tween_property(self, "rotation:z", deg_to_rad(88.0 * away),
+		FALL_SECONDS).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	tip.tween_property(self, "position:y", position.y - 0.35, FALL_SECONDS)
+	Foley.at(self, Foley.Sound.THUMP, 0.55)
+	# Then it goes. `DES-015` builds floors out of few, reused rooms and the
+	# Hunt escalates over minutes — a floor slowly filling with permanent
+	# standing corpses reads as clutter and costs draw calls for nothing. It
+	# sinks rather than blinking out, so the disappearance is never the thing
+	# the player notices.
+	var sink := create_tween()
+	sink.tween_interval(CORPSE_SECONDS)
+	sink.tween_property(self, "position:y", position.y - 2.2, SINK_SECONDS)
+	# **Only the host frees it.** This node is spawner-managed, so a client
+	# calling `queue_free` deletes something the host still believes exists —
+	# the despawn has one owner exactly as the spawn does (`TEC-004`), and the
+	# spawner replicates the removal. Clients run every other beat above, so
+	# the body still topples and thumps and sinks on their screen; it simply
+	# leaves when told, a frame or two later, like everything else does.
+	if multiplayer.is_server():
+		sink.tween_callback(queue_free)
 
 
 func _apply_tint() -> void:

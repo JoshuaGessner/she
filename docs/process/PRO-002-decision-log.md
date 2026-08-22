@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-20
+updated: 2026-08-22
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -1848,6 +1848,33 @@ Worse, `DebugOverlays` drew every vision cone and the entire clamor field **in e
 **The check that mattered most was the one asking the geometry.** Landmarks are solid, and the altar landed on top of the Waystone — which surfaced three probes away as *"dropping the heaviest item did not make the player faster."* True, and nothing to do with weight: the player was standing inside a block of stone at 0.00 m/s laden and unladen alike. The first fix declared a clearance radius per landmark, which is wrong twice over — it cannot describe a shape with a hole in it, and a number written beside a shape is one more thing that can disagree with the shape. Dropping a body-sized sphere at every authored position instead found **two more collisions immediately**: the exit stair clipped the Shaft, and the junction well clipped a piece of authored loot by 20 cm, which would have made it unpickupable and would have been invisible in every screenshot.
 
 **The lantern is what finishes this, and it was never scheduled either** — filed as `M4-T13`. Until it exists the ambient floor stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one `M4-T13` exists to lower.
+
+---
+
+## ADR-106 — Every system had a probe; nothing proved a person could operate one
+**Date:** 2026-08-22 · **Status:** accepted · **Adds `M2-T14`; reopens `M2-T13`; amends `DES-005`, `DES-009` scope**
+
+**Context:** The `M2-T13` build was played and came back with four things: it still is not direct about what to do, **there was no way out of the level**, dead enemies do not read as dead, and the AI does not path. Plus the sentence that matters most — *"it's not super playable and demonstrates no real evidence of being viable."*
+
+**All four were true, and the first two are `M2-T13`'s fault.** That task shipped a beacon, wrote a probe asserting the beacon was visible **from the junction**, watched it pass, and was ticked. Measured against every room afterwards: **two of six, and the room you spawn in was blind.** The check measured the thing that had been built rather than the thing a player needs, which is the same failure as ADR-097 (scaling that could not fire) and ADR-099 (a census in the wrong scene) wearing a third costume. `M2-T13` is un-ticked; this task is the rest of it.
+
+**And finding the Shaft would not have helped.** It had **no prompt of any kind**. You had to stand on an unmarked pad, press a key nothing suggested, then hold position for four seconds with no progress shown anywhere — while the pad slowly changed colour beneath your feet, where you cannot see it. On the evidence available to the player there was no way out. The Waystone was identical: a timed channel, host-side, with nothing on screen, so pressing the key that ends your run appeared to do nothing. Both now draw the same ring at the crosshair, which is where the player is already looking and where every reference on hold-to-interact puts it — the hold is *chosen over a press* precisely so it can be seen happening and backed out of.
+
+**Neither channel reached the other peers at all.** `Shaft._progress` and `Player._spending` are both host-side, and the comment beside the Shaft's brightening claimed *"every peer can see it, because a teammate standing in the Shaft is information the whole party needs."* True of the intent, false of the build: on a client the pad never brightened and a client spending a Waystone watched nothing happen for the whole channel. Both are replicated now.
+
+**The level said nothing about itself.** No objective, anywhere, ever — `ArrivalBrief` is three lines on arrival and then gone. *"Climb out at the light"* is the load-bearing one: it names the beacon as the exit, so the pale column stops being scenery the first time it is seen. This is deliberately **not** onboarding, which is `M5-T05`'s job; it is the one-screen brief every mission-structured game opens with.
+
+**Dead enemies stayed standing.** The comment was proud of it — *"No ragdoll, no death animation, no corpse fade — all polish, all absent."* Correct at `M1` and wrong at a playtest, for exactly the reason the wound vignette was: **"did I kill it?" is information, not polish**, and in a level that is now deliberately dark, 0.28 grey going to 0.12 grey is close to no signal. It topples, thumps, lies there and sinks. Still not a ragdoll — three unambiguous cues from primitives answers the question a player is actually asking. Only the host frees the body: it is spawner-managed, and a despawn has one owner exactly as a spawn does.
+
+**There was no pathfinding in this project. At all.** `_steer_toward` pointed velocity at the target and walked — the correct technique for an open arena, and the wrong one for a floor whose own header boasts *"corners, doorways and a room you"* must commit to enter. Standard Godot practice is a baked `NavigationRegion3D` with a `NavigationAgent3D` per body, repathing a few times a second rather than every frame. The straight line survives as the deliberate fallback: the navigation map takes a frame to come up, and up close a path node is worse than walking at the thing.
+
+**The bake then closed every doorway, and the number that did it was `cell_size`.** Recast erodes by `ceil(agent_radius / cell_size)` **cells**, not by the radius — so a 0.2 cell rounded a 0.45 m agent up to three cells, 0.6 m a side, 1.2 m off every opening. The doorways here have roughly 1.4 m of true clearance because each is flanked by both rooms' side walls, so the mesh baked with 130 vertices, every room had surface on it, and **not one doorway connected**: six navigable islands and no route between them. It looked exactly like an agent problem. Dropping the radius to 0.2 "fixed" it and would have shipped agents thinner than the bodies they steer; a 0.15 cell makes the erosion match the radius it is meant to represent and connects the floor at the full 0.45 m.
+
+**Decision — the bar for `M2` is a stranger finishing a run, and checks must ask about the player.** `--sight-probe` now asserts the way out is visible from **every** room rather than from one. `--nav-probe` asserts a route across the floor that *bends*, because a straight line between those two points goes through three walls — traversal, not the existence of a mesh. Every assertion in both was validated by planting its violation, and `--nav-probe` found the Godot gotcha itself on its first run: the navigation map is not queryable in the frame it is baked in.
+
+**A photograph remains the only thing that catches what a number cannot.** `--sight-shot` earned its place twice more here: the first run photographed a wall because it faced 180°, and the beacon at 16 m failed the entrance sightline **by one centimetre** — a pass that is really a coin toss. The binding constraint is the worst sightline in the level, not the best: from the middle of the entrance the room's own north wall is 6 m away, which forces the beam past 15 m before anything else is considered. At 24 m it clears every room, and that is the fiction catching up with the name — a **Shaft** is a hole to the surface, so light falls down it.
+
+**On the wider question — *"what stage of playability do we need to be at?"*** `M2`'s gate requires a first-time player to complete a run unaided, and ADR-105 wrote that down as a precondition three days ago. The honest description of the build before this task is that **every system had a probe proving it worked and nothing proved a person could operate it** — which is the whole distance between a systems prototype, which this rigorously was, and a playable build. Nothing here adds a system. All of it is connective tissue that was never scheduled, because no task in any milestone owned it.
 
 ---
 

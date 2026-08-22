@@ -263,6 +263,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Do the enemies path, or was a navmesh merely baked (`M2-T14`)? Two
+	# different claims — the mesh baked cleanly with every doorway closed, six
+	# navigable islands and no route between them, because Recast erodes by
+	# whole cells and a 0.2 cell rounded a 0.45 m agent up to 0.6 m a side.
+	# This asserts a route across the floor that *bends*, which a straight line
+	# through three walls cannot.
+	nav="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
+		levels/room_set/room_set.tscn -- --nav-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$nav" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the enemies path around the level" >&2
+		printf '%s\n' "$nav" | grep -E '\[nav\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Can you leave, and does leaving late cost more (`M2-T04`)? The assertion
 	# that earns its place is ADR-015's absolute: **the player is never truly
 	# trapped.** A Sealing implemented as a lock satisfies every reading of
@@ -343,6 +357,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "there is a front door and a way back out of every room,"
 	echo "both kinds of doorway hold and nobody comes back a stranger,"
 	echo "the way out can be seen and the gold is the only warm thing,"
+	echo "the enemies walk around the walls rather than into them,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
