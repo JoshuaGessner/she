@@ -45,6 +45,18 @@ extends CharacterBody3D
 ## but "my gold is still down there" starts with being able to see where.
 const DROP_DISTANCE: float = 0.9
 
+## How far below the last ground you stood on counts as having left the level
+## (`M2-T15`).
+##
+## **Relative, and that is not a detail.** An absolute floor is the obvious
+## implementation and it would have been catastrophic here: the Chamber is an
+## overlay parked **2000 m below the camp** (ADR-102), so any fixed threshold
+## generous enough to catch a fall would also decide that every player standing
+## in their own hoard room had fallen out of the world, and yank them back to
+## the fire. Measuring from where you last stood works at any altitude and needs
+## to know nothing about where levels put themselves.
+const VOID_DROP: float = 45.0
+
 ## Godot's host is always peer 1, including the offline peer a solo launch
 ## gets, which is why none of this needs a single-player branch.
 const HOST_PEER: int = 1
@@ -236,6 +248,10 @@ var _reviving: bool = false
 var _step_accumulator: float = 0.0
 var _was_grounded: bool = true
 var _last_position: Vector3 = Vector3.ZERO
+## The last place this body was genuinely standing, and where a fall out of the
+## world puts it back (`M2-T15`). Seeded from the spawn by `_apply_teleport`,
+## so it is never the origin by accident.
+var _last_solid: Vector3 = Vector3.ZERO
 
 
 ## Build this body's two synchronisers and hand it to a peer.
@@ -1095,6 +1111,42 @@ func _update_bag(delta: float) -> void:
 ## it — the next synchroniser packet would drag the body back. It has to ask
 ## the owner, which is the shape every future teleport has: extraction, gate
 ## arrival (ADR-016), and the gym's reset key.
+## **Falling out of the world puts you back, in every level** (`M2-T15`,
+## ADR-107).
+##
+## There were no world bounds and no recovery anywhere in this project. A
+## playtester walked off the edge of the camp — which is a 34 m slab with walls
+## on three sides — and fell, indefinitely, with nothing to stop them and no way
+## back. The Deep and the Chamber had the same hole; the camp is simply where it
+## is easiest to find.
+##
+## Recovering to the **last ground you actually stood on** rather than to a
+## point the level nominates, because that needs no per-level configuration and
+## so cannot be forgotten by the next level somebody builds. It is the standard
+## treatment and it is nearly always invisible: you were somewhere solid a
+## second ago, and that is where you turn up.
+##
+## **It is not a punishment.** Nothing is taken, because falling through a hole
+## in a blockout is not a decision the player made and `DES-002`'s losses are
+## meant to be legible ones. It does print, so a hole that keeps catching people
+## shows up in a log rather than only in a shrug.
+func _remember_solid_ground() -> void:
+	if global_position.y < _last_solid.y - VOID_DROP:
+		_return_from_the_void()
+		return
+	# Only while genuinely standing: mid-jump and mid-fall are exactly the
+	# moments whose position must not be remembered as safe.
+	if is_on_floor() and velocity.y <= 0.1:
+		_last_solid = global_position
+
+
+func _return_from_the_void() -> void:
+	print("[void] %s fell out of the world at y %.0f — back to %.1f, %.1f" % [
+		name, global_position.y, _last_solid.x, _last_solid.z])
+	teleport(_last_solid + Vector3(0.0, 0.5, 0.0), _yaw)
+	velocity = Vector3.ZERO
+
+
 func teleport(to: Vector3, yaw: float) -> void:
 	if _is_local:
 		_apply_teleport(to, yaw)
@@ -1114,6 +1166,10 @@ func _apply_teleport(to: Vector3, yaw: float) -> void:
 	rotation.y = yaw
 	_last_position = to
 	_step_accumulator = 0.0
+	# Wherever we have just been put is the new ground of record. Without this
+	# the Chamber — 2000 m down — would be measured against a memory of the camp
+	# and read as a 2000 m fall on the first frame you arrived (`M2-T15`).
+	_last_solid = to
 
 
 ## The ink pass is a clip-space quad, so it fills whatever camera draws it —
@@ -1156,6 +1212,7 @@ func _apply_stick_look(delta: float, tuning: TuningProfile) -> void:
 func _physics_process(delta: float) -> void:
 	var tuning: TuningProfile = Config.tuning
 	if _is_local:
+		_remember_solid_ground()
 		net_position = position
 		net_yaw = _yaw
 		net_pitch = _pitch

@@ -131,7 +131,12 @@ func _leave() -> void:
 	# would leave the other players connected to a lobby nobody is in.
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
-		multiplayer.multiplayer_peer = null
+	# **Back to the offline peer, never to null** (`M2-T15`, ADR-107). This line
+	# used to assign `null`, which stopped the hosting correctly and left the
+	# process with no peer at all — and every solo path here depends on the
+	# offline one Godot installs at startup. `CoopSession` repairs it too, but
+	# the menu should not be sitting in a state the next scene has to fix.
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	NetPlan.role = NetPlan.Role.SOLO
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	get_tree().change_scene_to_file(MENU)

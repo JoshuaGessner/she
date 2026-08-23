@@ -92,6 +92,7 @@ func _ready() -> void:
 	# not been told how to build an actor drops the spawn silently, and the
 	# symptom is an empty world rather than an error.
 	_spawner.spawn_function = _spawn_actor
+	_ensure_a_peer()
 
 	# **A connection outlives a scene change.** The peer lives on the
 	# `SceneTree`, not on this node, so walking from the Threshold into the
@@ -129,6 +130,34 @@ func _ready() -> void:
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
 			spawn_player(HOST_PEER)
+
+
+## **There must be a peer, even when nobody is connected** (`M2-T15`, ADR-107).
+##
+## Godot installs an `OfflineMultiplayerPeer` at startup, and every solo path in
+## this project quietly depends on it: with it, `is_server()` is true and
+## spawning works, which is why there is no single-player branch anywhere.
+##
+## The dependency was invisible until something took it away. **Abandoning a run
+## sets `multiplayer.multiplayer_peer = null`** — correctly, so a host that
+## walks out to the menu stops hosting — and nothing ever put one back. From
+## that moment on, in that process, `is_server()` answered **false**,
+## `spawn_player()` returned `null` at its first line, no body was ever built,
+## and the next level came up as a **grey screen**: the world was there and the
+## camera belonged to a player who did not exist.
+##
+## A playtester found it by walking off the edge of the camp, abandoning, and
+## descending again. Only the abandon mattered; the fall was a separate bug.
+##
+## Restoring it here rather than only at the menu is deliberate. This is the
+## thing that *needs* a peer, so this is where the requirement belongs — any
+## other route back into a level is covered for free, and nothing else has to
+## remember.
+func _ensure_a_peer() -> void:
+	if multiplayer.multiplayer_peer != null:
+		return
+	_log("no peer at all — installing the offline one Godot starts with")
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 
 
 ## Is there already a live connection this session should adopt?

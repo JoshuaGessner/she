@@ -263,6 +263,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# The three ways a run ends up somewhere it cannot come back from
+	# (`M2-T15`). One playtester found all of them in one sitting by walking
+	# off the edge of the camp, abandoning, and descending to a grey screen:
+	# there was no recovery from falling out of any level, abandoning left the
+	# process with **no multiplayer peer at all** so nothing ever spawned
+	# again, and the Chamber is a sibling of its level so a scene change left
+	# it parented to the root with its private API still registered.
+	edges="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 2400 \
+		levels/lair/threshold.tscn -- --edges-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$edges" | grep -qE 'FAIL|SCRIPT ERROR'; then
+		echo "FAIL you can always get back" >&2
+		printf '%s\n' "$edges" | grep -E '\[edges\]' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Do the enemies path, or was a navmesh merely baked (`M2-T14`)? Two
 	# different claims — the mesh baked cleanly with every doorway closed, six
 	# navigable islands and no route between them, because Recast erodes by
@@ -358,6 +373,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "both kinds of doorway hold and nobody comes back a stranger,"
 	echo "the way out can be seen and the gold is the only warm thing,"
 	echo "the enemies walk around the walls rather than into them,"
+	echo "falling out of the world puts you back and abandoning is survivable,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

@@ -89,6 +89,95 @@ func _ready() -> void:
 			_doorway_probe()
 		elif arg == "--chamber-probe":
 			_chamber_probe()
+		elif arg == "--edges-probe":
+			_edges_probe()
+
+
+## **The three ways a run can end up somewhere it cannot come back from**
+## (`M2-T15`, ADR-107).
+##
+## All three were found by one playtester doing one ordinary thing: walking off
+## the edge of the camp, letting the fall run, abandoning, and descending again
+## to a grey screen. Nothing in this project asked any of these questions,
+## because every existing probe measures a system doing its job rather than a
+## player leaving the rails.
+func _edges_probe() -> void:
+	var problems := PackedStringArray()
+	await get_tree().create_timer(1.0).timeout
+	var body: Player = _session.local_player()
+	if body == null:
+		_report_edges(PackedStringArray(["no body at all on arrival — the "
+			+ "session built nothing to play"]))
+		return
+
+	# ─ 1. falling out of the world puts you back ─
+	#
+	# `global_position` directly, **not `teleport`**: teleporting is a
+	# deliberate relocation and it updates the ground of record, so using it to
+	# simulate a fall moves the safety net down with the body and the recovery
+	# correctly declines to fire. The first draft of this probe did exactly
+	# that and reported a failure the game did not have.
+	var began: Vector3 = body.global_position
+	body.global_position = began + Vector3(0.0, -400.0, 0.0)
+	await get_tree().create_timer(1.2).timeout
+	var height: float = body.global_position.y
+	print("[edges] after a 400 m drop      y %.1f" % height)
+	if height < began.y - Player.VOID_DROP:
+		problems.append(("a body 400 m below the floor was still down there "
+			+ "at y %.1f — there is no way back into the level") % height)
+
+	# ─ 2. the offline peer survives abandoning a run ─
+	#
+	# The abandon path itself is not run here: it changes scene, which would
+	# end the probe. What is asserted is the property that path depends on —
+	# that a session with no peer at all builds one — because that is the
+	# thing whose absence produced the grey screen.
+	# The scene, not `CoopSession.new()` — the class alone has no `Actors` or
+	# `Spawner` children and falls over in `_ready` before reaching anything
+	# worth testing.
+	multiplayer.multiplayer_peer = null
+	var rebuilt := SESSION_SCENE.instantiate() as CoopSession
+	rebuilt.name = "RebuiltSession"
+	add_child(rebuilt)
+	await get_tree().process_frame
+	var peered: bool = multiplayer.multiplayer_peer != null
+	var hosting: bool = peered and multiplayer.is_server()
+	print("[edges] session with no peer    %s" % [
+		"installed one, is_server=%s" % hosting if peered else "LEFT IT NULL"])
+	if not hosting:
+		problems.append("a session starting with no peer did not install the "
+			+ "offline one — `spawn_player` refuses at its first line when "
+			+ "`is_server()` is false, so no body is ever built and the level "
+			+ "comes up as a grey screen")
+	rebuilt.queue_free()
+	await get_tree().process_frame
+
+	# ─ 3. the Chamber does not outlive the level that made it ─
+	_open_the_chamber()
+	await get_tree().process_frame
+	var opened: bool = get_tree().root.get_node_or_null(CHAMBER_NODE) != null
+	_exit_tree()
+	await get_tree().process_frame
+	var lingering: Node = get_tree().root.get_node_or_null(CHAMBER_NODE)
+	print("[edges] chamber opened=%s, left behind=%s" % [
+		"yes" if opened else "NO", "YES" if lingering != null else "no"])
+	if not opened:
+		problems.append("the Chamber never opened, so this proves nothing "
+			+ "about whether it is cleaned up")
+	elif lingering != null:
+		problems.append("the Chamber is still parented to the root after its "
+			+ "level left — it is a sibling, so a scene change does not take "
+			+ "it, and its private MultiplayerAPI stays registered too")
+
+	_report_edges(problems)
+
+
+func _report_edges(problems: PackedStringArray) -> void:
+	for problem: String in problems:
+		print("[edges] FAIL %s" % problem)
+	if problems.size() == 0:
+		print("[edges] the rails hold")
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 ## Walk the party through the Descent on a timer (`run_doorway.py`).
@@ -508,6 +597,32 @@ func _close_the_chamber() -> void:
 	visible = true
 	AudioDirector.enter("threshold")
 	_ask_to_rejoin_the_world()
+
+
+## **The Chamber is a sibling, so a scene change does not take it with us**
+## (`M2-T15`, ADR-107).
+##
+## `_open_the_chamber` parents the room to `/root` rather than to this level, so
+## that hiding the camp does not hide the room floating above it. That is right,
+## and it has a consequence nothing was handling: `change_scene_to_file` frees
+## the *current scene* and leaves every other child of the root alone. Abandon
+## the run — or quit to the menu — from inside your own hoard room, and the
+## Chamber survives, parented to the root, drawn over the main menu, with its
+## private `MultiplayerAPI` still registered at `/root/Chamber`.
+##
+## The stale API is the worse half. `set_multiplayer` on a path that no longer
+## holds what it did leaves the next Chamber to inherit somebody else's island,
+## which is precisely the kind of fault ADR-102 built the island to make
+## impossible.
+##
+## A level cleans up what a level created, on the way out, whichever way out it
+## was.
+func _exit_tree() -> void:
+	if _chamber == null:
+		return
+	_chamber.queue_free()
+	_chamber = null
+	get_tree().set_multiplayer(null, NodePath("/root/%s" % CHAMBER_NODE))
 	set_process(true)
 
 

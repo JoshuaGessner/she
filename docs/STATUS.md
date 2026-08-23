@@ -8,14 +8,14 @@
 
 > **Gate:** `pending` — a playtester **voluntarily abandons loot to survive**, then talks about it afterwards. That's the whole game in one moment.
 
-`23/52` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`24/53` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>13/14"]:::current
+  M2["M2 The Loop Prototype<br/>14/15"]:::current
   M1 --> M2
   M3["M3 The Pact<br/>0/9"]:::ahead
   M2 --> M3
@@ -36,7 +36,7 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `██████████████▒` | 13/14 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `██████████████▒` | 14/15 | `EXIT` pending<br>`COOP` pending |
 |  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
@@ -84,6 +84,7 @@ _None. Sequencing is clean._
 - ✔ `M2-T12` **The first remote test, and the private door** — *ADR-102. Two players connected over the internet and then found five faults with one shape: **every one was a per-player transition.** `M2-T11` fixed the door the party walks through together and nothing had looked at the door exactly one player walks through. A client could not extract (the handler ran host-side on whichever body reached the Shaft, so the **host** went to the hoard room holding the **client's** loot); a dying client was never told and lay on the floor; the Chamber gave anyone but the host a **black screen** (authority defaulted to peer 1, and that room has no camera of its own); returning from it left a client with **no body at all**; and remote movement was never interpolated — **still on 70% of frames**. Now: the door **despawns** you rather than hiding you, the room is an overlay with **its own peerless multiplayer** so nothing in it can reach the wire, seats are keyed to the peer so a door is not an identity change, and remote bodies are eased — **7%**. `run_doorway.py` walks a client through a private door; all four rows fail on the previous commit by name* `TEC-004` `DES-012` `DES-014`
 - ▶ `M2-T13` **You can see where to go** — the lighting language, the landmarks, and the two x-rays that were corrupting the gate. *ADR-105. `ART-001` says lighting design **is** gameplay design and cannot be handed off as polish; `PRO-001` had handed all of it to `M4-T05` and no task anywhere mentioned wayfinding, so the floor ran on one directional sun and flat 0.85 ambient — six identically-lit boxes, and a way out that was a pale disc on the floor of one of them. `--route-probe` passed throughout: it asserts a clean route **exists**, never that anyone could find it. Now one rule — **pale light is the way through, gold light is what it will cost you** — with `ART-005` choosing the palette rather than this task: gold is the game's only saturated hue and it is spent on treasure, so the exit reads by **value** and is never warm. Doorways carry pale light (a room shows its own exits), the Shaft gets a light column and an idle hum, glitter lights itself, and every room gets one silhouette. **Two x-rays removed**: the debug readout listed every enemy's state and hit points — which `DES-019` forbids in as many words — and `DebugOverlays` drew every vision cone and the whole clamor field in **every session**, so a tester was consulting the awareness ladder rather than experiencing it and nothing they said about pressure could mean anything. The overlay is now off until `o`/d-pad-right. `--sight-probe` asserts the rule and `--sight-shot` photographs it, because the probe counted twelve lights and passed while the spawn view was solid black* *Un-ticked by ADR-106: the beacon this shipped was visible from **two rooms of six**, the spawn not among them, and its probe passed because it asked only about the junction. `M2-T14` is the rest of it.* `DES-015` `DES-019` `ART-001` `ART-005`
 - ✔ `M2-T14` **A stranger can finish a run** — the way out as a real interaction, an objective, enemies that read as dead, and the first pathfinding this project has ever had. *ADR-106, and the four faults a playtest returned were all one thing: **every system had a probe proving it worked and nothing proved a person could operate it.** The Shaft had **no prompt of any kind** — stand on an unmarked pad, press a key nothing suggests, hold four seconds with no progress anywhere — and the Waystone was identical; both now draw the same ring at the crosshair, and both channels **replicate**, because each was host-side and invisible to the client running it. `ArrivalBrief` states the goal once and goes. Dead enemies **topple, thump and sink** rather than tinting 0.28 grey to 0.12 — *did I kill it* is information, not the polish `DES-009` defers. And there was **no pathfinding at all**: straight-line steering, in a floor built out of corners. A baked `NavigationRegion3D` and an agent per body now, with the straight line kept as the deliberate fallback. **`cell_size` closed every doorway** — Recast erodes by whole cells, so 0.2 rounded a 0.45 m agent to 0.6 m a side and left six navigable islands with no route between them; 0.15 connects the floor at the full radius. `--sight-probe` now asks about **every** room, `--nav-probe` asserts a route that bends, and every claim in both fails when planted* `DES-005` `DES-009` `DES-019` `TEC-004`
+- ✔ `M2-T15` **You can always get back** — the three ways a run ended up somewhere it could not return from. *ADR-107, all three found by one playtester in one sitting: walk off the edge of the camp, let it fall, abandon, descend again, grey screen. **Abandoning set the multiplayer peer to `null` and nothing put one back** — every solo path here depends on the `OfflineMultiplayerPeer` Godot installs at startup, so from that moment `is_server()` was false, `spawn_player()` refused at its first line, and the next level came up with a camera belonging to a player who did not exist. **There were no world bounds or fall recovery anywhere**; bodies now return to the last ground they stood on, measured **relative** to it, because the Chamber sits 2000 m down and any absolute floor would have decided everyone in their own hoard room had fallen out of the world. And **the Chamber outlived its level**: it is parented to `/root` so the camp can hide behind it, and `change_scene_to_file` leaves root's other children alone — so it survived onto the main menu with its private `MultiplayerAPI` still registered. `--edges-probe` asserts all three and caught two faults in its own first draft* `TEC-004` `DES-002` `DES-014`
 
 ### M3 — The Pact
 
@@ -124,6 +125,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 106 ADRs · 12 open questions · 102 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 107 ADRs · 12 open questions · 102 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

@@ -1878,4 +1878,30 @@ Worse, `DebugOverlays` drew every vision cone and the entire clamor field **in e
 
 ---
 
+## ADR-107 — Abandoning a run left the process with no multiplayer peer at all
+**Date:** 2026-08-22 · **Status:** accepted · **Adds `M2-T15`**
+
+**Context:** A playtester walked off the edge of the camp, let the fall run for a while to see whether the game would stop them, abandoned the run, and descended again — to a **grey screen**. That is three separate faults in one sitting, and none of them had a check anywhere, because every probe in this project measures a system doing its job rather than a player leaving the rails.
+
+**1. Abandoning set the peer to `null`, and nothing ever put one back.** Godot installs an `OfflineMultiplayerPeer` at startup, and *every* solo path here quietly depends on it: with it, `is_server()` is true and spawning works, which is exactly why there is no single-player branch to drift (ADR-064). `PauseMenu._leave()` closed the peer and assigned `null` — correct in intent, since a host walking out to the menu must stop hosting. From that moment on, **in that process**, `is_server()` answered false, `CoopSession.spawn_player()` returned `null` at its first line, no body was built, and the next level came up grey: the world was there and the camera belonged to a player who did not exist.
+
+The dependency was invisible precisely because nothing had ever taken the offline peer away. It is repaired in `CoopSession`, not only in the menu: the session is the thing that *needs* a peer, so that is where the requirement belongs, and every other route back into a level is covered without anybody having to remember. The menu restores it too, because it should not sit in a state the next scene has to fix.
+
+**2. There were no world bounds and no fall recovery anywhere.** Not in the camp, not in the Deep, not in the Chamber. The camp is a 34 m slab with walls on three sides, so its open side is simply where this is easiest to find. Bodies now remember the last ground they genuinely stood on and return to it — from the *body*, so it needs no per-level configuration and cannot be forgotten by the next level somebody builds.
+
+**The threshold is relative, and that is not a detail.** An absolute floor is the obvious implementation and would have been catastrophic: the Chamber is an overlay parked **2000 m below the camp** (ADR-102), so any fixed depth generous enough to catch a fall would also decide that every player standing in their own hoard room had fallen out of the world and yank them back to the fire. Measuring from where you last stood works at any altitude and knows nothing about where levels put themselves.
+
+Nothing is taken for falling. `DES-002`'s losses are meant to be ones the player can explain, and dropping through a hole in a blockout is not a decision anybody made. It prints, so a hole that keeps catching people appears in a log rather than only in a shrug.
+
+**3. The Chamber outlived its level.** `_open_the_chamber` parents the room to `/root` rather than to the Threshold, so that hiding the camp does not hide the room floating above it — right, and it has a consequence nothing handled. `change_scene_to_file` frees the *current scene* and leaves every other child of the root alone, so abandoning from inside your own hoard room left the Chamber parented to the root, drawn over the main menu, with its private `MultiplayerAPI` still registered at `/root/Chamber`. The stale API is the worse half: the next Chamber would inherit somebody else's island, which is the exact fault ADR-102 built the island to make impossible. A level now cleans up what it created on the way out, whichever way out it was.
+
+**Decision — `--edges-probe`, which asks what a player does rather than what a system does.** All three assertions were validated by planting their removal. It also caught two faults in its own first draft, both worth recording because both are the same mistake:
+
+- It simulated the fall with `teleport()`, which is a *deliberate* relocation and therefore updates the ground of record — so the safety net moved down with the body, the recovery correctly declined to fire, and the probe reported a failure the game did not have. Setting `global_position` directly is the honest simulation of falling.
+- It built the session with `CoopSession.new()`, which has no `Actors` or `Spawner` children and dies in `_ready` before reaching anything worth testing. The scene, not the class.
+
+**The general lesson, and it is the third time this month.** ADR-097 shipped scaling that could not fire, ADR-105 shipped a beacon two rooms could see, and ADR-106 named the shape: *every system had a probe proving it worked and nothing proved a person could operate it.* This is the next layer down — **nothing proved a person could recover from doing something ordinary and slightly wrong.** A test suite built entirely from the happy path will keep finding the happy path intact.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
