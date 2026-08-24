@@ -1978,4 +1978,49 @@ Every assertion above was validated by planting its violation, and one of the pl
 
 ---
 
+## ADR-109 — The greed gate was asking a half-built system a question only the finished one can answer
+**Date:** 2026-08-24 · **Status:** accepted · **Amends `PRO-001` (M2 exit gate, M4 exit gate, M3 ordering)** · **Extends ADR-105** · **Ticks `M2-T13`**
+
+**Context:** *"The current blockout state of the game is no real judge of playability."* Raised after ADR-108, and it is half right in a way worth separating carefully, because the wrong half is the one that would quietly lower a bar.
+
+**What a blockout cannot judge is appeal.** Whether this game is *good* — whether the Deep is oppressive, whether the hoard is a monument, whether anybody wants a second run — is unanswerable from grey boxes and always was. **What it judges better than anything downstream is feel and legibility**, which is Swink's ordering, which `DES-009` adopts, and which is the entire reason `M1` existed as a separate milestone. So "a blockout proves nothing" is false; "a blockout proves nothing *about pressure*" is the real claim, and it is correct.
+
+### The gate was unanswerable, not merely hard
+
+`GATE M2 EXIT` reads: *a playtester **voluntarily abandons loot to survive**, then talks about it afterwards.* That sentence assumes loot and survival are in tension. On the floor that exists, greed costs you one Gullsjúkr and a wider clamor radius — and that is all it costs, because the two systems that give greed teeth are both `M3`: the Tithe (`M3-T04`), which makes a hoard an obligation rather than a score, and classes (`M3-T02`), which make what you brought down a decision you can regret.
+
+Running that gate now returns an answer about the blockout, exactly as claimed. Worse, it returns a *single bit* against a system that is deliberately unfinished — which is the failure ADR-105 already identified in the same sentence and tried to fix with preconditions. ADR-105 was right about the diagnosis and treated the symptom: it kept an unanswerable gate and wrapped it in four questions that *are* answerable.
+
+**Reference.** Supergiant's Hades reached "the run feels good" long before "the meta-progression creates tension", because the second has nothing to grip until there is a Mirror to spend on. Tarkov and DMZ both hang extraction tension on gear *loss* — which here is `DES-003`'s Tithe, and is not built. A gate is a measurement, and a measurement taken before the instrument exists is not a strict bar. It is a coin toss with a strict reputation.
+
+### The decision — the gate moves to where the thing it measures lives
+
+**`GATE M2 EXIT` becomes ADR-105's preconditions, promoted.** They were already written, already the right questions, and already the things a blockout answers honestly: a first-time player finishes a run unaided, reads their own noise roughly right, explains their death in one sentence, and discovers they can drop loot without being told. That is `M2`'s actual claim — *the loop closes and a stranger can operate it* — and every one of those four failures localises to a named fix.
+
+**The greed dilemma becomes `GATE M4 GREED`**, beside the slice gate, where the Tithe, two classes, equipment and a polished floor all exist. Unchanged in wording, because the sentence was never wrong — only early. `PRO-005`'s ethics and `DES-002`'s core loop both rest on it, so it stays a gate rather than becoming an aspiration.
+
+**This is not a lowered bar.** `M2` still does not pass until somebody who has never seen the game finishes a run without help, and nothing in this project can assert that: the whole of ADR-106 is the distance between a probe and a person. What changes is that failing it will now mean something specific.
+
+### Two corrections that fall out of the same reading
+
+**`M2-T13` is ticked.** ADR-106 un-ticked it because its beacon was visible from two rooms of six and said in as many words that `M2-T14` was the rest of it. `M2-T14` is done and `--sight-probe` now asserts **6 of 6**, measured. Leaving the task open after the work landed is a stale dashboard of the kind `CLAUDE.md` says is worse than none, because it is believed.
+
+**`M3` is reordered so the save system is first.** It sat sixth of nine — behind classes, Aspects, ranks, deeds and equipment slots, every one of which *is* save state. `TEC-003` and `CLAUDE.md` both say versioned from commit one *because retrofitting is agony*, and the written order guaranteed the retrofit. `M3-T04` also moves ahead of `M3-T03`, which cannot cap a Boon by a rank that does not exist yet. New order:
+
+```
+M3-T06  save, versioned      → the thing everything below writes into
+M3-T04  Tithe and Pact Rank  → the pressure the M2 gate was missing
+M3-T01  Tribute → Boon → Aspects
+M3-T03  Boon cap by own rank → needs T04's rank
+M3-T02  two classes
+M3-T05  Legacy screen
+M3-T08  deeds at the Settle beat
+M3-T07  equipment slots and visible gear
+M3-T09  extract and wait
+```
+
+**What this does not do is unblock `M3`.** An amended gate is an answerable gate, not a passed one, and `status.py`'s `gate-order` will keep refusing `M3` until a real person plays a real build. That is the correct outcome and the reason this ADR does not touch the tool: the point was never to get past the gate, it was to make failing it informative.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
