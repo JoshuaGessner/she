@@ -313,6 +313,21 @@ func _ready() -> void:
 	health.maximum = tuning.player_health
 	health.restore()
 	_last_position = global_position
+	# **Where this body starts is ground it has stood on** (`M2-T16`, ADR-108).
+	#
+	# `_last_solid` used to be seeded only by `_apply_teleport`, and the Chamber
+	# does not teleport its body in — it assigns `position` and adds the child,
+	# because the room is built around its own origin. So the one body in the
+	# game that spawns 2000 m down began life measuring itself against a memory
+	# of the camp, read `-2000 < 0 - 45` on its first physics frame, and was
+	# returned to a camp that had just been hidden. ADR-107 rejected an absolute
+	# floor for exactly this reason; the threshold was relative and the *seed*
+	# was not.
+	#
+	# Beside `_last_position` because they are the same kind of fact — where
+	# this body was a moment ago — and a body that seeds one and not the other
+	# is the asymmetry that caused this.
+	_last_solid = global_position
 
 	# Damage arrives here only on the host: `Hitbox` refuses to resolve an
 	# overlap anywhere else, so this connection is host-authoritative by
@@ -1150,8 +1165,21 @@ func _return_from_the_void() -> void:
 func teleport(to: Vector3, yaw: float) -> void:
 	if _is_local:
 		_apply_teleport(to, yaw)
-	else:
-		_apply_teleport.rpc_id(get_multiplayer_authority(), to, yaw)
+		return
+	# **There is nobody to ask if the owner has gone** (`M2-T16`, ADR-108).
+	#
+	# The host frees a departed peer's body in `_on_peer_disconnected`, but a
+	# teleport issued inside that window addresses a peer the wire no longer
+	# has — *"Attempt to call RPC with unknown peer ID"*. Same rule as
+	# `_end_the_run`'s: a body can outlive its peer by a frame, and nothing is
+	# owed to somebody who is not there. It prints, because a teleport that
+	# quietly does nothing is otherwise indistinguishable from one that worked.
+	var owner: int = get_multiplayer_authority()
+	if not multiplayer.get_peers().has(owner):
+		print("[net] %s belongs to peer %d, which is not connected — not moving it"
+			% [name, owner])
+		return
+	_apply_teleport.rpc_id(owner, to, yaw)
 
 
 @rpc("any_peer", "reliable")

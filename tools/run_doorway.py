@@ -156,6 +156,22 @@ def main() -> int:
         rows.append(("no packets into freed nodes, on the " + who, clean,
                      "clean" if clean else "orphaned paths"))
 
+    # And nothing threw on the way through (`M2-T16`, ADR-108).
+    #
+    # This asked about packets into freed nodes and about the census, and about
+    # nothing else — so a `SCRIPT ERROR` could print inside a run this reported
+    # as passing, which is exactly what happened: a client walking into its
+    # Chamber has its camp body despawned, and the Reticle kept reading it for
+    # the frame between leaving the tree and being freed. Both doors, because a
+    # thrown error is never acceptable in either.
+    for label, source in (("party", logs), ("private", private)):
+        for who in ("host", "client"):
+            quiet = "SCRIPT ERROR" not in source[who]
+            errors = sum(1 for line in source[who].splitlines()
+                         if "SCRIPT ERROR" in line)
+            rows.append((f"nothing threw — {label} door, {who}", quiet,
+                         "quiet" if quiet else f"{errors} script error(s)"))
+
     ok = True
     print()
     for label, passed, detail in rows:

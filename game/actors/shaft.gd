@@ -311,6 +311,12 @@ func _build_beacon() -> void:
 
 ## The nearest Shaft within reach of a point, or `null`.
 static func nearest(from: Node, at: Vector3) -> Shaft:
+	# A node outside the tree has no `get_tree()` to ask, and a body on its way
+	# out of the world is not standing in anything (`M2-T16`, ADR-108). The
+	# caller is guarded too; this is here because a static helper handed a
+	# detached node should answer rather than crash.
+	if not from.is_inside_tree():
+		return null
 	for node: Node in from.get_tree().get_nodes_in_group(GROUP):
 		var shaft := node as Shaft
 		if shaft == null or not shaft.is_inside_tree():

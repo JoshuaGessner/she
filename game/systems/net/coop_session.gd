@@ -211,7 +211,22 @@ func _start_host() -> void:
 	var peer := ENetMultiplayerPeer.new()
 	var err: Error = peer.create_server(_port, MAX_CLIENTS)
 	if err != OK:
-		push_error("CoopSession: create_server(%d) failed: %d" % [_port, err])
+		# **Back to the menu with a reason, exactly as a failed join does**
+		# (`M2-T16`, ADR-108). This used to `push_error` and return — which
+		# skipped the `spawn_player` on the last line of this function and left
+		# the level standing with no body and no camera, while the
+		# `OfflineMultiplayerPeer` underneath went on answering `is_server()`
+		# true so nothing downstream suspected anything. That is ADR-107's grey
+		# screen arriving from a second direction, and the only trace of it was
+		# a line in a console the player is not reading.
+		#
+		# The failure is ordinary: something is already on the port. A second
+		# instance, a build left running, anything else on the machine.
+		# `_start_client` has always handled the identical case correctly, on
+		# the very next function.
+		_give_up(("Could not open the Threshold on port %d — something else "
+			+ "is already using it. Try another port, or close whatever has "
+			+ "it.") % _port)
 		return
 	_configure(peer)
 	multiplayer.multiplayer_peer = peer
@@ -313,9 +328,19 @@ func _give_up(because: String) -> void:
 	_log("gave up — %s" % because)
 	NetPlan.last_error = because
 	NetPlan.role = NetPlan.Role.SOLO
+	# **Back to the offline peer, never to null** (`M2-T16`, ADR-108).
+	#
+	# This used to assign `null`, which is the shape ADR-107 was written about,
+	# surviving here because `_ensure_a_peer()` repaired it in the next session
+	# before anything read it. That is repair, not safety: `local_player()` asks
+	# `multiplayer.get_unique_id()` every frame the camp draws its readout, and
+	# with no peer at all that is an error per frame between giving up and the
+	# menu actually arriving. `PauseMenu._leave` has done it this way since
+	# ADR-107; there is no reason for the session that *needs* a peer to be the
+	# one place still taking it away.
 	if multiplayer.multiplayer_peer != null:
 		multiplayer.multiplayer_peer.close()
-		multiplayer.multiplayer_peer = null
+	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
 	# **Never navigate during a probe.** A measuring process has no menu to
 	# return to, and one that quietly changed scene would report on a level it
 	# was not asked about — or, as happened here, sit in the menu forever while
@@ -329,7 +354,11 @@ func _give_up(because: String) -> void:
 		if arg.contains("probe") or arg.contains("shot"):
 			return
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	get_tree().change_scene_to_file(MENU_SCENE)
+	# **Deferred, because one caller is `_ready`** (`M2-T16`, ADR-108). A host
+	# whose port is taken finds out while the level it belongs to is still being
+	# built, and changing scene from inside that produces *"Parent node is busy
+	# adding/removing children"* — the navigation lands a frame later instead.
+	get_tree().change_scene_to_file.call_deferred(MENU_SCENE)
 
 
 

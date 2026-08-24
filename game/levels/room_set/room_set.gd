@@ -302,6 +302,13 @@ var _descent: int = 1
 ## True while a probe is driving this level. Probes measure the floor and must
 ## not be dropped into the Lair halfway through a measurement.
 var _probing: bool = false
+## True while a wipe is counting down, so four bodies going out together start
+## one run-end rather than four (`M2-T16`).
+var _ending: bool = false
+## A peer id for the second body the wipe probe needs. Not a real peer and never
+## on a wire: with the offline peer the host is the only process there is, so a
+## spawn addressed to a stranger simply builds a body nobody drives.
+const TEAMMATE_PEER: int = 9001
 
 ## Someone left the floor alive, and what they took. `M2-T07` instruments
 ## per-capita extracted value off this; `M2-T06` will hang the Lair on it.
@@ -375,6 +382,8 @@ func _ready() -> void:
 			_ear_shot(arg.split("=", true, 1)[1])
 		elif arg == "--exit-probe":
 			_exit_probe()
+		elif arg == "--wipe-probe":
+			_wipe_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
 		elif arg == "--scaling-probe":
@@ -1095,9 +1104,31 @@ func _ember_probe() -> void:
 	# Solo, so there is nobody to be rescued *by*; the ember is picked up by
 	# the same player on their next descent, which is exactly what the probe
 	# needs and is not a thing that happens in a real run.
+	#
+	# **This is now the only body in the level, so bleeding out starts a wipe**
+	# (`M2-T16`, ADR-108). Step 6 stands the player back up well inside
+	# `party_wipe_seconds` and that calls it off — which is a real dependency on
+	# a ⟨tune⟩ number, so it is asserted below rather than relied on quietly. A
+	# window tuned shorter than this probe's own pacing would otherwise end the
+	# run underneath the rescue and fail step 6 for a reason nothing named.
+	var floor_before_death: int = _descent
 	var fell_at: Vector3 = player.global_position
 	player.bleeding = 0.02
 	await _hold(0.5)
+	# **Checked here, before anything reads the floor.** A wipe resets the floor,
+	# which frees every world item — including the ember step 5 is about to look
+	# for. Left to be discovered below, that reads as *"bleeding out dropped no
+	# ember"*, which is a true sentence about a false cause and would send
+	# somebody hunting through `_on_died_here` for a bug that is a tuning value.
+	if _descent != floor_before_death:
+		problems.append(("the run ended before the ember could be measured — "
+			+ "this is the only body in the level, so bleeding out starts a "
+			+ "wipe, and `party_wipe_seconds` (%.1f s) is shorter than the "
+			+ "time this probe takes to stand the player back up. The rescue "
+			+ "below is unmeasurable, not broken")
+			% Config.tuning.party_wipe_seconds)
+		_report(problems, "ember")
+		return
 	var ember: WorldItem = null
 	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
 		var found := node as WorldItem
@@ -1396,6 +1427,116 @@ func _ember_shot(path: String) -> void:
 ## One place, because a probe that ends by hand ends differently each time it
 ## is copied — and because an early return needs the same ending as the normal
 ## one or bailing out becomes a silent pass.
+## **What happens to a player the run is finished with** (`M2-T16`, ADR-108).
+##
+## `--ember-probe` measures the whole down → bleed → ember → rescue chain and
+## proves every link of it. It also calls `restore_for_descent()` itself the
+## moment the ember has dropped, so every assertion this project makes about
+## death is made about a player the measurement stood back up. Nobody had ever
+## left one lying there, and lying there was the bug: `_end_the_run` was
+## reachable from `_on_extracted` and nowhere else, so a solo player who died
+## was clamped to 0.00 m/s on a floor that kept running, with self-recovery
+## refusing because it asks `is_downed()` and `spent` is not downed.
+##
+## Both directions, because the rule is not "death ends the run" — ADR-102
+## decided the opposite and that decision stands:
+##
+## 1. **One player down with a teammate standing does not end anything.** Your
+##    ember lies there to be carried out; a run that stopped when you went out
+##    would delete the M2 co-op gate.
+## 2. **Nobody left standing does.** In a party that is the wipe; solo it is
+##    every failed run, which is most of them.
+## 3. **A revive inside the window calls it off**, so two players going down a
+##    second apart is survivable by the second one getting up.
+func _wipe_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var mine: Player = _session.local_player()
+	# A second body, so the party can be down without being gone. Spawned
+	# through the session like any other, which is the only way to get one.
+	var friend: Player = _session.spawn_player(TEAMMATE_PEER)
+	await _hold(0.5)
+	if friend == null:
+		_report(PackedStringArray(["could not spawn a second body, so nothing "
+			+ "here can tell a party apart from a wipe"]), "wipe")
+		return
+	mine.teleport(SPAWNS[0] + Vector3(0.0, 0.1, 0.0), 0.0)
+	# The teammate is left where the session put it. `teleport` asks the owning
+	# peer to move itself, and this one's owner is a number rather than a
+	# process — so there is nobody to ask, and nothing here depends on where it
+	# stands. What it has to be is *alive*, which is the only thing that tells a
+	# party apart from a wipe.
+	await _hold(0.3)
+
+	# ─ 1. one down, one standing: the run goes on ─
+	var scene_before: String = get_tree().current_scene.scene_file_path
+	var floor_before: int = _descent
+	mine.health.apply_damage(mine.health.maximum * 2.0)
+	await _hold(0.2)
+	mine.bleeding = 0.02
+	await _hold(Config.tuning.party_wipe_seconds + 1.0)
+	print("[wipe] one of two    mine spent=%s, friend spent=%s, floor %d → %d" % [
+		mine.spent, friend.spent, floor_before, _descent])
+	if not mine.spent:
+		problems.append("bleeding out did not spend the body, so the rest of "
+			+ "this proves nothing about what a wipe is")
+	if _descent != floor_before or get_tree().current_scene.scene_file_path \
+			!= scene_before:
+		problems.append("the run ended with a teammate still standing — "
+			+ "ADR-102 leaves your ember on the floor for them to carry out, "
+			+ "and a run that stops when one player goes out deletes the M2 "
+			+ "co-op gate")
+
+	# ─ 2. the last one goes out: the run ends ─
+	GameState.stash.append(ItemInstance.of(
+		ItemCatalogue.by_id(&"glt_hoard_coin"), 1))
+	friend.health.apply_damage(friend.health.maximum * 2.0)
+	await _hold(0.2)
+	friend.bleeding = 0.02
+	await _hold(Config.tuning.party_wipe_seconds + 1.5)
+	# `_probing` keeps the floor from walking out from under a measurement, so
+	# what a run ending looks like from in here is the floor reset and the
+	# great reset having happened — not a scene change.
+	print("[wipe] nobody left   floor %d → %d, stash %d, carried %d" % [
+		floor_before, _descent, GameState.stash.size(),
+		GameState.carried.size()])
+	if _descent == floor_before:
+		problems.append(("the run did not end with every body spent — a solo "
+			+ "player is frozen at 0.00 m/s on a floor that keeps running, "
+			+ "with no self-recovery (it asks `is_downed()`) and nothing on "
+			+ "screen but a developer readout"))
+	if GameState.stash.size() > 0:
+		problems.append("a wipe did not take the stash — `DES-008`'s great "
+			+ "reset is what stops an economy inflating across a lineage")
+
+	# ─ 3. getting up inside the window calls it off ─
+	#
+	# Planted the other way round from the two above: the wipe is *started* and
+	# then interrupted, which is the case a party actually meets when two
+	# people go down a second apart.
+	for body: Player in _session.players():
+		body.restore_for_descent()
+	await _hold(0.4)
+	var floor_at_third: int = _descent
+	mine.health.apply_damage(mine.health.maximum * 2.0)
+	friend.health.apply_damage(friend.health.maximum * 2.0)
+	await _hold(0.2)
+	mine.bleeding = 0.02
+	friend.bleeding = 0.02
+	await _hold(0.6)
+	# Inside the window, a hand on the shoulder.
+	mine.restore_for_descent()
+	await _hold(Config.tuning.party_wipe_seconds + 1.0)
+	print("[wipe] got back up   within %.1f s: floor %d → %d, mine spent=%s" % [
+		Config.tuning.party_wipe_seconds, floor_at_third, _descent, mine.spent])
+	if _descent != floor_at_third:
+		problems.append(("the run ended anyway after somebody got up inside "
+			+ "the %.1f s window — the rule has to be that nobody has been "
+			+ "standing for a while, not that nobody was standing on one "
+			+ "particular frame") % Config.tuning.party_wipe_seconds)
+
+	_report(problems, "wipe")
+
+
 func _report(problems: PackedStringArray, tag: String) -> void:
 	for problem: String in problems:
 		printerr("[%s] FAIL %s" % [tag, problem])
@@ -2400,6 +2541,72 @@ func _on_died_here(player: Player, at: Vector3) -> void:
 	# This used to call the run-ended path, but only when the body belonged to
 	# the host: a client who died was simply never told, and lay there until
 	# they alt-tabbed.
+	#
+	# **But somebody has to still be standing for that to mean anything**
+	# (`M2-T16`, ADR-108). ADR-102's rule is right and it was the whole rule:
+	# `_end_the_run` was reachable from `_on_extracted` and from nowhere else,
+	# so a player with no teammates simply never ended. Solo, that is every
+	# failed run — `spent` clamps the body to 0.00 m/s, self-recovery refuses
+	# because it asks `is_downed()` and `spent` is not downed, and the floor
+	# keeps running around a person who cannot move.
+	_watch_for_a_wipe()
+
+
+## **Nobody left standing ends the run** (`M2-T16`, ADR-108).
+##
+## Deliberately *not* "somebody died", which is ADR-102's decision and stays
+## intact: your ember lies there for a teammate to carry out, and a run that
+## stopped when you went out would delete the M2 co-op gate. What ends a run is
+## the party being gone, which in a solo run is the same event and in a party is
+## the wipe every extraction game ends on.
+##
+## **A window, not an instant**, and it is re-checked at the end of it. Two
+## reasons, and the second is the load-bearing one:
+##
+## 1. A cut to the camp on the frame you go out gives the player nothing to
+##    read. `DES-002`'s losses are meant to be ones you can explain in a
+##    sentence, and the M2 exit gate asks a tester to do exactly that.
+## 2. **A revive inside the window has to cancel it.** Two players going down a
+##    second apart is an ordinary way for a fight to go, and the second one
+##    getting up must not find the run already over. Re-checking is what makes
+##    the rule "nobody has been standing for a while" rather than "nobody was
+##    standing on one particular frame".
+##
+## `_ending` guards re-entry: four bodies going out together would otherwise
+## start four timers and end the run four times.
+func _watch_for_a_wipe() -> void:
+	if _ending or not _the_party_is_gone():
+		return
+	_ending = true
+	print("[death] nobody is left standing — %.1f s and the run is over"
+		% Config.tuning.party_wipe_seconds)
+	await get_tree().create_timer(Config.tuning.party_wipe_seconds).timeout
+	_ending = false
+	# Somebody got up. `_stand_up` clears `spent` on a self-recovery and a
+	# teammate's hand does the same, so this is the ordinary way out of here.
+	if not _the_party_is_gone():
+		print("[death] somebody got back up — the run continues")
+		return
+	_end_the_run()
+
+
+## Is there a body left that could still do something?
+##
+## `spent` rather than `is_incapacitated()`: a **downed** player is bleeding but
+## recoverable — they can crawl, they can self-recover once, and a teammate can
+## reach them — so a party with one downed member is not a party that is gone.
+## Only `spent` is final.
+##
+## An empty party is not a wipe. A level between spawns has nobody in it, and
+## reading that as a wipe would end a run that had not started.
+func _the_party_is_gone() -> bool:
+	var bodies: Array[Player] = _session.players()
+	if bodies.is_empty():
+		return false
+	for body: Player in bodies:
+		if not body.spent:
+			return false
+	return true
 
 
 ## **The run is over, and everybody goes home together** (ADR-102).
@@ -2429,8 +2636,17 @@ func _end_the_run() -> void:
 		var packed: Array = [] if body.spent else body.inventory.pack()
 		if peer == CoopSession.HOST_PEER:
 			_take_the_outcome(packed, body.spent)
-		else:
-			_take_the_outcome.rpc_id(peer, packed, body.spent)
+			continue
+		# **A body outlives its peer by a frame** (`M2-T16`). `_on_peer_disconnected`
+		# frees the body of somebody who drops, but a run ending inside that
+		# window addresses a peer the wire no longer has — *"Attempt to call RPC
+		# with unknown peer ID"*, and an outcome delivered to nobody. There is
+		# nothing to tell a peer that has gone, so this is the whole handling.
+		if not multiplayer.get_peers().has(peer):
+			print("[exit] %s belongs to peer %d, which is no longer connected "
+				% [body.name, peer] + "— nothing to hand back")
+			continue
+		_take_the_outcome.rpc_id(peer, packed, body.spent)
 
 
 ## What this peer walked away with, delivered to the peer it belongs to.

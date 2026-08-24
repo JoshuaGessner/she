@@ -48,13 +48,30 @@ func _ready() -> void:
 	add_child(_name)
 
 
+## **A body that has left the tree is not a body to read** (`M2-T16`, ADR-108).
+##
+## The guard here was `is_instance_valid`, which keeps answering true for a node
+## that has been removed from the tree and not yet freed — the state a despawn
+## passes through. Walking into your Chamber as a client despawns your camp
+## body, and for that frame this asked it for `global_position` and then handed
+## it to `Shaft.nearest`, which calls `get_tree()` on it: two engine errors and
+## a `SCRIPT ERROR`, inside a check that was passing.
+##
+## `is_inside_tree()` is the question that was actually meant. It implies
+## validity, so it replaces the test rather than joining it.
+func _body_to_read() -> Player:
+	if _body != null and is_instance_valid(_body) and _body.is_inside_tree():
+		return _body
+	_body = _local_body()
+	return _body
+
+
 func _process(delta: float) -> void:
-	if _body == null or not is_instance_valid(_body):
-		_body = _local_body()
+	_body = _body_to_read()
 	var reaching: WorldItem = null
 	var hidden: bool = true
 	_shaft = null
-	if _body != null and is_instance_valid(_body):
+	if _body != null:
 		reaching = _body.reaching_for()
 		_shaft = _body.shaft_underfoot()
 		# Gone while the bag is open: you are looking into a satchel, not down
@@ -160,6 +177,10 @@ func _arc(middle: Vector2, radius: float, start: float, finish: float,
 func _local_body() -> Player:
 	for node: Node in get_tree().get_nodes_in_group("player"):
 		var body := node as Player
-		if body != null and body.is_multiplayer_authority():
+		# `is_inside_tree` for the same reason as `_body_to_read`: a node on its
+		# way out of the world is still in its groups, and rebinding to one is
+		# how a stale reference gets replaced by an equally stale one.
+		if body != null and body.is_inside_tree() \
+				and body.is_multiplayer_authority():
 			return body
 	return null

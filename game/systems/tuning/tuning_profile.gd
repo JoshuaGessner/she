@@ -183,6 +183,13 @@ extends Resource
 ## Crawl speed as a fraction of walking. You are on the floor and bleeding;
 ## you can move, and you cannot get anywhere.
 @export var downed_speed_fraction: float = 0.28
+## Seconds between the last body going out and the run ending ⟨tune⟩
+## (`M2-T16`, ADR-108). Two jobs: it gives the moment somewhere to land instead
+## of cutting to the camp on the frame you die, and it is the window in which a
+## revive still counts — the party going down a second apart is an ordinary way
+## for a fight to end, and the second one getting up must not arrive after the
+## run is already over.
+@export var party_wipe_seconds: float = 3.0
 
 @export_group("Extraction")
 ## Seconds standing in the Shaft to leave, before escalation ⟨tune⟩. Long

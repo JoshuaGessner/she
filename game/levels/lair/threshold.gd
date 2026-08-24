@@ -152,7 +152,104 @@ func _edges_probe() -> void:
 	rebuilt.queue_free()
 	await get_tree().process_frame
 
-	# ─ 3. the Chamber does not outlive the level that made it ─
+	# ─ 3. your own Chamber is somewhere you can stand ─
+	#
+	# The room is an overlay 2000 m below the camp, and the body it builds is
+	# assigned a `position` rather than teleported — so it began life measuring
+	# itself against a `_last_solid` of `Vector3.ZERO`, read a 2000 m fall on
+	# its first physics frame, and was returned to the camp that had just been
+	# hidden. Standing at the origin with the door, the pile and the whole room
+	# two kilometres below: nothing to see, nothing to walk to, no way out but
+	# ABANDON.
+	#
+	# **Walked onto rather than opened by hand.** `_process` owns the trigger,
+	# and a probe that called `_open_the_chamber()` itself would be testing the
+	# function instead of the doorway.
+	body.teleport(CHAMBER_AT, 0.0)
+	await get_tree().create_timer(0.6).timeout
+	var room := get_tree().root.get_node_or_null(CHAMBER_NODE) as Chamber
+	if room == null:
+		# Appended rather than reported on its own: an early exit that replaces
+		# the list throws away everything found above it, and the finding it
+		# discards is usually the more precise one.
+		problems.append("walking onto the pale slab did not open the Chamber "
+			+ "— nothing below this could be checked")
+		_report_edges(problems)
+		return
+	var inside: Player = room.get_node_or_null("chamber_body") as Player
+	if inside == null:
+		# **Report and stop.** A GDScript runtime error aborts the function it
+		# happens in, so a null dereference below would never reach the report
+		# at the bottom and the run would hang until `--quit-after` killed it,
+		# printing nothing — which is the one thing a check must never do.
+		problems.append("the Chamber opened with no body in it — there is "
+			+ "nobody to be in your own hoard room")
+		_report_edges(problems)
+		return
+	var to_door: float = inside.global_position.distance_to(
+		room.global_position + Chamber.DOOR_AT)
+	print("[edges] in the chamber body %.0f m from the door, %.0f m from the pile" % [
+		to_door, inside.global_position.distance_to(
+			room.global_position + Chamber.HOARD_AT)])
+	if to_door > CHAMBER_REACH:
+		problems.append(("the body in the Chamber is %.0f m from its own door "
+			+ "— it was put in the room and then thrown out of it, so the "
+			+ "hoard, the stash and the way back are all unreachable and the "
+			+ "screen is empty") % to_door)
+
+	# ─ 4. and the camp is still a camp when you come back ─
+	#
+	# Leaving used to free the room and clear the island and leave
+	# `set_process(false)` exactly where `_open_the_chamber` put it, so the
+	# camp came back switched off: no Descent trigger, no Chamber trigger, no
+	# re-arm, and a readout frozen on what it said before you went in. Going
+	# back in is the assertion because it is a thing a player does, and because
+	# every branch of `_process` — the Descent first among them — is dead or
+	# alive together.
+	await _walk_out_of_the_chamber(room, inside)
+	var out: Player = _session.local_player()
+	print("[edges] back outside  camp processing=%s, body=%s, readout %s" % [
+		is_processing(), "yes" if out != null else "NO",
+		"live" if _readout.text != "" else "EMPTY"])
+	if out == null:
+		problems.append("nobody came back out of the Chamber — the door "
+			+ "despawns you and the way back never ran")
+		_report_edges(problems)
+		return
+	if not is_processing():
+		problems.append("the camp is not processing after a Chamber visit — "
+			+ "the Descent trigger, the Chamber trigger and the readout all "
+			+ "live in `_process`, so the only way on is ABANDON, which wipes "
+			+ "the stash the visit existed to build")
+	# The readout is written from `_process` too, and it froze on whatever it
+	# said before the visit — so the stash count a player read after sorting
+	# their haul was the one from before they sorted it. Moved by hand rather
+	# than compared to itself: two identical camps produce identical text, and
+	# an assertion that passes when nothing has happened is not an assertion.
+	var before: String = _readout.text
+	GameState.descents += 1
+	await get_tree().create_timer(0.3).timeout
+	if _readout.text == before:
+		problems.append("the camp readout is frozen after a Chamber visit — it "
+			+ "is written from `_process`, so it reports the stash you had "
+			+ "before you sorted it")
+
+	# Far enough away to re-arm, then back on, exactly as walking does it.
+	out.teleport(FIRE_AT, 0.0)
+	await get_tree().create_timer(0.4).timeout
+	out.teleport(CHAMBER_AT, 0.0)
+	await get_tree().create_timer(0.6).timeout
+	var again := get_tree().root.get_node_or_null(CHAMBER_NODE) as Chamber
+	print("[edges] second visit  door opened again=%s, readout live=%s" % [
+		"yes" if again != null else "NO", _readout.text != before])
+	if again == null:
+		problems.append("the Chamber door opens once per level — a player who "
+			+ "walks out of their own room can never walk back into it")
+	else:
+		await _walk_out_of_the_chamber(again,
+			again.get_node_or_null("chamber_body") as Player)
+
+	# ─ 5. the Chamber does not outlive the level that made it ─
 	_open_the_chamber()
 	await get_tree().process_frame
 	var opened: bool = get_tree().root.get_node_or_null(CHAMBER_NODE) != null
@@ -170,6 +267,19 @@ func _edges_probe() -> void:
 			+ "it, and its private MultiplayerAPI stays registered too")
 
 	_report_edges(problems)
+
+
+## Walk the body in the Chamber onto its own door, which is the only way out of
+## that room a player has. Deliberately **not** `Chamber._leave()`: that is what
+## `--chamber-probe` does on a four-second timer regardless of where the body is
+## standing, and it is why every private-door row passed while the body it was
+## asserting about was two kilometres from the door it was said to have used.
+func _walk_out_of_the_chamber(room: Chamber, inside: Player) -> void:
+	if room == null or inside == null:
+		return
+	inside.global_position = (room.global_position + Chamber.DOOR_AT
+		+ Vector3(0.0, 0.1, 0.0))
+	await get_tree().create_timer(0.6).timeout
 
 
 func _report_edges(problems: PackedStringArray) -> void:
@@ -545,6 +655,11 @@ const CHAMBER_STEP: Vector3 = Vector3(0.0, 0.1, 4.6)
 ## The room's node name, which is also the path its private multiplayer is
 ## keyed to. One constant, because the two must agree.
 const CHAMBER_NODE: String = "Chamber"
+## How far from its own door a body in the Chamber is allowed to be for the room
+## to count as somewhere a person is standing (`M2-T16`). The room is 16 x 14 m,
+## so anything inside it is well under this; the failure it exists to catch put
+## the body 2000 m away.
+const CHAMBER_REACH: float = 40.0
 
 var _chamber: Chamber = null
 ## False from the moment you step onto the slab until you step off it again.
@@ -591,12 +706,32 @@ func _open_the_chamber() -> void:
 func _close_the_chamber() -> void:
 	if _chamber == null:
 		return
-	_chamber.queue_free()
-	_chamber = null
-	get_tree().set_multiplayer(null, NodePath("/root/%s" % CHAMBER_NODE))
+	_take_down_the_chamber()
 	visible = true
 	AudioDirector.enter("threshold")
 	_ask_to_rejoin_the_world()
+
+
+## **Everything `_open_the_chamber` did, undone in one place** (`M2-T16`,
+## ADR-108).
+##
+## There are two ways out of that room — through its door, and by the level
+## going away underneath it — and they used to undo different amounts. Walking
+## out freed the room and cleared the island and **left `set_process(false)`
+## where it was**, so the camp came back with its own `_process` switched off:
+## no descent trigger, no Chamber trigger, no re-arm, and a readout frozen on
+## whatever it said before you went in. The only way on from there was ABANDON
+## THE RUN, which calls `GameState.die()` — so the recovery deleted the stash
+## the visit existed to build.
+##
+## One function owns the undo now, and both exits call it. The failure was not
+## that somebody forgot a line; it was that there were two teardowns to keep in
+## agreement, which is a thing that stays true and gets forgotten again.
+func _take_down_the_chamber() -> void:
+	_chamber.queue_free()
+	_chamber = null
+	get_tree().set_multiplayer(null, NodePath("/root/%s" % CHAMBER_NODE))
+	set_process(true)
 
 
 ## **The Chamber is a sibling, so a scene change does not take it with us**
@@ -620,10 +755,7 @@ func _close_the_chamber() -> void:
 func _exit_tree() -> void:
 	if _chamber == null:
 		return
-	_chamber.queue_free()
-	_chamber = null
-	get_tree().set_multiplayer(null, NodePath("/root/%s" % CHAMBER_NODE))
-	set_process(true)
+	_take_down_the_chamber()
 
 
 ## Ask the host to take my body out. The host owns every spawn and despawn

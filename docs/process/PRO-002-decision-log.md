@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-22
+updated: 2026-08-24
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -1901,6 +1901,80 @@ Nothing is taken for falling. `DES-002`'s losses are meant to be ones the player
 - It built the session with `CoopSession.new()`, which has no `Actors` or `Spawner` children and dies in `_ready` before reaching anything worth testing. The scene, not the class.
 
 **The general lesson, and it is the third time this month.** ADR-097 shipped scaling that could not fire, ADR-105 shipped a beacon two rooms could see, and ADR-106 named the shape: *every system had a probe proving it worked and nothing proved a person could operate it.* This is the next layer down — **nothing proved a person could recover from doing something ordinary and slightly wrong.** A test suite built entirely from the happy path will keep finding the happy path intact.
+
+---
+
+## ADR-108 — Nobody had walked into the Chamber, and nobody had stayed dead
+**Date:** 2026-08-24 · **Status:** accepted · **Adds `M2-T16`** · **Extends ADR-102, ADR-107**
+
+**Context:** An audit run against `e80131f` with one instruction: find defects a green sweep cannot see, and prove each one in the engine. All sixteen probes, `check_project.py`, `check_dead.py`, `status.py --check` and CI were passing on that commit, and five defects were live in it. Four were reachable by a player and two of those in the first thirty seconds of a fresh install — from the single action the camp's own readout tells a new player to take.
+
+Every one is the shape ADR-097 named and ADR-105, ADR-106 and ADR-107 each found again: **the state was proved reachable by a probe, using a route no player has.**
+
+### 1. Walking into your own Chamber threw you 2000 m up into the camp you had just hidden
+
+The room is an overlay parked at `CHAMBER_OFFSET`, and `Chamber._spawn_body` gives its body a `position` and adds it — it does not `teleport()` it in, because the room is built around its own origin and always has been. `_last_solid`, the ground of record ADR-107 introduced, was seeded **only** by `_apply_teleport`. So the one body in this game that spawns two kilometres down began life measuring itself against a memory of the camp, read `-2000 < 0 - 45` on its first physics frame, and was returned to the origin — which `_open_the_chamber` had set `visible = false` one line earlier.
+
+What a player got was a black screen, the Chamber's music, and an invisible floor, with the door, the pile and the stash all 2000 m below. Holding forward closed none of that distance. **The Chamber has never been enterable in a real session** — solo or co-op, host or client — and the only way on was ABANDON THE RUN, which calls `GameState.die()`.
+
+This is precisely the outcome ADR-107 rejected an absolute floor to avoid: *"any fixed depth generous enough to catch a fall would also decide that every player standing in their own hoard room had fallen out of the world and yank them back to the fire."* The threshold was relative and correct. The **seed** was absolute, and one code path skipped it.
+
+**A body's starting position is ground it has stood on**, seeded in `Player._ready` beside `_last_position`, which was already seeded there. The two are the same kind of fact — where this body was a moment ago — and a body that seeds one and not the other is the asymmetry that caused this. It also fixes the class rather than the instance: it needs no per-level configuration and cannot be forgotten by the next level that instantiates a body directly, which is the same reasoning ADR-107 used to put fall recovery on the body.
+
+### 2. Coming back out of the Chamber switched the camp off, permanently
+
+`_open_the_chamber` calls `set_process(false)`. `_close_the_chamber` never turned it back on; the only `set_process(true)` in the file sat inside `_exit_tree`, where the node is already leaving and it does nothing.
+
+The camp's `_process` **is** the camp: it notices you standing in the Descent, notices you standing on the Chamber slab, re-arms that slab, and writes the readout. After one visit all four are dead. You stand in the hole and nothing happens, and the readout is frozen on what it said before you went in — so the stash count you read after sorting your haul is the one from before you sorted it. The only way on was ABANDON, which deletes the stash the visit existed to build.
+
+**One function owns the undo now**, and both exits call it. The failure was not that a line was forgotten; it was that there were two teardowns to keep in agreement, which is a thing that stays true and gets forgotten again.
+
+### 3. Dying alone never ended the run
+
+`_end_the_run` was reachable from `_on_extracted` and from nowhere else, so extraction was the only way a run could finish. A solo player who bled out went `spent`, had their bag emptied and their ember dropped, and then stayed there: `spent` clamps `_target_speed` to `0.0`, self-recovery refuses because it asks `is_downed()` and `spent` is not downed, and the floor kept running around a person who could not move. Nothing on screen said so except the developer readout — whose key list ends `r reset`, an action with exactly one consumer in the repository, in `movement_gym.gd`.
+
+ADR-102 decided that dying must not end anybody's run, and that decision is right and is untouched: your ember lies there for a teammate to carry out, and a run that stopped when you went out would delete the M2 co-op gate. **It was simply the whole rule.** Nothing said what happens when there is no teammate — which solo is, always, and which is most runs.
+
+**Nobody left standing ends the run.** Not "somebody died": the party being gone, which in a party is the wipe every extraction game ends on and in a solo run is the same event. `spent` rather than `is_incapacitated()`, because a **downed** player is bleeding and recoverable — they crawl, they have one self-recovery, a teammate can reach them — and only `spent` is final.
+
+**A window, not an instant, and it is re-checked at the end of it** (`party_wipe_seconds`, 3.0 ⟨tune⟩). Two jobs, and the second is load-bearing: a cut to the camp on the frame you go out gives the player nothing to read, and the M2 exit gate asks a tester to explain their death in one sentence; and **a revive inside the window has to call it off**, because two players going down a second apart is an ordinary way for a fight to go and the second one getting up must not arrive after the run is already over. Re-checking is what makes the rule *nobody has been standing for a while* rather than *nobody was standing on one particular frame*.
+
+### 4. A host whose port was taken built a level with nobody in it
+
+`_start_host` checked `create_server`, called `push_error`, and returned — skipping the `spawn_player(HOST_PEER)` on its own last line. The `OfflineMultiplayerPeer` underneath went on answering `is_server()` true, so nothing downstream suspected anything: no body, no camera, an empty readout, and the only trace in a console the player is not reading. ADR-107's grey screen, arriving from a second direction. `_start_client` had always handled the identical failure correctly, on the very next function, by giving up with a sentence a person can act on.
+
+Fixing it exposed two more things about `_give_up`, both now repaired:
+
+- **It nulled the peer.** That is the exact ADR-107 shape, surviving here because `_ensure_a_peer()` repaired it in the *next* session before anything read it. Repair is not safety: `local_player()` asks `multiplayer.get_unique_id()` every frame the camp draws its readout, so with no peer at all that is an error per frame between giving up and the menu arriving. It restores the offline peer now, as `PauseMenu._leave` has since ADR-107. There is no reason for the session that *needs* a peer to be the last place still taking it away.
+- **It navigated from inside `_ready`.** A host finds out its port is taken while the level it belongs to is still being built, and changing scene from there produces *"Parent node is busy adding/removing children"*. The navigation is deferred by a frame.
+
+### 5. The Reticle kept reading a body that had left the tree
+
+`is_instance_valid` keeps answering true for a node removed from the tree and not yet freed, which is the state a despawn passes through. A client walking into its Chamber has its camp body despawned, and for that frame the Reticle asked it for `global_position` and handed it to `Shaft.nearest`, which calls `get_tree()` on it. `is_inside_tree()` is the question that was meant; it implies validity, so it replaces the test rather than joining it.
+
+### 6. A body outlives its peer by a frame, and two places addressed it anyway
+
+Found by the check for fault 3 rather than by the audit: `--wipe-probe` needs a second body to tell a party apart from a wipe, and in one process with an offline peer the only way to get one is to spawn it for a peer id that is not a process. Both `_end_the_run` and `Player.teleport` then addressed it — *"Attempt to call RPC with unknown peer ID"*.
+
+That is an artefact of the probe and it is also real, narrowly: `_on_peer_disconnected` frees a departed peer's body, but a run ending or a teleport issued inside that window addresses a peer the wire no longer has. Both sites now check `multiplayer.get_peers()` first and both **print** when they skip, because a teleport that quietly does nothing is otherwise indistinguishable from one that worked.
+
+Worth recording for how it surfaced. The first run of `--wipe-probe` was filtered to `[wipe]` and `[death]` lines and looked perfect; the errors were three lines away the whole time and only the full sweep's `^ERROR:` grep found them. **A probe read through a filter is a probe you have not read** — which is the same fault as fault 5, where `run_doorway.py` was not grepping for `SCRIPT ERROR`, committed by the person auditing it.
+
+### The checks that should have existed
+
+**`--edges-probe` asks about the Chamber the way a player meets it.** It walks onto the pale slab rather than calling `_open_the_chamber()`, so the doorway is under test and not the function; it asserts the body is standing in the room it was sent to; it walks back out **through the Chamber's own door**; and it then asserts the camp is still a camp — processing, readout moving, and the door willing to open a second time. Going back in is the assertion because it is a thing a player does, and because every branch of `_process` is dead or alive together.
+
+That last point is the whole reason `run_doorway.py` was green through all of this. Its private-door rows pass because `--chamber-probe` calls `Chamber._leave()` on a four-second timer **regardless of where the body is standing** — it manufactures an exit no player can perform, and so reported that a body two kilometres from a door had used it. The `[void] chamber_body fell out of the world` line was sitting in that check's own client log the whole time, unread.
+
+**`--wipe-probe` asks what happens to the player the run is finished with**, in both directions: one down with a teammate standing does not end anything, nobody standing does and takes the stash with it, and getting up inside the window calls it off. It needs a second body to tell a party apart from a wipe, which is also what `--ember-probe` had been faking — that probe's own comment admits its solo rescue is *"not a thing that happens in a real run"*.
+
+**A busy-port step in `check_scripts.sh`**, because every networked check in this project picks a free port on purpose so that two of them can run at once. Nothing anywhere had ever hosted twice on one port, which is the only way to see fault 4 at all.
+
+**`run_doorway.py` now fails on `SCRIPT ERROR`.** It asked about packets into freed nodes and about the census and about nothing else, so fault 5 printed inside a run it reported as passing.
+
+Every assertion above was validated by planting its violation, and one of the plants found a fault in the probe itself: two early exits reported a fresh list instead of the one they had been filling, so the first red run threw away the precise finding (*a body 2000 m from its own door*) and reported only the vaguer consequence that followed from it. A probe that discards what it has already found is the reporting equivalent of the bug it was written to catch.
+
+**The lesson, for the sixth time, and it has a sharper edge now.** ADR-097 shipped scaling that could not fire; ADR-099 put a census in the wrong scene; ADR-105 shipped a beacon two rooms could see; ADR-106 named the shape; ADR-107 found that nothing proved a person could recover from an ordinary mistake. This one is the layer under that: **a check can reach a state by a route the game does not have, and then certify the state.** `_leave_soon`'s timer and `--ember-probe`'s `restore_for_descent()` are not sloppy — they are both reasonable ways to get a measurement started. Each is also the only way that state was ever reached, and so each proved nothing about the state a player arrives in. The question to ask of a probe is not *does it exercise this code* but **could a person get here the way you just did.**
 
 ---
 

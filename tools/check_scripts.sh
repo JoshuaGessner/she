@@ -221,6 +221,50 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Hosting on a port somebody already holds** (`M2-T16`, ADR-108).
+	#
+	# `_start_host` used to `push_error` and return, which skipped the
+	# `spawn_player` on its own last line and left the level standing with no
+	# body and no camera — while the `OfflineMultiplayerPeer` underneath went on
+	# answering `is_server()` true, so nothing downstream suspected anything.
+	# ADR-107's grey screen, from a second direction, with the only trace in a
+	# console the player is not reading. `_start_client` had always handled the
+	# identical failure by giving up with a sentence, on the very next function.
+	#
+	# Every networked check in this project picks a free port on purpose, so
+	# nothing anywhere had ever hosted twice on one. That is the whole reason
+	# this survived: it is invisible unless two processes want the same port.
+	busy_port=47071
+	"$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/lair/threshold.tscn -- --host "--port=$busy_port" \
+		>/dev/null 2>&1 &
+	holder=$!
+	sleep 3
+	taken="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 4000 \
+		levels/lair/threshold.tscn -- --host "--port=$busy_port" 2>&1)"
+	kill "$holder" 2>/dev/null
+	wait "$holder" 2>/dev/null
+	# Godot logs "Couldn't create an ENet host" itself when the bind fails, and
+	# that line is the condition under test rather than a fault — so the error
+	# grep here is for everything *except* it.
+	if ! printf '%s\n' "$taken" | grep -q 'gave up — Could not open the Threshold'; then
+		echo "FAIL hosting on a taken port" >&2
+		echo "      a second host on port $busy_port did not give up with a reason" >&2
+		printf '%s\n' "$taken" | grep -E '\[coop|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+	if printf '%s\n' "$taken" | grep -q 'hosting on'; then
+		echo "FAIL hosting on a taken port" >&2
+		echo "      a second host on port $busy_port claimed to be hosting" >&2
+		exit 1
+	fi
+	if printf '%s\n' "$taken" | grep -qE 'SCRIPT ERROR|Unable to get unique ID|busy adding/removing'; then
+		echo "FAIL hosting on a taken port" >&2
+		echo "      giving up from inside _ready threw on the way to the menu" >&2
+		printf '%s\n' "$taken" | grep -E 'SCRIPT ERROR|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Does the game have a front door and a way back out of every room? Each
 	# scene already has its own probe and all of them pass while the *loop
 	# between them* is broken — a mistyped scene path fails only when somebody
@@ -319,6 +363,22 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And what happens to the player the run is finished with** (`M2-T16`,
+	# ADR-108). `--ember-probe` above proves every link of the down → bleed →
+	# ember → rescue chain, and then stands the player back up itself — so
+	# every assertion this project made about death was made about a body the
+	# measurement revived. Nobody had left one lying there, and lying there was
+	# the bug. Both directions: a teammate standing keeps ADR-102's rule alive,
+	# nobody standing ends the run, and getting up inside the window calls it
+	# off.
+	wipe="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --wipe-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$wipe" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the run has to end" >&2
+		printf '%s\n' "$wipe" | grep -E '\[wipe\]|\[death\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Does the Settle beat settle anything (`M2-T06`)? `DES-003`'s three tiers,
 	# made testable: what you carried is in your hands on arrival, tribute is
 	# one-way and permanent, and **death wipes the stash and never the hoard.**
@@ -374,6 +434,8 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the way out can be seen and the gold is the only warm thing,"
 	echo "the enemies walk around the walls rather than into them,"
 	echo "falling out of the world puts you back and abandoning is survivable,"
+	echo "your own Chamber is somewhere you can stand and walk back out of,"
+	echo "a run that nobody survives actually ends, a taken port says so,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
