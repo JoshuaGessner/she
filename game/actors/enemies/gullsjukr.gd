@@ -59,6 +59,12 @@ extends CharacterBody3D
 ## are what `M2-T04` builds. Sealing an exit that does not exist is not a thing
 ## that can be built or checked.
 
+## What it just tore out of somebody's bag, and where it landed. **Signals up,
+## calls down** (`TEC-002`): the Hunter decides what it takes, and `CoopSession`
+## — which owns every spawn there is — decides what a thing on the floor is.
+## Same shape as `Player.dropped`, which the session already listens to.
+signal took(item: ItemInstance, at: Vector3)
+
 enum State { DISTANT, COURSING, SIGHTED, COLLECTING, LOST }
 
 ## `DES-017` says the silhouette must read at any distance, and `ART-005`
@@ -103,6 +109,9 @@ var _collect_left: float = 0.0
 var _patience_left: float = 0.0
 var _goal: Vector3 = Vector3.ZERO
 var _has_goal: bool = false
+## Seconds spent stooping over the player so far. Cleared whenever it stops
+## being in reach, so backing away really does cancel it.
+var _taking: float = 0.0
 var _material: StandardMaterial3D = null
 var _mesh: MeshInstance3D = null
 
@@ -295,6 +304,19 @@ func _think(delta: float) -> void:
 		_patience_left = Config.tuning.hunter_patience
 		_goal = rich.global_position
 		_has_goal = true
+		# **Arriving has to cost you something** (`M2-T19`, ADR-112). It used to
+		# walk up, stop at 24 cm, and stand inside you for as long as you let
+		# it: measured over fourteen seconds, health 100 → 100 and the bag
+		# untouched. `DES-017` describes five ways to deal with it and never
+		# said what happens if none of them work, so the encounter had no
+		# consequence to avoid.
+		if global_position.distance_to(rich.global_position) \
+				<= Config.tuning.hunter_reach:
+			_take_from(rich, delta)
+			return
+		# Out of reach again — a stoop that was interrupted starts over, so
+		# backing away is a real answer rather than a delay.
+		_taking = 0.0
 		# Wealth-sensing does not need line of sight; sight only changes how it
 		# *reads*, not whether it is coming.
 		state_index = State.SIGHTED if _can_see(rich) else State.COURSING
@@ -346,6 +368,54 @@ func _follow_noise(when_cold: State) -> void:
 	# patience is *searching* (Lost), out of patience is genuinely unaware.
 	_has_goal = false
 	state_index = when_cold
+
+
+## **It takes gold, never health** (`M2-T19`, ADR-112).
+##
+## `DES-017` gives it no attack and this does not give it one. It cannot be
+## killed at this Pact Rank, so a Gullsjúkr that dealt damage would be an
+## unwinnable fight you could only run from — the numbers-treadmill `CLAUDE.md`
+## rules out as an anti-goal — and it would say nothing about greed. What it
+## wants is the hoard. So it reaches in and takes the single richest thing you
+## are carrying, which is `DES-002`'s decision arriving as a consequence rather
+## than as a prompt: *the run's value, not your life.*
+##
+## **Stooping first, and the stoop is a telegraph.** ADR-053 puts a 250 ms floor
+## under every attack in this game because that is human reaction time;
+## `hunter_take_seconds` is well past it, because the answer to this thing is a
+## decision and not a reflex (principle 3). Backing out of reach cancels it, and
+## so does throwing it something cheaper — `_bait_worth_taking` is checked
+## before this every frame, so a purse on the floor still wins its attention.
+##
+## **What it takes lands at its feet rather than vanishing.** An item deleted
+## out of a bag is indistinguishable from a bug, and `DES-018` wants the loss
+## legible. Dropped, it is disturbed gold — so the existing bait machinery picks
+## it straight back up, it stoops over it for the window a thrown purse buys,
+## and in those seconds you can take it back. That is the same beat as baiting,
+## turned around: it made the decision for you, and you can still contest it.
+func _take_from(player: Player, delta: float) -> void:
+	state_index = State.SIGHTED
+	_has_goal = false
+	var prize: ItemInstance = player.inventory.richest()
+	if prize == null:
+		# Nothing worth taking. It has no reason to be interested in you.
+		_taking = 0.0
+		return
+	_taking += delta
+	if _taking < Config.tuning.hunter_take_seconds:
+		return
+	_taking = 0.0
+	# Through the host's own inventory, which is the only copy that decides
+	# anything (`TEC-004`); `Player._on_inventory_changed` pushes it to whoever
+	# is playing the body.
+	var taken: ItemInstance = player.inventory.remove(prize.instance_id)
+	if taken == null:
+		return
+	print("[hunt] the Gullsjúkr took %s from %s" % [
+		taken.definition.display(), player.name])
+	# At its feet, disturbed, so it is bait it will now stoop over — and so it
+	# is a thing on the floor the player can run in and take back.
+	took.emit(taken, global_position + Vector3(0.0, 0.2, 0.0))
 
 
 func _tick_collecting(delta: float) -> void:

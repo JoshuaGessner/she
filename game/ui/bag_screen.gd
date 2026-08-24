@@ -43,6 +43,11 @@ const GAP: float = 3.0
 const PADDING: float = 18.0
 const HEADER: float = 64.0
 const FOOTER: float = 30.0
+## The band between the grid and the prompts, holding whatever the cursor is
+## over (`M2-T19`, ADR-112). Two lines of room: the descriptions are one
+## sentence and one sentence wraps.
+const BLURB: float = 34.0
+const BLURB_TEXT: int = 12
 ## The header line sits to the right of the word BAG; this is that gap.
 const HEADER_INSET: float = 46.0
 const HEADER_TEXT: int = 16
@@ -265,7 +270,7 @@ func _grid_pixels() -> Vector2:
 func _panel_rect() -> Rect2:
 	var inner: Vector2 = _grid_pixels()
 	var size := Vector2(maxf(inner.x, _header_width()) + PADDING * 2.0,
-		inner.y + PADDING * 2.0 + HEADER + FOOTER)
+		inner.y + PADDING * 2.0 + HEADER + BLURB + FOOTER)
 	var screen: Vector2 = get_viewport_rect().size
 	return Rect2(((screen - size) * 0.5).round(), size)
 
@@ -364,7 +369,37 @@ func _draw() -> void:
 			_draw_item(item, _cell_rect(item.cell, item.footprint()), 1.0)
 	if _held != null:
 		_draw_held()
+	_draw_blurb(panel)
 	_draw_footer(panel)
+
+
+## **What the thing under your cursor actually is** (`M2-T19`, ADR-112).
+##
+## Every item in the game carries a `description_key`, every one of them is
+## authored, and `data_probe` has validated all of them since `M2-T08` — and
+## nothing had ever *drawn* one. So the Waystone said `Grey, unremarkable, and
+## the only thing down here that is worth more than what you came for. Spending
+## it ends the run with whatever is in your hands.` to nobody, and a playtester
+## carrying one reported there was no way out of the level except the Shaft.
+##
+## Here rather than on the reticle, because `DES-019` bans text in the middle of
+## the screen and names this one exception: *"the inventory screen, where you
+## are deliberately doing arithmetic."* Wrapped rather than clipped, for the
+## reason the footer already gives about being cut off.
+func _draw_blurb(panel: Rect2) -> void:
+	var item: ItemInstance = hovered()
+	if item == null or item.definition == null:
+		return
+	var font: Font = ThemeDB.fallback_font
+	var width: float = panel.size.x - PADDING * 2.0
+	var top: float = panel.position.y + panel.size.y - FOOTER - BLURB + 11.0
+	draw_string(font, Vector2(panel.position.x + PADDING, top),
+		item.definition.display(), HORIZONTAL_ALIGNMENT_LEFT, width,
+		BLURB_TEXT, TEXT_COLOUR)
+	draw_multiline_string(font,
+		Vector2(panel.position.x + PADDING, top + 13.0),
+		item.definition.describe(), HORIZONTAL_ALIGNMENT_LEFT, width,
+		BLURB_TEXT, 2, DIM_TEXT)
 
 
 ## The three numbers the decision is actually made on.

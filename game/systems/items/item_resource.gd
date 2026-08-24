@@ -90,6 +90,15 @@ const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_"]
 ## The item's name in the player's language. `tr()` falls through to the key
 ## itself if no translation is loaded, so a missing row is visible rather than
 ## blank.
+## The one-line description, translated. **Nothing displayed this until
+## `M2-T19`** — `description_key` was authored on every item, validated by
+## `data_probe`, and read by nothing else in the project, so the sentence that
+## explains what a Waystone *does* was invisible to every player who ever
+## picked one up (ADR-112).
+func describe() -> String:
+	return tr(description_key)
+
+
 func display() -> String:
 	return tr(name_key)
 

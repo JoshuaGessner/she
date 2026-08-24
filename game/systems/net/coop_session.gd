@@ -460,6 +460,10 @@ func _build_hunter(payload: Dictionary) -> Node:
 	# Authority stays with the host: every decision it makes is a consequence,
 	# and the default authority of a spawned node is already peer 1.
 	hunter.configure_replication()
+	# What it tears out of a bag becomes a thing on the floor, and spawning is
+	# this node's job alone (`M2-T19`, ADR-112). Same wiring as `Player.dropped`
+	# two functions up — the actor decides, the session spawns.
+	hunter.took.connect(_on_hunter_took)
 	return hunter
 
 
@@ -572,6 +576,19 @@ func _on_player_dropped(item: ItemInstance, at: Vector3, yaw: float,
 	# A put-down ember is still somebody's. Losing the binding here would turn
 	# a friend into scenery the moment their rescuer set them down for a fight.
 	spawn_world_item(item.definition.id, at, yaw, launch, true, item.bound_to)
+
+
+## The Gullsjúkr took something (`M2-T19`, ADR-112). It lands at its feet as
+## **disturbed** gold, which is what makes the next few seconds work: the
+## Hunter's own bait logic finds it and stoops, and that stoop is the window in
+## which you can take it back. Deleting it into the creature's hoard instead
+## would be a loss with no evidence, and a loss with no evidence reads as a bug.
+##
+## The binding travels, for the same reason a put-down ember keeps it: if this
+## was somebody's ember, it is still somebody's.
+func _on_hunter_took(item: ItemInstance, at: Vector3) -> void:
+	spawn_world_item(item.definition.id, at, 0.0, Vector3.ZERO, true,
+		item.bound_to)
 
 
 ## Levels ask for the Hunter. Returns the host's copy so a level can hand it

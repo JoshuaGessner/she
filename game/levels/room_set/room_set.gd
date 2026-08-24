@@ -412,6 +412,8 @@ func _ready() -> void:
 			_wipe_probe()
 		elif arg == "--bagui-probe":
 			_bagui_probe()
+		elif arg == "--toll-probe":
+			_toll_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
 		elif arg == "--scaling-probe":
@@ -3379,3 +3381,76 @@ func _bagui_probe() -> void:
 		problems.append("the bag draws text outside its own panel — " + line)
 
 	_report(problems, "bagui")
+
+
+## **What it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
+##
+## It used to cost nothing. Measured over fourteen seconds of standing at 24 cm:
+## health 100 → 100, bag untouched. `DES-017` lists five ways to deal with it —
+## bait, delay, confuse, satisfy, eventually kill — and never said what happens
+## if none of them work, so the encounter had no consequence to avoid and read,
+## correctly, as a thing wandering past.
+##
+## Four assertions, and the second is the one that keeps this from being a
+## damage source in a game that has ruled damage sources out:
+##
+## 1. **Reaching you takes the richest thing you carry**, not health.
+## 2. **Health is untouched.** It cannot be killed at this Pact Rank, so a
+##    Gullsjúkr that dealt damage would be an unwinnable fight you could only
+##    run from — `CLAUDE.md`'s anti-goal — and it would say nothing about greed.
+## 3. **The stoop is a telegraph and backing away cancels it** (ADR-053 puts a
+##    250 ms floor under every attack; this is far longer, because the answer to
+##    this thing is a decision rather than a reflex).
+## 4. **What it takes lands on the floor**, so the loss is visible and can be
+##    contested. An item deleted out of a bag is indistinguishable from a bug.
+func _toll_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var tuning: TuningProfile = Config.tuning
+	player.inventory.clear()
+	player.inventory.add(ItemCatalogue.by_id(&"glt_altar_plate"))
+	player.inventory.add(ItemCatalogue.by_id(&"mat_bog_iron"))
+	# On real floor: the Guardian's room, which is where it starts.
+	player.teleport(PRIZE_AT + Vector3(0.0, 0.1, 2.0), 0.0)
+	await _hold(0.4)
+
+	# ─ 3. out of reach, it takes nothing however long you wait ─
+	_hunter.global_position = player.global_position + Vector3(
+		tuning.hunter_reach + 3.0, 0.0, 0.0)
+	var carried: int = player.inventory.count()
+	await _hold(tuning.hunter_take_seconds * 3.0)
+	print("[toll] out of reach  %d item(s) still carried after %.1f s" % [
+		player.inventory.count(), tuning.hunter_take_seconds * 3.0])
+	if player.inventory.count() != carried:
+		problems.append("it took something from beyond its own reach — the "
+			+ "stoop has to be a thing you can back out of")
+
+	# ─ 1, 2 and 4. in reach, it takes the richest thing ─
+	var before_health: float = player.health.current
+	var richest: ItemInstance = player.inventory.richest()
+	var floor_items: int = get_tree().get_nodes_in_group(WorldItem.GROUP).size()
+	_hunter.global_position = player.global_position + Vector3(0.5, 0.0, 0.0)
+	await _hold(tuning.hunter_take_seconds + 1.2)
+	var kept: Array[StringName] = []
+	for item: ItemInstance in player.inventory.items():
+		kept.append(item.definition.id)
+	print("[toll] in reach     took %s, bag now %s, health %.0f → %.0f" % [
+		richest.definition.id, str(kept), before_health, player.health.current])
+	if kept.has(richest.definition.id):
+		problems.append(("standing inside you it never took %s — reaching you "
+			+ "has to cost the run's value, or the Hunt is a thing that "
+			+ "wanders past") % richest.definition.id)
+	if player.health.current != before_health:
+		problems.append(("it dealt %.0f damage — `DES-017` gives it no attack "
+			+ "and it cannot be killed at this rank, so damage would be an "
+			+ "unwinnable fight rather than a decision about greed")
+			% (before_health - player.health.current))
+
+	var after_items: int = get_tree().get_nodes_in_group(WorldItem.GROUP).size()
+	print("[toll] on the floor %d item(s) → %d" % [floor_items, after_items])
+	if after_items <= floor_items:
+		problems.append("what it took did not land on the floor — a loss with "
+			+ "no evidence is indistinguishable from a bug, and there is "
+			+ "nothing to run back in and take")
+
+	_report(problems, "toll")

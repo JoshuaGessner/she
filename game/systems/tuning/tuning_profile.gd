@@ -143,6 +143,12 @@ extends Resource
 ## would be ruinous on floor one and pocket change by the time it matters.
 @export var hunter_bait_fraction: float = 0.34
 @export var hunter_reach: float = 2.0
+## Seconds it stands over you, stooping, before it takes something ⟨tune⟩
+## (`M2-T19`, ADR-112). **This is a telegraph and it obeys the 250 ms floor**
+## ADR-053 puts under every attack: it is the window in which backing away, or
+## throwing it something cheaper, still works. Long, because the answer to a
+## Gullsjúkr is a decision rather than a reflex (principle 3).
+@export var hunter_take_seconds: float = 0.9
 
 @export_group("The party")
 ## Extra enemies per additional player, as a fraction of the base count ⟨tune⟩.

@@ -2114,4 +2114,51 @@ One place builds the header string now, so the width it is measured at and the w
 
 ---
 
+## ADR-112 — The Hunt had no consequence, and every item description was invisible
+**Date:** 2026-08-24 · **Status:** accepted · **Adds `M2-T19`** · **Amends `DES-017`, `DES-019`** · **Extends ADR-053**
+
+**Context:** Two of the three things a second play returned. *"The hunter comes at the player but then disappears and it's not obvious what they're doing or supposed to do to the player on contact"*, and *"I still could not find out how to extract from the level besides the shaft"* — the second raised **after** ADR-110 put a Waystone on every solo floor.
+
+### It walked up, stopped at 24 cm, and did nothing
+
+Measured, standing still, carrying 180 tribute:
+
+```
+[hunter] + 1.2s state SIGHTED  0.29 m   hp 100   bag 180 tribute
+[hunter] + 6.0s state SIGHTED  0.24 m   hp 100   bag 180 tribute
+[hunter] after 14 s   health 100 → 100, bag 180 tribute
+```
+
+Fourteen seconds inside the player, nothing taken, nothing lost. The report was exactly right, and the "disappears" half is the *designed* behaviour showing through: it courses by the **clamor gradient** rather than by a player transform, so it arrives where the noise was and then wanders off after the next loud thing. That is `DES-017` working. It only reads as aimless because arriving was worth nothing.
+
+**And the design does not say what arriving should be worth.** `DES-017`'s verb list is five ways to *avoid* it — bait it, delay it, confuse it, satisfy it, eventually kill it — and its state table ends at *"Sighted: it has you. Full mix. It does not lose interest quickly."* Nothing anywhere says what "has you" costs. This is a hole in an accepted document rather than an unimplemented paragraph, which is why it is decided here rather than fixed quietly.
+
+### The decision — it takes gold, never health
+
+**Reaching you costs the single richest thing you are carrying.** Not hit points. It cannot be killed at this Pact Rank (`M3-T04`), so a Gullsjúkr that dealt damage would be an unwinnable fight you could only run from — the numbers-treadmill `CLAUDE.md` lists as an anti-goal — and it would say nothing about the subject. What it wants is the hoard. `DES-002`'s decision therefore arrives as a consequence instead of a prompt: **the run's value, not your life.**
+
+**The stoop is a telegraph and it obeys ADR-053's floor.** `hunter_take_seconds` is 0.9 s ⟨tune⟩ against a 250 ms human-reaction minimum, deliberately long because principle 3 makes this a decision rather than a reflex. Backing out of reach resets it. So does throwing it something cheaper: `_bait_worth_taking` is evaluated before this every frame, so a purse on the floor still wins its attention, and the counter-play the design already had now has something to counter.
+
+**What it takes lands at its feet.** An item deleted out of a bag is indistinguishable from a bug, and `DES-018` wants the loss legible. Dropped, it is *disturbed* gold — so the Hunter's own bait logic picks it straight back up and stoops over it for the window a thrown purse buys, and in those seconds you can run in and take it back. That is the bait beat turned around: it made the decision for you, and you can still contest it. It costs nothing to build because both halves already existed.
+
+Wired as a **signal**, not a call: `Gullsjukr.took` is emitted and `CoopSession` — which owns every spawn there is — decides what a thing on the floor is. Same shape as `Player.dropped`, two functions above it in the same file.
+
+### Every item description in the game was invisible
+
+The Waystone's authored text reads: *"Grey, unremarkable, and the only thing down here that is worth more than what you came for. **Spending it ends the run with whatever is in your hands.**"* That sentence answers the exact question the playtest asked. It has been in `en.csv` since `M2-T08`, it is validated on every sweep by `data_probe`, and `description_key` had **two references in the entire codebase — both inside the validator.** Nothing ever drew one.
+
+So: authored, checked, shipped, and never rendered. `check_dead.py` cannot see this class, because the name is referenced by the thing that validates it; it is ADR-110's variant one step further along — content that exists, is correct, and reaches nobody.
+
+**The bag draws it now**, under the grid, for whatever the cursor is over. On the inventory screen rather than the reticle because `DES-019` rule 2 bans text in the middle of the screen during a run and names exactly one exception: *"the inventory screen, where you are deliberately doing arithmetic."* Wrapped rather than clipped, for the reason the footer has carried a note about since ADR-111.
+
+### The checks
+
+`--toll-probe` asserts the four things that make this a decision rather than a damage source: reaching you takes the richest item, health is untouched, out of reach takes nothing however long you wait, and what it takes is on the floor afterwards. All four fail by name when planted — never taking, taking from any distance, and deleting what it takes each produce their own message.
+
+`--bagui-probe` already asserts that no line the bag draws falls outside its panel, so the new band is covered by the check ADR-111 added rather than needing one of its own.
+
+**The pattern this makes explicit.** `--hunt-probe` asserts everything about how the Gullsjúkr *finds* you — wealth through walls, the clamor gradient, bait proportionality — and nothing about what happens next, because there was nothing. A check cannot notice a missing consequence; it can only fail an existing one. **The absent behaviour is invisible to every tool in this project and visible in ten seconds to a person holding the controller** — which is the argument for the `GATE M2 EXIT` playtest that ADR-109 made answerable, and the reason it is worth running before `M3` rather than after.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

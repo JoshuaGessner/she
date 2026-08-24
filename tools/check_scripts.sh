@@ -187,6 +187,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
+	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
+	# inside the player indefinitely with health and bag untouched. `DES-017`
+	# lists five ways to deal with it and never said what happens if none of
+	# them work, so nothing had anything to assert about arriving. It takes the
+	# richest thing you carry now, never health, after a stoop you can back out
+	# of, and what it takes lands on the floor where you can contest it.
+	toll="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
+		levels/room_set/room_set.tscn -- --toll-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$toll" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the Hunt has to cost something" >&2
+		printf '%s\n' "$toll" | grep -E '\[toll\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **What the heaviest thing on the floor costs to carry** (`M2-T17`,
 	# ADR-110). This probe existed and nothing ran it — the only one in
 	# `room_set.gd` that was never wired in here — so it had been **exiting 1**
@@ -484,6 +499,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a run that nobody survives actually ends, a taken port says so,"
 	echo "the Prize and the Waystone are on the floor at every party size,"
 	echo "the bag takes a click and keeps its text inside its own box,"
+	echo "the Gullsjukr takes your gold rather than your life,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
