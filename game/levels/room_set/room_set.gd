@@ -410,6 +410,8 @@ func _ready() -> void:
 			_exit_probe()
 		elif arg == "--wipe-probe":
 			_wipe_probe()
+		elif arg == "--bagui-probe":
+			_bagui_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
 		elif arg == "--scaling-probe":
@@ -3284,3 +3286,96 @@ func _capture_top(path: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(path)
 	get_tree().quit()
+
+
+## **Can a player's hands reach the bag, and does its text fit the box?**
+## (`M2-T18`, ADR-111)
+##
+## `--bag-probe` proves the bag's *rules* — what fits, what refuses, what
+## dropping something buys back — by calling `Inventory` and `Player` directly.
+## Every one of those assertions passed while the screen drawing them was a
+## `Control` of size **0 x 0**: `set_anchors_preset` sets anchors and leaves
+## offsets, nothing lays out a `Control` under a `CanvasLayer`, and Godot routes
+## a mouse event to a control only if the point falls inside its rect. So
+## `_gui_input` never fired, no item could be clicked or dragged, and the one
+## gesture `DES-005` calls the primal counter-play — drag it out and go quiet —
+## did not exist for anybody using a mouse.
+##
+## Two assertions, and both are about the screen rather than the inventory:
+##
+## 1. **The control covers the viewport**, so a click anywhere the panel is
+##    drawn can reach it at any resolution.
+## 2. **A click inside it arrives**, which is the thing a zero-sized rect makes
+##    impossible and which no amount of correct inventory logic can supply.
+##
+## Plus the layout: every line the screen draws has to fit the box it is drawn
+## in. The header ran 334 px of text through 233 px of panel at `-1` width,
+## which means *do not clip*, so it spilled out over the world behind it.
+##
+## Headless pins the viewport to 64 x 64 whatever `--resolution` says, so the
+## panel centres off-screen here and no click could land on a specific item
+## wherever the code stood. The two assertions above are the ones that stay true
+## at any size, which is why they are the ones asserted.
+func _bagui_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	player.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+	await _hold(0.3)
+
+	var bag: BagScreen = null
+	for node: Node in player.find_children("*", "BagScreen", true, false):
+		bag = node as BagScreen
+	if bag == null:
+		_report(PackedStringArray(["the local body has no BagScreen at all"]),
+			"bagui")
+		return
+
+	# Opened with the key a player presses, through `_unhandled_input`.
+	var tap := InputEventAction.new()
+	tap.action = &"bag"
+	tap.pressed = true
+	Input.parse_input_event(tap)
+	await _hold(0.1)
+	var lift := InputEventAction.new()
+	lift.action = &"bag"
+	lift.pressed = false
+	Input.parse_input_event(lift)
+	await _hold(0.8)
+
+	var view: Rect2 = Rect2(Vector2.ZERO, get_viewport().get_visible_rect().size)
+	print("[bagui] open=%s  control %.0f x %.0f  viewport %.0f x %.0f" % [
+		bag.visible, bag.size.x, bag.size.y, view.size.x, view.size.y])
+	if not bag.visible:
+		problems.append("pressing the bag key did not open the bag")
+	if not bag.get_global_rect().encloses(view):
+		problems.append(("the bag's control is %.0f x %.0f inside a %.0f x %.0f "
+			+ "viewport — it draws a panel it does not cover, and Godot only "
+			+ "delivers a click to a control the point lands inside") % [
+			bag.size.x, bag.size.y, view.size.x, view.size.y])
+
+	var before: Vector2 = bag.cursor()
+	var inside: Vector2 = bag.get_global_rect().get_center()
+	var press := InputEventMouseButton.new()
+	press.button_index = MOUSE_BUTTON_LEFT
+	press.pressed = true
+	press.position = inside
+	press.global_position = inside
+	Input.parse_input_event(press)
+	await _hold(0.2)
+	var arrived: bool = bag.cursor() != before
+	print("[bagui] click at %.0f,%.0f reached the bag: %s" % [
+		inside.x, inside.y, arrived])
+	if not arrived:
+		problems.append("a click inside the bag never reached `_gui_input` — "
+			+ "no item can be picked up, moved or dragged out with a mouse, "
+			+ "which is `DES-005`'s counter-play and one of the M2 gate's four "
+			+ "preconditions")
+
+	var spilled: PackedStringArray = bag.overflowing()
+	print("[bagui] text fits    %s" % [
+		"yes" if spilled.is_empty() else "NO, %d line(s)" % spilled.size()])
+	for line: String in spilled:
+		print("[bagui]   %s" % line)
+		problems.append("the bag draws text outside its own panel — " + line)
+
+	_report(problems, "bagui")

@@ -2079,4 +2079,39 @@ The gym's `--clamor-probe` and `--combat-probe` were orphaned the same way. Both
 
 ---
 
+## ADR-111 — The bag had no rect, so nothing in it could be touched
+**Date:** 2026-08-24 · **Status:** accepted · **Adds `M2-T18`** · **Extends ADR-106**
+
+**Context:** A second play of the build returned three things: *"some text runs out of the UI box"*, *"I was unable to click or drag any of the items out"*, and *"the hunter comes at the player but then disappears and it's not obvious what they're doing or supposed to do to the player on contact."* Plus, still, no way out of the level except the Shaft. This ADR is the first two; the others are recorded below it because they are decisions rather than defects.
+
+### The screen was 0 x 0 and drawing a 315 x 362 panel
+
+`BagScreen._ready` called `set_anchors_preset(PRESET_FULL_RECT)`. That sets the anchors and leaves the offsets, and **nothing lays out a `Control` parented to a `CanvasLayer`** — so the control's rect stayed at zero while `_draw` went on painting a panel in the middle of the screen from `get_viewport_rect()`, which asks the viewport and not the control.
+
+Godot delivers a mouse event to a control only when the point falls inside its rect. At zero size that is never, so **`_gui_input` had never once fired**: no picking an item up, no moving it, no turning it, and no dragging it out of the bag. That last one is `DES-005`'s primal counter-play — *drop it and go quiet* — and one of the four preconditions `ADR-109` just made `GATE M2 EXIT` out of: *they discover they can drop loot without being told.* On a mouse, they could not do it having been told.
+
+Measured, and the plant is the proof: with `set_anchors_preset` the control is `0 x 0`, `covers view false`, `click reached _gui_input: false`. With `set_anchors_and_offsets_preset` it is the viewport, and the click arrives.
+
+`Reticle` carries a comment about this exact trap — *"a `Control` under a `CanvasLayer` gets no laid-out size from anchors… the exact bug `Ear` was shipped with and photographed to find"* — and uses the right call. So does `SettingsScreen`, and so does `PauseMenu`. The bag was the one screen that did not, and it is the one screen whose entire purpose is being clicked on.
+
+**The gamepad path worked the whole time**, which is why this survived a build being played: `_unhandled_input` needs no rect, so `interact` and `rotate_item` reached the bag normally. A screen that works on one device and is inert on the other is worse than one that is broken on both, because it reads as *the player doing it wrong*.
+
+### The header was drawn at "do not clip"
+
+`draw_string` takes a width; `-1` means unbounded. The header line — kilograms, cells, and the noise radius, which `DES-019` names as the three numbers the bag exists to let you do arithmetic on — was drawn at `-1` into a panel sized to the item grid and nothing else. Measured: **334 px of text in 233 px of box**, spilling out past the panel and over the world.
+
+**The panel grows now, and the grid centres in it.** Clipping was the smaller change and the wrong one: the footer two lines below carries a note about exactly that mistake — *"a prompt that names both devices and then gets cut off names neither"* — and it was written after the same fault was found there. Sized against the **widest** numbers the header can ever hold rather than the ones on screen, so the panel does not breathe by a few pixels every time a coin goes in.
+
+One place builds the header string now, so the width it is measured at and the width it is drawn at cannot drift, and `FOOTER_LINES` does the same for the prompts. `BagScreen.overflowing()` returns every line that does not fit its box, which is the layout stated as a property the screen can be asked about rather than as a number in a draw call.
+
+### The check that should have existed
+
+`--bag-probe` is thorough and it asks entirely about the **inventory**: what fits, what refuses, what dropping something buys back in speed and quiet. Every assertion passed throughout, because every one of them calls `Inventory` and `Player` directly and none of them goes near the screen. **Rules and reach are different questions**, and only the first had a check — which is ADR-106's sentence again, one layer further out: *every system had a probe proving it worked and nothing proved a person could operate it.*
+
+`--bagui-probe` asks the second question, and deliberately only in the form that survives a headless run: the control covers the viewport, and a click inside it arrives. Headless pins the viewport to 64 x 64 whatever `--resolution` says, so the panel centres off-screen and no click could land on a *specific item* wherever the code stood — asserting that would have been asserting the harness. Both assertions fail by name when the old call is planted back, and the overflow assertion fails when the panel is sized to the grid again.
+
+**A UI fault is not a lesser fault.** Nine ADRs in this project are about correct code nothing reaches; this one is about correct code the player cannot touch, and it had the same cause — a check that measured the system rather than the person.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

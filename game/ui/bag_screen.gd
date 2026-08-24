@@ -43,6 +43,19 @@ const GAP: float = 3.0
 const PADDING: float = 18.0
 const HEADER: float = 64.0
 const FOOTER: float = 30.0
+## The header line sits to the right of the word BAG; this is that gap.
+const HEADER_INSET: float = 46.0
+const HEADER_TEXT: int = 16
+const FOOTER_TEXT: int = 12
+## A radius wide enough that no real bag exceeds it, used to size the panel to
+## its worst case rather than to whatever it holds right now.
+const WIDEST_RADIUS: float = 99.9
+## Both prompt lines, in one place so the layout check and the drawing agree.
+const FOOTER_LINES: Array[String] = [
+	"lmb/X take & place    rmb/RB turn",
+	"drag out or g/dpad-down drop    tab/LB close",
+]
+
 ## Screen pixels per second the gamepad cursor travels at full deflection.
 const CURSOR_RATE: float = 620.0
 
@@ -89,7 +102,16 @@ static func attach(to: Player) -> BagScreen:
 
 
 func _ready() -> void:
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# **`_and_offsets_`, or this control has no rect and takes no clicks**
+	# (`M2-T18`, ADR-111). `set_anchors_preset` sets the anchors and leaves the
+	# offsets, and a `Control` parented to a `CanvasLayer` is not laid out by
+	# anything — so this sat at **0 x 0** while drawing a 315 x 362 panel in the
+	# middle of the screen. Godot routes a mouse event to a control only if the
+	# point is inside its rect, so `_gui_input` never fired once: no clicking an
+	# item, no dragging one out, and therefore no way to abandon loot with the
+	# mouse at all. `Reticle` carries a note about this exact trap and uses the
+	# right call; this was the one screen that did not.
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# STOP so a click meant for an item never also swings the weapon. Invisible
 	# controls receive nothing, so a shut bag costs no input at all.
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -115,6 +137,12 @@ func set_openness(openness: float) -> void:
 		# letting go.
 		_held = null
 	queue_redraw()
+
+
+## Where the hands are, in screen pixels. Public because the layout check needs
+## to know whether a click reached `_gui_input` at all.
+func cursor() -> Vector2:
+	return _cursor
 
 
 ## What `drop` should act on: the item in hand, or the one under the cursor.
@@ -223,17 +251,73 @@ func _grid_pixels() -> Vector2:
 		grid.y * CELL + (grid.y - 1) * GAP)
 
 
+## **The box is as wide as the widest thing in it** (`M2-T18`, ADR-111).
+##
+## It used to be exactly the grid, and the header line — weight, cells and the
+## noise radius, which are `DES-019`'s three decision numbers — was drawn at
+## `-1` width, meaning *do not clip*. Measured: **334 px of text in 233 px of
+## box**, running out past the panel edge and over the world behind it.
+##
+## Clipping it would have been the smaller change and the wrong one: the footer
+## two lines below carries a note about exactly that mistake — *"a prompt that
+## names both devices and then gets cut off names neither"*. So the panel grows
+## instead, and the grid centres inside it.
 func _panel_rect() -> Rect2:
 	var inner: Vector2 = _grid_pixels()
-	var size := Vector2(inner.x + PADDING * 2.0,
+	var size := Vector2(maxf(inner.x, _header_width()) + PADDING * 2.0,
 		inner.y + PADDING * 2.0 + HEADER + FOOTER)
 	var screen: Vector2 = get_viewport_rect().size
 	return Rect2(((screen - size) * 0.5).round(), size)
 
 
+## How wide the header needs, measured against the **widest** numbers it can
+## ever hold rather than the ones on screen now. Sizing to the live string would
+## make the whole panel breathe by a few pixels every time a coin went in.
+func _header_width() -> float:
+	var grid: Vector2i = _inventory.grid()
+	var cells: int = grid.x * grid.y
+	var widest: String = _header_summary(
+		Config.tuning.carry_capacity, cells, WIDEST_RADIUS)
+	return HEADER_INSET + ThemeDB.fallback_font.get_string_size(
+		widest, HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT).x
+
+
+## One place the header line is built, so the width it is measured at and the
+## width it is drawn at cannot drift apart.
+func _header_summary(kilograms: float, used: int, radius: float) -> String:
+	var grid: Vector2i = _inventory.grid()
+	return "%.1f / %.0f kg     %d / %d cells     heard from %.1f m" % [
+		kilograms, Config.tuning.carry_capacity, used, grid.x * grid.y, radius]
+
+
+## Every line this screen draws that does not fit the box it is drawn in.
+## Empty when the layout is honest; read by `--bagui-probe`.
+func overflowing() -> PackedStringArray:
+	var font: Font = ThemeDB.fallback_font
+	var panel: Rect2 = _panel_rect()
+	var spilled := PackedStringArray()
+	var header: String = _header_summary(_inventory.total_weight(),
+		_inventory.cells_used(), _carried_radius())
+	var room: float = panel.size.x - PADDING * 2.0 - HEADER_INSET
+	var drawn: float = font.get_string_size(header,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT).x
+	if drawn > room:
+		spilled.append("header is %.0f px in %.0f px: %s" % [drawn, room, header])
+	for line: String in FOOTER_LINES:
+		var wide: float = font.get_string_size(line,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, FOOTER_TEXT).x
+		if wide > panel.size.x - PADDING * 2.0:
+			spilled.append("footer is %.0f px in %.0f px: %s" % [
+				wide, panel.size.x - PADDING * 2.0, line])
+	return spilled
+
+
 func _grid_origin() -> Vector2:
 	var panel: Rect2 = _panel_rect()
-	return panel.position + Vector2(PADDING, PADDING + HEADER)
+	var inner: Vector2 = _grid_pixels()
+	# Centred, because the panel is now allowed to be wider than the grid.
+	return panel.position + Vector2((panel.size.x - inner.x) * 0.5,
+		PADDING + HEADER)
 
 
 func _cell_rect(at: Vector2i, size: Vector2i) -> Rect2:
@@ -292,12 +376,17 @@ func _draw_header(panel: Rect2) -> void:
 	var grid: Vector2i = _inventory.grid()
 	var at: Vector2 = panel.position + Vector2(PADDING, PADDING + 14.0)
 
-	draw_string(font, at, "BAG", HORIZONTAL_ALIGNMENT_LEFT, -1, 16, DIM_TEXT)
-	var summary: String = "%.1f / %.0f kg     %d / %d cells     heard from %.1f m" % [
-		kilograms, capacity, _inventory.cells_used(), grid.x * grid.y,
-		_carried_radius()]
-	draw_string(font, at + Vector2(46.0, 0.0), summary,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 16, TEXT_COLOUR)
+	draw_string(font, at, "BAG", HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT,
+		DIM_TEXT)
+	# Through `_header_summary` so the string the panel was *sized* against and
+	# the string actually drawn cannot drift apart, and clipped to the room it
+	# was sized for — belt and braces, because the panel now guarantees the fit
+	# and a silent clip would hide it if that ever stopped being true.
+	var summary: String = _header_summary(kilograms, _inventory.cells_used(),
+		_carried_radius())
+	draw_string(font, at + Vector2(HEADER_INSET, 0.0), summary,
+		HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - PADDING * 2.0 - HEADER_INSET,
+		HEADER_TEXT, TEXT_COLOUR)
 
 	# The load bar. Encumbrance is what the legs feel, so it is drawn as a
 	# proportion rather than left as a figure to be read — `DES-019` wants
@@ -373,11 +462,10 @@ func _draw_footer(panel: Rect2) -> void:
 	var width: float = panel.size.x - PADDING * 2.0
 	var left: float = panel.position.x + PADDING
 	var base: float = panel.position.y + panel.size.y - FOOTER + 12.0
-	draw_string(font, Vector2(left, base), "lmb/X take & place    rmb/RB turn",
-		HORIZONTAL_ALIGNMENT_LEFT, width, 12, DIM_TEXT)
-	draw_string(font, Vector2(left, base + 13.0),
-		"drag out or g/dpad-down drop    tab/LB close",
-		HORIZONTAL_ALIGNMENT_LEFT, width, 12, DIM_TEXT)
+	draw_string(font, Vector2(left, base), FOOTER_LINES[0],
+		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, DIM_TEXT)
+	draw_string(font, Vector2(left, base + 13.0), FOOTER_LINES[1],
+		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, DIM_TEXT)
 
 
 ## An item light enough to read as *free* has to say so without looking like a

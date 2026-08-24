@@ -172,6 +172,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And can a player's hands reach it** (`M2-T18`, ADR-111)? The probe above
+	# proves the bag's *rules* by calling `Inventory` and `Player` directly, and
+	# every one of those assertions passed while the screen drawing them was a
+	# `Control` of size 0 x 0 — so no click ever reached it, no item could be
+	# picked up or dragged out, and the gesture `DES-005` calls the primal
+	# counter-play did not exist for anybody using a mouse. Rules and reach are
+	# different questions and only the first one had a check.
+	bagui="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --bagui-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$bagui" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the bag has to be reachable" >&2
+		printf '%s\n' "$bagui" | grep -E '\[bagui\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **What the heaviest thing on the floor costs to carry** (`M2-T17`,
 	# ADR-110). This probe existed and nothing ran it — the only one in
 	# `room_set.gd` that was never wired in here — so it had been **exiting 1**
@@ -468,6 +483,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "your own Chamber is somewhere you can stand and walk back out of,"
 	echo "a run that nobody survives actually ends, a taken port says so,"
 	echo "the Prize and the Waystone are on the floor at every party size,"
+	echo "the bag takes a click and keeps its text inside its own box,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
