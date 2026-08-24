@@ -242,7 +242,37 @@ const PRIZE_AT: Vector3 = Vector3(20.3, 0.1, -21.0)
 ## rather than 3.40 m/s and audible from 27.7 m. Nothing stopped the player
 ## reaching that state; that is `DES-008`'s tug-of-war arriving as a fact about
 ## a floor rather than a paragraph about an economy.
-const LOOT: Array = [
+## **The two things that are not loot** (`M2-T17`, ADR-110).
+##
+## Both of the floor's decisions live in the guarded half, and both used to sit
+## at the end of `LOOT`, which is scaled by party size by taking a **prefix**.
+## Solo takes four of nine, so neither of these has ever existed in a solo run —
+## the only way anybody currently plays. Measured: `a way out other than the
+## Shaft: NO`, `anything in the Guardian's room: NO`.
+##
+## They are not quantity. The Prize is ADR-032's greed decision — one entrance,
+## no way out but back past the Guardian — and without it that room is a dead
+## end with a monster in it, and the Gullsjúkr starts the run guarding nothing.
+## The Waystone is half of `DES-005`'s way out, and `DES-005` calls its rarity
+## *"the strongest single lever in the game"*: a lever that is deterministically
+## off at party size 1 is not a lever. The HUD advertises `v waystone` and
+## prints `waystone none`, which is a verb offered and never grantable.
+##
+## So they are **fixtures**: always present, at every party size, like the Shaft.
+## Only `FILLER` below is divided among the party, which is what keeps
+## `DES-012`'s per-capita curve — the thing `M2-T07` is about — untouched.
+const FIXTURES: Array = [
+	# the Guardian's room — one entrance, no way out but back past it
+	["glt_altar_plate", PRIZE_AT],
+	# One Waystone, in the guarded half. **Hand-placed, and its rarity is not
+	# tuned here** — a drop *rate* needs the loot tables `M4-T01` builds. What
+	# this floor can answer is the question underneath it: is a way out worth
+	# two squares and a walk past the Guardian?
+	["con_waystone", Vector3(17.6, 0.1, -21.0)],
+]
+
+## Everything that is quantity rather than a decision, divided by party size.
+const FILLER: Array = [
 	# west — the bypass route (ADR-032), and it pays for the walk in materials
 	["mat_bog_iron", Vector3(-9.4, 0.1, -6.0)],
 	["wpn_seax", Vector3(-10.2, 0.1, -14.5)],
@@ -251,17 +281,13 @@ const LOOT: Array = [
 	# east — the held corridor. Short, guarded, and where the glitter is
 	["glt_hoard_coin", Vector3(9.4, 0.1, -8.0)],
 	["glt_gilded_torc", Vector3(10.8, 0.1, -13.5)],
-	# the Guardian's room — one entrance, no way out but back past it
-	["glt_altar_plate", PRIZE_AT],
 	["rlc_regin_blade", Vector3(19.2, 0.1, -23.4)],
 	["arm_mail_byrnie", Vector3(19.4, 0.1, -18.8)],
-	# One Waystone, in the guarded half. **Hand-placed, and its rarity is not
-	# tuned here** — `DES-005` calls the drop rate *"the strongest single lever
-	# in the game"*, and a drop *rate* needs the loot tables `M4-T01` builds.
-	# What this floor can answer is the question underneath it: is a way out
-	# worth two squares and a walk past the Guardian?
-	["con_waystone", Vector3(17.6, 0.1, -21.0)],
 ]
+
+## Everything authored on this floor, fixtures first so anything that still
+## reads the whole table sees them.
+const LOOT: Array = FIXTURES + FILLER
 
 ## Godot's host is always peer 1, offline peer included.
 const HOST_PEER: int = 1
@@ -1262,7 +1288,9 @@ func _scaling_probe() -> void:
 	var per_head_loot: Array[float] = []
 	var per_head_clamor: Array[float] = []
 	var counts: Array[int] = []
-	var pool: int = LOOT.size()
+	# The divided pool, not the whole table: the fixtures are handed to every
+	# party size regardless and are asserted separately below (`M2-T17`).
+	var pool: int = FILLER.size()
 
 	print("[party] pool %d authored item(s), %d authored post(s)" % [
 		pool, ENEMY_POSTS.size()])
@@ -1308,6 +1336,32 @@ func _scaling_probe() -> void:
 		problems.append(("the loot pool runs out at %d players, below the top of "
 			+ "the range — the curve reads as flat when it is only clipped, and "
 			+ "the per-capita metric stops meaning what it says") % clipped_at)
+
+	# ─ the floor's two decisions are on it, at every size ─
+	#
+	# **Asserted against the built world, not against the table.** The arithmetic
+	# above was right the whole time this was broken: scaling took a *prefix* of
+	# one list that held the filler and the fixtures together, so at party size 1
+	# it laid four of nine and neither of the two things worth deciding about was
+	# among them. A probe that counted rows would have passed, which is why this
+	# reads the group the spawner actually filled (`M2-T17`, ADR-110).
+	var on_the_floor: Array[StringName] = []
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var item := node as WorldItem
+		if item != null and item.definition() != null:
+			on_the_floor.append(item.definition().id)
+	for row: Array in FIXTURES:
+		var id := StringName(row[0])
+		print("[party] fixture %-16s %s at party size %d" % [
+			id, "present" if on_the_floor.has(id) else "MISSING",
+			PartyScaling.size_of(self)])
+		if not on_the_floor.has(id):
+			problems.append(("%s is not on the floor at party size %d — it is one "
+				+ "of this floor's two decisions and it is scaled away. Without "
+				+ "the Prize the Guardian's room is a dead end with a monster in "
+				+ "it; without the Waystone the only way out is the Shaft, while "
+				+ "the HUD goes on offering `v waystone`") % [
+				id, PartyScaling.size_of(self)])
 
 	_assert_the_multiplier_is_on_behaviour(sizes, problems)
 	_report(problems, "party")
@@ -1626,6 +1680,9 @@ func _build_hud() -> void:
 ## rather than doubling it. See `_on_party_changed`.
 var _enemies_placed: int = 0
 var _loot_placed: int = 0
+## The Prize and the Waystone are laid once and never scaled, so they need a
+## flag of their own rather than a count (`M2-T17`).
+var _fixtures_placed: bool = false
 
 var _probe_floor: Dictionary = {}
 var _probe_stillness: float = -1.0
@@ -1694,9 +1751,15 @@ func _coop_probe(out: String) -> void:
 	_probe_floor = {
 		"party": PartyScaling.size_of(self),
 		"enemies": _enemies_placed,
-		"loot": _loot_placed,
+		# **Both sides count the same things** (`M2-T17`). `_loot_placed` tracks
+		# the filler only, since the fixtures are laid once and never scaled —
+		# so reporting it raw here compared filler-at-this-party against
+		# fixtures-plus-filler-at-one, and a two-player floor read as no bigger
+		# than a solo one. Totals on both sides, or the row is not a comparison.
+		"loot": FIXTURES.size() + _loot_placed,
 		"solo_enemies": PartyScaling.enemies(ENEMY_POSTS.size(), 1),
-		"solo_loot": mini(LOOT.size(), PartyScaling.loot(_solo_loot(), 1)),
+		"solo_loot": FIXTURES.size() + mini(FILLER.size(),
+			PartyScaling.loot(_solo_loot(), 1)),
 	}
 	if host:
 		_session.clear_enemies()
@@ -2351,10 +2414,17 @@ func _spawn_enemies() -> void:
 ## loot before it runs out of curve is a floor whose numbers stop meaning what
 ## they say.
 func _spawn_loot() -> void:
+	# **The fixtures first, once, whatever the party size** (`M2-T17`, ADR-110).
+	# Guarded by its own flag rather than by `_loot_placed`, because the floor is
+	# topped up as players arrive and these must not be laid twice.
+	if not _fixtures_placed:
+		_fixtures_placed = true
+		for row: Array in FIXTURES:
+			_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
 	var party: int = PartyScaling.size_of(self)
-	var wanted: int = mini(LOOT.size(), PartyScaling.loot(_solo_loot(), party))
+	var wanted: int = mini(FILLER.size(), PartyScaling.loot(_solo_loot(), party))
 	for index: int in range(_loot_placed, wanted):
-		var row: Array = LOOT[index]
+		var row: Array = FILLER[index]
 		_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
 	_loot_placed = maxi(_loot_placed, wanted)
 
@@ -2387,11 +2457,15 @@ func _on_party_changed(_player: Player) -> void:
 	_spawn_loot()
 
 
-## What a lone player finds. Chosen so the curve reaches the authored ceiling
-## at four — the point where the pool runs out is exactly the top of the party
-## range rather than somewhere in the middle of it.
+## What a lone player finds **of the filler**. Chosen so the curve reaches the
+## authored ceiling at four — the point where the pool runs out is exactly the
+## top of the party range rather than somewhere in the middle of it.
+##
+## `FILLER` rather than `LOOT` since `M2-T17`: the fixtures are not divided
+## among anybody, so counting them here would shrink every party's share to pay
+## for two items everyone gets regardless.
 func _solo_loot() -> int:
-	return int(round(float(LOOT.size())
+	return int(round(float(FILLER.size())
 		/ pow(float(Player.MAX_PARTY), Config.tuning.party_loot_exponent)))
 
 

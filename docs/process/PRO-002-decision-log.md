@@ -2023,4 +2023,60 @@ M3-T09  extract and wait
 
 ---
 
+## ADR-110 — The floor's two decisions were being scaled away, and solo never saw either
+**Date:** 2026-08-24 · **Status:** accepted · **Adds `M2-T17`** · **Amends `M2-T07` scaling** · **Extends ADR-032, ADR-098**
+
+**Context:** The first play of the post-ADR-108 build. The report was a question — *"what does a current run include? I was able to pick up items and get to the shaft, but should there be more than one floor?"* — and the answer to the literal question is no, one floor is right until `M4-T01`. The useful part was the tone: a run read as pick some things up and walk to the light.
+
+It did, and not because the floor is small.
+
+### Solo could never reach either of the floor's decisions
+
+`LOOT` held nine authored items and `_spawn_loot` scaled it to party size by taking a **prefix**. Both of the things worth deciding about sat near the end of that list, so at party size 1 — the only way anybody currently plays — neither had ever spawned. Measured:
+
+```
+[loot] solo floor holds 4 item(s), 98 tribute total
+[loot]   mat_bog_iron     @ -9,-6   (3 tribute)
+[loot]   wpn_seax         @ -10,-14 (0 tribute)
+[loot]   glt_raw_gemstone @ -2,-22  (55 tribute)
+[loot]   glt_hoard_coin   @ 9,-8    (40 tribute)
+[loot] a way out other than the Shaft: NO
+[loot] anything in the Guardian's room: NO
+```
+
+**The Prize was index 5.** ADR-032 built the Guardian's room as the floor's greed decision — one entrance, no way out but back past the thing in it. Without the Prize that room is a dead end containing a monster, there is no reason to enter it, and the Gullsjúkr starts every run guarding nothing. The whole east half of the floor was a detour with no argument for taking it.
+
+**The Waystone was index 8, last.** `DES-005` calls its rarity *"the strongest single lever in the game"* and ADR-015 built extraction as a resource problem on there being two ways out. At party size 1 that lever was not rare, it was **off** — deterministically, every run. The HUD went on listing `v waystone` and printing `waystone none`, which is a verb offered and never grantable: the same fault as the `r reset` the dead-player readout advertises (ADR-108).
+
+So the two questions this floor exists to ask — *is the Prize worth the walk past the Guardian*, and *is a second way out worth two squares* — were both unaskable, and the `GATE M2 EXIT` playtest was about to be run on a floor with neither of them present.
+
+### The decision — fixtures are not quantity
+
+`LOOT` splits into **`FIXTURES`** (the Prize, the Waystone) and **`FILLER`** (the other seven). Fixtures are laid once at every party size, like the Shaft; only the filler is divided.
+
+This does not touch `DES-012`'s relationship, which is the thing `M2-T07` is about, because that relationship is about the **divided** yield and these two were never meant to be divided. Counting them in the denominator was in fact the error: it shrank every party's share to pay for two items everybody was supposed to get regardless. Per-capita filler still falls at every step —
+
+```
+1 player   3 loot (3.00 each)      3 enemies   clamor x1.00
+2 players  5 loot (2.50 each)      6 enemies   clamor x2.55
+3 players  6 loot (2.00 each)      8 enemies   clamor x4.41
+4 players  7 loot (1.75 each)     11 enemies   clamor x6.50
+```
+
+— and a four-player floor still holds nine items, exactly as before. What changed is solo: **4 items and 98 tribute became 5 and 198**, which makes the lone run richer relative to a full party rather than poorer, and that is `DES-012`'s sentence read correctly: *a solo run is lethal, quiet, and lucrative.*
+
+**The filler prefix is left biased on purpose.** Solo's three filler items are now all on the west and junction routes, so the east corridor holds nothing but the fixtures. That reads as a defect and is the design: ADR-032 makes west the cheap bypass and east the guarded half, so a solo floor that pays 3 tribute for the safe walk and 195 for the guarded one is the risk gradient stated as a fact about a floor. Revisit it when `M4-T01` replaces hand placement with tables.
+
+### The check that should have existed, and the one that did
+
+**`--scaling-probe` now reads the built world.** Every claim it made was already true — the arithmetic was right the entire time this was broken, because the fault was in *which list* the arithmetic was applied to. A probe that counted rows would have passed. It walks the spawner's own group now and asserts both fixtures are on the floor, and it fails by name when the fixture spawn is removed.
+
+**`--prize-probe` was already red and nothing was running it.** It teleports to the Prize, picks it up, and asserts that carrying the heaviest thing on the floor costs walk speed. With no Prize to lift it was reporting `walk speed 3.40 → 3.40 m/s (+0%)`, `carrying 0.0 kg (nothing)`, and **exiting 1** — and it was the only probe in `room_set.gd` that `check_scripts.sh` had never been wired to run. It runs now, and reports the number it was written for: `3.40 → 2.86 m/s (-16%)`, heard from `3.8 → 10.3 m`, carrying `14.0 kg`.
+
+The gym's `--clamor-probe` and `--combat-probe` were orphaned the same way. Both pass today and both are wired in, because *a check nobody runs is a check that is already failing* and the only reason to find out which is to run it. `check_dead.py` structurally cannot see this class — the probe functions are referenced by their own scene's argument dispatch, so every name is alive and only the running is absent, which is the caveat that tool prints about itself (ADR-098).
+
+**The shape again, and the tell is getting easier to name.** ADR-097 through ADR-108 are all *correct code that nothing reaches*. This one adds a variant worth keeping separate: **correct code reached only at a parameter nobody uses.** The loot scaling worked, and worked at every party size the probe examined, and the party size every real session runs at was the one where it deleted the content. Whenever a check sweeps a range, ask which end of the range the game actually sits at.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

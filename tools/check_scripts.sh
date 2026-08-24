@@ -172,6 +172,37 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **What the heaviest thing on the floor costs to carry** (`M2-T17`,
+	# ADR-110). This probe existed and nothing ran it — the only one in
+	# `room_set.gd` that was never wired in here — so it had been **exiting 1**
+	# unnoticed: the Prize is in the guarded half at the end of a loot table
+	# that scales by taking a *prefix*, so at party size 1 it never spawned, and
+	# the probe was teleporting to an empty floor, picking up nothing, and
+	# reporting a 0% change in walk speed. A check nobody runs is a check that
+	# is already failing.
+	prize="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --prize-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$prize" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL greed has to weigh something" >&2
+		printf '%s\n' "$prize" | grep -E '\[set\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
+	# The gym's own two, wired in for the same reason (`M2-T17`). Both pass
+	# today; neither was run by anything, and `--prize-probe` above is what a
+	# probe nobody runs eventually looks like. `check_dead.py` cannot see this
+	# class — the functions are referenced by their own dispatch, so the names
+	# are alive and only the *running* of them is absent (ADR-098's own caveat).
+	for gym_probe in clamor combat; do
+		gym="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+			levels/dev/movement_gym.tscn -- "--$gym_probe-probe" 2>&1)"
+		if [[ $? -ne 0 ]] || printf '%s\n' "$gym" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+			echo "FAIL the gym's $gym_probe probe" >&2
+			printf '%s\n' "$gym" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
+			exit 1
+		fi
+	done
+
 	# Does the Hunt hunt the way `DES-017` says (`M2-T02`)? Four claims, and
 	# every one of them would be satisfied by an implementation that cheated:
 	# it goes to the noise rather than to you, a rich silent player is found
@@ -436,6 +467,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "falling out of the world puts you back and abandoning is survivable,"
 	echo "your own Chamber is somewhere you can stand and walk back out of,"
 	echo "a run that nobody survives actually ends, a taken port says so,"
+	echo "the Prize and the Waystone are on the floor at every party size,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
