@@ -51,11 +51,51 @@ SECONDS = 25
 PRIVATE_SECONDS = 34
 
 
-def launch(args: list[str]) -> subprocess.Popen:
+# The two doors this file walks. Extraction starts in the Deep, so it cannot
+# reuse the Threshold launch the other scenarios share.
+CAMP = "levels/lair/threshold.tscn"
+DEEP = "levels/room_set/room_set.tscn"
+# A three-player party, because that is the size the crash was reported at —
+# though it reproduces at two, and asserting it at three costs one process.
+EXTRACT_CLIENTS = 2
+EXTRACT_SECONDS = 26
+
+
+def launch(args: list[str], scene: str = CAMP) -> subprocess.Popen:
     return subprocess.Popen(
-        [GODOT, "--headless", "--path", str(GAME), "--quit-after", "9000",
-         "levels/lair/threshold.tscn", "--"] + args,
+        [GODOT, "--headless", "--path", str(GAME), "--quit-after", "60000",
+         scene, "--"] + args,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+
+
+def run_extraction(port: int) -> dict[str, str]:
+    """**The whole party leaving the floor together** (`M2-T20`, ADR-113).
+
+    Nothing in this project had ever extracted with a second process in the
+    room. `run_coop.py` and the two scenarios above never reach an exit, and
+    `--exit-probe` is solo *and* sets `_probing`, which swaps the scene change
+    for `_reset_floor` — so the one check that spends a Waystone deliberately
+    skips the line that was broken.
+
+    What it was hiding: taking the host's own outcome changes scene, Godot
+    detaches the outgoing scene synchronously, and the rest of `_end_the_run`
+    then ran on a node with no `multiplayer`. The host was always index 0, so
+    **no client had ever been sent its haul** — silently before `M2-T16`, and
+    as a hard crash after it.
+    """
+    procs: dict[str, subprocess.Popen] = {
+        "host": launch(["--host", f"--port={port}", "--extraction"], DEEP)}
+    time.sleep(3.0)
+    for index in range(EXTRACT_CLIENTS):
+        procs[f"client{index}"] = launch(
+            [f"--join={'127.0.0.1'}", f"--port={port}", "--extraction"], DEEP)
+        time.sleep(1.0)
+    # One deadline for everybody, for the reason `run` gives above: killing them
+    # in turn makes the survivors report a disconnect the product never had.
+    time.sleep(EXTRACT_SECONDS)
+    for process in procs.values():
+        process.kill()
+    return {name: (p.communicate()[0] or "") for name, p in procs.items()}
 
 
 def run(probe: str, port: int, seconds: int) -> dict[str, str]:
@@ -172,6 +212,25 @@ def main() -> int:
             rows.append((f"nothing threw — {label} door, {who}", quiet,
                          "quiet" if quiet else f"{errors} script error(s)"))
 
+    # ── the way out ───────────────────────────────────────────────────────
+    leaving = run_extraction(PORT + 2)
+
+    for name, log in leaving.items():
+        arrived = "arrived at the Threshold" in log
+        rows.append((f"{name} left the floor", arrived,
+                     "at the fire" if arrived else "STRANDED in the Deep"))
+
+    for name, log in leaving.items():
+        quiet = "SCRIPT ERROR" not in log
+        rows.append((f"nothing threw — extraction, {name}", quiet,
+                     "quiet" if quiet else "script error"))
+
+    # The host is the one that changes scene, so it is the one whose haul
+    # proves the outcome was taken rather than lost with the level.
+    kept = "carried=1" in leaving["host"]
+    rows.append(("and the host kept what it carried out", kept,
+                 "1 item" if kept else "haul lost in the transition"))
+
     ok = True
     print()
     for label, passed, detail in rows:
@@ -180,15 +239,16 @@ def main() -> int:
 
     if not ok:
         print("\nDOORWAY FAILED — a scene change breaks co-op", file=sys.stderr)
-        for label, source in (("party door", logs), ("private door", private)):
-            for name in ("host", "client"):
+        for label, source in (("party door", logs), ("private door", private),
+                              ("the way out", leaving)):
+            for name, log in source.items():
                 print(f"\n--- {label}: {name} ---", file=sys.stderr)
-                for line in source[name].splitlines():
-                    if re.search(r"chamber|coop|ERROR|SCRIPT", line):
+                for line in log.splitlines():
+                    if re.search(r"chamber|coop|extract|ERROR|SCRIPT", line):
                         print(f"    {line}", file=sys.stderr)
         return 1
 
-    print("\nboth kinds of doorway hold — verified")
+    print("\nall three doorways hold — verified")
     return 0
 
 

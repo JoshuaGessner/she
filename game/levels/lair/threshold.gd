@@ -89,6 +89,8 @@ func _ready() -> void:
 			_doorway_probe()
 		elif arg == "--chamber-probe":
 			_chamber_probe()
+		elif arg == "--extraction":
+			_arrived_from_the_deep()
 		elif arg == "--edges-probe":
 			_edges_probe()
 
@@ -790,3 +792,18 @@ func _rejoin_the_world() -> void:
 	if not multiplayer.is_server():
 		return
 	_session.spawn_player(multiplayer.get_remote_sender_id(), CHAMBER_STEP)
+
+
+## The arrival half of `--extraction` (`M2-T20`, ADR-113).
+##
+## Reported from here rather than from the Deep because the Deep is the scene
+## that goes away: a coroutine waiting in `room_set` when the run ends dies with
+## it, so the process that most needs to say where it ended up is the one least
+## able to. Whoever reaches the camp says so, and `run_doorway.py` checks that
+## everybody did.
+func _arrived_from_the_deep() -> void:
+	await get_tree().create_timer(1.5).timeout
+	var body: Player = _session.local_player() if _session != null else null
+	print("[extract] %s arrived at the Threshold, body=%s, carried=%d" % [
+		"host" if multiplayer.is_server() else "client",
+		"yes" if body != null else "NO", GameState.carried.size()])

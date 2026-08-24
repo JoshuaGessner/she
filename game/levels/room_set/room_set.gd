@@ -414,6 +414,8 @@ func _ready() -> void:
 			_bagui_probe()
 		elif arg == "--toll-probe":
 			_toll_probe()
+		elif arg == "--extraction":
+			_extraction()
 		elif arg == "--ember-probe":
 			_ember_probe()
 		elif arg == "--scaling-probe":
@@ -2704,16 +2706,39 @@ func _the_party_is_gone() -> bool:
 ## somewhere to *be* while the others finish. Absent rather than approximated:
 ## a player parked in an empty room with no way to watch or help would be worse
 ## than a short run that ends cleanly.
+## **Everybody else first, and the host last** (`M2-T20`, ADR-113).
+##
+## Taking the host's own outcome runs `change_scene_to_file`, and Godot removes
+## the outgoing scene from the tree **synchronously** — only the new scene's
+## instantiation is deferred. Measured either side of the call:
+## `in_tree=true` → `in_tree=false`. So every line of this function after that
+## point ran on a detached node, where `multiplayer` is `null` and `rpc_id`
+## refuses with `ERR_UNCONFIGURED`.
+##
+## The host is index 0 of `players()`, so it was always handled first, and
+## **no client had ever received its outcome.** Before `M2-T16` that was a
+## silent `ERR_UNCONFIGURED`, leaving the client standing in a Deep the host had
+## left — *"Node not found: Threshold/CoopSession/Spawner"* — until the
+## connection dropped. The peer guard added in `M2-T16` turned the same
+## detachment into a hard `SCRIPT ERROR` on `get_peers()`, which is how it was
+## finally reported: a three-player extraction that crashed the host and
+## dropped everybody. Same fault, louder.
 func _end_the_run() -> void:
 	if not multiplayer.is_server():
 		return
+	var my_haul: Array = []
+	var my_loss: bool = false
+	var mine_found: bool = false
 	for body: Player in _session.players():
 		var peer: int = body.get_multiplayer_authority()
 		# Spent means you went out down there. Everything you were carrying
 		# stayed with your body, so there is nothing to hand back.
 		var packed: Array = [] if body.spent else body.inventory.pack()
 		if peer == CoopSession.HOST_PEER:
-			_take_the_outcome(packed, body.spent)
+			# Held, not taken. Taking it here is what detached the node.
+			my_haul = packed
+			my_loss = body.spent
+			mine_found = true
 			continue
 		# **A body outlives its peer by a frame** (`M2-T16`). `_on_peer_disconnected`
 		# frees the body of somebody who drops, but a run ending inside that
@@ -2725,6 +2750,9 @@ func _end_the_run() -> void:
 				% [body.name, peer] + "— nothing to hand back")
 			continue
 		_take_the_outcome.rpc_id(peer, packed, body.spent)
+	# Last, because this is the one that takes the floor out from under us.
+	if mine_found:
+		_take_the_outcome(my_haul, my_loss)
 
 
 ## What this peer walked away with, delivered to the peer it belongs to.
@@ -3454,3 +3482,29 @@ func _toll_probe() -> void:
 			+ "nothing to run back in and take")
 
 	_report(problems, "toll")
+
+
+## **The whole party leaves the floor together** (`M2-T20`, ADR-113).
+##
+## Driven by `tools/run_doorway.py`, which reads every process's log — the
+## question is about what happened to *all* of them, so no single process can
+## answer it. This half only starts the extraction; the arrival is reported by
+## `Threshold`, because this scene is the one that goes away.
+##
+## **Deliberately not named `--…-probe`.** Any argument containing "probe" sets
+## `_probing`, and `_probing` swaps `change_scene_to_file` for `_reset_floor` —
+## which is exactly the line that was broken. `--exit-probe` spends a Waystone
+## and passes for that reason: solo, and it skips the transition. A check for a
+## scene change has to be allowed to change scene.
+func _extraction() -> void:
+	await _hold(7.0)
+	if not multiplayer.is_server():
+		print("[extract] client waiting on the floor, party=%d"
+			% _session.players().size())
+		return
+	print("[extract] host ready, party=%d" % _session.players().size())
+	var me: Player = _session.local_player()
+	me.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+	me.inventory.add(ItemCatalogue.by_id(&"con_waystone"))
+	await _hold(0.5)
+	me.ask_to_spend_waystone()

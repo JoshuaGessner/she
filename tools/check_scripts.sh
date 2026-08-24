@@ -491,7 +491,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a bigger party is poorer and louder per head,"
 	echo "each place sounds like itself and her note is hers alone,"
 	echo "there is a front door and a way back out of every room,"
-	echo "both kinds of doorway hold and nobody comes back a stranger,"
+	echo "all three doorways hold and the whole party leaves together,"
 	echo "the way out can be seen and the gold is the only warm thing,"
 	echo "the enemies walk around the walls rather than into them,"
 	echo "falling out of the world puts you back and abandoning is survivable,"

@@ -2161,4 +2161,64 @@ So: authored, checked, shipped, and never rendered. `check_dead.py` cannot see t
 
 ---
 
+## ADR-113 — Extracting in company had never once worked
+**Date:** 2026-08-24 · **Status:** accepted · **Adds `M2-T20`** · **Fixes a fault introduced in `M2-T12`, made loud by `M2-T16`**
+
+**Context:** The first three-player session on the Windows build. *"We had a three man team and got the waystone but when I used it the game crashed and everyone else got kicked."*
+
+Reproduced on the first attempt, and it is not three-player-specific — it reproduces at **two**:
+
+```
+[live] host spends the waystone with 2 bodies on the floor
+[exit] descent 1 — player_1 left with 9.5 kg, 40 tribute: Hoard-Coin
+SCRIPT ERROR: Cannot call method 'get_peers' on a null value.
+   [0] _end_the_run   (res://levels/room_set/room_set.gd:2725)
+   [1] _on_extracted  (res://levels/room_set/room_set.gd:2797)
+   [2] _tick_waystone (res://actors/player/player.gd:1087)
+```
+
+### `change_scene_to_file` detaches the outgoing scene synchronously
+
+`_end_the_run` walks `_session.players()` and hands each body its outcome — the host's directly, everybody else's by `rpc_id`. The host is index 0, so the host's own outcome was always taken **first**, and taking it runs `change_scene_to_file`. Only the *new* scene's instantiation is deferred; the old one leaves the tree immediately. Measured either side of the call:
+
+```
+[diag] before host outcome: in_tree=true
+[diag] after  host outcome: in_tree=false
+```
+
+From that line on, every remaining iteration ran on a detached node. `Node.multiplayer` is `null` outside the tree, so the peer guard added in `M2-T16` threw, and the loop died before a single client had been told anything.
+
+**The clients were never being told anyway.** Planting the pre-`M2-T16` form — a bare `rpc_id` with no guard — gives the same detachment with a quieter symptom:
+
+```
+host:   ERROR: Condition "!is_inside_tree()" is true. Returning: ERR_UNCONFIGURED
+client: ERROR: Node not found: "Threshold/CoopSession/Spawner"   (never received an outcome)
+```
+
+So **co-op extraction has never worked**, since ADR-102 wrote `_end_the_run` in this shape at `M2-T12`. The client stayed in a Deep the host had walked out of, receiving spawn packets addressed to a scene it was not in, until the connection dropped and it gave up — *"everyone else got kicked"*. `M2-T16`'s guard did not cause this; it converted a silent `ERR_UNCONFIGURED` into a hard `SCRIPT ERROR` on the same line, which is the only reason it was ever reported. **Louder is better, and this is the argument for the guard rather than against it.**
+
+**The decision:** everybody else first, the host last. One held haul and two extra locals, and the function no longer saws off the branch it is standing on.
+
+### Why nothing caught it, and this one is the sharpest instance yet
+
+Three checks cover co-op transitions and **none of them extracts**:
+
+- `run_coop.py` never changes scene at all.
+- `run_doorway.py` walks the Descent and a Chamber — the two doors going *in*.
+- `--exit-probe` is the one check that spends a Waystone, and it is **solo** *and* it sets `_probing`, which swaps `change_scene_to_file` for `_reset_floor`. It deliberately skips the exact line that was broken, for the good reason that a probe measuring a floor must not be dropped out of it.
+
+So the single most important transition in the game — the party leaving together, which `DES-002` calls the point of the loop — was the one transition nothing walked. Every ADR from ADR-097 onward is a variant of *correct code nothing reaches*; this is the variant where **the check that came closest had to disable the broken behaviour in order to run at all.**
+
+### The check
+
+`run_doorway.py` grows a third scenario: a host and **two** clients in the Deep, the host spends a Waystone, and every process is asserted to arrive at the Threshold with a body and without throwing. Three players because that is the size it was reported at, though it fails at two.
+
+The arrival is reported from **`Threshold`**, not from the Deep, and that is the part worth remembering: a coroutine waiting in `room_set` when the run ends dies with the scene, so the process that most needs to say where it ended up is the least able to. The first draft reported from the Deep and printed nothing at all from any client — a check that looked like a total failure and was only a badly placed observer.
+
+The flag is `--extraction`, deliberately without the word "probe" in it, because `_probing` is keyed on that substring and would have re-disabled the transition under test. **A check for a scene change has to be allowed to change scene.**
+
+Planted, the check fails exactly as the playtest did: `host  SCRIPT ERROR`, `client0  STRANDED in the Deep`.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
