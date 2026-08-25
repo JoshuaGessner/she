@@ -170,6 +170,36 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"(solo {floor['solo_enemies']}), {floor['loot']} loot "
         f"(solo {floor['solo_loot']})"))
 
+    # **The floor is built to the highest rank present** (ADR-010, ADR-122).
+    #
+    # The client declared rank 8; the host is rank 1. A floor that never heard
+    # the client reads as rank 1 here — the outcome ADR-010 rejected outright,
+    # arriving in the exact case ADR-010 exists for. No single-process probe
+    # can see it: the declaration is an RPC that lands after the host has
+    # already finished building the level in its own `_ready`.
+    # **This row proves the declaration crossed the wire**, and only that.
+    # Planted by silencing the client, it reads rank 1; planted by disconnecting
+    # the floor's listener, it still reads 8 — because the number arrived and
+    # nothing used it. The row below is the one that proves it was *used*, and
+    # keeping them apart is what makes a failure say which half broke.
+    rows.append(check(
+        "the floor is the party's highest rank",
+        int(floor.get("floor_rank", 1)) == 8,
+        f"rank {floor.get('floor_rank', 1)}, host declared 1"))
+    # And the Hunt was aged for it. Density recovers by re-spawning whether or
+    # not anything listened, so enemy count alone cannot prove the floor
+    # *reacted* — the Hunt's clock is set once, and only a deliberate
+    # re-application moves it.
+    # `> 0` is **not** the test, and the first draft of this row used it: the
+    # Hunt's clock ticks on its own, so it reported 2 s and passed while the
+    # floor was demonstrably rank 1. Rank 8 is worth 140 s of head start, and
+    # the probe itself runs for seconds — so three figures is the rank and
+    # nothing else could have put it there.
+    rows.append(check(
+        "the Hunt was aged for that rank",
+        float(floor.get("hunt_age", 0.0)) >= 100.0,
+        f"{floor.get('hunt_age', 0.0):.0f} s old at report"))
+
     # Jitter, as a number rather than an impression (ADR-102). A remote body
     # that is walking should be moving on every frame. Writing 20 Hz positions
     # straight onto the transform left it frozen on two frames in three, which
@@ -383,6 +413,13 @@ def main() -> int:
         client_args = [f"--join=127.0.0.1", f"--port={args.port}"] + device_for(i + 1, args)
         if args.smoke:
             client_args.append(f"--coop-probe={client_outs[i]}")
+            # **A mixed-rank party, which is the only kind ADR-010 is about**
+            # (ADR-122). Two processes on one machine share a `user://` and so
+            # cannot hold two profiles, and nothing raises a rank until
+            # `M3-T01` — so without this the only co-op party the sweep can
+            # assemble is two rank-1 players, the one composition that cannot
+            # tell a working ADR-010 from a broken one.
+            client_args.append("--as-rank=8")
         procs.append((f"client{i}", launch(godot, client_args, args, i + 1)))
 
     if not args.smoke:

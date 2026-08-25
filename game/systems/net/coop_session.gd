@@ -59,6 +59,11 @@ const PLAYER_SCENE: PackedScene = preload("res://actors/player/player.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
 
 signal player_spawned(player: Player)
+## The party's highest Pact Rank changed, because somebody declared (ADR-122).
+## Levels listen: a floor is built in one frame and a client's declaration
+## arrives in a later one, so "scale to the highest rank present" (ADR-010) is
+## only true if the floor can be told about a rank that turns up late.
+signal floor_rank_changed(was: int, now: int)
 ## Where each successive player starts. Cycled, so a fourth player in a
 ## three-point level stands on the first point rather than at the origin.
 ## Levels set this before adding the session to the tree.
@@ -113,7 +118,7 @@ func _ready() -> void:
 		# every peer says its rank again here. Walking through a doorway is the
 		# only way a real party ever reaches a floor, so a declaration made
 		# solely at connect would be a declaration the floor never sees.
-		declare_descent.rpc_id(HOST_PEER, GameState.pact_rank, String(GameState.class_id))
+		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id))
 		if multiplayer.is_server():
 			multiplayer.peer_connected.connect(_on_peer_connected)
 			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -136,7 +141,7 @@ func _ready() -> void:
 			# already reports us as server 1, so the host path below is simply
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
-			declare_descent(GameState.pact_rank, String(GameState.class_id))
+			declare_descent(_my_rank(), String(GameState.class_id))
 			spawn_player(HOST_PEER)
 
 
@@ -199,6 +204,17 @@ func _parse_args() -> void:
 			_role = "solo"
 	_address = NetPlan.address
 	_port = NetPlan.port
+	# **What rank this process descends at**, overriding the profile.
+	#
+	# It exists because ADR-010 is a claim about a *mixed-rank party* and there
+	# is no other way to build one: two processes on one machine share a `user://`,
+	# so they cannot hold two different profiles, and nothing can raise a rank
+	# until `M3-T01`. Without this, the only co-op party the sweep can assemble
+	# is two rank-1 players — which is the one composition that cannot tell a
+	# working ADR-010 from a broken one.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--as-rank="):
+			_declared_rank = maxi(1, int(arg.split("=", true, 1)[1]))
 
 
 # ── transport ─────────────────────────────────────────────────────────────
@@ -241,7 +257,7 @@ func _start_host() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
-	declare_descent(GameState.pact_rank, String(GameState.class_id))
+	declare_descent(_my_rank(), String(GameState.class_id))
 	spawn_player(HOST_PEER)
 
 
@@ -285,7 +301,7 @@ func _on_connected() -> void:
 	# Before anything else asks (`M3-T10`). A floor built while a rank-8 player
 	# was still announcing themselves is a rank-1 floor with a rank-8 player on
 	# it, which is the opposite of what ADR-010 is for.
-	declare_descent.rpc_id(HOST_PEER, GameState.pact_rank, String(GameState.class_id))
+	declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id))
 	_waiting_until = 0
 	_hide_waiting()
 
@@ -392,6 +408,9 @@ var _ranks: Dictionary = {}
 ## builds every body and simulates its health, so a class that never reached it
 ## would be a Húskarl who is only a Húskarl on their own screen.
 var _sworn: Dictionary = {}
+## What this process says its own rank is. `0` means "ask the profile", which
+## is every real launch; `--as-rank=N` is the sweep building a mixed party.
+var _declared_rank: int = 0
 
 
 ## The rank this floor is built for: the highest anyone brought (ADR-010).
@@ -411,6 +430,26 @@ func sworn_of(peer: int) -> StringName:
 	return StringName(_sworn.get(peer, ""))
 
 
+## **Has everyone here said who they are** (ADR-122)?
+##
+## A body arriving and a declaration arriving are two independent events: the
+## host spawns a joining peer's body from `peer_connected`, while that peer's
+## declaration is an RPC it sends from its own `_on_connected`. Neither waits
+## for the other, so "two players are on the floor" does **not** mean "the floor
+## knows what rank to be" — and a check that samples on the first is reading a
+## floor that is still assembling. It failed one run in two before this existed.
+##
+## Nothing in the game waits on this: the floor rescales when a declaration
+## lands, whenever that is. It is the *measurement* that needs a settled floor.
+func everyone_declared() -> bool:
+	if not multiplayer.is_server():
+		return true
+	for peer: int in multiplayer.get_peers():
+		if not _ranks.has(peer):
+			return false
+	return _ranks.has(multiplayer.get_unique_id())
+
+
 ## Tell the host what floor you need and what body to build. Host-local too, so
 ## solo takes the same path as a four-stack and there is no second branch to
 ## keep in step.
@@ -427,10 +466,17 @@ func declare_descent(rank: int, sworn: String) -> void:
 	var who: int = multiplayer.get_remote_sender_id()
 	# `0` is what a local call reports rather than a peer id.
 	var id: int = who if who != 0 else multiplayer.get_unique_id()
+	var was: int = floor_rank()
 	_ranks[id] = maxi(1, rank)
 	_sworn[id] = sworn
 	_log("peer %d descends at rank %d as '%s' — the floor is rank %d" % [
 		id, rank, sworn if sworn != "" else "nobody", floor_rank()])
+	# **The floor has to hear this** (ADR-122). A client's declaration is an
+	# RPC and arrives *after* the host has already built the level in its own
+	# `_ready` — so a floor that read `floor_rank()` once was a floor built to
+	# the host's rank alone, which is the option ADR-010 rejected outright.
+	if floor_rank() != was:
+		floor_rank_changed.emit(was, floor_rank())
 
 
 func _on_peer_connected(peer: int) -> void:
@@ -719,3 +765,11 @@ func players() -> Array[Player]:
 
 func _log(message: String) -> void:
 	print("[coop:%s] %s" % [_role, message])
+
+
+## The rank this process descends at: the profile's, unless `--as-rank=` said
+## otherwise. One function so every declaration site answers the same way —
+## there are four of them, and four copies of `GameState.pact_rank` is four
+## places for a flag to be forgotten.
+func _my_rank() -> int:
+	return _declared_rank if _declared_rank > 0 else GameState.pact_rank

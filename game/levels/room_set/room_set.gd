@@ -1694,6 +1694,10 @@ func _build_hud() -> void:
 ## rather than doubling it. See `_on_party_changed`.
 var _enemies_placed: int = 0
 var _loot_placed: int = 0
+## What rank the Hunt has already been aged for (ADR-122). Tracked rather than
+## recomputed, because the age is *added to* a clock that is also ticking — so
+## re-applying a rank has to add the difference, never the whole of it.
+var _rank_in_the_hunt: int = 1
 ## The Prize and the Waystone are laid once and never scaled, so they need a
 ## flag of their own rather than a count (`M2-T17`).
 var _fixtures_placed: bool = false
@@ -1741,6 +1745,14 @@ func _coop_probe(out: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var host: bool = multiplayer.is_server()
 	_probe_connect_seconds = await _await_party()
+	# And until everyone has said what rank they are (ADR-122). `_await_party`
+	# waits for bodies, and a body is not a declaration — sampling the floor on
+	# the first read a floor that was still assembling, and failed one run in two.
+	var settling: int = Time.get_ticks_msec()
+	while not _session.everyone_declared():
+		await get_tree().physics_frame
+		if Time.get_ticks_msec() - settling > PROBE_TIMEOUT_MSEC:
+			break
 	var mine: Player = _session.local_player()
 
 	# **Empty the floor.** This probe measures the authority split, not the
@@ -1771,6 +1783,11 @@ func _coop_probe(out: String) -> void:
 		# fixtures-plus-filler-at-one, and a two-player floor read as no bigger
 		# than a solo one. Totals on both sides, or the row is not a comparison.
 		"loot": FIXTURES.size() + _loot_placed,
+		# ADR-122: what rank the host actually built this floor for, and how old
+		# the Hunt is because of it. The client declares a higher rank than the
+		# host, so a floor that never heard it reads as rank 1 here.
+		"floor_rank": _session.floor_rank(),
+		"hunt_age": _hunter.age if _hunter != null else 0.0,
 		"solo_enemies": PartyScaling.enemies(ENEMY_POSTS.size(), 1),
 		"solo_loot": FIXTURES.size() + mini(FILLER.size(),
 			PartyScaling.loot(_solo_loot(), 1)),
@@ -2476,6 +2493,29 @@ func _on_party_changed(_player: Player) -> void:
 	_spawn_loot()
 
 
+## **A rank that turned up after the floor was built** (ADR-122).
+##
+## ADR-010 scales a floor to the highest Pact Rank *present*, and a client's
+## declaration is an RPC: it lands frames after the host finished `_ready`. So
+## the floor built itself to the host's rank alone — the one option ADR-010
+## rejected outright, arriving in the exact case ADR-010 exists for.
+##
+## Density recovers by re-spawning, which grows the ring the same way a joining
+## player does. **The Hunt needs the difference, not the whole**, because its
+## `age` is a clock that has been ticking since the floor opened: adding the
+## full rank age again would age it twice for the same rank.
+func _on_floor_rank_changed(_was: int, now: int) -> void:
+	if not _session.is_host():
+		return
+	_spawn_enemies()
+	if _hunter != null and now != _rank_in_the_hunt:
+		_hunter.age += (RankScaling.hunt_age(now)
+			- RankScaling.hunt_age(_rank_in_the_hunt))
+		_rank_in_the_hunt = now
+	print("[hunt] the floor is rank %d now — the Hunt stands at %.0f s" % [
+		now, _hunter.age if _hunter != null else 0.0])
+
+
 ## What a lone player finds **of the filler**. Chosen so the curve reaches the
 ## authored ceiling at four — the point where the pool runs out is exactly the
 ## top of the party range rather than somewhere in the middle of it.
@@ -2577,11 +2617,11 @@ func _build_hunt() -> void:
 		# This is `DES-022`'s Hunt axis **and** its Time axis, because
 		# `Shaft._escalation` reads this same `age` — so the Shafts on a rank-8
 		# floor seal sooner without a second number existing anywhere.
-		var of_rank: float = RankScaling.hunt_age(_session.floor_rank())
-		_hunter.age += of_rank
+		_rank_in_the_hunt = _session.floor_rank()
+		_hunter.age += RankScaling.hunt_age(_rank_in_the_hunt)
 		if _hunter.age > 0.0:
 			print("[hunt] the floor is rank %d — it opens at %.0f s old" % [
-				_session.floor_rank(), _hunter.age])
+				_rank_in_the_hunt, _hunter.age])
 
 
 ## The way out (`M2-T04`). Authored geometry in the room the layout has always
@@ -2943,6 +2983,7 @@ func _spawn_actors() -> void:
 	# except the host. See `_on_party_changed`: without this, party scaling is
 	# arithmetic the game never reaches.
 	_session.player_spawned.connect(_on_party_changed)
+	_session.floor_rank_changed.connect(_on_floor_rank_changed)
 
 
 ## **What you put aside is what you take down** (`M2-T06`, `DES-014`).

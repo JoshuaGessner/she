@@ -2590,4 +2590,46 @@ That is a patch, and it is recorded as one. The layout pass belongs with rebindi
 
 ---
 
+## ADR-122 — `M3-T10` shipped doing the thing ADR-010 rejected
+**Date:** 2026-08-25 · **Status:** accepted · **Corrects `M3-T10`** · **Extends ADR-119**
+
+**Context:** An audit of `M3` after `M3-T02`. `M3-T10` was green, probed and committed, and in co-op it built **the floor to the host's rank alone** — which is the option ADR-010 considered and refused, failing in precisely the case ADR-010 exists for.
+
+### One frame apart
+
+`room_set._ready()` builds the floor: `_spawn_actors()`, then `_build_hunt()`, in one frame. A client's `declare_descent` is an **RPC**, sent from that peer's `_on_connected` and arriving on the host some milliseconds later.
+
+So `_build_hunt()` — which reads `floor_rank()` exactly once — could only ever see the host's own declaration. A rank-8 friend joining a rank-1 host changed nothing about the Hunt, ever. Density recovered only by accident, because `_on_party_changed` re-spawns when a *body* appears, and a body appearing and a declaration arriving are independent events with no ordering between them.
+
+*"Boredom is worse than danger"* is ADR-010's whole argument, and the build delivered boredom.
+
+**`floor_rank_changed` is the fix.** The session raises it when a declaration moves the maximum; the level re-spawns and ages the Hunt by **the difference**, never the whole — `age` is a clock that has been running since the floor opened, and re-applying a rank in full would age it twice for the same rank.
+
+### Why nothing caught it
+
+`--rank-probe` is single-process. It set `_ranks` directly and asserted the arithmetic, the multiplication against party size, the fixed stat line and the maximum. **Every one of those was right.** What it could not ask is whether a *client's* declaration reaches a floor, because in one process there is no wire and no frame delay.
+
+This is the shape ADR-097, ADR-105, ADR-108, ADR-110 and ADR-117 all had, and the fifth time this milestone: **the parts were correct and the join was not built.** It is also the second time a co-op-only fault has survived a green sweep (ADR-113 was the first), which is what the two-process smoke exists for.
+
+### Three things the check taught while being written
+
+**The first Hunt assertion was `> 0`, and it passed while the floor was demonstrably rank 1.** The Hunt's clock ticks on its own, so it read 2 s and called that a pass. Rank 8 is worth 140 s of head start and the probe runs for seconds, so the threshold is 100: three figures is the rank and nothing else could have put it there. Third *true-but-beside-the-point* assertion in one milestone (ADR-113's shape).
+
+**The check was flaky, one run in two, and the flakiness was the bug's own shape.** `_await_party()` waits for bodies. A body and a declaration are independent, so the probe was sampling a floor that had not finished assembling. `CoopSession.everyone_declared()` settles the *measurement* — nothing in the game waits on it, because the floor now rescales whenever a declaration lands, however late. The `floor scaled to the party` row had been silently nondeterministic too, reporting 6 or 15 enemies depending on timing, and passing either way.
+
+**And the two rows prove different things**, which only planting showed:
+
+| Plant | `floor_rank` | `hunt_age` |
+|---|---|---|
+| the client never declares | **1 — fails** | **fails** |
+| the floor ignores the declaration | 8 — passes | **fails** |
+
+The first row proves the number crossed the wire; the second proves it was *used*. Keeping them apart is what makes a failure say which half broke, and collapsing them into one row would have hidden exactly the bug this ADR is about.
+
+### `--as-rank=`
+
+A mixed-rank party cannot otherwise be assembled: two processes on one machine share a `user://` and cannot hold two profiles, and nothing raises a rank until `M3-T01`. Without it the only co-op party the sweep can build is two rank-1 players — **the one composition that cannot tell a working ADR-010 from a broken one.** It overrides the profile for one process and every declaration site reads it through `_my_rank()`, because four copies of `GameState.pact_rank` is four places to forget a flag.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
