@@ -187,6 +187,23 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And what the floor does about a body lying on it** (`M2-T21`, ADR-114).
+	# Reported from play: enemies went on pathing to and swinging at a player
+	# who had gone out, which achieved nothing — `Health.apply_damage` refuses
+	# once dead — while holding their attention off whoever was coming to help.
+	# The other half is the Gullsjúkr, which `DES-012` says stops for an ember
+	# and never did: `con_ember` is worth 0 tribute against a floor of 20.
+	#
+	# In the Deep rather than the gym on purpose: the gym calls `_reset()` from
+	# `health.died`, so downing a player there frees every enemy in the level.
+	fallen="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --fallen-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$fallen" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the fallen are not a target" >&2
+		printf '%s\n' "$fallen" | grep -E '\[fallen\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
@@ -500,6 +517,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the Prize and the Waystone are on the floor at every party size,"
 	echo "the bag takes a click and keeps its text inside its own box,"
 	echo "the Gullsjukr takes your gold rather than your life,"
+	echo "the fallen stop being a target and an ember survives the Hunt,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

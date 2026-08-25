@@ -416,6 +416,8 @@ func _ready() -> void:
 			_toll_probe()
 		elif arg == "--extraction":
 			_extraction()
+		elif arg == "--fallen-probe":
+			_fallen_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
 		elif arg == "--scaling-probe":
@@ -3508,3 +3510,141 @@ func _extraction() -> void:
 	me.inventory.add(ItemCatalogue.by_id(&"con_waystone"))
 	await _hold(0.5)
 	me.ask_to_spend_waystone()
+
+
+## **What the floor does about a body on it** (`M2-T21`, ADR-114).
+##
+## Reported from play as *"the enemies are still pathing and trying to attack"*
+## a player who had gone out. They were, and it achieved nothing:
+## `Health.apply_damage` returns at its first line once `_dead`, so an enemy
+## standing over a fallen player deals no damage, emits no `damaged` signal and
+## does not even play a Foley cue. Animation with nothing behind it — while
+## holding its attention off whoever is coming to help, because acquisition is
+## *nearest visible* and a body on the floor is very near.
+##
+## In the Deep rather than the gym, and that is not a preference: the gym calls
+## `_reset()` from `health.died`, so downing a player there frees and respawns
+## every enemy in the level. The first draft of this check lived there and died
+## on `previously freed` — a venue that deletes the thing under test.
+##
+## Four assertions, split between the two things that hunt you:
+##
+## 1. **An ordinary enemy loses a target that goes down** — it leaves ALERTED
+##    rather than swinging at a body that cannot be hurt.
+## 2. **And does not go home either.** SUSPICIOUS searches `_last_seen`, which
+##    is where the body is lying, so a rescuer still walks into a live enemy —
+##    the *"time, exposure, noise"* `DES-012` charges for a revive. Going down
+##    must not be a free reset for a losing fight.
+## 3. **The Gullsjúkr stops for an ember.** `DES-012` says so in as many words
+##    and it was false: `con_ember` is worth 0 tribute against a floor of
+##    `hunter_wealth_floor`, so the one object that sentence is about could
+##    never qualify as bait.
+## 4. **And cannot destroy one.** Collecting ends in `queue_free`, so an ember
+##    treated like gold would be deleted on a 4.5 s timer — somebody's LIFE,
+##    gone to an AI clock with no counter-play once it started.
+func _fallen_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+
+	# ─ 1 and 2. an ordinary enemy, and a body it just put down ─
+	_session.clear_enemies()
+	await _hold(0.4)
+	player.restore_for_descent()
+	player.inventory.clear()
+	player.teleport(SPAWNS[0] + Vector3(0.0, 0.1, 0.0), 0.0)
+	await _hold(0.3)
+	# Yaw 0, not PI: Godot's forward is -Z, so an enemy placed at +3 Z from the
+	# player already looks at them. The first draft used PI and spent the whole
+	# check reporting UNAWARE at an enemy staring at a wall.
+	_session.spawn_enemy(player.global_position + Vector3(0.0, 0.0, 3.0), 0.0)
+	await _hold(1.2)
+	var watcher: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var found := node as Enemy
+		if found != null and is_instance_valid(found) and found.is_inside_tree():
+			watcher = found
+	if watcher == null:
+		problems.append("no enemy spawned, so nothing here says anything about "
+			+ "what one does with a fallen body")
+		_report(problems, "fallen")
+		return
+	# In front of it along its own facing, so the vision cone and the sight ray
+	# both pass whatever the room geometry happens to be. Placing the enemy
+	# relative to the player instead put it through a wall, and the check spent
+	# two runs reporting UNAWARE at an enemy that genuinely could not see.
+	player.teleport(watcher.global_position + watcher.facing() * 2.5
+		+ Vector3(0.0, 0.1, 0.0), 0.0)
+	# **Sampled, not snapshotted.** `sees_player()` is a live ray and it blinks
+	# as both bodies move, so a single reading either side proves nothing: the
+	# first draft happened to catch `false` *before* the player went down, which
+	# would have let the after-reading pass by accident.
+	var saw_alive: bool = false
+	for tick: int in range(30):
+		await _hold(0.05)
+		saw_alive = saw_alive or watcher.sees_player()
+	var noticed: int = watcher.state()
+	print("[fallen] the enemy    %s before, saw the player=%s" % [
+		Enemy.State.keys()[noticed].to_lower(), saw_alive])
+	if noticed != Enemy.State.ALERTED or not saw_alive:
+		problems.append("the enemy never noticed a standing player, so its "
+			+ "losing interest afterwards proves nothing")
+
+	player.health.apply_damage(player.health.maximum * 2.0)
+	var saw_fallen: bool = false
+	for tick: int in range(30):
+		await _hold(0.05)
+		saw_fallen = saw_fallen or watcher.sees_player()
+	var after: int = watcher.state()
+	print("[fallen] player down  enemy %s → %s, saw the body=%s" % [
+		Enemy.State.keys()[noticed].to_lower(),
+		Enemy.State.keys()[after].to_lower(), saw_fallen])
+	if not player.is_incapacitated():
+		problems.append("the player did not go down")
+	if after == Enemy.State.ALERTED or saw_fallen:
+		problems.append("the enemy is still hunting a body that cannot be "
+			+ "hurt — `Health.apply_damage` refuses once dead, so it is "
+			+ "swinging at nothing while a rescuer walks up behind it")
+	if after == Enemy.State.UNAWARE:
+		problems.append("going down sent the enemy straight back to UNAWARE — "
+			+ "that makes being downed a free reset for a losing fight, which "
+			+ "`DES-012` is explicit it must not be")
+
+	# ─ 3 and 4. the Gullsjúkr, and somebody's ember ─
+	_session.clear_enemies()
+	player.restore_for_descent()
+	await _hold(0.4)
+	var ember_at: Vector3 = _hunter.global_position + Vector3(2.0, 0.1, 0.0)
+	# Disturbed, exactly as a death drops it (`_on_died_here`), and bound to a
+	# peer so it is somebody's life rather than a prop.
+	_session.spawn_world_item(&"con_ember", ember_at, 0.0, Vector3.ZERO, true,
+		TEAMMATE_PEER)
+	# Well out of the Hunter's way, so its own wealth is not the draw.
+	player.teleport(SPAWNS[3] + Vector3(0.0, 0.1, 0.0), 0.0)
+	await _hold(Config.tuning.hunter_collect_seconds * 0.5)
+	var stooped: bool = _hunter.state() == Gullsjukr.State.COLLECTING
+	print("[fallen] the ember    hunter %s (want collecting)"
+		% Gullsjukr.State.keys()[int(_hunter.state())].to_lower())
+	if not stooped:
+		problems.append(("the Gullsjúkr ignored an ember on the floor — "
+			+ "`DES-012` says it stops for one, and `con_ember` is worth 0 "
+			+ "tribute against a floor of %d, so the one object that sentence "
+			+ "is about could never qualify as bait")
+			% Config.tuning.hunter_wealth_floor)
+
+	await _hold(Config.tuning.hunter_collect_seconds + 2.0)
+	var survived: bool = false
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var item := node as WorldItem
+		if item != null and item.is_inside_tree() and item.is_ember():
+			survived = true
+	print("[fallen] afterwards   ember still there=%s, hunter %s" % [
+		survived, Gullsjukr.State.keys()[int(_hunter.state())].to_lower()])
+	if not survived:
+		problems.append(("the Gullsjúkr destroyed the ember — collecting ends "
+			+ "in `queue_free`, and an ember deleted on a %.1f s timer is a "
+			+ "teammate's LIFE gone to an AI clock with no counter-play")
+			% Config.tuning.hunter_collect_seconds)
+
+	_report(problems, "fallen")
+
+

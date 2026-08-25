@@ -2221,4 +2221,47 @@ Planted, the check fails exactly as the playtest did: `host  SCRIPT ERROR`, `cli
 
 ---
 
+## ADR-114 — Nothing on the floor knew what a fallen player was
+**Date:** 2026-08-25 · **Status:** accepted · **Adds `M2-T21`** · **Amends `DES-013`, `DES-017`** · **Completes a `DES-012` sentence**
+
+**Context:** From play — *"when a player dies and goes to a ghost form, the enemies are still pathing and trying to attack them."*
+
+There is no ghost form. The word is `DES-012`'s own, for the Vörðr state it deliberately has not built: *"a fallen player's body stays where it fell rather than becoming a ghost with nothing to do."* What was seen is `spent` — the body frozen at 0.00 m/s, camera still live, the world carrying on around it. From the seat that is exactly what being a ghost would feel like, which is worth noting: the description was accurate about the *experience* and the vocabulary arrived on its own.
+
+### An enemy over a body is doing nothing, loudly
+
+`Enemy._nearest_visible_player` walked the `"player"` group with no filter, and `_act`'s ALERTED branch attacked whatever `_target` held. A downed or spent body was a normal target — seen, chased and swung at indefinitely.
+
+It achieved **nothing**. `Health.apply_damage` returns at its first line once `_dead`, so there was no damage, no `damaged` signal and not even a Foley cue. Animation with nothing behind it. And because acquisition is *nearest visible*, a body on the floor actively pulled enemies off a standing teammate to swing at the one thing in the room that could not be hurt.
+
+**The fallen stop being targets, and the enemy searches the spot instead.** One predicate, `_worth_fighting`, used both where targets are acquired and where the ALERTED branch decides what to do — filtering acquisition alone is not enough, because `_target` keeps its reference and goes on swinging for the rest of `enemy_patience`.
+
+It drops to `SUSPICIOUS`, which already steers to `_last_seen` — and `_last_seen` is where the body is lying. So the enemy loiters over the fallen without attacking, and **a rescuer walks into a live, alert enemy**, which is precisely the *"time, exposure, noise"* `DES-012` charges for a revive. Going down is not a free reset for a losing fight either: it is still standing over you. No new state, no new tuning value — `DES-013`'s ladder already had the right shape and nothing was consulting it.
+
+### And the Gullsjúkr never stopped for an ember
+
+Found while checking the above. `DES-012` says, in as many words:
+
+> *"it is disturbed gold by ADR-089's rule, so **the Gullsjúkr will stop for it**: the thing that would buy you seconds is your friend."*
+
+False in the build, and not marginally. `con_ember.tres` carries `tribute_value = 0`; `_bait_worth_taking` requires at least `hunter_wealth_floor`, which is 20. **The one object that sentence is about was the one object that could never qualify as bait.** The best moment the co-op design has was unreachable.
+
+**An ember is exempted from the value test rather than given a value.** It is not tribute — she will not buy it back, and a number on that resource would make somebody's life bankable. It is what gold is *for*, which is the reason this thing wants it more than gold. It also has to *outrank* gold to be chosen at all: worth 0, it would have passed the exemption and then lost every comparison, including the zero the search starts at. `EMBER_WORTH` is a priority, and is documented as one.
+
+**And it cannot destroy one.** Collecting ends in `queue_free`, so an ember treated like gold would be **deleted on a 4.5 s timer** — a teammate's LIFE gone to an AI clock, with no counter-play once it started, which is the unexplainable loss `PRO-005` forbids. `DES-012` says the Hunter *stops* for it; stopping is the whole of it. It stoops, gets nothing — her fire is not a payment and no Tithe was ever settled with one — and leaves.
+
+Clearing `disturbed` is what keeps that from looping: the ember drops out of `_bait_worth_taking` by the rule that already exists, stays on the floor for whoever is coming, and the Hunter has had its look. **One stoop, one window** — which is exactly the seconds `DES-012` says an ember buys. A player who picks it up and sets it down re-disturbs it and pays the pickup for a second window.
+
+### The check, and two things it taught before it worked
+
+`--fallen-probe` asserts all four: the enemy notices a standing player, loses them when they go down, does **not** go home, and the Gullsjúkr stoops over an ember and leaves it intact. Each fails by name when planted.
+
+**It lives in the Deep because the gym deletes the thing under test.** The first draft was in `--combat-probe`, which is where enemy behaviour belongs — and `movement_gym` calls `_reset()` from `health.died`, so downing a player there frees and respawns every enemy in the level. It died on `previously freed`, one line after the enemy it was asserting about had been recycled. A venue that reacts to the event under test is not a venue.
+
+**And the first two runs reported `UNAWARE` at an enemy that genuinely could not see.** Placing the enemy relative to the player put it through a wall, and a yaw of `PI` turned the second attempt to face away — Godot's forward is -Z. It is placed by its own `facing()` now. Both were the probe being wrong in a way that looked exactly like the product being right, which is the failure mode `--edges-probe` was written about and it does not stop being easy.
+
+One smaller thing, recorded because it nearly shipped: two of the failure messages were built as `"…" + "…%d…" + "…" % value`. `%` binds tighter than `+`, so the format applied to the last fragment only and the specifier printed literally. Caught by reading the planted output rather than by the plant passing or failing — **a check that fails for the right reason can still be unreadable**, and the message is the entire value of a failing check.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

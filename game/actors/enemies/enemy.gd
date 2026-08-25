@@ -329,12 +329,31 @@ func _look(tuning: TuningProfile) -> void:
 ##
 ## Nearest *visible*, not nearest: hiding has to keep working when a teammate
 ## is standing in the open two metres away.
+## **A body worth fighting** (`M2-T21`, ADR-114).
+##
+## Down or spent is neither a threat nor damageable. `Health.apply_damage`
+## returns at its first line once `_dead`, so an enemy standing over a fallen
+## player deals no damage, emits no `damaged` signal and does not even play a
+## Foley cue — it is animation with nothing behind it. Worse, acquisition is
+## *nearest visible*, so a body on the floor was pulling enemies off a standing
+## teammate to swing at something that could not be hurt.
+##
+## `is_incapacitated()` rather than three separate tests, because `Player`
+## already owns that question (`bleeding > 0.0 or spent`) and exists so this
+## kind of call site cannot drift away from it.
+static func _worth_fighting(node: Node) -> bool:
+	var body := node as Player
+	return body != null and not body.is_incapacitated()
+
+
 func _nearest_visible_player(tuning: TuningProfile) -> Node3D:
 	var best: Node3D = null
 	var nearest: float = INF
 	for node: Node in get_tree().get_nodes_in_group("player"):
 		var candidate := node as Node3D
-		if candidate == null or not _can_see(candidate, tuning):
+		if candidate == null or not _worth_fighting(candidate):
+			continue
+		if not _can_see(candidate, tuning):
 			continue
 		var distance: float = global_position.distance_to(candidate.global_position)
 		if distance < nearest:
@@ -405,14 +424,22 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				_steer_toward(_last_seen, tuning.enemy_walk_speed, tuning)
 		State.ALERTED:
 			_patience -= delta
-			if _patience <= 0.0:
-				# Lost the player: go to where they were, not where they are.
-				_state = State.SUSPICIOUS
-				_patience = tuning.enemy_patience
 			# `is_instance_valid`, not `!= null`: a player who disconnects is
 			# freed out from under whichever enemy was chasing them, and a
 			# stale reference here crashes the host mid-fight.
-			elif is_instance_valid(_target):
+			#
+			# **And a target that went down is gone too** (`M2-T21`, ADR-114).
+			# Filtering acquisition alone does not stop this branch: `_target`
+			# keeps its reference and goes on swinging at a fallen body for the
+			# rest of `enemy_patience`.
+			var live: bool = is_instance_valid(_target) and _worth_fighting(_target)
+			if _patience <= 0.0 or not live:
+				# Lost the player: go to where they were, not where they are —
+				# which for a body on the floor is exactly where it is lying,
+				# so the enemy searches the spot a rescuer has to walk into.
+				_state = State.SUSPICIOUS
+				_patience = tuning.enemy_patience
+			else:
 				var range_to: float = global_position.distance_to(_target.global_position)
 				if range_to <= tuning.enemy_attack_range:
 					_begin_attack(tuning)

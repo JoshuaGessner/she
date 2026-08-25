@@ -128,7 +128,7 @@ func _ready() -> void:
 	_flying = not launch.is_zero_approx()
 	set_physics_process(_flying)
 	_definition = ItemCatalogue.by_id(item_id)
-	if _definition != null and _definition.tags.has(&"ember"):
+	if is_ember():
 		_build_ember()
 		return
 	if _definition == null:
@@ -146,6 +146,17 @@ func definition() -> ItemResource:
 
 func bound() -> int:
 	return bound_to
+
+
+## **Is this somebody's fire rather than an object?** (`M2-T21`, ADR-114)
+##
+## The tag, not `bound_to`, and the difference matters: `ItemInstance.is_ember`
+## asks *whose this is* and answers with the binding, while the question here is
+## *what kind of thing this is* — which the Gullsjúkr needs before it knows
+## whether it may take it. One copy of the test, used by `_ready` to decide how
+## to draw it and by the Hunter to decide what it is allowed to do with it.
+func is_ember() -> bool:
+	return _definition != null and _definition.tags.has(&"ember")
 
 
 ## True while it is still in the air. The Gullsjúkr ignores a bait it cannot

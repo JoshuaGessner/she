@@ -65,6 +65,12 @@ extends CharacterBody3D
 ## Same shape as `Player.dropped`, which the session already listens to.
 signal took(item: ItemInstance, at: Vector3)
 
+## How an ember ranks against gold when both are on the floor (`M2-T21`).
+## A **priority, not a value** — it outranks any hoard because it is the thing
+## every hoard was being gathered *for*, and it is deliberately not a
+## `tribute_value` on the resource, which would make somebody's life bankable.
+const EMBER_WORTH: int = 1_000_000
+
 enum State { DISTANT, COURSING, SIGHTED, COLLECTING, LOST }
 
 ## `DES-017` says the silhouette must read at any distance, and `ART-005`
@@ -252,12 +258,30 @@ func _bait_worth_taking() -> WorldItem:
 		if not item.disturbed:
 			continue
 		var definition: ItemResource = item.definition()
-		if definition == null or definition.tribute_value < needed:
+		if definition == null:
+			continue
+		# **An ember is always worth stopping for** (`M2-T21`, ADR-114).
+		# `DES-012` says so in as many words — *"it is disturbed gold by
+		# ADR-089's rule, so the Gullsjúkr will stop for it: the thing that
+		# would buy you seconds is your friend"* — and it was false in the
+		# build: `con_ember` is worth **0 tribute** against a floor of
+		# `hunter_wealth_floor`, so the one object that sentence is about was
+		# the one object that could never qualify.
+		#
+		# Exempted rather than given a tribute value, because it is not tribute:
+		# she will not buy it back, and a number here would make somebody's life
+		# bankable. It is what gold is *for*, which is exactly why this thing
+		# wants it more than gold.
+		if not item.is_ember() and definition.tribute_value < needed:
 			continue
 		if global_position.distance_to(item.global_position) > wealth_range():
 			continue
-		if definition.tribute_value > best_value:
-			best_value = definition.tribute_value
+		# Ranked, not appended: an ember is worth 0 tribute, so comparing on the
+		# raw value would have let it pass the test above and then lose every
+		# comparison to a coin — and to the zero this starts at.
+		var worth: int = EMBER_WORTH if item.is_ember() else definition.tribute_value
+		if worth > best_value:
+			best_value = worth
 			best = item
 	return best
 
@@ -433,10 +457,30 @@ func _tick_collecting(delta: float) -> void:
 	_has_goal = false
 	if _collect_left > 0.0:
 		return
-	# It takes the gold with it. Not despawned quietly: an item that vanished
-	# would read as a bug, and `DES-017` is explicit that it is *accumulating* —
-	# still carrying its hoard, still trying to pay.
-	_bait.queue_free()
+	# **An ember it stoops over, gets nothing from, and leaves** (`M2-T21`,
+	# ADR-114). It wants the thing and it cannot use the thing: her fire is not
+	# a payment, and no Tithe was ever settled with one.
+	#
+	# The mechanical reason matters more than the fiction. Collecting ends in
+	# `queue_free`, so an ember treated like gold would be **destroyed on a
+	# 4.5 s timer** — deleting a teammate's LIFE with no counter-play once it
+	# started, which is exactly the loss `PRO-005` forbids. `DES-012` says the
+	# Hunter *stops* for it. Stopping is the whole of it.
+	#
+	# Clearing `disturbed` is what stops this looping: the ember drops out of
+	# `_bait_worth_taking` by the rule that already exists, stays on the floor
+	# for whoever is coming, and this thing has had its look. One stoop, one
+	# window — which is the seconds `DES-012` says an ember buys. A player who
+	# picks it up and sets it down again re-disturbs it, and pays the pickup for
+	# a second window.
+	if _bait.is_ember():
+		print("[hunt] the Gullsjúkr stooped over an ember and left it")
+		_bait.disturbed = false
+	else:
+		# It takes the gold with it. Not despawned quietly: an item that
+		# vanished would read as a bug, and `DES-017` is explicit that it is
+		# *accumulating* — still carrying its hoard, still trying to pay.
+		_bait.queue_free()
 	_bait = null
 	state_index = State.LOST
 
