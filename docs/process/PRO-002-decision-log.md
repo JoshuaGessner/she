@@ -2511,4 +2511,36 @@ The last is the one nothing else watches and the one this design would lose firs
 
 ---
 
+## ADR-120 — "Two classes complete" was three systems in one checkbox
+**Date:** 2026-08-25 · **Status:** accepted · **Splits `M3-T02`, adds `M3-T11`** · **Scopes `DES-011`**
+
+**Context:** `M3-T02` read *"Two classes complete — Húskarl and Veiðimaðr, opposite loop relationships."* One line, one checkbox. Read against what is actually built, it contains:
+
+| | |
+|---|---|
+| **A class-select screen** | `game/ui/` has eleven scripts and none is it (ADR-116 §2 found this already) |
+| **Blocking** | the Húskarl's *Hold* needs a shield. `WieldableTrait` carries windup, active, recovery, damage, reach — **no notion of stopping a blow** |
+| **Ranged combat** | the Veiðimaðr's bow. Every weapon in the game is melee with a `reach` |
+| **Placeable traps** | *Snare* — hold, wound, or misdirect, *"including against the Hunter"* — an entity with three behaviours and its own interaction with the Hunt |
+
+That is three new systems and a screen. `PRO-007` §3 calls scope *"the most honest number in this document"*, and a task whose true size is invisible from its own text is how that number stops being honest.
+
+**Split.** `M3-T02` takes the screen and the Húskarl; **`M3-T11`** takes the Veiðimaðr. Each is one class and one or two new systems, each ships playable on its own, and the second one's cost is now visible on the board rather than hidden behind a tick.
+
+They stay **adjacent**, because `DES-011`'s claim is about the pair: *"classes must differ in their relationship to the loop, not just in their damage type"* — the Húskarl gets out by refusing to be stopped, the Stalker by never having been noticed. One class cannot test that rule. The split is about shipping order, not about whether both are needed.
+
+And one class in the select screen is **correct**, not a stub: ADR-064's absent column, five entries that do not exist rather than five that do nothing.
+
+### What "complete" means for a class
+
+`DES-011` defines a class as four things: a starting kit, one unique verb, a class-only **Rite branch** (~7 nodes), and access to 3 of the 5 Aspects. **Two of those four are skill-tree work** — and the Rite unlocks at Pact Rank 3 (ADR-060), which nothing can reach until `M3-T01`.
+
+**A class is complete at `M3-T02` as a body you play.** A Húskarl with Hold, a shield, heavy armour and a stat line is distinct, finished and playable; what it lacks is *progression*, and progression is absent for every player until the tree exists. That is the same shape as the hoard, which has grown since `M2-T06` and buys nothing yet — a real system whose consumer has not arrived, not a hollow one pretending to be real.
+
+The alternative was moving `M3-T02` after `M3-T01` so a class arrives whole. Rejected: ADR-009 makes **your class decide which three Aspects you may enter**, so the tree would then be built with its gating rule missing and retrofitted afterwards — which is the exact ordering fault ADR-116 §2 swapped these two tasks to avoid. Trading it back to get a Rite branch three tasks sooner is a bad trade.
+
+**The task text says all of this explicitly.** A class whose Rite branch is absent, with no note saying when it arrives, is indistinguishable from a class whose Rite branch was forgotten — and `CLAUDE.md`'s rule is that a placeholder needs a named replacement task and a milestone by which it is gone. Both are named: `M3-T01`, this milestone.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
