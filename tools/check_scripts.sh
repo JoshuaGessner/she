@@ -204,6 +204,25 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The profile on disk** (`M3-T06`, `TEC-003`, ADR-116). Round trip, the
+	# two refusals, and the migration runner driven with a table the real one
+	# cannot supply yet — there is no format older than v1 to come from, so
+	# `MIGRATIONS` is empty while `walk()` runs on every load, which is exactly
+	# how an algorithm ends up shipping unexercised (ADR-097).
+	#
+	# Boots no scene: its subject is an autoload and `SaveFile`, and neither has
+	# a room. **`^ERROR:` is deliberately not a failure signal here** — this is
+	# the one probe whose job includes driving the paths that push errors, so a
+	# refused profile prints one on purpose. `PROBLEM`, `SCRIPT ERROR` and the
+	# exit code are the signal.
+	save="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
+		-- --save-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$save" | grep -qE 'PROBLEM|FAIL|SCRIPT ERROR'; then
+		echo "FAIL a profile has to survive a round trip and refuse what it cannot read" >&2
+		printf '%s\n' "$save" | grep -E '\[save\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
@@ -518,6 +537,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the bag takes a click and keeps its text inside its own box,"
 	echo "the Gullsjukr takes your gold rather than your life,"
 	echo "the fallen stop being a target and an ember survives the Hunt,"
+	echo "a profile survives a round trip and refuses what it cannot read,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

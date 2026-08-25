@@ -12,6 +12,13 @@ related: [DES-003, TEC-001, TEC-002]
 
 `DES-003` defines *what* persists. This defines *how*. Building it correctly on day one is one of the highest-leverage decisions available on this project — save migration retrofitted later is genuinely one of the worst jobs in game development.
 
+> **As built at `M3-T06`** (ADR-116, ADR-117). Everything below is the specification and it stands. Two things about *when*:
+>
+> - **The schema is only as wide as the state that exists**, and grows one version per `M3` task. The section diagram below is the destination, not v1 — writing its fields now, for systems that do not exist, is the stub ADR-064 bans. v1 is `meta`, `lineage` and `life`; `legacy` arrives with `M3-T05`, `pact_rank` and `run_count` with `M3-T04`. By `GATE M3 EXIT` the migration path will have run for real seven times against saves that genuinely existed.
+> - **`user://run.active` is `M3-T09`, not `M3-T06`.** ADR-050's *"dropping out of a co-op run leaves you a Vörðr"* has no referent until the Vörðr exists, and building suspend/resume before `M3-T09` builds it against a run structure that task is about to change.
+>
+> Implemented as `SaveFile` (`class_name`, static) plus `GameState.to_dict/from_dict`. **Not an autoload**, on the `Settings` precedent and ADR-066: `TEC-001` budgets six and names `SaveSystem` among them, but an autoload is for something with a node's life and this has none.
+
 ## Save file structure — mirror the design tiers
 
 The three-tier design (`DES-003`) maps directly onto three save sections. That alignment isn't cosmetic: **death is implemented as "delete the LIFE block, keep the LINEAGE block, move Legacy across."** Nothing else. That's a one-function operation, easy to reason about, easy to test, and impossible to get subtly wrong.

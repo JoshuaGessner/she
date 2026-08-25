@@ -2346,7 +2346,7 @@ Approved as proposed. `TEC-003` draws a schema with `pact_rank`, `tithe_state`, 
 
 `M4-T06` read *"Full save/load, settings, controls rebinding"* — written before ADR-109 moved the save system out of `M4` and into `M3-T06`. Left as it stood, two tasks two milestones apart both claimed the same deliverable, which is how one of them gets built twice or neither gets built at all.
 
-It is narrowed to **the part a player touches**: the load path at boot, profile management, and what a build does with a save from a newer build than itself. The format, the versioning, the migrations and the write policy are `M3-T06` and grow a version per task from there.
+It is narrowed to **the part a player touches**: profile management, and what a build does with a save from a newer build than itself. Not the boot load — `M3-T06` reads the profile when a session starts, or the save it writes would be write-only, which is the ADR-098 failure this project has already had once. The format, the versioning, the migrations and the write policy are `M3-T06` and grow a version per task from there.
 
 `game/systems/settings.gd` also still points at `M4-T06` for the versioned save; `M3-T06` corrects it. `Settings` itself stays exactly where it is — its header is right that preferences are a different file with different rules, *"and conflating them is how settings end up wiped by a save migration."*
 
@@ -2355,6 +2355,64 @@ It is narrowed to **the part a player touches**: the load path at boot, profile 
 `T06` → `T04` → **`T10`** → `T02` → `T01` → `T03` → `T05` → `T08` → `T07` → `T09`
 
 `T10` sits directly after `T04` deliberately: rank raising your Tithe **and** raising the floor is one coupling, `DES-003`'s Pillar-P3 claim that *"power pulls you deeper"*, and splitting it across the milestone means neither half can be felt on its own.
+
+---
+
+## ADR-117 — The profile has a file, and the checks that proved it were wrong twice
+**Date:** 2026-08-25 · **Status:** accepted · **Closes `M3-T06`** · **Implements `TEC-003`** · **Amends `M4-T06`**
+
+**Context:** `GameState` held the hoard, the stash and the tribute total in memory and lost all of it on quit. Its own header said so, and said it would acquire a file *"when the file has a migration path."* This is that.
+
+### v1 carries what exists, and nothing else (ADR-116)
+
+```
+user://profile.save
+├── meta     { save_version, engine, created, updated }
+├── lineage  { hoard, hoard_value }      ← survives death, always
+└── life     { stash }                   ← wiped by death (DES-008)
+```
+
+`TEC-003` draws `pact_rank`, `tithe_state`, `boon`, `skill_tree`, `scars`, `bestiary`, `cartography` and `legacy_slots_unlocked` alongside those. **None exist**, and writing them as empty fields is the stub ADR-064 bans. `legacy` is **absent rather than empty** for the same reason — there are no Legacy slots until `M3-T05`, and a section for a system that does not exist is a stub wearing structure's clothes. `descents` is left out too: its own name is *"this session"*, and `TEC-003`'s LIFE-tier `run_count` is a different number that counts against a Tithe cycle, which is `M3-T04`.
+
+The two sections that are here earn it: `die()` was **already** written as `TEC-003`'s one-function operation — clear LIFE, keep LINEAGE — so the split is the shape death already had, not a shape imposed on it.
+
+**The stash saves ids only.** `_carry_the_stash_down()` re-mints a fresh `ItemInstance` from the definition and discards the stashed one, so a cell, a rotation and an instance id would all be written and thrown away on load. The moment anything persists a *placed* item — a bag across a suspend — those come with it, and that is `M3-T09`.
+
+### Not an autoload, and nothing is written back to a file that was never read
+
+`TEC-001` names `SaveSystem` in its budget of six. It is a `class_name` with static state instead, for the reason `Settings` gives three files over: an autoload is for something with a node's life, and this has none. `GameState` is the autoload, owns the state, and is the only caller. A second autoload whose whole body is *"hand this dict to a file"* is a habit rather than a budget (ADR-066).
+
+`GameState._live` is false until `load_profile()` succeeds, and `MainMenu._enter()` is the only caller — the moment a session starts, which is the only path into the game. Everything follows from that one rule:
+
+- A probe booting a level directly mutates state in memory and **cannot touch a player's profile.** No probe-awareness in production code, and no profile inherited from whatever the previous probe wrote.
+- A build that **refused** a profile cannot overwrite it, because refusing leaves it not-live.
+- Loading at boot would have done the opposite of both.
+
+### The check was green and wrong, twice, and only planting showed it
+
+**A corrupt profile was being destroyed.** `load_profile` asked `read_raw().is_empty()` whether a profile existed — and `read_raw` returns `{}` both for *no file* and for *a file that is not a save*. So an unreadable profile read as **no profile**, went live, and was overwritten by the next tribute. The protection built for a save from a newer build did not cover the case it was most needed in.
+
+The probe was green throughout, because it asserted that garbage does not **load** — true — and never that garbage **survives**. ADR-113's shape exactly: an assertion that is correct and beside the point. *Is there a profile* is a filesystem question, and it asks the filesystem now.
+
+**And the missing-migration guard was decorative.** Deleting it changed nothing observable: GDScript's own missing-key access aborts the function and hands back an empty dictionary anyway, so refusing and crashing were indistinguishable from outside and the check proved nothing about itself. It checks the **whole route before the first step** now — which is also better behaviour, because refusing part-way leaves the caller holding a profile half-way between two formats. A gap runs **zero** migrations instead of some, and *that* is observable: the probe asserts no step ran.
+
+One smaller thing in the same family: the probe's synthetic migrations originally **mutated** the dictionary they were handed. A Dictionary is a reference in GDScript, so `walk()` throwing away its steps' return values still appeared to work. They build a new dictionary now, because a migration is a function from one shape to another and testing it as one is the only way the wiring is proved.
+
+### `MIGRATIONS` is empty, and that is not the same as unbuilt
+
+There is no format older than v1, so the table has nothing in it while `walk()` runs on every load. An algorithm proved only by the data it currently has is ADR-097 waiting to happen — so `walk()` takes its table as an argument, and `--save-probe` drives it with a synthetic two-step one. The algorithm is exercised; the table fills from `M3-T04` onward, one version per task.
+
+`--save-probe` asserts nine things and **every one of them was planted and seen to fail by name**, which is how both faults above were found. It is the one probe in the sweep whose block does not treat `^ERROR:` as failure: driving the paths that push errors is its job.
+
+### And one line that nothing reached
+
+`MainMenu._enter()` is the only thing in the build that opens a profile, and `run_coop.py` boots the Deep directly — so every *piece* of this task had a check and the **composition** had none. That is the shape ADR-105, ADR-108 and ADR-110 all had, and it is the one this project keeps paying for. `--menu-probe` presses Descend now and asserts a profile opened; planted, it reports `saving=false` and fails by name.
+
+Adding it broke the probe on the first attempt, in a way worth keeping: pressing Descend calls `change_scene_to_file`, which **detaches the outgoing scene synchronously** — so by the time the probe printed its report, `get_tree()` on the menu was null and the run died on `Cannot call method 'quit' on a null value`. The `SceneTree` outlives the node; the node's path to it does not. It is held in a local before the walk now. The same synchronous-detach behaviour was what ADR-113 turned on, three tasks ago, from the other direction.
+
+### `M4-T06`, once more
+
+ADR-116 narrowed it to *"the load path at boot, profile management, …"*. The boot load is here — a save nothing reads is the write-only stash ADR-098 already caught this project building once. `M4-T06` keeps profile management and what a build tells a player about a save it cannot read.
 
 ---
 

@@ -11,7 +11,7 @@ extends Object
 ##
 ## Written to `user://settings.cfg` with `ConfigFile`. **This is not `TEC-003`'s
 ## save system** and does not pretend to be: no run state, no progression, no
-## migration path, nothing that death or a schema change touches. `M4-T06`
+## migration path, nothing that death or a schema change touches. `M3-T06`
 ## builds the versioned save; preferences are a different file with different
 ## rules, and conflating them is how settings end up wiped by a save migration.
 ##

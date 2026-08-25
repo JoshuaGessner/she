@@ -219,7 +219,21 @@ func _show_settings() -> void:
 	add_child(_settings)
 
 
+## Into the Lair, and the one place a profile is opened (`M3-T06`).
+##
+## Here rather than in `GameState._ready()` because this is where a *session*
+## starts: a player pressing this is the moment they have a profile, and it is
+## the only path into the game. An autoload that loaded at boot would also load
+## in every probe that boots a level directly, so each one would inherit
+## whatever the last one wrote — and `GameState` writing back only once it has
+## read makes that impossible in the other direction too.
 func _enter() -> void:
+	if not GameState.load_profile():
+		# `SaveFile` has already said what was wrong with it. The run is allowed
+		# to start — refusing to play at all because of an unreadable file is a
+		# worse answer than playing without saving — and nothing will be written
+		# over it. Telling a player any of this is `M4-T06`.
+		push_warning("MainMenu: descending without a profile; nothing will be saved")
 	get_tree().change_scene_to_file(THRESHOLD)
 
 
@@ -287,11 +301,16 @@ func _menu_probe() -> void:
 			+ "is a channel somebody cannot turn down")
 			% [sliders, Settings.VOLUME_BUSES.size()])
 
+	# Held before the walk, because its last stop presses Descend and
+	# `change_scene_to_file` detaches this menu **synchronously** — so by the
+	# time the report is printed, `get_tree()` on this node is null. The
+	# `SceneTree` itself outlives the node; the node's path to it does not.
+	var tree: SceneTree = get_tree()
 	problems.append_array(await _walk_the_loop())
 
 	for problem: String in problems:
 		printerr("[menu] FAIL %s" % problem)
-	get_tree().quit(1 if problems.size() > 0 else 0)
+	tree.quit(1 if problems.size() > 0 else 0)
 
 
 ## **Menu → Threshold → Deep → Chamber → Threshold**, actually walked.
@@ -342,4 +361,19 @@ func _walk_the_loop() -> PackedStringArray:
 				+ "leave stops reporting anything useful") % [path, paused])
 		instance.queue_free()
 		await get_tree().process_frame
+
+	# **And the door itself**, last because it detaches this menu.
+	#
+	# `_enter()` is the only thing in the build that opens a profile (`M3-T06`),
+	# and `run_coop.py` boots the Deep directly — so without this, the one line
+	# joining the menu to the save is reached by nothing in the sweep. Every
+	# piece of `M3-T06` has its own check and none of them is the composition,
+	# which is the shape ADR-105, ADR-108 and ADR-110 all had.
+	SaveFile.wipe()
+	_enter()
+	print("[menu] descend     profile opened, saving=%s" % GameState.saving())
+	if not GameState.saving():
+		problems.append(("pressing Descend did not open a profile — every part "
+			+ "of the save works and nothing joins them, so a run would end and "
+			+ "the hoard `DES-014` says is never wiped would go nowhere"))
 	return problems
