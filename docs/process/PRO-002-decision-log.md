@@ -2350,6 +2350,14 @@ It is narrowed to **the part a player touches**: profile management, and what a 
 
 `game/systems/settings.gd` also still points at `M4-T06` for the versioned save; `M3-T06` corrects it. `Settings` itself stays exactly where it is — its header is right that preferences are a different file with different rules, *"and conflating them is how settings end up wiped by a save migration."*
 
+### 6. Two things this pass itself got wrong, found by reading for `M3-T04`
+
+**`M3-T10` cited the wrong doc.** It named `DES-003`, `DES-012` and `DES-015`; the specification is **`DES-022`**, which answers *"so what does a rank-9 floor mean?"* in a six-row table and sets the rule the whole thing turns on — *fixed stats per archetype, difficulty by composition and pressure, never bigger numbers.* Three of its six axes — **Density, the Hunt, Time** — are buildable at `M3`. The other three need archetypes, the modifier set and module generation that belong to `M4-T01`, `M4-T02` and `M5-T04`. Naming which three is the difference between a scoped task and one that either overreaches or quietly stubs half of itself.
+
+**And `M3-T04` builds a rank that cannot rise.** `DES-022` raises Pact Rank by spending Boon on nodes — *"a player reaching Rank 9 takes roughly 20"* — and that is `M3-T01`, three tasks later. So a life sits at rank 1 until then, and both the Gullsjúkr's killable threshold and ADR-029's reclaimed-node soft-fail are numbers no build can reach yet.
+
+That is the right way round and it is worth saying why, because it looks exactly like the ordering fault §2 just fixed and is its opposite. `DES-003`'s argument is that persistence *always* trivialises unless power is coupled to obligation. Building the obligation after the power ships Failure Mode A deliberately for three tasks. The rank is real, static, and honest — the same shape as the hoard, which has grown since `M2-T06` and buys nothing until `M3-T01`.
+
 ### The resulting order
 
 `T06` → `T04` → **`T10`** → `T02` → `T01` → `T03` → `T05` → `T08` → `T07` → `T09`
