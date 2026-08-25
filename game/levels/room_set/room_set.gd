@@ -219,6 +219,26 @@ const SPAWNS: Array[Vector3] = [
 ## in two places is a coordinate that will eventually disagree with itself.
 const PRIZE_AT: Vector3 = Vector3(20.3, 0.1, -21.0)
 
+## Two ends of the entrance room, for `--stalker-probe` (`M3-T11`). Named
+## constants rather than offsets from wherever the player happens to be
+## standing, because the first draft used offsets and put every target it
+## spawned outside `ROOMS.entrance` — which does not error, it just drops
+## things out of the world, and a probe measuring a falling body reports
+## confident nonsense. 12 m apart along X keeps both well inside the walls at
+## ±8 X and −2/+10 Z, and six `ClamorField` cells apart, so *"the noise landed
+## over there"* is a question about two different cells.
+## How much of its free travel a **held** body is allowed to cover, in
+## `--stalker-probe`. Not zero — a body settles against the floor and drifts a
+## few centimetres — and deliberately not *"less than it managed free"*, which
+## is the form the first draft used and which a plant walked straight through:
+## a Gullsjúkr let loose to walk 2.00 m while snared still read as a pass
+## against 4.08 m free, because a body released into a fresh repath covers
+## ground unevenly. A quarter is the difference between slowed and held.
+const ROOTED_SHARE: float = 0.25
+
+const ARCHER_POST: Vector3 = Vector3(-6.0, 0.1, 4.0)
+const BUTT_POST: Vector3 = Vector3(6.0, 0.1, 4.0)
+
 ## The authored loot (`M2-T01`). Hand-placed, like the enemy posts: `DES-008`'s
 ## loot tables need somewhere to place things and the generator is `M4-T01`, so
 ## `LootTableResource` is **absent rather than approximated** (ADR-064).
@@ -357,6 +377,13 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.contains("probe") or arg.contains("shot") or arg.contains("capture"):
 			_probing = true
+		# **Sworn before the body is built** (`M3-T11`). A class reaches a body
+		# through the spawn payload and nowhere else (`M3-T02`, ADR-121), so a
+		# probe that swore after `_spawn_actors` would be measuring a body it
+		# had reached in and edited rather than one the host built — which is
+		# the difference the whole class path was written to preserve.
+		if arg == "--stalker-probe":
+			GameState.class_id = &"veidimadr"
 	AudioDirector.enter("deep")
 	_build_lighting()
 	for name: String in ROOMS:
@@ -424,6 +451,8 @@ func _ready() -> void:
 			_fallen_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
+		elif arg == "--stalker-probe":
+			_stalker_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -2605,6 +2634,10 @@ func _build_hunt() -> void:
 	add_child(_field)
 	_field.configure(FIELD_FROM, FIELD_TO)
 	_hunter = _session.spawn_hunter(HUNTER_POST)
+	# Arrows and Snares deposit into it too (`M3-T11`), and both are built by
+	# the session rather than by this level, so the session needs the same
+	# handoff the Hunter gets below. One field, two listeners.
+	_session.hunt_in(_field)
 	if _hunter != null:
 		_hunter.hunt_with(_field)
 		# **The floor's rank, as time already spent** (`M3-T10`, ADR-119).
@@ -3844,3 +3877,418 @@ func _rank_probe() -> void:
 			+ "session and breaks their Tithe math") % with_veteran)
 
 	_report(problems, "rank")
+
+
+## **The Stalker** (`M3-T11`, `DES-011`, ADR-123).
+##
+## `DES-011` defines the Veiðimaðr by two things the game did not have — a bow
+## and a trap — and by one sentence that is the reason the verb exists at all:
+## *"including against the Hunter, the only reliable way to buy time during the
+## Sealing."* Everything below is that sentence and the claims it rests on.
+##
+## **Every "it stopped" assertion carries a control**, measured on the same body
+## moments earlier. A held enemy that never had anywhere to go is a probe that
+## cannot fail, and this milestone has already produced four of those.
+func _stalker_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var tuning: TuningProfile = Config.tuning
+
+	# ─ 1. the bow is in the hand because the **kit** says so ─
+	#
+	# The body was built from the spawn payload with `class_id` already set
+	# (see `_ready`), so this is the real route a class reaches a body by, not
+	# a field this probe assigned.
+	print("[stalker] sworn                    %s" % player.sworn)
+	if player.sworn != &"veidimadr":
+		problems.append("the body is sworn to '%s' — nothing below is about a "
+			% player.sworn + "Veiðimaðr, so stop here rather than report on it")
+		_report(problems, "stalker")
+		return
+	print("[stalker] bow in hand              %s   melee visible %s" % [
+		"yes" if player.ranged != null else "NO",
+		"yes" if player.weapon.visible else "no"])
+	if player.ranged == null:
+		problems.append("a Veiðimaðr has no bow — `ClassResource.kit` is what "
+			+ "arms a class (ADR-123), and a kit that arms nobody is a list of "
+			+ "ids in a file")
+		_report(problems, "stalker")
+		return
+	if player.weapon.visible:
+		problems.append("the blade is still shown on a body that cannot swing "
+			+ "it — a visible weapon that does nothing is the most direct lie a "
+			+ "blockout can tell a playtester (ADR-064)")
+	# The other half of "the kit decides": a class with no ranged item in its
+	# kit gets no bow. Asserted against the data rather than by building a
+	# second body, because the claim is about the kit.
+	var shield_class: ClassResource = ClassCatalogue.by_id(&"huskarl")
+	var huskarl_armed: bool = false
+	for id: StringName in shield_class.kit:
+		var definition: ItemResource = ItemCatalogue.by_id(id)
+		if definition != null and definition.has_trait(RangedTrait):
+			huskarl_armed = true
+	print("[stalker] huskarl kit has a bow    %s (want no)"
+		% ("YES" if huskarl_armed else "no"))
+	if huskarl_armed:
+		problems.append("the Húskarl's kit carries a ranged weapon, so 'the kit "
+			+ "decides' is untestable here — every class would have a bow")
+
+	# ─ 2. the draw commits, and clears ADR-053's floor in wall-clock time ─
+	player.restore_for_descent()
+	# **Inside the entrance room, with room to shoot across it.** The first
+	# draft measured from `SPAWNS[0]` and put its targets 8 and 14 m along +Z —
+	# which is past the wall at z = 10. Everything it spawned fell out of the
+	# world, and it reported an enemy "moving" 34 m in a second and an arrow
+	# that missed. Every distance below is checked against `ROOMS.entrance`.
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.3)
+	var began: int = Time.get_ticks_msec()
+	player.ranged.request_draw(player.stamina)
+	var refused_mid_draw: bool = not player.ranged.request_draw(player.stamina)
+	var drew_ms: int = 0
+	while player.ranged.phase() == RangedWeapon.Phase.DRAWING:
+		await get_tree().physics_frame
+		drew_ms = Time.get_ticks_msec() - began
+	var bow: RangedTrait = player.ranged.kit()
+	print("[stalker] draw                    %4d ms   floor  250, expected %4d"
+		% [drew_ms, int(bow.draw_seconds * 1000.0)])
+	if drew_ms < 250:
+		problems.append(("a draw took %d ms — ADR-053's 250 ms floor is about a "
+			+ "telegraph an enemy can read, and a drawn bow is one") % drew_ms)
+	print("[stalker] second press mid-draw    %s (want refused)"
+		% ("refused" if refused_mid_draw else "ACCEPTED"))
+	if not refused_mid_draw:
+		problems.append("a second press during the draw was accepted — "
+			+ "`DES-009` says attacks commit, and a bow that can be re-drawn "
+			+ "mid-draw commits to nothing")
+	while player.ranged.is_busy():
+		await get_tree().physics_frame
+
+	# ─ 3. an arrow wounds what it meets, and never the person who loosed it ─
+	_session.clear_enemies()
+	await _hold(0.4)
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.3)
+	var mark: Vector3 = BUTT_POST
+	# Facing away, so it is standing still when the arrow arrives. It does not
+	# stay that way — an arrow landing at its feet is 3.2 of Clamor and it
+	# comes looking, which is the coupling working rather than a flaw here.
+	_session.spawn_enemy(mark, PI)
+	await _hold(1.0)
+	var target: Enemy = _first_live_enemy()
+	if target == null:
+		problems.append("no enemy spawned, so nothing here is about what an "
+			+ "arrow does when it arrives")
+		_report(problems, "stalker")
+		return
+	var before_hp: float = target.health.current
+	var shot: Vector3 = (target.global_position - player.global_position)
+	shot.y = 0.0
+	# Through the body's own host-side handler rather than straight at the
+	# session, so what is measured is the seam a player uses: the aim is the
+	# shooter's, the origin is the host's copy of them, and `clamor_loose` is
+	# charged to the archer. Calling `spawn_arrow` directly would have skipped
+	# the archer's own noise and made the comparison below unlosable.
+	#
+	# **Peaks, sampled per frame, not a reading taken afterwards.** The field
+	# decays continuously, and the first draft asked it 2.6 s later and got
+	# 0.00 at both ends — a true measurement of an empty field, and evidence of
+	# nothing whatever.
+	var archer_peak: float = 0.0
+	var mark_peak: float = 0.0
+	player._loose_arrow(shot.normalized())
+	# **Both ends measured the same way, over a neighbourhood.** `ClamorField`
+	# is a 2 m grid and an arrow stops at the *surface* of a hurtbox — here,
+	# 0.17 m short of the body, and one cell over. Asking a single coordinate
+	# read 0.06 where 3.2 had just been deposited next door, which is a true
+	# answer about the wrong cell and cost three passes to see.
+	for i: int in range(120):
+		await get_tree().physics_frame
+		archer_peak = maxf(archer_peak, _peak_near(ARCHER_POST))
+		mark_peak = maxf(mark_peak, _peak_near(mark))
+	var hurt: float = before_hp - target.health.current
+	print("[stalker] arrow into an enemy     %5.1f damage  (bow says %.0f)"
+		% [hurt, bow.damage])
+	if hurt <= 0.0:
+		problems.append("an arrow arrived and did nothing — the mask is "
+			+ "`ENEMY_HURTBOX | PLAYER_HURTBOX` and deliberately not `WORLD`, so "
+			+ "a miss here is a hurtbox it cannot see rather than a wall")
+
+	# **Your own arrow is not a way to die** — tested at the guard, with a
+	# control, because "0 damage" and "it never arrived" are the same reading.
+	#
+	# One arrow fired *at* the archer from across the room carrying their own
+	# peer id, then the identical arrow carrying somebody else's. Without the
+	# second, deleting the shooter-skip entirely would still read as a pass.
+	# Deliberately not loosed at your own feet: the muzzle sits half a metre
+	# ahead of the head, so an arrow dropped from there is past the body in two
+	# physics frames and proves nothing either way.
+	var from_side: Vector3 = player.global_position + Vector3(4.0, 1.2, 0.0)
+	var inward: Vector3 = Vector3(-1.0, 0.0, 0.0)
+	var mine: int = player.get_multiplayer_authority()
+	var self_hp: float = player.health.current
+	_session.spawn_arrow(from_side, inward, bow, mine)
+	await _hold(0.8)
+	var self_hurt: float = self_hp - player.health.current
+	var stranger_hp: float = player.health.current
+	_session.spawn_arrow(from_side, inward, bow, mine + 1)
+	await _hold(0.8)
+	var stranger_hurt: float = stranger_hp - player.health.current
+	print("[stalker] arrow at you  yours %5.1f   somebody else's %5.1f"
+		% [self_hurt, stranger_hurt])
+	if self_hurt > 0.0:
+		problems.append(("an archer took %.0f from their own arrow — that is an "
+			+ "unexplainable death (`PRO-005` §5) with a very silly cause")
+			% self_hurt)
+	if stranger_hurt <= 0.0:
+		problems.append("an arrow from another peer passed through the player "
+			+ "harmlessly, so the row above says nothing — it would read 0.00 "
+			+ "for an arrow that simply never arrived")
+
+	# ─ 4. **the noise happens over there** — the whole tactic ─
+	print("[stalker] clamor at the impact    %5.2f   at the archer %5.2f"
+		% [mark_peak, archer_peak])
+	if archer_peak <= 0.0:
+		problems.append("loosing cost the archer no noise at all, so the "
+			+ "comparison below is against nothing — `clamor_loose` is small on "
+			+ "purpose, not absent")
+	if mark_peak <= archer_peak:
+		problems.append(("the shot was as loud where it was fired (%.2f) as "
+			+ "where it landed (%.2f) — `clamor_hit` above `clamor_loose` is "
+			+ "the entire reason a Stalker carries a bow, and it is the same "
+			+ "misdirection `DES-005` sells thrown loot on")
+			% [archer_peak, mark_peak])
+
+	# ─ 5. a Snare holds an enemy that is **trying to get somewhere** ─
+	#
+	# The control is the same body, in the same chase, moments later. An
+	# earlier draft spawned an enemy and measured it before snaring — and it
+	# had already closed to 2.16 m and stopped, so "it did not move" was true
+	# of a body standing in attack range. That assertion could not fail.
+	# Before/after on one body cannot have that problem: the free window is
+	# the proof that the held window meant something.
+	_session.clear_enemies()
+	await _hold(0.4)
+	player.restore_for_descent()
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.3)
+	_session.spawn_enemy(ARCHER_POST + Vector3(0.0, 0.0, 3.0), 0.0)
+	await _hold(1.6)
+	var chaser: Enemy = _first_live_enemy()
+	if chaser == null:
+		problems.append("no enemy to snare")
+		_report(problems, "stalker")
+		return
+	# Give it a reason to travel: the thing it is chasing walks away.
+	var trap_at: Vector3 = chaser.global_position
+	var trap: Snare = _session.spawn_snare(trap_at, player.get_multiplayer_authority())
+	await _hold(0.15)
+	chaser.global_position = trap_at
+	player.teleport(BUTT_POST, 0.0)
+	await _hold(0.4)
+	var window: float = minf(tuning.snare_hold_seconds * 0.5, 1.5)
+	var held_from: Vector3 = chaser.global_position
+	var trap_peak: float = 0.0
+	var until: int = Time.get_ticks_msec() + int(window * 1000.0)
+	while Time.get_ticks_msec() < until:
+		await get_tree().physics_frame
+		trap_peak = maxf(trap_peak, _peak_near(trap_at))
+	var held_moved: float = held_from.distance_to(chaser.global_position)
+	var caught: bool = trap.sprung
+	print("[stalker] trap sprung             %s" % ("yes" if caught else "NO"))
+	if not caught:
+		problems.append("a body walked into the trap and it did not fire — the "
+			+ "mask is `ENEMY_BODY` and both movers carry that layer")
+	# Wait out the hold, then run the identical window with nothing holding it.
+	# **Bounded**, not `while held()`: an unbounded wait in a probe hangs
+	# instead of failing, which is worse than a wrong answer — the first draft
+	# of this line ran the harness for ten minutes and reported nothing.
+	var let_go: bool = await _wait_out(chaser.rooted, tuning.snare_hold_seconds * 2.0, false)
+	print("[stalker] released after the hold %s" % ("yes" if let_go else "NO"))
+	if not let_go:
+		problems.append(("still held after %.1f s of a %.1f s hold — a root that "
+			+ "does not end is a stun-lock, which is the no-counter-play answer "
+			+ "`PRO-005` §5 rules out") % [tuning.snare_hold_seconds * 2.0,
+			tuning.snare_hold_seconds])
+	var free_from: Vector3 = chaser.global_position
+	await _hold(window)
+	var free_moved: float = free_from.distance_to(chaser.global_position)
+	print("[stalker] enemy over %.1f s  snared %5.2f m   then free %5.2f m"
+		% [window, held_moved, free_moved])
+	if free_moved < 0.5:
+		problems.append(("released, it covered %.2f m in the same window, so it "
+			+ "was not going anywhere either way and 'it stopped' says nothing "
+			+ "— this assertion cannot fail as written") % free_moved)
+	if held_moved > free_moved * ROOTED_SHARE:
+		problems.append(("a snared enemy covered %.2f m against %.2f m free — "
+			+ "`DES-011` sells the Snare as *hold*, and a trap that leaves a "
+			+ "body moving is a slow, not a root") % [held_moved, free_moved])
+
+	# It is loud where the trap is. The Stalker's one loud act, and it is what
+	# makes setting a trap in your own doorway a mistake you can make.
+	print("[stalker] clamor at the trap      %5.2f" % trap_peak)
+	if trap_peak <= 0.0:
+		problems.append("a Snare fired silently — `snare_clamor_trigger` is "
+			+ "the Stalker's one loud act, and a trap that costs no noise is a "
+			+ "free escape rather than a trade")
+
+	# ─ 6. **and it holds the Hunter**, which is the sentence the verb is for ─
+	if _hunter == null:
+		problems.append("no Gullsjúkr on this floor, so the one claim `DES-011` "
+			+ "makes about the Snare is untested")
+	else:
+		# Somewhere to be going: a pile of noise it can hear, at the far post.
+		_hunter.global_position = ARCHER_POST
+		_field.deposit(BUTT_POST, tuning.clamor_field_maximum)
+		await _hold(0.6)
+		var hunter_trap_at: Vector3 = _hunter.global_position
+		var hunter_trap: Snare = _session.spawn_snare(hunter_trap_at,
+			player.get_multiplayer_authority())
+		await _hold(0.15)
+		_hunter.global_position = hunter_trap_at
+		await _hold(0.4)
+		# **Read now, not later.** A sprung trap lingers `LINGER` seconds and
+		# then frees itself, and the wait below outlives that — the first draft
+		# asked a freed node whether it had fired.
+		var hunter_caught: bool = hunter_trap.sprung
+		var hunter_held_from: Vector3 = _hunter.global_position
+		await _hold(window)
+		var hunter_held: float = hunter_held_from.distance_to(_hunter.global_position)
+		var hunter_let_go: bool = await _wait_out(_hunter.rooted,
+			tuning.snare_hold_seconds * 2.0, true)
+		if not hunter_let_go:
+			problems.append("the Gullsjúkr was still held after twice the hold "
+				+ "— a Hunter that can be parked is not a Hunter")
+		var hunter_free_from: Vector3 = _hunter.global_position
+		var free_until: int = Time.get_ticks_msec() + int(window * 1000.0)
+		while Time.get_ticks_msec() < free_until:
+			await get_tree().physics_frame
+			_field.deposit(BUTT_POST, tuning.clamor_field_maximum)
+		var hunter_free: float = hunter_free_from.distance_to(_hunter.global_position)
+		print("[stalker] hunter over %.1f s snared %5.2f m   then free %5.2f m"
+			% [window, hunter_held, hunter_free])
+		if not hunter_caught:
+			problems.append("the Gullsjúkr walked into a Snare and it did not "
+				+ "fire — `DES-011` calls this *the only reliable way to buy "
+				+ "time during the Sealing*, and it is the reason for the verb")
+		if hunter_free < 0.4:
+			problems.append(("released, the Gullsjúkr covered %.2f m in the same "
+				+ "window — it was not hunting either way, so the comparison is "
+				+ "between two kinds of standing still") % hunter_free)
+		if hunter_held > hunter_free * ROOTED_SHARE:
+			problems.append(("a snared Gullsjúkr covered %.2f m against %.2f m "
+				+ "free — the seconds it does **not** move are the whole "
+				+ "product, and a Hunter that is merely slowed has not bought "
+				+ "anybody a Sealing") % [hunter_held, hunter_free])
+
+	# ─ 7. it never catches your own party ─
+	#
+	# On an empty floor, deliberately: the point is what the *player* does to a
+	# trap, and an enemy wandering into frame would spring it and leave this
+	# reading about somebody else. The first draft skipped that and read a trap
+	# that had already been sprung, lingered out and freed.
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.global_position = Vector3(0.0, 0.1, -22.0)
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.5)
+	var friendly_at: Vector3 = player.global_position + Vector3(2.0, 0.0, 0.0)
+	var friendly: Snare = _session.spawn_snare(friendly_at,
+		player.get_multiplayer_authority())
+	await _hold(0.6)
+	player.teleport(friendly_at + Vector3(0.0, 0.1, 0.0), 0.0)
+	await _hold(0.8)
+	if not is_instance_valid(friendly):
+		problems.append("the trap was gone before the player reached it, so "
+			+ "this says nothing about who a Snare catches — something sprang "
+			+ "it and it lingered out")
+		_report(problems, "stalker")
+		return
+	print("[stalker] player stands in a trap %s (want unsprung)   mask %d"
+		% ["SPRUNG" if friendly.sprung else "unsprung", friendly.collision_mask])
+	if friendly.sprung:
+		problems.append("a Snare caught the player who set it — the mask is "
+			+ "`ENEMY_BODY` precisely so there is no 'except teammates' rule to "
+			+ "get wrong, which is the argument `BULWARK` already settled")
+	# **The layer is asserted, not only the outcome.** The row above passes for
+	# two reasons and cannot tell them apart: adding `PLAYER_BODY` to the mask
+	# leaves it unsprung anyway, because `_on_stepped_in` also bails on a body
+	# with no `Rooted` and a player has none. That fallback is correct — a body
+	# that grew a layer and not a component should walk through rather than
+	# crash — but it is **not** what the design leans on. The layer is, and a
+	# claim resting on its second line of defence is one nobody is watching.
+	if (friendly.collision_mask & CollisionLayers.PLAYER_BODY) != 0:
+		problems.append(("a Snare is watching `PLAYER_BODY` (mask %d). Nothing "
+			+ "visible happens today because a player carries no `Rooted`, so "
+			+ "the exclusion is resting on a fallback instead of on the layer — "
+			+ "and the first body given one would start catching the party")
+			% friendly.collision_mask)
+
+	# ─ 8. **one live at a time** ─
+	#
+	# Through `_place_snare`, so this is the seam a player actually uses — the
+	# body tells the host, the host tells the session, and the session is what
+	# clears the old one (ADR-112).
+	player._place_snare(player.global_position + Vector3(2.0, 0.0, 0.0))
+	await _hold(0.4)
+	player._place_snare(player.global_position + Vector3(4.0, 0.0, 0.0))
+	await _hold(0.6)
+	var live: int = 0
+	for node: Node in get_tree().get_nodes_in_group(&"snares"):
+		var one := node as Snare
+		if one != null and is_instance_valid(one) and not one.is_queued_for_deletion() \
+				and one.placer == player.get_multiplayer_authority() and not one.sprung:
+			live += 1
+	print("[stalker] live traps for one peer %4d   (want 1)" % live)
+	if live != 1:
+		problems.append(("%d unsprung traps belong to one peer — one live at a "
+			+ "time is what makes the Snare a decision about *where* rather "
+			+ "than a resource to count, and it is why it needs no ammunition "
+			+ "economy to exist") % live)
+
+	_report(problems, "stalker")
+
+
+## The loudest cell within one of a point.
+##
+## `ClamorField` is a 2 m grid, and the things measured here land at the
+## *surface* of a body rather than at its origin — routinely the neighbouring
+## cell. A single-coordinate reading is a true answer about the wrong cell, and
+## it reported an arrow's 3.2 as 0.06 for three passes of this probe. Both ends
+## of every comparison below go through this, so the window never favours one.
+func _peak_near(at: Vector3) -> float:
+	var here: Vector2i = _field.cell_at(at)
+	var best: float = 0.0
+	for dx: int in range(-1, 2):
+		for dy: int in range(-1, 2):
+			best = maxf(best, _field.level_in(here + Vector2i(dx, dy)))
+	return best
+
+
+## Wait for a hold to end, with a ceiling. Returns whether it did.
+##
+## `keep_calling` re-deposits at the far post every frame, because the thing
+## being waited on has to still *want* to travel when it is let go — otherwise
+## the free window that the held window is measured against is a body with
+## nowhere to go, which is the failure this whole section was rewritten for.
+func _wait_out(held_by: Rooted, seconds: float, keep_calling: bool) -> bool:
+	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < until:
+		await get_tree().physics_frame
+		if keep_calling:
+			_field.deposit(BUTT_POST, Config.tuning.clamor_field_maximum)
+		if not held_by.held():
+			return true
+	return not held_by.held()
+
+
+## The first enemy that is really there. Repeated in three probes before this
+## one; kept local rather than shared because the older three each also filter
+## on something of their own.
+func _first_live_enemy() -> Enemy:
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var found := node as Enemy
+		if found != null and is_instance_valid(found) and found.is_inside_tree() \
+				and found.state() != Enemy.State.DEAD:
+			return found
+	return null

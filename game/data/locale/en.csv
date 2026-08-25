@@ -26,3 +26,8 @@ item.con_ember.desc,"A piece of her fire, going out. It is heavier than it has a
 class.huskarl.name,Húskarl
 class.huskarl.desc,"Shield-sworn. The last one standing in a doorway, and the one who decides where the doorway is."
 class.huskarl.exit,"Gets out by refusing to be stopped — heavy, armoured, and still moving under weight that would pin anyone else. Loud. The Hunt finds them easily."
+item.wpn_yew_bow.name,Yew Bow
+item.wpn_yew_bow.desc,"Quieter than a blade and slower to bring to bear. What it buys you is that nothing has to know where you were standing."
+class.veidimadr.name,Veiðimaðr
+class.veidimadr.desc,"The professional who was never seen. Knows which way you came, how long ago, and where the ground gives you away."
+class.veidimadr.exit,"Gets out by never having been noticed — a bow, a trap, and a route chosen before anything looked up. Poor in a straight fight. Cornered is usually dead."

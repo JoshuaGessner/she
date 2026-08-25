@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ClassResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
+
+[resource]
+script = ExtResource("1_class")
+id = &"veidimadr"
+name_key = &"class.veidimadr.name"
+description_key = &"class.veidimadr.desc"
+exit_key = &"class.veidimadr.exit"
+aspects = Array[StringName]([&"wing", &"hoard", &"maw"])
+verb = &"snare"
+health_scale = 0.8
+stamina_scale = 1.15
+speed_scale = 1.08
+carry_scale = 0.75
+kit = Array[StringName]([&"wpn_yew_bow"])

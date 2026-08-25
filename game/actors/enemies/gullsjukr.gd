@@ -124,6 +124,9 @@ var age: float = 0.0
 ## acknowledgement rather than a stagger — nothing about its behaviour changes.
 var _shrug_left: float = 0.0
 
+## Held by a Snare (`M3-T11`). The same component the ordinary enemies
+## carry, and the reason `DES-011` gives the Veiðimaðr the verb at all.
+var rooted: Rooted = null
 var _field: ClamorField = null
 var _target: Player = null
 var _bait: WorldItem = null
@@ -162,6 +165,13 @@ func hunt_with(field: ClamorField) -> void:
 
 func _ready() -> void:
 	add_to_group(&"hunters")
+	# **The reason the Snare exists** (`DES-011`): *"including against the
+	# Hunter, the only reliable way to buy time during the Sealing."* Same
+	# component as the ordinary enemies carry, so there is one definition of
+	# what being held means and it cannot come to mean two things.
+	rooted = Rooted.new()
+	rooted.name = "Rooted"
+	add_child(rooted)
 	# **Not the WORLD layer**, which is what a `CharacterBody3D` defaults to.
 	#
 	# Built in code rather than from a `.tscn`, this inherited layer 1 and was
@@ -540,6 +550,15 @@ func _walk(delta: float) -> void:
 		velocity.y -= Config.tuning.gravity * delta
 	else:
 		velocity.y = 0.0
+	# Held (`M3-T11`). It goes on thinking — it keeps its goal, it keeps its
+	# state, and when the hold ends it resumes toward the same place. The
+	# seconds are the whole payment: `DES-011` sells the Snare as time bought
+	# during the Sealing, not as an escape.
+	if rooted.held():
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		return
 	if not _has_goal:
 		velocity.x = move_toward(velocity.x, 0.0, Config.tuning.ground_friction * delta)
 		velocity.z = move_toward(velocity.z, 0.0, Config.tuning.ground_friction * delta)

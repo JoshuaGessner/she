@@ -112,6 +112,16 @@ func has_trait(type: Script) -> bool:
 	return false
 
 
+## The first trait of a given class, or null. `has_trait` answers *"is this a
+## weapon"*; this answers *"with what numbers"*, and a system that needs the
+## second should not have to walk the array itself and get the cast wrong.
+func first_trait(type: Script) -> ItemTrait:
+	for item_trait: ItemTrait in traits:
+		if is_instance_of(item_trait, type):
+			return item_trait
+	return null
+
+
 func validate() -> PackedStringArray:
 	var problems := PackedStringArray()
 	if String(id).is_empty():

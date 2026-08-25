@@ -90,7 +90,7 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # while three of `DES-009`'s five combat verbs — heavy, block, shove — have
     # no binding at all. Two of them now share. The layout pass that fixes this
     # properly belongs with rebinding at `M4-T06`.
-    "hold": [(BUTTON, LEFT_STICK, 0.0)],
+    "verb": [(BUTTON, LEFT_STICK, 0.0)],
     # **Blocking** (`M3-T02`, `DES-009`). Right mouse, and on the pad it shares
     # RIGHT_SHOULDER with `rotate_item` — the two contexts are disjoint, since
     # you cannot raise a shield while rummaging and cannot turn an item while

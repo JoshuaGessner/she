@@ -110,6 +110,23 @@ extends Resource
 ## floor for the same reason an attack does — an ally has to be able to read it.
 @export var hold_plant_seconds: float = 0.3
 
+## Seconds to set a Snare ⟨tune⟩ — the Veiðimaðr's verb (`M3-T11`, `DES-011`).
+## Longer than a plant on purpose: the Húskarl decides to stop *here, now*, and
+## the Stalker decides where the fight will be a while before it happens.
+@export var snare_place_seconds: float = 0.9
+## Stamina to set one ⟨tune⟩. `DES-011` rule 3: every unique verb has a real
+## cost. Flat rather than drained per second, because the cost is the placing
+## and the trap then costs nothing to leave lying there.
+@export var snare_stamina_cost: float = 25.0
+## Seconds whatever steps in it is held ⟨tune⟩. The number `DES-011` is really
+## about — *"the only reliable way to buy time during the Sealing"* — so it is
+## measured against a Shaft's closing rather than against a fight.
+@export var snare_hold_seconds: float = 3.5
+## Clamor deposited **at the trap** when it fires ⟨tune⟩. Above a footstep and
+## below a weapon hit: the Stalker's one loud act, and it is loud somewhere they
+## are not.
+@export var snare_clamor_trigger: float = 2.6
+
 @export_group("Inventory")
 ## Cells wide and tall (`DES-019`). **`DES-020` gives this to the Pack slot** —
 ## bigger pack, more grid, more weight, more Clamor — and slots arrive at
@@ -458,4 +475,19 @@ func validate() -> PackedStringArray:
 	if block_stamina_cost <= 0.0:
 		problems.append("block_stamina_cost must be positive or blocking is free, "
 			+ "and a free block is a stance rather than a resource")
+	# ADR-053's 250 ms floor is about telegraphs an ally or an enemy can read,
+	# and setting a trap is as much of one as raising an axe.
+	if snare_place_seconds < 0.25:
+		problems.append(("snare_place_seconds is %.2f s, below ADR-053's 250 ms "
+			+ "floor — a verb that costs no visible time is a reflex, which is "
+			+ "the side of principle 3 this game is not on") % snare_place_seconds)
+	if snare_stamina_cost <= 0.0:
+		problems.append("snare_stamina_cost must be positive; DES-011 rule 3 "
+			+ "requires every unique verb to have a real cost")
+	if snare_hold_seconds <= 0.0:
+		problems.append("snare_hold_seconds must be positive or a Snare holds "
+			+ "nothing and the Veidimadr's verb does nothing")
+	if snare_clamor_trigger < 0.0:
+		problems.append("snare_clamor_trigger cannot be negative — a silent "
+			+ "trap is 0.0, not less")
 	return problems

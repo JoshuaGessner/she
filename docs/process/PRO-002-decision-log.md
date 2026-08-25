@@ -2632,4 +2632,81 @@ A mixed-rank party cannot otherwise be assembled: two processes on one machine s
 
 ---
 
+## ADR-123 — The quiet way out, and the first weapon that is not a swing
+
+**Date:** 2026-08-25 · **Status:** accepted · **Implements `M3-T11`** · **Amends `DES-009`, `DES-011`** · **Completes ADR-120's split**
+
+**Context:** `M3-T11`, the other half of the task ADR-120 broke in two. `DES-011` defines the Veiðimaðr by *"bow, traps, tracking, silence"* and by one unique verb — **Snare**, *"including against the Hunter, the only reliable way to buy time during the Sealing."* The build had neither half. `DES-009` names five verbs — attack, heavy, block, shove, throw — and **every one of them is melee or a physics launch**; `throw` exists and does no damage, because it is for baiting the Gullsjúkr.
+
+So a class kit could not simply contain a bow. A bow is a whole damage-delivery system, and letting one arrive through a `.tres` would be the combat document being edited by something that is not allowed to edit it. **`DES-009` gains a *Shooting* section** — that is what this ADR buys, and the rest follows from it.
+
+### The arrow is a body, and the noise is the weapon
+
+Two decisions carry the design, and neither is about damage.
+
+**It travels.** A raycast would make the bow a test of aim, which is the reflex-over-decision trade principle 3 rules out and which `DES-009` already refuses in as many words. An `Area3D` with a real radius can be **led**, and can be **walked out of** — so *"defense is positional"* stays true of a weapon fired across a room. Flat flight with a range cap, no arc: an arc is a precision mechanic wearing physics.
+
+**It is quiet where you are and loud where it lands.** `clamor_loose` is 0.4 and `clamor_hit` is 3.2. That inversion, not the damage, is what the Stalker buys — the same misdirection `DES-005` already sells thrown loot on, and the mechanical form of *"gets out by never having been noticed."* A bow that were merely *quieter* would be a stealth stat; a bow that puts the noise **somewhere else** is a tool.
+
+**The obvious way to make that noise does nothing at all.** A `ClamorSource` created at the impact, added, `add()`-ed and freed in one frame is **never heard**: `ClamorField` subscribes to sources on its *own* physics tick, so it absorbs a node that no longer exists and the signal reaches nobody. `deposit()` is the seam for exactly this — noise at a place, with nobody making it. There is a second reason that matters more once there are four players: `ClamorSource.add()` is where `M2-T07` put party scaling, so routing impact noise through one would charge a four-stack twice, and their arrows would land louder than their own footsteps.
+
+### One weapon in the hands, and the kit is what puts it there
+
+A body carrying a bow **does not also swing**, and the blade is not drawn. That is `DES-011`'s stated cost for this class — *"poor in a straight fight; a Stalker who is cornered is usually dead"* — written as a **missing verb rather than a penalty multiplier**, which is ADR-058's test passed rather than argued around. It is also why the bow needs no button of its own.
+
+What arms the class is `ClassResource.kit`, which already named real catalogue ids and until now only stocked the stash. A kit entry carrying a `RangedTrait` is a bow in the hand, so a designer arms a class by editing a `.tres` and nothing in the player knows what a Veiðimaðr is. `M3-T07` re-points that at an equipment slot: it **moves the seam rather than growing a second one beside it**, which is the distinction ADR-064 draws between a gate decision and a parallel fallback.
+
+`RangedWeapon` is built only when the class has one, rather than sitting hidden in `player.tscn` for the five classes that do not. A node present-but-inert in every body is ADR-066's argument one level down from autoloads.
+
+### The Snare ships as *hold*, and that is the whole sentence
+
+`DES-011` lists **trap variety** under this class's *Rite themes* — which means the tree (`M3-T01`), not the base verb. So one trap, doing the one thing the doc names as load-bearing. Wound is a bigger number and ADR-058 makes that the proposal needing a very good reason; misdirect already exists twice over, in thrown loot and now in this class's own arrows.
+
+Its costs, per `DES-011` rule 3:
+
+| | |
+|---|---|
+| Placing takes `snare_place_seconds` and stamina | the Húskarl's plant argument — a verb you can flick out mid-fight is a reflex |
+| **One live at a time**, and a second removes the first | a decision about *where*, not a resource to count — which is also why it needs no ammunition economy to exist, and why the Rite has an obvious real upgrade to sell |
+| Silent to set, **loud when it fires** | the Stalker's one loud act, and it makes a trap set in the doorway you are leaving through a mistake you can make |
+
+It masks `ENEMY_BODY` and nothing else, so it never holds your own party — the same argument `BULWARK` settled at `M3-T02`: the layer is where you say who something applies to, and there is no *"except teammates"* rule to get wrong.
+
+**`Rooted` is a component, not a flag.** `Enemy` and `Gullsjukr` share no ancestor and never should — one is a brain with a navigation agent, the other navigates a noise field. But *"can this thing move right now"* has to mean **exactly** the same thing for both, or the Snare works on the enemies it is a convenience against and fails on the Hunter it exists for. It roots movement and not action: a held enemy still turns to watch you and still swings at what is already in reach, so what the Stalker bought is that nothing **follows** — a trap that also disarmed would be a stun, and a one-placement stun is the no-counter-play answer `PRO-005` §5 rules out.
+
+### One button for every class's verb
+
+The input action `hold` is renamed **`verb`**. It was named after the Húskarl's verb because the Húskarl was the only class; with a second one arriving it would have become either a misnomer or the first of six buttons. `ClassResource.verb` still says *which* verb, so the class decides what the key does and `DES-009`'s button count does not grow with `DES-011`'s roster.
+
+### One fault in the game. Six in the check.
+
+The only production bug the probe found was Godot's *"Function blocked during in/out signal"* — a sprung trap dropping `monitoring` from inside `body_entered`, which is the same rule that already defers a corpse dropping its collision layer.
+
+**Everything else that was wrong was wrong in the measurement**, and that is worth recording, because it is where the risk has moved:
+
+- **Bodies spawned outside the room.** Every target went 8–14 m along +Z from a spawn point, and the entrance room ends at z = 10. Nothing errors when a body leaves the world — it falls, and the probe confidently reported an enemy "moving" 34 m in one second and an arrow that missed. Every distance is a named constant checked against `ROOMS.entrance` now.
+- **A control that could not fail.** The first snare test spawned an enemy, waited, and measured a second of movement before snaring — by which time it had closed to 2.16 m and *stopped*, so "it did not move" was true of a body standing in attack range. The control is now the **same body moments later**, snared for a window and then released and measured over an identical one. **Fifth true-but-beside-the-point assertion this milestone** (ADR-113's shape, and ADR-117, ADR-119 and ADR-121 each found one).
+- **An unbounded `while held()`.** A probe that hangs is strictly worse than one that answers wrongly: it ran the harness for ten minutes and reported nothing at all. Bounded, and the bound is now itself the assertion that a root ends.
+- **A true reading of the wrong cell.** `ClamorField` is a 2 m grid, and an arrow stops at the *surface* of a hurtbox — here 0.17 m short, and one cell over. Asking a single coordinate returned 0.06 where 3.2 had just been deposited next door, and it survived three passes and two wrong diagnoses before the deposit was printed and found to have been correct all along. Both ends of every comparison go through one neighbourhood reader now, so the window can never favour one side.
+- **Reading a node that had freed itself.** A sprung trap lingers three seconds so a player can see what stopped the thing; a wait longer than that outlived it, and the probe asked a freed object whether it had fired. The flag is read when it fires.
+- **A trap sprung by somebody else.** The *"it never catches your own party"* row ran on a floor with a live enemy and a Hunter being deliberately called toward the same spot. It runs on an empty floor now, because the question is what the **player** does to a trap.
+- **A row that had been deleted.** The *"your own arrow cannot kill you"* check was lost in a rewrite of the section around it and nothing noticed, because a probe reports what it runs and says nothing about what it no longer contains. The plant is what found it. It is back in a better form than it left: one arrow fired **at** the archer carrying their own peer id, and an identical one carrying a stranger's — because *"0 damage"* and *"it never arrived"* are the same reading, and the original had no control to tell them apart. Firing at your own feet, which was the obvious version, proves nothing either way: the muzzle sits half a metre ahead of the head and an arrow dropped from there is past the body in two physics frames.
+
+### The exclusion was resting on its own fallback
+
+The row saying a Snare never catches your own party **passed with `PLAYER_BODY` added to the mask.** The trap overlapped the player, was monitoring, and did not fire — because `_on_stepped_in` also bails on a body with no `Rooted`, and a player has none.
+
+That fallback is correct and stays: a body that grew a layer and not a component should walk through rather than crash. But it is **not what this design leans on.** ADR-121 settled the argument at `BULWARK` — *the layer is where you say who something applies to* — and a claim resting on its second line of defence is one nobody is watching. The first body ever given a `Rooted` for another reason would have started catching the party, and the behavioural row could not have told anyone.
+
+So the probe now asserts the **mask itself** beside the outcome. A structural assertion is unusual here and worth the exception: two independent guards produce one indistinguishable observation, and only naming the intended one keeps the other from silently becoming load-bearing.
+
+Fourteen violations were planted and each named row was seen to fail.
+
+### Removed rather than kept
+
+`Rooted` shipped with `took_hold` and `let_go` signals for bodies to dress themselves with, and `remaining()` for a readout — **nothing connected or called any of them.** The visual twin `DES-018` asks for is the `Snare`'s own sprung ring, which is a spawned actor and therefore visible to everybody; the body does not need to change. `RangedWeapon.armed()` lost its caller when the player switched to a plain null check. All four are gone: names that work and that nothing reaches are what ADR-098 is about, and the sweep after this one is where they would have started reading as load-bearing.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
+

@@ -4,7 +4,7 @@ title: Classes — The Sworn
 status: accepted
 owner: design
 tags: [classes, builds, skill-tree, identity, co-op, progression]
-updated: 2026-08-14
+updated: 2026-08-25
 related: [DES-004, DES-003, DES-012, DES-009]
 ---
 
@@ -90,6 +90,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Fantasy:** the professional who was never seen.
 **How they get out:** by never having been noticed. Bow, traps, tracking, silence.
 **Unique verb — Snare:** place traps that hold, wound, or misdirect — **including against the Hunter**, the only reliable way to buy time during the Sealing.
+> **Built at `M3-T11` as *hold* alone** (ADR-123). Wound and misdirect are **absent, not stubbed**: trap *variety* is listed under this class's Rite themes below, so it belongs to the tree (`M3-T01`). One trap, one live at a time, and placing a second removes the first — a decision about *where* rather than a resource to count, which is also why it needs no ammunition economy to exist. It is silent to set and **loud when it fires**, so a trap in the doorway you are leaving through is a mistake you can make.
 **Rite themes:** silent movement, trap variety, ranged precision, reading tracks (who came through here, and when).
 **Cost:** poor in a straight fight; a Stalker who is cornered is usually dead.
 

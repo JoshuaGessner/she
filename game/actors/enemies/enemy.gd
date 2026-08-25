@@ -120,6 +120,10 @@ var _patience: float = 0.0
 var _last_seen: Vector3 = Vector3.ZERO
 var _home: Vector3 = Vector3.ZERO
 var _target: Node3D = null
+## Held by a Snare (`M3-T11`). A component rather than a flag, because the
+## Gullsjukr has to be holdable by exactly the same rule and shares no ancestor
+## with this — see `Rooted`.
+var rooted: Rooted = null
 var _agent: NavigationAgent3D = null
 var _repath_in: float = 0.0
 var _material: StandardMaterial3D = null
@@ -177,6 +181,9 @@ func _ready() -> void:
 	add_to_group("enemies")
 	_ears.heard.connect(_on_heard)
 	_home = global_position
+	rooted = Rooted.new()
+	rooted.name = "Rooted"
+	add_child(rooted)
 	# One agent per body (`M2-T14`). Built here rather than in the scene so an
 	# enemy dropped into a level with no baked region still works — it simply
 	# finds no map and falls back to walking straight, which is what every
@@ -474,6 +481,16 @@ func _settle(tuning: TuningProfile) -> void:
 func _steer_toward(point: Vector3, speed: float, tuning: TuningProfile) -> void:
 	var to_point: Vector3 = point - global_position
 	to_point.y = 0.0
+	# Snared (`M3-T11`). It still turns to watch you and still swings at
+	# whatever is already in reach — what the Stalker bought is that nothing
+	# **follows**. Rooting the steering rather than the whole brain is what
+	# keeps a held enemy visibly dangerous instead of switched off.
+	if rooted.held():
+		velocity.x = 0.0
+		velocity.z = 0.0
+		if to_point.length() > 0.01:
+			_face(to_point.normalized(), tuning)
+		return
 	if to_point.length() < ARRIVED:
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -621,6 +638,10 @@ func _apply_state() -> void:
 ## player is actually asking.
 func _become_a_corpse() -> void:
 	_hitbox.disarm()
+	# A dead thing is not being held in place by a trap; it is dead. Leaving the
+	# hold running would leave a corpse whose state says something is still
+	# happening to it.
+	rooted.release()
 	velocity = Vector3.ZERO
 	# Collision is dropped so a body never becomes an invisible wall.
 	#

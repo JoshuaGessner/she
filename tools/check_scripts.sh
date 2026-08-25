@@ -276,6 +276,25 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Stalker** (`M3-T11`, `DES-011`, ADR-123). A bow, and a trap that
+	# holds — *"including against the Hunter, the only reliable way to buy time
+	# during the Sealing"*, which is the one sentence `DES-011` writes about
+	# this verb and the reason it exists.
+	#
+	# Every "it stopped" row carries a **control on the same body**: snared for
+	# a window, then released and measured over an identical one. The first
+	# draft compared against a freshly spawned enemy and did not notice it had
+	# already closed to 2.16 m and stopped — so "it did not move" was true of a
+	# body standing in attack range, and the assertion could not fail. Fifth
+	# true-but-beside-the-point assertion this milestone.
+	stalker="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --stalker-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$stalker" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the quiet way out" >&2
+		printf '%s\n' "$stalker" | grep -E '\[stalker\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
@@ -594,6 +613,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the Tithe rises with rank, costs something, and dies with you,"
 	echo "a rank-8 floor is denser and older without a bigger number on it,"
 	echo "a guard costs stamina and never negates, and a life can begin,"
+	echo "an arrow is loud where it lands and a Snare holds the Hunter,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

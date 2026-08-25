@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-08-16
+updated: 2026-08-25
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -47,6 +47,13 @@ That single position resolves a dozen downstream questions. It's why avoidance m
 - Light (fast, low stagger, quiet-ish) vs. heavy (slow, staggers, loud).
 - Weapon arcs are real and hit the world — swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat.
 - **Every swing has a Clamor value.** Blunt weapons are loudest. This is the main combat↔pressure coupling.
+
+**Shooting** *(added by ADR-123)*
+- **A bow draws, looses, and recovers**, on the same anatomy as a swing and with the same commitment: a draw cannot be cancelled into anything, and it obeys ADR-053's 250 ms floor because a drawn bow is a telegraph an enemy has to be able to read.
+- **An arrow is a travelling body with a real radius, not a hit-scan ray.** It can be led and it can be walked out of, which is what keeps *defense is positional* true of a weapon fired across a room. Flat flight with a range cap, no arc — an arc is a precision mechanic, and precision requirements are what the section below rules out.
+- **The Clamor rule holds, and inverts.** A shot is quiet where it is fired and loud **where it lands**, which makes the bow a misdirection tool of the same kind `DES-005` already sells thrown loot as, rather than a damage advantage. That inversion is the Veiðimaðr's whole relationship to the loop (`DES-011`): *gets out by never having been noticed.*
+- **No aim-down-sights, no damage falloff, no headshots**, for the reason move lists are absent: depth is situational here, not in the input. **No ammunition** until `DES-008` has an economy for it to belong to — inventing scarcity to balance a weapon is not the same as scarcity the design asked for.
+- **It is a sidegrade, not a tier.** A body carrying a bow does not also swing, which is `DES-011`'s *"poor in a straight fight"* written as a missing verb rather than as a penalty — and it is why the bow needs no button of its own.
 
 **Defending**
 - **Block** with weapon or shield, costs stamina, reduces damage, doesn't negate it.
@@ -128,7 +135,7 @@ The brief was *fun and engaging, even if simple.* Simple is achievable and corre
 
 > **Depth comes from the situation, not from the input.**
 
-Our button count stays tiny: attack, heavy, block, shove/kick, throw. The depth is **already designed elsewhere**:
+Our button count stays tiny: attack, heavy, block, shove/kick, throw — plus **one shared key for your class's unique verb** (ADR-123), which is one button for all six of `DES-011`'s classes rather than six. The depth is **already designed elsewhere**:
 
 - Terrain, doorways, ledges, and drops (positional defense — no dodge-roll)
 - Hazards that apply to everyone

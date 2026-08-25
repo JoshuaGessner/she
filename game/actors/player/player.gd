@@ -74,6 +74,14 @@ const MAX_PARTY: int = 4
 ## coins this is — and passing the id alone made *putting something down* mean
 ## less than it does.
 signal dropped(item: ItemInstance, at: Vector3, yaw: float, launch: Vector3)
+## A shot resolved on the host (`M3-T11`). **Signals up, calls down**: spawning
+## is `CoopSession`'s job alone (ADR-112), so the body says an arrow left it and
+## the session is what puts one in the world.
+signal loosed_arrow(at: Vector3, travel: Vector3, kit: RangedTrait, shooter: int)
+## A trap set, host-side. Same seam, same reason — and the session is also where
+## *one live at a time* is enforced, because the session owns every spawned
+## actor and a body counting its own traps is a second tally to get wrong.
+signal set_snare(at: Vector3, placer: int)
 
 ## Left the floor alive, by Waystone. The level decides what that means — a
 ## body does not get to end its own run (`TEC-004`: consequences have one
@@ -291,6 +299,16 @@ var _reviving: bool = false
 @onready var inventory: Inventory = $Inventory
 @onready var health: Health = $Health
 @onready var weapon: MeleeWeapon = $Head/Weapon
+## A bow, or null (`M3-T11`). Built in `_ready` only when the class carries
+## one, rather than sitting hidden in `player.tscn` for the five of `DES-011`'s
+## six that do not — see `RangedWeapon`.
+var ranged: RangedWeapon = null
+## How far through setting a Snare, 0 to 1. **Not replicated**, unlike the
+## Húskarl's `planted`: that one crosses the wire because it changes a collision
+## layer and the host's enemies have to collide with it. This changes nothing
+## anyone else's machine has to agree about — the legible event is the trap
+## appearing, and the trap is a spawned actor that appears for everybody.
+var _setting: float = 0.0
 @onready var clamor: ClamorSource = $ClamorSource
 @onready var _hurtbox: Hurtbox = $Hurtbox
 @onready var _ink: InkPass = $Head/Camera3D/InkPass
@@ -396,6 +414,7 @@ func _ready() -> void:
 	health.died.connect(_on_health_emptied)
 	weapon.swing_started.connect(_on_swing_started)
 	weapon.connected.connect(_on_swing_connected)
+	_arm_from_kit(body)
 	# Loot is the only gameplay source of carried weight. `CarriedWeight`'s own
 	# note said the value was driven by hand *until `M2-T01`*, and the dev keys
 	# that did it are gone with this line rather than left beside it — two
@@ -1338,8 +1357,22 @@ func _physics_process(delta: float) -> void:
 	# no-pause design charges, and the tension it exists to create evaporates.
 	if (_is_local and not bag_is_open() and not is_incapacitated()
 			and Input.is_action_just_pressed("attack")):
-		weapon.request_swing(stamina)
+		# One weapon in the hands (`M3-T11`). A body carrying a bow does not
+		# also swing, which is `DES-011`'s *"poor in a straight fight"* written
+		# as a missing verb rather than as a penalty — and it is why the bow
+		# needs no button of its own.
+		if ranged != null:
+			ranged.request_draw(stamina)
+		else:
+			weapon.request_swing(stamina)
 	weapon.advance(delta, stamina)
+	if ranged != null:
+		# Anything that takes your hands abandons the draw, on the same rule the
+		# guard follows: the bag is a vulnerable act (`DES-019`) and being down
+		# is not a state you shoot from.
+		if _is_local and (bag_is_open() or is_incapacitated()):
+			ranged.cancel()
+		ranged.advance(delta)
 
 	if _is_local:
 		_update_bag(delta)
@@ -1578,6 +1611,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	# as a vulnerable act and a guard you could hold through it would refund
 	# exactly the vulnerability being paid for.
 	_hold(delta, tuning)
+	_snare(delta, tuning)
 	blocking = (Input.is_action_pressed("block")
 		and stamina.current >= tuning.block_stamina_minimum
 		and _bag <= 0.0
@@ -1648,7 +1682,7 @@ func _hold(delta: float, tuning: TuningProfile) -> void:
 	# whether you are one.
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
 	var wants: bool = (body != null and body.verb == &"hold"
-		and Input.is_action_pressed("hold")
+		and Input.is_action_pressed("verb")
 		and not is_incapacitated()
 		and _bag <= 0.0
 		and stamina.current > 0.0)
@@ -1657,6 +1691,153 @@ func _hold(delta: float, tuning: TuningProfile) -> void:
 	if planted > 0.0:
 		stamina.spend(tuning.hold_stamina_drain * delta)
 	_apply_bulwark()
+
+
+## **The class kit is what puts a bow in the hand** (`M3-T11`, ADR-123).
+##
+## `ClassResource.kit` already names real catalogue ids, so a designer arms a
+## class by editing a `.tres` and nothing here knows what a Veiðimaðr is — which
+## is `CLAUDE.md`'s data-over-code rule applied to a weapon rather than to a
+## stat. `M3-T07` re-points this at an equipment slot when slots exist; it moves
+## the seam rather than growing a second one beside it.
+##
+## Runs on **every** peer from the replicated `sworn`, for the reason the body
+## scales above it do: the host builds four bodies and three of them belong to
+## somebody else, so a bow read out of local state would arm the wrong people.
+func _arm_from_kit(body: ClassResource) -> void:
+	if body == null:
+		return
+	var kit: RangedTrait = null
+	for id: StringName in body.kit:
+		var definition: ItemResource = ItemCatalogue.by_id(id)
+		if definition == null:
+			continue
+		var found: ItemTrait = definition.first_trait(RangedTrait)
+		if found != null:
+			kit = found as RangedTrait
+			break
+	if kit == null:
+		return
+	ranged = RangedWeapon.new()
+	ranged.name = "Bow"
+	_head.add_child(ranged)
+	ranged.equip(kit)
+	ranged.draw_started.connect(_on_draw_started)
+	ranged.loosed.connect(_on_loosed)
+	# The blade goes away rather than being carried and never used. A visible
+	# weapon that cannot be swung is the most direct kind of lie a blockout can
+	# tell a playtester (ADR-064).
+	weapon.visible = false
+
+
+func _on_draw_started() -> void:
+	# Same shape as `_on_swing_started`: the other peers play a draw this client
+	# has already committed to and paid for.
+	if _is_local:
+		_replay_draw.rpc()
+
+
+## Play a draw another peer's client began. `_replay_swing`'s argument applies
+## unchanged, including why it does not consult stamina.
+@rpc("any_peer", "call_remote", "reliable")
+func _replay_draw() -> void:
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	if ranged != null:
+		ranged.begin_owned_draw()
+
+
+## The string is released. Runs on every peer because every peer ran the phase
+## machine, and **only the owner's copy is worth listening to** — the aim is the
+## shooter's, and a remote copy's is a replicated approximation arriving a frame
+## behind the decision.
+func _on_loosed() -> void:
+	if not _is_local:
+		return
+	var aim: Vector3 = -_camera.global_transform.basis.z
+	if multiplayer.is_server():
+		_loose_arrow(aim)
+	else:
+		_loose_arrow.rpc_id(HOST_PEER, aim)
+
+
+## The host makes the arrow (`TEC-004`: consequences have one owner).
+##
+## **Direction from the shooter, origin from the host's own copy of them.** The
+## aim is a decision and belongs to whoever made it; where the body *is* is the
+## host's answer already — the same copy whose hurtbox decides what a blow did —
+## so taking the origin from anywhere else would let an arrow leave from a place
+## the host does not think anybody is standing.
+@rpc("any_peer", "call_local", "reliable")
+func _loose_arrow(aim: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	var from: int = multiplayer.get_remote_sender_id()
+	if from == 0:
+		from = multiplayer.get_unique_id()
+	if from != get_multiplayer_authority():
+		return
+	if ranged == null or aim.length() < 0.5:
+		return
+	var travel: Vector3 = aim.normalized()
+	loosed_arrow.emit(_head.global_position + travel * 0.5, travel,
+		ranged.kit(), from)
+	# What the archer pays, and it is deliberately small. The loud half happens
+	# where the arrow lands (`Arrow._land`), which is the whole tactic.
+	clamor.add(ranged.kit().clamor_loose)
+
+
+## **Snare** (`M3-T11`, `DES-011`) — the Veiðimaðr's verb, and only theirs.
+##
+## > *"Place traps that hold, wound, or misdirect — including against the
+## > Hunter, the only reliable way to buy time during the Sealing."*
+##
+## Held rather than tapped, and it takes `snare_place_seconds`, for the reason
+## the Húskarl's plant takes time: `DES-009` refuses reflex-timed play, so this
+## is a thing you decide to do a beat before you need it. Releasing early
+## abandons it and costs nothing — the stamina is spent when the trap exists,
+## not when you start thinking about it.
+##
+## It goes at your feet. Not ahead of you, which would need an aim and a preview
+## and a rule about walls; at your feet is somewhere you have just proved you
+## can stand, and *"set it and back away through it"* is a legible gesture with
+## nothing to learn.
+func _snare(delta: float, tuning: TuningProfile) -> void:
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	var wants: bool = (body != null and body.verb == &"snare"
+		and Input.is_action_pressed("verb")
+		and not is_incapacitated()
+		and _bag <= 0.0
+		and stamina.current >= tuning.snare_stamina_cost)
+	if not wants:
+		_setting = 0.0
+		return
+	_setting += delta / maxf(tuning.snare_place_seconds, 0.001)
+	if _setting < 1.0:
+		return
+	_setting = 0.0
+	if not stamina.spend(tuning.snare_stamina_cost):
+		return
+	if multiplayer.is_server():
+		_place_snare(global_position)
+	else:
+		_place_snare.rpc_id(HOST_PEER, global_position)
+
+
+## The host is told a trap was set. It does not set it — `CoopSession` does,
+## including clearing the one this peer already had, because the session owns
+## every spawned actor and *one live at a time* is a fact about the world rather
+## than about this body.
+@rpc("any_peer", "call_local", "reliable")
+func _place_snare(at: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	var from: int = multiplayer.get_remote_sender_id()
+	if from == 0:
+		from = multiplayer.get_unique_id()
+	if from != get_multiplayer_authority():
+		return
+	set_snare.emit(at, from)
 
 
 ## The layer, applied wherever the body is — owner or remote copy — because the

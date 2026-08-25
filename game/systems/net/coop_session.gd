@@ -82,6 +82,19 @@ var _next_spawn: int = 0
 ## would give a new item the name of one a client is still despawning.
 var _next_item: int = 0
 var _next_hunter: int = 0
+## Counts every arrow ever loosed and never counts back down, for the reason
+## `_next_item` gives: node names have to agree across peers, and reusing an
+## index would give a new arrow the name of one a client is still despawning.
+var _next_arrow: int = 0
+var _next_snare: int = 0
+## The floor's noise field, handed over by the level that built it — the same
+## handoff `Gullsjukr.hunt_with` gets, and for the same reason: an arrow or a
+## snare has no business searching the tree for a system, and the field is
+## host-only (`TEC-001`) so there is nothing here for a client to hold.
+##
+## Levels come and go and this autoload does not, so every read goes through
+## `floor_field()` rather than touching it directly.
+var _floor_field: ClamorField = null
 ## When a client stops waiting, or 0 when it is not waiting. See `_start_client`.
 var _waiting_until: int = 0
 var _waiting_layer: CanvasLayer = null
@@ -512,6 +525,10 @@ func _spawn_actor(data: Variant) -> Node:
 			return _build_world_item(payload)
 		"hunter":
 			return _build_hunter(payload)
+		"arrow":
+			return _build_arrow(payload)
+		"snare":
+			return _build_snare(payload)
 		_:
 			return _build_enemy(payload)
 
@@ -541,6 +558,10 @@ func _build_player(payload: Dictionary) -> Node:
 	# `spawn_world_item` is host-only, so a client's copy of this connection is
 	# inert rather than wrong.
 	player.dropped.connect(_on_player_dropped)
+	# An arrow leaving a bow and a trap being set are both *"the actor decides,
+	# the session spawns"* (`M3-T11`, ADR-112) — the same wiring one line up.
+	player.loosed_arrow.connect(_on_player_loosed)
+	player.set_snare.connect(_on_player_set_snare)
 	return player
 
 
@@ -773,3 +794,104 @@ func _log(message: String) -> void:
 ## places for a flag to be forgotten.
 func _my_rank() -> int:
 	return _declared_rank if _declared_rank > 0 else GameState.pact_rank
+
+
+## Something in the air (`M3-T11`, ADR-123).
+##
+## Through the spawner like every other actor, so a client sees the arrow that
+## wounds it rather than a body losing health for no visible reason — which is
+## `PRO-005` §5's unexplainable death in its most literal form.
+##
+## The whole flight is in the payload because an arrow's entire life is decided
+## the instant it is loosed: nothing steers it, so every peer can build the same
+## one and only the host needs to resolve what it meets.
+func spawn_arrow(at: Vector3, travel: Vector3, trait_of: RangedTrait,
+		shooter: int) -> Arrow:
+	if not is_host():
+		return null
+	var made: Arrow = _spawner.spawn({
+		"kind": "arrow", "index": _next_arrow, "at": at,
+		"travel": travel, "speed": trait_of.arrow_speed,
+		"damage": trait_of.damage, "clamor": trait_of.clamor_hit,
+		"range": trait_of.arrow_range, "shooter": shooter,
+	}) as Arrow
+	_next_arrow += 1
+	if made != null:
+		made.fly_with(floor_field())
+	return made
+
+
+## The level hands over the field it built. Called beside `hunt_with`, because
+## the two are the same sentence: this is the floor, and this is what noise on
+## it goes into.
+func hunt_in(field: ClamorField) -> void:
+	_floor_field = field
+
+
+## Null once the level that owned it is gone, which is the only reason this is a
+## function. An autoload outlives every level it ever sees, so a bare reference
+## here is a dangling pointer waiting for the first descent after the second.
+func floor_field() -> ClamorField:
+	return _floor_field if is_instance_valid(_floor_field) else null
+
+
+## A trap on the floor (`M3-T11`, ADR-123).
+##
+## Through the spawner like every other actor, so a client watching a teammate
+## set one can see where it is — a trap only the host can see is a thing that
+## stops enemies for no reason on every other screen.
+func _on_player_loosed(at: Vector3, travel: Vector3, kit: RangedTrait,
+		shooter: int) -> void:
+	spawn_arrow(at, travel, kit, shooter)
+
+
+## **One live at a time.** Read off the host's own scene tree rather than from a
+## count, so there is no tally that can disagree with the world — and freeing
+## the old one here despawns it on every peer, because that is what the spawner
+## does with a node it made.
+func _on_player_set_snare(at: Vector3, placer: int) -> void:
+	for node: Node in get_tree().get_nodes_in_group(&"snares"):
+		var old := node as Snare
+		if old != null and old.placer == placer:
+			old.queue_free()
+	spawn_snare(at, placer)
+
+
+func spawn_snare(at: Vector3, placer: int) -> Snare:
+	if not is_host():
+		return null
+	var tuning: TuningProfile = Config.tuning
+	var made: Snare = _spawner.spawn({
+		"kind": "snare", "index": _next_snare, "at": at, "placer": placer,
+		"hold": tuning.snare_hold_seconds, "clamor": tuning.snare_clamor_trigger,
+	}) as Snare
+	_next_snare += 1
+	if made != null:
+		made.fly_with(floor_field())
+	return made
+
+
+func _build_snare(payload: Dictionary) -> Node:
+	var made := Snare.new()
+	made.name = "snare_%d" % int(payload["index"])
+	made.position = payload["at"] as Vector3
+	made.placer = int(payload["placer"])
+	made.hold_seconds = float(payload["hold"])
+	made.clamor_trigger = float(payload["clamor"])
+	made.configure_replication()
+	return made
+
+
+func _build_arrow(payload: Dictionary) -> Node:
+	var made := Arrow.new()
+	made.name = "arrow_%d" % int(payload["index"])
+	made.position = payload["at"] as Vector3
+	# Every field before `add_child`, so `_ready` sees a fully-formed arrow and
+	# every peer derives the same one from the same packet.
+	made.travel = (payload["travel"] as Vector3).normalized()
+	made.speed = float(payload["speed"])
+	made.damage = float(payload["damage"])
+	made.clamor_hit = float(payload["clamor"])
+	made.left = float(payload["range"])
+	made.shooter = int(payload["shooter"])
+	return made
