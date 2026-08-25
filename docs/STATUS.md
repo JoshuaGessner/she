@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`31/59` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`31/60` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
   M0 --> M1
   M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>0/9"]:::current
+  M3["M3 The Pact<br/>0/10"]:::current
   M2 --> M3
   M4["M4 Vertical Slice<br/>0/13"]:::ahead
   M3 --> M4
@@ -37,7 +37,7 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
@@ -94,15 +94,16 @@ _None. Sequencing is clean._
 
 ### M3 — The Pact
 
-- · `M3-T06` Save system with versioning and migration from day one (`TEC-003`) — *first in `M3`, moved there by ADR-109. It sat sixth of nine, behind classes, Aspects, ranks, deeds and equipment slots, every one of which **is** save state — so the written order guaranteed the retrofit that `TEC-003` and `CLAUDE.md` both call agony* `TEC-003`
+- · `M3-T06` Save system with versioning and migration from day one (`TEC-003`) — *first in `M3`, moved there by ADR-109. It sat sixth of nine, behind classes, Aspects, ranks, deeds and equipment slots, every one of which **is** save state — so the written order guaranteed the retrofit that `TEC-003` and `CLAUDE.md` both call agony. **`profile.save` only:** `user://run.active` and suspend-with-forced-resume move to `M3-T09` by ADR-116, because building them now builds them against a run structure `M3-T09` is about to change, and ADR-050's own sentence — "dropping out of a co-op run leaves you a **Vörðr**" — has no referent until the Vörðr exists* `TEC-003`
 - · `M3-T04` Tithe and Pact Rank escalation (`DES-003`) — *and with it the rank at which a Gullsjúkr becomes killable, which `M2-T02` left absent rather than stubbed* `DES-003` `DES-017`
-- · `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) — *the Chamber built at `M2-T06` is where this happens: the hoard grows today and buys nothing until this lands* `DES-002` `DES-003` `DES-004` `DES-008` `DES-014`
-- · `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested `DES-003` `DES-012`
-- · `M3-T02` **Two classes complete** — Húskarl and Veiðimaðr, opposite loop relationships. **The other four are absent from the class-select screen entirely.** A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064) `DES-011`
-- · `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) — *in the Chamber, and it reads the `rescued` signal `M2-T05` already emits* `DES-003` `DES-012` `DES-014` `DES-019`
-- · `M3-T08` **Deeds awarded at the Settle beat** — never mid-run; the run must end on evidence of what you did `DES-016`
-- · `M3-T07` **Equipment slots and visible gear** — six slots, per-class bare arms, armour rendering over them, Pack driving grid size `DES-020`
-- · `M3-T09` **Extract and wait** — individual extraction, with somewhere to *be* while the rest of the party finishes. *Split out by ADR-102: peers cannot stand in different levels, so `M2` ends the run for everyone at the first extraction. This needs the **Vörðr** (`DES-012`) — a player parked in an empty room with no way to watch or help is worse than a short run that ends cleanly* `DES-012` `DES-002`
+- · `M3-T10` **Floors scale to the highest Pact Rank in the party** (ADR-010) — *added by ADR-116, and it is not new scope: ADR-010 is accepted, `M3-T03` exists **only** to protect the coupling it creates, and `GATE M3 COOP` names a "rank-8 floor" in its own sentence — yet **nothing in `M3`, `M4` or `M5` built it.** `M4-T01` scales by depth and `M2-T07` by party size; neither is rank. Without this the co-op gate cannot be run and `M3-T03` has nothing to bite on. `PartyScaling` is the seam and the shape: three static functions on one axis, so rank is a second axis on the same three quantities. At `M3` that honestly means more of them, harder and richer — enemy **variety** by rank is `M4-T02` and `M5-T04`, and a rank-8 bestiary pretended at here would be the stub ADR-064 bans* `DES-003` `DES-012` `DES-015`
+- · `M3-T02` **Two classes complete** — Húskarl and Veiðimaðr, opposite loop relationships. **The other four are absent from the class-select screen entirely.** A stubbed class a playtester can pick and that does nothing produces worthless feedback (ADR-064) — *moved ahead of `M3-T01` by ADR-116: ADR-009 makes **your class decide which three Aspects you may enter**, so a tree built before any class exists is a tree with its gating rule missing, retrofitted rather than built. **And there is no class-select screen** — `game/ui/` has eleven scripts and none of them is it; this task builds it, and `DES-011` puts the choice at the start of a **life**, which is the moment `M3-T05` creates* `DES-011` `DES-004`
+- · `M3-T01` Tribute → Boon → Aspects; **two Aspects complete. The other three are absent — not stubbed, not listed, not selectable** (ADR-064) — *the Chamber built at `M2-T06` is where this happens: the hoard grows today and buys nothing until this lands. Access is gated by class (ADR-009), which is why `M3-T02` now precedes it* `DES-002` `DES-003` `DES-004` `DES-008` `DES-014`
+- · `M3-T03` **Boon cap by own rank** (ADR-011) — must exist before mixed-rank parties are tested, *and it has nothing to bite on until `M3-T10` makes a floor above your own rank somewhere you can stand* `DES-003` `DES-012`
+- · `M3-T05` Death → Legacy selection screen, with the "what you learned" panel first (ADR-006) — *in the Chamber, and it reads the `rescued` signal `M2-T05` already emits. **One flow with `M3-T02`'s class select**, not two screens: death → what you learned → Legacy slots → the class of the next life. ADR-009 makes death "the door to a new class", and a Rite node in a Legacy slot only applies if the next life repeats that class — so the choice and the payload are the same screen* `DES-003` `DES-011` `DES-012` `DES-014` `DES-019`
+- · `M3-T08` **Deeds awarded at the Settle beat** — never mid-run; the run must end on evidence of what you did. *The beat already exists: `M2-T06`'s Chamber makes keep-or-give a physical gesture at the hoard rather than a dialog. ADR-050 also puts **another player's name** in your save here — the friend you carried out — which is the first time this profile stores anyone but you* `DES-016`
+- · `M3-T07` **Equipment slots and visible gear** — six slots, per-class bare arms, armour rendering over them, Pack driving grid size. *After `M3-T02`, because "per-class" has no referent until classes exist (ADR-056)* `DES-020`
+- · `M3-T09` **Extract and wait** — individual extraction, with somewhere to *be* while the rest of the party finishes. *Split out by ADR-102: peers cannot stand in different levels, so `M2` ends the run for everyone at the first extraction. This needs the **Vörðr** (`DES-012`) — a player parked in an empty room with no way to watch or help is worse than a short run that ends cleanly. **`user://run.active` lands here too** (ADR-116): ADR-050's suspend-with-forced-resume says dropping out leaves you a Vörðr, so the file and the state it describes are one piece of work* `DES-012` `DES-002` `TEC-003`
 
 ### M4 — Vertical Slice
 
@@ -111,7 +112,7 @@ _None. Sequencing is clean._
 - · `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* `DES-011`
 - · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) — *the board hangs in the Threshold, which `M2-T06` built as a fire and a doorway* `DES-007` `DES-014`
 - · `M4-T05` Real art pass, real audio, real UI, ping system `ART-001` `ART-002` `DES-019` `DES-012`
-- · `M4-T06` Full save/load, settings, controls rebinding `TEC-003` `DES-018`
+- · `M4-T06` **Save/load surfaced, settings, controls rebinding** — *narrowed by ADR-116. It read "full save/load", which stopped being true when ADR-109 moved the save system to `M3-T06`: the format, the versioning, the migrations and the write policy are built there and grow a version per `M3` task. What is left here is the part a **player** touches — the load path at boot, profile management, and what happens when a save is from a newer build than the binary — plus settings and rebinding. Two tasks reading "save/load" is how one of them gets built twice or neither gets built* `TEC-003` `DES-018`
 - · `M4-T11` **The accessibility suite** — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. *Split out of `M4-T06` by ADR-077: "settings" was standing in for a dozen deliverables, several of which are architectural constraints rather than options* `DES-018`
 - · `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest `TEC-004`
 - · `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library `ART-005`
@@ -131,6 +132,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 115 ADRs · 12 open questions · 105 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 116 ADRs · 12 open questions · 105 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

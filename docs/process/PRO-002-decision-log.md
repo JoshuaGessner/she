@@ -2301,4 +2301,61 @@ What the three-player session did establish is the layer underneath: three peopl
 
 ---
 
+## ADR-116 — M3 made coherent: a tenth task, one swap, and a save that grows a version at a time
+**Date:** 2026-08-25 · **Status:** accepted · **Adds `M3-T10`** · **Reorders `M3`** · **Amends `M3-T06`, `M3-T09`, `TEC-003` sequencing**
+
+**Context:** M2 cleared, M3 is next, and the milestone had never been read end-to-end against the decisions it implements. Reading it that way found three things, one of which would have stopped a gate from being runnable at all.
+
+### 1. `GATE M3 COOP` names a system nothing on the roadmap builds
+
+The gate says, in its own sentence: *"a rank-8 player brings a rank-1 friend into a **rank-8 floor** (ADR-010)."*
+
+ADR-010 is accepted — *"scale to the highest rank present"* — and ADR-011 (`M3-T03`) exists **only** to protect the coupling ADR-010 creates. But no task in `M3`, `M4` or `M5` builds rank-scaled floors. `M4-T01` scales by *depth*, `M2-T07` scales by *party size*, and `M5-T06` is a balance pass. **There is no rank-8 floor, at any milestone, and the gate that names one is two milestones away from noticing.**
+
+This is the shape ADR-097, ADR-105 and ADR-110 all had, one level up: not correct code nothing reaches, but **an accepted decision with no task behind it, guarded by a second task written to protect it.** `M3-T03` reads *"must exist before mixed-rank parties are tested"* — and mixed-rank parties were not testable, because a floor had no rank.
+
+Nothing in the tooling can see this. `status.py --check` reads sequencing and doc integrity; it does not ask whether every accepted ADR has an implementing task, and there is no obvious way to make it — an ADR is prose. **`M3-T10`** is the fix for this instance.
+
+It is not scope creep. It was always in scope, named in a gate, and simply unwritten.
+
+**`PartyScaling` is the seam and the shape.** Three static functions keyed on one axis; rank is a second axis on the same three quantities. At `M3` that honestly means *more of them, harder, and richer* — enemy **variety** by rank is `M4-T02` and `M5-T04`, and pretending a rank-8 floor has a rank-8 bestiary here would be the stub ADR-064 bans.
+
+### 2. The Aspect tree was scheduled before the thing that gates it
+
+ADR-009: **"access to 3 of the 5 Aspects"**, decided by your class. `M3-T01` built the tree third; `M3-T02` built the classes fifth. **A tree built before any class exists is a tree with its gating rule missing** — and the rule would then be retrofitted onto a shipped tree rather than built into it, which is the same mistake ADR-109 moved the save system to avoid.
+
+`M3-T02` moves ahead of `M3-T01`. One swap, on a dependency that has been written down since 2026-08-12.
+
+Two more things fall out of reading ADR-009 properly. *"Death becomes the door to a new class"* — so `M3-T02`'s class select and `M3-T05`'s Legacy screen are **one flow**, not two screens: death → what you learned → Legacy slots → the class of the next life. And *"Rite nodes may occupy a Legacy slot but only apply if the next life repeats that class"* couples them again, in the payload. They are written as one flow now.
+
+**And there is no class-select screen.** `M3-T02`'s text said *"the other four are absent from the class-select screen entirely"*, which reads as though the screen exists and four entries are missing from it. `game/ui/` has eleven scripts and none of them is that screen. The task builds it.
+
+### 3. The save grows one version per task
+
+Approved as proposed. `TEC-003` draws a schema with `pact_rank`, `tithe_state`, `boon`, `skill_tree`, `scars`, `bestiary`, `cartography`, `legacy_slots_unlocked` — **none of which exist.** Writing them now as empty fields is exactly the stub ADR-064 bans: present, empty, and lying about what the game does.
+
+**So `M3-T06` ships the machinery complete and the schema only as wide as the state that exists** — which is what `GameState` already holds: `hoard` and `hoard_value` (LINEAGE), `stash` (LIFE), `descents`, plus `meta`. The three sections are structure rather than stubs, because the tier split is *already* how `die()` works: clear LIFE, keep LINEAGE, one function. An empty `legacy.slots` is honest — there are zero Legacy slots. `pact_rank: 1` would not be.
+
+**Every task after it that adds persistent state ships `SAVE_VERSION + 1`, its migration, and a fixture of the format it replaces.** By `GATE M3 EXIT` the migration path will have run for real seven times against saves that genuinely existed — which is a strictly stronger claim than one speculative v1 nobody ever migrates from, and it is the better argument for save-first than the one ADR-109 gave.
+
+### 4. `user://run.active` moves to `M3-T09`
+
+`TEC-003` specifies a separate mid-run file and ADR-050's suspend-with-forced-resume. Built at `M3-T06`, it would be built against a run structure `M3-T09` is about to change — and ADR-050's own sentence, *"dropping out of a co-op run leaves you a **Vörðr**"*, has no referent until the Vörðr exists. The file and the state it describes are one piece of work. `M3-T06` ships `profile.save` only.
+
+### 5. And two tasks both said "save/load"
+
+`M4-T06` read *"Full save/load, settings, controls rebinding"* — written before ADR-109 moved the save system out of `M4` and into `M3-T06`. Left as it stood, two tasks two milestones apart both claimed the same deliverable, which is how one of them gets built twice or neither gets built at all.
+
+It is narrowed to **the part a player touches**: the load path at boot, profile management, and what a build does with a save from a newer build than itself. The format, the versioning, the migrations and the write policy are `M3-T06` and grow a version per task from there.
+
+`game/systems/settings.gd` also still points at `M4-T06` for the versioned save; `M3-T06` corrects it. `Settings` itself stays exactly where it is — its header is right that preferences are a different file with different rules, *"and conflating them is how settings end up wiped by a save migration."*
+
+### The resulting order
+
+`T06` → `T04` → **`T10`** → `T02` → `T01` → `T03` → `T05` → `T08` → `T07` → `T09`
+
+`T10` sits directly after `T04` deliberately: rank raising your Tithe **and** raising the floor is one coupling, `DES-003`'s Pillar-P3 claim that *"power pulls you deeper"*, and splitting it across the milestone means neither half can be felt on its own.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
