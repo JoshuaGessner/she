@@ -84,6 +84,13 @@ signal extracted(player: Player)
 ## life ends up is the level's business and the body is past having opinions.
 signal died_here(player: Player, at: Vector3)
 
+## A blow that a raised guard took the weight of (`M3-T02`), carrying how much
+## never reached you. Raised host-side, where the decision is made — the Foley
+## and the shield-shake that `DES-018` will want a visual twin for hang off
+## this rather than off the input, so a client sees its own block land because
+## the host said it did.
+signal blocked(stopped: float, from: Node)
+
 ## Metres per second a thrown item leaves the hand at, and how far the arc is
 ## tilted up from where you are looking ⟨tune⟩. `DES-017` wants a purse to go
 ## *down a side corridor*, so the throw has to buy real distance — baiting is
@@ -118,6 +125,13 @@ const MOTION_PROPERTIES: Dictionary = {
 	# not — which is the case `ON_CHANGE` is actually for.
 	".:stance": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:grounded": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# Idles the same way: a guard is up or it is not (`M3-T02`).
+	".:blocking": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# `ALWAYS`, unlike the two above: it moves continuously while it matters,
+	# and what it drives is a collision layer every other peer's enemies have
+	# to agree about. ADR-068 measured `ON_CHANGE` costing *more* for a value
+	# that changes every frame.
+	".:planted": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 }
 
 ## What the host sends. All three are consequences, and all three idle: health
@@ -171,6 +185,42 @@ var stance: float = 0.0:
 ## just the one it is playing. Deriving it from position would mean inferring
 ## contact from a curve that arrives at 20 Hz.
 var grounded: bool = true
+
+## Which of the Sworn this body is (`M3-T02`, `DES-011`).
+##
+## Set from the spawn payload before the body enters the tree, so it rides the
+## packet exactly like `party_slot` and every peer builds the same Húskarl from
+## the same data. **Not read from `GameState`**, which knows only the class of
+## the person sitting at *this* machine — the host builds four bodies and three
+## of them belong to somebody else.
+##
+## Empty is a real value: a body with no class is what the gym, the probes and
+## a profile that has not sworn yet all produce, and it takes the shared
+## profile unmodified.
+var sworn: StringName = &""
+
+## **Planted** (`M3-T02`, `DES-011`) — the Húskarl's verb, *Hold*.
+##
+## 0 loose, 1 fully planted, and it crosses the wire for a harder reason than
+## `stance` does: while this is 1 the body carries `CollisionLayers.BULWARK`,
+## which is what makes it *a wall to everything hostile*. A layer applied only
+## on the owner would give a client a doorway nobody else's enemies believed in.
+##
+## `DES-011`: *"plant and become an immovable object. Nothing pushes past you.
+## Allies can retreat through you."* The last sentence is the layer's doing —
+## enemies mask `BULWARK` and players never do, so teammates pass through with
+## no rule anywhere saying "except teammates".
+var planted: float = 0.0
+
+## Guard up (`M3-T02`, `DES-009`).
+##
+## **Replicated for the same reason `stance` is, and it is not cosmetic.** The
+## owning peer decides to raise a guard; the *host* decides what a blow does,
+## because `TEC-004` gives consequences one owner. So a client's block has to
+## reach the host or it stops a blow on that screen and nowhere else — a
+## teammate who watched you block and then watched you take it in full is the
+## unexplainable death `PRO-005` §5 forbids, arriving over the wire.
+var blocking: bool = false
 
 var _yaw: float = 0.0
 var _pitch: float = 0.0
@@ -310,7 +360,14 @@ func _ready() -> void:
 	_body_mesh.radius = tuning.body_radius
 	_camera.fov = tuning.field_of_view
 	_apply_stance()
-	health.maximum = tuning.player_health
+	# **The class shapes the body, and it is not a stat block** (`M3-T02`).
+	# `DES-009` Q22 refused a third build axis; these are multipliers on one
+	# shared profile so a Húskarl *walks* like a Húskarl. Applied before
+	# `restore()` so the pool it fills is the right size, and on every peer
+	# from the spawn payload rather than from local state — `GameState` knows
+	# only this machine's class, and the host has to build everybody's body.
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	health.maximum = tuning.player_health * (body.health_scale if body else 1.0)
 	health.restore()
 	_last_position = global_position
 	# **Where this body starts is ground it has stood on** (`M2-T16`, ADR-108).
@@ -405,7 +462,31 @@ func _on_swing_connected(_hurtbox_hit: Hurtbox) -> void:
 	clamor.add(Config.tuning.clamor_hit)
 
 
+## A blow arrives, and the guard is the only thing between it and you.
+##
+## **Host-side, and that is what makes the block real.** `TEC-004` gives
+## consequences one owner, so this runs on the host for every body — reading the
+## replicated `blocking` rather than the local input, which is why the flag has
+## to cross the wire at all.
+##
+## `DES-009`: *"Block with weapon or shield, costs stamina, reduces damage,
+## doesn't negate it."* All three clauses are here, and the third is the one
+## that matters — `validate()` refuses a fraction of 1.0, because a guard that
+## makes you invulnerable turns every fight into a holding contest and deletes
+## the positional defence the rest of the model is built on.
+##
+## The stamina is spent **per blow, not per second.** A guard held through a
+## quiet corridor costs nothing; a guard held into a fight empties you. That is
+## the version where blocking is a decision about *this swing* rather than a
+## stance you adopt on the way in.
 func _on_hurt(amount: float, from: Node) -> void:
+	if blocking and stamina.current >= Config.tuning.block_stamina_minimum:
+		var tuning: TuningProfile = Config.tuning
+		stamina.spend(tuning.block_stamina_cost)
+		var through: float = amount * (1.0 - tuning.block_damage_fraction)
+		blocked.emit(amount - through, from)
+		health.apply_damage(through, from)
+		return
 	health.apply_damage(amount, from)
 
 
@@ -1442,14 +1523,25 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 	# whether a friend comes for you *their* decision rather than yours.
 	if is_downed():
 		return tuning.walk_speed * tuning.downed_speed_fraction
+	# Planted is planted (`M3-T02`). Nothing about the doorway works if the
+	# thing in it can be walked out of.
+	if planted > 0.0:
+		return 0.0
 	if spent:
 		return 0.0
 	# Two multipliers, and they compound on purpose. Load is `DES-005` Layer 1 —
 	# greed in your legs. The bag term is `DES-019`'s vulnerable act, scaled by
 	# how far open it is so the penalty arrives with the screen rather than
 	# ahead of it.
-	return (base * carried.scale_by_load(tuning.speed_at_capacity)
-		* lerpf(1.0, tuning.bag_speed_multiplier, _bag))
+	# A third multiplier, on the same principle: a guard slows you but never
+	# roots you. `DES-009` makes movement the primary defence — *"no dodge-roll,
+	# no i-frames, defense is positional"* — so a block that took your feet away
+	# would be trading the better defence for the worse one.
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	var of_class: float = body.speed_scale if body else 1.0
+	return (base * of_class * carried.scale_by_load(tuning.speed_at_capacity)
+		* lerpf(1.0, tuning.bag_speed_multiplier, _bag)
+		* (tuning.block_speed_multiplier if blocking else 1.0))
 
 
 func _acceleration(tuning: TuningProfile) -> float:
@@ -1475,6 +1567,21 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	var goal: float = 1.0 if _crouching else 0.0
 	var step: float = delta / maxf(tuning.crouch_time, 0.001)
 	stance = move_toward(stance, goal, step)
+
+	# **A guard you cannot raise is not a guard that flickers** (`M3-T02`).
+	# Below the minimum the button does nothing at all, which is `sprint_minimum`'s
+	# rule and for the same reason: a shield blinking on and off at empty
+	# stamina is unreadable, and unreadable defence is `PRO-005` §5's
+	# unexplainable death waiting to happen. Not while rummaging, not while
+	# down — both are already states in which your hands are full of something
+	# else. The bag is the interesting one, because `DES-019` sells opening it
+	# as a vulnerable act and a guard you could hold through it would refund
+	# exactly the vulnerability being paid for.
+	_hold(delta, tuning)
+	blocking = (Input.is_action_pressed("block")
+		and stamina.current >= tuning.block_stamina_minimum
+		and _bag <= 0.0
+		and not is_incapacitated())
 
 
 ## Collider, silhouette and eye height, from one number.
@@ -1511,3 +1618,58 @@ func planar_speed() -> float:
 ## would give both bodies the same number and nobody a reason to look.
 func capsule_height() -> float:
 	return _capsule.height
+
+
+## **Hold** (`M3-T02`, `DES-011`) — the Húskarl's verb, and only theirs.
+##
+## *"Plant and become an immovable object. Nothing pushes past you. Allies can
+## retreat through you."*
+##
+## Three things, and each is one line because the systems were already there:
+##
+## - **Immovable** is `_speed()` returning nothing while planted. Not a physics
+##   change, not a new movement state — you simply cannot walk, which is what
+##   makes it a *decision to stop* rather than a stance you drift into.
+## - **Nothing pushes past you** is `CollisionLayers.BULWARK`. Enemies mask it,
+##   players do not, so the same layer that makes you a wall makes you thin air
+##   to your own party. There is no "except teammates" rule to get wrong.
+## - **A real cost** (`DES-011`'s rule for every unique verb) is stamina per
+##   second. Not per blow: the clock runs while you are the only thing in the
+##   doorway, whether or not anything comes.
+##
+## Planting **takes `hold_plant_seconds`** and unplanting is immediate. That
+## asymmetry is the commitment: `DES-009` refuses reflex-timed defence, so this
+## is a thing you decide to do a beat before you need it, and an ally has time
+## to read that you have done it.
+func _hold(delta: float, tuning: TuningProfile) -> void:
+	# Only a class with the verb has the verb. `DES-011`: identity comes from
+	# the verb, not the stat line — so this is the line that makes a Húskarl
+	# recognisable from ten seconds of watching, and it is gated on nothing but
+	# whether you are one.
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	var wants: bool = (body != null and body.verb == &"hold"
+		and Input.is_action_pressed("hold")
+		and not is_incapacitated()
+		and _bag <= 0.0
+		and stamina.current > 0.0)
+	var step: float = delta / maxf(tuning.hold_plant_seconds, 0.001)
+	planted = minf(planted + step, 1.0) if wants else 0.0
+	if planted > 0.0:
+		stamina.spend(tuning.hold_stamina_drain * delta)
+	_apply_bulwark()
+
+
+## The layer, applied wherever the body is — owner or remote copy — because the
+## host's enemies collide against *its* copy and a client's against theirs.
+## Driven by the replicated `planted`, exactly as `_apply_stance` is driven by
+## the replicated `stance`, and for the same reason: a body whose collider
+## disagrees with its silhouette is `PRO-005` §5's unexplainable death.
+func _apply_bulwark() -> void:
+	var wall: bool = planted >= 1.0
+	var has: bool = (collision_layer & CollisionLayers.BULWARK) != 0
+	if wall == has:
+		return
+	if wall:
+		collision_layer |= CollisionLayers.BULWARK
+	else:
+		collision_layer &= ~CollisionLayers.BULWARK

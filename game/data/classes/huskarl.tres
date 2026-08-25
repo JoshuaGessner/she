@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="ClassResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
+
+[resource]
+script = ExtResource("1_class")
+id = &"huskarl"
+name_key = &"class.huskarl.name"
+description_key = &"class.huskarl.desc"
+exit_key = &"class.huskarl.exit"
+aspects = Array[StringName]([&"scale", &"cinder", &"hoard"])
+verb = &"hold"
+health_scale = 1.25
+stamina_scale = 1.1
+speed_scale = 0.92
+carry_scale = 1.3
+kit = Array[StringName]([&"wpn_seax", &"arm_mail_byrnie"])

@@ -2543,4 +2543,51 @@ The alternative was moving `M3-T02` after `M3-T01` so a class arrives whole. Rej
 
 ---
 
+## ADR-121 — A guard, a doorway, and a life that can begin
+**Date:** 2026-08-25 · **Status:** accepted · **Closes `M3-T02`** · **Implements `DES-011`, `DES-009`** · **Extends ADR-119** · **Amends ADR-075's check**
+
+**Context:** `M3-T02` after ADR-120's split: the class-select screen and the Húskarl entire.
+
+### Blocking, which the game did not have
+
+`DES-009` names five combat verbs — attack, heavy, block, shove, throw — and had **two**. `WieldableTrait` carries windup, active, recovery, damage and reach, and no notion of stopping a blow.
+
+*"Block with weapon or shield, costs stamina, reduces damage, doesn't negate it."* All three clauses are built, and `validate()` refuses a `block_damage_fraction` of 1.0 at boot — a guard that makes you invulnerable turns every fight into a holding contest and deletes the positional defence `DES-009` has *instead* of i-frames. The stamina is spent **per blow, not per second**, so a guard held down a quiet corridor costs nothing and a guard held into a fight empties you: blocking is a decision about *this swing*.
+
+`blocking` replicates, and not for looks. The owning peer raises a guard; the **host** decides what a blow does (`TEC-004`). A block that never reached the host would stop a blow on one screen and nowhere else, which is `PRO-005` §5's unexplainable death arriving over the wire.
+
+`check_dead.py` then found `blocked` emitted with nothing listening — a real gap, not a tidiness one, because **without feedback a block is indistinguishable from a miss.** The wound vignette draws it: pale, on every edge, deliberately unlike a wound's directional darkening. A wound asks *where is it?* and a block asks *did that work?*; `DES-018` wants a visual twin for every channel, and a twin that lies is worse than none.
+
+### Hold is one collision layer
+
+*"Plant and become an immovable object. Nothing pushes past you. **Allies can retreat through you.**"*
+
+The obvious implementation puts a planted body on `WORLD`, and it **blocks the people it exists to protect.** `CollisionLayers.BULWARK` is a layer only a planted body ever carries: enemies mask it, players never do. So the same line that makes a Húskarl a wall makes them thin air to their own party — with no rule anywhere saying *"except teammates"*, and nothing to get wrong when a fourth player joins.
+
+The other two thirds cost a line each, because the systems were already there: immovable is `_speed()` returning zero, and the cost is stamina per second — per *second*, unlike a block, because Hold's cost is that the clock runs while you are the only thing in the doorway whether or not anything comes. Planting takes `hold_plant_seconds` and unplanting is instant; that asymmetry is the commitment, and it gives an ally time to read that you have done it.
+
+### The class is data, and complete as a body you play
+
+`ClassResource` and `ClassCatalogue` mirror `ItemResource` and `ItemCatalogue` deliberately — including the three-extension scan, which is not defensive padding: a table that comes back empty in an export is a build in which **no life can begin**, and ADR-086 records that failure arriving silently at full size.
+
+The kit lands **in the stash**, so `_carry_the_stash_down()` brings it on the first descent. A starting kit then behaves like anything else you kept — it fits or it waits, and you can leave it behind. Inventing a second route into the first descent would be a parallel path for something the Chamber already does.
+
+`class_id` is LIFE tier and `die()` clears it, which is what makes ADR-009's *"death becomes the door to a new class"* true rather than a sentence. Save v3, with the second real migration; a v2 profile migrates to `class_id = ""`, because a build with no classes describes a life that has not chosen one, and naming a class there would lock somebody into a decision they never made.
+
+### Three checks that were wrong, and one that was only half a check
+
+**The class body is read from the spawn payload, never from `GameState`** — the host builds four bodies and three belong to somebody else. The probe asserts the difference (125 health against 100) comes from the payload, because reading local state would work perfectly in solo and build three of four bodies wrong in company.
+
+Two probe assertions passed for the wrong reason and only planting showed it. The layout check's plant hit this file's own doc comment instead of the code; once it landed, the screen reported **0 x 0** — ADR-111 reproduced exactly, on a second screen. And the class-lock check tried to swear `veidimadr`, **which is not authored**, so the *catalogue* refused it and the lock was never consulted. It re-swears `huskarl` now. That is the second time in one milestone that a check has been true and beside the point (ADR-113's shape), and both times the plant is what said so.
+
+**And `bind_gamepad.py` had been enforcing half of ADR-075.** It walks its own `BINDINGS` table and confirms each has an action; it never asked the reverse. So an action defined in `project.godot` with only a keyboard binding passed silently — it reported *"all 23 actions have a gamepad binding"* while `hold` sat there unbound, which is precisely *"an action reachable only from a keyboard"*, the bug the file's header says it exists to catch. It runs both directions now, and the first thing it did was fail on the action that had just slipped past it. **A check that enumerates its own expectations can only ever confirm them.**
+
+### The pad is full, and three verbs are homeless
+
+Adding `block` and `hold` found that **every face button, shoulder, trigger, stick-click and d-pad direction is already assigned** — while `heavy`, `block` and `shove` had no binding at all. Both new verbs *share*: `block` with `rotate_item` and `hold` with `sprint`, on the disjoint-context precedent `interact` already sets (you cannot raise a shield while rummaging, and no hand wants sprint and plant in the same instant).
+
+That is a patch, and it is recorded as one. The layout pass belongs with rebinding at `M4-T06`, and it now has a written reason to happen.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

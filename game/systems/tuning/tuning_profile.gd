@@ -77,6 +77,39 @@ extends Resource
 @export_group("Vitals")
 @export var player_health: float = 100.0
 
+@export_group("Blocking")
+## Fraction of a blow a raised guard stops ⟨tune⟩ (`M3-T02`, `DES-009`).
+##
+## **Never 1.0, and `validate()` refuses it.** `DES-009` is explicit: block
+## *"costs stamina, reduces damage, doesn't negate it"* — and the reason is the
+## same one that rules out i-frames and dodge-rolls. A guard that makes you
+## invulnerable turns every fight into a holding contest and deletes the
+## positional defence the whole combat model is built on.
+@export var block_damage_fraction: float = 0.6
+## Stamina a blocked blow costs ⟨tune⟩. Blocking is a *resource*, not a stance:
+## `DES-009` puts swinging, blocking, sprinting and climbing on one pool, so a
+## Húskarl who blocks everything cannot also run.
+@export var block_stamina_cost: float = 22.0
+## Below this you cannot raise a guard at all ⟨tune⟩ — the same rule
+## `sprint_minimum` applies to sprinting, and for the same reason: a guard that
+## flickers on and off at zero stamina is unreadable to the person relying on it.
+@export var block_stamina_minimum: float = 10.0
+## Top speed multiplier with a guard up ⟨tune⟩. Slow, not rooted — `DES-009`
+## makes movement the primary defence, and a block that stopped you moving
+## would be asking you to give up the better one.
+@export var block_speed_multiplier: float = 0.55
+
+@export_group("Hold")
+## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
+## rather than per blow, unlike a block: `DES-011` gives every unique verb a
+## real cost, and Hold's is that it is a decision to stop — a clock running
+## while you are the only thing in a doorway, whether or not anything comes.
+@export var hold_stamina_drain: float = 16.0
+## Seconds from pressing to being planted ⟨tune⟩. Long enough to be a
+## commitment rather than a reflex (principle 3), and it obeys ADR-053's 250 ms
+## floor for the same reason an attack does — an ally has to be able to read it.
+@export var hold_plant_seconds: float = 0.3
+
 @export_group("Inventory")
 ## Cells wide and tall (`DES-019`). **`DES-020` gives this to the Pack slot** —
 ## bigger pack, more grid, more weight, more Clamor — and slots arrive at
@@ -413,4 +446,16 @@ func validate() -> PackedStringArray:
 	if rank_hunt_seconds < 0.0:
 		problems.append("rank_hunt_seconds cannot be negative — it would hand a "
 			+ "high-rank floor a younger Hunt and slower-sealing Shafts")
+	# `DES-009` in as many words: block *"reduces damage, doesn't negate it"*.
+	# At 1.0 a raised guard is invulnerability, every fight becomes a holding
+	# contest, and the positional defence the combat model is built on stops
+	# being the answer to anything. Refused at boot rather than discovered in a
+	# playtest where the Húskarl simply never dies.
+	if block_damage_fraction < 0.0 or block_damage_fraction >= 1.0:
+		problems.append(("block_damage_fraction is %.2f — it must sit in [0, 1), "
+			+ "because DES-009 says a block reduces damage and never negates it")
+			% block_damage_fraction)
+	if block_stamina_cost <= 0.0:
+		problems.append("block_stamina_cost must be positive or blocking is free, "
+			+ "and a free block is a stance rather than a resource")
 	return problems

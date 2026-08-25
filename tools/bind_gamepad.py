@@ -81,6 +81,28 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # and they were drawn in every session including a playtester's.
     "debug_overlays": [(BUTTON, DPAD_RIGHT, 0.0)],
     "interact": [(BUTTON, X, 0.0)],
+    # **Hold** (`M3-T02`, `DES-011`), the Húskarl's verb. On the left-stick
+    # click, which `sprint` also carries: sprinting and planting yourself in a
+    # doorway are opposites, so no hand ever wants both in the same instant.
+    #
+    # It shares rather than takes, because **the pad has no free button**.
+    # Every face, shoulder, trigger, stick and d-pad direction is spoken for
+    # while three of `DES-009`'s five combat verbs — heavy, block, shove — have
+    # no binding at all. Two of them now share. The layout pass that fixes this
+    # properly belongs with rebinding at `M4-T06`.
+    "hold": [(BUTTON, LEFT_STICK, 0.0)],
+    # **Blocking** (`M3-T02`, `DES-009`). Right mouse, and on the pad it shares
+    # RIGHT_SHOULDER with `rotate_item` — the two contexts are disjoint, since
+    # you cannot raise a shield while rummaging and cannot turn an item while
+    # fighting. Precedent is `interact`, which is already take-and-place in the
+    # bag and reach-for-it in the world.
+    #
+    # It shares rather than takes a free button because **there is no free
+    # button**: every face, shoulder, trigger, stick and d-pad direction is
+    # spoken for, while `DES-009`'s five combat verbs are attack, heavy,
+    # block, shove and throw — of which three are still unbound. The layout
+    # pass that fixes that properly belongs with rebinding at `M4-T06`.
+    "block": [(BUTTON, RIGHT_SHOULDER, 0.0)],
 }
 
 JOY_BUTTON = ('Object(InputEventJoypadButton,"resource_local_to_scene":false,'
@@ -143,6 +165,24 @@ def main() -> int:
         print("actions absent from project.godot: " + ", ".join(sorted(missing_actions)),
               file=sys.stderr)
         print("→ define them in the input map first", file=sys.stderr)
+        return 1
+
+    # And the other direction, which this tool did not ask for two years of
+    # actions and then missed one on the first try (`M3-T02`).
+    #
+    # The check above walks BINDINGS and confirms each has an action. That is
+    # only half of ADR-075's rule: an action defined in project.godot with no
+    # entry here is **keyboard-only**, which is precisely "an action reachable
+    # only from a keyboard" — the bug this file exists to catch — and it passed
+    # silently, reporting that all 23 actions were bound while a 24th was not.
+    # A check that enumerates its own expectations can only ever confirm them.
+    declared = set(re.findall(r"^([a-z_0-9]+)=\{", text, re.MULTILINE))
+    unbound = sorted(declared - set(BINDINGS))
+    if unbound:
+        print("actions with no gamepad binding: " + ", ".join(unbound),
+              file=sys.stderr)
+        print("→ add them to BINDINGS; ADR-075 makes controller parity a rule",
+              file=sys.stderr)
         return 1
 
     updated, changed = rewrite(text)

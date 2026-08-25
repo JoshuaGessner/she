@@ -376,7 +376,66 @@ func _combat_probe(player: Player) -> void:
 	for i: int in range(6):
 		await get_tree().physics_frame
 	print("[combat] death state              %s" % Enemy.State.keys()[enemy.state()].to_lower())
-	get_tree().quit()
+
+	# 8. **The guard** (`M3-T02`, `DES-009`). Blocking reduces a blow, costs
+	#    stamina, and never negates — the third clause is the one the whole
+	#    combat model rests on, since a guard that made you invulnerable would
+	#    replace the positional defence `DES-009` has instead of i-frames.
+	#
+	#    Damage is pushed through `_on_hurt`'s own funnel rather than through a
+	#    hurtbox, because the question is what the *guard* does to a blow, not
+	#    whether a hitbox finds a body — `--toll-probe` already asks that.
+	var problems: PackedStringArray = PackedStringArray()
+	player.health.restore()
+	player.stamina.refill()
+	player.blocking = false
+	var open_health: float = player.health.current
+	player._on_hurt(30.0, null)
+	var unguarded: float = open_health - player.health.current
+
+	player.health.restore()
+	player.stamina.refill()
+	player.blocking = true
+	var guarded_stamina: float = player.stamina.current
+	var guarded_health: float = player.health.current
+	player._on_hurt(30.0, null)
+	var guarded: float = guarded_health - player.health.current
+	var spent_stamina: float = guarded_stamina - player.stamina.current
+	print("[combat] blocked 30 damage       %.0f through vs %.0f open, %.0f stamina"
+		% [guarded, unguarded, spent_stamina])
+	if guarded >= unguarded:
+		problems.append(("a raised guard stopped nothing (%.0f through vs %.0f "
+			+ "open) — `DES-009` says a block reduces damage, and a shield that "
+			+ "does not is a stamina cost with no purchase")
+			% [guarded, unguarded])
+	if guarded <= 0.0:
+		problems.append(("a raised guard negated the blow entirely — `DES-009` "
+			+ "says it *doesn't negate it*, and invulnerability turns every "
+			+ "fight into a holding contest instead of a positional one"))
+	if spent_stamina <= 0.0:
+		problems.append(("blocking cost no stamina — `DES-009` puts swinging, "
+			+ "blocking, sprinting and climbing on one pool precisely so a "
+			+ "player who blocks everything cannot also run"))
+
+	# An empty pool cannot hold a guard up. The button does nothing rather than
+	# producing a shield that flickers, which nobody could read.
+	player.stamina.spend(player.stamina.current)
+	player.health.restore()
+	var empty_health: float = player.health.current
+	player.blocking = true
+	player._on_hurt(30.0, null)
+	var on_empty: float = empty_health - player.health.current
+	print("[combat] guard on empty stamina  %.0f through (want %.0f)"
+		% [on_empty, unguarded])
+	if not is_equal_approx(on_empty, unguarded):
+		problems.append(("a guard still worked at %.0f stamina — below "
+			+ "`block_stamina_minimum` there is nothing to hold it up with, and "
+			+ "a shield that works for free at empty is the resource cost gone")
+			% player.stamina.current)
+
+	for problem: String in problems:
+		printerr("[combat] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 func _probe(player: Player) -> void:

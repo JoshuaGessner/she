@@ -259,6 +259,23 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Can a life begin** (`M3-T02`, `DES-011`, ADR-120)? The catalogue holds
+	# what is authored, the screen has a rect a mouse can reach, pressing a
+	# class swears it and stocks the kit, the oath cannot be taken back until
+	# death, and the class shapes the **body the host builds** rather than only
+	# the one on your own screen.
+	#
+	# The rect assertion is ADR-111 arriving a second time: a `Control` under a
+	# `CanvasLayer` gets no layout, and at 0 x 0 Godot delivers it no mouse
+	# events at all. That cost the whole of `M2-T18` to find on the bag.
+	class_="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		-- --class-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$class_" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a life has to be able to begin" >&2
+		printf '%s\n' "$class_" | grep -E '\[class\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
@@ -576,6 +593,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a profile survives a round trip and refuses what it cannot read,"
 	echo "the Tithe rises with rank, costs something, and dies with you,"
 	echo "a rank-8 floor is denser and older without a bigger number on it,"
+	echo "a guard costs stamina and never negates, and a life can begin,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

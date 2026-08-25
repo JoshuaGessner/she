@@ -26,7 +26,8 @@ extends Object
 ## user://profile.save
 ## ├── meta     { save_version, engine, created, updated }
 ## ├── lineage  { hoard, hoard_value }          ← survives death, always
-## └── life     { stash, pact_rank, tithe_paid, cycle_runs, hunt_head_start }
+## └── life     { stash, class_id, pact_rank, tithe_paid, cycle_runs,
+##                hunt_head_start }
 ## ```
 ##
 ## `legacy` is **absent rather than empty**: there are no Legacy slots until
@@ -48,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 2
+const SAVE_VERSION: int = 3
 
 const PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
@@ -69,6 +70,7 @@ const TMP: String = "user://profile.save.tmp"
 static func migrations() -> Dictionary:
 	return {
 		1: _migrate_1_to_2,
+		2: _migrate_2_to_3,
 	}
 
 
@@ -85,6 +87,21 @@ static func _migrate_1_to_2(old: Dictionary) -> Dictionary:
 	life["tithe_paid"] = 0
 	life["cycle_runs"] = 0
 	life["hunt_head_start"] = 0.0
+	out["life"] = life
+	return out
+
+
+## **v2 → v3: `M3-T02` put a class on the profile** (ADR-120).
+##
+## Empty, and that is the honest value rather than a default. A v2 profile was
+## written by a build with no classes in it, so the life it describes has not
+## chosen one — which is precisely the state the select screen opens on. Naming
+## a class here would invent a decision the player never made and lock them into
+## it for a life, since `DES-011` does not let you change until you die.
+static func _migrate_2_to_3(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["class_id"] = ""
 	out["life"] = life
 	return out
 

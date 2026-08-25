@@ -23,3 +23,6 @@ item.con_waystone.name,Waystone
 item.con_waystone.desc,"Grey, unremarkable, and the only thing down here that is worth more than what you came for. Spending it ends the run with whatever is in your hands."
 item.con_ember.name,Ember
 item.con_ember.desc,"A piece of her fire, going out. It is heavier than it has any right to be and it will not stop making noise, and it is someone you know."
+class.huskarl.name,Húskarl
+class.huskarl.desc,"Shield-sworn. The last one standing in a doorway, and the one who decides where the doorway is."
+class.huskarl.exit,"Gets out by refusing to be stopped — heavy, armoured, and still moving under weight that would pin anyone else. Loud. The Hunt finds them easily."

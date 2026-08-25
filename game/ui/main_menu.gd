@@ -46,6 +46,8 @@ func _ready() -> void:
 	_show_root()
 
 	for arg: String in OS.get_cmdline_user_args():
+		if arg == "--class-probe":
+			_class_probe()
 		if arg == "--menu-probe":
 			_menu_probe()
 		elif arg.begins_with("--menu-shot="):
@@ -234,7 +236,30 @@ func _enter() -> void:
 		# worse answer than playing without saving — and nothing will be written
 		# over it. Telling a player any of this is `M4-T06`.
 		push_warning("MainMenu: descending without a profile; nothing will be saved")
+	# **A life needs somebody to live it** (`M3-T02`). A profile with no class
+	# is a fresh one or one whose last life ended, and `DES-011` puts the choice
+	# at exactly those two moments. It sits between the profile and the
+	# Threshold rather than earlier, because the answer is *per life* and the
+	# profile is what knows whether this life has one.
+	if GameState.class_id == &"":
+		_choose_a_class()
+		return
 	get_tree().change_scene_to_file(THRESHOLD)
+
+
+func _choose_a_class() -> void:
+	var screen := ClassScreen.new()
+	# Onto a layer of its own, above whatever the menu had built. The menu is
+	# left standing rather than torn down: this screen can be the last thing
+	# between a player and a run, and a failure to build it must not leave them
+	# looking at nothing (ADR-107's grey screen).
+	var layer := CanvasLayer.new()
+	layer.layer = 6
+	layer.add_child(screen)
+	add_child(layer)
+	screen.chosen.connect(func(id: StringName) -> void:
+		print("[menu] sworn as %s" % id)
+		get_tree().change_scene_to_file(THRESHOLD))
 
 
 func _gap(height: int) -> Control:
@@ -377,3 +402,173 @@ func _walk_the_loop() -> PackedStringArray:
 			+ "of the save works and nothing joins them, so a run would end and "
 			+ "the hoard `DES-014` says is never wiped would go nowhere"))
 	return problems
+
+
+## **Can a life actually begin** (`M3-T02`, `DES-011`, ADR-120)?
+##
+## The screen, the oath and the body, asserted through the path a player takes
+## rather than past it. `M2-T18` is why: the bag's rules were all correct and no
+## click had ever reached them, so a check that calls `_commit` directly proves
+## the same nothing.
+func _class_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	SaveFile.wipe()
+	GameState.class_id = &""
+	GameState.stash.clear()
+
+	# ── the catalogue holds what is authored, and nothing else ───────────
+	var sworn: Array[ClassResource] = ClassCatalogue.all()
+	var names: Array[String] = []
+	for entry: ClassResource in sworn:
+		names.append(String(entry.id))
+	print("[class] catalogue    %d authored: %s" % [sworn.size(), str(names)])
+	if sworn.is_empty():
+		problems.append(("no classes are in this build — an export whose class "
+			+ "table comes back empty is a build in which no life can begin, "
+			+ "which is ADR-086's silent packaging fault wearing a new hat"))
+	for entry: ClassResource in sworn:
+		for problem: String in entry.validate():
+			problems.append("%s is malformed: %s" % [entry.id, problem])
+
+	# ── the screen builds, has a rect, and its buttons reach the oath ────
+	var screen := ClassScreen.new()
+	var layer := CanvasLayer.new()
+	layer.add_child(screen)
+	add_child(layer)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var rect: Vector2 = screen.size
+	var buttons: int = screen.find_children("*", "Button", true, false).size()
+	print("[class] the screen   %.0f x %.0f, %d button(s)" % [
+		rect.x, rect.y, buttons])
+	if rect.x <= 0.0 or rect.y <= 0.0:
+		problems.append(("the class screen laid out at %.0f x %.0f — a `Control` "
+			+ "under a `CanvasLayer` gets no layout unless it sets its own "
+			+ "offsets, and at zero size Godot delivers it no mouse events at "
+			+ "all (ADR-111). Nobody could pick a class with a mouse")
+			% [rect.x, rect.y])
+	if buttons != sworn.size():
+		problems.append(("%d button(s) for %d authored class(es) — a class in "
+			+ "the catalogue with no way to choose it is unreachable, and a "
+			+ "button with no class behind it is the stub ADR-064 bans")
+			% [buttons, sworn.size()])
+
+	# ── pressing one swears the oath and stocks the kit ──────────────────
+	var reached: bool = screen.press(&"huskarl")
+	print("[class] the oath     pressed=%s, sworn as '%s', stash %d" % [
+		reached, GameState.class_id, GameState.stash.size()])
+	if not reached:
+		problems.append("the Húskarl's own button could not be found or pressed")
+	if GameState.class_id != &"huskarl":
+		problems.append(("pressing a class did not swear it — every part of this "
+			+ "can work and leave the button joined to nothing, which is the "
+			+ "shape ADR-105, ADR-108 and ADR-110 all had"))
+	var expected: int = ClassCatalogue.by_id(&"huskarl").kit.size()
+	if GameState.stash.size() != expected:
+		problems.append(("swearing put %d item(s) in the stash, not %d — a "
+			+ "starting kit that does not arrive is a first descent with empty "
+			+ "hands") % [GameState.stash.size(), expected])
+
+	# ── and it cannot be taken back until you die (`DES-011`) ────────────
+	# **The same class, deliberately.** The obvious version tries to swear a
+	# *different* one — and the only other name in `DES-011` is not authored
+	# yet, so the catalogue refused it and the lock was never consulted. The
+	# check passed for the wrong reason, which is ADR-113's shape and the second
+	# time today a probe has done it. An id that exists is the only way to ask
+	# whether the lock is what is holding.
+	var swapped: bool = GameState.take_the_oath(&"huskarl")
+	print("[class] the lock     second oath accepted=%s, still '%s'" % [
+		swapped, GameState.class_id])
+	if swapped or GameState.class_id != &"huskarl":
+		problems.append(("a class could be swapped mid-life — `DES-011` locks it "
+			+ "until death, and that lock is what makes ADR-009's 'death is the "
+			+ "door to a new class' a decision rather than a menu"))
+	GameState.die()
+	print("[class] after death  class '%s' (want empty)" % GameState.class_id)
+	if GameState.class_id != &"":
+		problems.append(("the class survived a death — `DES-003` puts it in the "
+			+ "LIFE tier and ADR-009 makes death the door to a new one, which "
+			+ "is a retention argument and not a tidiness one"))
+
+	# ── the body is shaped by the class, on the host's copy ──────────────
+	# The **scene**, not `Player.new()`: the body is a tree of components and a
+	# bare script instance has no `Health` to size. Instantiated the way
+	# `CoopSession` does it, so what is measured is the body a session builds.
+	var scene: PackedScene = preload("res://actors/player/player.tscn")
+	var plain: Player = scene.instantiate() as Player
+	var stout: Player = scene.instantiate() as Player
+	stout.sworn = &"huskarl"
+	add_child(plain)
+	add_child(stout)
+	await get_tree().process_frame
+	print("[class] the body     health %.0f plain vs %.0f Húskarl" % [
+		plain.health.maximum, stout.health.maximum])
+	if stout.health.maximum <= plain.health.maximum:
+		problems.append(("a Húskarl's body is no sturdier than a classless one "
+			+ "(%.0f vs %.0f) — the class is being read from `GameState` rather "
+			+ "than from the spawn payload, so in co-op the host would build "
+			+ "three of four bodies wrong")
+			% [stout.health.maximum, plain.health.maximum])
+	plain.queue_free()
+	stout.queue_free()
+
+	# ── and the Húskarl's verb (`M3-T02`, `DES-011`) ─────────────────────
+	#
+	# *"Plant and become an immovable object. Nothing pushes past you. Allies
+	# can retreat through you."* The last sentence is a collision layer, and it
+	# is the half that would break silently: a planted body on `WORLD` would
+	# block the people it exists to protect and nothing would say so.
+	var husk: Player = scene.instantiate() as Player
+	husk.sworn = &"huskarl"
+	add_child(husk)
+	await get_tree().process_frame
+	husk.planted = 1.0
+	husk._apply_bulwark()
+	var wall: int = husk.collision_layer
+	print("[class] planted      layer %d, bulwark=%s, enemies mask it=%s" % [
+		wall, (wall & CollisionLayers.BULWARK) != 0,
+		(_enemy_mask() & CollisionLayers.BULWARK) != 0])
+	if (wall & CollisionLayers.BULWARK) == 0:
+		problems.append(("a planted Húskarl carries no bulwark layer, so nothing "
+			+ "collides with them — *Hold* is the class's whole verb and this is "
+			+ "the line that makes it exist"))
+	if (_enemy_mask() & CollisionLayers.BULWARK) == 0:
+		problems.append(("enemies do not mask the bulwark layer, so a planted "
+			+ "Húskarl is a wall nothing walks into — the layer and the mask are "
+			+ "two halves of one claim and either alone is silent"))
+	if (_player_mask() & CollisionLayers.BULWARK) != 0:
+		problems.append(("players mask the bulwark layer, so a planted Húskarl "
+			+ "blocks their own party — `DES-011` says allies retreat *through* "
+			+ "you, and this is the doorway becoming a trap for the people it "
+			+ "was held for"))
+	husk.planted = 0.0
+	husk._apply_bulwark()
+	if (husk.collision_layer & CollisionLayers.BULWARK) != 0:
+		problems.append(("the bulwark layer outlived the plant — a Húskarl who "
+			+ "walks away still blocking is a wall wandering the floor"))
+	husk.queue_free()
+
+	SaveFile.wipe()
+	for problem: String in problems:
+		printerr("[class] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## The masks the shipped scenes actually carry, read from the scenes rather
+## than restated here. `check_project.py` asserts they match `CollisionLayers`;
+## this asserts what they *mean* — that a planted body stops an enemy and not a
+## friend. Two different questions, and the second one is the design's.
+func _enemy_mask() -> int:
+	var scene: PackedScene = preload("res://actors/enemies/enemy.tscn")
+	var body: CharacterBody3D = scene.instantiate() as CharacterBody3D
+	var mask: int = body.collision_mask
+	body.free()
+	return mask
+
+
+func _player_mask() -> int:
+	var scene: PackedScene = preload("res://actors/player/player.tscn")
+	var body: CharacterBody3D = scene.instantiate() as CharacterBody3D
+	var mask: int = body.collision_mask
+	body.free()
+	return mask

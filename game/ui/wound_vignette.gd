@@ -67,6 +67,12 @@ const STEPS: int = 8
 ## colour on the one event that happens most often, and blood in this world is
 ## *"desaturated almost to black"* anyway.
 const SHADOW: Color = Color(0.02, 0.02, 0.03)
+## A blow the guard took (`M3-T02`). Pale rather than dark, and briefer than a
+## wound: `DES-018` wants every audio channel to have a visual twin, and
+## without one a block is indistinguishable from a miss — the player learns
+## nothing about whether the thing they are holding down is working.
+const GUARD: Color = Color(0.62, 0.60, 0.54)
+const GUARD_SECONDS: float = 0.22  # ⟨tune⟩
 
 var _body: Player = null
 var _health: Health = null
@@ -75,6 +81,8 @@ var _flash: float = 0.0
 ## right, and the sign of `_from_behind` says whether it was in front.
 var _from_x: float = 0.0
 var _from_behind: bool = false
+## Seconds of guard-flare left, drawn over the same edges a wound uses.
+var _guard: float = 0.0
 
 
 func _ready() -> void:
@@ -89,6 +97,8 @@ func _process(delta: float) -> void:
 			return
 	if _flash > 0.0:
 		_flash = maxf(0.0, _flash - delta / FLASH_SECONDS)
+	if _guard > 0.0:
+		_guard = maxf(0.0, _guard - delta / GUARD_SECONDS)
 	queue_redraw()
 
 
@@ -101,6 +111,7 @@ func _bind() -> void:
 		return
 	_health = _body.health
 	_health.damaged.connect(_on_damaged)
+	_body.blocked.connect(_on_blocked)
 
 
 ## Direction is computed **here, from the camera**, rather than being handed
@@ -146,6 +157,7 @@ func _draw() -> void:
 		# frame tightening rather than as a direction.
 		_draw_sides(screen, true, true, 1.0, wound)
 		_draw_caps(screen, wound)
+	_draw_guard(screen)
 	if _flash <= 0.0:
 		return
 
@@ -205,3 +217,30 @@ func _draw_caps(screen: Vector2, strength: float) -> void:
 			Vector2(screen.x, thickness)), colour)
 		draw_rect(Rect2(Vector2(0.0, screen.y - through * band - thickness),
 			Vector2(screen.x, thickness)), colour)
+
+
+## A blow the guard took the weight of (`M3-T02`, `DES-009`).
+##
+## **Pale, and on every edge.** A wound darkens the side it came from, because
+## that is the question a wound raises — *where is it?* A block raises a
+## different one, *did that work?*, and the answer is not directional. Drawn
+## unlike a wound on purpose: `DES-018` asks every audio channel for a visual
+## twin, and a block that looked like a hit would be a twin that lies.
+func _on_blocked(_stopped: float, _from: Node) -> void:
+	_guard = 1.0
+
+
+## The pale flare, over the same edges. Called from `_draw` after the wound so a
+## block landing on a hurt player reads as both, in the order they happened.
+func _draw_guard(screen: Vector2) -> void:
+	if _guard <= 0.0:
+		return
+	var band: float = screen.x * ARC * 0.5
+	var thickness: float = band / float(STEPS)
+	for step: int in range(STEPS):
+		var alpha: float = _guard * (1.0 - float(step) / float(STEPS)) * 0.22
+		var colour := Color(GUARD.r, GUARD.g, GUARD.b, alpha)
+		draw_rect(Rect2(Vector2(float(step) * thickness, 0.0),
+			Vector2(thickness, screen.y)), colour)
+		draw_rect(Rect2(Vector2(screen.x - float(step + 1) * thickness, 0.0),
+			Vector2(thickness, screen.y)), colour)

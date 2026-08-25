@@ -113,7 +113,7 @@ func _ready() -> void:
 		# every peer says its rank again here. Walking through a doorway is the
 		# only way a real party ever reaches a floor, so a declaration made
 		# solely at connect would be a declaration the floor never sees.
-		declare_rank.rpc_id(HOST_PEER, GameState.pact_rank)
+		declare_descent.rpc_id(HOST_PEER, GameState.pact_rank, String(GameState.class_id))
 		if multiplayer.is_server():
 			multiplayer.peer_connected.connect(_on_peer_connected)
 			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -136,7 +136,7 @@ func _ready() -> void:
 			# already reports us as server 1, so the host path below is simply
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
-			declare_rank(GameState.pact_rank)
+			declare_descent(GameState.pact_rank, String(GameState.class_id))
 			spawn_player(HOST_PEER)
 
 
@@ -241,7 +241,7 @@ func _start_host() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
-	declare_rank(GameState.pact_rank)
+	declare_descent(GameState.pact_rank, String(GameState.class_id))
 	spawn_player(HOST_PEER)
 
 
@@ -285,7 +285,7 @@ func _on_connected() -> void:
 	# Before anything else asks (`M3-T10`). A floor built while a rank-8 player
 	# was still announcing themselves is a rank-1 floor with a rank-8 player on
 	# it, which is the opposite of what ADR-010 is for.
-	declare_rank.rpc_id(HOST_PEER, GameState.pact_rank)
+	declare_descent.rpc_id(HOST_PEER, GameState.pact_rank, String(GameState.class_id))
 	_waiting_until = 0
 	_hide_waiting()
 
@@ -388,6 +388,10 @@ func _give_up(because: String) -> void:
 ## writes another player's anything. It is the same kind of value as party
 ## size, which has always crossed.
 var _ranks: Dictionary = {}
+## And who they are (`M3-T02`). Same argument, same one-way trip: the **host**
+## builds every body and simulates its health, so a class that never reached it
+## would be a Húskarl who is only a Húskarl on their own screen.
+var _sworn: Dictionary = {}
 
 
 ## The rank this floor is built for: the highest anyone brought (ADR-010).
@@ -402,17 +406,31 @@ func floor_rank() -> int:
 	return highest
 
 
-## Tell the host what floor you need. Host-local too, so solo takes the same
-## path as a four-stack and there is no second branch to keep in step.
+## What class this peer is playing, for the host that builds their body.
+func sworn_of(peer: int) -> StringName:
+	return StringName(_sworn.get(peer, ""))
+
+
+## Tell the host what floor you need and what body to build. Host-local too, so
+## solo takes the same path as a four-stack and there is no second branch to
+## keep in step.
+##
+## **Two values, and still not progression** (ADR-119, extended by ADR-121). A
+## rank builds a floor; a class id builds a body. Neither is tree state, Boon,
+## stash or Tithe ledger — the host stores neither in a profile and writes
+## nobody's but its own. They are the same kind of value as party size, which
+## has always crossed, and they are discarded with the scene.
 @rpc("any_peer", "call_local", "reliable")
-func declare_rank(rank: int) -> void:
+func declare_descent(rank: int, sworn: String) -> void:
 	if not multiplayer.is_server():
 		return
 	var who: int = multiplayer.get_remote_sender_id()
 	# `0` is what a local call reports rather than a peer id.
-	_ranks[who if who != 0 else multiplayer.get_unique_id()] = maxi(1, rank)
-	_log("peer %d descends at rank %d — the floor is rank %d" % [
-		who if who != 0 else multiplayer.get_unique_id(), rank, floor_rank()])
+	var id: int = who if who != 0 else multiplayer.get_unique_id()
+	_ranks[id] = maxi(1, rank)
+	_sworn[id] = sworn
+	_log("peer %d descends at rank %d as '%s' — the floor is rank %d" % [
+		id, rank, sworn if sworn != "" else "nobody", floor_rank()])
 
 
 func _on_peer_connected(peer: int) -> void:
@@ -463,6 +481,11 @@ func _build_player(payload: Dictionary) -> Node:
 	# after the fact would differ per process, and it is what tells one player's
 	# **ember** from another's (`M2-T05`).
 	player.party_slot = int(payload["slot"])
+	# Before `add_child` for the same reason the seat is: the body's own
+	# `_ready` sizes its health and stamina pools, and a class applied after
+	# that would leave a Húskarl standing there with a Veiðimaðr's numbers for
+	# a frame — on the host, which is the copy that decides what a blow does.
+	player.sworn = StringName(payload.get("class", ""))
 	# Before `add_child`, so `_ready` already knows whether it is looking at
 	# its own body. Deciding afterwards means one frame of a remote player
 	# holding the camera and capturing the mouse.
@@ -538,6 +561,10 @@ func spawn_player(peer: int, at: Vector3 = NO_PLACE) -> Player:
 	var player: Player = _spawner.spawn({
 		"kind": "player", "peer": peer, "at": at, "yaw": 0.0,
 		"slot": seat_for(peer),
+		# What body to build (`M3-T02`). On the spawn packet like the seat, so
+		# every peer derives the same Húskarl from the same payload rather than
+		# each deciding for itself and disagreeing about how much health it has.
+		"class": String(sworn_of(peer)),
 	}) as Player
 	if player != null:
 		player_spawned.emit(player)
