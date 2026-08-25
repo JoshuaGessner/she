@@ -294,6 +294,19 @@ func take_the_oath(id: StringName) -> bool:
 			push_error("GameState: %s's kit names '%s', which is not an item"
 				% [id, item])
 			continue
+		# **Not a second copy of what the body already is** (ADR-124).
+		#
+		# `Player._arm_from_kit` reads this same list and puts a bow in the
+		# hand, so stashing one as well gave a Veiðimaðr three squares of bag
+		# and 1.4 kg holding an inert duplicate of the weapon they were already
+		# carrying — one object with two representations, which is ADR-064's
+		# banned category arrived at by accident rather than by design.
+		#
+		# `M3-T07` deletes this test and `_arm_from_kit` together: once a slot
+		# decides what is in your hands, the bag copy becomes the real one and
+		# there is nothing to duplicate.
+		if definition.has_trait(RangedTrait):
+			continue
 		stash.append(ItemInstance.of(definition, 0))
 	_persist()
 	return true

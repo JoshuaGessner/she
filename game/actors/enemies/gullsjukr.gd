@@ -192,17 +192,22 @@ func _ready() -> void:
 	# Every decision it makes is host-side (`TEC-004`: consequences have one
 	# owner). A client's copy is a body that receives a transform and a colour.
 	set_physics_process(multiplayer.is_server())
-	if multiplayer.is_server():
-		# **What a missed Tithe buys her** (`M3-T04`, ADR-118). It starts the
-		# run already this old, so `_wealth_range` opens wider from the first
-		# second rather than a new rule appearing in a system the player has
-		# already learned. Host-side because `GameState` is never networked and
-		# the floor has one owner — whose Tithe heats a *shared* floor is the
-		# same question ADR-010 asks about whose rank scales it, and `M3-T10`
-		# answers both or neither.
-		age = GameState.take_hunt_head_start()
-		if age > 0.0:
-			print("[hunt] she sent it early — the floor opens at %.0f s old" % age)
+
+	# **The floor decides how old this Hunt starts, and the Hunt does not**
+	# (ADR-124).
+	#
+	# A missed Tithe used to be read right here, and it was read **before she
+	# had decided anything**: `room_set` settled the cycle seventeen lines
+	# after it built the Hunt, so what this consumed was always the *previous*
+	# descent's, and the head start she had just sent for waited for the next
+	# floor — landing on a cycle the player may well have paid. Four minutes of
+	# Hunt, applied to the wrong run, every time, since `M3-T04` shipped.
+	#
+	# `_build_hunt` already applies the rank head start for exactly the reason
+	# ADR-119 gives — *"the floor knows its rank and the Hunter should not be
+	# reaching for a session to ask"* — and the Tithe is the same kind of fact.
+	# Both live there now, so there is **one** line in the project that decides
+	# a Hunt begins old, and it runs after she has decided.
 
 
 ## **Can this thing be killed at all?** (`M3-T04`, `DES-017`.)

@@ -276,6 +276,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **She settles before the floor is built** (`M3-T04`, ADR-124). The soft
+	# fail shipped at `M3-T04` and never once reached the floor it was written
+	# for: `settle_cycle()` ran seventeen lines *after* `_build_hunt()`, so
+	# every descent consumed the previous one's debt and the four minutes she
+	# had just sent for waited for the next floor. Every part had a check —
+	# `--tithe-probe` drives the settle, `--rank-probe` reads a floor's Hunt
+	# age — and nothing asked whether the order let one reach the other.
+	creditor="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/room_set/room_set.tscn -- --creditor-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$creditor" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a missed Tithe has to reach the floor it was missed for" >&2
+		printf '%s\n' "$creditor" | grep -E '\[creditor\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The Stalker** (`M3-T11`, `DES-011`, ADR-123). A bow, and a trap that
 	# holds — *"including against the Hunter, the only reliable way to buy time
 	# during the Sealing"*, which is the one sentence `DES-011` writes about
@@ -614,6 +629,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a rank-8 floor is denser and older without a bigger number on it,"
 	echo "a guard costs stamina and never negates, and a life can begin,"
 	echo "an arrow is loud where it lands and a Snare holds the Hunter,"
+	echo "a missed Tithe reaches the floor it was missed for,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

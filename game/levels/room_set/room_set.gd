@@ -348,6 +348,9 @@ var _descent: int = 1
 ## True while a probe is driving this level. Probes measure the floor and must
 ## not be dropped into the Lair halfway through a measurement.
 var _probing: bool = false
+## Seconds of Hunt a missed Tithe bought her on this floor, kept so the arrival
+## brief can say so (ADR-124). Zero on a settled cycle.
+var _she_sent_it_early: float = 0.0
 ## True while a wipe is counting down, so four bodies going out together start
 ## one run-end rather than four (`M2-T16`).
 var _ending: bool = false
@@ -384,6 +387,20 @@ func _ready() -> void:
 		# the difference the whole class path was written to preserve.
 		if arg == "--stalker-probe":
 			GameState.class_id = &"veidimadr"
+		# **A cycle that closed short, set up before the floor exists**
+		# (ADR-124). The whole question is what the *floor* does about it, and
+		# a debt arranged after `_ready` would be a reconstruction of the order
+		# rather than the order — which is exactly how the bug this probe
+		# exists for survived: every part was checked and the sequence was not.
+		if arg == "--creditor-probe":
+			GameState.pact_rank = 1
+			# **Part-paid, not unpaid.** The first draft set this to 0, which
+			# made *"the slate cleared"* unable to fail: it asserted the total
+			# was 0 afterwards, and it had been 0 the whole time. Short of the
+			# rank-1 Tithe of 40, so she is still owed and both halves of this
+			# probe still have something to measure.
+			GameState.tithe_paid = 10
+			GameState.cycle_runs = Config.tuning.tithe_cycle_runs
 	AudioDirector.enter("deep")
 	_build_lighting()
 	for name: String in ROOMS:
@@ -395,6 +412,23 @@ func _ready() -> void:
 	# show — the gym it came from is mostly open ground.
 	# Before the actors, so the first enemy to think has a map to think on.
 	_build_navigation()
+	# **She settles at the door, and the door is here** (`M3-T04`, ADR-124).
+	#
+	# ADR-118 put this *"before the stash goes down, because a short cycle
+	# changes what is waiting for you on this floor and not what you brought to
+	# it"* — and then placed the call below `_build_hud`, seventeen lines after
+	# the Hunt it was supposed to change. The rationale was right and the code
+	# did the opposite; `_build_hunt` reads the head start, so the settle has to
+	# precede it.
+	#
+	# **Not gated on `_probing`.** It was, alongside `_carry_the_stash_down`,
+	# and only the second one needs it — a probe inheriting a loadout is
+	# measuring a bag it did not pack. Nothing here can touch a player's file:
+	# `GameState._live` is false until `load_profile()` succeeds and `MainMenu`
+	# is its only caller (ADR-117), so `_persist()` in a probe writes nowhere.
+	# Ungating it is what lets `--creditor-probe` drive the real order instead
+	# of a reconstruction of it.
+	GameState.settle_cycle()
 	_build_hunt()
 	_build_shaft()
 	var overlays := DebugOverlays.new()
@@ -409,10 +443,6 @@ func _ready() -> void:
 	# is here rather than inside, so `--exit-probe` can still call it directly
 	# and assert what it does.
 	if not _probing:
-		# She settles up at the door (`M3-T04`). Before the stash goes down,
-		# because a short cycle changes what is waiting for you on this floor
-		# and not what you brought to it.
-		GameState.settle_cycle()
 		_carry_the_stash_down()
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
@@ -453,6 +483,8 @@ func _ready() -> void:
 			_ember_probe()
 		elif arg == "--stalker-probe":
 			_stalker_probe()
+		elif arg == "--creditor-probe":
+			_creditor_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -1717,7 +1749,12 @@ func _build_hud() -> void:
 	# fading over a screenshot, and `--ear-shot` in particular photographs
 	# exactly the frames this covers.
 	if not _probing:
-		layer.add_child(ArrivalBrief.new())
+		var brief := ArrivalBrief.new()
+		# Set before it enters the tree: `ArrivalBrief._ready` is where its
+		# lines are built, and a fourth one added afterwards would arrive under
+		# a label that has already been laid out.
+		brief.sent_early = _she_sent_it_early
+		layer.add_child(brief)
 
 ## How much floor has already been laid, so an arriving player tops it up
 ## rather than doubling it. See `_on_party_changed`.
@@ -2650,8 +2687,19 @@ func _build_hunt() -> void:
 		# This is `DES-022`'s Hunt axis **and** its Time axis, because
 		# `Shaft._escalation` reads this same `age` — so the Shafts on a rank-8
 		# floor seal sooner without a second number existing anywhere.
+		#
+		# **The Tithe is taken here too** (ADR-124), and it must be taken
+		# *after* `settle_cycle()` has run — which is why the settle now sits
+		# immediately above the call to this function rather than below the
+		# HUD. Kept for the arrival brief, because a four-minute head start
+		# that nobody can account for is `PRO-005` §5's unexplainable
+		# difficulty rather than a consequence.
+		_she_sent_it_early = GameState.take_hunt_head_start()
+		_hunter.age += _she_sent_it_early
 		_rank_in_the_hunt = _session.floor_rank()
 		_hunter.age += RankScaling.hunt_age(_rank_in_the_hunt)
+		if _she_sent_it_early > 0.0:
+			print("[hunt] she sent it early — %.0f s of it" % _she_sent_it_early)
 		if _hunter.age > 0.0:
 			print("[hunt] the floor is rank %d — it opens at %.0f s old" % [
 				_rank_in_the_hunt, _hunter.age])
@@ -3877,6 +3925,72 @@ func _rank_probe() -> void:
 			+ "session and breaks their Tithe math") % with_veteran)
 
 	_report(problems, "rank")
+
+
+## **She settles before the floor is built** (`M3-T04`, ADR-124).
+##
+## ADR-118 shipped the Tithe soft-fail and it never once reached the floor it
+## was written for. `settle_cycle()` decides how much Hunt a missed cycle buys
+## her; `_build_hunt()` is what a Gullsjúkr is made by — and the settle ran
+## **seventeen lines later**, so the head start consumed on any given descent
+## was the *previous* one's, and the four minutes she had just sent for waited
+## for the next floor. That is a punishment landing on a cycle the player may
+## well have paid, which is `PRO-005` §5's unexplainable difficulty with a
+## paper trail.
+##
+## Every piece had a check. `--tithe-probe` drives `settle_cycle` and
+## `take_hunt_head_start` in the Chamber and asserts both, correctly.
+## `--rank-probe` reads `hunt_age` off a floor and asserts it, correctly. What
+## nothing asked is whether the **order** in `_ready` lets one reach the other,
+## and that is the sixth time this milestone that the parts were right and the
+## join was not built.
+##
+## So this probe boots the level for real and reads what the floor did.
+func _creditor_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var tuning: TuningProfile = Config.tuning
+	var owed: float = tuning.tithe_missed_head_start
+
+	print("[creditor] she was owed        %.0f s of Hunt" % owed)
+	print("[creditor] the floor took      %.0f s" % _she_sent_it_early)
+	if _she_sent_it_early < owed:
+		problems.append(("the floor opened having taken %.0f s of a %.0f s head "
+			+ "start — `settle_cycle()` has to run *before* `_build_hunt()`, or "
+			+ "what a floor consumes is the previous descent's debt and the one "
+			+ "she just sent for lands on the next run instead")
+			% [_she_sent_it_early, owed])
+
+	# **Nothing is still owed.** The other half of the same fault: if the
+	# settle runs after the build, this reads full rather than empty, because
+	# she decided and nothing was there to hear it.
+	print("[creditor] still owed after    %.0f s (want 0)"
+		% GameState.hunt_head_start)
+	if GameState.hunt_head_start > 0.0:
+		problems.append(("%.0f s of Hunt is still owed after the floor was "
+			+ "built — she has settled and nothing spent it, which is the "
+			+ "ordering fault seen from the other side")
+			% GameState.hunt_head_start)
+
+	# And it is really on the Hunt, not merely in a variable this level kept.
+	if _hunter == null:
+		problems.append("no Gullsjúkr, so nothing here is about a Hunt")
+	else:
+		print("[creditor] the Hunt opens at   %.0f s old" % _hunter.age)
+		if _hunter.age < owed:
+			problems.append(("the Gullsjúkr opened %.0f s old against %.0f s "
+				+ "owed — the level read the debt and did not hand it to the "
+				+ "thing it is about") % [_hunter.age, owed])
+
+	# **The slate cleared**, so the next cycle starts from nothing (ADR-118).
+	print("[creditor] cycle after settle  %d run(s) in, %d paid (10 going in)" % [
+		GameState.cycle_runs, GameState.tithe_paid])
+	if GameState.cycle_runs != 0 or GameState.tithe_paid != 0:
+		problems.append(("the cycle did not reset (%d runs, %d paid) — unpaid "
+			+ "value carrying is ADR-029's running-debt spiral, which ADR-118 "
+			+ "rejected because node reclamation is `M3-T01`")
+			% [GameState.cycle_runs, GameState.tithe_paid])
+
+	_report(problems, "creditor")
 
 
 ## **The Stalker** (`M3-T11`, `DES-011`, ADR-123).

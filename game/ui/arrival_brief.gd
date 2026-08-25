@@ -29,6 +29,9 @@ const FADE_SECONDS: float = 1.2   # ⟨tune⟩
 
 var _lines: VBoxContainer
 var _elapsed: float = 0.0
+## Seconds of Hunt a missed Tithe bought her, handed down by the level. Set
+## before this enters the tree, because `_ready` is where the lines are built.
+var sent_early: float = 0.0
 
 
 func _ready() -> void:
@@ -49,6 +52,14 @@ func _ready() -> void:
 	_line("take what you can carry", 15, MenuStyle.TEXT)
 	_line("climb out at the light — it is loud, and it is watched", 15,
 		MenuStyle.TEXT)
+	# **A fourth line only when she is owed** (ADR-124). The Chamber says how
+	# short you are *before* you descend, and then the floor said nothing at
+	# all — the Hunt was simply four minutes further along than the player had
+	# any way to account for. Principle 4 asks that a death be explicable in
+	# one sentence, and *"I did not pay her"* is only available to somebody who
+	# was told it was still true down here.
+	if sent_early > 0.0:
+		_line("she was not paid — the Hunt began without you", 15, MenuStyle.WARM)
 
 
 func _line(text: String, size: int, colour: Color) -> void:

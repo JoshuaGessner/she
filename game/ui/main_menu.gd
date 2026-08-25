@@ -470,13 +470,16 @@ func _class_probe() -> void:
 			+ "hands") % [GameState.stash.size(), expected])
 
 	# ── and it cannot be taken back until you die (`DES-011`) ────────────
-	# **The same class, deliberately.** The obvious version tries to swear a
-	# *different* one — and the only other name in `DES-011` is not authored
-	# yet, so the catalogue refused it and the lock was never consulted. The
-	# check passed for the wrong reason, which is ADR-113's shape and the second
-	# time today a probe has done it. An id that exists is the only way to ask
-	# whether the lock is what is holding.
-	var swapped: bool = GameState.take_the_oath(&"huskarl")
+	# **A genuinely different class, now that one exists** (ADR-124).
+	#
+	# This swore `huskarl` twice, because when it was written the only other
+	# name in `DES-011` was unauthored and the catalogue refused it — so the
+	# lock was never consulted and the row passed for the wrong reason. The
+	# comment saying so was left in place as a marker; `M3-T11` authored the
+	# Veiðimaðr, and this is the test that comment was waiting for. Swearing
+	# the same class twice is a weaker question: it cannot tell a lock from a
+	# no-op.
+	var swapped: bool = GameState.take_the_oath(&"veidimadr")
 	print("[class] the lock     second oath accepted=%s, still '%s'" % [
 		swapped, GameState.class_id])
 	if swapped or GameState.class_id != &"huskarl":
@@ -489,6 +492,36 @@ func _class_probe() -> void:
 		problems.append(("the class survived a death — `DES-003` puts it in the "
 			+ "LIFE tier and ADR-009 makes death the door to a new one, which "
 			+ "is a retention argument and not a tidiness one"))
+
+	# ── the kit stocks the stash, but never twice (ADR-124) ──────────────
+	#
+	# A kit entry the body already *is* must not also be an object in the bag.
+	# `Player._arm_from_kit` reads this same list and puts a bow in the hand,
+	# so a stashed copy was three squares and 1.4 kg of inert duplicate — the
+	# banned category of ADR-064 reached by accident. `M3-T07` collapses the
+	# two representations into one when a slot decides what you hold; until
+	# then, the hand wins and the bag does not get a second.
+	GameState.take_the_oath(&"veidimadr")
+	var stalker: ClassResource = ClassCatalogue.by_id(&"veidimadr")
+	var stashed_bow: bool = false
+	for held: ItemInstance in GameState.stash:
+		if held.definition.has_trait(RangedTrait):
+			stashed_bow = true
+	var kit_bow: bool = false
+	for id: StringName in stalker.kit:
+		var definition: ItemResource = ItemCatalogue.by_id(id)
+		if definition != null and definition.has_trait(RangedTrait):
+			kit_bow = true
+	print("[class] the kit      Veiðimaðr kit has a bow=%s, stash has one=%s (want yes/no)"
+		% [kit_bow, stashed_bow])
+	if not kit_bow:
+		problems.append("the Veiðimaðr's kit names no ranged weapon, so the "
+			+ "check below is about nothing — ADR-123 makes the kit what arms "
+			+ "a class")
+	if stashed_bow:
+		problems.append(("swearing the Veiðimaðr put a bow in the stash as well "
+			+ "as in their hands — one object with two representations, and the "
+			+ "bag copy is inert, heavy and three squares wide"))
 
 	# ── the body is shaped by the class, on the host's copy ──────────────
 	# The **scene**, not `Player.new()`: the body is a tree of components and a

@@ -2708,5 +2708,74 @@ Fourteen violations were planted and each named row was seen to fail.
 
 ---
 
+## ADR-124 — The M3 cohesion pass, and a punishment that had never landed on the right run
+
+**Date:** 2026-08-25 · **Status:** accepted · **Corrects `M3-T04`** · **Reorders `M3`** · **Amends `M3-T01`, `M3-T07`, `M3-T09` scope notes**
+
+**Context:** A cohesion audit of `M3` with five of eleven tasks done, asked for before play testing resumes. ADR-116 was the same exercise at the start of the milestone and it asked *"does a task exist for this?"* Six findings here, and the two that matter most are the ones that question could not have caught: they are about things that **were** built.
+
+### 1. The Tithe soft-fail had never once reached the floor it was for
+
+`settle_cycle()` decides how much Hunt a missed cycle buys her. `_build_hunt()` is what makes a Gullsjúkr. In `room_set._ready()` the settle ran **seventeen lines after** the build.
+
+So the head start a floor consumed was always the *previous* descent's, and the four minutes she had just sent for waited for the next floor — arriving on a cycle the player may well have paid. `tithe_missed_head_start` is 240 s: four minutes of Hunt, applied to the wrong run, every time since `M3-T04` shipped.
+
+**Every piece had a check and passed it.** `--tithe-probe` drives `settle_cycle` and `take_hunt_head_start` in the Chamber and asserts both correctly. `--rank-probe` reads `hunt_age` off a built floor and asserts it correctly. What nothing asked is whether the **order** in `_ready` lets one reach the other. That is the sixth time this milestone that the parts were right and the join was not built — ADR-105, ADR-108, ADR-110, ADR-117, ADR-122, and now this.
+
+The fix is also a subtraction. The Gullsjúkr no longer reaches into `GameState` at all: `_build_hunt` already applied the rank head start for the reason ADR-119 gives — *"the floor knows its rank and the Hunter should not be reaching for a session to ask"* — and a missed Tithe is the same kind of fact. Both live there now, so **one line in the project decides that a Hunt begins old**, and it runs after she has decided.
+
+`settle_cycle()` is also **ungated from `_probing`**. It was gated alongside `_carry_the_stash_down()`, and only the second one needs it — a probe inheriting a loadout is measuring a bag it did not pack. Nothing in the settle can touch a player's file, because `GameState._live` is false until `load_profile()` succeeds and `MainMenu` is its only caller (ADR-117). Ungating is what lets `--creditor-probe` boot the level and read what the floor actually did, rather than reconstruct the order and assert against its own reconstruction.
+
+Four violations planted, each caught — including the original ordering restored verbatim. **And one row that could not fail:** *"the slate cleared"* asserted `tithe_paid == 0` after the settle, having set it to 0 before it. It is part-paid now.
+
+### 2. `WieldableTrait` has no reader anywhere in the game
+
+Four weapons — `wpn_seax`, `wpn_ash_spear`, `wpn_dvergar_hammer`, `rlc_regin_blade` — carry full windup, active, recovery, damage, reach and block numbers that **nothing consumes.** Melee damage comes from `Config.tuning.swing_damage`.
+
+`check_dead.py` cannot see this: the class name is referenced by `ItemResource.validate()`, so the name is alive and only the *data* is orphaned. It is ADR-098's own caveat — names, not reachability — arriving in a form probes cannot catch either, because no probe swings an item.
+
+In play this is worse than inert. `wpn_seax` **spawns on the floor** as the payoff for the west bypass route ADR-032 designed, and is worth 0 tribute, 1.1 kg and two squares of bag for no function at all. `arm_mail_byrnie` is 11 kg for 8 tribute — the worst ratio in the table by four times — because its real value is armour and there is no armour. **Six of thirteen items are waiting on `M3-T07`.**
+
+So `M3-T07` **moves from second-to-last to second.** It read as polish and it is not: it is what makes a third of the item table mean anything, and until it lands a tester who picks up a weapon has been handed a strictly negative object.
+
+### 3. `M3-T01` is what makes Pact Rank move, and its task text never said so
+
+Nothing writes `pact_rank` outside probes and `die()`. `DES-003` is explicit — *"every point of Boon spent raises your Tithe"* — so rank **is** Boon spent, and `M3-T01` is the only thing in the project that can raise it.
+
+Three shipped systems are standing on that: the nine-row Tithe table only ever reads row 1, every axis of `RankScaling` is inert, and `Gullsjukr.killable()` needs rank 8 and can never be true. **Both `M3` gates are unreachable until it lands** — `GATE M3 EXIT` compares a rank-8 player against a rank-1 one, and `GATE M3 COOP` needs a rank-8 player to bring a rank-1 friend.
+
+None of that was wrong, and none of it was written down. ADR-116 checked whether a task existed for each gate; this is the same blind spot from the other side — **what is standing on a task nobody has started.** The task text says it now.
+
+### 4. A Veiðimaðr descended with two bows
+
+`take_the_oath` stashes the kit and `Player._arm_from_kit` reads the same list to put a bow in the hand, so the bag held an inert duplicate: three squares, 1.4 kg, 0 tribute, no function. One object with two representations — ADR-064's banned category, arrived at by accident rather than by design.
+
+A kit entry the body already *is* no longer goes to the stash. That guard is one line and `M3-T07` deletes it along with `_arm_from_kit`, when a slot decides what you hold and the bag copy becomes the real one.
+
+### 5. A missed Tithe was legible only before you descended
+
+The Chamber says how short you are. The floor said nothing, and the Hunt was simply four minutes further along than the player had any way to account for. Principle 4 asks that a death be explicable in one sentence, and *"I did not pay her"* is only available to somebody told it was still true down here. The arrival brief gains a fourth line, and only when she is owed.
+
+### 6. The class-lock probe could finally be asked properly
+
+It swore `huskarl` twice, because when it was written the only other name in `DES-011` was unauthored and the catalogue refused it — so the lock was never consulted and the row passed for the wrong reason. ADR-121 recorded that and left the comment as a marker. `M3-T11` authored the Veiðimaðr; the marker is redeemed, and the probe also asserts the kit no longer double-stocks.
+
+### The reorder
+
+`M3-T01` → `M3-T07` → `M3-T03` → `M3-T09` → `M3-T05` → `M3-T08`.
+
+| | |
+|---|---|
+| `M3-T01` first | unchanged — it is the only thing that moves rank, and three built systems plus both gates wait on it |
+| `M3-T07` second | six of thirteen items have no function until it lands, and it deletes finding 4's guard rather than patching around it |
+| `M3-T03` third | the Boon cap needs a rank that can differ from a friend's, which is `M3-T01` |
+| `M3-T09` fourth | the Vörðr readout is a **stated precondition** of `GATE M3 COOP`; `M3-T05` and `M3-T08` block no gate |
+
+### What this pass did not find
+
+No task in `M3` is missing, and no gate names something nothing builds — which is what ADR-116 was for, and it holds. The remaining six tasks do deliver both gates. Every fault here was in something already built and green, which is the same conclusion ADR-123 reached about its own probes one commit earlier: **the risk on this project has moved out of the code being written and into the joins between code that already works.**
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
