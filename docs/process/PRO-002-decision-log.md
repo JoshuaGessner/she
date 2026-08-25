@@ -2777,5 +2777,48 @@ No task in `M3` is missing, and no gate names something nothing builds — which
 
 ---
 
+## ADR-125 — "Tribute → Boon → Aspects" was four systems in one checkbox
+
+**Date:** 2026-08-25 · **Status:** accepted · **Splits `M3-T01`** · **Adds `M3-T12`, `M3-T13`** · **Follows ADR-120**
+
+**Context:** Starting `M3-T01`, the largest remaining task in the milestone. Reading `DES-004` and ADR-060 together makes the checkbox's real size visible.
+
+### What the one line contains
+
+| | |
+|---|---|
+| **Tribute → Boon** | the conversion, its rate, and the rule that tribute below the Tithe converts to nothing |
+| **Boon → Pact Rank** | the number three shipped systems and both `M3` gates are standing on (ADR-124 §3) |
+| **The tree itself** | node data, costs, prerequisites, class gating, the keystone lock, and a screen in the Chamber |
+| **Two Aspects complete** | `DES-004` fixes an Aspect at ~13 nodes — 1 keystone, ~4 greater, ~8 lesser — and **rule 2 forbids any of them being numeric**, so all ~26 are bespoke mechanics |
+
+That is the shape ADR-120 found in *"two classes complete"*, at roughly twice the size. The economy and the tree are machinery; an Aspect is content. Shipping them in one checkbox means nothing is playable until all of it is.
+
+**`M3-T01` keeps the economy, the rank derivation, the tree and one Aspect. `M3-T12` is the second.**
+
+### Hoard is the first Aspect, and the choice is forced
+
+`DES-011` gives the Húskarl **Scale · Cinder · Hoard** and the Veiðimaðr **Wing · Hoard · Maw**. The two playable classes share exactly one Aspect, deliberately — they are designed as opposites.
+
+So **Hoard is the only first Aspect that gives both classes progression at all.** Wing first would leave a Húskarl with a tree they cannot enter, which is worse than the tree not existing: a visible path with your class locked out of every node reads as a bug, not as a design.
+
+It is also the one whose nodes are built from systems that already exist — inventory, carried weight, the Clamor field, the tribute ledger and the Gullsjúkr's own wealth check are all shipped and probed. Scale wants hazards (`M4-T02`), Maw wants consumables and Corruption, and Cinder wants area denial; each would have to invent its supporting system before its first node could do anything.
+
+`M3-T12` is **Wing**, which completes the pair for the Veiðimaðr — primary and secondary, the full `DES-004` experience — and is pure content against machinery this task will have proven. The Húskarl's second Aspect is `M4`/`M5` work and is **absent, not stubbed**: three of five Aspects are not listed, not selectable, and not in any menu.
+
+### The respec is absent, with a task and a milestone
+
+`DES-004` gives a respec that costs real resources and cannot change your keystone mid-life. It is **`M3-T13`**, and it is deferred rather than stubbed on ADR-064's sanctioned-exception test — a named task with a permanent id, and a milestone it is gone by.
+
+Nothing can respec into an Aspect that does not exist. The choice the respec exists to protect — *"locking the keystone is what makes the choice matter"* — has no teeth until there are two paths to choose between, which is `M3-T12`. Building it earlier would be tuning a resource cost against a decision nobody can yet make.
+
+### Pact Rank is derived, not stored
+
+ADR-124 §3 established that nothing raises rank and that `DES-003` makes it Boon spent. ADR-060 fixes the two numbers that turn that into an arithmetic: node costs of **lesser 1 · greater 2 · keystone 5**, and *"~20 taken by Rank 9"* — which is ~31 Boon on a representative spread.
+
+So rank is a **function of the nodes taken**, not a counter that anything increments: one source of truth, and a rank that cannot drift from the tree that earned it. `pact_rank` stops being a stored field. The mapping itself is ⟨tune⟩ and lands in the `TuningProfile` like the Tithe table beside it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
