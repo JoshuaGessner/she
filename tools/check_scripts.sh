@@ -223,6 +223,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **What the pact costs** (`M3-T04`, `DES-003`, ADR-118). The curve rises
+	# with rank and never falls, giving her something is what pays it, a partial
+	# cycle is never punished (`PRO-005 §11`), a short one sends the Hunt early
+	# and exactly once, and the whole pact dies with you.
+	#
+	# In the Chamber because that is where a Tithe is paid — the arithmetic
+	# under test is the settle, and the settle is a Lair action.
+	tithe="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
+		levels/lair/chamber.tscn -- --tithe-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$tithe" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the Tithe has to cost something and die with you" >&2
+		printf '%s\n' "$tithe" | grep -E '\[tithe\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
@@ -538,6 +553,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the Gullsjukr takes your gold rather than your life,"
 	echo "the fallen stop being a target and an ember survives the Hunt,"
 	echo "a profile survives a round trip and refuses what it cannot read,"
+	echo "the Tithe rises with rank, costs something, and dies with you,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

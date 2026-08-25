@@ -2424,4 +2424,48 @@ ADR-116 narrowed it to *"the load path at boot, profile management, …"*. The b
 
 ---
 
+## ADR-118 — She is a creditor, and missing her costs a head start
+**Date:** 2026-08-25 · **Status:** accepted · **Closes `M3-T04`** · **Amends ADR-029** · **Implements `DES-003`, `DES-017`**
+
+**Context:** `DES-003`'s central claim is that *"persistence alone always trivializes, so power must be coupled to obligation."* The obligation had never been built. `M3-T04` builds it — and ADR-029, which decided the shape, names three consequences for missing a cycle that **all belong to systems that do not exist**: standing is `M4-T04`, node reclamation is `M3-T01`, and there is no status-effect system at all. The soft fail had to be decided, not looked up.
+
+### Missing a cycle starts the Hunt early
+
+**The next descent begins with the Gullsjúkr already `tithe_missed_head_start` seconds old** ⟨tune⟩, so `_wealth_range` opens wider from the first second.
+
+It is the only one of ADR-029's consequences that could be built out of what exists, and it is better than the ones that could not:
+
+- **Nothing new is added to the game.** It is the Hunter's own escalation, started partway along. A player who has met a Gullsjúkr already knows what it means, so there is no rule to learn and no icon to read.
+- **`DES-022` already lists it as the rank axis** — *"the Hunt: arrives sooner, escalates faster"* — so a missed Tithe pushes the floor in the same direction rank does. The punishment and the progression speak one language.
+- **She sends something rather than taking something.** The alternative considered was reclaiming tribute from the hoard, and it is wrong: `DES-014` makes the pile the one thing with zero balance impact, *"a permanent physical monument to every life you have lost."* Taking from it spends the monument to buy a penalty.
+- **It is explicable in one sentence** (principle 4): *"I missed my Tithe, so it found me early."*
+
+**And the slate clears.** Unpaid value does not carry. ADR-029's runner-up was running-debt-with-interest, which it called more elegant and rejected on complexity rather than merit — but that version self-stabilised through node reclamation (fall behind → she takes a node → your Tithe drops → you can pay again), and node reclamation is `M3-T01`. Carrying debt *here* would be the spiral with the floor taken out of it. Missing twice costs twice and never compounds, which is what makes ADR-029's *"absorbs one disaster run"* true rather than aspirational.
+
+### What is real, and what cannot move yet
+
+`pact_rank`, `tithe_paid`, `cycle_runs` and `hunt_head_start` are LIFE tier and `die()` puts every one of them back — including the head start, because **a debt outliving the debtor is the running-debt model arriving through the one door nobody was watching.**
+
+Rank cannot rise: `DES-022` raises it by spending Boon on nodes, which is `M3-T01` (ADR-116 §6). So the Tithe is live at rank 1 and the curve above it is exercised only by the probe. That is the right order — building the obligation *after* the power ships `DES-003`'s Failure Mode A on purpose for three tasks — and it is the same shape as the hoard, which has grown since `M2-T06` and buys nothing yet.
+
+**The curve is a table, not an equation.** `DES-003` gives three anchors — 40, 260, 900 — and everything between them is a designer's judgement. `validate()` refuses a table that ever falls, because a rank that is cheaper to hold than the one below it runs `DES-003`'s coupling backwards from there on, and that is a boot-time question rather than a balance-session one.
+
+### The Gullsjúkr answers a swing now
+
+`DES-017` says *"at high Pact Rank it becomes killable"*, and `M2-T02` left that absent because there was no rank to compare against. `killable()` compares now, on the real path, on every blow — and returns `false` in every build that exists, which is **not** the same as being unwritten.
+
+Building it surfaced something worse. It had **no `Hurtbox` at all**, so a swing passed straight through and produced *nothing*: no contact, no cue, no refusal. A player will certainly try to fight it, and a game that answers by doing nothing reads as a broken hitbox rather than as a rule. It has one now, and a refused blow lands visibly — the tint jumps and settles. Visible rather than audible because its audio is `M2-T03`'s reserved instrument and absent by design.
+
+What is still absent is the *fight*: health, the hoard it drops, the deed. Those arrive with `M3-T01`, when reaching the rank becomes possible and a playtester could be shown something other than a health bar that never empties.
+
+### The check, and the case that could not fail
+
+`--tithe-probe` asserts eight things, all planted. `--toll-probe` gained a ninth: the player's **real** `Hitbox`, at its real layers, has to find that new hurtbox — a handler proved by calling it directly proves only that it was called.
+
+The first draft had a case that could not fail. `glt_hoard_coin` is worth 40 and the rank-1 Tithe is 40, so *"pay one coin, close the cycle, assert it came up short"* came up settled. The probe was wrong rather than the code, and it took the failure to see it: an assertion that cannot fail is one more that is true and beside the point, which is ADR-113 again. The short case runs at rank 5 now.
+
+Worth recording on the way past: **one Hoard-Coin discharges an entire rank-1 cycle.** Both numbers are ⟨tune⟩ and the collision is coincidence, but a first cycle paid off by a single pickup is a real balance question — and it belongs to `M3-T10`, which is the first task with a floor rich enough to answer it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

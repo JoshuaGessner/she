@@ -65,11 +65,23 @@ extends CharacterBody3D
 ## Same shape as `Player.dropped`, which the session already listens to.
 signal took(item: ItemInstance, at: Vector3)
 
+## Hit, and unbothered by it (`M3-T04`). Raised so the audio director has
+## something to listen for when `M2-T03`'s reserved instrument arrives, and so
+## a probe can assert the refusal happened rather than inferring it from a
+## colour.
+signal shrugged()
+
 ## How an ember ranks against gold when both are on the floor (`M2-T21`).
 ## A **priority, not a value** — it outranks any hoard because it is the thing
 ## every hoard was being gathered *for*, and it is deliberately not a
 ## `tribute_value` on the resource, which would make somebody's life bankable.
 const EMBER_WORTH: int = 1_000_000
+
+## How long a refused blow shows on it, and in what colour (`M3-T04`) ⟨tune⟩.
+## Not in the `TuningProfile`: this is a readability constant like the tints
+## beside it, not a balance number anyone would sweep.
+const SHRUG_SECONDS: float = 0.18
+const SHRUG_TINT: Color = Color(0.72, 0.68, 0.52)
 
 enum State { DISTANT, COURSING, SIGHTED, COLLECTING, LOST }
 
@@ -107,6 +119,10 @@ var state_index: int = State.DISTANT:
 ## Seconds since it entered the floor. Escalation reads this: `DES-017` says it
 ## gets faster and reads you more accurately the longer you stay.
 var age: float = 0.0
+
+## Seconds of shrug left to draw (`M3-T04`). Short, because it is an
+## acknowledgement rather than a stagger — nothing about its behaviour changes.
+var _shrug_left: float = 0.0
 
 var _field: ClamorField = null
 var _target: Player = null
@@ -166,6 +182,35 @@ func _ready() -> void:
 	# Every decision it makes is host-side (`TEC-004`: consequences have one
 	# owner). A client's copy is a body that receives a transform and a colour.
 	set_physics_process(multiplayer.is_server())
+	if multiplayer.is_server():
+		# **What a missed Tithe buys her** (`M3-T04`, ADR-118). It starts the
+		# run already this old, so `_wealth_range` opens wider from the first
+		# second rather than a new rule appearing in a system the player has
+		# already learned. Host-side because `GameState` is never networked and
+		# the floor has one owner — whose Tithe heats a *shared* floor is the
+		# same question ADR-010 asks about whose rank scales it, and `M3-T10`
+		# answers both or neither.
+		age = GameState.take_hunt_head_start()
+		if age > 0.0:
+			print("[hunt] she sent it early — the floor opens at %.0f s old" % age)
+
+
+## **Can this thing be killed at all?** (`M3-T04`, `DES-017`.)
+##
+## *"At high Pact Rank it becomes killable. You get its entire hoard, which is
+## enormous, and a deed. It is also a person, and the game will not mention that
+## either."* `M2-T02` left this absent rather than stubbed, because there was no
+## rank to compare against; there is one now, and the number it compares to is
+## `⟨tune⟩` in the `TuningProfile` like every other.
+##
+## **It answers `false` in every build that exists today** — nothing can raise a
+## rank until `M3-T01`. That is deliberately not the same as being unwritten:
+## the comparison runs, on the real path, every time anything asks. What is
+## still absent is the *fight* — its health, its hoard drop, its deed — and
+## those arrive with `M3-T01`, when reaching the rank becomes possible and a
+## playtester could be shown something other than a health bar that never moves.
+func killable() -> bool:
+	return GameState.pact_rank >= Config.tuning.gullsjukr_killable_rank
 
 
 func state() -> State:
@@ -300,6 +345,10 @@ func _can_see(player: Player) -> bool:
 
 func _physics_process(delta: float) -> void:
 	age += delta
+	if _shrug_left > 0.0:
+		_shrug_left -= delta
+		if _shrug_left <= 0.0:
+			_apply_tint()
 	_think(delta)
 	_walk(delta)
 
@@ -397,7 +446,8 @@ func _follow_noise(when_cold: State) -> void:
 ## **It takes gold, never health** (`M2-T19`, ADR-112).
 ##
 ## `DES-017` gives it no attack and this does not give it one. It cannot be
-## killed at this Pact Rank, so a Gullsjúkr that dealt damage would be an
+## killed below `gullsjukr_killable_rank` (`M3-T04`) — see `killable()` — so a
+## Gullsjúkr that dealt damage would be an
 ## unwinnable fight you could only run from — the numbers-treadmill `CLAUDE.md`
 ## rules out as an anti-goal — and it would say nothing about greed. What it
 ## wants is the hoard. So it reaches in and takes the single richest thing you
@@ -540,8 +590,60 @@ func _build_body() -> void:
 	_mesh.position.y = 1.2
 	add_child(_mesh)
 
+	# **Something to hit** (`M3-T04`). Until now it had no `Hurtbox` at all, so
+	# a swing at a Gullsjúkr passed straight through and produced *nothing* —
+	# no contact, no cue, no refusal. `DES-017` says you cannot kill it with
+	# damage, and a player will absolutely try; a game that answers that by
+	# doing nothing reads as a broken hitbox, not as a rule. Principle 4 wants
+	# a death you can explain in one sentence, and *"my blade did nothing to
+	# it"* only becomes a sentence once the game says so.
+	#
+	# It still has no `Health` — being killable is `M3-T01`, when a rank can
+	# actually reach `gullsjukr_killable_rank`. This is the refusal, complete,
+	# not a fight with the numbers left out.
+	var hurtbox := Hurtbox.new()
+	hurtbox.name = "Hurtbox"
+	hurtbox.collision_layer = CollisionLayers.ENEMY_HURTBOX
+	hurtbox.collision_mask = 0
+	hurtbox.monitoring = false
+	var reach := CollisionShape3D.new()
+	var hit_shape := CylinderShape3D.new()
+	hit_shape.radius = 0.75
+	hit_shape.height = 2.4
+	reach.shape = hit_shape
+	reach.position.y = 1.2
+	hurtbox.add_child(reach)
+	hurtbox.hit.connect(_on_struck)
+	add_child(hurtbox)
+
+
+## Struck, and it does not care (`M3-T04`, `DES-017`).
+##
+## Below `gullsjukr_killable_rank` the blow lands and is **refused**, visibly:
+## the tint jumps to the shrug colour and settles back. Visible rather than
+## audible because its audio is `M2-T03`'s reserved instrument and is absent by
+## design — and `DES-018`'s rule is that every audio channel needs a visual
+## twin, not that a cue must be audible first.
+##
+## Above that rank there is a fight to have, and it is `M3-T01`'s: health, the
+## hoard it drops, and the deed. Refusing is what this build does completely.
+func _on_struck(_amount: float, _from: Node) -> void:
+	if killable():
+		# Nothing yet, and deliberately nothing: `M3-T01` gives it the health
+		# this branch needs. Reaching here at all requires a rank no build can
+		# hold, so it cannot be met in play — but the comparison above runs on
+		# every blow, which is what keeps the rule a rule rather than a plan.
+		return
+	print("[hunt] the blow lands and it does not care")
+	shrugged.emit()
+	_shrug_left = SHRUG_SECONDS
+	_apply_tint()
+
 
 func _apply_tint() -> void:
 	if _material == null:
+		return
+	if _shrug_left > 0.0:
+		_material.albedo_color = SHRUG_TINT
 		return
 	_material.albedo_color = TINTS[state()] as Color

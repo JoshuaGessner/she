@@ -382,6 +382,10 @@ func _ready() -> void:
 	# is here rather than inside, so `--exit-probe` can still call it directly
 	# and assert what it does.
 	if not _probing:
+		# She settles up at the door (`M3-T04`). Before the stash goes down,
+		# because a short cycle changes what is waiting for you on this floor
+		# and not what you brought to it.
+		GameState.settle_cycle()
 		_carry_the_stash_down()
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
@@ -3482,6 +3486,31 @@ func _toll_probe() -> void:
 		problems.append("what it took did not land on the floor — a loss with "
 			+ "no evidence is indistinguishable from a bug, and there is "
 			+ "nothing to run back in and take")
+
+	# ─ 5. and swinging at it says something (`M3-T04`, ADR-118) ─
+	#
+	# Until now it had no `Hurtbox` at all, so a swing passed straight through
+	# and produced nothing — which reads as a broken hitbox rather than a rule.
+	# The assertion is about the **composition**, not the handler: the player's
+	# real `Hitbox`, at its real layers, has to find the thing. A handler proved
+	# by calling it directly proves only that it was called.
+	var shrugs: Array[int] = []
+	_hunter.shrugged.connect(func() -> void: shrugs.append(1))
+	_hunter.global_position = player.global_position \
+		- player.global_transform.basis.z * 0.9
+	player.weapon.request_swing(player.stamina)
+	await _hold(0.9)
+	print("[toll] struck       %d shrug(s), killable=%s at rank %d" % [
+		shrugs.size(), _hunter.killable(), GameState.pact_rank])
+	if shrugs.is_empty():
+		problems.append(("swinging at it did nothing at all — `DES-017` says "
+			+ "you cannot kill it with damage and a player will certainly try, "
+			+ "so the game has to answer with a refusal rather than silence"))
+	if _hunter.killable():
+		problems.append(("it reports killable at rank %d — nothing can raise a "
+			+ "rank until `M3-T01`, so this can only mean the threshold is "
+			+ "wrong or the rank is being set by something that should not")
+			% GameState.pact_rank)
 
 	_report(problems, "toll")
 

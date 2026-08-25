@@ -150,6 +150,38 @@ extends Resource
 ## Gullsjúkr is a decision rather than a reflex (principle 3).
 @export var hunter_take_seconds: float = 0.9
 
+@export_group("The Tithe")
+## What she expects of you per cycle, indexed by Pact Rank (`DES-003`) ⟨tune⟩.
+##
+## **A table rather than a curve.** `DES-003` gives three anchors — rank 1 at
+## 40, rank 5 at 260, rank 9 at 900 — and every value between them is a
+## designer's judgement, not an equation's output. ADR-029 calls cycle length
+## the primary tuning lever in the game, and `TEC-002`'s data-over-code rule
+## bites hardest on the numbers that get changed most.
+##
+## It must never fall as rank rises: `validate()` refuses that, because a Tithe
+## that got cheaper with power inverts the entire coupling `DES-003` is built
+## on — the one that makes growth pull you toward danger instead of away.
+@export var tithe_by_rank: PackedInt32Array = PackedInt32Array(
+	[40, 85, 140, 200, 260, 380, 520, 700, 900])
+## Runs you get to pay it in (ADR-029) ⟨tune⟩. Three absorbs one disaster run,
+## so bad luck and experimentation do not default you.
+@export var tithe_cycle_runs: int = 3
+## What missing a cycle costs: seconds of Hunt **already elapsed** when your
+## next descent begins (ADR-118) ⟨tune⟩.
+##
+## ADR-029 named three consequences and every one of them belongs to a system
+## that does not exist yet. This is the one that could be built out of what
+## does — the Gullsjúkr's reach opens with `hunter_range_per_minute`, so a run
+## that starts old starts hunted, with no new rule to learn and nothing added
+## to the game. It is also `DES-022`'s own rank axis: *the Hunt arrives sooner.*
+@export var tithe_missed_head_start: float = 240.0
+## The rank at which a Gullsjúkr can be killed at all (`DES-017`) ⟨tune⟩ —
+## *"at high Pact Rank it becomes killable. You get its entire hoard, which is
+## enormous, and a deed."* Unreachable until `M3-T01` lets a rank rise, and the
+## check runs on every hit regardless, so it answers rather than waits.
+@export var gullsjukr_killable_rank: int = 8
+
 @export_group("The party")
 ## Extra enemies per additional player, as a fraction of the base count ⟨tune⟩.
 ## Near-linear (`DES-012`) so combat stays meaningful with four swords in the
@@ -340,4 +372,23 @@ func validate() -> PackedStringArray:
 			+ " is meant to slow you, not root you")
 	if interact_reach <= 0.0:
 		problems.append("interact_reach must be positive or nothing can be picked up")
+	# The Tithe's whole job is that growth costs more, not less. A table that
+	# dips anywhere hands the player a rank that is strictly cheaper to hold
+	# than the one below it, and `DES-003`'s coupling — power pulls you deeper —
+	# runs backwards from that rank on. Caught at boot rather than in balance.
+	if tithe_by_rank.is_empty():
+		problems.append("tithe_by_rank is empty; she would expect nothing at any rank")
+	for rank: int in range(1, tithe_by_rank.size()):
+		if tithe_by_rank[rank] < tithe_by_rank[rank - 1]:
+			problems.append(("tithe_by_rank falls at rank %d (%d after %d) — a "
+				+ "Tithe that gets cheaper with power inverts DES-003's coupling")
+				% [rank + 1, tithe_by_rank[rank], tithe_by_rank[rank - 1]])
+	if tithe_cycle_runs < 1:
+		problems.append("tithe_cycle_runs must be at least 1 or the cycle never closes")
+	if tithe_missed_head_start < 0.0:
+		problems.append("tithe_missed_head_start cannot be negative — missing a "
+			+ "Tithe does not buy you a calmer floor")
+	if gullsjukr_killable_rank < 1:
+		problems.append("gullsjukr_killable_rank below 1 makes it killable from "
+			+ "the first descent, which DES-017 spends a page refusing")
 	return problems

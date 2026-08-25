@@ -68,6 +68,28 @@ var hoard_value: int = 0
 ## a cycle to count against.
 var descents: int = 1
 
+## **The pact** (`M3-T04`, `DES-003`). LIFE tier, all of it: `die()` puts every
+## one of these back where a new life starts.
+##
+## Rank is real and **cannot rise yet.** `DES-022` raises it by spending Boon on
+## nodes and that is `M3-T01`, so a life sits at rank 1 until then. The order is
+## deliberate rather than an oversight (ADR-116 §6): `DES-003`'s argument is
+## that persistence trivialises *unless* power is coupled to obligation, so
+## building the obligation second would ship Failure Mode A on purpose.
+var pact_rank: int = 1
+
+## Tribute value handed to her since the cycle last closed.
+var tithe_paid: int = 0
+
+## Runs finished in this cycle. **Only a finished run moves it**, which is what
+## makes `PRO-005 §11` hold for free: quitting mid-cycle leaves the count
+## exactly where it was, however long you stay away.
+var cycle_runs: int = 0
+
+## Seconds of Hunt already elapsed when the next descent begins — what missing
+## a cycle costs (ADR-118). Consumed by the descent that pays it.
+var hunt_head_start: float = 0.0
+
 ## Whether a profile has been opened. See the header: nothing is written back
 ## to a file that was never read.
 var _live: bool = false
@@ -78,9 +100,12 @@ func _ready() -> void:
 		_save_probe()
 
 
-## Carried out alive. The Chamber sorts it from here.
+## Carried out alive. The Chamber sorts it from here, and the cycle moves on:
+## **getting out is what finishes a run.** A death does not count, because a
+## death ends the life and takes the cycle with it (`DES-003`).
 func bring_home(items: Array[ItemInstance]) -> void:
 	carried = items.duplicate()
+	cycle_runs += 1
 	_persist()
 
 
@@ -90,6 +115,10 @@ func bring_home(items: Array[ItemInstance]) -> void:
 func tribute(item: ItemInstance) -> void:
 	hoard.append(item.definition.id)
 	hoard_value += item.definition.tribute_value
+	# The same gesture pays two things at once, which is the point: there is no
+	# separate "pay the Tithe" button anywhere, because `DES-014` puts the
+	# keep-or-give decision at the hoard and giving *is* paying.
+	tithe_paid += item.definition.tribute_value
 	carried.erase(item)
 	stash.erase(item)
 	_persist()
@@ -115,6 +144,14 @@ func withdraw(item: ItemInstance) -> void:
 func die() -> void:
 	carried.clear()
 	stash.clear()
+	# The pact dies with you (`DES-003`): *"Pact Rank & Tithe obligation — resets
+	# to 1."* Including what you owed and what she was going to send for it — a
+	# debt surviving the debtor would be the running-debt model ADR-029 rejected,
+	# arriving by accident through the one door nobody was watching.
+	pact_rank = 1
+	tithe_paid = 0
+	cycle_runs = 0
+	hunt_head_start = 0.0
 	# `TEC-003` calls this the critical path: a hard kill during the death
 	# sequence must never produce a half-wiped profile. It cannot, because
 	# `SaveFile.write` renames a complete file over the old one — either the
@@ -127,6 +164,63 @@ func stash_value() -> int:
 	for item: ItemInstance in stash:
 		sum += item.definition.tribute_value
 	return sum
+
+
+# ── the pact ──────────────────────────────────────────────────────────────
+
+
+## What she expects of you this cycle (`DES-003`, ADR-029).
+func tithe_due() -> int:
+	var table: PackedInt32Array = Config.tuning.tithe_by_rank
+	if table.is_empty():
+		return 0
+	return table[clampi(pact_rank - 1, 0, table.size() - 1)]
+
+
+## Runs before she settles up.
+func runs_left() -> int:
+	return maxi(0, Config.tuning.tithe_cycle_runs - cycle_runs)
+
+
+## She settles up at the door, before you go down again.
+##
+## **At the descent rather than at the end of a run**, because the Chamber is
+## where you pay: a cycle that closed the moment you extracted would demand the
+## Tithe before you had the chance to hand anything over.
+##
+## Returns whether she was satisfied, so the descent can say so out loud.
+func settle_cycle() -> bool:
+	if runs_left() > 0:
+		return true
+	var owed: int = tithe_due()
+	var met: bool = tithe_paid >= owed
+	# **Soft fail** (ADR-029, ADR-118). She sends something rather than taking
+	# something: the next descent begins with the Hunt already this old, so its
+	# reach opens wider from the first second. No new rule, no new system — the
+	# Gullsjúkr's own escalation, started early. `DES-022` calls this the rank
+	# axis anyway: *the Hunt arrives sooner.*
+	hunt_head_start = 0.0 if met else Config.tuning.tithe_missed_head_start
+	print("[tithe] rank %d owed %d, paid %d — %s" % [
+		pact_rank, owed, tithe_paid,
+		"settled" if met else "short, and she has sent for it"])
+	# **The slate clears.** Unpaid value does not carry (ADR-118): ADR-029's
+	# running-debt alternative self-stabilised through node reclamation, and
+	# node reclamation is `M3-T01`, so carrying a debt here could only spiral
+	# with nothing at the bottom of it.
+	tithe_paid = 0
+	cycle_runs = 0
+	_persist()
+	return met
+
+
+## The head start she is owed, taken once. Consumed rather than read, so a
+## missed cycle costs the next descent and not every descent after it.
+func take_hunt_head_start() -> float:
+	var owed: float = hunt_head_start
+	hunt_head_start = 0.0
+	if owed > 0.0:
+		_persist()
+	return owed
 
 
 # ── the file ──────────────────────────────────────────────────────────────
@@ -174,7 +268,13 @@ func to_dict() -> Dictionary:
 		kept.append(String(item.definition.id))
 	return {
 		"lineage": {"hoard": pile, "hoard_value": hoard_value},
-		"life": {"stash": kept},
+		"life": {
+			"stash": kept,
+			"pact_rank": pact_rank,
+			"tithe_paid": tithe_paid,
+			"cycle_runs": cycle_runs,
+			"hunt_head_start": hunt_head_start,
+		},
 	}
 
 
@@ -200,6 +300,14 @@ func from_dict(data: Dictionary) -> void:
 		# Instance id `0`: an `Inventory` mints from 1, so nothing in a bag can
 		# collide with something merely sitting in the stash.
 		stash.append(ItemInstance.of(known, 0))
+	# Defaults matching a new life, so a `life` block from before `M3-T04`
+	# reads as what it was — rank 1, owing nothing. `SaveFile._migrate_1_to_2`
+	# writes them explicitly; these are what happens if a field is missing for
+	# any other reason, and a rank of 0 would index the Tithe table below zero.
+	pact_rank = maxi(1, int(life.get("pact_rank", 1)))
+	tithe_paid = int(life.get("tithe_paid", 0))
+	cycle_runs = int(life.get("cycle_runs", 0))
+	hunt_head_start = float(life.get("hunt_head_start", 0.0))
 	carried.clear()
 
 

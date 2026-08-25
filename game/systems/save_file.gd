@@ -16,9 +16,9 @@ extends Object
 ## of those exist yet.** Writing them now as empty fields is exactly the stub
 ## ADR-064 bans: present, empty, and lying about what the game does.
 ##
-## So v1 carries what `GameState` actually holds, and **every task after this
+## So v1 carried what `GameState` actually held, and **every task after this
 ## one that adds persistent state ships `SAVE_VERSION + 1`, its migration, and
-## a fixture of the format it replaces.** By `GATE M3 EXIT` the path below will
+## a fixture of the format it replaces.** `M3-T04` was the first, and the policy held: one field group, one migration, one bump. By `GATE M3 EXIT` the path below will
 ## have run for real seven times against saves that genuinely existed — which
 ## is a far stronger claim than one speculative v1 nobody ever migrates from.
 ##
@@ -26,7 +26,7 @@ extends Object
 ## user://profile.save
 ## ├── meta     { save_version, engine, created, updated }
 ## ├── lineage  { hoard, hoard_value }          ← survives death, always
-## └── life     { stash }                       ← wiped by death (DES-008)
+## └── life     { stash, pact_rank, tithe_paid, cycle_runs, hunt_head_start }
 ## ```
 ##
 ## `legacy` is **absent rather than empty**: there are no Legacy slots until
@@ -48,7 +48,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 1
+const SAVE_VERSION: int = 2
 
 const PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
@@ -60,13 +60,33 @@ const TMP: String = "user://profile.save.tmp"
 ## Ordered forward migrations: `N` names the function taking a version-`N` dict
 ## and returning a version-`N+1` one.
 ##
-## **Empty at v1, and that is not the same as unbuilt.** There is no earlier
-## format to come from — v1 is the first — so the table has nothing in it while
-## `walk()` below runs on every single load. `--save-probe` drives `walk()` with
-## a synthetic two-step table precisely because the real one cannot exercise it
-## yet: an algorithm proved only by the data it currently has is ADR-097's shape
-## waiting to happen.
-const MIGRATIONS: Dictionary = {}
+## **Never edit one of these and never delete one.** A player loads from
+## whatever version they last quit on, so a migration is a permanent public
+## contract with a file that already exists on somebody's disk.
+##
+## A function rather than a `const` because a constant cannot hold a `Callable`
+## to a method of the class still being defined.
+static func migrations() -> Dictionary:
+	return {
+		1: _migrate_1_to_2,
+	}
+
+
+## **v1 → v2: `M3-T04` put the pact on the profile** (ADR-118).
+##
+## v1 had no rank, no cycle and no Tithe, because none of them existed. So a v1
+## profile *is* a life at rank 1 that has never owed anything — which is exactly
+## what a new life is. These defaults are not a guess at missing data; they are
+## the state that save was genuinely in.
+static func _migrate_1_to_2(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["pact_rank"] = 1
+	life["tithe_paid"] = 0
+	life["cycle_runs"] = 0
+	life["hunt_head_start"] = 0.0
+	out["life"] = life
+	return out
 
 
 ## Everything `GameState` handed us, plus the stamps that make it loadable.
@@ -133,15 +153,17 @@ static func read() -> Dictionary:
 	DirAccess.copy_absolute(
 		ProjectSettings.globalize_path(PATH),
 		ProjectSettings.globalize_path(backup))
-	return walk(raw, MIGRATIONS, version, SAVE_VERSION)
+	return walk(raw, migrations(), version, SAVE_VERSION)
 
 
 ## Run migrations forward, one version at a time, in order.
 ##
-## Takes its table as an argument rather than reading `MIGRATIONS` directly so
-## that `--save-probe` can drive it with a synthetic one. At v1 the real table
-## is empty, so a probe using it would prove only that a loop with no work does
-## nothing — which is how correct code ends up shipping unreached (ADR-097).
+## Takes its table as an argument rather than reading `migrations()` directly so
+## that `--save-probe` can drive it with a synthetic one. That mattered most at
+## v1, when the real table was empty and a probe using it would have proved only
+## that a loop with no work does nothing — ADR-097's shape. It still earns its
+## keep: the real table only ever tests the versions that happen to exist, and
+## the synthetic one tests ordering, refusal and re-stamping at any length.
 ##
 ## **The whole route is checked before a single step runs.** A gap means the
 ## file is a shape no build ever wrote, and guessing at it corrupts a profile

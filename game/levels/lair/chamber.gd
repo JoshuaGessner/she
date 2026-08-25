@@ -36,7 +36,8 @@ extends Node3D
 ## The pile grows and is counted, which is what `DES-014` says the hoard is for
 ## on its own: *"a permanent physical monument to every life you have lost."*
 ##
-## **The Tithe, Pact Rank, and the Legacy screen** — `M3-T04` and `M3-T05`.
+## **The Legacy screen** — `M3-T05`. The Tithe and Pact Rank arrived at
+## `M3-T04` and are on the readout; what a rank *buys* is still `M3-T01`.
 ## **Saving any of it to disk** — `M3-T06`, and `TEC-003` wants a versioned
 ## format with a migration path rather than whatever is convenient today.
 
@@ -113,6 +114,8 @@ func _ready() -> void:
 			_leave_soon()
 		elif arg.begins_with("--chamber-shot="):
 			_chamber_shot(arg.split("=", true, 1)[1])
+		elif arg == "--tithe-probe":
+			_tithe_probe()
 
 
 ## A body, instantiated rather than spawned. See the class note: the absence of
@@ -255,6 +258,25 @@ func _build_door() -> void:
 		Color(0.42, 0.40, 0.36))
 
 
+## **What she expects, and when** (`M3-T04`, ADR-029).
+##
+## ADR-029's consequence line is that *"the cycle boundary must be unmissable in
+## the Lair UI"* — so the last run of a cycle says so in as many words rather
+## than leaving the player to count. It reads as a debt because it is one: she
+## is a creditor, not a shopkeeper (`DES-003`).
+func _the_tithe() -> String:
+	var owed: int = GameState.tithe_due()
+	var short: int = maxi(0, owed - GameState.tithe_paid)
+	var remaining: int = GameState.runs_left()
+	var when: String = "she settles at your next descent" if remaining == 0 \
+		else ("last run of this cycle" if remaining == 1 else "%d runs left" % remaining)
+	if short == 0:
+		return "the tithe   rank %d, %d of %d paid — settled · %s" % [
+			GameState.pact_rank, GameState.tithe_paid, owed, when]
+	return "the tithe   rank %d, %d of %d paid — %d short · %s" % [
+		GameState.pact_rank, GameState.tithe_paid, owed, short, when]
+
+
 func _process(_delta: float) -> void:
 	if _player == null or _readout == null:
 		return
@@ -266,6 +288,8 @@ func _process(_delta: float) -> void:
 		"stash      %d item(s), %d tribute" % [
 			GameState.stash.size(), GameState.stash_value()],
 		"the hoard  %d  (never wiped)" % GameState.hoard_value,
+		"",
+		_the_tithe(),
 		"",
 		"open the bag and drag an item out:",
 		"  at the pile ahead   she keeps it",
@@ -430,3 +454,123 @@ func _leave_soon() -> void:
 	await get_tree().create_timer(4.0).timeout
 	print("[chamber] leaving the chamber")
 	_leave()
+
+
+## Does the pact actually cost anything (`M3-T04`, ADR-118)?
+##
+## Here rather than in the Deep because the Chamber is where a Tithe is paid,
+## and the arithmetic under test is the settle — what she asks, what giving
+## counts for, and what a short cycle sends after you.
+func _tithe_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var tuning: TuningProfile = Config.tuning
+
+	# ── what she asks rises with rank, and never falls ───────────────────
+	GameState.pact_rank = 1
+	var at_one: int = GameState.tithe_due()
+	GameState.pact_rank = 5
+	var at_five: int = GameState.tithe_due()
+	GameState.pact_rank = 9
+	var at_nine: int = GameState.tithe_due()
+	print("[tithe] the curve    rank 1 %d, rank 5 %d, rank 9 %d" % [
+		at_one, at_five, at_nine])
+	if not (at_one < at_five and at_five < at_nine):
+		problems.append(("the Tithe does not rise with rank (%d, %d, %d) — "
+			+ "`DES-003`'s whole coupling is that power costs more, and a flat "
+			+ "or falling demand makes growth free") % [at_one, at_five, at_nine])
+	# `DES-003` states three anchors outright. They are ⟨tune⟩ and may move, but
+	# they may not move *silently*: this is what makes changing them a decision.
+	if at_one != 40 or at_five != 260 or at_nine != 900:
+		problems.append(("the anchors `DES-003` writes down — 40 / 260 / 900 — "
+			+ "now read %d / %d / %d; change them by ADR, not by drift")
+			% [at_one, at_five, at_nine])
+
+	# ── giving her something pays it ─────────────────────────────────────
+	GameState.pact_rank = 1
+	GameState.tithe_paid = 0
+	GameState.cycle_runs = 0
+	GameState.hunt_head_start = 0.0
+	var coin: ItemResource = ItemCatalogue.by_id(&"glt_hoard_coin")
+	GameState.tribute(ItemInstance.of(coin, 1))
+	print("[tithe] one coin     paid %d of %d" % [
+		GameState.tithe_paid, GameState.tithe_due()])
+	if GameState.tithe_paid != coin.tribute_value:
+		problems.append(("giving her something did not pay the Tithe — there is "
+			+ "no other way to pay it, so the obligation would be unpayable"))
+
+	# ── a partial cycle costs nothing (`PRO-005 §11`) ────────────────────
+	GameState.cycle_runs = tuning.tithe_cycle_runs - 1
+	var settled_early: bool = GameState.settle_cycle()
+	print("[tithe] mid-cycle    %d run(s) in, settled=%s, paid still %d" % [
+		GameState.cycle_runs, settled_early, GameState.tithe_paid])
+	if GameState.tithe_paid != coin.tribute_value or GameState.hunt_head_start > 0.0:
+		problems.append(("she settled up mid-cycle — `PRO-005 §11` and ADR-029 "
+			+ "both say a partial cycle is never punished, and a player who "
+			+ "stops for the night must not come back to a penalty"))
+
+	# ── a short cycle sends the Hunt early ───────────────────────────────
+	#
+	# At **rank 5**, deliberately. A Hoard-Coin is worth 40 and the rank-1 Tithe
+	# is 40, so the obvious version of this — one coin, cycle closes — was not
+	# short at all and reported settled. The probe was wrong rather than the
+	# code, and it took the failure to notice: a case that cannot fail is one
+	# more assertion that is true and beside the point (ADR-113).
+	#
+	# Worth recording on the way past: **one coin covers a whole rank-1 cycle.**
+	# Both numbers are ⟨tune⟩ and the collision is coincidence, but a first
+	# cycle discharged by a single pickup is a balance question for `M3-T10`,
+	# when there is a floor whose richness answers it.
+	GameState.pact_rank = 5
+	GameState.cycle_runs = tuning.tithe_cycle_runs
+	var met_short: bool = GameState.settle_cycle()
+	print("[tithe] short cycle  settled=%s, head start %.0f s" % [
+		met_short, GameState.hunt_head_start])
+	if met_short:
+		problems.append("a cycle paid %d of %d reported as settled"
+			% [coin.tribute_value, at_five])
+	if GameState.hunt_head_start <= 0.0:
+		problems.append(("missing a Tithe cost nothing — ADR-029 makes it a "
+			+ "soft fail, and a soft fail with no consequence is no fail, "
+			+ "which leaves the Tithe with nothing behind it"))
+	if GameState.tithe_paid != 0 or GameState.cycle_runs != 0:
+		problems.append(("the cycle did not reset after settling, so the next "
+			+ "one starts already part-paid or already part-spent"))
+
+	# ── and the debt does not follow you ─────────────────────────────────
+	var carried_over: float = GameState.take_hunt_head_start()
+	var twice: float = GameState.take_hunt_head_start()
+	print("[tithe] taken once   %.0f s then %.0f s" % [carried_over, twice])
+	if carried_over <= 0.0 or twice != 0.0:
+		problems.append(("the Hunt's head start is not consumed once — a missed "
+			+ "cycle is meant to cost the next descent, not every descent after "
+			+ "it, which would be the spiral ADR-029 rejected"))
+
+	# ── paying in full costs nothing ─────────────────────────────────────
+	GameState.tithe_paid = GameState.tithe_due()
+	GameState.cycle_runs = tuning.tithe_cycle_runs
+	var met_full: bool = GameState.settle_cycle()
+	print("[tithe] paid in full settled=%s, head start %.0f s" % [
+		met_full, GameState.hunt_head_start])
+	if not met_full or GameState.hunt_head_start > 0.0:
+		problems.append(("paying the Tithe in full still sent the Hunt early — "
+			+ "an obligation you cannot discharge is a punishment on a timer"))
+
+	# ── and the pact dies with you (`DES-003`) ───────────────────────────
+	GameState.pact_rank = 6
+	GameState.tithe_paid = 55
+	GameState.cycle_runs = 2
+	GameState.hunt_head_start = 90.0
+	GameState.die()
+	print("[tithe] after death  rank %d, paid %d, runs %d, head start %.0f s" % [
+		GameState.pact_rank, GameState.tithe_paid, GameState.cycle_runs,
+		GameState.hunt_head_start])
+	if GameState.pact_rank != 1 or GameState.tithe_paid != 0 \
+			or GameState.cycle_runs != 0 or GameState.hunt_head_start > 0.0:
+		problems.append(("the pact survived a death — `DES-003` puts rank and "
+			+ "Tithe in the LIFE tier and resets both to 1, and a debt "
+			+ "outliving the debtor is the running-debt model ADR-029 rejected "
+			+ "arriving through the one door nobody was watching"))
+
+	for problem: String in problems:
+		printerr("[tithe] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
