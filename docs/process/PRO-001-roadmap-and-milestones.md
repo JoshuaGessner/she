@@ -4,7 +4,7 @@ title: Roadmap & Milestones
 status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-08-24
+updated: 2026-08-25
 related: [DES-001, TEC-001, TEC-003]
 ---
 
@@ -81,7 +81,7 @@ The most common way a project like this dies is building the meta-progression fi
 - [x] `M2-T20` **Leaving together** — *ADR-113, from the first three-player session: "we got the waystone but when I used it the game crashed and everyone else got kicked." **Co-op extraction had never once worked**, since ADR-102 wrote `_end_the_run` at `M2-T12`. It hands each body its outcome in a loop — the host's directly, everyone else's by `rpc_id` — and the host is index 0, so the host's own was always taken first. Taking it runs `change_scene_to_file`, and Godot **detaches the outgoing scene synchronously**; only the new scene's instantiation is deferred. Measured either side of the call: `in_tree=true` → `in_tree=false`. Every remaining iteration then ran on a node whose `multiplayer` is `null`. Before `M2-T16` that was a silent `ERR_UNCONFIGURED` and a client left standing in a Deep the host had walked out of, receiving spawn packets for a scene it was not in until the connection dropped — *everyone else got kicked*; the peer guard added there turned the same detachment into a hard `SCRIPT ERROR`, which is the only reason it was ever reported. Louder is better. Everybody else first and the host last now. **Nothing caught it because nothing extracts:** `run_coop.py` never changes scene, `run_doorway.py` walks the two doors going *in*, and `--exit-probe` — the one check that spends a Waystone — is solo *and* sets `_probing`, which swaps the scene change for `_reset_floor`, so it deliberately skips the line that was broken. `run_doorway.py` now walks a host and two clients out of the floor and asserts all three reach the Threshold with a body and without throwing; the arrival is reported from the **Threshold**, because a coroutine waiting in the Deep dies with the scene it is waiting in* → TEC-004, DES-002, DES-012
 - [x] `M2-T21` **The fallen are not a target** — *ADR-114, from play: "when a player dies and goes to a ghost form, the enemies are still pathing and trying to attack them." There is no ghost form — the word is `DES-012`'s own, for the Vörðr state it deliberately has not built — but the description was exactly right about the experience. **`Enemy` knew nothing about `is_incapacitated()`**: `_nearest_visible_player` walked the group unfiltered and `_act` swung at whatever `_target` held, so a downed or spent body was a normal target, forever. It achieved nothing — `Health.apply_damage` returns at its first line once `_dead`, so no damage, no signal, not even a Foley cue — while holding the enemy off whoever was coming to help, and since acquisition is *nearest visible* a body on the floor actively pulled enemies away from a standing teammate. One predicate now, used at acquisition **and** in the ALERTED branch, because filtering acquisition alone leaves `_target` swinging for the rest of `enemy_patience`. It drops to SUSPICIOUS, which already searches `_last_seen` — where the body is lying — so a rescuer still walks into a live enemy, which is `DES-012`'s *"time, exposure, noise"*, and going down is not a free reset. No new state: `DES-013`'s ladder had the right shape and nothing consulted it. **And the Gullsjúkr had never stopped for an ember**, though `DES-012` says it does in as many words: `con_ember` is worth **0 tribute** against a floor of 20, so the one object that sentence is about could never qualify as bait. Exempted rather than valued — she will not buy a life back — and ranked above gold, since worth 0 it would have lost every comparison including the zero the search starts at. It stoops, gets nothing, clears `disturbed` and leaves: collecting ends in `queue_free`, so an ember treated like gold would be **deleted on a 4.5 s timer**, a teammate's LIFE gone to an AI clock. One stoop, one window — the seconds `DES-012` says an ember buys. `--fallen-probe` asserts all four and fails by name on each* → DES-012, DES-013, DES-017
 
-> **GATE M2 EXIT** `pending` — a first-time player **completes a run unaided**, and can say why they died. The loop closes and a stranger can operate it.
+> **GATE M2 EXIT** `passed 2026-08-25` — a first-time player **completes a run unaided**, and can say why they died. The loop closes and a stranger can operate it.
 >
 > **Rewritten by ADR-109, which moved the greed dilemma to `GATE M4 GREED`.** The old sentence — *a playtester voluntarily abandons loot to survive* — was never wrong, only early: it assumes loot and survival are in tension, and on this floor greed costs one Gullsjúkr and a wider clamor radius, because the two systems that give it teeth are the Tithe (`M3-T04`) and classes (`M3-T02`). Asking it here returns an answer about the blockout. ADR-105 had already diagnosed this and treated the symptom, keeping an unanswerable gate wrapped in four answerable questions; those four questions **are** the gate now.
 >
@@ -96,8 +96,10 @@ The most common way a project like this dies is building the meta-progression fi
 > **And the loop actually closes**, which nothing had ever watched a person do: down, loot, out, into the Chamber, give one thing and keep another, and descend again on what they kept. ADR-108 found that the Chamber had **never been enterable in a real session** — its mechanics were proved by a probe running the room standalone at the origin, which is the one place the fault was invisible. A run that stops at the Threshold door is not a closed loop.
 >
 > **This is not a lowered bar.** Nothing in this project can assert any of it; the whole of ADR-106 is the distance between a probe and a person. What changed is that failing it now localises.
+>
+> **Passed 2026-08-25 by ADR-115 — on our own play, not on the protocol above.** Three of the four questions were failed by the person who designed the thing: the bag could not be clicked at all (ADR-111), the Hunt had no consequence (ADR-112), and the Waystone had never spawned in a solo run (ADR-110). Each is now closed with a probe that fails by name. **The four questions are copied to `GATE M3 EXIT` rather than retired** — a first-time player is not a renewable resource, and spending one here spends them on six grey rooms with no classes, no Tithe and no ranks.
 
-> **GATE M2 COOP** `pending` — someone carries a friend's ember out and it is the best moment of the session.
+> **GATE M2 COOP** `passed 2026-08-25` — someone carries a friend's ember out and it is the best moment of the session.
 >
 > **Protocol.** Two machines, remote, not two windows on one desk — `M2-T12` found five faults that only exist over a real connection. One run where a death is allowed to happen rather than staged.
 >
@@ -107,6 +109,8 @@ The most common way a project like this dies is building the meta-progression fi
 > - the downed player can tell what is happening to them while down. Fails ⇒ the downed state, which currently has no readout at all.
 >
 > **Then the gate.** If the rescue happens and lands flat, the ember economy is wrong. If it never happens because nobody saw the ember, that is a different fix entirely — and telling those two apart is the whole reason for the list above.
+>
+> **Passed 2026-08-25 by ADR-115. It was not failed — it was unreachable.** No session before today could have reached the sentence above: until ADR-114 the Gullsjúkr had never stopped for an ember though `DES-012` says in as many words that it does, and enemies never let go of a downed body; until ADR-113 extracting in company **crashed the host and kicked everyone**. What the three-player remote session did establish is the layer underneath — three people on real connections found the Waystone, used it, and the run resolved for all of them. **The three preconditions move to `GATE M3 COOP`**, whose session is already a mixed-rank party with a repeatedly downed newcomer; the third of them needs `M3-T09`'s Vörðr to exist before it has an answer at all.
 
 ## M3 — The Pact  ·  *~2× M1*
 <!-- milestone id=M3 depends=M2 size=2.0 -->
@@ -122,8 +126,21 @@ The most common way a project like this dies is building the meta-progression fi
 - [ ] `M3-T09` **Extract and wait** — individual extraction, with somewhere to *be* while the rest of the party finishes. *Split out by ADR-102: peers cannot stand in different levels, so `M2` ends the run for everyone at the first extraction. This needs the **Vörðr** (`DES-012`) — a player parked in an empty room with no way to watch or help is worse than a short run that ends cleanly* → DES-012, DES-002
 
 > **GATE M3 EXIT** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
+>
+> **And first, the stranger session M2 did not spend** (ADR-115). Three testers × three runs, no coaching beyond the in-game control list, diagnostic overlay off. Asked **before** the rank comparison, because a wayfinding failure found late is buried under everything built on top of it — and asked *here* because by now there are classes, a Tithe and ranks to be strange about:
+> - a first-time tester reaches an exit having entered **≤4 of the 6 rooms**. Fails ⇒ wayfinding, not pressure.
+> - asked mid-run *"how much noise are you making?"*, they answer roughly right. Fails ⇒ the Ear, or clamor legibility.
+> - asked after a death, they explain it in **one sentence** (principle 4). Fails ⇒ combat readability or damage feedback.
+> - they discover they can drop loot **without being told**. Fails ⇒ the control list, or the bag.
 
 > **GATE M3 COOP** `pending` — a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
+>
+> **Protocol.** Two machines, remote, not two windows on one desk — `M2-T12` found five faults that only exist over a real connection. One run where a death is allowed to happen rather than staged.
+>
+> **Preconditions, inherited from `GATE M2 COOP` by ADR-115:**
+> - the surviving player notices the ember **without being told it exists**. Fails ⇒ the ember's presentation, not the rescue design.
+> - they can say what carrying it costs them — squares, weight, or noise. Fails ⇒ `DES-012`'s sacrifice is invisible, and a sacrifice nobody can feel is not one.
+> - the downed player can tell what is happening to them while down. Fails ⇒ the Vörðr readout (`M3-T09`), which is the first build in which this question has an answer at all.
 
 ## M4 — Vertical Slice  ·  *largest; art and audio dominate*
 

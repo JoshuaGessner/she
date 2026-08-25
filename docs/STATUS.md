@@ -2,11 +2,11 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-24_
+<!-- generated-stamp --> _Regenerated 2026-08-25_
 
-**Current milestone: M2 — The Loop Prototype**
+**Current milestone: M3 — The Pact**
 
-> **Gate:** `pending` — a first-time player **completes a run unaided**, and can say why they died. The loop closes and a stranger can operate it.
+> **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
 `31/59` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
@@ -15,9 +15,9 @@ flowchart LR
   M0["M0 Design Lock<br/>0/0"]:::passed
   M1["M1 The Feel Prototype<br/>10/10"]:::passed
   M0 --> M1
-  M2["M2 The Loop Prototype<br/>21/21"]:::current
+  M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>0/9"]:::ahead
+  M3["M3 The Pact<br/>0/9"]:::current
   M2 --> M3
   M4["M4 Vertical Slice<br/>0/13"]:::ahead
   M3 --> M4
@@ -36,8 +36,8 @@ flowchart LR
 |---|---|---|---|---|
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
-| ▶ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` pending<br>`COOP` pending |
-|  | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
+| ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
@@ -131,6 +131,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 114 ADRs · 12 open questions · 105 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 115 ADRs · 12 open questions · 105 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

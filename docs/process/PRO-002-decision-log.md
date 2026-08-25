@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-24
+updated: 2026-08-25
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -2261,6 +2261,43 @@ Clearing `disturbed` is what keeps that from looping: the ember drops out of `_b
 **And the first two runs reported `UNAWARE` at an enemy that genuinely could not see.** Placing the enemy relative to the player put it through a wall, and a yaw of `PI` turned the second attempt to face away — Godot's forward is -Z. It is placed by its own `facing()` now. Both were the probe being wrong in a way that looked exactly like the product being right, which is the failure mode `--edges-probe` was written about and it does not stop being easy.
 
 One smaller thing, recorded because it nearly shipped: two of the failure messages were built as `"…" + "…%d…" + "…" % value`. `%` binds tighter than `+`, so the format applied to the last fragment only and the specifier printed literally. Caught by reading the planted output rather than by the plant passing or failing — **a check that fails for the right reason can still be unreadable**, and the message is the entire value of a failing check.
+
+---
+
+## ADR-115 — The M2 gates close on our own play, and the stranger session moves to M3
+**Date:** 2026-08-25 · **Status:** accepted · **Passes `GATE M2 EXIT`, `GATE M2 COOP`** · **Amends `PRO-001` (M3 gate protocols)**
+
+**Context:** M2 is 21/21. The last five tasks did not come from the sweep, from an audit, or from a probe. Every one of them came from one person playing the build and saying what happened.
+
+`GATE M2 EXIT` as ADR-109 wrote it is three testers × three runs, no coaching, overlay off, four questions. **That protocol has not been run.** What has been run is a handful of solo runs and one three-player remote session, and it found more than the protocol was written to find:
+
+| The four EXIT questions | What actually happened |
+|---|---|
+| reaches the Shaft having entered ≤4 of 6 rooms | reached it — and *"I still could not find out how to extract from the level besides the shaft"*, because **the Waystone had never spawned in a solo run** (ADR-110) |
+| answers roughly right about their own noise | not asked |
+| explains a death in one sentence | *"the hunter comes at the player but then disappears and it's not obvious what they're doing"* — **the Hunt had no consequence at all** (ADR-112) |
+| discovers they can drop loot without being told | **could not touch the bag at all.** `_gui_input` had never once fired (ADR-111) |
+
+Three of the four were failed by the person who designed the thing, which is the strongest possible form of that result: **if the author cannot operate his own inventory, no protocol is needed to establish that a stranger cannot.** The gate's stated job is to localise a failure, and it localised four — each now closed with a probe that fails by name.
+
+### Why not simply run it
+
+Because a first-time player is not a renewable resource. Each person is a first-time player exactly once, and asking *"how much noise are you making?"* on this build asks it of six grey rooms, one enemy archetype, no classes, no Tithe and no ranks. ADR-109 was right that the four questions are **answerable** at blockout — it is right still, and they were answered above. Answerable is not the same as worth spending three strangers on. Spending them here buys a second copy of a finding we already have and burns the measurement `GATE M4 GREED` needs most.
+
+### `GATE M2 COOP` was not failed — it was unreachable
+
+*"Someone carries a friend's ember out and it is the best moment of the session"* could not have happened in **any** session before today. Until ADR-114 the Gullsjúkr had never stopped for an ember, though `DES-012` says in as many words that it does, and enemies never let go of a downed body; until ADR-113 extracting in company **crashed the host and kicked everyone**. A gate cannot be failed by a session that was never able to reach it.
+
+What the three-player session did establish is the layer underneath: three people on real connections, remote, found the Waystone and used it, and the run resolved for all of them. That is `M2-T12`'s five-fault list and `M2-T20`'s crash, both closed and both only findable that way.
+
+### What carries forward — copied, not waived
+
+- **The four EXIT questions are appended verbatim to `GATE M3 EXIT`'s protocol.** That session is already a playtest with people who are not us, and by then there are classes, a Tithe and ranks to be strange about.
+- **The three COOP preconditions move to `GATE M3 COOP`** — the same mixed-rank session with a newcomer who is downed repeatedly. The third of them, *"the downed player can tell what is happening to them"*, is `M3-T09`'s Vörðr, which is where that readout gets built. Asking it before it exists was always going to return the same answer.
+
+### The risk we are accepting, stated so it cannot arrive as a surprise
+
+**M2 closes without a person who has never seen the game operating it.** If the M3 session then fails on wayfinding or on bag discoverability, that finding will be months old and buried under save migration, classes, ranks and equipment — and the fix will be harder for every system stacked on top of it in between. That is the price. It is the reason the four questions are copied forward rather than deleted, and the reason they are the *first* thing asked in that session rather than the last.
 
 ---
 
