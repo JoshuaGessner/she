@@ -107,6 +107,13 @@ func _ready() -> void:
 	if _already_connected():
 		_log("adopted the existing connection as peer %d"
 			% multiplayer.get_unique_id())
+		# **Declared again, on every session** (`M3-T10`). `_ranks` lives on the
+		# session and a session is per scene, so the one that matters — the Deep,
+		# built the instant this returns — starts with an empty table unless
+		# every peer says its rank again here. Walking through a doorway is the
+		# only way a real party ever reaches a floor, so a declaration made
+		# solely at connect would be a declaration the floor never sees.
+		declare_rank.rpc_id(HOST_PEER, GameState.pact_rank)
 		if multiplayer.is_server():
 			multiplayer.peer_connected.connect(_on_peer_connected)
 			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -129,6 +136,7 @@ func _ready() -> void:
 			# already reports us as server 1, so the host path below is simply
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
+			declare_rank(GameState.pact_rank)
 			spawn_player(HOST_PEER)
 
 
@@ -233,6 +241,7 @@ func _start_host() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
+	declare_rank(GameState.pact_rank)
 	spawn_player(HOST_PEER)
 
 
@@ -273,6 +282,10 @@ func _on_connected() -> void:
 	# other actor, which is what makes "the host owns the world" true from the
 	# first frame instead of true after a handshake.
 	_log("connected as peer %d" % multiplayer.get_unique_id())
+	# Before anything else asks (`M3-T10`). A floor built while a rank-8 player
+	# was still announcing themselves is a rank-1 floor with a rank-8 player on
+	# it, which is the opposite of what ADR-010 is for.
+	declare_rank.rpc_id(HOST_PEER, GameState.pact_rank)
 	_waiting_until = 0
 	_hide_waiting()
 
@@ -360,6 +373,46 @@ func _give_up(because: String) -> void:
 	# adding/removing children"* — the navigation lands a frame later instead.
 	get_tree().change_scene_to_file.call_deferred(MENU_SCENE)
 
+
+
+## **What rank of floor each peer needs** (`M3-T10`, ADR-119).
+##
+## The single exception to `TEC-004`'s progression row, and it is deliberately
+## one integer. ADR-010 scales a floor to the **highest** Pact Rank present, so
+## the host has to know what the party's ranks are; `TEC-004` says progression
+## is never networked and calls that *"the important one… worth protecting"*.
+##
+## Both hold, because what crosses is not progression. No tree, no Boon, no
+## stash, no Tithe ledger — one number, sent once, used to build a floor and
+## then discarded with it. The host never stores it in a profile and never
+## writes another player's anything. It is the same kind of value as party
+## size, which has always crossed.
+var _ranks: Dictionary = {}
+
+
+## The rank this floor is built for: the highest anyone brought (ADR-010).
+##
+## *"Boredom is worse than danger."* Scaling down wastes the veteran's session
+## and breaks their Tithe math, which is why ADR-010 chose highest over average
+## and refused rank-banding outright.
+func floor_rank() -> int:
+	var highest: int = 1
+	for rank: Variant in _ranks.values():
+		highest = maxi(highest, int(rank))
+	return highest
+
+
+## Tell the host what floor you need. Host-local too, so solo takes the same
+## path as a four-stack and there is no second branch to keep in step.
+@rpc("any_peer", "call_local", "reliable")
+func declare_rank(rank: int) -> void:
+	if not multiplayer.is_server():
+		return
+	var who: int = multiplayer.get_remote_sender_id()
+	# `0` is what a local call reports rather than a peer id.
+	_ranks[who if who != 0 else multiplayer.get_unique_id()] = maxi(1, rank)
+	_log("peer %d descends at rank %d — the floor is rank %d" % [
+		who if who != 0 else multiplayer.get_unique_id(), rank, floor_rank()])
 
 
 func _on_peer_connected(peer: int) -> void:

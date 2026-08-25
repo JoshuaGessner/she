@@ -2468,4 +2468,47 @@ Worth recording on the way past: **one Hoard-Coin discharges an entire rank-1 cy
 
 ---
 
+## ADR-119 — A rank-8 floor exists, and two of its three axes are one lever
+**Date:** 2026-08-25 · **Status:** accepted · **Closes `M3-T10`** · **Implements ADR-010, `DES-022`** · **Amends `TEC-004`**
+
+**Context:** ADR-116 §1 found that `GATE M3 COOP` names *"a rank-8 floor (ADR-010)"* and nothing on the roadmap built one. `M3-T10` builds it. Two things came out of doing so that the task text had wrong.
+
+### One integer crosses the wire, and only one
+
+ADR-010 scales a floor to the **highest** Pact Rank present. `TEC-004`'s progression row says *"Progression (Boon, tree, Tithe) — **never networked**"*, and the line under it calls that *"the important one… a large, permanent reduction in complexity… **worth protecting if the design is revisited**."*
+
+The host cannot know a client's rank. That is a genuine conflict between two accepted decisions, and `M3-T10` cannot be built without resolving it. **The cohesion pass missed it because it checked whether a task existed for ADR-010, not whether the task was possible.**
+
+**Each peer declares one integer at descent; the host takes the max.** No tree, no Boon, no stash, no Tithe ledger. The host never stores it in a profile and never writes another player's anything — it builds a floor and is discarded with it, exactly like party size, which has always crossed. `TEC-004`'s row names the meta-layer *state*, and the state is what buys the complexity reduction; a floor-generation parameter is a different kind of value.
+
+The alternatives were worse. **The host's own rank** needs no wire change and hands a rank-1 host with a rank-8 friend a rank-1 floor — wasting the veteran's session and breaking their Tithe math, which is precisely what ADR-010 refused when it chose highest over average. It also makes *who clicked host* a balance decision.
+
+**And it has to be declared on every session, not on every connect.** `_ranks` lives on the `CoopSession`, and a session is per scene — so the Deep, built the instant the doorway resolves, starts with an empty table unless every peer declares again when it adopts the live connection. Walking through a doorway is the only way a real party ever reaches a floor, so a declaration made solely at connect is one the floor never sees.
+
+### Density and the Hunt — and the Hunt is also Time
+
+`DES-022` lists six axes. Three need content that does not exist (`M4-T01`, `M4-T02`, `M5-T04`) and ADR-116 §6 scoped them out. The task text then said the remaining three — **Density, the Hunt, Time** — were three things to build. They are **two**.
+
+`Shaft._escalation` reads the Gullsjúkr's `age` rather than a clock of its own, and its comment says why: *"the pressure the player feels and the price of leaving have to come from the same source, or the Sealing is a timer wearing the Hunt's clothes."*
+
+So a floor whose Hunt starts older **seals its Shafts sooner for free.** `rank_hunt_seconds` delivers *"the Hunt arrives sooner"* and *"cheap exits vanish sooner"* from one number, with no second system and nothing to drift out of step. That is not a coincidence — it is `M2-T04`'s architecture paying out — and it is the correct amount of work rather than a shortcut.
+
+It also composes with `M3-T04`: a rank-8 floor you owe her on is both, and both are time.
+
+### The tuning value the probe rejected on sight
+
+The first `rank_hunt_seconds` was 45 s. At rank 8 that is 315 s against a 300 s seal, so **the floor opened with its Shafts already past maximum**.
+
+Not locked — `_escalation` clamps at 1.0, and ADR-053's note that a locked Shaft is a trap still holds. **Flat**, which is worse in a quieter way: leaving early and leaving late cost the same, so `DES-005`'s leave-now-or-later decision stops existing *exactly where the game is supposed to be hardest*. Principle 1 says the run is the product, and a tuning value had deleted the run's central decision at the top of the tree.
+
+20 s: rank 9 opens at 53 % sealed with 47 % of the climb left. **The invariant is an assertion now, not a note**, so it cannot drift back.
+
+### The check
+
+`--rank-probe` asserts six things, all planted: density rises with rank, rank and party still multiply, the Hunt starts older, the Shafts are correspondingly closer to sealed, the top of the tree still has a climb left, and **every enemy on the floor shares one stat line.**
+
+The last is the one nothing else watches and the one this design would lose first. `DES-022`'s rule is *"more things, worse things, and less time — not because a skeleton hits for 40 instead of 12"*, and enemy health quietly acquiring a rank multiplier is the trivialisation treadmill `CLAUDE.md` names as an anti-goal. Planted by giving one enemy ten more hit points; it fails by name.
+
+---
+
 *Entries below to be added as design decisions are signed off.*

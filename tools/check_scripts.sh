@@ -238,6 +238,27 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Is a rank-8 floor a different floor** (`M3-T10`, ADR-010, ADR-119)?
+	#
+	# `DES-022` is precise about what that may and may not mean — *"more things,
+	# worse things, and less time, not because a skeleton hits for 40 instead of
+	# 12"* — so this asserts the shape and, crucially, that **every enemy still
+	# shares one stat line**. That is the half the design would lose first and
+	# the half nothing else watches.
+	#
+	# It also guards the top of the tree: `Shaft._escalation` clamps at 1.0, so
+	# a rank whose Hunt starts past `shaft_seal_seconds` opens with the Shaft
+	# already at maximum cost and `DES-005`'s leave-now-or-later decision stops
+	# existing exactly where the game is meant to be hardest. The first value
+	# tried did that at rank 8.
+	rank="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --rank-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$rank" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a rank-8 floor has to be a different floor" >&2
+		printf '%s\n' "$rank" | grep -E '\[rank\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
@@ -554,6 +575,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the fallen stop being a target and an ember survives the Hunt,"
 	echo "a profile survives a round trip and refuses what it cannot read,"
 	echo "the Tithe rises with rank, costs something, and dies with you,"
+	echo "a rank-8 floor is denser and older without a bigger number on it,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

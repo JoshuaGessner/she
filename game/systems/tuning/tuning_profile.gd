@@ -182,6 +182,19 @@ extends Resource
 ## check runs on every hit regardless, so it answers rather than waits.
 @export var gullsjukr_killable_rank: int = 8
 
+@export_group("The floor's rank")
+## Extra enemies per rank above 1, as a fraction of the base count ⟨tune⟩
+## (`M3-T10`, ADR-010, `DES-022`). Density is the axis that needs no new
+## content: the ring `ENEMY_POSTS` already grows for a party grows for a rank.
+@export var rank_density_slope: float = 0.22
+## Seconds of Hunt a floor has already had, per rank above 1 ⟨tune⟩.
+##
+## **One number, two of `DES-022`'s axes.** `Shaft._escalation` reads the
+## Gullsjúkr's age rather than a clock of its own, so a floor whose Hunt starts
+## older also seals its Shafts sooner — *arrives sooner* and *cheap exits vanish
+## sooner*, from the same lever, with nothing to keep in step.
+@export var rank_hunt_seconds: float = 20.0
+
 @export_group("The party")
 ## Extra enemies per additional player, as a fraction of the base count ⟨tune⟩.
 ## Near-linear (`DES-012`) so combat stays meaningful with four swords in the
@@ -391,4 +404,13 @@ func validate() -> PackedStringArray:
 	if gullsjukr_killable_rank < 1:
 		problems.append("gullsjukr_killable_rank below 1 makes it killable from "
 			+ "the first descent, which DES-017 spends a page refusing")
+	# Both negatives would make a high-rank floor *easier* than a low-rank one,
+	# which is ADR-010 inverted: the veteran's session gets safer as they grow,
+	# and the Tithe they cannot service on it is the one that rose.
+	if rank_density_slope < 0.0:
+		problems.append("rank_density_slope cannot be negative — a rank-8 floor "
+			+ "with fewer things on it than a rank-1 floor inverts ADR-010")
+	if rank_hunt_seconds < 0.0:
+		problems.append("rank_hunt_seconds cannot be negative — it would hand a "
+			+ "high-rank floor a younger Hunt and slower-sealing Shafts")
 	return problems

@@ -424,6 +424,8 @@ func _ready() -> void:
 			_fallen_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
+		elif arg == "--rank-probe":
+			_rank_probe()
 		elif arg == "--scaling-probe":
 			_scaling_probe()
 		elif arg.begins_with("--ember-shot="):
@@ -2383,7 +2385,12 @@ func _build_room(name: String) -> void:
 ## scaled one.
 func _spawn_enemies() -> void:
 	var party: int = PartyScaling.size_of(self)
-	var wanted: int = PartyScaling.enemies(ENEMY_POSTS.size(), party)
+	# **Two axes, multiplied** (`M3-T10`, ADR-010). How many people are down
+	# here and how far along the deepest of them is are different questions, and
+	# a floor answers both: four rank-1 players and one rank-8 player are
+	# different floors for different reasons.
+	var wanted: int = RankScaling.denser(
+		PartyScaling.enemies(ENEMY_POSTS.size(), party), _session.floor_rank())
 	# Spread on a **ring**, not jittered.
 	#
 	# Random offsets put two bodies in the same place, and two capsules in the
@@ -2560,6 +2567,21 @@ func _build_hunt() -> void:
 	_hunter = _session.spawn_hunter(HUNTER_POST)
 	if _hunter != null:
 		_hunter.hunt_with(_field)
+		# **The floor's rank, as time already spent** (`M3-T10`, ADR-119).
+		#
+		# Added here rather than inside the Gullsjúkr because the *floor* knows
+		# its rank and the Hunter should not be reaching for a session to ask.
+		# It adds to whatever a missed Tithe already put there (`M3-T04`): a
+		# rank-8 floor you owe her on is both, and both are time.
+		#
+		# This is `DES-022`'s Hunt axis **and** its Time axis, because
+		# `Shaft._escalation` reads this same `age` — so the Shafts on a rank-8
+		# floor seal sooner without a second number existing anywhere.
+		var of_rank: float = RankScaling.hunt_age(_session.floor_rank())
+		_hunter.age += of_rank
+		if _hunter.age > 0.0:
+			print("[hunt] the floor is rank %d — it opens at %.0f s old" % [
+				_session.floor_rank(), _hunter.age])
 
 
 ## The way out (`M2-T04`). Authored geometry in the room the layout has always
@@ -3677,3 +3699,107 @@ func _fallen_probe() -> void:
 	_report(problems, "fallen")
 
 
+
+
+## **Is a rank-8 floor actually a different floor** (`M3-T10`, ADR-119)?
+##
+## `DES-022` is precise about what that means and what it must not mean: *"more
+## things, worse things, and less time — not because a skeleton hits for 40
+## instead of 12."* So this asserts the shape rather than any number: more
+## enemies, an older Hunt, a Shaft closer to sealed — and **identical enemy
+## stats**, which is the half the design would quietly lose first.
+func _rank_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var base: int = ENEMY_POSTS.size()
+
+	# ── density rises with rank, and the party axis still multiplies ─────
+	var solo_one: int = RankScaling.denser(PartyScaling.enemies(base, 1), 1)
+	var solo_eight: int = RankScaling.denser(PartyScaling.enemies(base, 1), 8)
+	var four_one: int = RankScaling.denser(PartyScaling.enemies(base, 4), 1)
+	var four_eight: int = RankScaling.denser(PartyScaling.enemies(base, 4), 8)
+	print("[rank] density     solo %d→%d, four %d→%d (rank 1→8)" % [
+		solo_one, solo_eight, four_one, four_eight])
+	if solo_eight <= solo_one:
+		problems.append(("a rank-8 floor holds no more than a rank-1 floor "
+			+ "(%d vs %d) — ADR-010 exists so a veteran's session is not the "
+			+ "same floor they cleared at rank 1") % [solo_eight, solo_one])
+	if four_eight <= four_one or four_eight <= solo_eight:
+		problems.append(("rank and party stopped multiplying (solo-8 %d, "
+			+ "four-1 %d, four-8 %d) — they are independent axes and a floor "
+			+ "has to answer both") % [solo_eight, four_one, four_eight])
+
+	# ── the Hunt starts older, which is also how Shafts seal sooner ──────
+	var age_one: float = RankScaling.hunt_age(1)
+	var age_eight: float = RankScaling.hunt_age(8)
+	var seal: float = Config.tuning.shaft_seal_seconds
+	print("[rank] the hunt    %.0f s → %.0f s old, %.0f%% → %.0f%% sealed" % [
+		age_one, age_eight, 100.0 * age_one / seal, 100.0 * age_eight / seal])
+	if age_eight <= age_one:
+		problems.append(("a rank-8 floor's Hunt is no older than a rank-1 "
+			+ "floor's (%.0f s vs %.0f s) — `DES-022` asks for it sooner and "
+			+ "faster") % [age_eight, age_one])
+	# The good half: `Shaft._escalation` divides that same age by
+	# `shaft_seal_seconds`, so this needs no second number to be true. If it
+	# ever stops being true, someone gave the Sealing a clock of its own.
+	if age_eight / seal <= age_one / seal:
+		problems.append(("the Shafts on a rank-8 floor are no closer to sealed "
+			+ "— `DES-022`'s Time axis comes free from the Hunt's age, and it "
+			+ "coming free is the reason there is no second timer to drift"))
+
+	# **And there is still a decision at the top of the game.**
+	#
+	# `_escalation` clamps at 1.0, so a floor whose Hunt starts past
+	# `shaft_seal_seconds` arrives with the Shaft *already at maximum cost* —
+	# not locked (ADR-053's note is right that a locked Shaft is a trap), but
+	# flat. Leaving early and leaving late cost the same, and `DES-005`'s whole
+	# tension is the gap between them. That is the product (principle 1), and a
+	# rank that deletes it has made the endgame simpler rather than harder.
+	#
+	# The first value tried, 45 s per rank, did exactly this: rank 8 opened at
+	# **105% sealed**. The probe is what said so.
+	var top: int = Config.tuning.tithe_by_rank.size()
+	var at_top: float = RankScaling.hunt_age(top) / seal
+	print("[rank] top of tree  rank %d opens %.0f%% sealed, %.0f%% of the "
+		% [top, 100.0 * at_top, 100.0 * (1.0 - at_top)] + "climb left")
+	if at_top >= 1.0:
+		problems.append(("a rank-%d floor opens with its Shafts already at "
+			+ "maximum cost (%.0f%%) — leaving early and leaving late then "
+			+ "cost the same, and `DES-005`'s decision stops existing exactly "
+			+ "where the game is supposed to be hardest") % [top, 100.0 * at_top])
+
+	# ── and nothing hits harder (`DES-022`'s actual rule) ────────────────
+	var enemies: Array[Node] = get_tree().get_nodes_in_group(&"enemies")
+	var tuning: TuningProfile = Config.tuning
+	var damage_seen: Array[float] = []
+	for node: Node in enemies:
+		var body := node as Enemy
+		if body != null and body.health != null:
+			damage_seen.append(body.health.maximum)
+	var spread: bool = damage_seen.size() > 0
+	for value: float in damage_seen:
+		if not is_equal_approx(value, damage_seen[0]):
+			spread = false
+	print("[rank] fixed stats %d enemy(s), health all %.0f = %s, telegraph %.2f s" % [
+		damage_seen.size(), damage_seen[0] if damage_seen.size() > 0 else 0.0,
+		spread, tuning.enemy_telegraph])
+	if not spread:
+		problems.append(("enemies on this floor do not share one stat line — "
+			+ "`DES-022`'s rule is fixed stats per archetype, and a rank that "
+			+ "reaches the numbers is the trivialisation treadmill `CLAUDE.md` "
+			+ "names as an anti-goal"))
+
+	# ── the highest rank present is the floor (ADR-010) ──────────────────
+	_session.declare_rank(1)
+	var alone: int = _session.floor_rank()
+	_session._ranks[9001] = 8
+	var with_veteran: int = _session.floor_rank()
+	_session._ranks.erase(9001)
+	print("[rank] whose rank   alone %d, with a rank-8 friend %d" % [
+		alone, with_veteran])
+	if with_veteran != 8:
+		problems.append(("a party containing a rank-8 player built a rank-%d "
+			+ "floor — ADR-010 scales to the highest present because boredom "
+			+ "is worse than danger, and scaling down wastes the veteran's "
+			+ "session and breaks their Tithe math") % with_veteran)
+
+	_report(problems, "rank")
