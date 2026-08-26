@@ -63,12 +63,19 @@ func _ready() -> void:
 ## probes cannot see any of it.
 func _menu_shot(directory: String) -> void:
 	DirAccess.make_dir_recursive_absolute(directory)
-	for screen: String in ["root", "host", "join", "settings"]:
+	# **`controls` is in this list because it is the one screen a first-time
+	# tester is asked to read** (ADR-137). It is also the only generated one —
+	# a table whose row count comes from `InputMap` — so it is the screen most
+	# able to grow past the bottom of the viewport without any code changing.
+	# `--menu-probe` can prove every row exists; only a photograph can show
+	# whether the last one is on screen.
+	for screen: String in ["root", "host", "join", "settings", "controls"]:
 		match screen:
 			"root": _show_root()
 			"host": _show_host()
 			"join": _show_join()
 			"settings": _show_settings()
+			"controls": _show_controls()
 		for frame: int in range(4):
 			await RenderingServer.frame_post_draw
 		var shot: Image = get_viewport().get_texture().get_image()
@@ -78,6 +85,10 @@ func _menu_shot(directory: String) -> void:
 		if _settings != null:
 			_settings.queue_free()
 			_settings = null
+		if _controls != null:
+			_controls.queue_free()
+			_controls = null
+			_column.visible = true
 	get_tree().quit()
 
 
@@ -463,10 +474,14 @@ func _controls_probe() -> PackedStringArray:
 	await get_tree().process_frame
 	var opened: bool = _controls != null and not _column.visible
 	var glyphs: int = 0
+	var fits: bool = true
+	var measured := Vector2.ZERO
 	if _controls != null:
 		for node: Node in _controls.find_children("*", "Label", true, false):
 			if not (node as Label).text.is_empty():
 				glyphs += 1
+		measured = ControlsScreen.configured_window()
+		fits = _controls.fits()
 		_controls.closed.emit()
 		await get_tree().process_frame
 	var shut: bool = _controls == null and _column.visible
@@ -481,6 +496,12 @@ func _controls_probe() -> PackedStringArray:
 		problems.append(("the control list drew %d label(s) for %d taught "
 			+ "action(s) — rows are being lost between the table and the screen")
 			% [glyphs, covered.size()])
+	if not fits:
+		problems.append(("the control list is taller or wider than the %dx%d "
+			+ "window it is drawn in, so the last thing on it — which is BACK — "
+			+ "is off screen. Every row-level check above passes while this is "
+			+ "true: *the rows exist* and *the rows are visible* are different "
+			+ "claims") % [int(measured.x), int(measured.y)])
 
 	return problems
 

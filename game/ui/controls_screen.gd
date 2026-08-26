@@ -7,7 +7,7 @@ extends Control
 ## *"no coaching beyond the in-game control list"* — and there was no in-game
 ## control list. The main menu had five buttons, the pause menu four, `SETTINGS`
 ## had volumes and a sensitivity slider, and `ArrivalBrief` named no verb at
-## all. `project.godot` defines twenty-three actions and a tester was told about
+## all. `project.godot` defines twenty-four actions and a tester was told about
 ## none of them, which does not merely fail the *"discovers they can drop loot"*
 ## clause — it contaminates every other clause with it, because a tester who
 ## never found crouch cannot answer a question about noise.
@@ -20,7 +20,7 @@ extends Control
 ## `tools/bind_gamepad.py` rewrites the pad half of `project.godot` on demand
 ## and a hand-written list would be stale the first time it ran.
 ##
-## `--controls-probe` closes the loop in **both directions**: every action that
+## `--menu-probe` closes the loop in **both directions**: every action that
 ## is neither `ui_*` nor deliberately hidden must appear in a row, and every
 ## action a row names must exist in `InputMap`. Adding an action without
 ## teaching it is then a failed build rather than a thing a playtester finds.
@@ -35,6 +35,11 @@ extends Control
 ## Both devices on every row, per `DES-019` rule 7.
 
 signal closed()
+
+## The laid-out column, kept so `--menu-probe` can ask whether it fits. The
+## screen's row count comes from `InputMap`, so it is the one menu in the game
+## that can outgrow the viewport without anybody editing it.
+var _body: VBoxContainer
 
 ## Actions kept off this screen, and why. A tester is not told about the debug
 ## keys because they are not part of the game — and `GATE M3 EXIT` requires the
@@ -104,25 +109,83 @@ func _ready() -> void:
 	add_child(centre)
 
 	var column: VBoxContainer = MenuStyle.column(8)
+	_body = column
 	centre.add_child(column)
 	column.add_child(MenuStyle.title("CONTROLS", 34))
 
-	var table := GridContainer.new()
-	table.columns = 3
-	table.add_theme_constant_override("h_separation", 26)
-	table.add_theme_constant_override("v_separation", 4)
-	column.add_child(table)
+	# **Two columns, because one did not fit** (ADR-137). Stacked in a single
+	# table this ran past the bottom of a 648-line viewport and cut the BACK
+	# button in half — invisible to `--menu-probe`, which can prove every row
+	# exists and cannot see where any of them landed. `--menu-shot` photographs
+	# it now, and the probe asserts the built column fits.
+	#
+	# The split is **computed, not written down**: `M4-T06` adds rebinding rows
+	# and `DES-009` still owes three combat verbs, so a hardcoded halfway point
+	# would be wrong by the next task that touches the input map.
+	var spread := HBoxContainer.new()
+	spread.add_theme_constant_override("separation", 40)
+	column.add_child(spread)
 
+	var total: int = 0
 	for group: Array in GROUPS:
+		total += (group[1] as Array).size()
+
+	var left: GridContainer = _table()
+	var right: GridContainer = _table()
+	spread.add_child(left)
+	spread.add_child(right)
+
+	var placed: int = 0
+	for group: Array in GROUPS:
+		var rows: Array = group[1] as Array
+		var table: GridContainer = left if placed * 2 < total else right
 		_heading(table, String(group[0]))
-		for row: Array in (group[1] as Array):
+		for row: Array in rows:
 			_row(table, String(row[0]), PackedStringArray(row[1] as Array))
+		placed += rows.size()
 
 	column.add_child(_gap(14))
 	var back: Button = MenuStyle.button("BACK")
+	# Every other menu's column is one button wide, so a stretched button looks
+	# right there and looks like a banner here. Shrink to its own width instead.
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	back.pressed.connect(func() -> void: closed.emit())
 	column.add_child(back)
 	back.grab_focus()
+
+
+## The window the game is configured to open at, which is **not** the viewport
+## the probe measures. Godot's headless dummy renderer reports 64×64, so a fit
+## check asked against the live viewport fails in the sweep and passes nowhere —
+## the shape of a check that cannot run. `ProjectSettings` answers the question
+## that actually matters anyway: does this fit the window a player gets?
+static func configured_window() -> Vector2:
+	return Vector2(
+		float(ProjectSettings.get_setting_with_override(
+			&"display/window/size/viewport_width")),
+		float(ProjectSettings.get_setting_with_override(
+			&"display/window/size/viewport_height")))
+
+
+## Does the whole list, BACK included, land inside that window?
+##
+## Asked because it did not. Stacked in one table the column ran past 648 lines
+## and cut the button in half, and every row-level assertion was green while it
+## did — *the rows all exist* and *the rows are all on screen* turn out to be
+## different claims, and only the second one is what a tester needs.
+func fits() -> bool:
+	if _body == null:
+		return false
+	var window: Vector2 = configured_window()
+	return _body.size.y <= window.y and _body.size.x <= window.x
+
+
+func _table() -> GridContainer:
+	var table := GridContainer.new()
+	table.columns = 3
+	table.add_theme_constant_override("h_separation", 22)
+	table.add_theme_constant_override("v_separation", 4)
+	return table
 
 
 func _heading(table: GridContainer, text: String) -> void:
@@ -134,7 +197,7 @@ func _heading(table: GridContainer, text: String) -> void:
 	table.add_child(_gap(8))
 	var label: Label = MenuStyle.line(text, 13, MenuStyle.WARM)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	label.custom_minimum_size = Vector2(240.0, 0.0)
+	label.custom_minimum_size = Vector2(215.0, 0.0)
 	table.add_child(label)
 	table.add_child(_blank())
 	table.add_child(_blank())
@@ -143,13 +206,16 @@ func _heading(table: GridContainer, text: String) -> void:
 func _row(table: GridContainer, text: String, actions: PackedStringArray) -> void:
 	var name_cell: Label = MenuStyle.line(text, 15, MenuStyle.TEXT)
 	name_cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	name_cell.custom_minimum_size = Vector2(240.0, 0.0)
+	name_cell.custom_minimum_size = Vector2(215.0, 0.0)
 	table.add_child(name_cell)
-	table.add_child(_glyph_cell(keyboard_glyphs(actions)))
-	table.add_child(_glyph_cell(pad_glyphs(actions)))
+	# Wider on the left. Four arrow keys read as `Up  Left  Down  Right` and wrap
+	# at the pad column's width, which costs the row a second line — and the pad
+	# side never needs it, because every pad glyph here is two words at most.
+	table.add_child(_glyph_cell(keyboard_glyphs(actions), 152))
+	table.add_child(_glyph_cell(pad_glyphs(actions), 112))
 
 
-func _glyph_cell(glyphs: PackedStringArray) -> Label:
+func _glyph_cell(glyphs: PackedStringArray, width: int) -> Label:
 	# An empty cell would be a lie of omission — it reads as "this verb has no
 	# binding on this device", which is a different and much worse statement
 	# than "nothing is bound here yet". ADR-075 makes both devices reach
@@ -158,12 +224,12 @@ func _glyph_cell(glyphs: PackedStringArray) -> Label:
 	var cell: Label = MenuStyle.line(text, 15,
 		MenuStyle.TEXT if not glyphs.is_empty() else MenuStyle.DIM)
 	cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	cell.custom_minimum_size = Vector2(160.0, 0.0)
+	cell.custom_minimum_size = Vector2(float(width), 0.0)
 	return cell
 
 
 ## Keyboard and mouse glyphs for everything these actions are bound to, in
-## `InputMap` order, each appearing once. Static so `--controls-probe` can ask
+## `InputMap` order, each appearing once. Static so `--menu-probe` can ask
 ## the same question without building a screen.
 static func keyboard_glyphs(actions: PackedStringArray) -> PackedStringArray:
 	var out := PackedStringArray()

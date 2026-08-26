@@ -3427,7 +3427,15 @@ One sequencing problem is filed rather than fixed: `ART-004` wants the Delvings 
 
 ### Verification
 
-Six plants against the control list, all caught — **after one was not.** The row *"CONTROLS opened and the menu behind it is hidden"* passed with the hide deleted, because the settings block earlier in the same probe leaves `_column` already invisible and never restores it. `_column.visible == false` was true before `_show_controls()` ran. It sets the precondition and asserts the **change** now. That is this milestone's rule arriving in the first check written after the milestone that taught it: *a row that could have passed before the code ran is not a check.*
+Eight plants against the control list, all caught — **after one was not.** The row *"CONTROLS opened and the menu behind it is hidden"* passed with the hide deleted, because the settings block earlier in the same probe leaves `_column` already invisible and never restores it. `_column.visible == false` was true before `_show_controls()` ran. It sets the precondition and asserts the **change** now. That is this milestone's rule arriving in the first check written after the milestone that taught it: *a row that could have passed before the code ran is not a check.*
+
+### The probe proved every row existed, and the screen was cut in half
+
+Every assertion above was green on a screen whose **BACK button was off the bottom of the window**. Stacked in one table the list ran past 648 lines, and nothing could see it: `--menu-probe` counts labels and asks `InputMap` questions, and *the rows exist* and *the rows are on screen* are different claims. Only the photograph showed it — which is what `--menu-shot` was built for at `M2`, and this screen was not in its list.
+
+Two columns now, **split by row count rather than at a written-down halfway point**, because `M4-T06` adds rebinding rows and `DES-009` still owes three combat verbs. And `fits()` measures against `ProjectSettings`, not the live viewport: the headless dummy renderer reports 64×64, so a fit check asked against the running window fails in the sweep and passes nowhere — a check that cannot run. The configured window is the honest question anyway, since it is the one a player gets.
+
+The plant that matters most here is *"one column again"*: reverting the layout to a single table now fails by name. The original bug is the plant.
 
 Three plants against the pad-conflict rule, all caught first time: the old `sprint`/`verb` clash, a `SHARED_OK` entry that stops covering its pair, and a stray joypad event hand-added to `project.godot`.
 
