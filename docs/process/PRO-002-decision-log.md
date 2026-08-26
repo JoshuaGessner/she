@@ -3129,9 +3129,63 @@ Every peer extracts in turn now, host-side, because the bag is the host's to gra
 
 Not a weak assertion in the sense this milestone has produced nine of. This one was correct, and stopped being *sufficient* when the design underneath it moved. Worth naming as a separate failure mode: a check can rot without ever becoming wrong.
 
+### The scenario outlived the scene it was measuring
+
+`_extraction()` walks the party and spends a Waystone per body. The **last** of those calls `_end_the_run()`, which changes scene — and Godot detaches the outgoing scene **synchronously**, so the next `await get_tree().physics_frame` in the loop runs on a node whose tree is already gone: *"Cannot call method 'get_nodes_in_group' on a null value."*
+
+Exactly ADR-117's trap, which killed `--menu-probe` on *"Cannot call method 'quit' on a null value"* and was fixed there by holding the tree before the walk. The lesson did not transfer, because this is a **new loop** rather than an edit to that one — worth recording, since "we already solved this" is only true of code that inherits the solution.
+
+**Two green runs failed to exercise it**, and the reason is the ordering: when a client extracts last, the host's copy of the scenario has already returned and never touches a detached tree. It surfaced on the sweep, where the timing differed. Not a flaky check and not a check that rotted — a real race that two passes happened to miss, which is the case for running a harness more than once before believing it.
+
+`is_inside_tree()` is the guard: the scenario notices it is no longer in the world it was measuring.
+
 ### One number that was written down twice
 
 The scenario waited a literal for the Waystone's channel. It reads `ExtractionTrait.channel_seconds` off the item now — a harness carrying its own copy of a game value is a second source of truth, and this milestone has already produced two: the revive row measured against `TuningProfile.player_health` while a Húskarl revives against 125 (ADR-127), and `--tithe-probe` assigning a `pact_rank` that had become derived (ADR-126).
+
+---
+
+## ADR-132 — Quitting costs what staying would have
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T15`** · **Settles ADR-050 Q10** · **Completes ADR-129's split**
+
+**Context:** `M3-T15`, the last of the three systems ADR-129 found inside `M3-T09`. `TEC-003` put mid-run state in `user://run.active` *"so a crash or quit mid-run can be resumed rather than silently converted into a death"*, and ADR-050 settled which way that cuts: **suspend with forced resume**, because *"disconnecting is never an escape from a bad run."*
+
+That sentence is the whole feature, and it is what every decision here serves.
+
+### A live run is the only run you may have
+
+`MainMenu._enter()` checks the file before it checks anything else. A live run is not a prompt, it is the answer — there is no fresh descent on offer while one is open.
+
+**Ahead of the class gate deliberately.** A suspended run already has a class, and asking again would open the one escape this exists to close: quit, come back as somebody else, keep the tree. The ordering is the rule.
+
+`_end_the_run()` is the only thing that clears it, reached by extraction and by the wipe and by nothing else. There is no path from the pause menu to it, which is the property rather than an implementation detail.
+
+### The generous resume was the real hazard
+
+The obvious failure of a suspend feature is that it lets somebody escape a bad run. The obvious failure of *fixing* that is the opposite: a resume that hands back a full floor makes quit-and-relaunch the best way to **farm** one, which turns a feature about not escaping a run into a tool for extending it.
+
+`stripped` is set the moment a floor lays its loot, and a resumed floor lays none. One flag rather than a ledger of what was taken, because the true sentence is about the floor — *you have already been through here* — and a ledger belongs to `M4-T01`, when a seed makes "this floor" mean something across processes.
+
+What is **not** restored: which enemies are dead, which rooms are cleared. `Q43` already says the Hunt repopulates cleared space, so a resumed floor is a populated one.
+
+### Opposite decision from `SaveFile`, on purpose
+
+An unreadable **profile** is kept (`M3-T06`, ADR-117) — a lineage is not replaceable, and destroying one because a parser was unhappy is the fault that ADR found by planting. An unreadable **run file** is dropped, because keeping it would block every future descent forever and what it costs is one run.
+
+Two files, two policies, and the asymmetry is the reasoning rather than an inconsistency.
+
+### `as Dictionary` throws where null was expected
+
+`read()` did `var run := parsed as Dictionary` on `JSON.parse_string`'s result. On a non-Dictionary Variant that **raises** — *"Invalid cast: could not convert value to 'Dictionary'"* — rather than yielding null, and the throw aborted the function **before** the branch that drops the bad file. So the exact case the branch existed for left the garbage on disk, which is the failure mode it was written to prevent, reached through the line meant to prevent it.
+
+`typeof(parsed) != TYPE_DICTIONARY` now. Second time in two tasks a Godot API has differed from its obvious reading, after `material_override` versus `set_surface_override_material` in the headless renderer (ADR-130).
+
+### An action the code under test swallowed
+
+The row proving a resumed floor lays no loot called `_spawn_loot()` and compared counts. It read *5 before, 5 after* and passed with the `stripped` check **deleted** — because `_fixtures_placed` was already true from the level's own build, so the second call laid nothing whatever the run file said. It was proof that calling `_spawn_loot()` twice does nothing, which was never in question.
+
+Tenth assertion this milestone that could not fail, and a **new variant**: the previous nine were setups that never established the precondition. This one established it correctly and then had its *action* silently swallowed by a guard inside the code under test. Clearing `_fixtures_placed` is what makes the call a resume rather than a repeat, and it is the only way one process can stand in for a relaunch.
 
 ---
 

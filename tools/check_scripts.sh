@@ -326,6 +326,24 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **A run you cannot walk away from** (`M3-T15`, ADR-050, ADR-132).
+	#
+	# ADR-050: *"disconnecting is never an escape from a bad run."* The load-
+	# bearing row is that a run stays open across everything except an outcome —
+	# and the one underneath it closes the exploit that a generous resume would
+	# open, since a re-laid floor turns quit-and-relaunch into farming.
+	#
+	# **No `^ERROR:` in this grep, deliberately**, on `--save-probe`'s precedent
+	# above: a dropped run file prints one on purpose, and the probe plants the
+	# garbage itself. `FAIL`, `SCRIPT ERROR` and the exit code are the signal.
+	run="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --run-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$run" | grep -qE 'FAIL|SCRIPT ERROR'; then
+		echo "FAIL quitting has to cost what staying would have" >&2
+		printf '%s\n' "$run" | grep -E '\[run\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **A dead player is still playing** (`M3-T14`, `DES-012`, ADR-130). The
 	# Vordr, and the readout `GATE M3 COOP` has named as a precondition since
 	# ADR-115 with no build ever having an answer for it.
@@ -682,6 +700,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "surplus tribute buys nodes and every node she charges for,"
 	echo "what you hold decides the swing and the pack decides the bag,"
 	echo "the fallen can see what is happening to them and go on playing,"
+	echo "a run stays open until it resolves and quitting is not an escape,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

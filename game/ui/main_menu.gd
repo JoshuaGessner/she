@@ -241,9 +241,24 @@ func _enter() -> void:
 	# at exactly those two moments. It sits between the profile and the
 	# Threshold rather than earlier, because the answer is *per life* and the
 	# profile is what knows whether this life has one.
+	# **A run already open is the only run you may have** (`M3-T15`, ADR-050).
+	#
+	# *"Quitting mid-run suspends; you resume into the same run"* — so a live
+	# `user://run.active` is not a prompt, it is the answer. There is no fresh
+	# descent on offer while one is open, which is what makes quitting cost
+	# exactly what staying would have cost.
+	#
+	# Ahead of the class gate below, deliberately: a suspended run already has
+	# a class, and asking again would be offering the one escape this exists to
+	# close — quit, come back somebody else, keep the tree.
+	if RunFile.exists():
+		print("[run] a run is still open — resuming it")
+		get_tree().change_scene_to_file(THRESHOLD)
+		return
 	if GameState.class_id == &"":
 		_choose_a_class()
 		return
+	RunFile.begin(GameState.class_id, GameState.pact_rank)
 	get_tree().change_scene_to_file(THRESHOLD)
 
 

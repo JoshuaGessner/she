@@ -491,6 +491,8 @@ func _ready() -> void:
 			_fallen_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
+		elif arg == "--run-probe":
+			_run_file_probe()
 		elif arg == "--vordr-probe":
 			_vordr_probe()
 		elif arg == "--stalker-probe":
@@ -2553,8 +2555,29 @@ func _spawn_loot() -> void:
 	# **The fixtures first, once, whatever the party size** (`M2-T17`, ADR-110).
 	# Guarded by its own flag rather than by `_loot_placed`, because the floor is
 	# topped up as players arrive and these must not be laid twice.
+	# **A resumed floor has already been stripped** (`M3-T15`). Without this,
+	# quitting and coming back re-lays every fixture and the run's loot doubles
+	# — which turns ADR-050's suspend into the best way to farm a floor, and
+	# makes a feature about *not* escaping a run into an exploit for extending
+	# one.
+	# **A probe measures the floor as built, never as resumed** (`M3-T15`).
+	#
+	# Same gate as `_carry_the_stash_down` above, and it earned itself the same
+	# way: a probe that inherits `user://run.active` measures a floor somebody
+	# else's run left behind. It happened immediately — planting *garbage parses
+	# as a run* leaves the garbage on disk by construction, because the plant is
+	# the line that drops it, and the next probe to boot found it, errored on
+	# it and failed the sweep. A plant restores the source and not `user://`.
+	if not _probing and bool(RunFile.read().get("stripped", false)):
+		print("[run] resumed floor — its loot is already carried or lost")
+		return
 	if not _fixtures_placed:
 		_fixtures_placed = true
+		# **This floor has now given up its loot** (`M3-T15`). Recorded when it
+		# is laid rather than when it is picked up, because the claim is about
+		# the floor: what a player did with it afterwards is their bag's
+		# business, and a resumed run keeps its bag.
+		RunFile.note({"stripped": true})
 		for row: Array in FIXTURES:
 			_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
 	var party: int = PartyScaling.size_of(self)
@@ -2930,6 +2953,11 @@ func _settle_if_nobody_is_left() -> void:
 func _end_the_run() -> void:
 	if not multiplayer.is_server():
 		return
+	# **The one place a run closes** (`M3-T15`, ADR-050). Reached by extraction
+	# and by the wipe and by nothing else, which is exactly the property that
+	# makes quitting not an escape: there is no path from the pause menu to
+	# here.
+	RunFile.clear()
 	var my_haul: Array = []
 	var my_loss: bool = false
 	var mine_found: bool = false
@@ -3772,6 +3800,15 @@ func _extraction() -> void:
 				if not other.is_out():
 					still_in += 1
 			print("[extract] one out, %d still on the floor" % still_in)
+		# **The last one out takes the floor with them** (ADR-117's trap).
+		#
+		# `_end_the_run` changes scene, and Godot detaches the outgoing scene
+		# **synchronously** — so the next `await get_tree().physics_frame` in
+		# this loop runs on a node whose tree is already gone: *"Cannot call
+		# method 'get_nodes_in_group' on a null value"*. The scenario has to
+		# notice it is no longer in the world it was measuring.
+		if not is_inside_tree():
+			return
 
 
 ## What a Waystone costs in seconds, read off the item rather than from a number
@@ -4824,3 +4861,131 @@ func _find_readout(from: Node) -> FallenReadout:
 		if deeper != null:
 			return deeper
 	return null
+
+
+## **A run you cannot walk away from** (`M3-T15`, ADR-050, ADR-132).
+##
+## `TEC-003` puts mid-run state in `user://run.active` so a quit is *suspended*
+## rather than silently converted into a death, and ADR-050 settles which way
+## that cuts: **suspend with forced resume**, because *"disconnecting is never
+## an escape from a bad run."*
+##
+## Driven against the file rather than through the menu, because what is being
+## asserted is what the **file** makes impossible — the menu is one caller of
+## it, and `--menu-probe` already presses Descend.
+func _run_file_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# A clean slate, so nothing below is reading a run left by an earlier probe.
+	RunFile.clear()
+	print("[run] nothing open        exists=%s (want false)" % RunFile.exists())
+	if RunFile.exists():
+		problems.append("a run file survived `clear()`, so every row below is "
+			+ "about somebody else's run")
+		_report(problems, "run")
+		return
+
+	# ─ 1. a descent opens one, and it holds who went down ─
+	RunFile.begin(&"huskarl", 3)
+	var opened: Dictionary = RunFile.read()
+	print("[run] opened              class '%s', rank %d, stripped=%s" % [
+		opened.get("class_id", ""), int(opened.get("rank", 0)),
+		opened.get("stripped", true)])
+	if not RunFile.exists():
+		problems.append("a descent opened no run file — `TEC-003` puts mid-run "
+			+ "state in one precisely so a crash is resumable")
+	if String(opened.get("class_id", "")) != "huskarl" \
+			or int(opened.get("rank", 0)) != 3:
+		problems.append("the run file does not say who went down, so a resume "
+			+ "cannot put the same person back")
+
+	# ─ 2. **quitting is not an escape** ─
+	#
+	# The load-bearing row. A run stays open across everything except an
+	# outcome, so there is no sequence of quits that ends one.
+	print("[run] still open          exists=%s (want true)" % RunFile.exists())
+	if not RunFile.exists():
+		problems.append("the run closed without an outcome — ADR-050's whole "
+			+ "sentence is that disconnecting is never an escape from a bad "
+			+ "run, and a run that closes on a quit is exactly that escape")
+
+	# ─ 3. notes merge rather than replace ─
+	RunFile.note({"stripped": true})
+	var noted: Dictionary = RunFile.read()
+	print("[run] noted               stripped=%s, class still '%s'" % [
+		noted.get("stripped", false), noted.get("class_id", "")])
+	if not bool(noted.get("stripped", false)):
+		problems.append("a note did not stick, so the floor cannot record that "
+			+ "it has already been stripped")
+	if String(noted.get("class_id", "")) != "huskarl":
+		problems.append("noting one field dropped the others — a caller that "
+			+ "knows one fact would have to know all of them, and the first one "
+			+ "to forget erases the run")
+
+	# ─ 4. **a resumed floor lays no loot** ─
+	#
+	# The exploit this closes: without it, quit-and-relaunch re-lays every
+	# fixture and a run's loot doubles — a feature about not escaping a run
+	# turned into the best way to extend one.
+	# **As a fresh process would arrive**, not as this one already has.
+	#
+	# `_fixtures_placed` is already true here — this floor laid its loot at
+	# build — so simply calling `_spawn_loot()` again lays nothing whatever the
+	# run file says, and the row passed identically with the `stripped` check
+	# deleted. Clearing it is what makes this a *resume* rather than a repeat
+	# call, and it is the only way a single process can stand in for a relaunch.
+	var before: int = _loot_on_the_floor()
+	_fixtures_placed = false
+	_loot_placed = false
+	# The gate above skips the run file while `_probing`, which is right for
+	# every other probe and would make this row untestable — so this one turns
+	# it off across the call it is actually measuring.
+	_probing = false
+	_spawn_loot()
+	_probing = true
+	await _hold(0.4)
+	var after_resume: int = _loot_on_the_floor()
+	print("[run] stripped floor      %d item(s) before, %d after a re-lay" % [
+		before, after_resume])
+	if after_resume > before:
+		problems.append(("a resumed floor laid %d more item(s) — quitting and "
+			+ "coming back would double a run's loot, which makes ADR-050's "
+			+ "suspend the best way to farm a floor")
+			% (after_resume - before))
+
+	# ─ 5. an outcome closes it, and only an outcome ─
+	RunFile.clear()
+	print("[run] after an outcome    exists=%s (want false)" % RunFile.exists())
+	if RunFile.exists():
+		problems.append("the run outlived its outcome, so the next descent "
+			+ "would resume a run that already resolved")
+
+	# ─ 6. **a file nobody can read costs a run, never a lineage** ─
+	#
+	# The opposite decision from `SaveFile` (`M3-T06`), and deliberately: an
+	# unreadable profile is **kept**, because a lineage is not replaceable. An
+	# unreadable run file is dropped, because keeping it would block every
+	# future descent forever and what it costs is one run.
+	var litter: FileAccess = FileAccess.open(RunFile.PATH, FileAccess.WRITE)
+	litter.store_string("half a run, from a process that died")
+	litter.close()
+	var garbage: Dictionary = RunFile.read()
+	print("[run] unreadable          read %d field(s), file still there=%s" % [
+		garbage.size(), RunFile.exists()])
+	if not garbage.is_empty():
+		problems.append("garbage parsed as a run, which would resume a player "
+			+ "into a floor built from nothing")
+	if RunFile.exists():
+		problems.append("an unreadable run file was kept — it would block every "
+			+ "descent from here on, and unlike a profile it is worth one run")
+
+	_report(problems, "run")
+
+
+## What is lying on the floor, ignoring what anybody is carrying.
+func _loot_on_the_floor() -> int:
+	var count: int = 0
+	for node: Node in get_tree().get_nodes_in_group("world_items"):
+		if is_instance_valid(node) and not node.is_queued_for_deletion():
+			count += 1
+	return count
