@@ -326,6 +326,23 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Respec** (`M3-T13`, `DES-004`, ADR-136). Two claims from the document
+	# and one consequence of ADR-126: it costs real resources, it **cannot
+	# change your keystone mid-life**, and giving a node back lowers rank —
+	# so it lowers the Tithe, which is the coupling running in the direction it
+	# is usually read backwards.
+	#
+	# The row that only this task can make: a respec is the **one thing in the
+	# game that changes a tree inside a life**, so it is the only place the
+	# effect push can be caught not happening (`M3-T12` found it by accident).
+	respec="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/chamber.tscn -- --respec-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$respec" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a build has to be a commitment" >&2
+		printf '%s\n' "$respec" | grep -E '\[respec\]|\[pact\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The Wing** (`M3-T12`, `DES-004`, ADR-135). Thirteen nodes against
 	# machinery `M3-T01` already proved, so the row that matters is the one no
 	# other check can make: **every effect tag reaches a system**. A node whose
@@ -748,6 +765,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "she remembers three things and they come back Scarred,"
 	echo "a run ends on evidence and never interrupts itself to say so,"
 	echo "the Wing gets out quietly and every node it sells does something,"
+	echo "a build can be reconsidered and a keystone cannot,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

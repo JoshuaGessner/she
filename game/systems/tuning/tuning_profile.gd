@@ -259,6 +259,18 @@ extends Resource
 ## One number for both the Waystone and the Shaft, because *Windward* and
 ## *Swift Seal* are the same sentence pointed at the two ways off a floor, and
 ## two numbers would be two things to drift.
+## **What a respec gives back** ⟨tune⟩ (`M3-T13`, `DES-004`).
+##
+## `DES-004`: *"a respec exists but costs real resources."* The resource is the
+## Boon that does not come back — no new currency, no second economy, and the
+## cost scales with how much of a build you are unmaking, which is the right
+## shape: reconsidering one lesser node should not cost what abandoning a whole
+## path does.
+##
+## Below 1.0 or a respec is free and the choice stops being one; above 0 or it
+## is a delete rather than a reconsideration, and `validate()` refuses both.
+@export var respec_refund: float = 0.6
+
 @export var wing_channel_fraction: float = 0.55
 ## **Never Where She Struck** ⟨tune⟩ (`M3-T12`, `DES-004`): *"return to where
 ## you stood 3 seconds ago, once per floor."*
@@ -573,6 +585,11 @@ func validate() -> PackedStringArray:
 		problems.append(("block_damage_fraction is %.2f — it must sit in [0, 1), "
 			+ "because DES-009 says a block reduces damage and never negates it")
 			% block_damage_fraction)
+	if respec_refund <= 0.0 or respec_refund >= 1.0:
+		problems.append(("respec_refund is %.2f — at or above 1.0 a respec is "
+			+ "free and `DES-004`'s *costs real resources* stops being true; at "
+			+ "or below zero it deletes a node rather than reconsidering it")
+			% respec_refund)
 	if boon_cap_fraction <= 0.0 or boon_cap_fraction > 1.0:
 		problems.append(("boon_cap_fraction is %.2f — at or below zero nothing "
 			+ "converts and the tree is unreachable; above 1.0 a cycle earns "

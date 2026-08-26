@@ -3333,5 +3333,49 @@ Every effect tag is looked up in the source of the systems that could read it. A
 
 ---
 
+## ADR-136 — A build can be reconsidered; a keystone cannot
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T13`** · **Closes `M3`** · **Settles `DES-004`'s respec ⟨tune⟩**
+
+**Context:** `M3-T13`, deferred out of `M3-T01` by ADR-125 on ADR-064's sanctioned-exception test and placed after `M3-T12` deliberately — a respec into an Aspect that does not exist is a resource cost tuned against a decision nobody can make. With the Wing built there are two paths, and the choice is real.
+
+`DES-004`: *"A respec exists but costs real resources and cannot change your keystone mid-life ⟨tune⟩. Locking the keystone is what makes the choice matter."*
+
+### The resource is the Boon that does not come back
+
+No new currency and no second economy. A reclaimed node refunds `respec_refund` of what it cost, and the shortfall is the price — which scales with how much of a build is being unmade, and that is the right shape: reconsidering one lesser node should not cost what abandoning a whole path does.
+
+`validate()` refuses a fraction at or above 1.0 (a free respec is not a choice) and at or below zero (that is a delete, not a reconsideration).
+
+### Two refusals, and only one is in the document
+
+**The keystone does not come back.** `DES-004` verbatim, and it is what makes a build a commitment rather than a loadout. Death unmakes it; nothing else does.
+
+**A node something else stands on does not come back either.** This one is not in the document and has to exist: `why_not` is asked when a node is *taken* and never again, so without it a tree can be left holding a node whose route was reclaimed underneath it, and nothing in the build would ever object. It also protects the keystone's chain for free, which is the same argument `BULWARK` made at `M3-T02` — one rule, stated where it belongs, and the special case falls out.
+
+### Rank falls, and so does the Tithe
+
+Rank is derived from `taken` (ADR-126), so giving nodes back lowers it — and `tithe_due()` follows. Measured: rank 4 owing 200 becomes rank 3 owing 140 for one lesser node.
+
+That reads like a loophole — strip the tree before a settle and owe less. **Kept, deliberately.** A player who does it has paid twice, in the refund that does not come back and in the build they no longer have, and `DES-003`'s coupling is supposed to run in both directions: power went down, so the obligation went down. Closing it would need a rule the design does not ask for, and the round trip costs the shortfall twice.
+
+### The row only this task can make
+
+A respec is the **one thing in the game that changes a tree inside a life.** `M3-T12` found by accident that effect tags were pushed into `Inventory` and `Stamina` exactly once, in `_ready()` — invisible in play, because the spawn payload arrives before a bag holds anything. This is the only place that can be caught deliberately, and the probe asserts it: a tag reaches the bag, and stops reaching it when the tree loses the node.
+
+### The probe failed on its own premise twice, and once on its own success
+
+Twice before it ran: a route to the keystone that skipped two prerequisites, and a life with no class sworn — `take_node` refused correctly both times and the setup guard said so, which is the right way round.
+
+Then a plant reported **NOT CAUGHT** against a probe that had detected the fault perfectly. The row has a **guard** ("the tag never reached the bag at all") and a **claim** ("the bag kept a rule the tree no longer has"), and the plant tripped the guard while the expectation named the claim. The guard exists because a row asserting the bag forgot something is meaningless if it never learned it — this milestone's most repeated lesson, built in on purpose, and then the harness tripped over it working.
+
+**A plant can legitimately trip either half, and the expectation has to name the one it actually produces.**
+
+### `M3` closes here
+
+Fifteen tasks. The milestone's goal was *prove meta-progression makes runs more interesting, not easier* — and what is now true is that the pact moves, costs, is capped by your own rank, survives death in three named things, is spent on two Aspects with real drawbacks, and can be reconsidered at a price that never includes the one thing you committed to.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

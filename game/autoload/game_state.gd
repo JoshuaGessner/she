@@ -527,6 +527,62 @@ func why_not(id: StringName) -> String:
 ## **The only writer of `taken`.** Rank, the Tithe it raises and everything the
 ## floor scales by all fall out of this one list, so a second path into it would
 ## be a second way to change the difficulty of the game.
+## **Why you cannot give this one back**, or empty if you can (`M3-T13`).
+##
+## A sentence rather than a bool, on `why_not`'s rule: a tree that greys
+## something out and will not say why is `PRO-005` §5's unexplainable loss moved
+## from the floor into a menu.
+##
+## Two refusals, and the first is `DES-004` verbatim.
+func why_not_reclaim(id: StringName) -> String:
+	if not taken.has(id):
+		return "that is not yours to give back"
+	var node: AspectNode = AspectCatalogue.by_id(id)
+	if node == null:
+		# A node this build does not have. `boon_spent` keeps it for the reason
+		# given there; reclaiming it would refund a cost nothing can price.
+		return "this build does not have that node"
+	if node.tier == AspectNode.Tier.KEYSTONE:
+		# **`DES-004`, in as many words**: a respec *"cannot change your
+		# keystone mid-life. Locking the keystone is what makes the choice
+		# matter."* Everything else about a build is a reconsideration; this is
+		# the one thing you committed to, and death is what unmakes it.
+		return "she does not forget a keystone while you live"
+	for other: StringName in taken:
+		var dependent: AspectNode = AspectCatalogue.by_id(other)
+		if dependent != null and dependent.requires.has(id):
+			# Prerequisite integrity. Without this a tree can be left with a
+			# node whose route was reclaimed underneath it — which nothing in
+			# the build would refuse afterwards, because `why_not` is asked when
+			# a node is *taken* and never again.
+			return "%s stands on it" % dependent.display()
+	return ""
+
+
+## **Give a node back** (`M3-T13`, `DES-004`). Returns whether it happened.
+##
+## The refund is deliberately partial: `DES-004` says a respec *"costs real
+## resources"*, and the resource is the Boon that does not come back. No new
+## currency and no second economy — the cost scales with how much of a build is
+## being unmade, which is the right shape.
+##
+## **Rank falls with it**, because rank is derived from `taken` (ADR-126) — and
+## so does the Tithe. That is `DES-003`'s coupling running in the direction it
+## is usually read backwards: power went down, so the obligation went down.
+## Considered and kept: a player who strips a tree to owe her less has paid for
+## it twice over, in the refund and in the build, which is exactly the trade the
+## design wants to be available rather than a loophole to close.
+func reclaim(id: StringName) -> bool:
+	if why_not_reclaim(id) != "":
+		return false
+	var node: AspectNode = AspectCatalogue.by_id(id)
+	var paid: int = Config.tuning.node_cost(node.tier)
+	taken.erase(id)
+	boon += int(floor(paid * Config.tuning.respec_refund))
+	_persist()
+	return true
+
+
 func take_node(id: StringName) -> bool:
 	var refused: String = why_not(id)
 	if refused != "":

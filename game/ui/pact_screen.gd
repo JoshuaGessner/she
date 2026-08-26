@@ -133,6 +133,19 @@ func _row(node: AspectNode) -> Control:
 		row.add_child(MenuStyle.line(tr(String(node.description_key)), 14))
 	if owned:
 		row.add_child(MenuStyle.line("taken", 13, MenuStyle.WARM))
+		# **Respec** (`M3-T13`, `DES-004`). On the node itself rather than
+		# behind a mode: giving one back is the same kind of act as taking it,
+		# and a screen with a "respec mode" would make unmaking a build feel
+		# like a different system from making one.
+		var back: String = GameState.why_not_reclaim(node.id)
+		var refund: int = int(floor(price * Config.tuning.respec_refund))
+		var give: Button = MenuStyle.button("give it back — %d boon" % refund)
+		give.custom_minimum_size = Vector2(ROW_WIDTH, 30.0)
+		give.disabled = back != ""
+		give.pressed.connect(func() -> void: _give_back(node))
+		row.add_child(give)
+		if back != "":
+			row.add_child(MenuStyle.line(back, 13, MenuStyle.DIM))
 	elif refused != "":
 		row.add_child(MenuStyle.line(refused, 13, MenuStyle.DIM))
 	return row
@@ -141,6 +154,29 @@ func _row(node: AspectNode) -> Control:
 func _take(node: AspectNode) -> void:
 	if GameState.take_node(node.id):
 		_redraw()
+
+
+func _give_back(node: AspectNode) -> void:
+	if GameState.reclaim(node.id):
+		_redraw()
+
+
+## Used by `--respec-probe`: press a *give it back* without a mouse, on the same
+## rule `press` states — the check has to exercise the path a click takes.
+func press_give_back(id: StringName) -> bool:
+	var node: AspectNode = AspectCatalogue.by_id(id)
+	if node == null:
+		return false
+	var refund: int = int(floor(
+		Config.tuning.node_cost(node.tier) * Config.tuning.respec_refund))
+	var label: String = "give it back — %d boon" % refund
+	for child: Node in find_children("*", "Button", true, false):
+		var give := child as Button
+		if give == null or give.text != label or give.disabled:
+			continue
+		give.pressed.emit()
+		return true
+	return false
 
 
 ## Used by `--pact-probe`: press a row without a mouse, so the check exercises

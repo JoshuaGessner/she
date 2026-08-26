@@ -121,6 +121,8 @@ func _ready() -> void:
 			_chamber_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
 			_tithe_probe()
+		elif arg == "--respec-probe":
+			_respec_probe()
 		elif arg == "--deeds-probe":
 			_deeds_probe()
 		elif arg == "--legacy-probe":
@@ -1199,5 +1201,138 @@ func _deeds_probe() -> void:
 			+ "nothing opens is a banner that does not exist")
 	elif banner.size.x < 2.0:
 		problems.append("the banner has no rect (ADR-111)")
+
+	_report_pact(problems)
+
+
+## **Respec** (`M3-T13`, `DES-004`, ADR-136).
+##
+## *"A respec exists but costs real resources and cannot change your keystone
+## mid-life. Locking the keystone is what makes the choice matter."* Two claims,
+## and the second is the one that makes a build a commitment rather than a
+## loadout.
+##
+## Every row asserts a **state change** (ADR-134): a value read before and after
+## the same act, so no row can pass on a number that was already right.
+func _respec_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var tuning: TuningProfile = Config.tuning
+
+	# A life with a route bought and its keystone taken.
+	GameState.taken.clear()
+	GameState.boon = 40
+	GameState.legacy.clear()
+	# **A life to spend it in.** `why_not` refuses every node with *no life has
+	# been sworn yet* otherwise, and the Húskarl is the class that may enter the
+	# Hoard — so the probe failed on its own premise rather than on the code,
+	# which is the right way round and took two passes to read properly.
+	GameState.class_id = &"huskarl"
+	# The real route to the keystone, read off the data rather than guessed:
+	# sure_grip → steady_step → ballast, long_haul, and coin_sense → quiet_hands
+	# as the leaf this probe gives back. The first draft skipped two
+	# prerequisites and failed on its own setup, which is the right way round —
+	# `take_node` refused, exactly as it should have.
+	for step: StringName in [&"hrd_sure_grip", &"hrd_steady_step",
+			&"hrd_ballast", &"hrd_long_haul", &"hrd_weight_of_kings",
+			&"hrd_coin_sense", &"hrd_quiet_hands"]:
+		if not GameState.take_node(step):
+			problems.append("could not build the route to a keystone (%s), so "
+				% step + "nothing below is about a life that had one")
+			_report_pact(problems)
+			return
+	var rank_before: int = GameState.pact_rank
+	var owed_before: int = GameState.tithe_due()
+	var boon_before: int = GameState.boon
+	print("[respec] a built life        rank %d, owes %d, %d node(s), boon %d" % [
+		rank_before, owed_before, GameState.taken.size(), boon_before])
+
+	# ─ 1. **the keystone does not come back** ─
+	var keystone_says: String = GameState.why_not_reclaim(&"hrd_weight_of_kings")
+	print("[respec] the keystone        '%s'" % keystone_says)
+	if keystone_says == "":
+		problems.append("a keystone could be given back — `DES-004` says a "
+			+ "respec **cannot change your keystone mid-life**, and locking it "
+			+ "is what makes the choice matter rather than a loadout")
+
+	# ─ 2. a node something else stands on does not come back either ─
+	var footing_says: String = GameState.why_not_reclaim(&"hrd_steady_step")
+	print("[respec] a node stood on     '%s'" % footing_says)
+	if footing_says == "":
+		problems.append("a prerequisite could be given back, which leaves a "
+			+ "taken node with its route reclaimed underneath it — nothing "
+			+ "refuses that afterwards, because `why_not` is asked when a node "
+			+ "is taken and never again")
+
+	# ─ 3. **a leaf does**, and it costs real resources ─
+	var leaf_price: int = tuning.node_cost(
+		AspectCatalogue.by_id(&"hrd_quiet_hands").tier)
+	var gave_back: bool = GameState.reclaim(&"hrd_quiet_hands")
+	var refunded: int = GameState.boon - boon_before
+	print("[respec] gave back a leaf    %s, paid %d, got %d back" % [
+		gave_back, leaf_price, refunded])
+	if not gave_back:
+		problems.append("nothing could be given back at all, so a respec does "
+			+ "not exist")
+	if refunded >= leaf_price:
+		problems.append(("a respec refunded %d of %d — `DES-004` says it "
+			+ "**costs real resources**, and the resource is the Boon that does "
+			+ "not come back") % [refunded, leaf_price])
+	if refunded <= 0:
+		problems.append(("a respec refunded nothing, which deletes a node "
+			+ "rather than reconsidering it"))
+
+	# ─ 4. rank falls with the tree, and so does what she expects ─
+	print("[respec] and the pact        rank %d → %d, owes %d → %d" % [
+		rank_before, GameState.pact_rank, owed_before, GameState.tithe_due()])
+	if GameState.pact_rank > rank_before:
+		problems.append("giving a node back raised rank")
+	if GameState.taken.has(&"hrd_quiet_hands"):
+		problems.append("the node is still in the tree after being given back")
+
+	# ─ 5. **the body notices** ─
+	#
+	# The row `M3-T12` bought. Effect tags were pushed into `Inventory` and
+	# `Stamina` once, in `_ready`, and a tree that changed changed nothing —
+	# which is invisible everywhere except here, because a respec is the only
+	# thing in the game that changes a tree **inside a life**.
+	var player: Player = _player
+	if player == null:
+		problems.append("no body in the Chamber, so nothing here says whether a "
+			+ "respec reaches one")
+	else:
+		player.effects = PackedStringArray(["weightless_materials"])
+		await get_tree().process_frame
+		var before: bool = player.inventory.weightless_materials
+		player.effects = PackedStringArray()
+		await get_tree().process_frame
+		var after: bool = player.inventory.weightless_materials
+		print("[respec] the body notices    %s → %s" % [before, after])
+		if not before:
+			problems.append("the tag never reached the bag at all, so the row "
+				+ "below is about two identical nothings")
+		elif after:
+			problems.append("the bag kept a rule the tree no longer has — a "
+				+ "respec that does not reach the systems reading it changes a "
+				+ "list and nothing else")
+
+	# ─ 6. the screen offers it, and refuses the keystone on the screen too ─
+	var screen := PactScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	# **A leaf.** The first draft pressed Ballast, which the keystone stands on —
+	# so the button was correctly disabled and the row caught the probe's own
+	# bad choice rather than a fault. Coin-Sense is a leaf once Quiet Hands has
+	# been given back above, which is the state this screen is being shown.
+	var took_back: bool = screen.press_give_back(&"hrd_coin_sense")
+	var refused_keystone: bool = not screen.press_give_back(&"hrd_weight_of_kings")
+	print("[respec] on the screen       gave back=%s, keystone refused=%s" % [
+		took_back, refused_keystone])
+	if not took_back:
+		problems.append("no *give it back* on a taken node — the rules are "
+			+ "correct and no click reaches them, which is `M2-T18` exactly")
+	if not refused_keystone:
+		problems.append("the screen offered a keystone back, so the refusal is "
+			+ "in `GameState` and not in front of the player")
+	screen.queue_free()
 
 	_report_pact(problems)
