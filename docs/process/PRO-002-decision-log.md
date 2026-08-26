@@ -3001,5 +3001,45 @@ It goes through `tribute()` now, one carried haul paid the way a run pays it. Ei
 
 ---
 
+## ADR-129 — "Extract and wait" was three systems and the wrong one first
+
+**Date:** 2026-08-26 · **Status:** accepted · **Splits `M3-T09`** · **Adds `M3-T14`, `M3-T15`** · **Follows ADR-120, ADR-125**
+
+**Context:** Picking up `M3-T09` and reading it against `DES-012`. The checkbox reads *"individual extraction, with somewhere to be while the rest of the party finishes"*, and carries two more systems in its note: the **Vörðr**, and **`user://run.active`**.
+
+Third time this milestone. ADR-120 found *"two classes complete"* was three systems; ADR-125 found *"Tribute → Boon → Aspects"* was four. The tell is the same each time — a checkbox whose *note* introduces a noun the title does not contain.
+
+### Three tasks
+
+| | |
+|---|---|
+| **`M3-T14`** The Vörðr | Death → ward-spirit: mobile, safe, unable to fight or carry. And the **readout** — a downed player being able to tell what is happening to them. |
+| **`M3-T09`** Extract and wait | Individual extraction, reusing the watching state `M3-T14` builds. |
+| **`M3-T15`** `user://run.active` | ADR-050's suspend-with-forced-resume, and the file that describes it. |
+
+### The gate precondition is not on the task that names it
+
+`GATE M3 COOP` inherited three preconditions from `GATE M2 COOP` (ADR-115), and the third is *"the downed player can tell what is happening to them while down — fails ⇒ the Vörðr readout (`M3-T09`)."*
+
+That is a claim about a **downed** player, not an extracted one. An extracted player is alive and out; a downed player is bleeding and deciding. They share a camera and nothing else. So the gate-blocking work is `M3-T14`, and `M3-T09` — the task the gate's own text points at — blocks nothing.
+
+Worth stating plainly because ADR-124 §3 moved `M3-T09` ahead of `M3-T05` and `M3-T08` **on the strength of that precondition**, and the reasoning was right about the milestone and wrong about which half of the task carried it. The ordering survives the correction; the label on it does not.
+
+### Return is not in the Vörðr task, and that is not a stub
+
+`DES-012` gives the Vörðr two exits, and they are mutually exclusive: **Wait** (a teammate carries your ember out, your LIFE survives) and **Return** (you walk back in with nothing, your LIFE is over).
+
+**Wait already works** — `M2-T05` built downed → ember → carried out, and ADR-114 made the Gullsjúkr stop for an ember. What is missing is the ghost between dying and being rescued.
+
+**Return requires a LIFE to end**, and `DES-012` §32 says so in as many words: *"walking back in with nothing requires a LIFE to end, and that arrives with `M3`."* A LIFE ending is the Legacy screen — which is `M3-T05`. So Return ships **there**, with the flow that ends a life, rather than being approximated here.
+
+That is a **gate decision**, not a stub (ADR-064): one path built completely, the other built where its dependency lives, and neither half-present. The sanctioned-exception test is met anyway — a named task with a permanent ID, and a milestone by which it exists.
+
+### What this does not change
+
+The milestone still ends where it ended. Nothing is added to `M3` that was not already inside `M3-T09`'s note, and nothing is deferred out of it. This is the same work with three checkboxes instead of one, which is the difference between a milestone that can report progress and one that reports a single unfinished item for three tasks' worth of building.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
