@@ -61,9 +61,18 @@ const PADDING: float = 18.0
 const HEADER: float = 64.0
 const FOOTER: float = 30.0
 ## The band between the grid and the prompts, holding whatever the cursor is
-## over (`M2-T19`, ADR-112). Two lines of room: the descriptions are one
-## sentence and one sentence wraps.
-const BLURB: float = 34.0
+## over (`M2-T19`, ADR-112). A **name** line and up to **two** wrapped lines of
+## description, which is three, not two.
+##
+## It was 34 px and needs 58 by the font's own metrics (ADR-140). The third line landed inside
+## the footer and drew *"make one and regret continuously."* straight through
+## *"lmb/X take & place"* — reported from play as text on top of other text.
+##
+## Nothing could have seen it. `overflowing()` measured the width of the header
+## and the footer and never looked at this band at all, and every bag
+## screenshot ever taken had **nothing under the cursor**, so the one region
+## that draws variable-height text had never appeared in a photograph.
+const BLURB: float = 60.0
 const BLURB_TEXT: int = 12
 ## The header line sits to the right of the word BAG; this is that gap.
 const HEADER_INSET: float = 46.0
@@ -180,6 +189,14 @@ func cursor() -> Vector2:
 
 
 ## What `drop` should act on: the item in hand, or the one under the cursor.
+## Screen point at the middle of the first item in the bag, so `--bag-shot` can
+## put the pointer on something without knowing this file's geometry.
+func first_item_middle() -> Vector2:
+	for item: ItemInstance in _inventory.items():
+		return _cell_rect(item.cell, item.footprint()).get_center()
+	return _grid_origin()
+
+
 func hovered() -> ItemInstance:
 	if _held != null:
 		return _held
@@ -366,6 +383,47 @@ func overflowing() -> PackedStringArray:
 		if wide > panel.size.x - PADDING * 2.0:
 			spilled.append("footer is %.0f px in %.0f px: %s" % [
 				wide, panel.size.x - PADDING * 2.0, line])
+
+	# **And whether the bands collide, which is a different question** (ADR-140).
+	#
+	# Everything above asks *does this line fit its width*. Nothing asked *does
+	# this block fit its height*, and the blurb is the one region whose height
+	# is not fixed: a name line plus up to two wrapped description lines. At
+	# `BLURB = 34` the third landed inside the footer and drew text through
+	# text, with every width row green.
+	#
+	# Measured against the font rather than against a remembered number, so
+	# raising `BLURB_TEXT` or allowing a third description line fails here
+	# instead of on somebody's screen.
+	var line_height: float = font.get_height(BLURB_TEXT)
+	var needed: float = 11.0 + 13.0 + line_height * 2.0
+	if needed > BLURB:
+		spilled.append(("the blurb needs %.0f px and has %.0f — a name line and "
+			+ "two wrapped lines, and the overflow lands in the prompts")
+			% [needed, BLURB])
+
+	# **And the weight inside each cell** (ADR-140). `0.04 kg` overflowed a 36 px
+	# cell and rendered as `0.04 k`, which a player reads as a broken renderer
+	# rather than as a weight. Checked per item rather than against a worst
+	# case, because footprint width is what decides it and the narrowest things
+	# in this game are the lightest.
+	#
+	# **It is coarser than the screen it defends.** Restoring the unit does not
+	# fail this row: the headless dummy renderer's font metrics are a few pixels
+	# more generous than the real one, so a marginal overflow measures as a fit
+	# here and clips in the window. Planting a long string does fail it, so the
+	# row is live rather than decorative — but the four pixels that started this
+	# were caught by a **photograph**, which is why `--bag-shot` now hovers.
+	for item: ItemInstance in _inventory.items():
+		var cell_room: float = item.footprint().x * (CELL + GAP) - GAP - 8.0
+		var weight: String = _kilograms(item.weight())
+		if item.footprint().x <= 1:
+			weight = weight.replace(" kg", "")
+		var drawn_at: float = font.get_string_size(
+			weight, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		if drawn_at > cell_room:
+			spilled.append("%s's weight is %.0f px in %.0f px: %s" % [
+				item.definition.id, drawn_at, cell_room, weight])
 	return spilled
 
 
@@ -556,8 +614,16 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	var text_colour := Color(TEXT_COLOUR, alpha)
 	draw_string(font, rect.position + Vector2(5.0, 16.0), item.label(seat),
 		HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, 13, text_colour)
+	# **The unit is dropped in a one-cell footprint** (ADR-140). `0.04 kg` is
+	# 40 px of text in 36 px of cell and rendered as `0.04 k`, which reads as a
+	# rendering bug rather than as a weight. Every number in this panel is
+	# kilograms and the header says so two inches above, so the digits are the
+	# part worth keeping — clip-free beats a unit nobody was in doubt about.
+	var weight: String = _kilograms(item.weight())
+	if item.footprint().x <= 1:
+		weight = weight.replace(" kg", "")
 	draw_string(font, rect.position + Vector2(5.0, rect.size.y - 6.0),
-		_kilograms(item.weight()), HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0,
+		weight, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0,
 		12, Color(DIM_TEXT, alpha))
 
 

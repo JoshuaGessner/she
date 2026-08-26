@@ -420,6 +420,17 @@ extends Resource
 ## committal system reads as unresponsive rather than weighty.
 @export var swing_buffer_window: float = 0.25
 
+## **How often an empty hand is allowed to say so** ⟨tune⟩ (ADR-140).
+##
+## Swinging with nothing in your hand used to do **nothing at all** — no sound,
+## no motion, no refusal — because `request_swing` returns false when nothing is
+## wielded. A dead button is not an absent feature, it is a broken one, and
+## principle 4 has no sentence for it.
+##
+## A gap rather than a cue per press: attack is held down under pressure, and a
+## refusal that fires every frame is a rattle nobody can read as a refusal.
+@export var empty_hand_gap: float = 0.4
+
 @export_group("Enemy")
 @export var enemy_health: float = 60.0
 @export var enemy_attack_damage: float = 34.0

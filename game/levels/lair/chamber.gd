@@ -337,7 +337,8 @@ func _the_offer() -> String:
 		var short: int = per - GameState.boon_progress
 		return ("her aspects   nothing yet — %d more tribute *above* the tithe "
 			+ "buys the first") % short
-	return "her aspects   %d boon unspent — hold E at the pile" % GameState.boon
+	return "her aspects   %d boon unspent — hold %s at the pile" % [
+		GameState.boon, ControlsScreen.glyphs_for("interact")]
 
 
 ## The tree, over the room rather than instead of it (ADR-102's habit): the

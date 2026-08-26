@@ -3555,5 +3555,52 @@ Five plants, none uncaught: the fire typing its own list, the bag typing its own
 
 ---
 
+## ADR-140 — A dead button and text on top of text
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T19`** · **Reported from play**
+
+**Context:** the last two items from the first play of the `M3` build. *"No weapon"* — after ADR-138 explained why there was none — and *"the UI is showing some text on top of others in the inventory."*
+
+### An empty hand said nothing at all
+
+`MeleeWeapon.request_swing` returns `false` when nothing is wielded, and did nothing else. No sound, no motion, no refusal. **Indistinguishable from a broken build**, and principle 4 has no one-sentence explanation for *the button does nothing*.
+
+**Deliberately not an unarmed attack.** A punch is new combat content — reach, damage, timing, and a place among `DES-009`'s five verbs — and inventing one here would be answering a legibility question with a balance change. This is the refusal, said out loud.
+
+**Two channels**, because `DES-018` requires the build to be completable muted: a dull `THUMP`, and the reticle flinching **inward** — the same four ticks it opens outward when a thing comes into reach, run backwards. Motion rather than a new symbol, on `Reticle`'s own standing rule, and the two never draw at once because nothing is in reach when this fires.
+
+`empty_hand_gap` ⟨tune⟩ because attack is held down under pressure and a cue every frame is a rattle nobody reads as a refusal. Two rows, not one: **without the gap it rattles, without the tick it fires once per life and goes silent** — which is the silence it was built to replace. Each failure looks like the other's fix.
+
+### The blurb drew through the prompts
+
+Reproduced on the first attempt, and photographed: *"make one and regret continuously."* drawn straight through *"lmb/X take & place"*.
+
+`BLURB` was **34 px** and holds a name line plus up to two wrapped description lines — **58 px** by the font's own metrics. The third line landed inside the footer.
+
+Two reasons nothing saw it, and they are the same reason twice:
+
+- **`overflowing()` measured widths.** Header width, footer width. It never asked whether a *block* fits its height, and the blurb is the only region here whose height is not fixed.
+- **Every bag screenshot ever taken had nothing under the cursor.** `--bag-shot` opened the bag and photographed it, so the one region that draws variable-height text had never once appeared in a photograph. It hovers now, through a real motion event, on the same reasoning the shot already used for opening the bag: reaching in to set `_cursor` would photograph a state the mouse cannot produce.
+
+The band is measured against the font now rather than against a remembered number, so raising `BLURB_TEXT` or allowing a third line fails in the sweep instead of on somebody's screen.
+
+### And `0.04 kg` in a 36-pixel cell
+
+Rendered as `0.04 k`, which reads as a broken renderer rather than as a weight. The unit is dropped in a one-cell footprint: every number in this panel is kilograms and the header says so two inches above, so the digits are the part worth keeping.
+
+**The check for it is coarser than the screen it defends**, and that is worth writing down. Restoring the unit does *not* fail the new row — the headless dummy renderer's font metrics are a few pixels more generous than the real one, so a marginal overflow measures as a fit in the sweep and clips in the window. Planting a long string does fail it, so the row is live rather than decorative. But the four pixels that started this were caught by a **photograph**, and no headless check was ever going to.
+
+### The counters were lying
+
+The refusal rows first reported *zero cues* against a refusal that was firing perfectly. **A GDScript lambda captures a local by value**, so `func(): count += 1` increments a copy and the outer `int` stays zero. `--toll-probe`'s `shrugs` array has been working around this since `M2`; the array is the idiom, and an `int` is the trap.
+
+Worth stating plainly because the symptom is a *green-looking failure*: the probe said the feature was missing, the feature was present, and the wrong one of those got believed for a minute.
+
+### Verification
+
+Five plants on the refusal, three on the bag. One reported NOT CAUGHT while failing correctly — the plant tripped the *cooldown* row and the expectation named the *silence* row, which is ADR-136's guard-versus-claim mistake arriving for the second time. **The plant has to name the row it actually produces.**
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

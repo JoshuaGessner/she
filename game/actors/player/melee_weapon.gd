@@ -21,6 +21,10 @@ extends Node3D
 
 signal swing_started
 signal connected(hurtbox: Hurtbox)
+## An attack was asked for with nothing in hand. Local: `Reticle` draws it, and
+## nothing crosses the wire, because a refusal is feedback rather than an event
+## the world needs to agree on (`TEC-004`).
+signal swing_refused
 enum Phase { IDLE, WINDUP, ACTIVE, RECOVERY }
 
 ## Blockout poses, as (position, rotation-in-degrees). Not juice: without a
@@ -39,6 +43,8 @@ var _phase: Phase = Phase.IDLE
 var _remaining: float = 0.0
 var _duration: float = 0.0
 var _buffered_until: float = -1.0
+## Seconds until an empty hand is allowed to complain again.
+var _refusal_gap: float = 0.0
 ## **What is in the main hand** (`M3-T07`, `DES-020`), or null for empty hands.
 ##
 ## Until now every swing in the game came from `TuningProfile.swing_*`, and the
@@ -142,6 +148,7 @@ func is_busy() -> bool:
 func request_swing(stamina: Stamina) -> bool:
 	var tuning: TuningProfile = Config.tuning
 	if _held == null:
+		_refuse(tuning)
 		return false
 	if _phase == Phase.IDLE:
 		return _begin(stamina, tuning)
@@ -151,6 +158,31 @@ func request_swing(stamina: Stamina) -> bool:
 	if _phase == Phase.RECOVERY:
 		_buffered_until = _remaining + tuning.swing_buffer_window
 	return false
+
+
+## **An empty hand says so** (ADR-140).
+##
+## This returned `false` and did nothing else, which is how the first play of
+## the build found a body with no kit and reported *"no weapon"*: the attack
+## button was not weak or slow, it was **silent**. Nothing on screen, nothing in
+## the ears, no refusal — indistinguishable from a broken build, and principle 4
+## has no one-sentence explanation for it.
+##
+## **Deliberately not an unarmed attack.** A punch is new combat content with
+## reach, damage, timing and a place in `DES-009`'s five verbs, and inventing
+## one here to plug a feedback hole would be answering a legibility question
+## with a balance change. This is the refusal, said out loud.
+##
+## Two channels, because `DES-018` requires the build to be completable muted:
+## a dull `THUMP` — the sound of something heavy moving with nothing behind it —
+## and the reticle flinching inward, which is the opposite gesture to the ticks
+## it opens outward when a thing comes into reach.
+func _refuse(tuning: TuningProfile) -> void:
+	if _refusal_gap > 0.0:
+		return
+	_refusal_gap = tuning.empty_hand_gap
+	swing_refused.emit()
+	Foley.at(self, Foley.Sound.THUMP, 0.55, -7.0)
 
 
 func _begin(stamina: Stamina, tuning: TuningProfile) -> bool:
@@ -193,6 +225,11 @@ func _enter(next: Phase, duration: float) -> void:
 
 
 func advance(delta: float, stamina: Stamina) -> void:
+	# **Before the idle return, not after it.** An empty hand is only ever idle,
+	# so a cooldown ticked below this line would never tick at all — the refusal
+	# would fire once per life and then go quiet, which is the silence it exists
+	# to replace (ADR-140).
+	_refusal_gap = maxf(0.0, _refusal_gap - delta)
 	if _phase == Phase.IDLE:
 		return
 	var tuning: TuningProfile = Config.tuning

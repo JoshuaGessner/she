@@ -36,6 +36,14 @@ var _body: Player = null
 var _shaft: Shaft = null
 var _grown: float = 0.0
 var _name: Label
+## **The visual half of an empty-handed swing** (ADR-140). 1 the instant the
+## refusal fires, decaying to 0 — `DES-018` requires the build to be completable
+## muted, so the `THUMP` cannot be the only channel that says so.
+var _refused: float = 0.0
+## The weapon this is currently listening to. Bodies are spawned and despawned
+## at runtime, so the connection is remade whenever the body changes rather than
+## once in `_ready` — the fault `_body_to_read` exists for, in signal form.
+var _listening: MeleeWeapon = null
 
 
 func _ready() -> void:
@@ -68,6 +76,8 @@ func _body_to_read() -> Player:
 
 func _process(delta: float) -> void:
 	_body = _body_to_read()
+	_listen_for_refusals()
+	_refused = maxf(0.0, _refused - delta * 4.0)
 	var reaching: WorldItem = null
 	var hidden: bool = true
 	_shaft = null
@@ -85,8 +95,13 @@ func _process(delta: float) -> void:
 	# coin, the thing worth saying is that you are standing in the way out —
 	# and `DES-005` makes leaving the decision the whole floor is about.
 	if _shaft != null:
+		# The key comes from `ControlsScreen` like every other prompt (ADR-139).
+		# This one said `hold E` and was found by reading, not by the check —
+		# `check_project.py` catches the `kb/pad` form, which is the shape that
+		# actually proliferated, and prose naming a letter slips under it. Two
+		# of these existed; both are gone, and the seam is what stops a third.
 		_name.text = ("climbing out — hold still" if _shaft.is_channelling()
-			else "hold E — climb out")
+			else "hold %s — climb out" % ControlsScreen.glyphs_for("interact"))
 	else:
 		_name.text = "" if reaching == null or reaching.definition() == null \
 			else _label_for(reaching)
@@ -107,6 +122,39 @@ func _process(delta: float) -> void:
 ## reached the Chamber. Deliberately **tribute value only** — the Haugbrjótr's
 ## Appraise reads *"true value, curse, and tribute worth"* and opens what is
 ## locked, and a node must not quietly become somebody's class identity.
+## Follow the body's weapon, reconnecting when the body changes.
+##
+## `CoopSession` spawns and despawns bodies at runtime — walking into your own
+## Chamber despawns your camp body — so a connection made once in `_ready` would
+## be to a weapon that is freed a room later. Same lifetime problem
+## `_body_to_read` was written for, in signal form rather than in pointer form.
+func _listen_for_refusals() -> void:
+	var weapon: MeleeWeapon = _body.weapon if _body != null else null
+	if weapon == _listening:
+		return
+	_listening = weapon
+	if weapon != null:
+		weapon.swing_refused.connect(func() -> void: _refused = 1.0)
+
+
+## The empty-handed flinch: the same four ticks the dot opens outward when a
+## thing comes into reach, snapped **inward** and fading.
+##
+## Deliberately the opposite gesture rather than a new symbol, on this file's
+## own rule — motion is readable in peripheral vision and a second glyph is one
+## more thing to learn. Nothing is in reach when this fires, so the two never
+## draw at once.
+func _draw_refusal(middle: Vector2, radius: float) -> void:
+	var tint: Color = MenuStyle.DIM
+	tint.a = _refused * 0.9
+	var gap: float = radius + 3.0 + GROW * (1.0 - _refused)
+	for step: int in range(4):
+		var angle: float = TAU * float(step) / 4.0 + PI * 0.25
+		var direction := Vector2(cos(angle), sin(angle))
+		draw_line(middle + direction * (gap + 5.0),
+			middle + direction * gap, tint, 1.5)
+
+
 func _label_for(item: WorldItem) -> String:
 	var definition: ItemResource = item.definition()
 	if _body == null or not _body.has_effect(&"see_value"):
@@ -125,6 +173,8 @@ func _draw() -> void:
 	var tint: Color = MenuStyle.TEXT.lerp(MenuStyle.WARM, _grown)
 	tint.a = lerpf(0.5, 0.95, _grown)
 	draw_circle(middle, radius, tint)
+	if _refused > 0.01:
+		_draw_refusal(middle, radius)
 	if _grown <= 0.01:
 		return
 	# Four ticks, opening outward as the thing comes into reach. Motion rather

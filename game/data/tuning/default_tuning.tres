@@ -39,6 +39,7 @@ swing_recovery = 0.3
 swing_damage = 25.0
 swing_stamina_cost = 12.0
 swing_buffer_window = 0.25
+empty_hand_gap = 0.4
 enemy_health = 60.0
 enemy_attack_damage = 34.0
 enemy_walk_speed = 2.0

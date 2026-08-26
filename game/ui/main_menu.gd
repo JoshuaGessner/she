@@ -773,6 +773,74 @@ func _class_probe() -> void:
 			+ "than from the spawn payload, so in co-op the host would build "
 			+ "three of four bodies wrong")
 			% [stout.health.maximum, plain.health.maximum])
+
+	# ── an empty hand says so, and a full one does not ──────────────────
+	#
+	# **The row that would have caught the report** (ADR-140). Swinging with
+	# nothing wielded returned `false` and did nothing else — no sound, no
+	# motion, no refusal — so the first play of the build described a working
+	# game as *"no weapon"*, and it was right to. A dead button is not an absent
+	# feature; it is one that lies.
+	#
+	# Both directions, because a refusal that fires for everybody is a weapon
+	# nobody can swing. The two bodies here are exactly the pair: `plain` has
+	# never sworn and holds nothing, `stout` is a Húskarl with the seax its kit
+	# put in its hand.
+	# **Arrays, not ints.** A GDScript lambda captures a local by *value*, so
+	# `func(): count += 1` increments a copy and the outer variable stays zero —
+	# which reported the refusal as never firing when it was firing correctly.
+	# `--toll-probe`'s `shrugs` array is here for the same reason.
+	var empty_cries: Array[int] = []
+	var armed_cries: Array[int] = []
+	plain.weapon.swing_refused.connect(func() -> void: empty_cries.append(1))
+	stout.weapon.swing_refused.connect(func() -> void: armed_cries.append(1))
+	var empty_swung: bool = plain.weapon.request_swing(plain.stamina)
+	var armed_swung: bool = stout.weapon.request_swing(stout.stamina)
+	print("[class] empty hand   swung=%s refused=%d | armed swung=%s refused=%d"
+		% [empty_swung, empty_cries.size(), armed_swung, armed_cries.size()])
+	if empty_swung:
+		problems.append("a body with nothing in its hand swung anyway")
+	if empty_cries.size() != 1:
+		problems.append(("an empty-handed attack said nothing (%d cue(s)) — it "
+			+ "returns false and stops, which reads as a broken build rather "
+			+ "than as empty hands, and principle 4 has no sentence for it")
+			% empty_cries.size())
+	if not armed_swung:
+		problems.append("a Húskarl holding a seax could not swing it")
+	if armed_cries.size() != 0:
+		problems.append(("a weapon in hand refused as well (%d cue(s)), so the "
+			+ "refusal is not about empty hands and fires on every attack")
+			% armed_cries.size())
+
+	# **It says so again later, and not every frame.**
+	#
+	# Both halves, because they fail in opposite directions and each looks like
+	# the other's fix. Without the gap, attack held down under pressure is a
+	# rattle nobody reads as a refusal; without the tick, the cue fires once per
+	# life and then goes silent — which is the silence it was built to replace.
+	# Planting a cooldown that never ticks went **uncaught** against a probe
+	# that pressed the button once, and one press cannot tell a debounce from a
+	# dead one.
+	var gap: float = Config.tuning.empty_hand_gap
+	plain.weapon.request_swing(plain.stamina)
+	var during: int = empty_cries.size()
+	plain.weapon.advance(gap * 0.5, plain.stamina)
+	plain.weapon.request_swing(plain.stamina)
+	var half_way: int = empty_cries.size()
+	plain.weapon.advance(gap, plain.stamina)
+	plain.weapon.request_swing(plain.stamina)
+	var after: int = empty_cries.size()
+	print("[class] the gap      %d cue(s) → %d at half a gap → %d after one"
+		% [during, half_way, after])
+	if half_way != during:
+		problems.append(("an empty hand complained twice inside one gap — "
+			+ "attack is held down under pressure, and a cue on every frame is "
+			+ "a rattle rather than a refusal"))
+	if after <= half_way:
+		problems.append(("the refusal never came back (%d cue(s) after a full "
+			+ "gap) — it fires once per life and then goes quiet, which is the "
+			+ "silence it exists to replace") % after)
+
 	plain.queue_free()
 	stout.queue_free()
 

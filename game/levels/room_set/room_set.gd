@@ -3596,6 +3596,24 @@ func _bag_shot(path: String) -> void:
 	# state rather than a frame of it fading in.
 	for i: int in range(40):
 		await get_tree().process_frame
+
+	# **Hovering, because the state that breaks is the state nobody shot**
+	# (ADR-140). Every bag screenshot ever taken had nothing under the cursor,
+	# so `_draw_blurb` — the one region that draws *variable-height* text — has
+	# never once appeared in a photograph. It overflowed its band into the
+	# prompts underneath, and the first person to hover an item saw two lines of
+	# text on top of each other.
+	#
+	# Through a real motion event, on `--bag-shot`'s own precedent above: the
+	# bag reads `_cursor` from `_gui_input`, so assigning it from outside would
+	# photograph a state the mouse cannot produce.
+	var bag: BagScreen = player.get_node("BagLayer/BagScreen") as BagScreen
+	var over := InputEventMouseMotion.new()
+	over.position = bag.first_item_middle()
+	bag.get_viewport().push_input(over)
+	for i: int in range(4):
+		await get_tree().process_frame
+
 	await RenderingServer.frame_post_draw
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(path)
