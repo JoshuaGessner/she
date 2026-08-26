@@ -156,6 +156,23 @@ const STATE_PROPERTIES: Dictionary = {
 	".:bleeding": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:revival": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:spent": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **Who this body is, and what it brought** (`M3-T07`).
+	#
+	# These rode the spawn packet from `M3-T02` until `M3-T07`, and that was a
+	# frame too early: the host spawns a joining peer's body from
+	# `peer_connected`, and that peer's `declare_descent` is an RPC arriving
+	# afterwards — so **every client's body was built classless**, silently
+	# losing its health, speed and carry scales. Nothing noticed while `sworn`
+	# only changed numbers; slots gave it a weapon to hold and the two-process
+	# smoke started swinging at air. The same independent-events fault ADR-122
+	# found in `_build_hunt`, one door over.
+	#
+	# Host-authored state, replicated `ON_CHANGE`, so it is correct whenever it
+	# arrives rather than only if it arrives first. One route, not a payload
+	# *and* a wire copy — two would be the parallel path ADR-064 bans.
+	".:sworn": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:effects": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:wearing": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# Spending a Waystone (`M2-T14`). `ALWAYS`, for the same reason as the two
 	# above: it moves every frame while it matters, and it is driving a ring
 	# somebody is watching. It has to replicate at all because `_spending` is
@@ -205,7 +222,10 @@ var grounded: bool = true
 ## Empty is a real value: a body with no class is what the gym, the probes and
 ## a profile that has not sworn yet all produce, and it takes the shared
 ## profile unmodified.
-var sworn: StringName = &""
+var sworn: StringName = &"":
+	set(value):
+		sworn = value
+		_redress()
 
 ## **The rules this life has bought** (`M3-T01`, `DES-004`, `TEC-006`).
 ##
@@ -218,7 +238,22 @@ var sworn: StringName = &""
 ##
 ## Tags rather than node ids, per `TEC-006`: the node never contains logic, it
 ## names a rule, and the system that owns that rule reads it here.
-var effects: PackedStringArray = PackedStringArray()
+var effects: PackedStringArray = PackedStringArray():
+	set(value):
+		effects = value
+		_redress()
+
+## **What this body arrived wearing** (`M3-T07`, `DES-020`). Slot name → item
+## id, off the spawn payload like `sworn` and `effects`, and for the same
+## reason: the host dresses four bodies and three of them are somebody else's.
+##
+## Empty means a life that has never equipped anything, and the class kit
+## dresses it instead — which is a fresh life, and also every profile migrated
+## up from before slots existed.
+var wearing: Dictionary = {}:
+	set(value):
+		wearing = value
+		_redress()
 
 ## **Planted** (`M3-T02`, `DES-011`) — the Húskarl's verb, *Hold*.
 ##
@@ -310,6 +345,10 @@ var _reviving: bool = false
 @onready var stamina: Stamina = $Stamina
 @onready var carried: CarriedWeight = $CarriedWeight
 @onready var inventory: Inventory = $Inventory
+## What you are holding and wearing (`M3-T07`, `DES-020`). Built in code rather
+## than in `player.tscn`, because it holds no scene state of its own and the
+## body configures it the moment it knows whose life this is.
+var equipment: Equipment = null
 @onready var health: Health = $Health
 @onready var weapon: MeleeWeapon = $Head/Weapon
 ## A bow, or null (`M3-T11`). Built in `_ready` only when the class carries
@@ -427,7 +466,11 @@ func _ready() -> void:
 	health.died.connect(_on_health_emptied)
 	weapon.swing_started.connect(_on_swing_started)
 	weapon.connected.connect(_on_swing_connected)
-	_arm_from_kit(body)
+	equipment = Equipment.new()
+	equipment.name = "Equipment"
+	add_child(equipment)
+	equipment.changed.connect(_on_equipment_changed)
+	_redress()
 	# **The tree configures the components** (`M3-T01`, `TEC-006`). Calls down,
 	# never up: `Inventory` is told what rules are on rather than reaching for a
 	# body to ask, and the body is the only thing that knows whose tree it is.
@@ -476,7 +519,14 @@ func _on_swing_started() -> void:
 	# DES-009: the wind-up is audible. Host-only, because noise is a
 	# consequence and consequences have one owner.
 	if multiplayer.is_server():
-		clamor.add(Config.tuning.clamor_swing)
+		# **From the weapon, not from the profile** (`M3-T07`). `DES-009` makes
+		# every swing's Clamor value the main combat-to-pressure coupling and
+		# says blunt weapons are loudest — which is a sentence about weapons,
+		# and was a single number for all of them until the main hand became a
+		# real slot.
+		var swung: WieldableTrait = weapon.held()
+		if swung != null:
+			clamor.add(swung.clamor_swing)
 
 
 ## Play a swing another peer's client began.
@@ -499,7 +549,9 @@ func _on_swing_connected(_hurtbox_hit: Hurtbox) -> void:
 	# DES-009: blunt weapons are loudest, and connecting is the loud part. This
 	# is the main combat-to-pressure coupling — a whiff is cheap, a fight is not.
 	# Reached only on the host, for the same reason `_on_hurt` is.
-	clamor.add(Config.tuning.clamor_hit)
+	var landed: WieldableTrait = weapon.held()
+	if landed != null:
+		clamor.add(landed.clamor_hit)
 
 
 ## A blow arrives, and the guard is the only thing between it and you.
@@ -860,6 +912,69 @@ func _put_down(instance_id: int, thrown: bool) -> void:
 ## the same array costs a reconciliation rule to save about 60 ms of drag
 ## latency, and `M1-T05` already recorded why half-prediction is the wrong
 ## trade. If it feels laggy on a real link that is an M4 revision with data.
+## **Put this on** (`M3-T07`, `DES-020`). Host-authoritative like every other
+## bag gesture: the client says *this one*, and the host decides.
+func ask_to_equip(instance_id: int) -> void:
+	if multiplayer.is_server():
+		_equip_from_bag(instance_id)
+	else:
+		_request_equip.rpc_id(HOST_PEER, instance_id)
+
+
+@rpc("any_peer", "reliable")
+func _request_equip(instance_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_equip_from_bag(instance_id)
+
+
+## Host-side. **The bag is asked first**, because what comes off has to have
+## somewhere to go: if the displaced gear will not fit, nothing happens at all.
+## An item that vanished into a full bag is loot `DES-002` never agreed to take.
+func _equip_from_bag(instance_id: int) -> void:
+	var item: ItemInstance = inventory.find(instance_id)
+	if item == null or equipment.why_not(item.definition) != "":
+		return
+	var coming_off: Array[ItemInstance] = equipment.equip(item)
+	inventory.remove(instance_id)
+	for spare: ItemInstance in coming_off:
+		if inventory.add(spare.definition) == null:
+			# No room. It lands at your feet rather than being destroyed —
+			# the same gesture as dragging it out, and for the same reason.
+			dropped.emit(spare, global_position, rotation.y, Vector3.ZERO)
+	_push_bag()
+
+
+## **Take this off.** The reverse gesture, and it refuses when the bag is full
+## rather than dropping — you asked to stow it, not to abandon it.
+func ask_to_unequip(slot: Enums.Slot) -> void:
+	if multiplayer.is_server():
+		_unequip_to_bag(slot)
+	else:
+		_request_unequip.rpc_id(HOST_PEER, int(slot))
+
+
+@rpc("any_peer", "reliable")
+func _request_unequip(slot: int) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_unequip_to_bag(slot as Enums.Slot)
+
+
+func _unequip_to_bag(slot: Enums.Slot) -> void:
+	var worn: ItemInstance = equipment.in_slot(slot)
+	if worn == null:
+		return
+	if inventory.add(worn.definition) == null:
+		return
+	equipment.unequip(slot)
+	_push_bag()
+
+
 func ask_to_move(instance_id: int, to: Vector2i, rotated: bool) -> void:
 	if multiplayer.is_server():
 		_move_within_bag(instance_id, to, rotated)
@@ -1753,46 +1868,102 @@ func _hold(delta: float, tuning: TuningProfile) -> void:
 	_apply_bulwark()
 
 
-## **The class kit is what puts a bow in the hand** (`M3-T11`, ADR-123).
-##
-## `ClassResource.kit` already names real catalogue ids, so a designer arms a
-## class by editing a `.tres` and nothing here knows what a Veiðimaðr is — which
-## is `CLAUDE.md`'s data-over-code rule applied to a weapon rather than to a
-## stat. `M3-T07` re-points this at an equipment slot when slots exist; it moves
-## the seam rather than growing a second one beside it.
-##
-## Runs on **every** peer from the replicated `sworn`, for the reason the body
-## scales above it do: the host builds four bodies and three of them belong to
-## somebody else, so a bow read out of local state would arm the wrong people.
 ## Does this body have that rule? The one question any system asks the tree.
 func has_effect(tag: StringName) -> bool:
 	return effects.has(String(tag))
 
 
-func _arm_from_kit(body: ClassResource) -> void:
+## **The kit is worn, not stashed** (`M3-T07`, `DES-020`).
+##
+## ADR-123 read the kit to decide whether a class carried a bow, and
+## `GameState.take_the_oath` put the same list in the stash — one object with
+## two representations, which ADR-124 patched with a one-line guard and said
+## this task would delete. This is that deletion: a kit entry goes to **its
+## slot**, and only what has no slot goes to the stash.
+##
+## So a Húskarl descends holding a seax and wearing a byrnie, and a Veiðimaðr
+## holding a bow. Nothing is duplicated, because there is now somewhere for gear
+## to *be* other than a bag.
+##
+## Runs on **every** peer from the replicated `sworn`, for the reason the body
+## scales above it do: the host builds four bodies and three of them belong to
+## somebody else, so a kit read out of local state would dress the wrong people.
+## **Become whoever this body turned out to be.**
+##
+## Called by the setters above, so it runs again whenever the host tells a body
+## what it is — which is what makes a declaration arriving after the spawn
+## packet harmless instead of permanent. Idempotent: `Equipment.equip` is a
+## replace, and the body scales are recomputed from the class rather than
+## accumulated.
+##
+## Silent before `_ready`, because the components it configures do not exist
+## yet; `_ready` calls it once itself, after they do.
+func _redress() -> void:
+	if equipment == null:
+		return
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	var tuning: TuningProfile = Config.tuning
+	health.maximum = tuning.player_health * (body.health_scale if body else 1.0)
+	if health.current > health.maximum or health.current <= 0.0:
+		health.restore()
+	equipment.clear()
+	_dress_the_body(body)
+
+
+func _dress_the_body(body: ClassResource) -> void:
+	# What this life is already wearing wins. The kit only dresses a body that
+	# has never been dressed — otherwise a player who swapped their seax for a
+	# hammer would find the seax back in their hand every descent.
+	if not wearing.is_empty():
+		for name: String in wearing:
+			var found: ItemResource = ItemCatalogue.by_id(StringName(wearing[name]))
+			if found == null:
+				push_warning("Player: worn '%s' is not in this build" % wearing[name])
+				continue
+			equipment.equip(ItemInstance.of(found, 0))
+		return
 	if body == null:
 		return
-	var kit: RangedTrait = null
 	for id: StringName in body.kit:
 		var definition: ItemResource = ItemCatalogue.by_id(id)
-		if definition == null:
+		if definition == null or definition.slot == Enums.Slot.NONE:
 			continue
-		var found: ItemTrait = definition.first_trait(RangedTrait)
-		if found != null:
-			kit = found as RangedTrait
-			break
-	if kit == null:
-		return
-	ranged = RangedWeapon.new()
-	ranged.name = "Bow"
-	_head.add_child(ranged)
-	ranged.equip(kit)
-	ranged.draw_started.connect(_on_draw_started)
-	ranged.loosed.connect(_on_loosed)
-	# The blade goes away rather than being carried and never used. A visible
-	# weapon that cannot be swung is the most direct kind of lie a blockout can
-	# tell a playtester (ADR-064).
-	weapon.visible = false
+		equipment.equip(ItemInstance.of(definition, 0))
+
+
+## What is held changed, so what the hands can do changes with it.
+##
+## One function, driven by the component's own signal, so there is a single
+## place where slots become behaviour. `MeleeWeapon` and `RangedWeapon` are
+## told what they hold; neither looks anything up.
+func _on_equipment_changed() -> void:
+	var swung := equipment.trait_in(Enums.Slot.MAIN_HAND, WieldableTrait) as WieldableTrait
+	var drawn := equipment.trait_in(Enums.Slot.MAIN_HAND, RangedTrait) as RangedTrait
+	weapon.wield(swung)
+	if drawn != null and ranged == null:
+		ranged = RangedWeapon.new()
+		ranged.name = "Bow"
+		_head.add_child(ranged)
+		ranged.draw_started.connect(_on_draw_started)
+		ranged.loosed.connect(_on_loosed)
+	if ranged != null:
+		if drawn == null:
+			ranged.cancel()
+		ranged.equip(drawn)
+		ranged.visible = drawn != null
+	# **The bag is a piece of gear** (`DES-020`). A wider frame is more room and
+	# more weight and more Clamor, which is Pillar P1 expressed as equipment —
+	# and it is why the grid is asked for here rather than read once at spawn.
+	var spilled: Array[ItemInstance] = inventory.resize(equipment.grid_size())
+	# A smaller pack does not eat what no longer fits. It goes on the floor,
+	# which is the same answer dragging it out of the bag gives.
+	for loose: ItemInstance in spilled:
+		dropped.emit(loose, global_position, rotation.y, Vector3.ZERO)
+	# **The local body is the only one whose profile this is.** Written here
+	# rather than at extraction so it is never out of step with what you are
+	# actually wearing, and never written for a teammate's body.
+	if _is_local:
+		GameState.worn = equipment.to_wire()
 
 
 func _on_draw_started() -> void:

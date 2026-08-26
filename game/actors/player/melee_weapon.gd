@@ -39,16 +39,60 @@ var _phase: Phase = Phase.IDLE
 var _remaining: float = 0.0
 var _duration: float = 0.0
 var _buffered_until: float = -1.0
+## **What is in the main hand** (`M3-T07`, `DES-020`), or null for empty hands.
+##
+## Until now every swing in the game came from `TuningProfile.swing_*`, and the
+## four weapons in the item table carried a full windup/active/recovery/damage/
+## reach block that **nothing anywhere read** (ADR-124 §2). This is the reader.
+## `wpn_seax` is the one those tuning numbers described, so they moved onto it
+## rather than being duplicated — one home, not two (ADR-064).
+##
+## Null is empty hands and empty hands do not swing. `DES-009` names five combat
+## verbs and none of them is a punch, so there is nothing to fall back to and
+## nothing is invented to fill the gap.
+var _held: WieldableTrait = null
 
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _model: Node3D = $Model
 
 
 func _ready() -> void:
-	var tuning: TuningProfile = Config.tuning
-	_hitbox.damage = tuning.swing_damage
 	_hitbox.struck.connect(_on_struck)
 	_pose(POSE_REST, POSE_REST, 0.0)
+	_dress()
+
+
+## Give it what the main hand holds, or null. Called down by the body, which is
+## the only thing that knows whose slots these are — `Equipment` never reaches
+## up and this never reaches sideways.
+func wield(blade: WieldableTrait) -> void:
+	if _held == blade:
+		return
+	_held = blade
+	# A weapon that leaves your hand mid-swing takes the swing with it. The
+	# alternative is a hitbox armed by a blade nobody is holding.
+	if _phase != Phase.IDLE:
+		_enter(Phase.IDLE, 0.0)
+	_dress()
+
+
+func held() -> WieldableTrait:
+	return _held
+
+
+## Reach is a weapon stat (`DES-009`: *"space is a weapon stat"*), so the hitbox
+## is resized by what you are holding rather than being one size for everything.
+func _dress() -> void:
+	visible = _held != null
+	if _held == null:
+		_hitbox.disarm()
+		return
+	_hitbox.damage = _held.damage
+	var shape := _hitbox.get_node_or_null("CollisionShape3D") as CollisionShape3D
+	if shape != null:
+		var box := shape.shape as BoxShape3D
+		if box != null:
+			box.size.z = _held.reach
 
 
 func _pose(from: Array, to: Array, t: float) -> void:
@@ -86,6 +130,8 @@ func is_busy() -> bool:
 ## is not the same as being buffered — see `_buffered_until`.
 func request_swing(stamina: Stamina) -> bool:
 	var tuning: TuningProfile = Config.tuning
+	if _held == null:
+		return false
 	if _phase == Phase.IDLE:
 		return _begin(stamina, tuning)
 	# A press during recovery is remembered and fires on the first legal frame.
@@ -97,7 +143,7 @@ func request_swing(stamina: Stamina) -> bool:
 
 
 func _begin(stamina: Stamina, tuning: TuningProfile) -> bool:
-	if not stamina.spend(tuning.swing_stamina_cost):
+	if _held == null or not stamina.spend(_held.stamina_cost):
 		return false
 	begin_owned_swing()
 	return true
@@ -117,9 +163,9 @@ func _begin(stamina: Stamina, tuning: TuningProfile) -> bool:
 ## swing that legitimately happened, and the symptom would be hits that
 ## occasionally do not land for no visible reason.
 func begin_owned_swing() -> void:
-	if _phase != Phase.IDLE:
+	if _phase != Phase.IDLE or _held == null:
 		return
-	_enter(Phase.WINDUP, Config.tuning.swing_windup)
+	_enter(Phase.WINDUP, _held.windup)
 	swing_started.emit()
 	Foley.at(self, Foley.Sound.SWING, randf_range(0.94, 1.08))
 
@@ -146,9 +192,9 @@ func advance(delta: float, stamina: Stamina) -> void:
 
 	match _phase:
 		Phase.WINDUP:
-			_enter(Phase.ACTIVE, tuning.swing_active)
+			_enter(Phase.ACTIVE, _held.active)
 		Phase.ACTIVE:
-			_enter(Phase.RECOVERY, tuning.swing_recovery)
+			_enter(Phase.RECOVERY, _held.recovery)
 		Phase.RECOVERY:
 			_enter(Phase.IDLE, 0.0)
 			# Spend the buffered press, if one is still live. `_remaining` is

@@ -2900,5 +2900,64 @@ That is worth stating as a rule, because deriving values is exactly what this ta
 
 ---
 
+## ADR-127 — Six slots, and the client who had never had a class
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T07`** · **Corrects `M3-T02`** · **Extends ADR-122**
+
+**Context:** `M3-T07`, moved second by ADR-125. `DES-020` specifies six equipment slots; the build had none, so `WieldableTrait` carried windup, active, recovery, damage and reach on four authored weapons and **nothing read any of it** — `MeleeWeapon` swung on `TuningProfile` numbers identical for every weapon in the game, and `wpn_seax` was the west bypass route's whole payoff at zero tribute and no function.
+
+### The slot is the reader `WieldableTrait` never had
+
+`Equipment` holds six slots and one rule: what is in `MAIN_HAND` is what `MeleeWeapon` swings. So a weapon's stat block finally reaches the thing that uses it, and four items stop being data nobody consumes. The Regin Blade is now genuinely better than the seax in the way its `.tres` always claimed.
+
+`_arm_from_kit` is deleted. `M3-T11` built it as the seam that put a bow in a Stalker's hand and said in its own header that `M3-T07` would re-point it at a slot — which is what happened, one task later, exactly as written. `RangedWeapon` reads `OFF_HAND`-or-`MAIN_HAND` through the same accessor the melee weapon does, so *"one weapon in the hands"* is now a fact about the slot rather than a rule in the player.
+
+### The kit is worn, not stashed
+
+`M3-T02` put the class kit in the stash because there was nowhere to wear it. That was correct then and would be a duplicate now — a Húskarl would descend holding a seax **and** carrying one. Kit entries with a slot are equipped; entries without one still go to the stash, which is the honest split and needs no rule about duplicates.
+
+`--class-probe` asserted `stash == kit.size()`. That assertion was right until slots existed and is wrong now, so it asks the surviving question instead: **every kit entry is either worn or stashed, never neither.** A vanished kit entry is what a first descent with empty hands would look like.
+
+### The client had never had a class
+
+The two-process smoke caught what no single-process probe could: with slots, a body's weapon comes from its class — and **every client's body had been built classless since `M3-T02`.**
+
+`_on_peer_connected` spawns a joining peer's body immediately. That peer's `declare_descent` is an RPC it sends from its own `_on_connected`, and neither waits for the other, so the spawn payload was assembled before the host had been told anything. A client Húskarl had 100 health instead of 125, base speed, base carry, and no verb.
+
+**Two tasks shipped over the top of it** and nothing noticed, because `sworn` only moved numbers — and a number being wrong on somebody else's screen is invisible without something to compare it against. Slots gave it a weapon to hold, and the smoke started swinging at air.
+
+This is ADR-122's fault one door over: *a body arriving and a declaration arriving are independent events.* ADR-122 fixed the floor by reacting to the later of the two; the body takes the same answer from the other end. `sworn`, `effects` and `wearing` are **replicated host-authored state** rather than spawn payload, so a declaration is correct whenever it arrives instead of only if it arrives first. `_redress()` is idempotent and runs on every change.
+
+One route, not two. A payload copy *and* a wire copy would be the parallel path ADR-064 bans, and the version of this bug that comes back.
+
+### Two harness expectations that were describing nobody
+
+Both failed the moment the class started reaching client bodies, which is the right way round — they had been quietly wrong for two tasks.
+
+- **The revive row compared against `TuningProfile.player_health`.** A Húskarl is 1.25×, so a real revive returns 50 of 125 and the harness expected 40 of 100. It now reads that body's own maximum, which the report carries.
+- **The smoke client was a Veiðimaðr** in the first draft of the `--as-class=` flag, because a mixed-class party is a better party. A Stalker carries a bow, and the row underneath is about *melee* damage being resolved once by the host — so it left the client with nothing to swing and the harness reported it as damage that failed to replicate. A true reading of an unarmed player and a wrong story about the wire. Mixed classes are `GATE M3 COOP`'s question, with real people.
+
+`--as-class=` is a harness flag rather than a default in the level, for the reason `--as-rank=` is: `room_set` is only reachable in the real game through a menu that refuses to descend without a class, and a level quietly supplying one would hide the day that stops being true.
+
+### Save v5
+
+`worn` is LIFE tier — it dies with you, like the stash and the class it came from. What persists is the slot-to-item mapping, resolved against the catalogue on load, so an item removed from the game leaves an empty slot rather than a broken save.
+
+### Three faults in the checking, one of them mine to the tree
+
+**The probe was never wired into the sweep.** `--gear-probe` was written, run by hand, and left out of `check_scripts.sh` — ADR-110's failure exactly, and the second time on this project: *a probe nobody runs is a check that is already failing.* It runs now.
+
+**Gear reached disk untested for the whole of its first task.** A plant that stopped writing `worn` to the wire went **uncaught**, because every row in `--save-probe` was about the hoard and the stash. Save v5 shipped a new LIFE-tier field with nothing behind it. The round trip covers it now, and it is the seventh time this milestone that a thing was built, believed, and not actually asked about.
+
+**And I raced my own harness.** Running the sweep and the plant script concurrently against one working tree meant the sweep read `melee_weapon.gd` mid-plant and reported a `SCRIPT ERROR` that was tooling colliding with itself. Worse: two plant scripts overlapped, one restored an already-planted copy, and `held_unused` was left sitting in the tree. That would have been **committed** if the "restore" had been trusted instead of re-read. Plants mutate the working tree; they get to run alone.
+
+### One assertion whose coverage is a different shape, and says so
+
+The empty-hand guard **cannot be deleted without a null dereference** — removing it crashes rather than tripping the named row. So the row was verified from the other side, by planting its own claim and making `request_swing` wrongly report success.
+
+That is real coverage, and it is not the same coverage. *"The guard is protected by a crash"* and *"the row catches the mistake"* are different guarantees, and a probe log that shows one while sounding like the other is how six true-but-beside-the-point assertions got written this milestone.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -11,4 +11,5 @@ weight = 11.0
 clamor = 1.6
 grid_size = Vector2i(3, 3)
 tribute_value = 8
+slot = 5
 tags = Array[StringName]([&"gear", &"armour", &"metal"])

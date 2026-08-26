@@ -38,6 +38,23 @@ extends Control
 ## control needs no bindings of its own beyond `rotate_item`. Prompts name both
 ## devices, per `DES-019` rule 7.
 
+## **The six slots** (`M3-T07`, `DES-020`), drawn as a row beneath the grid.
+##
+## In the bag rather than on a screen of its own, because `DES-019` is hostile
+## to persistent UI and the decision *"is this worth carrying or worth
+## wearing"* is one question — putting it in two places would make it two.
+const SLOT_ROW: Array[Enums.Slot] = [
+	Enums.Slot.MAIN_HAND, Enums.Slot.OFF_HAND, Enums.Slot.ARMS,
+	Enums.Slot.HEAD, Enums.Slot.BODY, Enums.Slot.PACK,
+]
+const SLOT_LABEL: Dictionary = {
+	Enums.Slot.MAIN_HAND: "hand", Enums.Slot.OFF_HAND: "off",
+	Enums.Slot.ARMS: "arms", Enums.Slot.HEAD: "head",
+	Enums.Slot.BODY: "body", Enums.Slot.PACK: "pack",
+}
+const SLOT_SIZE: float = 52.0
+const SLOT_BAND: float = 78.0
+
 const CELL: float = 44.0
 const GAP: float = 3.0
 const PADDING: float = 18.0
@@ -207,6 +224,21 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _grab_at_cursor() -> void:
+	# **On a filled slot, taking it off** (`M3-T07`, `DES-020`). Slots have to
+	# be reversible — a player who can put a byrnie on and not take it off has
+	# been given a one-way door, and `DES-019` sells the bag as the place you
+	# reorganise under pressure.
+	#
+	# A press rather than a drag out, deliberately: the item lands in the bag
+	# and can then be dragged like anything else, so there is no second kind of
+	# held item with its own rules about where it may be dropped. The refusal
+	# when the bag is full is the host's (`Player._unequip_to_bag`) — you asked
+	# to stow it, not to abandon it.
+	var from_slot: Enums.Slot = _slot_at(_cursor)
+	if from_slot != Enums.Slot.NONE:
+		if _player.equipment.in_slot(from_slot) != null:
+			_player.ask_to_unequip(from_slot)
+		return
 	var item: ItemInstance = _item_at(_cursor_cell())
 	if item == null:
 		return
@@ -234,6 +266,14 @@ func _release() -> void:
 		return
 	var item: ItemInstance = _held
 	_held = null
+	# **Onto a slot is putting it on** (`M3-T07`). Checked before the
+	# out-of-bag test, because the slot row sits outside the grid and dropping
+	# a helm on it would otherwise read as abandoning it on the floor.
+	var onto: Enums.Slot = _slot_at(_cursor)
+	if onto != Enums.Slot.NONE:
+		if item.definition.slot == onto:
+			_player.ask_to_equip(item.instance_id)
+		return
 	var target: Vector2i = _cursor_cell() - _grab
 	if not _within_grid(_cursor):
 		# Dragged out of the bag entirely. `DES-005`'s primal counter-play,
@@ -270,7 +310,7 @@ func _grid_pixels() -> Vector2:
 func _panel_rect() -> Rect2:
 	var inner: Vector2 = _grid_pixels()
 	var size := Vector2(maxf(inner.x, _header_width()) + PADDING * 2.0,
-		inner.y + PADDING * 2.0 + HEADER + BLURB + FOOTER)
+		inner.y + PADDING * 2.0 + HEADER + BLURB + FOOTER + SLOT_BAND)
 	var screen: Vector2 = get_viewport_rect().size
 	return Rect2(((screen - size) * 0.5).round(), size)
 
@@ -315,6 +355,47 @@ func overflowing() -> PackedStringArray:
 			spilled.append("footer is %.0f px in %.0f px: %s" % [
 				wide, panel.size.x - PADDING * 2.0, line])
 	return spilled
+
+
+## Where a slot sits. Below the grid, spread across the panel, so the row reads
+## as *what is on you* under *what you are carrying* — which is the order the
+## question is asked in.
+func _slot_rect(slot: Enums.Slot) -> Rect2:
+	var panel: Rect2 = _panel_rect()
+	var index: int = SLOT_ROW.find(slot)
+	var span: float = SLOT_SIZE * SLOT_ROW.size() + GAP * (SLOT_ROW.size() - 1)
+	var left: float = panel.position.x + (panel.size.x - span) * 0.5
+	var top: float = _grid_origin().y + _grid_pixels().y + PADDING
+	return Rect2(Vector2(left + index * (SLOT_SIZE + GAP), top),
+		Vector2(SLOT_SIZE, SLOT_SIZE))
+
+
+## The slot under a point, or `NONE`.
+func _slot_at(point: Vector2) -> Enums.Slot:
+	for slot: Enums.Slot in SLOT_ROW:
+		if _slot_rect(slot).has_point(point):
+			return slot
+	return Enums.Slot.NONE
+
+
+func _draw_slots() -> void:
+	var worn: Equipment = _player.equipment
+	for slot: Enums.Slot in SLOT_ROW:
+		var box: Rect2 = _slot_rect(slot)
+		var item: ItemInstance = worn.in_slot(slot) if worn != null else null
+		# A slot the held item could go into lights up while you are dragging,
+		# so the answer to "where does this go" is visible before you let go
+		# rather than discovered by trying.
+		var wanted: bool = (_held != null
+			and _held.definition.slot == slot)
+		draw_rect(box, PANEL_COLOUR)
+		draw_rect(box, MenuStyle.WARM if wanted else GRID_LINE, false, 2.0)
+		if item != null:
+			draw_rect(box.grow(-6.0), WorldItem.colour_for(item.definition))
+		var font: Font = ThemeDB.fallback_font
+		draw_string(font, box.position + Vector2(4.0, box.size.y + 12.0),
+			String(SLOT_LABEL[slot]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11,
+			MenuStyle.DIM)
 
 
 func _grid_origin() -> Vector2:
@@ -363,6 +444,7 @@ func _draw() -> void:
 	draw_rect(panel, PANEL_COLOUR)
 	draw_rect(panel, GRID_LINE, false, 2.0)
 	_draw_header(panel)
+	_draw_slots()
 	_draw_cells()
 	for item: ItemInstance in _inventory.items():
 		if item != _held:

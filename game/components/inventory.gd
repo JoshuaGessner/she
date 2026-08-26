@@ -68,15 +68,51 @@ var _items: Array[ItemInstance] = []
 var _next_instance_id: int = 1
 
 
-## Cells wide and tall. `DES-020` gives this to the **Pack slot** — bigger pack,
-## more grid, more weight, more Clamor, *"the upgrade that makes you more
-## powerful is the upgrade that makes you louder"*. Slots are `M3-T07`, so
-## until then every player carries the profile's grid and the Pack overrides it
-## when it exists. That is an ordering decision, not a fallback: the number has
-## one home now and one home later, never two at once, and the profile value
-## becomes the Q106 *no pack* grid it already has to be.
+## Cells wide and tall, **now set by the Pack slot** (`M3-T07`, `DES-020`):
+## bigger pack, more grid, more weight, more Clamor — *"the upgrade that makes
+## you more powerful is the upgrade that makes you louder."*
+##
+## The body calls `resize()` whenever what it is wearing changes, and with no
+## pack that is `TuningProfile.inventory_grid`, which is exactly the Q106 *no
+## pack* grid this note has promised it would become since `M2-T01`. One home
+## then, one home now, never two at once.
 func grid() -> Vector2i:
-	return Config.tuning.inventory_grid
+	return _grid
+
+
+## Told, not asked — `Equipment` decides and the body calls down. Shrinking is
+## the interesting direction: **nothing is destroyed.** Anything that no longer
+## fits is handed back so the caller can put it on the floor, because an item
+## silently deleted by taking off a bag is loot `DES-002` never agreed to take.
+func resize(to: Vector2i) -> Array[ItemInstance]:
+	var spilled: Array[ItemInstance] = []
+	if to == _grid:
+		return spilled
+	_grid = to
+	var kept: Array[ItemInstance] = []
+	for item: ItemInstance in _items:
+		var size: Vector2i = item.footprint()
+		if item.cell.x + size.x <= _grid.x and item.cell.y + size.y <= _grid.y:
+			kept.append(item)
+		else:
+			spilled.append(item)
+	if spilled.is_empty():
+		return spilled
+	_items = kept
+	# Re-place what spilled, in case the new grid has room somewhere else. What
+	# still does not fit goes back to the caller.
+	var homeless: Array[ItemInstance] = []
+	for item: ItemInstance in spilled:
+		var placement: Dictionary = placement_for(item.definition)
+		var at: Vector2i = placement["cell"] as Vector2i
+		if at.x < 0:
+			homeless.append(item)
+			continue
+		item.cell = at
+		item.rotated = bool(placement["rotated"])
+		_items.append(item)
+	changed.emit()
+	return homeless
 
 
 func items() -> Array[ItemInstance]:
@@ -102,9 +138,17 @@ func find(instance_id: int) -> ItemInstance:
 ## Set by the body from its own `effects` — a component never reaches up to ask
 ## (`CLAUDE.md`: signals up, calls down), and the body is the only thing that
 ## knows whose tree it is carrying.
+## The bag's shape, owned here and set by whatever the body is wearing.
+var _grid: Vector2i = Vector2i(6, 5)
 var weightless_materials: bool = false
 var unlimited: bool = false
 var weight_costs_double: bool = false
+
+
+func _ready() -> void:
+	# Until a body tells it otherwise. A bag that started at 0 x 0 would refuse
+	# everything for one frame, and `--bag-probe` would be measuring that.
+	_grid = Config.tuning.inventory_grid
 
 
 func total_weight() -> float:

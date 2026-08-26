@@ -25,4 +25,6 @@ clamor = 0.0
 grid_size = Vector2i(1, 3)
 tribute_value = 0
 traits = Array[ExtResource("2_ranged")]([SubResource("Resource_ranged")])
+slot = 1
+two_handed = true
 tags = Array[StringName]([&"gear", &"wood"])

@@ -463,11 +463,22 @@ func _class_probe() -> void:
 		problems.append(("pressing a class did not swear it — every part of this "
 			+ "can work and leave the button joined to nothing, which is the "
 			+ "shape ADR-105, ADR-108 and ADR-110 all had"))
-	var expected: int = ClassCatalogue.by_id(&"huskarl").kit.size()
-	if GameState.stash.size() != expected:
-		problems.append(("swearing put %d item(s) in the stash, not %d — a "
-			+ "starting kit that does not arrive is a first descent with empty "
-			+ "hands") % [GameState.stash.size(), expected])
+	# **Only what has nowhere to be worn waits in the stash** (`M3-T07`).
+	# This asserted `stash == kit.size()`, which was right until slots existed:
+	# the kit is equipped now, so a Húskarl's seax and byrnie go to hands and
+	# body and the stash is correctly empty. The claim that survives is that
+	# nothing is *lost* — every kit entry is either worn or stashed, never
+	# neither, which is the failure a first descent with empty hands would be.
+	var cargo: int = 0
+	for id: StringName in ClassCatalogue.by_id(&"huskarl").kit:
+		var definition: ItemResource = ItemCatalogue.by_id(id)
+		if definition != null and definition.slot == Enums.Slot.NONE:
+			cargo += 1
+	if GameState.stash.size() != cargo:
+		problems.append(("swearing put %d item(s) in the stash and %d of the kit "
+			+ "has no slot — a kit entry that is neither worn nor stashed has "
+			+ "vanished between the oath and the descent")
+			% [GameState.stash.size(), cargo])
 
 	# ── and it cannot be taken back until you die (`DES-011`) ────────────
 	# **A genuinely different class, now that one exists** (ADR-124).
@@ -536,6 +547,23 @@ func _class_probe() -> void:
 	await get_tree().process_frame
 	print("[class] the body     health %.0f plain vs %.0f Húskarl" % [
 		plain.health.maximum, stout.health.maximum])
+	# **And the kit is on it** (`M3-T07`, `DES-020`). The oath stocks nothing a
+	# body can hold; the body does that from the same list when it is built, so
+	# this is the half of the claim the menu cannot see.
+	var fist: ItemInstance = stout.equipment.in_slot(Enums.Slot.MAIN_HAND)
+	var coat: ItemInstance = stout.equipment.in_slot(Enums.Slot.BODY)
+	print("[class] the kit worn main hand '%s', body '%s'" % [
+		fist.definition.id if fist != null else "",
+		coat.definition.id if coat != null else ""])
+	if fist == null or coat == null:
+		problems.append(("a Húskarl was built holding '%s' and wearing '%s' — "
+			+ "`DES-020` puts the kit in slots, and a body that arrives with "
+			+ "empty hands cannot fight whatever the class resource says")
+			% [fist.definition.id if fist != null else "nothing",
+			coat.definition.id if coat != null else "nothing"])
+	if stout.weapon.held() == null:
+		problems.append("the main hand holds a weapon and `MeleeWeapon` was not "
+			+ "told — the slot is set and the thing that swings does not know")
 	if stout.health.maximum <= plain.health.maximum:
 		problems.append(("a Húskarl's body is no sturdier than a classless one "
 			+ "(%.0f vs %.0f) — the class is being read from `GameState` rather "

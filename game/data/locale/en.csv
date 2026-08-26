@@ -57,3 +57,5 @@ node.hrd_weight_of_kings.name,Weight of Kings
 node.hrd_weight_of_kings.desc,"There is no limit to what you can carry. Every kilogram of it makes you slower and louder than it would make anyone else. You can haul the whole vault out. The Deep will hear you do it."
 node.hrd_tribute_in_kind.name,Tribute in Kind
 node.hrd_tribute_in_kind.desc,"You know what gold is worth to her. Anything you set down is worth her stooping for — and she will take it."
+item.arm_hide_satchel.name,Hide Satchel
+item.arm_hide_satchel.desc,"A wider frame, and a wider frame is a louder one. Everything you gain room for is something else the dark can hear you carrying."

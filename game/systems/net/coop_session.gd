@@ -131,7 +131,7 @@ func _ready() -> void:
 		# every peer says its rank again here. Walking through a doorway is the
 		# only way a real party ever reaches a floor, so a declaration made
 		# solely at connect would be a declaration the floor never sees.
-		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects())
+		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
 		if multiplayer.is_server():
 			multiplayer.peer_connected.connect(_on_peer_connected)
 			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -154,7 +154,7 @@ func _ready() -> void:
 			# already reports us as server 1, so the host path below is simply
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
-			declare_descent(_my_rank(), String(GameState.class_id), _my_effects())
+			declare_descent(_my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
 			spawn_player(HOST_PEER)
 
 
@@ -228,6 +228,17 @@ func _parse_args() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--as-rank="):
 			_declared_rank = maxi(1, int(arg.split("=", true, 1)[1]))
+		# **A body with no class holds nothing** (`M3-T07`, `DES-020`). Slots
+		# make the class kit what arms you, and a headless process has never
+		# been to the class select — so the two-process smoke was swinging with
+		# empty hands and reading it as damage that failed to replicate.
+		#
+		# A harness flag rather than a default in the level: in the real game
+		# `room_set` is only reachable through a menu that refuses to descend
+		# without a class, and quietly supplying one here would hide the day
+		# that stops being true.
+		elif arg.begins_with("--as-class="):
+			GameState.class_id = StringName(arg.split("=", true, 1)[1])
 
 
 # ── transport ─────────────────────────────────────────────────────────────
@@ -270,7 +281,7 @@ func _start_host() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
-	declare_descent(_my_rank(), String(GameState.class_id), _my_effects())
+	declare_descent(_my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
 	spawn_player(HOST_PEER)
 
 
@@ -314,7 +325,7 @@ func _on_connected() -> void:
 	# Before anything else asks (`M3-T10`). A floor built while a rank-8 player
 	# was still announcing themselves is a rank-1 floor with a rank-8 player on
 	# it, which is the opposite of what ADR-010 is for.
-	declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects())
+	declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
 	_waiting_until = 0
 	_hide_waiting()
 
@@ -424,6 +435,9 @@ var _sworn: Dictionary = {}
 ## Peer id → the effect tags that peer's tree has switched on (`M3-T01`).
 ## Per scene like `_ranks`, and it dies with the floor.
 var _effects: Dictionary = {}
+## Peer id → slot name → item id (`M3-T07`). Per scene, and it dies with the
+## floor like everything else here.
+var _worn: Dictionary = {}
 ## What this process says its own rank is. `0` means "ask the profile", which
 ## is every real launch; `--as-rank=N` is the sweep building a mixed party.
 var _declared_rank: int = 0
@@ -482,7 +496,8 @@ func everyone_declared() -> bool:
 ## nobody's but its own. They are the same kind of value as party size, which
 ## has always crossed, and they are discarded with the scene.
 @rpc("any_peer", "call_local", "reliable")
-func declare_descent(rank: int, sworn: String, effects: PackedStringArray) -> void:
+func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
+		worn: Dictionary) -> void:
 	if not multiplayer.is_server():
 		return
 	var who: int = multiplayer.get_remote_sender_id()
@@ -502,6 +517,19 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray) -> vo
 	# never networked"* honest — no Boon, no spend, no tree, and the host stores
 	# none of it past the floor.
 	_effects[id] = effects
+	# **What that peer is wearing** (`M3-T07`). Same reason as the two above:
+	# the host dresses four bodies and only one of the wardrobes is its own.
+	_worn[id] = worn
+	# **Tell the body, if it is already here.** A declaration and a spawn packet
+	# are independent events and neither waits for the other (ADR-122), so both
+	# orders have to end in the same place: the payload covers *declared first*,
+	# and this covers *spawned first* — which is the ordinary case, because the
+	# host spawns from `peer_connected` and the declaration is an RPC behind it.
+	var body: Player = player_for(id)
+	if body != null:
+		body.sworn = StringName(sworn)
+		body.effects = effects
+		body.wearing = worn
 	_log("peer %d descends at rank %d as '%s' — the floor is rank %d" % [
 		id, rank, sworn if sworn != "" else "nobody", floor_rank()])
 	# **The floor has to hear this** (ADR-122). A client's declaration is an
@@ -512,6 +540,19 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray) -> vo
 		floor_rank_changed.emit(was, floor_rank())
 
 
+## **A body is built when the host knows what body to build** (`M3-T07`).
+##
+## This used to call `spawn_player` here, and that is one frame too early:
+## a joining peer's `declare_descent` is an RPC it sends from its own
+## `_on_connected`, so the payload was assembled before the host had been told
+## the class — and **every client's body has been built classless since
+## `M3-T02`**, quietly losing its health, speed and carry scales. Nothing
+## noticed, because `sworn` only changed numbers until `M3-T07` gave it a
+## weapon to hold and the two-process smoke started swinging at air.
+##
+## Exactly the shape ADR-122 found in `_build_hunt` — a body arriving and a
+## declaration arriving are independent events — so it takes the same answer
+## from the other end: the declaration is what spawns the body.
 func _on_peer_connected(peer: int) -> void:
 	_log("peer %d joined" % peer)
 	spawn_player(peer)
@@ -570,6 +611,7 @@ func _build_player(payload: Dictionary) -> Node:
 	# a frame — on the host, which is the copy that decides what a blow does.
 	player.sworn = StringName(payload.get("class", ""))
 	player.effects = payload.get("effects", PackedStringArray()) as PackedStringArray
+	player.wearing = (payload.get("worn", {}) as Dictionary).duplicate()
 	# Before `add_child`, so `_ready` already knows whether it is looking at
 	# its own body. Deciding afterwards means one frame of a remote player
 	# holding the camera and capturing the mouse.
@@ -661,6 +703,7 @@ func spawn_player(peer: int, at: Vector3 = NO_PLACE) -> Player:
 		# beside the class and for the same reason: every peer derives the same
 		# body from the same payload.
 		"effects": effects_of(peer),
+		"worn": _worn.get(peer, {}),
 	}) as Player
 	if player != null:
 		player_spawned.emit(player)
@@ -827,6 +870,10 @@ func _log(message: String) -> void:
 ## Gathered here rather than at each of the four declaration sites, for the
 ## reason `_my_rank` gives one function down: four copies of a lookup is four
 ## places to forget it.
+func _my_worn() -> Dictionary:
+	return GameState.worn.duplicate()
+
+
 func _my_effects() -> PackedStringArray:
 	var tags := PackedStringArray()
 	for id: StringName in GameState.taken:

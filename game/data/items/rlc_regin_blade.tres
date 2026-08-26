@@ -25,4 +25,5 @@ clamor = 1.0
 grid_size = Vector2i(1, 4)
 tribute_value = 120
 traits = Array[ExtResource("2_wieldable")]([SubResource("Resource_wieldable")])
+slot = 1
 tags = Array[StringName]([&"relic", &"gear", &"glitter", &"metal"])

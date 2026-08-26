@@ -26,8 +26,8 @@ extends Object
 ## user://profile.save
 ## ├── meta     { save_version, engine, created, updated }
 ## ├── lineage  { hoard, hoard_value }          ← survives death, always
-## └── life     { stash, class_id, boon, boon_progress, taken, tithe_paid,
-##                cycle_runs, hunt_head_start }
+## └── life     { stash, class_id, worn, boon, boon_progress, taken,
+##                tithe_paid, cycle_runs, hunt_head_start }
 ## ```
 ##
 ## `legacy` is **absent rather than empty**: there are no Legacy slots until
@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 4
+const SAVE_VERSION: int = 5
 
 const PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
@@ -72,6 +72,7 @@ static func migrations() -> Dictionary:
 		1: _migrate_1_to_2,
 		2: _migrate_2_to_3,
 		3: _migrate_3_to_4,
+		4: _migrate_4_to_5,
 	}
 
 
@@ -280,6 +281,21 @@ static func _migrate_3_to_4(old: Dictionary) -> Dictionary:
 	life["boon"] = 0
 	life["boon_progress"] = 0
 	life["taken"] = []
+	out["life"] = life
+	return out
+
+
+## **v5 — what you are wearing** (`M3-T07`, `DES-020`).
+##
+## Six slots exist now, and a life that took its boots off between sessions
+## would be a `DES-008` record that forgets. Empty is the honest default: every
+## v4 profile predates slots entirely, so nobody was wearing anything, and the
+## first descent after a migration re-dresses from the class kit exactly as a
+## fresh life does.
+static func _migrate_4_to_5(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["worn"] = {}
 	out["life"] = life
 	return out
 

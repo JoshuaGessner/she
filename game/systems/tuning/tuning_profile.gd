@@ -345,21 +345,23 @@ extends Resource
 @export var interact_reach_slack: float = 0.5
 
 @export_group("Weapon")
-## DES-009 attack anatomy: Anticipation → Active → Recovery. Attacks commit;
-## there is no cancelling out of one. Recovery is not dead time — it is the
-## window an enemy gets to punish a badly chosen swing.
-@export var swing_windup: float = 0.16
-@export var swing_active: float = 0.10
-@export var swing_recovery: float = 0.30
-@export var swing_damage: float = 25.0
-@export var swing_stamina_cost: float = 12.0
-## A press this long before recovery ends still fires (DES-009 §4). Without
-## buffering, a committal system reads as unresponsive rather than weighty.
+## **The attack anatomy lives on the weapon now** (`M3-T07`, `DES-020`).
+##
+## `DES-009`'s Anticipation → Active → Recovery used to be seven numbers here,
+## and every weapon in the item table carried its own copy that **nothing read**
+## (ADR-124 §2). Slots gave `WieldableTrait` a reader, so the numbers moved to
+## where the design always described them — *"space is a weapon stat"* is not a
+## sentence about a profile — and they are gone from here rather than left as a
+## second source of truth (ADR-064).
+##
+## What stays is the one value that is **not** a property of a weapon:
+## buffering is a property of the *input*, and it is the same for a knife and a
+## hammer because it is about how a press feels, not about what is being swung.
+## `DES-009` §4 lists it under Forgiveness for exactly that reason.
+##
+## A press this long before recovery ends still fires. Without buffering, a
+## committal system reads as unresponsive rather than weighty.
 @export var swing_buffer_window: float = 0.25
-## Generous on the player's swing, tight on incoming (DES-009 §4). Invisible,
-## standard practice, and it is most of why a game feels fair.
-@export var swing_reach: float = 2.2
-@export var swing_arc_radius: float = 1.1
 
 @export_group("Enemy")
 @export var enemy_health: float = 60.0
@@ -402,11 +404,10 @@ extends Resource
 ## Weight makes you louder as well as slower — the same greed, same number.
 @export var clamor_footstep_at_capacity: float = 2.4
 @export var clamor_landing: float = 3.5
-## DES-009: "Every swing has a Clamor value." Missing is quieter than hitting;
-## hitting something is the loud part, which is what makes a whiff cheap and a
-## fight expensive.
-@export var clamor_swing: float = 2.0
-@export var clamor_hit: float = 4.5
+## `DES-009`: *"Every swing has a Clamor value. Blunt weapons are loudest."*
+## Both halves of that are claims about **weapons**, so both live on
+## `WieldableTrait` since `M3-T07` — a hammer is louder than a knife, and one
+## number here could never say so.
 ## Noise made handling one item — rummaging in an open bag, and lifting or
 ## setting down anything. Scaled by the item's own clamor.
 @export var clamor_rummage: float = 0.6

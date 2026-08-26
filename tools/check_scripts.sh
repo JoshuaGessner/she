@@ -326,6 +326,24 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Six slots, and a weapon whose numbers are finally read** (`M3-T07`,
+	# `DES-020`, ADR-127). `WieldableTrait` carried windup, active, recovery,
+	# damage and reach on four authored weapons and nothing consumed any of it
+	# — `MeleeWeapon` swung one profile's numbers for every weapon in the game.
+	#
+	# The first row is the one the two-process smoke needed and nothing had:
+	# **the body arrived armed**, without this probe equipping it. Every other
+	# check here equips explicitly first, so all of them would pass on a body
+	# that descends with empty hands — which is exactly what every client's
+	# body had been doing since `M3-T02`.
+	gear="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --gear-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$gear" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL what you are holding has to matter" >&2
+		printf '%s\n' "$gear" | grep -E '\[gear\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
@@ -647,6 +665,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "an arrow is loud where it lands and a Snare holds the Hunter,"
 	echo "a missed Tithe reaches the floor it was missed for,"
 	echo "surplus tribute buys nodes and every node she charges for,"
+	echo "what you hold decides the swing and the pack decides the bag,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

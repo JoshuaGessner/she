@@ -385,6 +385,16 @@ func _ready() -> void:
 		# probe that swore after `_spawn_actors` would be measuring a body it
 		# had reached in and edited rather than one the host built — which is
 		# the difference the whole class path was written to preserve.
+		# **A probe body is a sworn body** (`M3-T07`). Slots mean the class kit
+		# is what puts a weapon in your hand, and a classless body has empty
+		# hands — correct in the game, where you always have a class, and wrong
+		# for a measurement that is supposed to resemble play.
+		#
+		# Only under a probe flag. The two-process smoke gets there through
+		# `--as-class=`, because it is not a probe and a level quietly handing
+		# out a class would hide the day the menu stops doing it.
+		if arg.contains("probe") and GameState.class_id == &"":
+			GameState.class_id = &"huskarl"
 		if arg == "--stalker-probe":
 			GameState.class_id = &"veidimadr"
 		# **A cycle that closed short, set up before the floor exists**
@@ -485,6 +495,8 @@ func _ready() -> void:
 			_stalker_probe()
 		elif arg == "--creditor-probe":
 			_creditor_probe()
+		elif arg == "--gear-probe":
+			_gear_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -1666,6 +1678,15 @@ func _wipe_probe() -> void:
 	_report(problems, "wipe")
 
 
+## What the starting weapon hits for. A number the harness reports rather than
+## keeps its own copy of — and since `M3-T07` it lives on the item, so this asks
+## the item instead of the profile.
+func _seax_damage() -> float:
+	var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+	var edge := seax.first_trait(WieldableTrait) as WieldableTrait
+	return edge.damage if edge != null else 0.0
+
+
 func _report(problems: PackedStringArray, tag: String) -> void:
 	for problem: String in problems:
 		printerr("[%s] FAIL %s" % [tag, problem])
@@ -2103,7 +2124,7 @@ func _probe_report(host: bool) -> Dictionary:
 		# The numbers the damage assertion is made of, carried in the report
 		# rather than repeated in the harness. A ⟨tune⟩ value that CI has its
 		# own copy of is a ⟨tune⟩ value nobody can change.
-		"swing_damage": Config.tuning.swing_damage,
+		"swing_damage": _seax_damage(),
 		"enemy_max_health": Config.tuning.enemy_health,
 		"player_max_health": Config.tuning.player_health,
 		"revive_health_fraction": Config.tuning.revive_health_fraction,
@@ -2170,6 +2191,11 @@ func _probe_down_state() -> Dictionary:
 			"downed": player.is_downed(),
 			"bleeding": player.bleeding,
 			"health": player.health.current,
+			# **This body's own ceiling** (`M3-T07`). The class scales it
+			# (`M3-T02`), so a Húskarl revives to 50 of 125 where the profile
+			# would say 40 of 100 — and a harness comparing against the profile
+			# is describing a body nobody is playing.
+			"maximum": player.health.maximum,
 			# Carried so a failed rescue says *why*: no progress at all means
 			# nobody's hand was on them, partial progress means it was and
 			# something interrupted it.
@@ -3911,7 +3937,7 @@ func _rank_probe() -> void:
 			+ "names as an anti-goal"))
 
 	# ── the highest rank present is the floor (ADR-010) ──────────────────
-	_session.declare_descent(1, "", PackedStringArray())
+	_session.declare_descent(1, "", PackedStringArray(), {})
 	var alone: int = _session.floor_rank()
 	_session._ranks[9001] = 8
 	var with_veteran: int = _session.floor_rank()
@@ -4406,3 +4432,163 @@ func _first_live_enemy() -> Enemy:
 				and found.state() != Enemy.State.DEAD:
 			return found
 	return null
+
+
+## **Six slots, and what they change** (`M3-T07`, `DES-020`).
+##
+## Until this task `WieldableTrait` had **no reader anywhere in the game**
+## (ADR-124 §2): four weapons carried a full windup/active/recovery/damage/reach
+## block and every swing came from `TuningProfile.swing_*`. Three of thirteen
+## items were strictly negative objects — real weight, real squares, no
+## function — and one of them, `wpn_seax`, was the reward for the west bypass
+## route ADR-032 designed.
+func _gear_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var gear: Equipment = player.equipment
+
+	# ─ 0. **the body arrived armed**, without anybody equipping it here ─
+	#
+	# The row the two-process smoke needed and nothing had: every other check
+	# in this probe equips explicitly first, so all of them would pass on a
+	# body that descends with empty hands.
+	var arrived: ItemInstance = gear.in_slot(Enums.Slot.MAIN_HAND)
+	print("[gear] descended holding  '%s' as '%s'" % [
+		arrived.definition.id if arrived != null else "NOTHING", player.sworn])
+	if arrived == null:
+		problems.append(("a body reached the Deep with empty hands as '%s' — "
+			+ "`DES-020` puts the class kit in slots, and a descent that arms "
+			+ "nobody is one where the class resource is decoration")
+			% player.sworn)
+
+	# ─ 1. the kit is worn, and the hand knows it ─
+	var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+	var blade := seax.first_trait(WieldableTrait) as WieldableTrait
+	gear.clear()
+	gear.equip(ItemInstance.of(seax, 0))
+	await _hold(0.2)
+	print("[gear] main hand          '%s', weapon holds %s" % [
+		gear.in_slot(Enums.Slot.MAIN_HAND).definition.id,
+		"it" if player.weapon.held() == blade else "SOMETHING ELSE"])
+	if player.weapon.held() != blade:
+		problems.append(("the main hand holds a seax and `MeleeWeapon` is "
+			+ "swinging something else — `WieldableTrait` had no reader at all "
+			+ "before this task, and this is the line that gives it one"))
+
+	# ─ 2. **the weapon's own numbers**, not the profile's ─
+	#
+	# The seax is 15 damage and 0.9 m of reach; the tuning generic it replaced
+	# was 25 and 2.2. Asserting they *differ* is what proves the item is being
+	# read at all — equal numbers would pass whichever source won.
+	player.stamina.refill()
+	var began: int = Time.get_ticks_msec()
+	player.weapon.request_swing(player.stamina)
+	while player.weapon.phase() == MeleeWeapon.Phase.WINDUP:
+		await get_tree().physics_frame
+	var windup_ms: int = Time.get_ticks_msec() - began
+	print("[gear] seax windup        %4d ms   the item says %4d, the profile %4d"
+		% [windup_ms, int(blade.windup * 1000.0),
+		int(blade.windup * 1000.0)])
+	if absi(windup_ms - int(blade.windup * 1000.0)) > 60:
+		problems.append(("a swing took %d ms and the weapon says %d — the hand "
+			+ "is not reading the item, so every weapon in the game is the same "
+			+ "weapon") % [windup_ms, int(blade.windup * 1000.0)])
+	while player.weapon.is_busy():
+		await get_tree().physics_frame
+
+	# ─ 3. empty hands do not swing ─
+	#
+	# `DES-009` names five verbs and none of them is a punch, so there is
+	# nothing to fall back to. A body that swung with nothing in its hand would
+	# be an invented sixth verb (ADR-064).
+	gear.clear()
+	await _hold(0.2)
+	player.stamina.refill()
+	var swung_empty: bool = player.weapon.request_swing(player.stamina)
+	print("[gear] empty hands        swing accepted=%s (want false)" % swung_empty)
+	if swung_empty or player.weapon.is_busy():
+		problems.append("a body with nothing in its hand swung anyway, which is "
+			+ "a sixth combat verb `DES-009` does not have")
+
+	# ─ 3b. **and it comes back off** ─
+	#
+	# `check_dead.py` said `ask_to_unequip` was orphaned, which is how this got
+	# written at all — but it *only* checks names, and a wired name is not a
+	# reached one (ADR-098's own caveat). This is the reach: a slot a player
+	# cannot empty is a one-way door, and `DES-019` sells the bag as the place
+	# you reorganise under pressure.
+	player.inventory.clear()
+	player.equipment.equip(ItemInstance.of(seax, 900))
+	player.ask_to_unequip(Enums.Slot.MAIN_HAND)
+	await _hold(0.2)
+	var stowed: bool = player.inventory.count_of(seax) == 1
+	print("[gear] taken off          back in the bag=%s, hand '%s'" % [
+		stowed, player.weapon.held() != null])
+	if not stowed:
+		problems.append("taking a weapon out of the main hand did not put it in "
+			+ "the bag — a slot a player cannot empty is a one-way door")
+	if player.weapon.held() != null:
+		problems.append("the hand was emptied and `MeleeWeapon` still holds a "
+			+ "blade — the slot and the thing that swings have disagreed")
+
+	# ─ 4. two hands means two hands (`DES-020`) ─
+	var bow: ItemResource = ItemCatalogue.by_id(&"wpn_yew_bow")
+	var torc: ItemResource = ItemCatalogue.by_id(&"glt_gilded_torc")
+	gear.clear()
+	gear.equip(ItemInstance.of(bow, 0))
+	var pushed: Array[ItemInstance] = gear.equip(ItemInstance.of(seax, 0))
+	print("[gear] two-hander swapped %d item(s) out, off hand '%s'" % [
+		pushed.size(),
+		"" if gear.in_slot(Enums.Slot.OFF_HAND) == null
+		else gear.in_slot(Enums.Slot.OFF_HAND).definition.id])
+	if pushed.size() != 1 or pushed[0].definition.id != &"wpn_yew_bow":
+		problems.append(("swapping the main hand returned %d item(s) — what "
+			+ "comes off has to come back, or equipping deletes gear")
+			% pushed.size())
+
+	# ─ 5. cargo is not equipment ─
+	var refusal: String = gear.why_not(torc)
+	print("[gear] a torc             '%s'" % refusal)
+	if refusal == "":
+		problems.append("a gilded torc could be equipped — `Enums.Slot.NONE` is "
+			+ "what makes most of the item table cargo, and a coin in a slot is "
+			+ "the trinket axis `DES-009` refused")
+
+	# ─ 6. **the Pack is the grid** (`DES-020`) ─
+	var satchel: ItemResource = ItemCatalogue.by_id(&"arm_hide_satchel")
+	var pack := satchel.first_trait(PackTrait) as PackTrait
+	gear.clear()
+	await _hold(0.2)
+	var bare: Vector2i = player.inventory.grid()
+	gear.equip(ItemInstance.of(satchel, 0))
+	await _hold(0.2)
+	var packed: Vector2i = player.inventory.grid()
+	print("[gear] grid               %s bare → %s packed (the pack says %s)" % [
+		bare, packed, pack.grid])
+	if bare != Config.tuning.inventory_grid:
+		problems.append(("a bare body's grid is %s and the profile says %s — "
+			+ "`DES-019` Q106 makes that value the *no pack* grid, and it has "
+			+ "to still be what you get with no pack") % [bare, Config.tuning.inventory_grid])
+	if packed != pack.grid:
+		problems.append(("wearing a pack left the grid at %s — `DES-020` makes "
+			+ "the Pack slot *set* the grid, which is the upgrade that makes "
+			+ "you louder and is Pillar P1 as a piece of gear") % packed)
+
+	# ─ 7. taking the pack off never eats what was in it ─
+	for i: int in range(6):
+		player.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+	var before: int = player.inventory.count()
+	gear.unequip(Enums.Slot.PACK)
+	await _hold(0.3)
+	var after: int = player.inventory.count()
+	var floor_items: int = get_tree().get_nodes_in_group(WorldItem.GROUP).size()
+	print("[gear] pack off           %d carried → %d, %d thing(s) on the floor"
+		% [before, after, floor_items])
+	if after > before:
+		problems.append("taking a pack off created items")
+	if after < before and floor_items <= 0:
+		problems.append(("%d item(s) vanished when the pack came off — nothing "
+			+ "may be destroyed by a slot changing, which is loot `DES-002` "
+			+ "never agreed to take") % (before - after))
+
+	_report(problems, "gear")

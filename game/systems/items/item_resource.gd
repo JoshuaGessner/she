@@ -81,6 +81,18 @@ const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_"]
 ## have no utility at all, which is exactly what makes them a pure greed
 ## decision.
 @export var traits: Array[ItemTrait] = []
+
+@export_group("Equipment")
+## Where this is worn or held (`M3-T07`, `DES-020`), or `NONE` for cargo.
+##
+## On the resource rather than in a trait: a trait says *what a thing does* and
+## this says *what kind of thing it is*, which is the same category as `weight`
+## and `grid_size`. A coin has no slot and never will.
+@export var slot: Enums.Slot = Enums.Slot.NONE
+## Occupies the off hand as well (`DES-020`): *"two-handed weapons occupy both
+## slots — no lantern, no shield, no map without stowing."* Only meaningful on
+## a `MAIN_HAND` item, and `validate()` says so.
+@export var two_handed: bool = false
 ## Free-form classifiers systems react to — `"glitter"`, `"dvergar"`,
 ## `"metal"`, `"grave_good"`. DES-008's five loot categories live here rather
 ## than as an enum, because an item is routinely more than one of them.
@@ -124,6 +136,15 @@ func first_trait(type: Script) -> ItemTrait:
 
 func validate() -> PackedStringArray:
 	var problems := PackedStringArray()
+	# A weapon nothing can hold is cargo with a damage number on it, and the
+	# whole point of `M3-T07` is that `WieldableTrait` finally has a reader.
+	if slot == Enums.Slot.NONE and (has_trait(WieldableTrait) or has_trait(RangedTrait)):
+		problems.append(("%s is a weapon in no slot — it can never be held, so "
+			+ "its wieldable numbers are read by nothing") % id)
+	if two_handed and slot != Enums.Slot.MAIN_HAND:
+		problems.append(("%s is two-handed but is not a main-hand item; "
+			+ "`DES-020` gives the second hand only to what the first one holds")
+			% id)
 	if String(id).is_empty():
 		problems.append("id is empty; every item needs a stable permanent id")
 	elif not _prefixed(String(id)):

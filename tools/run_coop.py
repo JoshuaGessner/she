@@ -366,7 +366,13 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
     # weaker test for a reason that has nothing to do with the revive, and it
     # did — the client stood up at 40 and was promptly hit down to 6.
     revived_hp = host["revived"].get(client_body, {}).get("health", 0.0)
-    ceiling = float(host["player_max_health"]) * float(host["revive_health_fraction"])
+    # **Against that body's own maximum**, not the profile's. A Húskarl is
+    # 1.25x (`M3-T02`), so a revive returns 50 of 125 rather than 40 of 100 —
+    # and this read the profile until `M3-T07` made the class actually reach a
+    # client's body. It failed the moment that started working, which is the
+    # right way round: the harness was describing a body nobody was playing.
+    ceiling = (float(host["revived"].get(client_body, {}).get("maximum",
+        host["player_max_health"])) * float(host["revive_health_fraction"]))
     rows.append(check(
         "and no better than a revive gives",
         0.0 < revived_hp <= ceiling + 0.01,
@@ -402,6 +408,12 @@ def main() -> int:
     host_args = ["--host", f"--port={args.port}"] + device_for(0, args)
     if args.smoke:
         host_args.append(f"--coop-probe={host_out}")
+        # **Both bodies have to be dressed** (`M3-T07`). Slots make the class
+        # kit what puts a weapon in your hand, and a headless process has never
+        # seen the class select — so without this the smoke swings with empty
+        # hands and reports it as damage that failed to replicate, which is a
+        # true reading of an unarmed player and a wrong story about the wire.
+        host_args.append("--as-class=huskarl")
     procs.append(("host", launch(godot, host_args, args, 0)))
 
     # The client's create_client fails outright if nothing is listening yet, so
@@ -420,6 +432,16 @@ def main() -> int:
             # assemble is two rank-1 players, the one composition that cannot
             # tell a working ADR-010 from a broken one.
             client_args.append("--as-rank=8")
+            # **A Húskarl, deliberately, and not the Veiðimaðr.** A mixed-class
+            # party is a better party and it is the wrong thing to put here:
+            # the swing row below is about *melee damage being resolved once,
+            # by the host*, and a Stalker carries a bow — so the first draft of
+            # this line left the client with nothing to swing and the harness
+            # reported it as damage that failed to replicate. A true reading of
+            # an unarmed player and a wrong story about the wire.
+            #
+            # Mixed classes are `GATE M3 COOP`'s question, with real people.
+            client_args.append("--as-class=huskarl")
         procs.append((f"client{i}", launch(godot, client_args, args, i + 1)))
 
     if not args.smoke:

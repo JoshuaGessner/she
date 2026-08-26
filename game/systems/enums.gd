@@ -21,3 +21,15 @@ extends Object
 ## makes for its multiplier — a real value at its only current setting, not a
 ## reserved slot.
 enum DamageType { CUT, PIERCE, BLUNT }
+
+## `DES-020`'s six, and `NONE` for everything that is only ever cargo.
+##
+## Six deliberately: *"every slot multiplies against every armour set in art
+## cost."* There are no trinket or charm slots and there will not be — `DES-009`
+## refused a stat block because Aspects plus gear already carry build identity,
+## and a third axis is that refusal undone wearing a different hat.
+##
+## `BODY` is torso **and** legs in one piece, which `DES-020` calls the single
+## largest art saving in the system for a difference stylised low-poly barely
+## registers.
+enum Slot { NONE, MAIN_HAND, OFF_HAND, ARMS, HEAD, BODY, PACK }

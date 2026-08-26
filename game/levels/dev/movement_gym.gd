@@ -77,6 +77,13 @@ func _ready() -> void:
 ## a body now arrives when a peer does rather than at level start.
 func _on_player_spawned(player: Player) -> void:
 	player.health.died.connect(_on_player_died)
+	# **The gym arms what it spawns** (`M3-T07`). There is no class select in
+	# here and slots mean an unsworn body holds nothing, so a swing probe would
+	# be measuring empty hands. The seax is the weapon `DES-009`'s M1 protocol
+	# was written against and the one the profile's old numbers described.
+	if player.equipment != null and player.equipment.is_empty():
+		player.equipment.equip(ItemInstance.of(
+			ItemCatalogue.by_id(&"wpn_seax"), 0))
 
 
 ## Reset the gym repeatedly and let the per-frame overlays run over the wreckage.
@@ -185,7 +192,9 @@ func _clamor_probe(player: Player) -> void:
 		"swing, missed", whiff, whiff * tuning.clamor_metres_per_unit])
 
 	player.clamor.silence()
-	player.clamor.add(tuning.clamor_swing + tuning.clamor_hit)
+	var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+	var blade := seax.first_trait(WieldableTrait) as WieldableTrait
+	player.clamor.add(blade.clamor_swing + blade.clamor_hit)
 	var landed: float = player.clamor.level
 	print("[clamor] %-26s %8.2f %8.1f" % [
 		"swing, connected", landed, landed * tuning.clamor_metres_per_unit])
@@ -308,10 +317,14 @@ func _combat_probe(player: Player) -> void:
 			phases[str(seen)] = Time.get_ticks_msec() - began
 			began = Time.get_ticks_msec()
 			seen = player.weapon.phase()
+	# **Expected from the weapon in the hand** (`M3-T07`). These read the
+	# profile until slots existed; the profile no longer has an opinion about
+	# how fast a knife swings, because a knife does.
+	var edge: WieldableTrait = player.weapon.held()
 	print("[combat] swing windup             %4d ms   expected %4d" % [
-		int(phases.get(str(MeleeWeapon.Phase.WINDUP), 0)), int(tuning.swing_windup * 1000.0)])
+		int(phases.get(str(MeleeWeapon.Phase.WINDUP), 0)), int(edge.windup * 1000.0)])
 	print("[combat] swing active             %4d ms   expected %4d" % [
-		int(phases.get(str(MeleeWeapon.Phase.ACTIVE), 0)), int(tuning.swing_active * 1000.0)])
+		int(phases.get(str(MeleeWeapon.Phase.ACTIVE), 0)), int(edge.active * 1000.0)])
 
 	# 3. The telegraph floor, measured. This is the one number DES-009 attaches
 	#    a human-factors argument to, so a resource value alone is not enough.
@@ -346,7 +359,7 @@ func _combat_probe(player: Player) -> void:
 	# 5. Lethality, in hits. DES-009's open M1 question is whether 2-3 hits from
 	#    a common enemy kill a fresh player.
 	print("[combat] enemy dies in            %4d swings" % [
-		int(ceil(tuning.enemy_health / tuning.swing_damage))])
+		int(ceil(tuning.enemy_health / edge.damage))])
 	print("[combat] player dies in           %4d hits" % [
 		int(ceil(tuning.player_health / tuning.enemy_attack_damage))])
 
@@ -494,7 +507,9 @@ func _capture(player: Player, path: String) -> void:
 	## the weapon mid-arc and the clamor ring the swing produced. An idle frame
 	## shows neither — clamor decays to nothing and the ring hides itself — and
 	## would suggest both features were missing.
-	player.clamor.add(Config.tuning.clamor_swing * 2.0)
+	var loud: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+	var edge := loud.first_trait(WieldableTrait) as WieldableTrait
+	player.clamor.add(edge.clamor_swing * 2.0)
 	player.weapon.request_swing(player.stamina)
 	for i: int in range(6):
 		await get_tree().physics_frame

@@ -118,6 +118,19 @@ var hunt_head_start: float = 0.0
 ## profile is in and the condition the select screen opens on.
 var class_id: StringName = &""
 
+## **What this life is wearing** (`M3-T07`, `DES-020`). Slot name → item id.
+##
+## LIFE tier, beside the stash: gear is `DES-008`'s *record of where you have
+## been*, and a record that outlived its owner would make death cost less than
+## `DES-002` says it does. Kept as **slot names** rather than enum indices, so
+## reordering `Enums.Slot` later cannot silently move a helm onto a hand.
+##
+## Written by the local body whenever its slots change, and read at descent to
+## dress it again. The **host reads each peer's own copy off the descent
+## declaration**, never this one — three of the four bodies it builds belong to
+## somebody else, which is the trap ADR-121 and ADR-126 both had to avoid.
+var worn: Dictionary = {}
+
 ## Whether a profile has been opened. See the header: nothing is written back
 ## to a file that was never read.
 var _live: bool = false
@@ -205,6 +218,9 @@ func die() -> void:
 	taken.clear()
 	boon = 0
 	boon_progress = 0
+	# Gear goes with the life. `DES-008` makes it a record of where you have
+	# been, and `DES-002` is what makes that record worth anything.
+	worn.clear()
 	tithe_paid = 0
 	cycle_runs = 0
 	hunt_head_start = 0.0
@@ -464,18 +480,16 @@ func take_the_oath(id: StringName) -> bool:
 			push_error("GameState: %s's kit names '%s', which is not an item"
 				% [id, item])
 			continue
-		# **Not a second copy of what the body already is** (ADR-124).
+		# **What has a slot is worn, not stashed** (`M3-T07`, `DES-020`).
+	#
 		#
-		# `Player._arm_from_kit` reads this same list and puts a bow in the
-		# hand, so stashing one as well gave a Veiðimaðr three squares of bag
-		# and 1.4 kg holding an inert duplicate of the weapon they were already
-		# carrying — one object with two representations, which is ADR-064's
-		# banned category arrived at by accident rather than by design.
-		#
-		# `M3-T07` deletes this test and `_arm_from_kit` together: once a slot
-		# decides what is in your hands, the bag copy becomes the real one and
-		# there is nothing to duplicate.
-		if definition.has_trait(RangedTrait):
+		# ADR-124 patched this with a guard against ranged weapons specifically,
+		# because a bow was reaching the hand *and* the bag. Slots make the rule
+		# general and the guard unnecessary: `Player._dress_from_kit` equips
+		# everything in the kit that has somewhere to go, so anything that does
+		# is already accounted for and only cargo waits in the stash.
+		if definition.slot != Enums.Slot.NONE:
+			worn[Enums.Slot.keys()[definition.slot]] = String(item)
 			continue
 		stash.append(ItemInstance.of(definition, 0))
 	_persist()
@@ -513,6 +527,7 @@ func to_dict() -> Dictionary:
 			# **No `pact_rank`.** It is derived from `taken` (ADR-125), and a
 			# stored copy is a second source of truth that a hand-edited or
 			# half-migrated file could set out of step with the tree.
+			"worn": worn,
 			"boon": boon,
 			"boon_progress": boon_progress,
 			"taken": spent,
@@ -550,6 +565,7 @@ func from_dict(data: Dictionary) -> void:
 	# writes them explicitly; these are what happens if a field is missing for
 	# any other reason, and a rank of 0 would index the Tithe table below zero.
 	class_id = StringName(life.get("class_id", ""))
+	worn = (life.get("worn", {}) as Dictionary).duplicate()
 	boon = maxi(0, int(life.get("boon", 0)))
 	boon_progress = maxi(0, int(life.get("boon_progress", 0)))
 	taken.clear()
@@ -608,6 +624,12 @@ func _save_probe() -> void:
 	keep(ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 2))
 	var gave: int = hoard_value
 	var pile: int = hoard.size()
+	# **What you are wearing is part of the life** (`M3-T07`, save v5). Recorded
+	# before the round trip below, because a plant that stopped writing `worn`
+	# to the wire went **uncaught**: every row here was about the hoard and the
+	# stash, and gear reached disk untested for the whole of its first task.
+	worn["MAIN_HAND"] = "wpn_seax"
+	_persist()
 
 	if FileAccess.file_exists(SaveFile.TMP):
 		problems.append(("a scratch file survived the write — `%s` is renamed "
@@ -618,6 +640,7 @@ func _save_probe() -> void:
 	hoard.clear()
 	hoard_value = 0
 	stash.clear()
+	worn.clear()
 	from_dict(SaveFile.read())
 	print("[save] round trip     hoard %d/%d, value %d/%d, stash %d" % [
 		hoard.size(), pile, hoard_value, gave, stash.size()])
@@ -628,6 +651,11 @@ func _save_probe() -> void:
 	if stash.size() != 1 or stash[0].definition.id != &"wpn_seax":
 		problems.append(("the stash did not survive a round trip — `DES-008`'s "
 			+ "great reset is supposed to be what empties it, not quitting"))
+	print("[save] gear           main hand '%s'" % worn.get("MAIN_HAND", ""))
+	if String(worn.get("MAIN_HAND", "")) != "wpn_seax":
+		problems.append(("what was worn did not survive a round trip — "
+			+ "`DES-020` puts the class kit in slots, so a life that reloads "
+			+ "unarmed has lost the thing `M3-T02` swore it to"))
 
 	# ── a scratch file left by an earlier crash ──────────────────────────
 	var litter := FileAccess.open(SaveFile.TMP, FileAccess.WRITE)
