@@ -1,6 +1,12 @@
 class_name Stamina
 extends Node
 
+## **Second Wind** (`M3-T12`). Set by the body each frame rather than asked for:
+## this component knows nothing about who holds it, and reaching up for a
+## `Player` would be the child-into-parent call `CLAUDE.md` forbids. Same shape
+## as `Inventory.weightless_materials` — the owner pushes what it knows down.
+var breathing: bool = false
+
 ## Stamina as a component, not a field on the player (TEC-001: composition).
 ## DES-009 has it governing swinging, blocking, sprinting and climbing — four
 ## consumers across three future systems — so it belongs on its own node from
@@ -60,7 +66,12 @@ func _process(delta: float) -> void:
 	var tuning: TuningProfile = Config.tuning
 	# The delay is what makes stamina a resource rather than a formality: with
 	# instant regeneration, sprinting in short bursts costs nothing.
-	if _since_spend < tuning.stamina_regen_delay or current >= tuning.stamina_max:
+	# **Second Wind** (`M3-T12`). The delay is what makes stamina a rhythm; this
+	# removes it *while standing still*, so the node buys a place to recover
+	# rather than a bigger pool — and standing still is the most exposed thing
+	# the Wing can ask you to do.
+	if (not breathing and _since_spend < tuning.stamina_regen_delay) \
+			or current >= tuning.stamina_max:
 		return
 	current = minf(tuning.stamina_max, current + tuning.stamina_regen * delta)
 

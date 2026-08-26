@@ -255,6 +255,24 @@ extends Resource
 ## small and fixed, because `DES-003`'s claim is that **power creep is bounded
 ## by design rather than by tuning**: three slots is three slots, and it cannot
 ## spiral however many lifetimes accrue.
+## What a Wing channel costs against everyone else's ⟨tune⟩ (`M3-T12`).
+## One number for both the Waystone and the Shaft, because *Windward* and
+## *Swift Seal* are the same sentence pointed at the two ways off a floor, and
+## two numbers would be two things to drift.
+@export var wing_channel_fraction: float = 0.55
+## **Never Where She Struck** ⟨tune⟩ (`M3-T12`, `DES-004`): *"return to where
+## you stood 3 seconds ago, once per floor."*
+@export var recall_seconds: float = 3.0
+## How often the trail is sampled. Coarse on purpose — the keystone returns you
+## to *roughly* three seconds ago, and a per-frame history would be precision
+## nobody can perceive.
+@export var recall_step: float = 0.25
+## What the ground you left costs you ⟨tune⟩. `DES-004`'s rule is that every
+## keystone has a real drawback and the document names none for this one: it is
+## the noise. You escaped the blow and told the floor which room the fight was
+## in — the bow's *loud somewhere you are not* (`M3-T11`), aimed at yourself.
+@export var recall_clamor: float = 9.0
+
 @export var legacy_slot_count: int = 3
 ## What a Scarred item is worth against a fresh one ⟨tune⟩. `DES-003` says
 ## *"carried through death at reduced power"* — a head start, not a stockpile.

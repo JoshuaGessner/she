@@ -326,6 +326,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Wing** (`M3-T12`, `DES-004`, ADR-135). Thirteen nodes against
+	# machinery `M3-T01` already proved, so the row that matters is the one no
+	# other check can make: **every effect tag reaches a system**. A node whose
+	# tag nothing reads loads, validates, appears on the screen, sells for Boon
+	# and does nothing — and passes every other check in this file.
+	wing="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --wing-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$wing" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL get in, get out, never fight" >&2
+		printf '%s\n' "$wing" | grep -E '\[wing\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Evidence of what you did** (`M3-T08`, `DES-016`, ADR-134). The rule the
 	# doc states most firmly is the one a naive build breaks first — **no popups
 	# mid-run**, because they break the pressure the whole game rests on — so a
@@ -734,6 +747,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a run stays open until it resolves and quitting is not an escape,"
 	echo "she remembers three things and they come back Scarred,"
 	echo "a run ends on evidence and never interrupts itself to say so,"
+	echo "the Wing gets out quietly and every node it sells does something,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

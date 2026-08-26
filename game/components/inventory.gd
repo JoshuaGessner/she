@@ -141,6 +141,8 @@ func find(instance_id: int) -> ItemInstance:
 ## The bag's shape, owned here and set by whatever the body is wearing.
 var _grid: Vector2i = Vector2i(6, 5)
 var weightless_materials: bool = false
+## **Bearer's Grace** (`M3-T12`). Pushed down by the body, like the flag above.
+var light_embers: bool = false
 var unlimited: bool = false
 var weight_costs_double: bool = false
 
@@ -158,6 +160,13 @@ func total_weight() -> float:
 		# build stops paying to carry it. Tag rather than id prefix, so a
 		# material authored tomorrow is covered without editing this.
 		if weightless_materials and item.definition.tags.has(&"material"):
+			continue
+		# **Bearer's Grace** (`M3-T12`). An ember stops weighing what a friend
+		# weighs — and stays exactly as loud, because `DES-012` charges the
+		# rescue in *squares, weight and noise* and this pays off one of the
+		# three. A node that made carrying a friend free would delete the
+		# sacrifice the whole co-op gate is about.
+		if light_embers and item.definition.tags.has(&"ember"):
 			continue
 		sum += item.weight()
 	return sum * (2.0 if weight_costs_double else 1.0)

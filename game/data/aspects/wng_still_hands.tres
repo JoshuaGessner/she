@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AspectNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/aspects/aspect_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"wng_still_hands"
+aspect = &"wing"
+tier = 0
+name_key = &"node.wng_still_hands.name"
+description_key = &"node.wng_still_hands.desc"
+requires = Array[StringName]([&"wng_bearers_grace"])
+effect_tags = Array[StringName]([&"silent_revive"])
+rank_required = 0

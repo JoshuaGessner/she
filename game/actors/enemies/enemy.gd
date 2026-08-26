@@ -408,6 +408,15 @@ func _can_see(player: Node3D, tuning: TuningProfile) -> bool:
 	var flat: Vector3 = Vector3(to_player.x, 0.0, to_player.z).normalized()
 	if flat.dot(facing()) < cos(deg_to_rad(tuning.enemy_vision_half_angle)):
 		return false
+	# **Stillness** (`M3-T12`, `DES-004`). Sight alone — *ears do not*, which is
+	# why the node's text says to hold your breath as well and why this sits
+	# here rather than in `_listen`. `DES-013` splits the senses precisely so a
+	# player can tell which one has them, and a node that blinded both would
+	# collapse that back into one "aware" lamp.
+	var body := player as Player
+	if body != null and body.has_effect(&"unseen_while_still") \
+			and body.planar_speed() < 0.05:
+		return false
 	# Line of sight against world geometry only. Bodies are on their own layer
 	# so one enemy cannot block another's view — with 150 agents that would
 	# produce constant, inexplicable blind spots.

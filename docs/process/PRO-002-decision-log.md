@@ -3283,5 +3283,55 @@ Seven violations planted, all caught first time — the first task this mileston
 
 ---
 
+## ADR-135 — Get in, get out, never fight
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T12`** · **Second Aspect (ADR-125)** · **Completes the Veiðimaðr's pair**
+
+**Context:** `M3-T12`. `DES-004` gives five Aspects; `M3-T01` built the Hoard and the machinery under it. The Wing is the Veiðimaðr's primary and the second Aspect the design needs before *"one primary with its keystone, one secondary without"* means anything — until now there was nothing to be secondary.
+
+Pure content against proved machinery, which makes the failure mode specific: not *does the tree work*, but **does each node do anything at all.**
+
+### A node whose system has to be invented is a system arriving through a `.tres`
+
+The first draft had three nodes with no reader: `no_fall_hurt` needs fall damage, which this game does not have, and `read_the_seal` / `remember_the_door` need a HUD element that does not exist. All three were **replaced**, not implemented — building a system to justify a node inverts which one is the requirement.
+
+That is `DES-016`'s test for deeds — *if it needs new instrumentation, it's probably the wrong one* — applied one document over. The replacements gate numbers that were already there: extraction Clamor, `revive_clamor`, `shaft_channel_seconds`.
+
+### The keystone's drawback is not in the document
+
+`DES-004` sketches *Never Where She Struck* — return to where you stood three seconds ago, once per floor — and states the rule that governs every keystone: **each has a real drawback**, because *"a keystone without a cost is a stat stick with a portrait."* It does not say what this one's is.
+
+**The ground you left roars.** You escape the blow and tell the whole floor which room the fight was in — `M3-T11`'s *loud somewhere you are not*, aimed at yourself. Escape as identity, paid for in attention rather than in a number.
+
+Fired **after** the damage lands, deliberately. A keystone that cancelled the blow would be invulnerability once a floor, which is not what escape means.
+
+### Changing a tree changed nothing
+
+The block pushing effect tags into `Inventory` and `Stamina` lived in `_ready()` and ran once. Invisible in play, because effects arrive on the spawn payload before a bag holds anything — so nothing had ever changed a tree and looked.
+
+`--wing-probe` sets `effects` directly and two nodes did nothing at all. It is `_push_effects_down()` now, called from `_redress()` as well.
+
+**This would have taken `M3-T13` with it.** Respec is a tree that changes inside a life; that is the whole task, and this is the line that would have made it silently not work.
+
+`check_dead.py` found a third: `refresh_recall` was unreachable, which made *once per floor* mean once per **life** — a different node, and a much worse one.
+
+### One row, three ways of being green and wrong
+
+The crouch row took three passes, and each fault alone produced a pass:
+
+1. **It assigned `stance` directly.** `_update_stance` recomputes it from the crouch action every frame, so the assignment was gone before the next tick and **both walks measured a standing body**. The node under test never applied.
+2. **It measured a delta from a reset `clamor.level`.** A `ClamorSource` decays toward its carried floor rather than to zero on demand, so the second reading was always ~0 — and with the reader deleted it still read *1.83 → 0.00*.
+3. **It compared two nearly-equal noisy numbers.** Crouched footsteps are 0.33 and the planted value 0.34, so `quiet >= loud` passed **about half the time**. Two green plant runs are not evidence of determinism, and were reported as though they were.
+
+It asserts against **zero** now, which is deterministic and is the actual claim: `DES-004` rule 2 says the multiplier goes to zero rather than lower, and zero is not a close call. Three consecutive clean probe runs.
+
+Twelfth assertion this milestone that passed for the wrong reason, and the first where the fault was in the **measurement apparatus** rather than in the setup or the claim.
+
+### What the probe checks that nothing else can
+
+Every effect tag is looked up in the source of the systems that could read it. A tag nothing consults **passes every other check in the project** — it loads, it validates, the screen offers it, Boon buys it, and it does nothing. That row is the one this task exists to make possible.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

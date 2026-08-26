@@ -82,6 +82,9 @@ signal loosed_arrow(at: Vector3, travel: Vector3, kit: RangedTrait, shooter: int
 ## *one live at a time* is enforced, because the session owns every spawned
 ## actor and a body counting its own traps is a second tally to get wrong.
 signal set_snare(at: Vector3, placer: int)
+## **Never Where She Struck** left a noise behind it (`M3-T12`). Same seam as
+## the two above: the body says what happened, the session makes it happen.
+signal roared(at: Vector3, amount: float)
 
 ## Left the floor alive, by Waystone. The level decides what that means — a
 ## body does not get to end its own run (`TEC-004`: consequences have one
@@ -395,6 +398,20 @@ var _setting: float = 0.0
 ## cannot tell a renderer's complaint from a real fault. The surface override
 ## does the same job and says nothing.
 var _skin: StandardMaterial3D = null
+## **Never Where She Struck** (`M3-T12`, `DES-004`) — where you were, recently.
+##
+## `{seconds_ago: position}` sampled on a coarse clock rather than per frame:
+## the keystone returns you to *roughly* three seconds ago, and storing 180
+## transforms to pick one would be precision nobody can perceive paid for in
+## memory. Host-side only, because the recall is a consequence (`TEC-004`) and
+## a client's copy of its own history would be a second opinion about where a
+## body has been.
+var _breadcrumbs: Array[Vector3] = []
+var _crumb_due: float = 0.0
+## Once per floor. Spent rather than cooling down, because `DES-004` says *once
+## per floor* and a cooldown would make the escape a rhythm instead of a
+## decision you only get to make once.
+var _recall_spent: bool = false
 @onready var clamor: ClamorSource = $ClamorSource
 @onready var _hurtbox: Hurtbox = $Hurtbox
 @onready var _ink: InkPass = $Head/Camera3D/InkPass
@@ -510,9 +527,7 @@ func _ready() -> void:
 	# body to ask, and the body is the only thing that knows whose tree it is.
 	# From `effects`, which came off the spawn payload — so the host sets four
 	# bags from four trees rather than four bags from its own.
-	inventory.weightless_materials = has_effect(&"weightless_materials")
-	inventory.unlimited = has_effect(&"carry_no_limit")
-	inventory.weight_costs_double = has_effect(&"weight_costs_double")
+	_push_effects_down()
 	# Loot is the only gameplay source of carried weight. `CarriedWeight`'s own
 	# note said the value was driven by hand *until `M2-T01`*, and the dev keys
 	# that did it are gone with this line rather than left beside it — two
@@ -612,8 +627,14 @@ func _on_hurt(amount: float, from: Node) -> void:
 		var through: float = amount * (1.0 - tuning.block_damage_fraction)
 		blocked.emit(amount - through, from)
 		health.apply_damage(through, from)
+		_try_to_recall(global_position)
 		return
 	health.apply_damage(amount, from)
+	# **After the blow lands, not instead of it** (`M3-T12`, `DES-004`). You
+	# were struck and *then* you were not there — a keystone that cancelled the
+	# damage would be invulnerability once a floor, which is not what escape
+	# means and not what the node says.
+	_try_to_recall(global_position)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -733,7 +754,11 @@ func _on_inventory_changed() -> void:
 		else inventory.total_clamor() * Config.tuning.clamor_carried_fraction
 	if has_effect(&"weight_costs_double"):
 		floor_noise *= 2.0
-	clamor.carried_floor = floor_noise
+	# **Faint Trace** (`M3-T12`). The weight is still there and the sound of it
+	# is not — which is the Wing's answer to `DES-005` Layer 1 without touching
+	# the weight itself, so greed still costs you speed.
+	clamor.carried_floor = 0.0 if has_effect(&"weightless_signature") \
+		else floor_noise
 
 
 ## Send the owning client its own bag. The whole bag, not a delta: it is a few
@@ -1119,7 +1144,11 @@ func revive_by(rescuer: Player, delta: float) -> void:
 	revival += delta / maxf(Config.tuning.revive_seconds, 0.001)
 	# Kneeling over someone is loud and it is *their* rescuer making the noise,
 	# which is the exposure `DES-012` charges for a revive.
-	rescuer.clamor.add(Config.tuning.revive_clamor * delta)
+	# **Still Hands** (`M3-T12`). `DES-012` charges a revive in *time, exposure
+	# and noise*; this pays off the third and leaves the first two, which is
+	# what keeps it a node rather than a removal of the cost.
+	if not rescuer.has_effect(&"silent_revive"):
+		rescuer.clamor.add(Config.tuning.revive_clamor * delta)
 	if revival < 1.0:
 		return
 	_stand_up(Config.tuning.revive_health_fraction)
@@ -1221,6 +1250,10 @@ func restore_for_descent() -> void:
 	revival = 0.0
 	spent = false
 	_spending = 0.0
+	# **A new floor is a new chance** (`M3-T12`). `DES-004` says *once per
+	# floor*, and without this the keystone is once per **life** — which is a
+	# different node, and a much worse one.
+	refresh_recall()
 	leaving = 0.0
 	_reviving = false
 	_self_recovery = true
@@ -1342,6 +1375,11 @@ func _spend_waystone() -> void:
 	if stone == null or _spending > 0.0:
 		return
 	_spending = _waystone_seconds(stone)
+	# **Windward** (`M3-T12`). `DES-005` makes the extraction walk the tensest
+	# part of the run; this shortens the standing-still half of it, which is the
+	# Wing's answer to *get in, get out, never fight*.
+	if has_effect(&"swift_channel"):
+		_spending *= Config.tuning.wing_channel_fraction
 	_spending_total = _spending
 	leaving = 0.0
 
@@ -1372,7 +1410,11 @@ func _tick_waystone(delta: float) -> void:
 	for item_trait: ItemTrait in stone.definition.traits:
 		var extraction := item_trait as ExtractionTrait
 		if extraction != null:
-			clamor.add(extraction.clamor)
+			# **The Quiet Door** (`M3-T12`). Spending a Waystone is loud by
+			# default — `DES-005` makes the extraction walk the tensest part of
+			# the run — and this is the Wing paying that off in full.
+			if not has_effect(&"waystone_is_silent"):
+				clamor.add(extraction.clamor)
 	# Consumed. It leaves the bag before extraction is announced, so what you
 	# carried out never includes the thing that carried you.
 	inventory.remove(stone.instance_id)
@@ -1569,6 +1611,12 @@ func _physics_process(delta: float) -> void:
 			ranged.request_draw(stamina)
 		else:
 			weapon.request_swing(stamina)
+	# **Second Wind** is about *standing still*, so it is re-answered per frame
+	# rather than when the tree changes — the tag is fixed for a life and the
+	# standing still is not.
+	stamina.breathing = has_effect(&"breath_while_still") and planar_speed() < 0.05
+	if multiplayer.is_server() and has_effect(&"recall_on_damage"):
+		_drop_a_crumb(delta)
 	weapon.advance(delta, stamina)
 	if ranged != null:
 		# Anything that takes your hands abandons the draw, on the same rule the
@@ -1681,10 +1729,16 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 		return
 	_step_accumulator = 0.0
 	var amount: float = tuning.clamor_footstep
+	# **The Wing's two multipliers** (`M3-T12`, `DES-004`). Each goes to the
+	# value that makes the sentence true rather than to a smaller number:
+	# `DES-004` rule 2 wants a node to change what *is the case*, and "quieter
+	# crouching" is the stat stick the rule exists to refuse.
 	if stance > 0.5:
-		amount *= tuning.clamor_crouch_multiplier
+		amount *= 0.0 if has_effect(&"silent_crouch") \
+			else tuning.clamor_crouch_multiplier
 	elif _is_sprinting(distance / maxf(delta, 0.0001), tuning):
-		amount *= tuning.clamor_sprint_multiplier
+		amount *= 1.0 if has_effect(&"silent_sprint") \
+			else tuning.clamor_sprint_multiplier
 	clamor.add(amount * carried.scale_by_load(tuning.clamor_footstep_at_capacity))
 	_footfall(1.0 if stance <= 0.5 else 1.22)
 
@@ -1754,6 +1808,11 @@ func _resolve_sprint(wish: Vector3, delta: float, tuning: TuningProfile) -> bool
 	if stamina.is_empty() or (stamina.current < tuning.sprint_minimum
 			and not Input.is_action_just_pressed("sprint")):
 		return false
+	# **Long Wind** (`M3-T12`). Free only while the bag is empty, which is what
+	# makes it a Wing node rather than a stamina upgrade: it rewards coming down
+	# light and stops paying the moment greed starts (`DES-005` Layer 1).
+	if has_effect(&"sprint_never_tires") and inventory.count() == 0:
+		return true
 	var drain: float = tuning.sprint_drain * carried.scale_by_load(
 		tuning.stamina_drain_at_capacity
 	)
@@ -1792,7 +1851,11 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
 	var of_class: float = body.speed_scale if body else 1.0
 	return (base * of_class * carried.scale_by_load(tuning.speed_at_capacity)
-		* lerpf(1.0, tuning.bag_speed_multiplier, _bag)
+		# **Open Bag** (`M3-T12`). `DES-019` sells rummaging as a vulnerable act
+		# and this buys off the *movement* half only: it is still both hands,
+		# and a swing is still refused, so the vulnerability stays real.
+		* (1.0 if has_effect(&"move_with_bag_open")
+			else lerpf(1.0, tuning.bag_speed_multiplier, _bag))
 		* (tuning.block_speed_multiplier if blocking else 1.0))
 
 
@@ -1942,9 +2005,36 @@ func has_effect(tag: StringName) -> bool:
 ##
 ## Silent before `_ready`, because the components it configures do not exist
 ## yet; `_ready` calls it once itself, after they do.
+## **What the tree turns on, pushed into the things that read it** (`M3-T12`).
+##
+## Extracted from `_ready` because it was only ever called there, and that was
+## invisible until the Wing: effects arrive on the spawn payload before a bag
+## has anything in it, so nothing noticed that **changing** a tree changed
+## nothing. `--wing-probe` sets `effects` directly and two nodes did nothing at
+## all.
+##
+## It matters beyond a probe. `M3-T13` is Respec — a tree that changes inside a
+## life is the entire task — and this is the line that would have made it
+## silently not work.
+##
+## Calls down, never up: `Inventory` is told which rules are on rather than
+## reaching for a body to ask, and the body is the only thing that knows whose
+## tree it is.
+func _push_effects_down() -> void:
+	inventory.weightless_materials = has_effect(&"weightless_materials")
+	inventory.light_embers = has_effect(&"ember_is_light")
+	inventory.unlimited = has_effect(&"carry_no_limit")
+	inventory.weight_costs_double = has_effect(&"weight_costs_double")
+	stamina.breathing = has_effect(&"breath_while_still")
+	# The carried floor is derived from the bag *and* from the tree, so it has
+	# to be recomputed here rather than only when the bag changes.
+	_on_inventory_changed()
+
+
 func _redress() -> void:
 	if equipment == null:
 		return
+	_push_effects_down()
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
 	var tuning: TuningProfile = Config.tuning
 	health.maximum = tuning.player_health * (body.health_scale if body else 1.0)
@@ -2152,6 +2242,58 @@ func _place_snare(at: Vector3) -> void:
 ## mobile, and a ghost that walks is mobile — flight is a movement system with
 ## its own tuning, and `M4-T05`'s ping system is what the scouting is actually
 ## for.
+## **Never Where She Struck** — the trail (`M3-T12`, `DES-004`).
+##
+## One sample every `recall_step`, keeping just enough to reach back
+## `recall_seconds`. A ring of a dozen `Vector3`s rather than a per-frame
+## history: the keystone returns you to *roughly* three seconds ago, and
+## sampling finer would be precision nobody can perceive.
+func _drop_a_crumb(delta: float) -> void:
+	var tuning: TuningProfile = Config.tuning
+	_crumb_due -= delta
+	if _crumb_due > 0.0:
+		return
+	_crumb_due = tuning.recall_step
+	_breadcrumbs.push_front(global_position)
+	var keep: int = maxi(1, int(ceil(tuning.recall_seconds / maxf(
+		tuning.recall_step, 0.001))))
+	while _breadcrumbs.size() > keep:
+		_breadcrumbs.pop_back()
+
+
+## **And the escape.** Host-side, called from `_on_hurt` after the blow has been
+## resolved — you were struck, and *then* you were not there.
+##
+## `DES-004`'s rule for every keystone is that it has a real drawback, and the
+## document does not name one for this. It is the noise: **the ground you left
+## roars.** You escaped the blow and told the whole floor which room the fight
+## was in, which is the same *"loud somewhere you are not"* the bow trades on
+## (`M3-T11`) pointed at yourself. Escape as identity, paid for in attention.
+func _try_to_recall(struck_at: Vector3) -> bool:
+	if not multiplayer.is_server() or _recall_spent:
+		return false
+	if not has_effect(&"recall_on_damage") or _breadcrumbs.is_empty():
+		return false
+	_recall_spent = true
+	var back_to: Vector3 = _breadcrumbs[_breadcrumbs.size() - 1]
+	teleport(back_to, rotation.y)
+	if has_effect(&"recall_is_loud"):
+		# **Signals up, calls down.** The session owns the floor's field
+		# (`M3-T11`) and a body that held one would keep a stale field across a
+		# descent — so this says *the ground roared here* and the session is
+		# what makes the noise, exactly as it is for an arrow and a snare.
+		roared.emit(struck_at, Config.tuning.recall_clamor)
+	print("[wing] recalled %s to %.0f, %.0f — and the ground it left roared" % [
+		name, back_to.x, back_to.z])
+	return true
+
+
+## A new floor is a new chance. Called by the level when a descent begins.
+func refresh_recall() -> void:
+	_recall_spent = false
+	_breadcrumbs.clear()
+
+
 func _apply_out() -> void:
 	if _hurtbox == null:
 		return

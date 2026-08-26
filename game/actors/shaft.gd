@@ -163,6 +163,16 @@ func is_channelling() -> bool:
 ## knows about. `DES-005`: *"increasingly expensive."*
 func channel_seconds() -> float:
 	var tuning: TuningProfile = Config.tuning
+	# **Swift Seal** (`M3-T12`). The escalation still applies — a Shaft is still
+	# closing while you work — so this buys speed *against* the clock rather
+	# than exemption from it.
+	# Read off whoever is standing in it, because a Shaft is claimed by one
+	# body at a time and the node belongs to that body rather than to the hole.
+	var swift: bool = _claimant != null and is_instance_valid(_claimant) \
+		and _claimant.has_effect(&"swift_seal")
+	if swift:
+		return tuning.shaft_channel_seconds * tuning.wing_channel_fraction \
+			* (1.0 + _escalation() * tuning.shaft_seal_factor)
 	return tuning.shaft_channel_seconds * (1.0 + _escalation()
 		* tuning.shaft_seal_factor)
 

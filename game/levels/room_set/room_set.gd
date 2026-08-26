@@ -491,6 +491,8 @@ func _ready() -> void:
 			_fallen_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
+		elif arg == "--wing-probe":
+			_wing_probe()
 		elif arg == "--run-probe":
 			_run_file_probe()
 		elif arg == "--vordr-probe":
@@ -5046,3 +5048,234 @@ func _loot_on_the_floor() -> int:
 		if is_instance_valid(node) and not node.is_queued_for_deletion():
 			count += 1
 	return count
+
+
+## **The Wing** (`M3-T12`, `DES-004`, ADR-135).
+##
+## `DES-004`'s answer to *"get in, get out, never fight"*, and the Veiðimaðr's
+## primary. Thirteen nodes against machinery `M3-T01` already proved — so what
+## is checked here is **that each tag reaches a system**, which is the one thing
+## a data-only task can still get wrong: a node whose effect nothing reads is a
+## sentence in a `.tres` and a lie on a screen.
+##
+## Every row asserts a **state change** rather than a value (ADR-134's lesson):
+## the same measurement taken with the node and without it, so a row cannot pass
+## on a number that happened to be right already.
+func _wing_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var tuning: TuningProfile = Config.tuning
+
+	# ─ 1. the Aspect is authored and coherent ─
+	var wing: Array[AspectNode] = []
+	for node: AspectNode in AspectCatalogue.all():
+		if node.aspect == &"wing":
+			wing.append(node)
+	print("[wing] authored            %d node(s)" % wing.size())
+	if wing.is_empty():
+		problems.append("no Wing nodes — every row below is conditional on the "
+			+ "Aspect existing, which is the guard the item corpus already has")
+		_report(problems, "wing")
+		return
+	var keystones: int = 0
+	for node: AspectNode in wing:
+		if node.tier == AspectNode.Tier.KEYSTONE:
+			keystones += 1
+	print("[wing] keystones           %d (want 1)" % keystones)
+	if keystones != 1:
+		problems.append(("the Wing has %d keystones — `DES-004` gives an Aspect "
+			+ "one, and it is what a build is *for*") % keystones)
+
+	# ─ 2. **every tag reaches something** ─
+	#
+	# The row this probe exists for. A tag nothing reads is the failure a
+	# data-only task produces, and it is invisible: the node loads, validates,
+	# appears on the screen, is purchasable, and does nothing at all.
+	var unread: Array[String] = []
+	for node: AspectNode in wing:
+		for tag: StringName in node.effect_tags:
+			if not _tag_is_read(tag):
+				unread.append("%s/%s" % [node.id, tag])
+	print("[wing] tags with a reader  %d unread" % unread.size())
+	if not unread.is_empty():
+		problems.append(("nothing reads %s — a node whose effect no system "
+			+ "consults loads, validates, sells and does nothing, which is the "
+			+ "one failure a data-only task can still ship")
+			% ", ".join(unread))
+
+	# ─ 3. stealth: the two multipliers go to the value that makes it true ─
+	player.restore_for_descent()
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.3)
+	player.effects = PackedStringArray()
+	var loud_crouch: float = await _walk_and_listen(player, true)
+	player.effects = PackedStringArray(["silent_crouch"])
+	var quiet_crouch: float = await _walk_and_listen(player, true)
+	print("[wing] crouching           %.2f clamor → %.2f with Soft Boots" % [
+		loud_crouch, quiet_crouch])
+	if loud_crouch <= 0.0:
+		problems.append("crouching made no noise without the node either, so "
+			+ "the comparison is between two silences")
+	elif quiet_crouch > 0.001:
+		# **Against zero, not against the other number.** Crouched footsteps are
+		# quiet to begin with — 0.33 — and the planted value lands at 0.34, so
+		# `quiet >= loud` was comparing two nearly-equal noisy readings and
+		# passed by luck about half the time. The design claim is stronger than
+		# the row was asking: `DES-004` rule 2 wants the multiplier to go to
+		# **zero**, and zero is not a close call.
+		problems.append(("Soft Boots left %.2f clamor behind (a plain crouch is "
+			+ "%.2f) — the multiplier goes to **zero** rather than lower, "
+			+ "because rule 2 wants a node to change what is *true*")
+			% [quiet_crouch, loud_crouch])
+
+	# ─ 4. what you carry stops announcing itself ─
+	player.effects = PackedStringArray()
+	player.inventory.clear()
+	player.inventory.add(ItemCatalogue.by_id(&"glt_altar_plate"))
+	await _hold(0.4)
+	var laden: float = player.clamor.carried_floor
+	player.effects = PackedStringArray(["weightless_signature"])
+	await _hold(0.4)
+	var faint: float = player.clamor.carried_floor
+	print("[wing] carried floor       %.2f → %.2f with Faint Trace" % [
+		laden, faint])
+	if laden <= 0.0:
+		problems.append("a loaded bag had no clamor floor to begin with, so "
+			+ "Faint Trace has nothing to remove")
+	elif faint != 0.0:
+		problems.append("Faint Trace left a signature behind")
+
+	# ─ 5. **the weight stays**, which is what keeps it a Wing node ─
+	print("[wing] and the weight      %.1f kg" % player.inventory.total_weight())
+	if player.inventory.total_weight() <= 0.0:
+		problems.append("Faint Trace made the load weightless as well — it is "
+			+ "the *sound* of the weight it removes, or greed stops costing "
+			+ "speed and `DES-005` Layer 1 collapses")
+
+	# ─ 6. an ember stops weighing what a friend weighs, and stays as loud ─
+	player.effects = PackedStringArray()
+	player.inventory.clear()
+	player.inventory.add(ItemCatalogue.by_id(&"con_ember"))
+	await _hold(0.3)
+	var heavy: float = player.inventory.total_weight()
+	var loud: float = player.inventory.total_clamor()
+	player.effects = PackedStringArray(["ember_is_light"])
+	await _hold(0.3)
+	print("[wing] an ember            %.1f kg → %.1f, clamor %.1f → %.1f" % [
+		heavy, player.inventory.total_weight(), loud,
+		player.inventory.total_clamor()])
+	if heavy <= 0.0:
+		problems.append("an ember weighed nothing to begin with")
+	elif player.inventory.total_weight() >= heavy:
+		problems.append("Bearer's Grace did not lighten the ember")
+	if player.inventory.total_clamor() != loud:
+		problems.append("Bearer's Grace changed how loud an ember is — "
+			+ "`DES-012` charges the rescue in squares, weight **and** noise, "
+			+ "and a node that paid off all three deletes the sacrifice the "
+			+ "co-op gate is about")
+
+	# ─ 7. the keystone: struck, and then not there ─
+	player.effects = PackedStringArray(["recall_on_damage", "recall_is_loud"])
+	player.restore_for_descent()
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(tuning.recall_seconds + 0.5)
+	var was_at: Vector3 = player.global_position
+	player.teleport(BUTT_POST, 0.0)
+	await _hold(0.4)
+	var struck_at: Vector3 = player.global_position
+	var before_health: float = player.health.current
+	player._on_hurt(10.0, null)
+	await _hold(0.3)
+	var moved: float = struck_at.distance_to(player.global_position)
+	print("[wing] struck at %.0f, %.0f  → moved %.1f m, health %.0f → %.0f" % [
+		struck_at.x, struck_at.z, moved, before_health, player.health.current])
+	if moved < 1.0:
+		problems.append(("the keystone did not move the body (%.1f m) — "
+			+ "`DES-004` returns you to where you stood, and escape is the "
+			+ "whole identity of this Aspect") % moved)
+	if player.health.current >= before_health:
+		problems.append("the blow did no damage — the recall fires **after** "
+			+ "it lands, or the keystone is invulnerability once a floor, "
+			+ "which is not what escape means")
+
+	# ─ 8. once per floor, and it costs the room ─
+	# **Asked of the spend, not of the distance.** A second recall lands on a
+	# breadcrumb dropped since the first one, which after a moment standing
+	# still is wherever you already are — so "it did not move far" is true of a
+	# keystone that fired again, and the row read as a pass with the once-per-
+	# floor guard deleted.
+	var second_from: Vector3 = player.global_position
+	var fired_again: bool = player._try_to_recall(player.global_position)
+	await _hold(0.3)
+	print("[wing] a second time       fired=%s, moved %.1f m (want no, 0)" % [
+		fired_again, second_from.distance_to(player.global_position)])
+	if fired_again:
+		problems.append("the keystone fired twice on one floor — `DES-004` "
+			+ "says once, and a recall you can rely on repeatedly is a rhythm "
+			+ "rather than a decision")
+	var roar: float = _peak_near(struck_at)
+	print("[wing] the ground it left  %.2f clamor" % roar)
+	if roar <= 0.0:
+		problems.append("the escape was silent — every keystone in `DES-004` "
+			+ "has a real drawback and the document names none for this one, "
+			+ "so it is the noise: you told the floor which room the fight "
+			+ "was in")
+
+	_report(problems, "wing")
+
+
+## Walk a few steps from a settled start and report the **peak** it reached.
+##
+## The first draft reset `clamor.level`, walked, and returned the difference —
+## and the second call always read **0.00**, because the level was still
+## saturated from the first walk and a `ClamorSource` decays toward its carried
+## floor rather than to zero on demand. So the row reported *1.83 → 0.00* with
+## the node working **and** with its reader deleted: twelfth assertion this
+## milestone that passed for the wrong reason, and the only one found by a plant
+## that was itself correct.
+##
+## Settled start, peak rather than delta, and back to the same place each time,
+## so the two measurements are of the same walk.
+func _walk_and_listen(player: Player, crouched: bool) -> float:
+	player.teleport(ARCHER_POST, 0.0)
+	# **Through the input, not by assigning `stance`.** `_update_stance` recomputes
+	# it from the crouch action every frame, so a direct assignment is gone
+	# before the next physics tick — and both walks were measuring a *standing*
+	# body, which is why the node appeared to change nothing and, earlier, why
+	# it appeared to work with its reader deleted.
+	if crouched:
+		Input.action_press("crouch")
+	else:
+		Input.action_release("crouch")
+	for settle: int in range(20):
+		await get_tree().physics_frame
+	# Wait for the last walk to fade, or this measures that one instead.
+	for settle: int in range(240):
+		await get_tree().physics_frame
+		if player.clamor.level <= 0.01:
+			break
+	var peak: float = 0.0
+	for step: int in range(24):
+		player.global_position += Vector3(0.28, 0.0, 0.0)
+		await get_tree().physics_frame
+		peak = maxf(peak, player.clamor.level)
+	Input.action_release("crouch")
+	return peak
+
+
+## Is this tag consulted anywhere in the build? Read off the source, because the
+## question is *does a system react* and no runtime check can answer that for a
+## tag whose node nobody has bought.
+func _tag_is_read(tag: StringName) -> bool:
+	for path: String in ["res://actors/player/player.gd",
+			"res://actors/enemies/enemy.gd", "res://actors/shaft.gd",
+			"res://components/inventory.gd", "res://components/stamina.gd",
+			"res://ui/reticle.gd", "res://actors/enemies/gullsjukr.gd"]:
+		var source: FileAccess = FileAccess.open(path, FileAccess.READ)
+		if source == null:
+			continue
+		var text: String = source.get_as_text()
+		source.close()
+		if text.contains('&"%s"' % tag):
+			return true
+	return false

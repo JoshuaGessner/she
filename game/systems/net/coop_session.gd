@@ -628,6 +628,7 @@ func _build_player(payload: Dictionary) -> Node:
 	# the session spawns"* (`M3-T11`, ADR-112) — the same wiring one line up.
 	player.loosed_arrow.connect(_on_player_loosed)
 	player.set_snare.connect(_on_player_set_snare)
+	player.roared.connect(_on_player_roared)
 	return player
 
 
@@ -943,6 +944,13 @@ func _on_player_loosed(at: Vector3, travel: Vector3, kit: RangedTrait,
 ## count, so there is no tally that can disagree with the world — and freeing
 ## the old one here despawns it on every peer, because that is what the spawner
 ## does with a node it made.
+## A Wing keystone escaped, and left the noise where the blow landed.
+func _on_player_roared(at: Vector3, amount: float) -> void:
+	var field: ClamorField = floor_field()
+	if field != null:
+		field.deposit(at, amount)
+
+
 func _on_player_set_snare(at: Vector3, placer: int) -> void:
 	for node: Node in get_tree().get_nodes_in_group(&"snares"):
 		var old := node as Snare

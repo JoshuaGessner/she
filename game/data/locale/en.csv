@@ -83,3 +83,29 @@ deed.by_a_thread.name,"By A Thread"
 deed.by_a_thread.desc,"There was almost nothing left of you at the door."
 deeds.title,"What you did"
 deeds.dismiss,"She has seen it"
+node.wng_soft_boots.name,Soft Boots
+node.wng_soft_boots.desc,"Crouching stops being quiet-ish and starts being silent."
+node.wng_long_wind.name,Long Wind
+node.wng_long_wind.desc,"An empty bag costs you nothing to run with. Come down light and you can run all day."
+node.wng_light_step.name,Light Step
+node.wng_light_step.desc,"A sprint is no louder than a walk. Whatever is listening learns nothing from your hurry."
+node.wng_faint_trace.name,Faint Trace
+node.wng_faint_trace.desc,"What you carry stops announcing itself. The weight is still there; the sound of it is not."
+node.wng_stillness.name,Stillness
+node.wng_stillness.desc,"Stop moving and eyes slide off you. Ears do not — hold your breath as well."
+node.wng_second_wind.name,Second Wind
+node.wng_second_wind.desc,"Standing still gives your breath back, however much you are carrying."
+node.wng_open_bag.name,Open Bag
+node.wng_open_bag.desc,"Rummage at a walk. It is still both hands, and it is no longer both feet."
+node.wng_windward.name,Windward
+node.wng_windward.desc,"A Waystone takes you almost before you have finished asking."
+node.wng_bearers_grace.name,Bearer's Grace
+node.wng_bearers_grace.desc,"A friend's ember stops weighing what a friend weighs. It is still as loud as it ever was."
+node.wng_never_where_she_struck.name,Never Where She Struck
+node.wng_never_where_she_struck.desc,"Take a wound and you may be three seconds ago instead — once a floor. The ground you left roars where you were standing, and everything hears which room the fight was in."
+node.wng_quiet_door.name,The Quiet Door
+node.wng_quiet_door.desc,"A Waystone takes you without a sound. Whatever was coming arrives to an empty room."
+node.wng_swift_seal.name,Swift Seal
+node.wng_swift_seal.desc,"A Shaft opens for you faster than it opens for anyone. It is still closing while you work."
+node.wng_still_hands.name,Still Hands
+node.wng_still_hands.desc,"You can get a friend up without telling the floor you are doing it."
