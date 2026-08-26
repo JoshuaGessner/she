@@ -318,6 +318,13 @@ extends Resource
 ## Crawl speed as a fraction of walking. You are on the floor and bleeding;
 ## you can move, and you cannot get anywhere.
 @export var downed_speed_fraction: float = 0.28
+## **The Vörðr** (`M3-T14`, `DES-012`) — your ward-spirit, briefly loose ⟨tune⟩.
+##
+## Faster than walking, because the one utility it has that does not need the
+## ping system is *"scout ahead without risk"*, and a scout slower than the
+## party scouts nothing. It carries nothing and fears nothing, so there is
+## no load term and no sprint: one speed, always.
+@export var vordr_speed: float = 4.6
 ## Seconds between the last body going out and the run ending ⟨tune⟩
 ## (`M2-T16`, ADR-108). Two jobs: it gives the moment somewhere to land instead
 ## of cutting to the camp on the frame you die, and it is the window in which a

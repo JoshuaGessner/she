@@ -491,6 +491,8 @@ func _ready() -> void:
 			_fallen_probe()
 		elif arg == "--ember-probe":
 			_ember_probe()
+		elif arg == "--vordr-probe":
+			_vordr_probe()
 		elif arg == "--stalker-probe":
 			_stalker_probe()
 		elif arg == "--creditor-probe":
@@ -1766,6 +1768,12 @@ func _build_hud() -> void:
 	layer.add_child(WoundVignette.new())
 	layer.add_child(Ear.new())
 	layer.add_child(Reticle.new())
+	# **What is happening to you, while it happens** (`M3-T14`, `DES-012`).
+	# Not gated on `_probing`, unlike the arrival brief below: it draws nothing
+	# at all unless the body holding the camera is down or loose, so it cannot
+	# fade over a screenshot — and a probe that downs a player deliberately
+	# should be exercising it rather than hiding it.
+	layer.add_child(FallenReadout.new())
 	# Not while a probe is measuring the floor: it would be three labels
 	# fading over a screenshot, and `--ear-shot` in particular photographs
 	# exactly the frames this covers.
@@ -4592,3 +4600,158 @@ func _gear_probe() -> void:
 			+ "never agreed to take") % (before - after))
 
 	_report(problems, "gear")
+
+
+## **The Vörðr** (`M3-T14`, `DES-012`, ADR-130).
+##
+## `DES-012`: *"On death you become a Vörðr — your ward-spirit, briefly loose.
+## Mobile, safe, unable to fight or carry. The point is that a dead player is
+## still playing."* Every row here is one clause of that sentence, plus the
+## readout `GATE M3 COOP` has named as a precondition since ADR-115.
+func _vordr_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	await _hold(0.4)
+	player.restore_for_descent()
+	player.teleport(ARCHER_POST, 0.0)
+	# **Something to lose.** The row below asserts a Vörðr carries nothing, and
+	# the first draft downed a player whose bag was already empty — so it read
+	# `0 item(s)` whether or not anything was ever cleared, and a plant that
+	# deleted `inventory.clear()` outright walked straight through it. A body
+	# that had nothing cannot demonstrate losing it.
+	player.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+	player.inventory.add(ItemCatalogue.by_id(&"glt_gilded_torc"))
+	await _hold(0.3)
+	var carried_in: int = player.inventory.count()
+	print("[vordr] went down carrying %d item(s)" % carried_in)
+	if carried_in <= 0:
+		problems.append("the probe put nothing in the bag, so *unable to carry* "
+			+ "below is a reading of an empty bag rather than of a loss")
+
+	# ─ 1. **the readout answers, while it is happening** ─
+	#
+	# The gate asks whether a downed player can tell what is happening to them.
+	# Three states, three answers, and the check is that each is *reachable and
+	# distinguishable* — a readout that says the same thing in all three is a
+	# readout that answers nothing.
+	var readout: FallenReadout = null
+	for node: Node in get_tree().get_nodes_in_group("__none__"):
+		pass
+	readout = _find_readout(self)
+	if readout == null:
+		problems.append("no `FallenReadout` on the floor — `GATE M3 COOP` has "
+			+ "carried *the downed player can tell what is happening to them* "
+			+ "as a precondition since ADR-115, and this is the thing that "
+			+ "answers it")
+		_report(problems, "vordr")
+		return
+	var screen_is: Vector2 = get_viewport().get_visible_rect().size
+	print("[vordr] readout on screen  %.0f x %.0f (the screen is %.0f x %.0f)" % [
+		readout.size.x, readout.size.y, screen_is.x, screen_is.y])
+	# **Against the screen, not against zero.** ADR-111's fault is a `Control`
+	# under a `CanvasLayer` getting no layout, and the first draft of this row
+	# asked whether the rect was bigger than 2 x 2 — which a readout stuck at
+	# Godot's 64 x 64 default passes while drawing a 360-wide bar off its own
+	# edge. A rect that is not the screen is the bug, whatever size it is.
+	if readout.size.x < screen_is.x - 1.0 or readout.size.y < screen_is.y - 1.0:
+		problems.append(("the readout is %.0f x %.0f on a %.0f x %.0f screen — "
+			+ "a `Control` under a `CanvasLayer` is laid out by nothing "
+			+ "(ADR-111), and a rect smaller than the screen clips the bar it "
+			+ "is drawing rather than failing outright")
+			% [readout.size.x, readout.size.y, screen_is.x, screen_is.y])
+
+	# ─ 2. down: a clock, and it is running ─
+	player.health.apply_damage(player.health.maximum * 2.0)
+	await _hold(0.4)
+	var down_seconds: float = player.bleeding
+	print("[vordr] down               bleeding %.0f s, downed=%s" % [
+		down_seconds, player.is_downed()])
+	if not player.is_downed() or down_seconds <= 0.0:
+		problems.append("a body at zero health is not down, so nothing below "
+			+ "is about being rescued")
+	await _hold(0.6)
+	if player.bleeding >= down_seconds:
+		problems.append(("the bleed-out clock is not running (%.1f then %.1f) "
+			+ "— ADR-050 makes the shortening itself the decision, and a window "
+			+ "that does not shorten is a UI timer with no fiction behind it")
+			% [down_seconds, player.bleeding])
+
+	# ─ 3. **and it is still a body** — down is not loose ─
+	print("[vordr] down, not loose    spent=%s, on the body layer=%s" % [
+		player.spent, (player.collision_layer & CollisionLayers.PLAYER_BODY) != 0])
+	if (player.collision_layer & CollisionLayers.PLAYER_BODY) == 0:
+		problems.append("a downed body left the body layer — it is still a "
+			+ "body, and a teammate has to be able to walk up to it")
+
+	# ─ 4. loose: mobile, and that is the whole point ─
+	player.bleeding = 0.01
+	await _hold(0.6)
+	print("[vordr] loose              spent=%s" % player.spent)
+	if not player.spent:
+		problems.append("the window ran out and the body is not spent, so the "
+			+ "Vörðr is unreachable")
+		_report(problems, "vordr")
+		return
+	var speed_now: float = player._target_speed(false, Config.tuning)
+	print("[vordr] a Vörðr moves at   %.1f m/s (walking is %.1f)" % [
+		speed_now, Config.tuning.walk_speed])
+	if speed_now <= 0.0:
+		problems.append(("a Vörðr is frozen at %.1f m/s — `DES-012` says "
+			+ "**mobile**, and a body standing still with a live camera is the "
+			+ "ghost-with-nothing-to-do ADR-114 found enemies still attacking")
+			% speed_now)
+
+	# ─ 5. safe: nothing collides with it, and nothing can hit it ─
+	print("[vordr] loose and safe     body layer=%s, hittable=%s" % [
+		(player.collision_layer & CollisionLayers.PLAYER_BODY) != 0,
+		player._hurtbox.monitorable])
+	if (player.collision_layer & CollisionLayers.PLAYER_BODY) != 0:
+		problems.append("a Vörðr is still on the body layer — a ghost the "
+			+ "party has to walk around is the opposite of *a dead player is "
+			+ "still playing*, and a corpse in a corridor becomes a hazard to "
+			+ "your own team")
+	if player._hurtbox.monitorable:
+		problems.append(("a Vörðr can still be hit — `Enemy._worth_fighting` "
+			+ "refuses to *acquire* the incapacitated (ADR-114), but that is a "
+			+ "rule about attention and this is one about geometry: a swing "
+			+ "already in flight would still land"))
+
+	# ─ 6. unable to carry ─
+	print("[vordr] carries            %d item(s) (went down with %d)" % [
+		player.inventory.count(), carried_in])
+	if player.inventory.count() != 0:
+		problems.append(("a Vörðr is carrying %d item(s) — `DES-012` says "
+			+ "**unable to carry**, and everything you had stays with the body "
+			+ "so a teammate can decide whether it is worth coming for")
+			% player.inventory.count())
+
+	# ─ 7. and enemies leave it alone (ADR-114, still true one task later) ─
+	_session.spawn_enemy(player.global_position + Vector3(0.0, 0.0, 3.0), 0.0)
+	await _hold(1.6)
+	var watcher: Enemy = _first_live_enemy()
+	if watcher == null:
+		problems.append("no enemy spawned, so nothing here says what one does "
+			+ "about a Vörðr")
+	else:
+		print("[vordr] an enemy nearby    state %s (want not alerted)"
+			% Enemy.State.keys()[watcher.state()].to_lower())
+		if watcher.state() == Enemy.State.ALERTED:
+			problems.append("an enemy alerted onto a Vörðr — ADR-114 made the "
+				+ "fallen stop being a target, and being loose is more fallen "
+				+ "rather than less")
+
+	_report(problems, "vordr")
+
+
+## Depth-first, because the readout lives under a `CanvasLayer` the HUD builds
+## and this probe should not have to know the shape of that tree.
+func _find_readout(from: Node) -> FallenReadout:
+	for child: Node in from.get_children():
+		var found := child as FallenReadout
+		if found != null:
+			return found
+		var deeper: FallenReadout = _find_readout(child)
+		if deeper != null:
+			return deeper
+	return null

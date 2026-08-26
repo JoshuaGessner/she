@@ -328,7 +328,12 @@ var bleeding: float = 0.0
 var revival: float = 0.0
 ## `true` once the window ran out. The body stays where it fell (`DES-012`: you
 ## become a Vörðr) rather than vanishing, so there is a place the ember is.
-var spent: bool = false
+var spent: bool = false:
+	set(value):
+		if spent == value:
+			return
+		spent = value
+		_apply_vordr()
 
 ## Solo's single self-recovery (ADR-050) — *"once per run, costly, and never
 ## better than having a friend."* Spent, not regenerating.
@@ -361,6 +366,17 @@ var ranged: RangedWeapon = null
 ## anyone else's machine has to agree about — the legible event is the trap
 ## appearing, and the trap is a spawned actor that appears for everybody.
 var _setting: float = 0.0
+## The body's own material, made once and mutated after — `Enemy._apply_tint`'s
+## pattern, and for its reason: a fresh material per state change allocates one
+## per death for nothing.
+##
+## **Attached with `set_surface_override_material`, not `material_override`.**
+## The two look interchangeable and are not: `material_override` makes the
+## headless renderer report *"Parameter 'material' is null"* at exit, which
+## `check_scripts.sh` reads as an error and fails on — correctly, since a sweep
+## cannot tell a renderer's complaint from a real fault. The surface override
+## does the same job and says nothing.
+var _skin: StandardMaterial3D = null
 @onready var clamor: ClamorSource = $ClamorSource
 @onready var _hurtbox: Hurtbox = $Hurtbox
 @onready var _ink: InkPass = $Head/Camera3D/InkPass
@@ -1735,8 +1751,12 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 	# thing in it can be walked out of.
 	if planted > 0.0:
 		return 0.0
+	# **A Vörðr moves** (`M3-T14`, `DES-012`). This returned zero, and the body
+	# stood frozen at 0.00 m/s with a live camera — which reads from the seat as
+	# being a ghost with nothing to do, and is the state ADR-114 found enemies
+	# still attacking. *"The point is that a dead player is still playing."*
 	if spent:
-		return 0.0
+		return tuning.vordr_speed
 	# Two multipliers, and they compound on purpose. Load is `DES-005` Layer 1 —
 	# greed in your legs. The bag term is `DES-019`'s vulnerable act, scaled by
 	# how far open it is so the penalty arrives with the screen rather than
@@ -2081,6 +2101,68 @@ func _place_snare(at: Vector3) -> void:
 ## Driven by the replicated `planted`, exactly as `_apply_stance` is driven by
 ## the replicated `stance`, and for the same reason: a body whose collider
 ## disagrees with its silhouette is `PRO-005` §5's unexplainable death.
+## **What being a Vörðr does to a body** (`M3-T14`, `DES-012`).
+##
+## Driven by the replicated `spent`, exactly as `_apply_bulwark` is driven by
+## `planted`, and for the same reason: this changes a collision layer, and every
+## peer's enemies collide against their own copy. A body whose collider
+## disagrees with its silhouette is `PRO-005` §5's unexplainable death.
+##
+## Two changes and no third.
+##
+## **Nothing collides with it.** The layer goes, the mask stays — so it still
+## stands on floors and walks through doorways, and every other body treats it
+## as air. A ghost you can be blocked by is a ghost the party has to walk
+## around, which is the opposite of *"a dead player is still playing"*, and it
+## would make a corpse in a corridor a hazard to your own team.
+##
+## **And it cannot be hit.** `Enemy._worth_fighting` already refuses to acquire
+## the incapacitated (ADR-114), but that is a rule about *attention* and this is
+## a rule about *geometry*: a swing already in flight, or a hitbox belonging to
+## something that never checks, would otherwise still land. `DES-012` says the
+## Vörðr is **safe**, and safe has to be true of the body rather than of every
+## thing that might reach it.
+##
+## Deliberately **not** here: no gravity change and no fly. `DES-012` says
+## mobile, and a ghost that walks is mobile — flight is a movement system with
+## its own tuning, and `M4-T05`'s ping system is what the scouting is actually
+## for.
+func _apply_vordr() -> void:
+	if _hurtbox == null:
+		return
+	if spent:
+		collision_layer &= ~CollisionLayers.PLAYER_BODY
+		_hurtbox.set_deferred("monitorable", false)
+	else:
+		collision_layer |= CollisionLayers.PLAYER_BODY
+		_hurtbox.set_deferred("monitorable", true)
+	_dress_as_vordr()
+
+
+## Blockout, per ADR-046: the body it was, made faint. Not a new mesh — the
+## silhouette has to stay recognisable as *that teammate*, because the whole
+## social point is that they are still here and still talking.
+##
+## Monochrome-safe (`DES-018`): it is a transparency change, not a colour, so
+## it reads with the sound muted and with any colour vision.
+func _dress_as_vordr() -> void:
+	if _body == null:
+		return
+	if _skin == null:
+		_skin = StandardMaterial3D.new()
+		_skin.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_body.set_surface_override_material(0, _skin)
+	# Mutated rather than replaced, on `Enemy._apply_tint`'s pattern.
+	if spent:
+		_skin.albedo_color = Color(0.62, 0.72, 0.86, 0.34)
+		_skin.emission_enabled = true
+		_skin.emission = Color(0.44, 0.58, 0.80)
+		_skin.emission_energy_multiplier = 0.5
+	else:
+		_skin.albedo_color = Color(0.72, 0.70, 0.66, 1.0)
+		_skin.emission_enabled = false
+
+
 func _apply_bulwark() -> void:
 	var wall: bool = planted >= 1.0
 	var has: bool = (collision_layer & CollisionLayers.BULWARK) != 0

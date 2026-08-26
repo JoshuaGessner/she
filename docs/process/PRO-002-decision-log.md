@@ -3041,5 +3041,59 @@ The milestone still ends where it ended. Nothing is added to `M3` that was not a
 
 ---
 
+## ADR-130 — A dead player is still playing, and can finally see what is happening to them
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T14`** · **Unblocks `GATE M3 COOP`** · **Completes ADR-114**
+
+**Context:** `M3-T14`, split out of `M3-T09` by ADR-129 as the half that blocks a gate. `DES-012`: *"On death you become a Vörðr — your ward-spirit, briefly loose. Mobile, safe, unable to fight or carry. The point is that a dead player is still playing."* None of it existed.
+
+What existed instead was a body frozen at 0.00 m/s with a live camera. ADR-114 found enemies still attacking it and said the state *"reads exactly like being a ghost"* from the seat — which it did, minus every part of a ghost that is any fun.
+
+### Two rules, and no third
+
+`_target_speed` returned `0.0` when `spent`. It returns `vordr_speed` now, and the rest is what a body must stop being:
+
+**Nothing collides with it.** The layer goes; the mask stays, so it still stands on floors and walks through doorways. A ghost the party has to walk *around* is the opposite of *"a dead player is still playing"*, and a corpse in a corridor would become a hazard to your own team — the same argument `BULWARK` settled at `M3-T02`, pointed the other way.
+
+**And it cannot be hit.** ADR-114 made `Enemy._worth_fighting` refuse to acquire the incapacitated, and that is the right rule — but it is a rule about **attention**, and this one is about **geometry**. A swing already in flight, or any future hitbox that never thinks to ask, would otherwise still land on something `DES-012` calls safe. Safety has to be a property of the body, not of everything that might reach it.
+
+Both are driven by the replicated `spent`, exactly as `_apply_bulwark` is driven by `planted`, and for the same reason: every peer's enemies collide against their own copy, and a body whose collider disagrees with its silhouette is `PRO-005` §5's unexplainable death.
+
+**Deliberately absent.** No flight — `DES-012` says *mobile*, a ghost that walks is mobile, and flight is a movement system with its own tuning. No marking — it needs the ping system, which `DES-012` §32 already assigns to `M4-T05`. No unnerving enemies: it is ⟨tune⟩ flavour with no mechanism named, and inventing one to fill a bullet is how a class kit smuggles in a system.
+
+### The readout is the gate
+
+`GATE M3 COOP` has carried this precondition since ADR-115 — *"the downed player can tell what is happening to them while down"* — and **no build has ever had an answer.** A player taken to zero got a frozen camera, no number anywhere, and no way to know whether anyone was coming.
+
+That is `PRO-005` §5's unexplainable event aimed at the worst moment in the game, and it is a **social** failure too: `DES-012`'s rescue design assumes the downed player is deciding whether to hold on, and nobody decides anything they cannot see.
+
+Three states, three questions:
+
+| | |
+|---|---|
+| **Down** | *How long have I got, and is anyone coming?* |
+| **A hand on you** | *Is it working, and how far along?* |
+| **Vörðr** | *What am I now?* |
+
+It draws nothing that is not already replicated for this purpose — `bleeding` and `revival`, both of which `M2-T05` put on the wire precisely so the fallen player could be told. It is **not** a provisional Burden layer; `DES-019`'s is `M4-T05`, and building a second one here would be the parallel path ADR-064 bans. The test is `WoundVignette`'s: remove it and *"how long have I got"* becomes unanswerable, which is a fact rather than a feeling.
+
+Monochrome-safe (`DES-018`): the bleed-out **shortens** and the revive **fills**, so direction carries the meaning and colour only agrees with it.
+
+The Vörðr state deliberately draws **no bar**. There is no clock on it, and an empty bar would imply a deadline that does not exist — what that state has to say is *what you are*, because a translucent body walking through walls is otherwise a bug rather than a state.
+
+### Return is not here, and `DES-012` says so
+
+`DES-012`'s two exits are mutually exclusive. **Wait** already works — `M2-T05` built downed → ember → carried out, ADR-114 made the Gullsjúkr stop for an ember. **Return** requires a LIFE to end, and §32 states it: *"walking back in with nothing requires a LIFE to end, and that arrives with `M3`."* A LIFE ends at the Legacy screen, so Return ships with `M3-T05`. ADR-129 records that as a gate decision rather than a stub.
+
+### An assertion that could not fail, and one that nearly hid behind a small screen
+
+**The bag was already empty.** The row asserting a Vörðr carries nothing downed a player whose inventory was untouched, so it read `0 item(s)` whether or not `inventory.clear()` ran — and a plant deleting that call outright walked straight through it. A body that had nothing cannot demonstrate losing it. It goes down with a coin and a torc now, and the row reports both numbers.
+
+Ninth true-but-beside-the-point assertion this milestone.
+
+**And the layout row was measured against the wrong thing.** It asked whether the readout's rect was larger than 2 × 2 — which a `Control` stuck at Godot's 64 × 64 default passes while drawing a 360-wide bar off its own edge. It compares against the **viewport** now. Worth recording because the first reading of `64 x 64` looked exactly like ADR-111 happening again, and it was not: headless renders at 64 × 64, the readout was full-rect all along, and only printing the screen size beside it told the two apart.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

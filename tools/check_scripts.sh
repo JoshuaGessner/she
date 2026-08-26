@@ -326,6 +326,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **A dead player is still playing** (`M3-T14`, `DES-012`, ADR-130). The
+	# Vordr, and the readout `GATE M3 COOP` has named as a precondition since
+	# ADR-115 with no build ever having an answer for it.
+	#
+	# The loot row goes down carrying something, deliberately: the first draft
+	# downed a player whose bag was already empty and read `0 item(s)` whether or
+	# not anything was cleared, so a plant deleting the clear walked through it.
+	vordr="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --vordr-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$vordr" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a dead player has to still be playing" >&2
+		printf '%s\n' "$vordr" | grep -E '\[vordr\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Six slots, and a weapon whose numbers are finally read** (`M3-T07`,
 	# `DES-020`, ADR-127). `WieldableTrait` carried windup, active, recovery,
 	# damage and reach on four authored weapons and nothing consumed any of it
@@ -666,6 +681,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a missed Tithe reaches the floor it was missed for,"
 	echo "surplus tribute buys nodes and every node she charges for,"
 	echo "what you hold decides the swing and the pack decides the bag,"
+	echo "the fallen can see what is happening to them and go on playing,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
