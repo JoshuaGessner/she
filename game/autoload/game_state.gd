@@ -962,6 +962,15 @@ func _section(data: Dictionary, name: String) -> Dictionary:
 ## happens to be main this month.
 func _save_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
+	# **Its own profile, never the players** (ADR-145). Writing, wiping and
+	# migrating are this probes whole subject, so it cannot be refused the file —
+	# it gets a different one.
+	SaveFile.use_a_scratch_profile()
+	if SaveFile.PATH == "user://profile.save":
+		printerr("[save] FAIL this probe is pointed at the real profile and "
+			+ "wipes below — every sweep would delete a player's lineage")
+		get_tree().quit(1)
+		return
 	SaveFile.wipe()
 
 	# ── a profile that is not there ──────────────────────────────────────

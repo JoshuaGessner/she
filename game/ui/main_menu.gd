@@ -405,6 +405,12 @@ func _gap(height: int) -> Control:
 ## join parser accepts what the host panel prints.
 func _menu_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
+	# **This one too** (ADR-145). `_walk_the_loop()` wipes the profile between
+	# stops, and it was the last thing still deleting a real lineage after the
+	# save and class probes had been sent to a scratch file — a full sweep still
+	# came back with the profile gone, which is how it was found. Three probes
+	# touched that file and two of them were obvious.
+	SaveFile.use_a_scratch_profile()
 
 	var round_trip: String = NetPlan.code_for("192.168.1.20", NetPlan.DEFAULT_PORT)
 	var parsed: bool = NetPlan.adopt_code(round_trip)
@@ -658,6 +664,14 @@ func _walk_the_loop() -> PackedStringArray:
 ## the same nothing.
 func _class_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
+	# **Its own profile, never the players** (ADR-145). This wipes below, and it
+	# was wiping a real lineage on every sweep.
+	SaveFile.use_a_scratch_profile()
+	if SaveFile.PATH == "user://profile.save":
+		printerr("[class] FAIL this probe is pointed at the real profile and "
+			+ "wipes below — every sweep would delete a player's lineage")
+		get_tree().quit(1)
+		return
 	SaveFile.wipe()
 	GameState.class_id = &""
 	GameState.stash.clear()

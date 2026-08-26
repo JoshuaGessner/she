@@ -51,12 +51,33 @@ extends Object
 ## in the same commit. Never edit a shipped migration; never delete one.
 const SAVE_VERSION: int = 8
 
-const PATH: String = "user://profile.save"
+## **A `static var`, so a probe can point it somewhere harmless** (ADR-145).
+##
+## `--save-probe` and `--class-probe` both call `wipe()`, which deletes every
+## file beginning `profile.save` — and they ran against the **player's** profile,
+## because a probe boots a level directly into the same `user://` the game plays
+## from. Every sweep destroyed a real lineage, and it did so silently: nothing
+## in the sweep's output says a save was deleted, and the game creates a new one
+## on the next descent as if nothing had happened.
+##
+## ADR-138 fixed exactly this for `RunFile` by refusing to touch the file at
+## all in an unarmed process. That is the wrong shape here: the save probe's
+## whole subject is writing, wiping and migrating, so it must be able to do all
+## three. It gets its **own file** instead, which is what a test fixture is.
+static var PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
 ## filesystem we ship to, so a process killed mid-write leaves a stale `.tmp`
 ## and an intact profile — never a half-written one. `TEC-003` calls the death
 ## write the critical path, and this is the whole of what makes it survivable.
-const TMP: String = "user://profile.save.tmp"
+static var TMP: String = "user://profile.save.tmp"
+
+
+## Send every read, write and wipe to a scratch profile for the rest of this
+## process (ADR-145). Called by the probes whose subject this file is; never by
+## the game, which has no reason to and no way to get here.
+static func use_a_scratch_profile() -> void:
+	PATH = "user://profile.probe"
+	TMP = "user://profile.probe.tmp"
 
 ## Ordered forward migrations: `N` names the function taking a version-`N` dict
 ## and returning a version-`N+1` one.
@@ -262,8 +283,12 @@ static func wipe() -> void:
 	var dir := DirAccess.open("user://")
 	if dir == null:
 		return
+	# Keyed off `PATH` rather than a literal, or a scratch profile would be
+	# wiped by name-matching the real one — and worse, the real one would be
+	# wiped while the scratch was in force (ADR-145).
+	var stem: String = PATH.get_file()
 	for name: String in dir.get_files():
-		if name.begins_with("profile.save"):
+		if name.begins_with(stem):
 			dir.remove(name)
 
 

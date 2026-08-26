@@ -3779,5 +3779,43 @@ Three plants, none uncaught: nobody walked at all, the steering deleted, and spa
 
 ---
 
+## ADR-145 — The sweep was deleting the player's save
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T24`** · **Extends ADR-138**
+
+**Context:** found while rebuilding for a playtest. The reporter's profile — the one whose contents diagnosed ADR-141 an hour earlier — was **gone**, and it had not been touched by anything a player did.
+
+`SaveFile.wipe()` deletes every file beginning `profile.save`. Three probes call it: `--save-probe`, `--class-probe`, and `--menu-probe` through `_walk_the_loop()`. Every one of them boots a level directly into the same `user://` the game plays from.
+
+**So every full sweep destroyed a real lineage**, and did it in silence: nothing in the sweep's output says a save was deleted, and the game creates a fresh one on the next descent as though nothing had happened. `DES-014` calls the hoard *"a permanent physical monument to every life you have lost"*, and the check that guards it was removing it.
+
+### Why ADR-138's answer is the wrong shape here
+
+`RunFile` refuses to see or touch its file in an unarmed process. That works because no probe except `--run-probe` has any business with a run file.
+
+The save probe's **whole subject** is writing, wiping and migrating. Refusing it the file would delete the check. So it gets a **different file** instead, which is what a test fixture has always been: `PATH` and `TMP` become `static var`s, and the probes redirect them to `user://profile.probe` for the life of the process.
+
+`wipe()` keys off `PATH.get_file()` rather than a literal, or a scratch run would still match — and delete — the real profile by name.
+
+### It took two passes, because two of the three were obvious
+
+Redirecting the save and class probes was the fix that suggested itself. A full sweep still came back with the profile gone, and only then did `--menu-probe` turn up: `_walk_the_loop()` wipes between stops, and it is a check about *scene paths* that happens to clear state on its way through.
+
+**The two that wiped in a function named for saving were found by reading. The third was found by planting a profile and running the whole sweep over it** — which is the only method that could have found it, and is now the check: a real profile with a hoard of 999, a full sweep, and the value still 999 afterwards. Verified across `check_scripts.sh`, `run_coop.py --smoke`, `check_determinism.py` and `export_build.py`.
+
+Both probes also carry a guard that fails loudly if they are ever pointed back at `user://profile.save`, because the failure they prevent is invisible in the output and permanent on disk.
+
+### The shape of the fault, for next time
+
+Three sessions in a row have now found the same thing wearing different clothes: **a probe writing to the place the player keeps something.** ADR-138 was the run file. This is the profile. Both were found *after* they had cost something real, and neither was visible in a passing sweep.
+
+The general rule that falls out: **a check that writes to `user://` must name the file it writes to, and it must not be the one the game uses.** Two down; anything added later that touches `user://` gets the same question asked of it before it lands.
+
+### Verification
+
+A profile planted with a distinctive hoard value, then run over by the complete tooling suite, and read back unchanged. Plus a guard row in each redirecting probe.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
