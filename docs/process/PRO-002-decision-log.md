@@ -3699,5 +3699,45 @@ Four plants, none uncaught: the Hunter losing its agent, the census emptying, th
 
 ---
 
+## ADR-143 — A run is a descent, and the haul is part of the life
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T23`** · **Save v8**
+
+**Context:** two persistence gaps found while tracing ADR-141's menu flows. Neither was reported from play, and both cost a player something real and silent.
+
+### The run began in one place and should have begun in three
+
+`MainMenu._enter()` called `RunFile.begin()` on the route where a class was already sworn. The class screen changed scene **without it**. So a first life — and **every life after a death** — went down with no run file, and ADR-050's *quitting mid-run is never an escape* did not apply to the two cases a player meets first.
+
+Nothing could have caught it. No probe walked the class-select route into a descent, and a missing run file is indistinguishable from a finished one.
+
+It moves to **`Threshold._descend()`**, which is the honest moment: a run **is** a descent, and it is the one line every route into the Deep passes through. ADR-138's arming rule keeps it safe — a probe booting the Threshold directly is unarmed, so `begin()` is a no-op there.
+
+### What you walked out with was never written down
+
+`GameState`'s own header table has said since `M3-T06`:
+
+> | **What you carried** | Survives a run: only if you extracted |
+
+It did not survive a **quit**. `bring_home()` set `carried` and called `_persist()`, and `to_dict()` had no field for it — so extracting, landing at the fire, and closing the game lost the entire haul before the Chamber ever offered any of it. The Settle beat happens in the Chamber and the fire is where you land; the gap between them was a hole in the floor.
+
+Save **v8** writes it, in the LIFE tier beside the stash, because that is what it is: `die()` clears it in the same breath, and `DES-012` is explicit that dying costs you the bag outright. Ids only, on the stash's own reasoning — the Chamber re-mints a fresh `ItemInstance` when it hands the haul back.
+
+`_migrate_7_to_8` fills in `[]`, and empty is the **honest** value rather than a default: a v7 profile was written by a build with no field for this, and the only moment it could have held anything was a window that ended when the process did, because the value was never on disk.
+
+### The read was right, the write was right, and the last line threw it away
+
+The round-trip row failed, and the write was verified correct on the first look: `to_dict` put `["glt_altar_plate"]` on disk, and `from_dict` was seen receiving it. The restore ran. The size was still zero.
+
+`from_dict` ended with **`carried.clear()`** — a line that had been correct for as long as nothing wrote the field. A loaded profile genuinely could not be carrying anything, so emptying it was the honest reading of the data. Once v8 wrote the field, that same line silently undid the restore twenty lines above it.
+
+Worth recording as a habit, not a bug: **three wrong guesses went into the new code before the old line was read.** The instinct to distrust the thing you just changed is usually right and was exactly wrong here — the defect was a correct statement about a world that had stopped being true.
+
+### Verification
+
+Five plants, none uncaught: the haul unwritten, the haul unread, the old `carried.clear()` restored, the migration removed, and the descent opening no run.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

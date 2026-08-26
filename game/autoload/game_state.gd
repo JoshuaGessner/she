@@ -813,6 +813,12 @@ func to_dict() -> Dictionary:
 	var kept: Array[String] = []
 	for item: ItemInstance in stash:
 		kept.append(String(item.definition.id))
+	# Ids only, on the stash's own reasoning above: `Chamber` re-mints a fresh
+	# `ItemInstance` from the definition when it hands the haul back, so a cell
+	# and a rotation would be written and thrown away.
+	var held: Array[String] = []
+	for item: ItemInstance in carried:
+		held.append(String(item.definition.id))
 	var spent: Array[String] = []
 	for id: StringName in taken:
 		spent.append(String(id))
@@ -830,6 +836,17 @@ func to_dict() -> Dictionary:
 		"legacy": {"slots": legacy, "last_life": last_life},
 		"life": {
 			"stash": kept,
+			# **What you walked out with, before you decided about it** (save
+			# v8, ADR-143). This file's own header table has always said
+			# *"what you carried — survives a run: only if you extracted"*, and
+			# it did not survive a **quit**: `bring_home()` wrote a profile that
+			# had no field for it, so extracting and closing the game at the
+			# fire lost the whole haul.
+			#
+			# LIFE tier, beside the stash, because that is what it is — `die()`
+			# clears it in the same breath, and `DES-012` is explicit that dying
+			# costs you the bag outright.
+			"carried": held,
 			"class_id": String(class_id),
 			# **No `pact_rank`.** It is derived from `taken` (ADR-125), and a
 			# stored copy is a second source of truth that a hand-edited or
@@ -880,6 +897,14 @@ func from_dict(data: Dictionary) -> void:
 		# Instance id `0`: an `Inventory` mints from 1, so nothing in a bag can
 		# collide with something merely sitting in the stash.
 		stash.append(ItemInstance.of(known, 0))
+	# **And the haul that has not been decided about yet** (save v8, ADR-143).
+	carried.clear()
+	for raw: Variant in life.get("carried", []) as Array:
+		var brought: ItemResource = ItemCatalogue.by_id(StringName(raw))
+		if brought == null:
+			push_warning("GameState: carried '%s' is not in this build" % raw)
+			continue
+		carried.append(ItemInstance.of(brought, 0))
 	# Defaults matching a new life, so a `life` block from before `M3-T04`
 	# reads as what it was — rank 1, owing nothing. `SaveFile._migrate_1_to_2`
 	# writes them explicitly; these are what happens if a field is missing for
@@ -901,7 +926,16 @@ func from_dict(data: Dictionary) -> void:
 	tithe_paid = int(life.get("tithe_paid", 0))
 	cycle_runs = int(life.get("cycle_runs", 0))
 	hunt_head_start = float(life.get("hunt_head_start", 0.0))
-	carried.clear()
+	# **The line that used to end this function was `carried.clear()`**, and it
+	# was correct while nothing wrote the field: a loaded profile could not be
+	# carrying anything, so emptying it was the honest reading. Save v8 writes
+	# it (ADR-143), and the same line then quietly undid the restore two dozen
+	# lines above — the read was right, the write was right, and the last
+	# statement threw the answer away.
+	#
+	# Found by planting nothing: the round-trip row simply failed, and the
+	# instinct to distrust the *new* code cost three wrong guesses before the
+	# old line was even read.
 
 
 func _persist() -> void:
@@ -950,6 +984,12 @@ func _save_probe() -> void:
 	# to the wire went **uncaught**: every row here was about the hoard and the
 	# stash, and gear reached disk untested for the whole of its first task.
 	worn["MAIN_HAND"] = "wpn_seax"
+	# **And what was walked out with** (save v8, ADR-143), recorded here for the
+	# reason `worn` is: a haul that never reaches disk is invisible to every row
+	# that asks about the hoard or the stash. Extracting and quitting at the
+	# fire lost the whole bag, and this file's own header table said it should
+	# not have.
+	carried.append(ItemInstance.of(ItemCatalogue.by_id(&"glt_altar_plate"), 7))
 	_persist()
 
 	if FileAccess.file_exists(SaveFile.TMP):
@@ -962,6 +1002,7 @@ func _save_probe() -> void:
 	hoard_value = 0
 	stash.clear()
 	worn.clear()
+	carried.clear()
 	from_dict(SaveFile.read())
 	print("[save] round trip     hoard %d/%d, value %d/%d, stash %d" % [
 		hoard.size(), pile, hoard_value, gave, stash.size()])
@@ -972,6 +1013,12 @@ func _save_probe() -> void:
 	if stash.size() != 1 or stash[0].definition.id != &"wpn_seax":
 		problems.append(("the stash did not survive a round trip — `DES-008`'s "
 			+ "great reset is supposed to be what empties it, not quitting"))
+	print("[save] the haul       %d item(s) still to decide about" % carried.size())
+	if carried.size() != 1 or carried[0].definition.id != &"glt_altar_plate":
+		problems.append(("what was carried out did not survive a round trip — "
+			+ "the Settle beat happens at the Chamber and the fire is where you "
+			+ "land, so quitting in between used to cost the whole haul before "
+			+ "she was ever offered any of it"))
 	print("[save] gear           main hand '%s'" % worn.get("MAIN_HAND", ""))
 	if String(worn.get("MAIN_HAND", "")) != "wpn_seax":
 		problems.append(("what was worn did not survive a round trip — "

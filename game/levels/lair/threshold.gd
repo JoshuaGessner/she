@@ -286,6 +286,7 @@ func _edges_probe() -> void:
 	# class of argument 1 (previously freed)"*, which is the probe holding a
 	# corpse rather than a finding.
 	problems.append_array(await _sworn_to_nothing())
+	problems.append_array(_the_descent_opens_a_run())
 
 	# ─ 6. the Chamber does not outlive the level that made it ─
 	_open_the_chamber()
@@ -361,6 +362,46 @@ func _sworn_to_nothing() -> PackedStringArray:
 		problems.append(("the descent is shut to a sworn Húskarl as well, so "
 			+ "the refusal above is a Threshold nobody can leave rather than "
 			+ "a guard"))
+	return problems
+
+
+## **Going down opens a run** (ADR-143).
+##
+## `MainMenu` used to do this, and only on the route where a class was already
+## sworn — the class screen changed scene without it. So a first life, and
+## **every life after a death**, descended with no run file, and ADR-050's
+## *quitting is never an escape* did not apply to the two cases a player meets
+## first. Nothing could have caught it: no probe walked the class-select route,
+## and a missing run file is indistinguishable from a finished run.
+##
+## **Armed here, on `--run-probe`'s precedent** (ADR-138). Every other probe
+## stays unarmed so a sweep cannot touch a player's `user://`; this one has to,
+## because a run file that nothing writes is the fault being asserted. Cleared
+## on both sides, so the window is this function.
+func _the_descent_opens_a_run() -> PackedStringArray:
+	var problems := PackedStringArray()
+	var was: StringName = GameState.class_id
+	RunFile.arm()
+	RunFile.clear()
+
+	GameState.class_id = &"huskarl"
+	_descending = false
+	_descend()
+	var opened: bool = RunFile.exists()
+	var whose: String = String(RunFile.read().get("class_id", ""))
+	print("[edges] the run      opened=%s, for '%s'" % [opened, whose])
+	if not opened:
+		problems.append(("walking into the hole opened no run — quitting from "
+			+ "the floor would then cost nothing, which is the one escape "
+			+ "ADR-050 exists to close"))
+	elif whose != "huskarl":
+		problems.append(("the run was opened for '%s' rather than for the life "
+			+ "descending — ADR-138 reads that back to decide whether a run is "
+			+ "resumable, and a mismatch drops it on the next launch") % whose)
+
+	RunFile.clear()
+	GameState.class_id = was
+	set_process(true)
 	return problems
 
 
@@ -696,6 +737,15 @@ func _ask_host_to_descend() -> void:
 func _descend() -> void:
 	set_process(false)
 	GameState.descents += 1
+	# **A run is a descent, so this is where one opens** (ADR-143). `MainMenu`
+	# used to do it, and only on the route where a class was already sworn — the
+	# class screen changed scene without it, so a first life and every life
+	# after a death went down with no run file, and quitting mid-run cost them
+	# nothing. One line, on the path every route into the Deep passes through.
+	#
+	# A no-op in an unarmed process (ADR-138), so a probe booting this level
+	# directly still cannot open a run in the player's `user://`.
+	RunFile.begin(GameState.class_id, GameState.pact_rank)
 	if _probing:
 		# The descent *happened* — `_descending` is already true and that is
 		# what a probe reads. Going through with it would free the node holding

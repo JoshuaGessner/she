@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 7
+const SAVE_VERSION: int = 8
 
 const PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
@@ -75,6 +75,7 @@ static func migrations() -> Dictionary:
 		4: _migrate_4_to_5,
 		5: _migrate_5_to_6,
 		6: _migrate_6_to_7,
+		7: _migrate_7_to_8,
 	}
 
 
@@ -338,4 +339,24 @@ static func _migrate_5_to_6(old: Dictionary) -> Dictionary:
 static func _migrate_6_to_7(old: Dictionary) -> Dictionary:
 	var out: Dictionary = old.duplicate(true)
 	out["legacy"] = {"slots": [], "last_life": {}}
+	return out
+
+
+## **v7 → v8: what you walked out with is on the profile now** (ADR-143).
+##
+## `GameState`'s own header table has always said *"what you carried — survives
+## a run: only if you extracted"*, and it did not survive a **quit**: nothing
+## wrote it, so extracting and closing the game at the fire lost the haul before
+## the Chamber ever asked about it.
+##
+## **Empty is the honest value, not a guess.** A v7 profile was written by a
+## build that had no field for this, and the only moment it could have held
+## anything is between an extraction and the Settle beat — a window that ended
+## when the process did, because the value was never on disk. So a v7 save
+## describes a life carrying nothing, which is exactly what it was.
+static func _migrate_7_to_8(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["carried"] = []
+	out["life"] = life
 	return out

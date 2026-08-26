@@ -311,13 +311,14 @@ func _enter() -> void:
 	if menu_asks_the_class():
 		_choose_a_class()
 		return
-	# **Only a sworn life opens a run** (ADR-141). Reaching here with no class
-	# means the Legacy question is still open and the fire is about to ask it —
-	# beginning a run for nobody would write `class_id: ""` into `run.active`,
-	# and ADR-138's own guard would then read that back as an orphan and drop it
-	# on the next launch. `M3-T20` gives the sworn path its run file.
-	if GameState.class_id != &"":
-		RunFile.begin(GameState.class_id, GameState.pact_rank)
+	# **The run begins at the hole, not here** (ADR-143). This opened one for a
+	# life that had a class and nothing opened one for a life that gained its
+	# class later — the class screen changed scene without it, so a first life,
+	# and every life after a death, descended with no run file at all and
+	# ADR-050's *quitting is never an escape* simply did not apply to them.
+	#
+	# `Threshold._descend()` is the honest moment: a run **is** a descent, and
+	# it is the one line every route into the Deep passes through.
 	get_tree().change_scene_to_file(THRESHOLD)
 
 
