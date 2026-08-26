@@ -286,8 +286,8 @@ func _enter() -> void:
 	# Ahead of the class gate below, deliberately: a suspended run already has
 	# a class, and asking again would be offering the one escape this exists to
 	# close — quit, come back somebody else, keep the tree.
-	if RunFile.exists():
-		print("[run] a run is still open — resuming it")
+	RunFile.arm()
+	if resume_is_this_life():
 		get_tree().change_scene_to_file(THRESHOLD)
 		return
 	if GameState.class_id == &"":
@@ -295,6 +295,41 @@ func _enter() -> void:
 		return
 	RunFile.begin(GameState.class_id, GameState.pact_rank)
 	get_tree().change_scene_to_file(THRESHOLD)
+
+
+## **Is the open run this life's run?** (ADR-138)
+##
+## The descent used to resume on the run file's mere *existence*, and `class_id`
+## was written into that file by `begin()` and read by **nothing** — dead data
+## `check_dead.py` cannot see, because `begin()` is called.
+##
+## What that cost, exactly once and in front of the person it was built for: a
+## run file left behind by a probe, a profile that had never been written, and
+## the existence check skipping class select. The result was a body on the floor
+## with no class, therefore no kit, therefore nothing in its hand — and
+## `MeleeWeapon.request_swing` returns false on an empty hand, so the attack
+## button did nothing at all. Not one of those steps was wrong on its own.
+##
+## A run file says **where you are inside a life**. Without that life there is
+## nothing to resume *into*, so an orphaned run is dropped rather than entered.
+## It costs one run, which is exactly what a run file is worth; entering it
+## costs a descent that cannot be played.
+##
+## Public because `--class-probe` asks it directly. The alternative is asserting
+## against `change_scene_to_file`, which detaches this node synchronously and
+## takes the probe with it (ADR-117).
+func resume_is_this_life() -> bool:
+	if not RunFile.exists():
+		return false
+	var run: Dictionary = RunFile.read()
+	var sworn: StringName = StringName(run.get("class_id", ""))
+	if sworn != &"" and sworn == GameState.class_id:
+		print("[run] a run is still open — resuming it as '%s'" % sworn)
+		return true
+	push_warning(("MainMenu: the open run belongs to '%s' and this life is "
+		+ "'%s'; dropping it") % [sworn, GameState.class_id])
+	RunFile.clear()
+	return false
 
 
 func _choose_a_class() -> void:
@@ -777,10 +812,115 @@ func _class_probe() -> void:
 			+ "walks away still blocking is a wall wandering the floor"))
 	husk.queue_free()
 
+	problems.append_array(_resume_rows())
+
 	SaveFile.wipe()
 	for problem: String in problems:
 		printerr("[class] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **You cannot descend as nobody, and a sweep cannot open your run** (ADR-138).
+##
+## Here rather than in `--run-probe` because the subject is not the run file, it
+## is the **decision the menu makes about one** — and that decision is what put
+## a classless body on the floor.
+func _resume_rows() -> PackedStringArray:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# ── an unarmed process cannot *write* a run ──────────────────────────
+	#
+	# Two gates, and both are load-bearing. This one is why a sweep can no
+	# longer leave a file in the player's `user://` at all; the next one is why
+	# a sweep cannot read or delete one that is already there. Planting the
+	# second without the first reported **NOT CAUGHT** — deleting the write gate
+	# changed nothing visible, because the read gate was hiding the file the
+	# write had just created. A guard whose failure another guard conceals is
+	# not covered by a row about the other guard.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(RunFile.PATH))
+	RunFile.begin(&"huskarl", 1)
+	var wrote_unarmed: bool = FileAccess.file_exists(RunFile.PATH)
+	print("[class] unarmed write left a file=%s (want no)" % wrote_unarmed)
+	if wrote_unarmed:
+		problems.append(("an unarmed process opened a run — every probe in the "
+			+ "sweep boots a level directly, and one that exits between "
+			+ "`begin()` and `clear()` leaves a run open in the player's own "
+			+ "`user://`. That is exactly what happened"))
+
+	# ── and cannot see one that is already there ─────────────────────────
+	#
+	# Written with `FileAccess` rather than `RunFile.begin()`, because `begin()`
+	# is exactly what the row above prevents — setting this up with it would be
+	# asserting one guard by getting past the other.
+	var planted := FileAccess.open(RunFile.PATH, FileAccess.WRITE)
+	planted.store_string(JSON.stringify(
+		{"version": RunFile.VERSION, "class_id": "huskarl", "rank": 1,
+		"carried": [], "hunt_age": 0.0, "stripped": false}))
+	planted.close()
+	var on_disk: bool = FileAccess.file_exists(RunFile.PATH)
+	var seen_unarmed: bool = RunFile.exists()
+	RunFile.arm()
+	var seen_armed: bool = RunFile.exists()
+	print("[class] the arming   on disk=%s, unarmed sees=%s, armed sees=%s" % [
+		on_disk, seen_unarmed, seen_armed])
+	if not on_disk:
+		problems.append("the planted run file is not on disk, so the two rows "
+			+ "below are about nothing")
+	if seen_unarmed:
+		problems.append(("an unarmed process can see a run file — every probe "
+			+ "in the sweep boots a level directly, and one that exits between "
+			+ "`begin()` and `clear()` then leaves a run open in the player's "
+			+ "`user://`. That is what happened, and the next launch resumed it"))
+	if not seen_armed:
+		problems.append("arming did not make the run visible, so the guard "
+			+ "refuses the player as well as the sweep")
+
+	# ── a run that belongs to nobody is dropped, not entered ─────────────
+	GameState.class_id = &""
+	var orphan_resumed: bool = resume_is_this_life()
+	var orphan_kept: bool = RunFile.exists()
+	print("[class] the orphan   resumed=%s, still open=%s (want no/no)" % [
+		orphan_resumed, orphan_kept])
+	if orphan_resumed:
+		problems.append(("a run opened by nobody was resumed — the life it "
+			+ "describes does not exist, so the descent arrives with no class, "
+			+ "no kit and an empty hand, and the attack button does nothing"))
+	if orphan_kept:
+		problems.append(("an unresumable run was left on disk, so it blocks "
+			+ "every future descent — ADR-050 says there is no fresh run while "
+			+ "one is open, and this one can never be finished"))
+
+	# ── a run belonging to another life is dropped too ───────────────────
+	RunFile.begin(&"veidimadr", 1)
+	GameState.class_id = &"huskarl"
+	var stranger_resumed: bool = resume_is_this_life()
+	print("[class] another life resumed=%s (want no)" % stranger_resumed)
+	if stranger_resumed:
+		problems.append(("a Húskarl resumed a Veiðimaðr's run — the body is "
+			+ "built from the profile and the floor from the run file, so this "
+			+ "is a life playing somebody else's descent"))
+
+	# ── and this life's own run is kept and entered ──────────────────────
+	#
+	# The row that stops all of the above being satisfied by *never* resuming,
+	# which would close the escape ADR-050 exists to close by deleting the
+	# feature.
+	RunFile.begin(&"huskarl", 1)
+	var mine_resumed: bool = resume_is_this_life()
+	var mine_kept: bool = RunFile.exists()
+	print("[class] my own run   resumed=%s, still open=%s (want yes/yes)" % [
+		mine_resumed, mine_kept])
+	if not mine_resumed:
+		problems.append(("this life's own run was refused — quitting mid-run "
+			+ "would then be a free escape from a bad one, which is the whole "
+			+ "of ADR-050"))
+	if not mine_kept:
+		problems.append("resuming cleared the run file, so the next quit would "
+			+ "find nothing to resume")
+
+	RunFile.clear()
+	GameState.class_id = &""
+	return problems
 
 
 ## The masks the shipped scenes actually carry, read from the scenes rather

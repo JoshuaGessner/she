@@ -3441,5 +3441,59 @@ Three plants against the pad-conflict rule, all caught first time: the old `spri
 
 ---
 
+## ADR-138 — A run belongs to a life, and a sweep does not get a run
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T17`** · **Reported from play**
+
+**Context:** the first play of the `M3` build, on the exported macOS app. The report: *"I descended solo but there was no weapon or class selection of any kind."*
+
+Nothing in that sentence is about weapons or class select. It is one fault with four steps, and **not one of the steps is wrong on its own.**
+
+### What actually happened
+
+`user://run.active` was on disk with **no `profile.save` beside it**. `MainMenu._enter()` checked `RunFile.exists()` before the class gate and returned early — correctly, by ADR-050: *there is no fresh descent while a run is open*, and a suspended run already has a class.
+
+Except this one did not. The run file **stores** `class_id`, and **nothing read it**. `check_dead.py` cannot see that: `begin()` is called, so the name is alive. Dead *data*, not a dead name.
+
+So: class select skipped → no class sworn → no kit → empty stash → empty bag → nothing in `MAIN_HAND` → and `MeleeWeapon.request_swing` returns `false` on an empty hand. **The attack button did nothing at all.** No swing, no sound, no refusal. The Threshold never mentions class either, so nothing between the menu and the floor could have said so.
+
+### And the run file was ours
+
+The run was left by a **probe**. Every probe boots a level directly and writes to the same `user://` the editor build plays from, and one that exits between `begin()` and `clear()` leaves a run open. The `M3-T13` session already hit a smaller version of this — a plant left garbage in `user://run.active` and contaminated an unrelated probe two steps later — and the fix then was local to the harness. It should have been this.
+
+**`SaveFile` has had the rule since `M3-T06`: nothing is written back to a file that was never read.** `RunFile` did not, and the difference cost a play session.
+
+### Two gates, and both are load-bearing
+
+`RunFile` is armed by `MainMenu._enter()` — the one way into the game — and by `--run-probe`, whose subject it is. An unarmed process **cannot write** a run and **cannot see** one that is already there.
+
+Both, not either. Planting the read gate's removal alone reported **NOT CAUGHT**: deleting the write gate changed nothing observable, because the read gate hid the file the write had just created. *A guard whose failure another guard conceals is not covered by a row about the other guard.*
+
+Seeing nothing is stronger than refusing to write: an unarmed process cannot resume somebody else's run, cannot clear it, and cannot be confused by it.
+
+### The run file must agree with the life
+
+`resume_is_this_life()` reads `class_id` back and resumes only when it matches the sworn class. Anything else is an **orphan** — a record of where you were inside a life that no longer exists — and is dropped rather than entered. That costs one run, which is what a run file is worth. Entering it costs a descent that cannot be played.
+
+This is also what makes the stored `class_id` load-bearing instead of decorative. The field was always right; nothing ever asked it.
+
+### And the Threshold refuses too
+
+Not a second copy of the rule. The menu decides whether a **run** may open; the Threshold decides whether a **body** may go down, and `M2-T15` proved a level can be reached without passing through the menu at all. Standing at the hole sworn to nothing now says so instead of silently working.
+
+### The failure deleted its own witness
+
+Both plants for *"a life sworn to nothing walked into the hole"* passed **silently**. `_descend` is `call_local` and ends in `change_scene_to_file`, so the body reaching the hole freed the node holding the assertion; the Deep came up with no probe flag and the process exited zero. A green row, for a fault that had just occurred.
+
+`room_set` has had `_probing` swapping the scene change out since `M2` and says why in as many words. The same word now exists here — **with its exception named**: `--doorway-probe`'s whole subject is the transition, so holding the scene makes it fail by definition, and it did, immediately. `room_set` dodged the same collision by keeping "probe" out of `--extraction`'s name; naming the exception is the more durable half of that lesson, because the rule then survives somebody renaming a flag.
+
+### Verification
+
+Six plants on the resume guard and three on the descent guard, all caught — after three were not, each for a different reason worth keeping: one guard concealed by another, and a failure that destroyed the probe observing it.
+
+The accepting half of the descent is asserted through the **predicate** rather than by walking into the hole, because walking into it is the thing that cannot be survived. That direction is already proved where it belongs — `--menu-probe`'s `_walk_the_loop` presses Descend and asserts it arrives in the Deep.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

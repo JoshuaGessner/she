@@ -39,11 +39,37 @@ const TMP: String = "user://run.active.tmp"
 
 const VERSION: int = 1
 
+## **Only a process that came in through the menu may touch a run file**
+## (ADR-138). `SaveFile` has had this rule since `M3-T06` — *nothing is written
+## back to a file that was never read* — and this file did not, which is how a
+## sweep broke a play session.
+##
+## Probes boot levels directly. Every one that exercised the run file wrote to
+## the **player's** `user://`, and one that exited between `begin()` and
+## `clear()` left a run open. The next launch found it, took ADR-050 at its word
+## — *there is no fresh descent while a run is open* — skipped class select, and
+## put a body on the floor with no class, no kit and nothing in its hand.
+##
+## An unarmed process sees no run file at all, which is stronger than refusing
+## to write one: it cannot resume somebody else's run, cannot clear it, and
+## cannot be confused by it. `--run-probe` arms itself, because its subject is
+## this file.
+static var _live: bool = false
+
+
+## This process owns its run state. Called by `MainMenu._enter()`, which is the
+## only way into the game, and by the probe whose subject this is.
+static func arm() -> void:
+	_live = true
+
 
 ## Is a run open? A crash leaves this behind, which is the point: the next boot
 ## finds it and resumes rather than offering a fresh descent.
+##
+## False in an unarmed process **even when the file is there**, so a probe
+## booting a level directly is never looking at a player's run.
 static func exists() -> bool:
-	return FileAccess.file_exists(PATH)
+	return _live and FileAccess.file_exists(PATH)
 
 
 ## Open a run. Called at the descent, before a floor is built.
@@ -105,6 +131,8 @@ static func read() -> Dictionary:
 ## The run resolved. Called when an outcome is taken — extraction or death —
 ## and **only** then, because anything else is the escape ADR-050 forbids.
 static func clear() -> void:
+	if not _live:
+		return
 	if FileAccess.file_exists(PATH):
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(PATH))
 
@@ -112,6 +140,11 @@ static func clear() -> void:
 ## Written whole, through a scratch file and a rename, on `SaveFile`'s pattern:
 ## either the run moved or it did not, and there is no third state on disk.
 static func _write(run: Dictionary) -> void:
+	if not _live:
+		# Not an error. A probe booting a level directly has no business
+		# opening a run, and saying so on every one of them would bury the
+		# output that matters in noise.
+		return
 	var handle: FileAccess = FileAccess.open(TMP, FileAccess.WRITE)
 	if handle == null:
 		push_error("RunFile: cannot open %s for writing" % TMP)

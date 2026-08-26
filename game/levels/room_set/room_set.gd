@@ -4935,6 +4935,12 @@ func _find_readout(from: Node) -> FallenReadout:
 func _run_file_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 
+	# **This probe's subject is the run file, so it arms itself** (ADR-138).
+	# Every other probe stays unarmed and therefore cannot see, write or delete
+	# a run — which is the point: an unarmed sweep used to leave one open in the
+	# player's `user://`, and the next launch resumed it into a classless body.
+	RunFile.arm()
+
 	# A clean slate, so nothing below is reading a run left by an earlier probe.
 	RunFile.clear()
 	print("[run] nothing open        exists=%s (want false)" % RunFile.exists())

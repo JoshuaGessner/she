@@ -59,6 +59,9 @@ const SPAWNS: Array[Vector3] = [
 
 var _session: CoopSession = null
 var _readout: Label = null
+## Set by any `--…probe` or `--…shot` argument. Its one job is to stop
+## `_descend` changing scene, so a check about the descent can survive it.
+var _probing: bool = false
 
 
 ## True once the descent is under way, so a body standing in the hole does not
@@ -81,6 +84,29 @@ func _ready() -> void:
 	hud.add_child(Reticle.new())
 	add_child(PauseMenu.new())
 	_face_what_happened()
+	# **A probe must be able to watch the descent without taking it** (ADR-138).
+	# `_descend` is `call_local` and ends in `change_scene_to_file`, so a body
+	# that reaches the hole destroys whatever was watching it — and the two
+	# plants for *"a life sworn to nothing walked into the hole"* both passed
+	# **silently** for that reason: the failure deleted its own witness, the
+	# Deep came up with no probe flag, and the run exited zero.
+	#
+	# `room_set` has had this exact swap since `M2` and says why in as many
+	# words. Same rule, same word, stated where the second scene needs it.
+	#
+	# **`--doorway-probe` is the exception, and it has to be.** Its whole
+	# subject is the transition — it asserts the host keeps its connection
+	# through the door and the client follows it down — so holding the scene
+	# makes it fail by definition. It did, immediately: *"built a new session"*
+	# and *"did not follow"*. `room_set` learned the same thing about
+	# `--extraction` and dodged it by keeping "probe" out of the name; naming
+	# the exception is the clearer half of that lesson, because the rule then
+	# survives somebody renaming a flag.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg == "--doorway-probe":
+			continue
+		if arg.contains("probe") or arg.contains("shot"):
+			_probing = true
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--threshold-shot="):
 			_threshold_shot(arg.split("=", true, 1)[1])
@@ -252,7 +278,16 @@ func _edges_probe() -> void:
 		await _walk_out_of_the_chamber(again,
 			again.get_node_or_null("chamber_body") as Player)
 
-	# ─ 5. the Chamber does not outlive the level that made it ─
+	# ─ 5. nobody descends as nobody ─
+	#
+	# **Before the teardown below, not after.** Row 6 calls `_exit_tree()` and
+	# frees the body, so anything asking a question about that body has to have
+	# asked it already — placed last, this failed with *"the Object-derived
+	# class of argument 1 (previously freed)"*, which is the probe holding a
+	# corpse rather than a finding.
+	problems.append_array(await _sworn_to_nothing())
+
+	# ─ 6. the Chamber does not outlive the level that made it ─
 	_open_the_chamber()
 	await get_tree().process_frame
 	var opened: bool = get_tree().root.get_node_or_null(CHAMBER_NODE) != null
@@ -270,6 +305,77 @@ func _edges_probe() -> void:
 			+ "it, and its private MultiplayerAPI stays registered too")
 
 	_report_edges(problems)
+
+
+## **Nobody descends as nobody** (ADR-138), asked in the room where it matters.
+##
+## `MainMenu` refuses to *open* a run for a classless life; this refuses to send
+## a classless *body* down. Not a second copy of one rule — `M2-T15` proved a
+## level can be reached without passing through the menu, and the two are asked
+## at different moments about different things.
+##
+## Asserted as a **change**: the same body, at the same spot, refused and then
+## accepted with nothing between the two but an oath. A row that only ever
+## watched the refusal would be satisfied by a Threshold nobody can leave.
+func _sworn_to_nothing() -> PackedStringArray:
+	var problems := PackedStringArray()
+	# **Asked for fresh, not handed down.** The Chamber rows above walk a body
+	# in and out of a room that frees and respawns it, so the reference this
+	# function was originally given had been dead for two rows — Godot said so:
+	# *"the Object-derived class of argument 1 (previously freed)"*, which is a
+	# probe holding a corpse rather than a finding.
+	var body: Player = _session.local_player()
+	if body == null:
+		return PackedStringArray(["no body to walk into the hole"])
+	var was: StringName = GameState.class_id
+
+	# **Only the refusal is walked.** The accepting half cannot be: `_descend`
+	# is `call_local`, so a sworn body at the hole runs `change_scene_to_file`
+	# and takes this probe with it (ADR-117 again). That direction is already
+	# proved where it belongs — `--menu-probe`'s `_walk_the_loop` presses
+	# Descend and asserts it arrives in the Deep. Here the predicate carries it,
+	# which is enough to stop the refusal being a Threshold nobody can leave.
+	GameState.class_id = &""
+	_descending = false
+	body.teleport(DESCENT_AT, 0.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var walked_in: bool = _descending
+	var closed: bool = not may_descend()
+
+	GameState.class_id = &"huskarl"
+	var opens: bool = may_descend()
+
+	GameState.class_id = was
+	_descending = false
+	print("[edges] the descent  classless walked in=%s, shut=%s, opens once sworn=%s"
+		% [walked_in, closed, opens])
+	if walked_in:
+		problems.append(("a life sworn to nothing walked into the hole — it "
+			+ "arrives with no kit, so an empty hand, and `request_swing` "
+			+ "refuses on an empty hand: an attack button that does nothing, "
+			+ "which principle 4 has no sentence for"))
+	if not closed:
+		problems.append("the descent is open to a life sworn to nothing")
+	if not opens:
+		problems.append(("the descent is shut to a sworn Húskarl as well, so "
+			+ "the refusal above is a Threshold nobody can leave rather than "
+			+ "a guard"))
+	return problems
+
+
+## **May this life go down?** (ADR-138)
+##
+## A classless life has no kit, so it arrives with an empty bag and an empty
+## hand, and `MeleeWeapon.request_swing` refuses on an empty hand — an attack
+## button that does nothing at all, which principle 4 has no sentence for.
+##
+## `MainMenu` already refuses to *open* a run for one, and this is not a second
+## copy of that rule: the menu decides whether a **run** may begin, this decides
+## whether a **body** may go down, and `M2-T15` proved a level can be reached
+## without passing through the menu at all.
+func may_descend() -> bool:
+	return GameState.class_id != &""
 
 
 ## Walk the body in the Chamber onto its own door, which is the only way out of
@@ -490,8 +596,22 @@ func _process(_delta: float) -> void:
 			"lmb attack   e take   tab bag   g drop",
 			"t throw   v waystone   esc menu",
 		])
+	# **Nobody descends as nobody** (ADR-138). The last gate before the floor,
+	# and the only one standing in the room where the mistake becomes visible:
+	# a classless life has no kit, so it arrives with an empty bag and an empty
+	# hand, and `MeleeWeapon.request_swing` refuses on an empty hand — an attack
+	# button that does nothing, which principle 4 has no sentence for.
+	#
+	# `MainMenu` already refuses to start one and this is not a second copy of
+	# that rule: the menu decides whether a *run* may open, and this decides
+	# whether a *body* may go down. `M2-T15` proved a level can be reached
+	# without passing through the menu at all.
 	if player.global_position.distance_to(DESCENT_AT) <= 2.0:
-		_ask_to_descend()
+		if may_descend():
+			_ask_to_descend()
+		elif _readout != null:
+			_readout.text += ("\n\nyou have sworn to nothing — there is "
+				+ "no one here to go down")
 	elif (_chamber_armed
 			and player.global_position.distance_to(CHAMBER_AT) <= 1.8):
 		_open_the_chamber()
@@ -534,6 +654,12 @@ func _ask_host_to_descend() -> void:
 func _descend() -> void:
 	set_process(false)
 	GameState.descents += 1
+	if _probing:
+		# The descent *happened* — `_descending` is already true and that is
+		# what a probe reads. Going through with it would free the node holding
+		# the assertion (ADR-138).
+		print("[edges] descended (held, probing)")
+		return
 	get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
 
 
