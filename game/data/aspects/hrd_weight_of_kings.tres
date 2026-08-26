@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AspectNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/aspects/aspect_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"hrd_weight_of_kings"
+aspect = &"hoard"
+tier = 2
+name_key = &"node.hrd_weight_of_kings.name"
+description_key = &"node.hrd_weight_of_kings.desc"
+requires = Array[StringName]([&"hrd_ballast", &"hrd_long_haul"])
+effect_tags = Array[StringName]([&"carry_no_limit", &"weight_costs_double"])
+rank_required = 0

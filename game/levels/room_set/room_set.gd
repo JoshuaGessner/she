@@ -3911,7 +3911,7 @@ func _rank_probe() -> void:
 			+ "names as an anti-goal"))
 
 	# ── the highest rank present is the floor (ADR-010) ──────────────────
-	_session.declare_descent(1, "")
+	_session.declare_descent(1, "", PackedStringArray())
 	var alone: int = _session.floor_rank()
 	_session._ranks[9001] = 8
 	var with_veteran: int = _session.floor_rank()

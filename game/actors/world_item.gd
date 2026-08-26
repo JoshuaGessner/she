@@ -114,6 +114,12 @@ var disturbed: bool = false
 ## The peer whose ember this is, or `0`. Carried through to `ItemInstance` on
 ## pickup, because a shared `ItemResource` cannot possibly answer *whose*.
 var bound_to: int = 0
+## **Tribute in Kind** (`hrd_tribute_in_kind`). Set when a Hoard build put this
+## down: the Gullsjúkr treats it as worth stopping for whatever it is actually
+## worth. A property of the *thing on the floor* rather than of the player,
+## because by the time she stoops the player may be a room away — and it
+## replicates with the spawn packet for the same reason `disturbed` does.
+var worth_stopping_for: bool = false
 
 var _definition: ItemResource = null
 var _mesh: MeshInstance3D = null

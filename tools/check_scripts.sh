@@ -276,6 +276,22 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The pact moves** (`M3-T01`, `DES-003`, `DES-004`, ADR-125). Pact Rank
+	# sat at 1 for the whole of `M3-T04` and `M3-T10`, which built a nine-row
+	# Tithe table and three axes of floor scaling against a number nothing
+	# could change (ADR-124 §3). This is the check that it changes — that
+	# surplus tribute becomes Boon and tribute inside the Tithe does not, that
+	# spending raises rank and rank raises what she expects, that the effect
+	# tags `TEC-006` puts every system behind read back, and that a **click**
+	# reaches all of it.
+	pact="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/chamber.tscn -- --pact-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$pact" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL power has to cost obligation" >&2
+		printf '%s\n' "$pact" | grep -E '\[pact\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **She settles before the floor is built** (`M3-T04`, ADR-124). The soft
 	# fail shipped at `M3-T04` and never once reached the floor it was written
 	# for: `settle_cycle()` ran seventeen lines *after* `_build_hunt()`, so
@@ -630,6 +646,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a guard costs stamina and never negates, and a life can begin,"
 	echo "an arrow is loud where it lands and a Snare holds the Hunter,"
 	echo "a missed Tithe reaches the floor it was missed for,"
+	echo "surplus tribute buys nodes and every node she charges for,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

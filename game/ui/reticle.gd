@@ -89,13 +89,31 @@ func _process(delta: float) -> void:
 			else "hold E — climb out")
 	else:
 		_name.text = "" if reaching == null or reaching.definition() == null \
-			else reaching.definition().display()
+			else _label_for(reaching)
 	# Below the dot rather than beside it, so a long item name does not drag
 	# the eye off centre.
 	_name.position = Vector2(
 		get_viewport_rect().size.x * 0.5 - _name.size.x * 0.5,
 		get_viewport_rect().size.y * 0.5 + 22.0)
 	queue_redraw()
+
+
+## **Tally** (`hrd_tally`) — what a thing is worth to her, before you decide
+## whether to carry it.
+##
+## `DES-004` puts appraisal in the Hoard's purpose, and the keep-or-give
+## decision `DES-003` calls the spine of progression is one a player has been
+## making blind: the value of everything on this floor was invisible until it
+## reached the Chamber. Deliberately **tribute value only** — the Haugbrjótr's
+## Appraise reads *"true value, curse, and tribute worth"* and opens what is
+## locked, and a node must not quietly become somebody's class identity.
+func _label_for(item: WorldItem) -> String:
+	var definition: ItemResource = item.definition()
+	if _body == null or not _body.has_effect(&"see_value"):
+		return definition.display()
+	if definition.tribute_value <= 0:
+		return "%s — she wants none of it" % definition.display()
+	return "%s — worth %d to her" % [definition.display(), definition.tribute_value]
 
 
 func _draw() -> void:

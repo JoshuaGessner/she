@@ -16,11 +16,13 @@ extends SceneTree
 ##
 ## ## What it deliberately does not check yet
 ##
-## `TEC-006` lists six validator rules. Three of them — `telegraph_ms >= 250`,
-## dangling `requires` in skill nodes, keystones with no `effect_tags` — are
-## **not implemented, because the resources they check do not exist.**
-## `EnemyResource` arrives with `M4-T02`, `SkillNodeResource` with `M3-T01`,
-## and each rule arrives with its data.
+## `TEC-006` lists six validator rules. **Two of the three that were absent
+## arrived with `M3-T01`**, exactly as this note said they would: `AspectNode`
+## exists, so dangling `requires` and tag-less nodes are both checked below and
+## the promise *"each rule arrives with its data"* is kept rather than quoted.
+## `telegraph_ms >= 250` is still **not implemented** because `AttackResource`
+## arrives at `M4-T02`; the floor is meanwhile enforced where its data does live,
+## in `TuningProfile.validate()`.
 ##
 ## That is not laziness, it is the lesson from `M1-T05`: two checks written
 ## there passed with the code deliberately broken, because neither had data
@@ -36,6 +38,7 @@ var _failures: int = 0
 var _frame: int = 0
 var _loaded: int = 0
 var _items: Array[ItemResource] = []
+var _nodes: Array[AspectNode] = []
 ## Taken from the walk rather than from `Config`. This runs as `--script`,
 ## which builds a bare `SceneTree` with **no autoloads registered** — so
 ## `Config.tuning` is not merely empty here, it does not compile. The profile
@@ -60,6 +63,7 @@ func _run() -> void:
 	_check_unique_ids()
 	_check_catalogue_agrees()
 	_check_items_fit_the_grid()
+	_check_the_tree_hangs_together()
 
 	# A validator that validated nothing must never report success. This is
 	# the single most important line in the file: every other check here is
@@ -67,8 +71,14 @@ func _run() -> void:
 	# a moved folder or an empty tree would produce a clean, meaningless pass.
 	if _items.is_empty():
 		_fail("no items found under %s — the validator checked nothing" % DATA_ROOT)
+	# The same argument, for the tree. Every rule below it is conditional on
+	# there being nodes, and a build that can earn Boon and spend it on nothing
+	# is a build where `M3`'s whole goal is unreachable.
+	if _nodes.is_empty():
+		_fail("no aspect nodes found — nothing a run earns can be spent")
 
-	print("[data] %d resource(s), %d item(s)" % [_loaded, _items.size()])
+	print("[data] %d resource(s), %d item(s), %d node(s)" % [
+		_loaded, _items.size(), _nodes.size()])
 	if _failures > 0:
 		printerr("[data] FAIL — %d problem(s)" % _failures)
 		quit(1)
@@ -109,6 +119,14 @@ func _check(path: String) -> void:
 	if tuning != null:
 		_tuning = tuning
 
+	var node := resource as AspectNode
+	if node != null:
+		_nodes.append(node)
+		var named: String = "%s.tres" % node.id
+		if path.get_file() != named:
+			_fail("%s holds node id '%s' — the file should be named %s"
+				% [path, node.id, named])
+
 	var item := resource as ItemResource
 	if item != null:
 		_items.append(item)
@@ -138,6 +156,16 @@ func _check_unique_ids() -> void:
 				% [key, seen[key], item.resource_path.get_file()])
 			continue
 		seen[key] = item.resource_path.get_file()
+	# Nodes get their own namespace: a save holds them in a different list, and
+	# a node sharing an id with an item is confusing rather than broken.
+	var node_ids: Dictionary = {}
+	for node: AspectNode in _nodes:
+		var key: String = String(node.id)
+		if node_ids.has(key):
+			_fail("node id '%s' is used by both %s and %s"
+				% [key, node_ids[key], node.resource_path.get_file()])
+			continue
+		node_ids[key] = node.resource_path.get_file()
 
 
 ## The corpus on disk and the corpus the *game* can see must be the same set.
@@ -187,6 +215,67 @@ func _check_items_fit_the_grid() -> void:
 		if not upright and not turned:
 			_fail("'%s' is %s and the bag is %s — it can never be picked up, "
 				% [item.id, size, grid] + "in either orientation")
+
+
+## **The tree has to be walkable** (`M3-T01`, `TEC-006`).
+##
+## Three questions no single node can answer about itself, and each is a way a
+## tree can be authored into something a player can see and never reach.
+func _check_the_tree_hangs_together() -> void:
+	var by_id: Dictionary = {}
+	for node: AspectNode in _nodes:
+		by_id[String(node.id)] = node
+
+	for node: AspectNode in _nodes:
+		# 1. **Dangling `requires`** — `TEC-006`'s named rule, and the reason a
+		#    node becomes permanently unreachable rather than merely expensive.
+		for needed: StringName in node.requires:
+			if not by_id.has(String(needed)):
+				_fail("'%s' requires '%s', which nothing authors — that node can "
+					% [node.id, needed] + "never be taken by anybody")
+				continue
+			# 2. **Across Aspects.** A prerequisite in another path means the
+			#    node is gated on an Aspect a class may not even be allowed to
+			#    enter, which is a lockout nothing in the UI could explain.
+			var before := by_id[String(needed)] as AspectNode
+			if before.aspect != node.aspect:
+				_fail("'%s' is a %s node requiring '%s' from the %s — a path "
+					% [node.id, node.aspect, needed, before.aspect]
+					+ "cannot depend on one a class may not enter (ADR-009)")
+
+		# 3. **Cycles.** Two nodes each waiting on the other are both authored,
+		#    both valid on their own, and both unreachable forever.
+		if _requires_itself(node, by_id, {}):
+			_fail("'%s' is in a `requires` cycle — every node in it is "
+				% node.id + "permanently unreachable")
+
+	# The keystone is what a build is named after (`DES-004`), so an Aspect
+	# without one is a path with no destination.
+	var keystones: Dictionary = {}
+	for node: AspectNode in _nodes:
+		if node.tier == AspectNode.Tier.KEYSTONE:
+			keystones[String(node.aspect)] = true
+	for node: AspectNode in _nodes:
+		if not keystones.has(String(node.aspect)):
+			_fail("the %s has nodes but no keystone — `DES-004` makes the "
+				% node.aspect + "keystone the thing a build is named after")
+			break
+
+
+## Depth-first, carrying the path so a cycle is found rather than recursed into
+## forever. `seen` is by value at each level on purpose: this asks whether a
+## node reaches *itself*, not whether the graph has any cycle anywhere.
+func _requires_itself(node: AspectNode, by_id: Dictionary, seen: Dictionary) -> bool:
+	if seen.has(String(node.id)):
+		return true
+	seen[String(node.id)] = true
+	for needed: StringName in node.requires:
+		var before := by_id.get(String(needed)) as AspectNode
+		if before == null:
+			continue
+		if _requires_itself(before, by_id, seen.duplicate()):
+			return true
+	return false
 
 
 ## **The free-money rule is gone, and its absence is the decision** (ADR-089).

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AspectNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/aspects/aspect_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"hrd_her_reckoning"
+aspect = &"hoard"
+tier = 1
+name_key = &"node.hrd_her_reckoning.name"
+description_key = &"node.hrd_her_reckoning.desc"
+requires = Array[StringName]([&"hrd_quiet_hands"])
+effect_tags = Array[StringName]([&"unremarkable_wealth"])
+rank_required = 4

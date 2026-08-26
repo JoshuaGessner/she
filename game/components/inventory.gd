@@ -97,11 +97,26 @@ func find(instance_id: int) -> ItemInstance:
 ## Kilograms carried. Drives `CarriedWeight`, which is the **only** weight path
 ## in the project — movement, stamina, jump and footstep volume all already
 ## read it, so loot arrives in the player's legs without a second mechanism.
+## **Scavenger** (`hrd_scavenger`) and **Weight of Kings** both land here.
+##
+## Set by the body from its own `effects` — a component never reaches up to ask
+## (`CLAUDE.md`: signals up, calls down), and the body is the only thing that
+## knows whose tree it is carrying.
+var weightless_materials: bool = false
+var unlimited: bool = false
+var weight_costs_double: bool = false
+
+
 func total_weight() -> float:
 	var sum: float = 0.0
 	for item: ItemInstance in _items:
+		# Raw stock is ballast you can sell rather than treasure, and a Hoard
+		# build stops paying to carry it. Tag rather than id prefix, so a
+		# material authored tomorrow is covered without editing this.
+		if weightless_materials and item.definition.tags.has(&"material"):
+			continue
 		sum += item.weight()
-	return sum
+	return sum * (2.0 if weight_costs_double else 1.0)
 
 
 ## What the bag gives away, on `TuningProfile`'s clamor scale. `DES-008` names
@@ -267,7 +282,18 @@ func add(definition: ItemResource) -> ItemInstance:
 		return null
 	var placement: Dictionary = placement_for(definition)
 	var at: Vector2i = placement["cell"] as Vector2i
-	if at.x < 0:
+	# **Weight of Kings** (`hrd_weight_of_kings`). `DES-004`'s own keystone:
+	# *"no carry limit; instead every item you carry adds noise and slows you.
+	# You can haul the whole vault. The dungeon will hear you do it."*
+	#
+	# The grid stops refusing and stops being the constraint; weight and noise
+	# become the whole of it, at double rate. `within_cap` still holds, because
+	# that one is not a capacity rule — it is `DES-019`'s single bit about
+	# whether you still have your way out, and two Waystones would make that
+	# mark a lie whatever your tree says.
+	if at.x < 0 and unlimited:
+		at = Vector2i.ZERO
+	elif at.x < 0:
 		return null
 	var made := ItemInstance.of(definition, _next_instance_id)
 	_next_instance_id += 1

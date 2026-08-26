@@ -131,7 +131,7 @@ func _ready() -> void:
 		# every peer says its rank again here. Walking through a doorway is the
 		# only way a real party ever reaches a floor, so a declaration made
 		# solely at connect would be a declaration the floor never sees.
-		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id))
+		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects())
 		if multiplayer.is_server():
 			multiplayer.peer_connected.connect(_on_peer_connected)
 			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
@@ -154,7 +154,7 @@ func _ready() -> void:
 			# already reports us as server 1, so the host path below is simply
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
-			declare_descent(_my_rank(), String(GameState.class_id))
+			declare_descent(_my_rank(), String(GameState.class_id), _my_effects())
 			spawn_player(HOST_PEER)
 
 
@@ -270,7 +270,7 @@ func _start_host() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
-	declare_descent(_my_rank(), String(GameState.class_id))
+	declare_descent(_my_rank(), String(GameState.class_id), _my_effects())
 	spawn_player(HOST_PEER)
 
 
@@ -314,7 +314,7 @@ func _on_connected() -> void:
 	# Before anything else asks (`M3-T10`). A floor built while a rank-8 player
 	# was still announcing themselves is a rank-1 floor with a rank-8 player on
 	# it, which is the opposite of what ADR-010 is for.
-	declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id))
+	declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects())
 	_waiting_until = 0
 	_hide_waiting()
 
@@ -421,6 +421,9 @@ var _ranks: Dictionary = {}
 ## builds every body and simulates its health, so a class that never reached it
 ## would be a Húskarl who is only a Húskarl on their own screen.
 var _sworn: Dictionary = {}
+## Peer id → the effect tags that peer's tree has switched on (`M3-T01`).
+## Per scene like `_ranks`, and it dies with the floor.
+var _effects: Dictionary = {}
 ## What this process says its own rank is. `0` means "ask the profile", which
 ## is every real launch; `--as-rank=N` is the sweep building a mixed party.
 var _declared_rank: int = 0
@@ -439,6 +442,12 @@ func floor_rank() -> int:
 
 
 ## What class this peer is playing, for the host that builds their body.
+## The effect tags a peer descended with, or empty. Read by the spawn payload
+## and by nothing else — a system asks the **body**, never the session.
+func effects_of(peer: int) -> PackedStringArray:
+	return _effects.get(peer, PackedStringArray()) as PackedStringArray
+
+
 func sworn_of(peer: int) -> StringName:
 	return StringName(_sworn.get(peer, ""))
 
@@ -473,7 +482,7 @@ func everyone_declared() -> bool:
 ## nobody's but its own. They are the same kind of value as party size, which
 ## has always crossed, and they are discarded with the scene.
 @rpc("any_peer", "call_local", "reliable")
-func declare_descent(rank: int, sworn: String) -> void:
+func declare_descent(rank: int, sworn: String, effects: PackedStringArray) -> void:
 	if not multiplayer.is_server():
 		return
 	var who: int = multiplayer.get_remote_sender_id()
@@ -482,6 +491,17 @@ func declare_descent(rank: int, sworn: String) -> void:
 	var was: int = floor_rank()
 	_ranks[id] = maxi(1, rank)
 	_sworn[id] = sworn
+	# **The tree comes with the body** (`M3-T01`). `GameState` knows only this
+	# machine's nodes, and the host builds four bodies of which three belong to
+	# somebody else — so a host reading its own `has_effect` would apply its
+	# tree to the whole party. Exactly the fault ADR-121 avoided for the class,
+	# arriving one task later through a different door.
+	#
+	# Tags rather than node ids: what crosses is the set of rules that are on,
+	# which is what a body needs, and it keeps `TEC-004`'s *"progression is
+	# never networked"* honest — no Boon, no spend, no tree, and the host stores
+	# none of it past the floor.
+	_effects[id] = effects
 	_log("peer %d descends at rank %d as '%s' — the floor is rank %d" % [
 		id, rank, sworn if sworn != "" else "nobody", floor_rank()])
 	# **The floor has to hear this** (ADR-122). A client's declaration is an
@@ -549,6 +569,7 @@ func _build_player(payload: Dictionary) -> Node:
 	# that would leave a Húskarl standing there with a Veiðimaðr's numbers for
 	# a frame — on the host, which is the copy that decides what a blow does.
 	player.sworn = StringName(payload.get("class", ""))
+	player.effects = payload.get("effects", PackedStringArray()) as PackedStringArray
 	# Before `add_child`, so `_ready` already knows whether it is looking at
 	# its own body. Deciding afterwards means one frame of a remote player
 	# holding the camera and capturing the mouse.
@@ -557,7 +578,10 @@ func _build_player(payload: Dictionary) -> Node:
 	# so, and the session — which owns the spawner — is what makes it exist.
 	# `spawn_world_item` is host-only, so a client's copy of this connection is
 	# inert rather than wrong.
-	player.dropped.connect(_on_player_dropped)
+	# Bound, so the handler knows **whose** drop it is. A Hoard build's discards
+	# are bait whatever they are worth (`hrd_tribute_in_kind`), and the signal
+	# carries the item rather than the body that let go of it.
+	player.dropped.connect(_on_player_dropped.bind(player))
 	# An arrow leaving a bow and a trap being set are both *"the actor decides,
 	# the session spawns"* (`M3-T11`, ADR-112) — the same wiring one line up.
 	player.loosed_arrow.connect(_on_player_loosed)
@@ -589,6 +613,7 @@ func _build_world_item(payload: Dictionary) -> Node:
 	item.launch = payload["launch"] as Vector3
 	item.disturbed = bool(payload["disturbed"])
 	item.bound_to = int(payload["bound"])
+	item.worth_stopping_for = bool(payload.get("bait", false))
 	item.position = payload["at"] as Vector3
 	item.rotation.y = float(payload["yaw"])
 	return item
@@ -632,6 +657,10 @@ func spawn_player(peer: int, at: Vector3 = NO_PLACE) -> Player:
 		# every peer derives the same Húskarl from the same payload rather than
 		# each deciding for itself and disagreeing about how much health it has.
 		"class": String(sworn_of(peer)),
+		# The rules this life has bought (`M3-T01`, `TEC-006`). On the packet
+		# beside the class and for the same reason: every peer derives the same
+		# body from the same payload.
+		"effects": effects_of(peer),
 	}) as Player
 	if player != null:
 		player_spawned.emit(player)
@@ -702,27 +731,28 @@ func spawn_enemy(at: Vector3, yaw: float = 0.0) -> void:
 ## screenshot of four side by side caught it, because the numbers all passed.
 func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0,
 		launch: Vector3 = Vector3.ZERO, disturbed: bool = false,
-		bound_to: int = 0) -> WorldItem:
+		bound_to: int = 0, worth_stopping_for: bool = false) -> WorldItem:
 	if not is_host():
 		return null
 	var made: WorldItem = _spawner.spawn({
 		"kind": "world_item", "index": _next_item, "item": item,
 		"at": at, "yaw": yaw, "launch": launch, "disturbed": disturbed,
-		"bound": bound_to,
+		"bound": bound_to, "bait": worth_stopping_for,
 	}) as WorldItem
 	_next_item += 1
 	return made
 
 
 func _on_player_dropped(item: ItemInstance, at: Vector3, yaw: float,
-		launch: Vector3) -> void:
+		launch: Vector3, from: Player) -> void:
 	# Anything a player set down counts as disturbed, thrown or not: a panic
 	# dump is as much an offering as a bait, and the Hunter stopping for the
 	# pile you abandoned is `DES-005`'s counter-play paying out.
 	#
 	# A put-down ember is still somebody's. Losing the binding here would turn
 	# a friend into scenery the moment their rescuer set them down for a fight.
-	spawn_world_item(item.definition.id, at, yaw, launch, true, item.bound_to)
+	var bait: bool = from != null and from.has_effect(&"tribute_in_kind")
+	spawn_world_item(item.definition.id, at, yaw, launch, true, item.bound_to, bait)
 
 
 ## The Gullsjúkr took something (`M2-T19`, ADR-112). It lands at its feet as
@@ -792,6 +822,23 @@ func _log(message: String) -> void:
 ## otherwise. One function so every declaration site answers the same way —
 ## there are four of them, and four copies of `GameState.pact_rank` is four
 ## places for a flag to be forgotten.
+## Every rule this machine's tree has switched on (`M3-T01`).
+##
+## Gathered here rather than at each of the four declaration sites, for the
+## reason `_my_rank` gives one function down: four copies of a lookup is four
+## places to forget it.
+func _my_effects() -> PackedStringArray:
+	var tags := PackedStringArray()
+	for id: StringName in GameState.taken:
+		var node: AspectNode = AspectCatalogue.by_id(id)
+		if node == null:
+			continue
+		for tag: StringName in node.effect_tags:
+			if not tags.has(String(tag)):
+				tags.append(String(tag))
+	return tags
+
+
 func _my_rank() -> int:
 	return _declared_rank if _declared_rank > 0 else GameState.pact_rank
 

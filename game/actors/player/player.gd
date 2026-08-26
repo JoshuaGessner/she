@@ -207,6 +207,19 @@ var grounded: bool = true
 ## profile unmodified.
 var sworn: StringName = &""
 
+## **The rules this life has bought** (`M3-T01`, `DES-004`, `TEC-006`).
+##
+## Set from the spawn payload before the body enters the tree, exactly like
+## `sworn` and for exactly the same reason: `GameState` knows only this
+## machine's tree, and the host builds four bodies of which three belong to
+## somebody else. A system that asked `GameState.has_effect` on the host would
+## give the host's whole party the host's own nodes — ADR-121's fault arriving
+## one task later through a different door.
+##
+## Tags rather than node ids, per `TEC-006`: the node never contains logic, it
+## names a rule, and the system that owns that rule reads it here.
+var effects: PackedStringArray = PackedStringArray()
+
 ## **Planted** (`M3-T02`, `DES-011`) — the Húskarl's verb, *Hold*.
 ##
 ## 0 loose, 1 fully planted, and it crosses the wire for a harder reason than
@@ -415,6 +428,14 @@ func _ready() -> void:
 	weapon.swing_started.connect(_on_swing_started)
 	weapon.connected.connect(_on_swing_connected)
 	_arm_from_kit(body)
+	# **The tree configures the components** (`M3-T01`, `TEC-006`). Calls down,
+	# never up: `Inventory` is told what rules are on rather than reaching for a
+	# body to ask, and the body is the only thing that knows whose tree it is.
+	# From `effects`, which came off the spawn payload — so the host sets four
+	# bags from four trees rather than four bags from its own.
+	inventory.weightless_materials = has_effect(&"weightless_materials")
+	inventory.unlimited = has_effect(&"carry_no_limit")
+	inventory.weight_costs_double = has_effect(&"weight_costs_double")
 	# Loot is the only gameplay source of carried weight. `CarriedWeight`'s own
 	# note said the value was driven by hand *until `M2-T01`*, and the dev keys
 	# that did it are gone with this line rather than left beside it — two
@@ -617,8 +638,16 @@ func _on_inventory_changed() -> void:
 	# the same whoever you came with. Scaling a *floor* would put every party
 	# above the hearing threshold permanently and delete `DES-005`'s "hide and
 	# let it pass". `--scaling-probe` holds both halves of that line.
-	clamor.carried_floor = (inventory.total_clamor()
-		* Config.tuning.clamor_carried_fraction)
+	# **Ballast** (`hrd_ballast`) cuts the standing noise of a full bag to
+	# nothing; **Weight of Kings** doubles what is left, so the keystone taken
+	# after it is loud again — deliberately, because `DES-004` requires every
+	# keystone to have a real drawback and this one's is that the whole floor
+	# hears the vault leaving.
+	var floor_noise: float = 0.0 if has_effect(&"weight_is_silent") \
+		else inventory.total_clamor() * Config.tuning.clamor_carried_fraction
+	if has_effect(&"weight_costs_double"):
+		floor_noise *= 2.0
+	clamor.carried_floor = floor_noise
 
 
 ## Send the owning client its own bag. The whole bag, not a delta: it is a few
@@ -667,7 +696,11 @@ func _receive_bag(rows: Array) -> void:
 ## taken, including when two are within reach of each other.
 func _update_reach() -> void:
 	var found: WorldItem = null
-	if _bag <= 0.0:
+	# **Ready Hand** (`hrd_ready_hand`). `DES-019` makes rummaging a vulnerable
+	# posture and this does not change that — you are still slow, still unable
+	# to swing, still unable to sprint. What it buys is not having to shut the
+	# bag to pick the next thing up.
+	if _bag <= 0.0 or has_effect(&"take_with_bag_open"):
 		found = WorldItem.nearest(self, global_position, Config.tuning.interact_reach)
 	if found != _reaching_for and is_instance_valid(_reaching_for):
 		_reaching_for.highlight(false)
@@ -800,7 +833,11 @@ func _put_down(instance_id: int, thrown: bool) -> void:
 	# player cornered by the Hunt to have to make.
 	clamor.add(_handling_clamor(item.definition))
 
-	var at: Vector3 = global_position + forward * DROP_DISTANCE
+	# **Sure Grip** (`hrd_sure_grip`). At your feet rather than a stride away,
+	# which is the difference between stashing something behind a doorway and
+	# watching it skid into the room you are backing out of.
+	var reach: float = 0.0 if has_effect(&"drop_at_feet") else DROP_DISTANCE
+	var at: Vector3 = global_position + forward * reach
 	# Putting an ember down is allowed, and it is meant to be a decision you
 	# can make. `DES-012` never says the rescuer is committed — the sacrifice is
 	# real precisely because it can be abandoned partway home.
@@ -1191,6 +1228,13 @@ func _tick_waystone(delta: float) -> void:
 ## plus whatever the item itself gives away. An altar-plate coming off stone is
 ## most of the level's attention; a gemstone is nearly nothing.
 func _handling_clamor(definition: ItemResource) -> float:
+	# **Quiet Hands** (`hrd_quiet_hands`) silences all of it; **Coin-Sense**
+	# (`hrd_coin_sense`) silences gold alone, which is the cheaper half of the
+	# same idea and the node that leads to it.
+	if has_effect(&"silent_handling"):
+		return 0.0
+	if has_effect(&"silent_gilt") and definition.tags.has(&"glitter"):
+		return 0.0
 	return Config.tuning.clamor_rummage + definition.clamor
 
 
@@ -1203,6 +1247,11 @@ func bag_is_open() -> bool:
 func _update_bag(delta: float) -> void:
 	var goal: float = 1.0 if _bag_wanted else 0.0
 	var step: float = delta / maxf(Config.tuning.bag_open_time, 0.001)
+	# **Close the Lid** (`hrd_close_the_lid`). Opening still takes as long as it
+	# ever did — `DES-019` charges for rummaging and this does not refund that.
+	# What it removes is the tail: being caught half-shut on the way back out.
+	if goal == 0.0 and has_effect(&"instant_bag_close"):
+		step = 1.0
 	var before: float = _bag
 	_bag = move_toward(_bag, goal, step)
 	if is_equal_approx(before, _bag):
@@ -1426,7 +1475,13 @@ func _drive(delta: float, tuning: TuningProfile) -> void:
 	# so being unable to move during a swing would delete the only defence the
 	# design gives. The swing itself commits; your feet do not.
 	if Input.is_action_just_pressed("jump") and is_on_floor() and not _crouching:
-		velocity.y = tuning.jump_velocity * carried.scale_by_load(tuning.jump_at_capacity)
+		# **Long Haul** (`hrd_long_haul`). Load costs you height everywhere else
+		# in the game; here it stops costing you the ledge. Nothing about the
+		# speed or the noise changes, so a loaded Hoard build still crosses a
+		# floor slowly and loudly — it simply gets over things.
+		var lift: float = 1.0 if has_effect(&"jump_at_any_load") \
+			else carried.scale_by_load(tuning.jump_at_capacity)
+		velocity.y = tuning.jump_velocity * lift
 
 	move_and_slide()
 	grounded = is_on_floor()
@@ -1453,7 +1508,12 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 	var landed: bool = grounded and not _was_grounded
 	_was_grounded = grounded
 	if landed:
-		clamor.add(tuning.clamor_landing * carried.scale_by_load(
+		# **Steady Step** (`hrd_steady_step`). The weight is still there; the
+		# thump is not — which is what makes a drop down into a room a way in
+		# rather than an announcement.
+		var thump: float = 0.0 if has_effect(&"silent_landing") \
+			else tuning.clamor_landing
+		clamor.add(thump * carried.scale_by_load(
 			tuning.clamor_footstep_at_capacity
 		))
 		_footfall(0.82)
@@ -1704,6 +1764,11 @@ func _hold(delta: float, tuning: TuningProfile) -> void:
 ## Runs on **every** peer from the replicated `sworn`, for the reason the body
 ## scales above it do: the host builds four bodies and three of them belong to
 ## somebody else, so a bow read out of local state would arm the wrong people.
+## Does this body have that rule? The one question any system asks the tree.
+func has_effect(tag: StringName) -> bool:
+	return effects.has(String(tag))
+
+
 func _arm_from_kit(body: ClassResource) -> void:
 	if body == null:
 		return

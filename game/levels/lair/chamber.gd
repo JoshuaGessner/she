@@ -75,6 +75,9 @@ const MAX_LUMPS: int = 400
 var _player: Player = null
 var _hoard_root: Node3D = null
 var _readout: Label = null
+## The Aspects, while they are open. Non-null is what stops the room reopening
+## them every frame the player holds the key at the pile.
+var _pact: PactScreen = null
 
 
 func _ready() -> void:
@@ -116,6 +119,8 @@ func _ready() -> void:
 			_chamber_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
 			_tithe_probe()
+		elif arg == "--pact-probe":
+			_pact_probe()
 
 
 ## A body, instantiated rather than spawned. See the class note: the absence of
@@ -296,12 +301,48 @@ func _process(_delta: float) -> void:
 		"  at the chest left   you keep it, until you die",
 		"  anywhere else       it is on the floor",
 		"",
+		_the_offer(),
+		"",
 		"walk onto the pale slab behind you to reach the Threshold",
 	])
+	# **Buy where you give** (`M3-T01`). The Aspects open at the pile, because
+	# that is the gesture `DES-003` couples them to: what you hand over is what
+	# pays for them, and putting the tree behind a different door would make it
+	# a shop rather than a pact.
+	if (_pact == null and _player.global_position.distance_to(
+			global_position + HOARD_AT) <= PLACE_REACH
+			and Input.is_action_just_pressed("interact")):
+		_open_the_pact()
 	# Standing on the door is leaving. No prompt: `DES-019` puts nothing in the
 	# centre of the screen, and a doorway you walk through needs no verb.
 	if _player.global_position.distance_to(global_position + DOOR_AT) <= 1.6:
 		_leave()
+
+
+## What is on offer, or why nothing is. Beside the Tithe on purpose — the two
+## halves of `DES-003`'s coupling read as one sentence that way.
+func _the_offer() -> String:
+	if GameState.boon <= 0:
+		var per: int = Config.tuning.boon_per_tribute
+		var short: int = per - GameState.boon_progress
+		return ("her aspects   nothing yet — %d more tribute *above* the tithe "
+			+ "buys the first") % short
+	return "her aspects   %d boon unspent — hold E at the pile" % GameState.boon
+
+
+## The tree, over the room rather than instead of it (ADR-102's habit): the
+## Chamber stays where it is, and closing this puts the player back where they
+## were standing.
+func _open_the_pact() -> void:
+	_pact = PactScreen.new()
+	var layer := CanvasLayer.new()
+	layer.layer = 8
+	layer.add_child(_pact)
+	add_child(layer)
+	_pact.tree_exited.connect(func() -> void:
+		_pact = null
+		layer.queue_free())
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _leave() -> void:
@@ -466,12 +507,15 @@ func _tithe_probe() -> void:
 	var tuning: TuningProfile = Config.tuning
 
 	# ── what she asks rises with rank, and never falls ───────────────────
-	GameState.pact_rank = 1
-	var at_one: int = GameState.tithe_due()
-	GameState.pact_rank = 5
-	var at_five: int = GameState.tithe_due()
-	GameState.pact_rank = 9
-	var at_nine: int = GameState.tithe_due()
+	# **The table, asked directly** (`M3-T01`). This used to assign `pact_rank`
+	# and read `tithe_due()` back; rank is derived from the tree now (ADR-125)
+	# and the assignments did nothing, so the anchors all read 40 and this
+	# probe failed the moment the tree shipped. Asking `tithe_for` is both the
+	# honest question and the one that keeps working — see its note for why a
+	# manufactured rank-9 tree would be worse than useless here.
+	var at_one: int = GameState.tithe_for(1)
+	var at_five: int = GameState.tithe_for(5)
+	var at_nine: int = GameState.tithe_for(9)
 	print("[tithe] the curve    rank 1 %d, rank 5 %d, rank 9 %d" % [
 		at_one, at_five, at_nine])
 	if not (at_one < at_five and at_five < at_nine):
@@ -486,7 +530,8 @@ func _tithe_probe() -> void:
 			% [at_one, at_five, at_nine])
 
 	# ── giving her something pays it ─────────────────────────────────────
-	GameState.pact_rank = 1
+	# Rank is whatever the tree says, and `die()` above left it empty, so this
+	# is rank 1 without anybody having to assert it into place (ADR-125).
 	GameState.tithe_paid = 0
 	GameState.cycle_runs = 0
 	GameState.hunt_head_start = 0.0
@@ -520,14 +565,22 @@ func _tithe_probe() -> void:
 	# Both numbers are ⟨tune⟩ and the collision is coincidence, but a first
 	# cycle discharged by a single pickup is a balance question for `M3-T10`,
 	# when there is a floor whose richness answers it.
-	GameState.pact_rank = 5
+	#
+	# **Short by paying less, not by ranking up.** This used to assign
+	# `pact_rank = 5` so that one coin fell short of 260. Rank is derived from
+	# the tree now (ADR-125) and the assignment did nothing, so the case stopped
+	# being short the moment `M3-T01` shipped — a probe whose *setup* silently
+	# stopped working, which is a quieter failure than a wrong assertion and
+	# the reason the sweep caught this rather than a reader. Part-paying is the
+	# same question with nothing borrowed from another system.
+	GameState.tithe_paid = 10
 	GameState.cycle_runs = tuning.tithe_cycle_runs
+	var owed_now: int = GameState.tithe_due()
 	var met_short: bool = GameState.settle_cycle()
-	print("[tithe] short cycle  settled=%s, head start %.0f s" % [
-		met_short, GameState.hunt_head_start])
+	print("[tithe] short cycle  paid 10 of %d, settled=%s, head start %.0f s" % [
+		owed_now, met_short, GameState.hunt_head_start])
 	if met_short:
-		problems.append("a cycle paid %d of %d reported as settled"
-			% [coin.tribute_value, at_five])
+		problems.append("a cycle paid 10 of %d reported as settled" % owed_now)
 	if GameState.hunt_head_start <= 0.0:
 		problems.append(("missing a Tithe cost nothing — ADR-029 makes it a "
 			+ "soft fail, and a soft fail with no consequence is no fail, "
@@ -556,7 +609,6 @@ func _tithe_probe() -> void:
 			+ "an obligation you cannot discharge is a punishment on a timer"))
 
 	# ── and the pact dies with you (`DES-003`) ───────────────────────────
-	GameState.pact_rank = 6
 	GameState.tithe_paid = 55
 	GameState.cycle_runs = 2
 	GameState.hunt_head_start = 90.0
@@ -573,4 +625,209 @@ func _tithe_probe() -> void:
 
 	for problem: String in problems:
 		printerr("[tithe] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **The pact moves** (`M3-T01`, `DES-003`, `DES-004`, ADR-125).
+##
+## Pact Rank sat at 1 for the whole of `M3-T04` and `M3-T10`, which built a
+## nine-row Tithe table and three axes of floor scaling against a number nothing
+## in the project could change (ADR-124 §3). This is the check that it changes,
+## and that everything standing on it moves when it does.
+func _pact_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var tuning: TuningProfile = Config.tuning
+
+	GameState.die()
+	GameState.take_the_oath(&"huskarl")
+
+	# ─ 1. tribute below the Tithe buys nothing but the absence of a punishment ─
+	#
+	# `DES-004`: *"surplus tribute beyond your Tithe converts to Boon at full
+	# rate; tribute below the Tithe converts at nothing and counts against your
+	# obligation."* The first half of the coupling `DES-003` is built on.
+	var owed: int = GameState.tithe_due()
+	var coin: ItemResource = ItemCatalogue.by_id(&"glt_hoard_coin")
+	GameState.tribute(ItemInstance.of(coin, 1))
+	print("[pact] paid %d of %d owed  → boon %d, toward next %d" % [
+		GameState.tithe_paid, owed, GameState.boon, GameState.boon_progress])
+	if GameState.boon_progress > 0 or GameState.boon > 0:
+		problems.append(("tribute inside the Tithe earned Boon — `DES-004` says "
+			+ "it converts at nothing, and paying a debt that also buys power is "
+			+ "the obligation `DES-003` §A exists to impose, deleted"))
+
+	# ─ 2. …and the surplus does ─
+	var plate: ItemResource = ItemCatalogue.by_id(&"glt_altar_plate")
+	var runs: int = 0
+	while GameState.boon < tuning.node_cost_keystone + 4 and runs < 40:
+		GameState.tribute(ItemInstance.of(plate, 1))
+		runs += 1
+	print("[pact] after %d plates      boon %d" % [runs, GameState.boon])
+	if GameState.boon <= 0:
+		problems.append("no amount of surplus tribute produced Boon, so nothing "
+			+ "a run earns can ever be spent")
+		_report_pact(problems)
+		return
+
+	# ─ 3. the class gate (ADR-009) ─
+	#
+	# The Húskarl is Scale · Cinder · Hoard, so Hoard is open. The refusal case
+	# needs an Aspect they may not enter, and the only other authored one is
+	# the Hoard — so what is asserted is the *sentence*, on a node that does
+	# not exist, plus the positive case below. `M3-T12` authors the Wing, which
+	# the Húskarl may never enter, and is where this becomes a real refusal.
+	var refusal: String = GameState.why_not(&"wng_nothing_here")
+	print("[pact] unknown node        '%s'" % refusal)
+	if refusal == "":
+		problems.append("a node this build does not have was allowed, which "
+			+ "would let a hand-edited save spend Boon on nothing")
+
+	# ─ 4. prerequisites are a route, not a menu ─
+	var gated: String = GameState.why_not(&"hrd_weight_of_kings")
+	print("[pact] keystone, unprepared '%s'" % gated)
+	if gated == "":
+		problems.append(("the keystone was available with none of its path "
+			+ "taken — `DES-004`'s model is *take its keystone, take minor "
+			+ "nodes down it*, and a tree with no route is a shopping list"))
+
+	# ─ 5. taking nodes raises rank, and rank raises what she expects ─
+	var before_rank: int = GameState.pact_rank
+	var before_owed: int = GameState.tithe_due()
+	var purse: int = GameState.boon
+	var route: Array[StringName] = [
+		&"hrd_sure_grip", &"hrd_steady_step", &"hrd_ballast",
+		&"hrd_long_haul", &"hrd_tally",
+	]
+	var took: int = 0
+	for id: StringName in route:
+		if GameState.take_node(id):
+			took += 1
+		else:
+			problems.append("could not take %s: %s" % [id, GameState.why_not(id)])
+	print("[pact] took %d node(s)      spent %d, rank %d → %d, tithe %d → %d" % [
+		took, GameState.boon_spent(), before_rank, GameState.pact_rank,
+		before_owed, GameState.tithe_due()])
+	# **The purse, not the ledger.** This asked `boon_spent()`, which is summed
+	# from `taken` — so it reported the right number whether or not a single
+	# point had actually been deducted, and a plant that made nodes free walked
+	# straight through it. Seventh true-but-beside-the-point assertion this
+	# milestone, and the first one that was true *by construction*: a derived
+	# value cannot witness the thing it is derived from failing to be paid for.
+	var paid: int = purse - GameState.boon
+	if paid != GameState.boon_spent():
+		problems.append(("%d Boon left the purse for a tree that cost %d — "
+			+ "`DES-004` makes tribute a real cost and a node you do not pay "
+			+ "for is a stat handed out for arriving") % [paid, GameState.boon_spent()])
+	if GameState.pact_rank <= before_rank:
+		problems.append(("rank did not move after %d Boon spent — `DES-003` "
+			+ "makes rank *Boon spent*, and three shipped systems read it: the "
+			+ "Tithe table, `RankScaling`, and whether a Gullsjúkr can be "
+			+ "killed at all") % GameState.boon_spent())
+	if GameState.tithe_due() <= before_owed:
+		problems.append(("she expects no more of a stronger player (%d then, %d "
+			+ "now) — *power must cost risk* is principle 2, and the Tithe "
+			+ "rising is the whole mechanism") % [before_owed, GameState.tithe_due()])
+
+	# ─ 6. the effect seam (`TEC-006`) ─
+	#
+	# The node never contains logic; it names a rule and the system that owns
+	# that rule reads it here. If this is false, every node in the tree is a
+	# purchase that does nothing.
+	print("[pact] effect reachable    weight_is_silent=%s, unheld tag=%s" % [
+		GameState.has_effect(&"weight_is_silent"),
+		GameState.has_effect(&"carry_no_limit")])
+	if not GameState.has_effect(&"weight_is_silent"):
+		problems.append(("a node was taken and its effect tag does not read back "
+			+ "— `TEC-006` puts every system's view of the tree behind "
+			+ "`has_effect`, so a false here is a tree nothing reacts to"))
+	if GameState.has_effect(&"carry_no_limit"):
+		problems.append("an effect from a node that was never taken reads true, "
+			+ "so the tag lookup is not keyed to what this life actually owns")
+
+	# ─ 7. the keystone becomes reachable once its route is walked ─
+	while GameState.boon < tuning.node_cost_keystone:
+		GameState.tribute(ItemInstance.of(plate, 1))
+	var open_now: String = GameState.why_not(&"hrd_weight_of_kings")
+	print("[pact] keystone, prepared   '%s' (want empty)" % open_now)
+	if open_now != "":
+		problems.append("the keystone is still refused with its whole path "
+			+ "taken and the Boon in hand: '%s'" % open_now)
+	GameState.take_node(&"hrd_weight_of_kings")
+	print("[pact] primary aspect      '%s'" % GameState.primary_aspect())
+	if GameState.primary_aspect() != &"hoard":
+		problems.append("taking a keystone did not name the primary Aspect, "
+			+ "which is what `DES-004`'s one-keystone rule is read from")
+
+	# **Not asserted here, and deliberately named:** *one keystone at a time*
+	# cannot fail while one Aspect is authored, because there is no second
+	# keystone to refuse. `M3-T12` is where that rule gets a real test, and
+	# claiming it now would be the true-but-beside-the-point assertion this
+	# milestone has produced six of.
+
+	# ─ 8. and a player can reach all of it with a mouse ─
+	#
+	# **ADR-111 arriving a third time.** A `Control` under a `CanvasLayer` gets
+	# no layout unless it sets its own offsets, and at 0 x 0 Godot delivers it
+	# no mouse events at all — which cost the whole of `M2-T18` on the bag and
+	# was caught again on the class select. Every rule above this line can be
+	# correct and leave the tree unspendable.
+	var screen := PactScreen.new()
+	var layer := CanvasLayer.new()
+	layer.add_child(screen)
+	add_child(layer)
+	await get_tree().process_frame
+	var rect: Vector2 = screen.size
+	var buttons: int = screen.find_children("*", "Button", true, false).size()
+	print("[pact] the screen         %.0f x %.0f, %d row(s)" % [
+		rect.x, rect.y, buttons])
+	if rect.x <= 0.0 or rect.y <= 0.0:
+		problems.append(("the Aspects laid out at %.0f x %.0f — nobody could "
+			+ "spend a point of Boon with a mouse (ADR-111)") % [rect.x, rect.y])
+	if buttons <= 0:
+		problems.append("the screen drew no rows, so the tree is unreachable "
+			+ "however correct the rules behind it are")
+
+	# **Pressed, not called past.** The rules were all exercised above by
+	# calling `take_node` directly; this is the only line that proves a *click*
+	# reaches them, which is the distinction `M2-T18` is a whole ADR about.
+	while GameState.boon < Config.tuning.node_cost_lesser:
+		GameState.tribute(ItemInstance.of(plate, 1))
+	screen._redraw()
+	await get_tree().process_frame
+	var clicked: bool = screen.press(&"hrd_coin_sense")
+	print("[pact] pressed a row       %s, taken=%s" % [
+		clicked, GameState.has_taken(&"hrd_coin_sense")])
+	if not clicked or not GameState.has_taken(&"hrd_coin_sense"):
+		problems.append(("a row could not be pressed, or pressing it took "
+			+ "nothing — every part of this can work and leave the button "
+			+ "joined to nothing, which is the shape ADR-105, ADR-108, ADR-110 "
+			+ "and ADR-117 all had"))
+	# And a refused node is refused *at the button*, not only in the rules.
+	var locked: bool = screen.press(&"hrd_her_reckoning")
+	print("[pact] pressed a locked row %s (want false)" % locked)
+	if locked:
+		problems.append("a node needing rank 4 and a prerequisite was pressable "
+			+ "— the screen is drawing rows the rules would refuse")
+	layer.queue_free()
+
+	# ─ 9. and the whole tree dies with the life (`DES-003`) ─
+	var earned_rank: int = GameState.pact_rank
+	GameState.die()
+	print("[pact] after death         rank %d → %d, boon %d, taken %d" % [
+		earned_rank, GameState.pact_rank, GameState.boon, GameState.taken.size()])
+	if earned_rank <= 1:
+		problems.append("rank never rose above 1, so the reset below proves "
+			+ "nothing about a life that had grown")
+	if GameState.pact_rank != 1 or not GameState.taken.is_empty() \
+			or GameState.boon != 0 or GameState.boon_progress != 0:
+		problems.append(("the tree survived a death — `DES-003`'s reset table "
+			+ "gives the skill tree as *all of it*, and rank is derived from "
+			+ "exactly that list so clearing it is what returns rank to 1"))
+
+	_report_pact(problems)
+
+
+func _report_pact(problems: PackedStringArray) -> void:
+	for problem: String in problems:
+		printerr("[pact] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)

@@ -26,8 +26,8 @@ extends Object
 ## user://profile.save
 ## ├── meta     { save_version, engine, created, updated }
 ## ├── lineage  { hoard, hoard_value }          ← survives death, always
-## └── life     { stash, class_id, pact_rank, tithe_paid, cycle_runs,
-##                hunt_head_start }
+## └── life     { stash, class_id, boon, boon_progress, taken, tithe_paid,
+##                cycle_runs, hunt_head_start }
 ## ```
 ##
 ## `legacy` is **absent rather than empty**: there are no Legacy slots until
@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 3
+const SAVE_VERSION: int = 4
 
 const PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
@@ -71,6 +71,7 @@ static func migrations() -> Dictionary:
 	return {
 		1: _migrate_1_to_2,
 		2: _migrate_2_to_3,
+		3: _migrate_3_to_4,
 	}
 
 
@@ -260,6 +261,27 @@ static func wipe() -> void:
 	for name: String in dir.get_files():
 		if name.begins_with("profile.save"):
 			dir.remove(name)
+
+
+## **v4 — the tree, and rank stops being a field** (`M3-T01`, ADR-125).
+##
+## `pact_rank` is dropped rather than carried, because it is now read off the
+## nodes taken: `DES-003` makes rank *"Boon spent"*, and a stored copy is a
+## second source of truth that can disagree with the tree that earned it.
+##
+## **Nothing is lost.** Rank had one possible value in every v3 save that ever
+## existed — nothing in the build could raise it (ADR-124 §3) — and an empty
+## `taken` derives exactly that. A v3 profile that somehow held a higher rank
+## would be one no version of this game could have written.
+static func _migrate_3_to_4(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life.erase("pact_rank")
+	life["boon"] = 0
+	life["boon_progress"] = 0
+	life["taken"] = []
+	out["life"] = life
+	return out
 
 
 static func _meta_of(data: Dictionary) -> Dictionary:

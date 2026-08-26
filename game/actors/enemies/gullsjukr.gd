@@ -266,6 +266,17 @@ func speed_for(pursuing: bool) -> float:
 ## brightest of four readings, which produces the social pressure the design
 ## wants — *"it's coming for you, you're carrying too much."* With one player it
 ## is simply the question of whether you are worth crossing a room for.
+## **Her Reckoning** (`hrd_her_reckoning`) is read here.
+##
+## `DES-017` has the Gullsjúkr sense carried tribute through walls, which is
+## what makes greed legible to the thing hunting you — and it is the single
+## largest tax on a Hoard build, because the whole path is about carrying more.
+## This node removes *being singled out for it*, and nothing else: the Hunter
+## still hears every footstep, and a loaded player is still loud. What it stops
+## is being the reason it came.
+##
+## Read off the **body**, never `GameState` — the host runs this for a floor of
+## four people and only one of those trees is its own.
 func _richest_in_range() -> Player:
 	var tuning: TuningProfile = Config.tuning
 	var reach: float = wealth_range()
@@ -274,6 +285,11 @@ func _richest_in_range() -> Player:
 	for node: Node in get_tree().get_nodes_in_group("player"):
 		var player := node as Player
 		if player == null:
+			continue
+		# **Her Reckoning** (`hrd_her_reckoning`). Not invisible — skipped only
+		# by the sense that picks a *target out of a crowd for being rich*. The
+		# noise field does not know about this and never will.
+		if player.has_effect(&"unremarkable_wealth"):
 			continue
 		if global_position.distance_to(player.global_position) > reach:
 			continue
@@ -319,6 +335,21 @@ func _bait_worth_taking() -> WorldItem:
 			continue
 		var definition: ItemResource = item.definition()
 		if definition == null:
+			continue
+		# **Tribute in Kind** (`hrd_tribute_in_kind`). A Hoard build knows what
+		# gold is worth to her, and can buy seconds with a stone: anything they
+		# set down clears the bar whatever it is actually worth.
+		#
+		# The tradeoff is real and runs both ways — `DES-005` sells thrown loot
+		# as misdirection and this makes it reliable, but she *takes* what she
+		# stoops for, and a build that can bait with rubbish is a build that has
+		# taught her to follow its discards.
+		if item.worth_stopping_for:
+			if definition.tribute_value > best_value:
+				best_value = definition.tribute_value
+				best = item
+			elif best == null:
+				best = item
 			continue
 		# **An ember is always worth stopping for** (`M2-T21`, ADR-114).
 		# `DES-012` says so in as many words — *"it is disturbed gold by

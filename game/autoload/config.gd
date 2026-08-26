@@ -64,6 +64,11 @@ func _export_probe() -> void:
 
 	print("[export] engine        %s" % Engine.get_version_info()["string"])
 	print("[export] items packed  %d" % items.size())
+	# A class table or a tree that comes back empty is a build in which no life
+	# can begin or nothing a run earns can be spent — both silent at full size,
+	# which is the fault ADR-086 reproduced deliberately.
+	print("[export] classes       %d" % ClassCatalogue.all().size())
+	print("[export] aspect nodes  %d" % AspectCatalogue.all().size())
 	print("[export] tuning loaded %s" % (tuning != null))
 	# The translation, read the way the game reads it. A key coming back
 	# unchanged means the table did not ship.

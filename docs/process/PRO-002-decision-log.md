@@ -2820,5 +2820,85 @@ So rank is a **function of the nodes taken**, not a counter that anything increm
 
 ---
 
+## ADR-126 — The pact moves, and the tree is a set of names
+
+**Date:** 2026-08-25 · **Status:** accepted · **Implements `M3-T01`** · **Follows ADR-125** · **Reads `TEC-006` §127**
+
+**Context:** `M3-T01` as ADR-125 scoped it — Tribute → Boon → Pact Rank, the tree and its screen, and the Hoard. Pact Rank had sat at 1 since `M3-T04`, and ADR-124 §3 recorded three shipped systems and both `M3` gates standing on a number nothing in the project could change. This is the task that changes it.
+
+### Rank is derived, and that removes a whole class of bug
+
+`DES-003`: *"every point of Boon spent raises your Tithe."* So rank **is** what the tree cost you, and `pact_rank` is a computed property over `taken` rather than a stored field. Nothing can assign it; there is no second copy to drift.
+
+That also makes `die()` simpler than it was. `DES-003`'s reset table gives the skill tree as *"all of it"*, and because rank reads off exactly that list, **clearing the list is what returns rank to 1.** There is no separate rank to remember to reset — which is the door ADR-118 worried a debt might survive through, closed by construction rather than by a line that has to be maintained.
+
+Save **v4** drops `pact_rank`. Nothing is lost: it had exactly one possible value in every v3 save that ever existed, and an empty tree derives it.
+
+### `TEC-006` was right and I was wrong
+
+The first draft put node effects in code, with `AspectNode` holding only identity. `TEC-006` §127 is explicit:
+
+> **`effect_tags` is where the discipline lives.** A node declares `"carry_no_limit"` and the inventory system reacts. The node never contains logic. This keeps `DES-004`'s "no node is purely numeric" rule enforceable — a node with only a numeric field and no tag is a stat stick, and reviewable as such.
+
+Adopted, because it is better on both counts. `has_effect(tag)` is now the single seam every system reads the tree through — `Inventory` asks for `carry_no_limit` and never asks what nodes were taken; the tree never reaches into a bag. And `validate()` **refuses a node with no tags**, which turns `DES-004` rule 2 from an aspiration into something the build fails over.
+
+Two of `TEC-006`'s sketched fields are deliberately absent, and both are superseded rather than skipped:
+
+| | |
+|---|---|
+| `boon_cost` | ADR-060 fixes cost by **tier** — lesser 1 · greater 2 · keystone 5. A per-node price lets one lesser node quietly become worth three, which is rule 2's bigger-number pressure arriving through the price instead of through the effect. |
+| `tithe_increase` | ADR-118 chose a **table** over a curve, because `DES-003` gives three anchors and everything between them is judgement. A per-node increment would be a second way to move one obligation. |
+
+`AspectNode` also reaches for no autoload, and that is load-bearing: `data_probe.gd` runs as `--script` with none registered, so a single `Config` reference in a resource stops the **whole corpus** from validating. The first draft had one, in `cost()`.
+
+### The tree comes with the body, not with the machine
+
+`GameState` knows only this machine's nodes and the host builds four bodies, three of which belong to somebody else. A host reading its own `has_effect` would have applied its tree to the entire party.
+
+That is exactly the fault ADR-121 avoided for the class, arriving one task later through a different door — so it takes the same route: the tags cross on `declare_descent` beside rank and class, and reach the body through the **spawn payload**. `Player.effects` is what every system reads, and `TEC-004`'s *"progression is never networked"* stays honest because what crosses is the set of rules that are on — no Boon, no spend, no tree, and the host stores none of it past the floor.
+
+### The Hoard prises `DES-019`'s three costs apart
+
+Space, weight and noise are one instrument today. Every Hoard node separates a strand of it, and the keystone removes the third at the price of doubling the other two:
+
+| | |
+|---|---|
+| **Weight of Kings** *(keystone)* | `DES-004`'s own: no carry limit, and every kilogram is louder and slower than it would be for anyone else. The drawback rule holds — the whole floor hears the vault leaving. |
+| **Ballast** | weight makes you slow; it no longer makes you loud |
+| **Quiet Hands** · **Coin-Sense** · **Steady Step** | handling, gold and landings stop costing Clamor |
+| **Her Reckoning** *(rank 4)* | `DES-017`'s wealth sense stops **singling you out**; it still hears you |
+| **Tribute in Kind** | anything you set down is worth her stooping for — and she takes it |
+| **Scavenger** · **Long Haul** · **Sure Grip** · **Ready Hand** · **Tally** · **Close the Lid** | materials weigh nothing, load stops costing height, and the bag stops costing seconds |
+
+**Set Aside was designed and cut.** *"Promise her one carried item — weightless, silent, and hers when you climb out"* is a good node and needed a way to **pick** one; the bag's right-click rotates and its left-click drags, so it wanted a new input action. Adding a button for a single node in a single Aspect is the creep ADR-075's binding budget exists to resist, and shipping twelve-and-a-half nodes is what ADR-064 forbids. It is a natural `M3-T07` node instead, where equipment slots bring a UI that "promise this one" belongs in.
+
+`Tribute in Kind` replaced it, built on the bait rule ADR-089 and ADR-114 already proved. It cuts both ways, which is what a greater node should do: you can buy seconds with a stone, and you have taught her to follow your discards.
+
+### `data_probe.gd` kept a promise it made at `M2-T08`
+
+Its own header said three `TEC-006` rules were absent *"because the resources they check do not exist"*, and that **each rule arrives with its data.** Two of the three arrived here: dangling `requires`, and tag-less nodes. Three more went in beside them that no single node can answer about itself — a prerequisite in **another Aspect** (a lockout gated on a path the class may not enter), a `requires` **cycle**, and an Aspect with **no keystone**. Plus the guard that matters most, in the shape the item one already had: *no nodes found* fails, because every rule below it is conditional on there being a tree.
+
+### What made rank derived broke a probe's arrangement rather than its assertions
+
+`--tithe-probe` assigned `GameState.pact_rank = 5` so that one coin would fall short of 260. With rank read-only the assignment did nothing, the case stopped being short, and four rows failed at once.
+
+**The setup stopped working while every line still read as sensible** — quieter than a wrong assertion, and only the sweep caught it. It goes short by part-paying now, which asks the same question without borrowing a rank from another system.
+
+It also produced a seam worth having. `tithe_for(rank)` splits the table from the rank, so `DES-003`'s three anchors can be asserted directly. The alternative was a probe stuffing `taken` with duplicate ids it could never own to manufacture rank 9 — the Hoard alone tops out near rank 6 — and a check that manufactures its own premise is testing its fiction, which is this milestone's most frequent failure wearing a new coat.
+
+### What is not asserted, and is named rather than claimed
+
+**One keystone at a time** cannot fail while one Aspect is authored: there is no second keystone to refuse. `M3-T12` is where that rule gets a real test. Saying so is cheaper than a green row that means nothing — this milestone has produced six true-but-beside-the-point assertions and every one of them read as coverage.
+
+### A row that was true by construction
+
+Ten violations were planted and each named row was seen to fail — but only after one of them did not. *"Taking nodes cost nothing"* asserted `boon_spent() > 0`, and `boon_spent()` is **summed from `taken`**: it reported the right number whether or not a single point had actually left the purse, so a plant making every node free walked straight through it.
+
+Seventh true-but-beside-the-point assertion this milestone, and the first that was wrong *by construction* rather than by circumstance: **a derived value cannot witness the thing it is derived from failing to be paid for.** It asserts the balance now — what left the purse against what the tree cost.
+
+That is worth stating as a rule, because deriving values is exactly what this task did to rank: every derived quantity in the project needs its check written against the *source* it is derived from, never against itself.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

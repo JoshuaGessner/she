@@ -71,12 +71,31 @@ var descents: int = 1
 ## **The pact** (`M3-T04`, `DES-003`). LIFE tier, all of it: `die()` puts every
 ## one of these back where a new life starts.
 ##
-## Rank is real and **cannot rise yet.** `DES-022` raises it by spending Boon on
-## nodes and that is `M3-T01`, so a life sits at rank 1 until then. The order is
-## deliberate rather than an oversight (ADR-116 §6): `DES-003`'s argument is
-## that persistence trivialises *unless* power is coupled to obligation, so
-## building the obligation second would ship Failure Mode A on purpose.
-var pact_rank: int = 1
+## **Rank is derived, not stored** (`M3-T01`, ADR-125). `DES-003` says *"every
+## point of Boon spent raises your Tithe"*, so rank **is** what the tree cost
+## you — and a stored copy is a second source of truth that can disagree with
+## the nodes that earned it. It reads as a field because every call site already
+## did; nothing can assign it, and that is the point.
+##
+## It sat at 1 for the whole of `M3-T04` and `M3-T10`, which built a nine-row
+## Tithe table and three axes of floor scaling against a number nothing could
+## move (ADR-124 §3). This is the task that moves it.
+var pact_rank: int:
+	get:
+		var per: int = maxi(1, Config.tuning.boon_per_rank)
+		var top: int = maxi(1, Config.tuning.tithe_by_rank.size())
+		return clampi(1 + boon_spent() / per, 1, top)
+
+## **Boon** (`DES-004`). Unspent points, and the surplus tribute working toward
+## the next one. Both LIFE tier — `DES-003`'s reset table gives the skill tree
+## as *"all of it"*.
+var boon: int = 0
+var boon_progress: int = 0
+
+## Node ids taken this life, in the order they were taken. The **only** record
+## of the tree: rank, spend and what you can reach next are all read off this,
+## so there is nothing to keep in step with it.
+var taken: Array[StringName] = []
 
 ## Tribute value handed to her since the cycle last closed.
 var tithe_paid: int = 0
@@ -123,7 +142,23 @@ func bring_home(items: Array[ItemInstance]) -> void:
 ## her and never gives any of it back.
 func tribute(item: ItemInstance) -> void:
 	hoard.append(item.definition.id)
-	hoard_value += item.definition.tribute_value
+	var value: int = item.definition.tribute_value
+	hoard_value += value
+	# **Only the surplus becomes Boon** (`DES-004`): *"surplus tribute beyond
+	# your Tithe converts to Boon at full rate; tribute below the Tithe converts
+	# at nothing and counts against your obligation."*
+	#
+	# This is the whole coupling in four lines. Servicing the debt buys you
+	# nothing but the absence of a punishment, and the debt rises with every
+	# node — so a rank-7 player extracts far more for the same point of Boon,
+	# which is ADR-060's intended flat income and the reason growth has to be
+	# *felt through loud nodes* rather than through a rate that accelerates.
+	var still_owed: int = maxi(0, tithe_due() - tithe_paid)
+	boon_progress += maxi(0, value - still_owed)
+	var per: int = maxi(1, Config.tuning.boon_per_tribute)
+	while boon_progress >= per:
+		boon_progress -= per
+		boon += 1
 	# The same gesture pays two things at once, which is the point: there is no
 	# separate "pay the Tithe" button anywhere, because `DES-014` puts the
 	# keep-or-give decision at the hoard and giving *is* paying.
@@ -163,7 +198,13 @@ func die() -> void:
 	# to 1."* Including what you owed and what she was going to send for it — a
 	# debt surviving the debtor would be the running-debt model ADR-029 rejected,
 	# arriving by accident through the one door nobody was watching.
-	pact_rank = 1
+	# The tree goes with it. `DES-003`'s reset table is unambiguous — *"skill
+	# tree (Boon spent into Aspects): all of it"* — and because rank is derived
+	# from exactly this list, clearing it is what puts rank back to 1. There is
+	# no separate rank to forget.
+	taken.clear()
+	boon = 0
+	boon_progress = 0
 	tithe_paid = 0
 	cycle_runs = 0
 	hunt_head_start = 0.0
@@ -184,12 +225,141 @@ func stash_value() -> int:
 # ── the pact ──────────────────────────────────────────────────────────────
 
 
+# ── the tree ──────────────────────────────────────────────────────────────
+
+
+## What the tree has cost you. `DES-003` makes this the same number as rank,
+## which is why rank is read off it rather than stored beside it.
+func boon_spent() -> int:
+	var sum: int = 0
+	for id: StringName in taken:
+		var node: AspectNode = AspectCatalogue.by_id(id)
+		# **A node this build does not have contributes nothing, and is kept
+		# anyway.** Keeping it means a profile opened in an older build and
+		# returned to a newer one still has its tree; contributing nothing is
+		# simply the truth, because a cost is read off a tier and an unknown
+		# node has no tier to read. The consequence — that such a life reads a
+		# rank lower than it earned, and so a cheaper Tithe — is `M4-T06`'s
+		# question about what a build does with a save from a newer one, and it
+		# is written down here rather than papered over with a stored cost that
+		# could disagree with the node it belongs to.
+		sum += Config.tuning.node_cost(node.tier) if node != null else 0
+	return sum
+
+
+func has_taken(id: StringName) -> bool:
+	return taken.has(id)
+
+
+## **Does this life have that rule?** (`TEC-006`.)
+##
+## The one seam every system reads the tree through. `Inventory` asks for
+## `carry_no_limit`; it never asks what nodes were taken, and the tree never
+## reaches into a bag. A node is a name and a set of tags, and the system that
+## owns a rule is the only thing that knows what changing it means.
+##
+## Rebuilt from `taken` rather than cached, because a cache is a second copy of
+## the tree that can disagree with it — which is the argument that made rank
+## derived (ADR-125), applied to the same list one function down.
+func has_effect(tag: StringName) -> bool:
+	for id: StringName in taken:
+		var node: AspectNode = AspectCatalogue.by_id(id)
+		if node != null and node.effect_tags.has(tag):
+			return true
+	return false
+
+
+## Which Aspect your keystone is in, or empty. `DES-004`: **one keystone active
+## at a time** — *"this is the primary anti-bloat rule"* — and the Aspect it
+## sits in is your primary by definition, so there is nothing else to store.
+func primary_aspect() -> StringName:
+	for id: StringName in taken:
+		var node: AspectNode = AspectCatalogue.by_id(id)
+		if node != null and node.tier == AspectNode.Tier.KEYSTONE:
+			return node.aspect
+	return &""
+
+
+## Why you cannot take this node, or empty if you can.
+##
+## **A sentence rather than a bool**, because every one of these is something a
+## player is entitled to see on the node they just clicked. A tree that greys
+## something out and will not say why is the unexplainable-loss shape
+## `PRO-005` §5 rules out, moved from the floor into a menu.
+func why_not(id: StringName) -> String:
+	var node: AspectNode = AspectCatalogue.by_id(id)
+	if node == null:
+		return "this build does not have that node"
+	if has_taken(id):
+		return "already taken"
+	# **Your class decides which three Aspects you may enter** (ADR-009,
+	# `DES-011`). The gate that makes 6 classes into 36 identities, and the
+	# reason `M3-T02` had to precede this task rather than follow it.
+	var body: ClassResource = ClassCatalogue.by_id(class_id)
+	if body == null:
+		return "no life has been sworn yet"
+	if not body.aspects.has(node.aspect):
+		return "%s may not enter the %s" % [body.display(), node.aspect]
+	# One keystone, ever, and it names the build. `DES-004` allows a secondary
+	# Aspect's greater and lesser nodes but never its keystone.
+	if node.tier == AspectNode.Tier.KEYSTONE:
+		var already: StringName = primary_aspect()
+		if already != &"":
+			return "your keystone is already in the %s" % already
+	if node.rank_required > pact_rank:
+		return "pact rank %d" % node.rank_required
+	for needed: StringName in node.requires:
+		if not has_taken(needed):
+			var before: AspectNode = AspectCatalogue.by_id(needed)
+			return "needs %s first" % (before.display() if before != null else needed)
+	var price: int = Config.tuning.node_cost(node.tier)
+	if boon < price:
+		return "%d boon" % price
+	return ""
+
+
+## Spend on a node. Returns whether it was taken.
+##
+## **The only writer of `taken`.** Rank, the Tithe it raises and everything the
+## floor scales by all fall out of this one list, so a second path into it would
+## be a second way to change the difficulty of the game.
+func take_node(id: StringName) -> bool:
+	var refused: String = why_not(id)
+	if refused != "":
+		return false
+	var node: AspectNode = AspectCatalogue.by_id(id)
+	var was: int = pact_rank
+	boon -= Config.tuning.node_cost(node.tier)
+	taken.append(id)
+	# Said out loud because it is the moment `DES-003` is about: the power
+	# arrived and the obligation moved with it, in the same breath.
+	if pact_rank != was:
+		print("[pact] %s taken — rank %d, and she now expects %d a cycle" % [
+			node.display(), pact_rank, tithe_due()])
+	_persist()
+	return true
+
+
 ## What she expects of you this cycle (`DES-003`, ADR-029).
 func tithe_due() -> int:
+	return tithe_for(pact_rank)
+
+
+## What she would expect at a given rank. Split out from `tithe_due()` so the
+## **table** can be asserted at `DES-003`'s three anchors without a probe having
+## to manufacture a tree that reaches rank 9 (`M3-T01`).
+##
+## That is not a convenience. Rank is derived from the nodes taken now, and the
+## Hoard alone tops out around rank 6 — so a probe that drove `pact_rank` to
+## test the table would have to fill `taken` with duplicates it could never
+## own, and would then be testing its own fiction. This asks the table the
+## question the table can answer, and `--pact-probe` separately proves that
+## `tithe_due()` tracks a rank a player actually earned.
+func tithe_for(rank: int) -> int:
 	var table: PackedInt32Array = Config.tuning.tithe_by_rank
 	if table.is_empty():
 		return 0
-	return table[clampi(pact_rank - 1, 0, table.size() - 1)]
+	return table[clampi(rank - 1, 0, table.size() - 1)]
 
 
 ## Runs before she settles up.
@@ -332,12 +502,20 @@ func to_dict() -> Dictionary:
 	var kept: Array[String] = []
 	for item: ItemInstance in stash:
 		kept.append(String(item.definition.id))
+	var spent: Array[String] = []
+	for id: StringName in taken:
+		spent.append(String(id))
 	return {
 		"lineage": {"hoard": pile, "hoard_value": hoard_value},
 		"life": {
 			"stash": kept,
 			"class_id": String(class_id),
-			"pact_rank": pact_rank,
+			# **No `pact_rank`.** It is derived from `taken` (ADR-125), and a
+			# stored copy is a second source of truth that a hand-edited or
+			# half-migrated file could set out of step with the tree.
+			"boon": boon,
+			"boon_progress": boon_progress,
+			"taken": spent,
 			"tithe_paid": tithe_paid,
 			"cycle_runs": cycle_runs,
 			"hunt_head_start": hunt_head_start,
@@ -372,7 +550,17 @@ func from_dict(data: Dictionary) -> void:
 	# writes them explicitly; these are what happens if a field is missing for
 	# any other reason, and a rank of 0 would index the Tithe table below zero.
 	class_id = StringName(life.get("class_id", ""))
-	pact_rank = maxi(1, int(life.get("pact_rank", 1)))
+	boon = maxi(0, int(life.get("boon", 0)))
+	boon_progress = maxi(0, int(life.get("boon_progress", 0)))
+	taken.clear()
+	for raw: Variant in life.get("taken", []) as Array:
+		var node: AspectNode = AspectCatalogue.by_id(StringName(raw))
+		if node == null:
+			# **Kept, not dropped**, so a profile opened in a build that lacks a
+			# node still has it when it goes home. See `boon_spent()` for what
+			# it is worth while it is unknown, which is nothing, and why.
+			push_warning("GameState: node '%s' is not in this build" % raw)
+		taken.append(StringName(raw))
 	tithe_paid = int(life.get("tithe_paid", 0))
 	cycle_runs = int(life.get("cycle_runs", 0))
 	hunt_head_start = float(life.get("hunt_head_start", 0.0))
@@ -569,7 +757,11 @@ func _save_probe() -> void:
 	hoard.clear()
 	hoard_value = 0
 	stash.clear()
-	pact_rank = 7
+	# **Dirtied before the load, so the load has something to overwrite.** Rank
+	# is derived now (ADR-125), so the way to make it wrong is to give this life
+	# a tree — a v1 profile has none, and reading one must clear it.
+	taken.append(&"hrd_sure_grip")
+	boon = 3
 	class_id = &"someone_else"
 	var lifted: Dictionary = SaveFile.read()
 	from_dict(lifted)

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AspectNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/aspects/aspect_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"hrd_ready_hand"
+aspect = &"hoard"
+tier = 0
+name_key = &"node.hrd_ready_hand.name"
+description_key = &"node.hrd_ready_hand.desc"
+requires = Array[StringName]([&"hrd_sure_grip"])
+effect_tags = Array[StringName]([&"take_with_bag_open"])
+rank_required = 0

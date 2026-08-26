@@ -217,6 +217,32 @@ extends Resource
 ## Runs you get to pay it in (ADR-029) ⟨tune⟩. Three absorbs one disaster run,
 ## so bad luck and experimentation do not default you.
 @export var tithe_cycle_runs: int = 3
+
+## **What a node costs, by tier** (`M3-T01`, ADR-060) ⟨tune⟩ — lesser 1,
+## greater 2, keystone 5. Here rather than on `AspectNode` on purpose: a
+## per-node price would let one lesser node quietly become worth three, which is
+## `DES-004` rule 2's bigger-number pressure arriving through the cost instead
+## of through the effect.
+@export var node_cost_lesser: int = 1
+@export var node_cost_greater: int = 2
+@export var node_cost_keystone: int = 5
+
+## **Boon spent per point of Pact Rank** ⟨tune⟩.
+##
+## `DES-003` makes rank Boon spent — *"every point of Boon spent raises your
+## Tithe"* — and ADR-060 fixes the scale: *"~20 taken by Rank 9"*, which on a
+## representative spread of tiers is about 31 Boon. Four per rank puts rank 9 at
+## 32, so the whole table above is reachable by the life ADR-060 describes and
+## no further.
+@export var boon_per_rank: int = 4
+
+## **Surplus tribute value per point of Boon** ⟨tune⟩.
+##
+## `DES-004`: tribute *below* your Tithe converts at nothing and counts against
+## the obligation; only the surplus becomes Boon. ADR-060 wants roughly one node
+## per two runs at a flat rate across ranks — the Tithe rising with every node
+## is what does the throttling, so this number does not need to.
+@export var boon_per_tribute: int = 60
 ## What missing a cycle costs: seconds of Hunt **already elapsed** when your
 ## next descent begins (ADR-118) ⟨tune⟩.
 ##
@@ -413,6 +439,18 @@ extends Resource
 const TELEGRAPH_FLOOR: float = 0.25
 
 
+## What one node of a tier costs. Read through here rather than off the three
+## fields, so nothing has to remember which is which.
+func node_cost(tier: AspectNode.Tier) -> int:
+	match tier:
+		AspectNode.Tier.KEYSTONE:
+			return node_cost_keystone
+		AspectNode.Tier.GREATER:
+			return node_cost_greater
+		_:
+			return node_cost_lesser
+
+
 func validate() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
 	if enemy_telegraph < TELEGRAPH_FLOOR:
@@ -448,6 +486,23 @@ func validate() -> PackedStringArray:
 				% [rank + 1, tithe_by_rank[rank], tithe_by_rank[rank - 1]])
 	if tithe_cycle_runs < 1:
 		problems.append("tithe_cycle_runs must be at least 1 or the cycle never closes")
+	# The ordering is the design, not tidiness: `DES-004` gives a keystone the
+	# weight of five lesser nodes because it is the thing a build is named
+	# after, and a keystone that cost the same as a trinket would be taken by
+	# everybody on the first run and stop meaning anything.
+	if node_cost_lesser < 1 or node_cost_greater < 1 or node_cost_keystone < 1:
+		problems.append("a node that costs nothing is not a decision")
+	if not (node_cost_lesser <= node_cost_greater and node_cost_greater <= node_cost_keystone):
+		problems.append(("node costs run %d / %d / %d — ADR-060 orders them "
+			+ "lesser ≤ greater ≤ keystone, and a keystone priced like a "
+			+ "trinket is taken on the first run by everybody")
+			% [node_cost_lesser, node_cost_greater, node_cost_keystone])
+	if boon_per_rank < 1:
+		problems.append("boon_per_rank below 1 makes every node a rank, and the "
+			+ "Tithe table would be exhausted before a build existed")
+	if boon_per_tribute < 1:
+		problems.append("boon_per_tribute below 1 makes Boon free, which is "
+			+ "`DES-004`'s *tribute is a real cost* deleted")
 	if tithe_missed_head_start < 0.0:
 		problems.append("tithe_missed_head_start cannot be negative — missing a "
 			+ "Tithe does not buy you a calmer floor")

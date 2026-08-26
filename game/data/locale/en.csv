@@ -31,3 +31,29 @@ item.wpn_yew_bow.desc,"Quieter than a blade and slower to bring to bear. What it
 class.veidimadr.name,Veiðimaðr
 class.veidimadr.desc,"The professional who was never seen. Knows which way you came, how long ago, and where the ground gives you away."
 class.veidimadr.exit,"Gets out by never having been noticed — a bow, a trap, and a route chosen before anything looked up. Poor in a straight fight. Cornered is usually dead."
+node.hrd_sure_grip.name,Sure Grip
+node.hrd_sure_grip.desc,"What you set down lands at your feet, instead of skidding away into the dark."
+node.hrd_coin_sense.name,Coin-Sense
+node.hrd_coin_sense.desc,"Gold knows your hands. Taking or setting down anything gilt makes no sound at all."
+node.hrd_tally.name,Tally
+node.hrd_tally.desc,"You know what a thing is worth to her before you decide whether to carry it."
+node.hrd_steady_step.name,Steady Step
+node.hrd_steady_step.desc,"A drop under a full load lands quiet. The weight is still there; the noise is not."
+node.hrd_ready_hand.name,Ready Hand
+node.hrd_ready_hand.desc,"You can take what is at your feet without closing your bag first."
+node.hrd_scavenger.name,Scavenger
+node.hrd_scavenger.desc,"Raw stock and scrap weigh nothing to you. It is not treasure; it is ballast you can sell."
+node.hrd_long_haul.name,Long Haul
+node.hrd_long_haul.desc,"No load is heavy enough to keep you off a ledge. It will still slow you and it will still be heard."
+node.hrd_close_the_lid.name,Close the Lid
+node.hrd_close_the_lid.desc,"Your bag shuts the instant you let go of it."
+node.hrd_ballast.name,Ballast
+node.hrd_ballast.desc,"Weight makes you slow. It no longer makes you loud."
+node.hrd_quiet_hands.name,Quiet Hands
+node.hrd_quiet_hands.desc,"Nothing you take, set down or rummage for makes a sound."
+node.hrd_her_reckoning.name,Her Reckoning
+node.hrd_her_reckoning.desc,"The Gullsjúkr stops singling you out for being the richest thing in the room. It can still hear you."
+node.hrd_weight_of_kings.name,Weight of Kings
+node.hrd_weight_of_kings.desc,"There is no limit to what you can carry. Every kilogram of it makes you slower and louder than it would make anyone else. You can haul the whole vault out. The Deep will hear you do it."
+node.hrd_tribute_in_kind.name,Tribute in Kind
+node.hrd_tribute_in_kind.desc,"You know what gold is worth to her. Anything you set down is worth her stooping for — and she will take it."
