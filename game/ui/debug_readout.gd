@@ -115,7 +115,17 @@ func _process(_delta: float) -> void:
 	# `t/LT throw` and `v/dpad-up waystone` were missing from every list in the
 	# game, so two built verbs — one of them the Hunt's whole counter-play — had
 	# no way of being discovered.
-	lines.append("lmb/RT attack   e/X take   tab/LB bag   g/dpad-down drop   "
-		+ "t/LT throw   v/dpad-up waystone")
-	lines.append("shift/L3 sprint   ctrl/B crouch   c/R3 toggle   i/Y ink   r reset")
+	# **And the control list is gone from here** (ADR-139).
+	#
+	# It should never have been here. This node is the diagnostic overlay — the
+	# thing `GATE M3 EXIT` requires *off* — and the two lines that used to sit
+	# at the bottom of it were the only in-level control reference a player had.
+	# ADR-137 turned the node off for the gate and took the guidance with it,
+	# and the very next play reported *"no real guidance once in a level"*.
+	#
+	# One node was doing two jobs with opposite audiences, so hiding it for one
+	# of them broke the other. The list lives in `ControlsScreen` now and is
+	# reachable mid-run through the pause menu, which `ArrivalBrief` names on
+	# arrival. It was also **stale**: it still said `i/Y ink` after ADR-137 moved
+	# that binding to Back, and it never named the class verb at all.
 	text = "\n".join(lines)

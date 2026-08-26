@@ -3495,5 +3495,65 @@ The accepting half of the descent is asserted through the **predicate** rather t
 
 ---
 
+## ADR-139 — Four control lists, one of which I had just switched off
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T18`** · **Corrects ADR-137** · **Reported from play**
+
+**Context:** the same play session as ADR-138. The second half of the report: *"there was no real guidance once in a level."*
+
+### ADR-137's premise was wrong
+
+It opens *"there was no in-game control list."* There were **four**:
+
+| Where | Devices | State |
+|---|---|---|
+| `threshold.gd`, the fire's readout | keyboard only | omitted **block** and **the class verb** |
+| `debug_readout.gd`, two lines at the bottom | both | said `i/Y ink` — stale the moment ADR-137 moved it to Back; never named the verb |
+| `bag_screen.gd`, the footer | both | bag-only, and correct |
+| `ControlsScreen` (ADR-137) | both | generated, complete |
+
+Three hand-typed, two already stale, and **not one of them named the class verb**. `F` was a built verb — `M3-T02`'s Hold and `M3-T11`'s Snare, a whole milestone of work — that no player could discover.
+
+That is worse than the thing ADR-137 said it was fixing, and its ADR said the opposite. **A stale ADR is believed**, which is the whole reason this project writes them.
+
+### And ADR-137 made it worse before this fixed it
+
+`DebugReadout` was two things fused into one node: the **diagnostics** — health, speed, stamina, carrying, clamor — and the **player's in-level control list**, two `lines.append` calls at the bottom.
+
+`GATE M3 EXIT` requires the diagnostic overlay off. ADR-137 gated the node, correctly, and took the only in-level control reference in the game with it. The very next play reported no guidance in the Deep.
+
+**One node doing two jobs with opposite audiences.** Hiding it for one broke the other, and nothing could have caught that: no probe reads a `Label` for guidance, and `check_dead.py` sees a node that is used.
+
+### One table, three renderings
+
+`ControlsScreen.GROUPS` is the source. Each row is `[full label, short label, actions]`, and two renderings hang off it:
+
+- **`glyphs_for(action)`** — one binding as `"e/X"`, for a contextual prompt. The bag still says *take & place* where the screen says *pick up, and place in the bag*; that is a real difference of context, not drift. **Only the keys come from the table, because the keys are the half that moves.**
+- **`compact_lines(per_line)`** — the whole list as running text, for a readout that is a `Label` rather than a screen. The Threshold uses it.
+
+`DebugReadout` keeps only the diagnostics, which is what it always should have been.
+
+### What the generated half structurally cannot say
+
+**Mouse look is not an `InputMap` action.** It is raw motion, so no amount of reading the bindings will ever mention it — and the hand-written line it replaced did say *mouse look*. The row's authored label carries it: *"Look around — or just move the mouse"*.
+
+This is the division the design already asks for. What drifts is generated; what does not is written down. A thing that can never be derived belongs on the authored side, and noticing which side it falls on is the whole job.
+
+### Guidance in the Deep
+
+`DES-019` is hostile to persistent UI and this does not add any. `ArrivalBrief` — which holds for 4.5 seconds and then frees itself — gains a fourth line naming the key that opens the menu, and the pause menu has carried CONTROLS since ADR-137. A player who forgets a key forgets it under pressure, and the answer is one press away instead of back at the fire.
+
+### The check that makes it stay one list
+
+`check_project.py` refuses any **string literal** outside `controls_screen.gd` that names a key: `wasd`, `lmb`, `dpad`, `/RB`, `shift/`, and the rest. Comments are exempt deliberately — the ADRs are written in the files they describe and quote the strings they replaced. What is banned is *shipping* a second list, not remembering one.
+
+And a probe row the hand-written lists made impossible: the fire's readout must contain **every line the control screen teaches**, and must name the class verb. A hand-typed list is always internally consistent right up until it is wrong; the only way to ask whether it is *complete* is to compare it against the table.
+
+### Verification
+
+Five plants, none uncaught: the fire typing its own list, the bag typing its own keys, the fire teaching nothing, the verb falling off the table, and the table rendering nothing at all.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

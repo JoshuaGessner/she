@@ -458,6 +458,50 @@ def check_placeholders(path: Path) -> list[Issue]:
     return issues
 
 
+# Text that names a physical key or pad button. If a *string literal* outside
+# `controls_screen.gd` contains one of these, somebody is writing a second
+# control list (ADR-139).
+KEY_WORDS = [
+    "wasd", "lmb", "rmb", "mmb", "dpad", "d-pad",
+    "/lb", "/rb", "/lt", "/rt", "shift/", "ctrl/", "tab/",
+]
+
+STRING_LITERAL = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
+
+
+def check_control_prompts(path: Path) -> list[Issue]:
+    """One file names the keys, and it is `ControlsScreen` (ADR-139).
+
+    Four control lists existed: the controls screen, the Threshold's readout,
+    the bag's footer, and two lines buried at the bottom of `DebugReadout`.
+    Three were hand-typed. Two were already stale — `DebugReadout` still said
+    `i/Y ink` after ADR-137 moved that binding to Back — and **not one of them
+    named the class verb**, so `F` was a built verb no player could discover.
+
+    Comments are exempt on purpose: the ADRs above are written *in* the files
+    they describe and quote the strings they replaced. What is banned is
+    shipping one, not remembering one.
+    """
+    if path.suffix != ".gd" or path.name == "controls_screen.gd":
+        return []
+    issues = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if line.lstrip().startswith("#"):
+            continue
+        for literal in STRING_LITERAL.findall(line):
+            lowered = literal.lower()
+            for word in KEY_WORDS:
+                if word in lowered:
+                    issues.append(Issue(
+                        "error", "second-control-list", f"{rel(path)}:{number}",
+                        f"a string names a binding directly: {literal[:60]!r}",
+                        "build it from ControlsScreen.glyphs_for(action) — the "
+                        "keys move and hand-typed lists go stale (ADR-139)",
+                    ))
+                    break
+    return issues
+
+
 def check_gamepad() -> list[Issue]:
     """Controller parity, run locally instead of only in CI (ADR-137).
 
@@ -497,6 +541,7 @@ def main() -> int:
         for path in game_files():
             issues += check_naming(path)
             issues += check_placeholders(path)
+            issues += check_control_prompts(path)
             if path.suffix == ".gd":
                 scripts += 1
                 issues += check_script(path)

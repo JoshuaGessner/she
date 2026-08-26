@@ -73,10 +73,22 @@ const FOOTER_TEXT: int = 12
 ## its worst case rather than to whatever it holds right now.
 const WIDEST_RADIUS: float = 99.9
 ## Both prompt lines, in one place so the layout check and the drawing agree.
-const FOOTER_LINES: Array[String] = [
-	"lmb/X take & place    rmb/RB turn",
-	"drag out or g/dpad-down drop    tab/LB close",
-]
+##
+## **The wording is authored here and the keys come from `ControlsScreen`**
+## (ADR-139). The bag says *take & place* where the control list says *pick up,
+## and place in the bag* — that is a real difference of context, not drift. The
+## keys are the half that moves, and this line said `rmb/RB turn` while the
+## screen said `R`, because two hand-typed lists is one too many. A function
+## rather than a `const`, since `InputMap` is not loaded when constants are.
+static func footer_lines() -> Array[String]:
+	return [
+		"%s take & place    %s turn" % [
+			ControlsScreen.glyphs_for("interact"),
+			ControlsScreen.glyphs_for("rotate_item")],
+		"drag out or %s drop    %s close" % [
+			ControlsScreen.glyphs_for("drop"),
+			ControlsScreen.glyphs_for("bag")],
+	]
 
 ## Screen pixels per second the gamepad cursor travels at full deflection.
 const CURSOR_RATE: float = 620.0
@@ -348,7 +360,7 @@ func overflowing() -> PackedStringArray:
 		HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT).x
 	if drawn > room:
 		spilled.append("header is %.0f px in %.0f px: %s" % [drawn, room, header])
-	for line: String in FOOTER_LINES:
+	for line: String in footer_lines():
 		var wide: float = font.get_string_size(line,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, FOOTER_TEXT).x
 		if wide > panel.size.x - PADDING * 2.0:
@@ -579,9 +591,10 @@ func _draw_footer(panel: Rect2) -> void:
 	var width: float = panel.size.x - PADDING * 2.0
 	var left: float = panel.position.x + PADDING
 	var base: float = panel.position.y + panel.size.y - FOOTER + 12.0
-	draw_string(font, Vector2(left, base), FOOTER_LINES[0],
+	var prompts: Array[String] = footer_lines()
+	draw_string(font, Vector2(left, base), prompts[0],
 		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, DIM_TEXT)
-	draw_string(font, Vector2(left, base + 13.0), FOOTER_LINES[1],
+	draw_string(font, Vector2(left, base + 13.0), prompts[1],
 		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, DIM_TEXT)
 
 

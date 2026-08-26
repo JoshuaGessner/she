@@ -52,6 +52,15 @@ func _ready() -> void:
 	_line("take what you can carry", 15, MenuStyle.TEXT)
 	_line("climb out at the light — it is loud, and it is watched", 15,
 		MenuStyle.TEXT)
+	# **Where the controls went** (ADR-139). This brief holds for 4.5 seconds and
+	# then frees itself, so anything it does not point at is gone with it. The
+	# Deep's control list used to live inside the diagnostic overlay, which is
+	# the one thing `GATE M3 EXIT` requires off — so the first play with it off
+	# reported no guidance in the level at all. A player who forgets a key
+	# forgets it under pressure, and this is the line that tells them the answer
+	# is one keypress away rather than back at the fire.
+	_line("%s — the menu, and every control on it"
+		% ControlsScreen.glyphs_for("ui_cancel"), 13, MenuStyle.DIM)
 	# **A fourth line only when she is owed** (ADR-124). The Chamber says how
 	# short you are *before* you descend, and then the floor said nothing at
 	# all — the Hunt was simply four minutes further along than the player had

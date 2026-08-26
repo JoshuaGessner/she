@@ -54,29 +54,41 @@ const HIDDEN: Array[String] = ["debug_reset", "debug_overlays", "debug_ink"]
 ## the glyphs of everything it covers are joined and de-duplicated, so "Move"
 ## reads `W A S D` on a keyboard and `Left Stick` on a pad without either being
 ## written down anywhere.
+## Each row is `[full label, short label, [actions]]`. The short label exists
+## because the same rows are rendered as **running text** in the Threshold's
+## readout, where "Pick up, and place in the bag" is a paragraph and "take" is
+## a prompt. One table, two renderings — rather than the four separate lists
+## this replaced (ADR-139), of which two were already stale and none named the
+## class verb.
 const GROUPS: Array = [
 	["MOVING", [
-		["Move", ["move_forward", "move_left", "move_back", "move_right"]],
-		["Look around", ["look_up", "look_left", "look_down", "look_right"]],
-		["Run", ["sprint"]],
-		["Crouch — hold", ["crouch"]],
-		["Crouch — stay down", ["crouch_toggle"]],
-		["Jump", ["jump"]],
+		["Move", "move", ["move_forward", "move_left", "move_back", "move_right"]],
+		# **The mouse cannot be generated.** Looking around with it is raw motion,
+		# not an `InputMap` action, so no amount of reading the bindings will
+		# ever mention it — and the hand-written list this replaced did say
+		# *mouse look*. The authored half of the row carries what the generated
+		# half structurally cannot (ADR-139).
+		["Look around — or just move the mouse", "look",
+			["look_up", "look_left", "look_down", "look_right"]],
+		["Run", "run", ["sprint"]],
+		["Crouch — hold", "crouch", ["crouch"]],
+		["Crouch — stay down", "stay down", ["crouch_toggle"]],
+		["Jump", "jump", ["jump"]],
 	]],
 	["FIGHTING", [
-		["Swing", ["attack"]],
-		["Guard", ["block"]],
-		["Your class verb", ["verb"]],
+		["Swing", "attack", ["attack"]],
+		["Guard", "guard", ["block"]],
+		["Your class verb", "your verb", ["verb"]],
 	]],
 	["CARRYING", [
-		["Open the bag", ["bag"]],
-		["Pick up, and place in the bag", ["interact"]],
-		["Drop what is in your hand", ["drop"]],
-		["Turn an item in the bag", ["rotate_item"]],
-		["Throw — bait the Hunter", ["throw"]],
+		["Open the bag", "bag", ["bag"]],
+		["Pick up, and place in the bag", "take", ["interact"]],
+		["Drop what is in your hand", "drop", ["drop"]],
+		["Turn an item in the bag", "turn", ["rotate_item"]],
+		["Throw — bait the Hunter", "throw", ["throw"]],
 	]],
 	["LEAVING", [
-		["Spend a Waystone", ["use_waystone"]],
+		["Spend a Waystone", "waystone", ["use_waystone"]],
 	]],
 ]
 
@@ -141,7 +153,7 @@ func _ready() -> void:
 		var table: GridContainer = left if placed * 2 < total else right
 		_heading(table, String(group[0]))
 		for row: Array in rows:
-			_row(table, String(row[0]), PackedStringArray(row[1] as Array))
+			_row(table, String(row[0]), PackedStringArray(row[2] as Array))
 		placed += rows.size()
 
 	column.add_child(_gap(14))
@@ -152,6 +164,73 @@ func _ready() -> void:
 	back.pressed.connect(func() -> void: closed.emit())
 	column.add_child(back)
 	back.grab_focus()
+
+
+## One action's binding as running text — `"e/X"`, `"tab/LB"`, `"lmb/RT"`.
+##
+## **The seam that makes one control list possible** (ADR-139). Before it, four
+## lists existed: this screen, the Threshold's readout, the bag's footer, and
+## two lines buried at the bottom of `DebugReadout`. Three were hand-typed, two
+## were already stale — `DebugReadout` still said `i/Y ink` after ADR-137 moved
+## it to Back — and **not one of them named the class verb**, so `F` was a built
+## verb no player could discover.
+##
+## Contextual wording stays with the caller: the bag says *take & place* where
+## this screen says *pick up, and place in the bag*, and that is a real
+## difference rather than drift. Only the **keys** come from here, because the
+## keys are the half that moves.
+static func glyphs_for(action: String) -> String:
+	return glyphs_for_all(PackedStringArray([action]))
+
+
+## The same, for a row that covers several actions. `W A S D` becomes `wasd`
+## rather than `w`, which is what the hand-written lists said and what a player
+## reads as one thing.
+static func glyphs_for_all(actions: PackedStringArray) -> String:
+	var keys: PackedStringArray = keyboard_glyphs(actions)
+	var pad: PackedStringArray = pad_glyphs(actions)
+	var short := PackedStringArray()
+	var every_one_a_letter: bool = true
+	for key: String in keys:
+		var text: String = String(COMPACT_KEY.get(key, key.to_lower()))
+		if text.length() > 1:
+			every_one_a_letter = false
+		short.append(text)
+	var left: String = "—"
+	if not short.is_empty():
+		left = "".join(short) if every_one_a_letter else "/".join(short)
+	var right: String = pad[0] if not pad.is_empty() else "—"
+	return "%s/%s" % [left, right]
+
+
+## Short forms for running text only. The screen has room to say *Left Mouse*
+## and a one-line prompt does not, and `lmb` is what every list in this game
+## said before there was one list.
+const COMPACT_KEY: Dictionary = {
+	"Left Mouse": "lmb", "Right Mouse": "rmb", "Middle Mouse": "mmb",
+}
+
+
+## The whole list as running text, `per_line` prompts to a line, for readouts
+## that are a `Label` rather than a screen. The Threshold uses this.
+static func compact_lines(per_line: int = 4) -> PackedStringArray:
+	var prompts := PackedStringArray()
+	for group: Array in GROUPS:
+		for row: Array in (group[1] as Array):
+			var actions: PackedStringArray = PackedStringArray(row[2] as Array)
+			if actions.is_empty():
+				continue
+			prompts.append("%s %s" % [glyphs_for_all(actions), String(row[1])])
+	var out := PackedStringArray()
+	var line := PackedStringArray()
+	for prompt: String in prompts:
+		line.append(prompt)
+		if line.size() >= maxi(1, per_line):
+			out.append("   ".join(line))
+			line = PackedStringArray()
+	if not line.is_empty():
+		out.append("   ".join(line))
+	return out
 
 
 ## The window the game is configured to open at, which is **not** the viewport
@@ -292,7 +371,7 @@ static func covered() -> PackedStringArray:
 	var out := PackedStringArray()
 	for group: Array in GROUPS:
 		for row: Array in (group[1] as Array):
-			for action: String in PackedStringArray(row[1] as Array):
+			for action: String in PackedStringArray(row[2] as Array):
 				if not out.has(action):
 					out.append(action)
 	return out

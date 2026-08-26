@@ -538,6 +538,37 @@ func _threshold_probe() -> void:
 			+ "that sounds the same on descent 1 and descent 8 is a looping "
 			+ "file rather than a driver"))
 
+	# ─ the fire teaches every verb, and teaches the same ones the screen does ─
+	#
+	# **The row that catches a second list going stale** (ADR-139). These three
+	# lines were hand-typed, keyboard-only, and omitted `block` and `verb` —
+	# two combat verbs a player at this fire could not learn existed. Nothing
+	# could have failed over that: a hand-written list is always internally
+	# consistent, and the only way to ask whether it is *complete* is to compare
+	# it against the table the screen renders.
+	await get_tree().process_frame
+	var taught: PackedStringArray = ControlsScreen.compact_lines(4)
+	var missing := PackedStringArray()
+	for line: String in taught:
+		if not _readout.text.contains(line):
+			missing.append(line)
+	var names_the_verb: bool = _readout.text.contains(
+		ControlsScreen.glyphs_for("verb"))
+	print("[camp] the controls %d line(s), %d missing, names the verb=%s" % [
+		taught.size(), missing.size(), names_the_verb])
+	if taught.is_empty():
+		problems.append("the control table renders nothing, so the two rows "
+			+ "below are about an empty string")
+	if missing.size() > 0:
+		problems.append(("the fire's readout is missing %d line(s) the control "
+			+ "screen teaches (%s) — two lists again, and the hand-written one "
+			+ "is always internally consistent right up until it is wrong")
+			% [missing.size(), ", ".join(missing)])
+	if not names_the_verb:
+		problems.append(("the readout never names the class verb — it did not "
+			+ "for the whole of `M3`, so `F` was a built verb with no way of "
+			+ "being discovered, which is maintenance paid for nothing"))
+
 	for problem: String in problems:
 		printerr("[camp] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
@@ -592,9 +623,15 @@ func _process(_delta: float) -> void:
 			# makes every report about the run describe a smaller game than the
 			# one that was built. The throw is the Hunt's counter-play and the
 			# waystone is half of `DES-005`'s way out.
-			"wasd move   mouse look   shift sprint   ctrl crouch",
-			"lmb attack   e take   tab bag   g drop",
-			"t throw   v waystone   esc menu",
+			#
+			# **Generated now, not typed** (ADR-139). These three lines were
+			# hand-written, keyboard-only, and omitted **block** and **the class
+			# verb** — two combat verbs a player at this fire could not learn
+			# existed. `ControlsScreen` is the one table; this is one rendering
+			# of it, and a verb added there appears here without anybody
+			# remembering to come back.
+		] + Array(ControlsScreen.compact_lines(4)) + [
+			"esc menu, and the full list of controls with it",
 		])
 	# **Nobody descends as nobody** (ADR-138). The last gate before the floor,
 	# and the only one standing in the room where the mistake becomes visible:
