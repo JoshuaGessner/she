@@ -62,6 +62,26 @@ static func button(text: String) -> Button:
 	return control
 
 
+## **Put the focus somewhere** (ADR-141).
+##
+## `LegacyScreen`, `ClassScreen` and `PactScreen` between them contained **zero**
+## `grab_focus()` calls, so all three were mouse-only — and every one of them
+## opens over a live body that was recapturing the mouse every frame. With no
+## cursor and no focus there was no input path to them at all. ADR-075 makes
+## controller parity a project rule; a screen a pad cannot move around in is the
+## same bug as an action with no pad binding.
+##
+## Deferred by the caller, because a `Control` takes focus only once it is in
+## the tree. Returns whether anything took it, so a probe can ask.
+static func focus_first(root: Node) -> bool:
+	for node: Node in root.find_children("*", "Button", true, false):
+		var pressable := node as Button
+		if pressable != null and not pressable.disabled:
+			pressable.grab_focus()
+			return true
+	return false
+
+
 static func field(hint: String) -> LineEdit:
 	var edit := LineEdit.new()
 	edit.placeholder_text = hint

@@ -100,6 +100,7 @@ func _show_what_you_learned() -> void:
 	onward.text = tr("legacy.learned.next")
 	onward.pressed.connect(_show_the_slots)
 	_column.add_child(onward)
+	MenuStyle.focus_first.call_deferred(self)
 
 
 ## **Panel two — ADR-003.** Everything the last life had, offered once.
@@ -120,6 +121,7 @@ func _show_the_slots() -> void:
 	onward.text = tr("legacy.keep.next")
 	onward.pressed.connect(_show_the_next_life)
 	_column.add_child(onward)
+	MenuStyle.focus_first.call_deferred(self)
 
 
 ## What the last life can still be remembered for. Worn, stashed, and bought —
@@ -168,6 +170,7 @@ func _show_the_next_life() -> void:
 		GameState.draw_on_legacy()
 		finished.emit())
 	add_child(screen)
+	MenuStyle.focus_first.call_deferred(screen)
 
 
 ## Which panel is up, for `--legacy-probe`. Panels rather than a scene each,

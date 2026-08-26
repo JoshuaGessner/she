@@ -293,6 +293,8 @@ var _crouch_latched: bool = false
 var _is_local: bool = false
 ## False while a menu has the player's attention. See `set_driving`.
 var _driving: bool = true
+## What `_apply_pointer` last decided about the cursor. See `pointer_captured`.
+var _pointer_captured: bool = true
 
 ## Where the wire says this body is. The owner writes them from its own
 ## simulation; everybody else reads them and eases toward them.
@@ -660,15 +662,18 @@ func _unhandled_input(event: InputEvent) -> void:
 	# `_unhandled_input` handlers competing for one key resolve by tree order —
 	# which is not a thing to rely on for the key that gets you out.
 	elif event is InputEventMouseButton and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		if InputDevices.pointer_allowed() and not _bag_wanted:
+		# **Not while a menu holds the player** (ADR-141). Clicking anywhere
+		# used to take the cursor back, so the first click aimed at a button on
+		# the Legacy screen stole the pointer instead of pressing anything.
+		if InputDevices.pointer_allowed() and not _bag_wanted and _driving:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif event.is_action_pressed("bag") and not is_incapacitated():
+	elif event.is_action_pressed("bag") and _driving and not is_incapacitated():
 		_bag_wanted = not _bag_wanted
-	elif event.is_action_pressed("drop") and not is_incapacitated():
+	elif event.is_action_pressed("drop") and _driving and not is_incapacitated():
 		_ask_to_drop(false)
-	elif event.is_action_pressed("throw") and not is_incapacitated():
+	elif event.is_action_pressed("throw") and _driving and not is_incapacitated():
 		_ask_to_drop(true)
-	elif event.is_action_pressed("use_waystone"):
+	elif event.is_action_pressed("use_waystone") and _driving:
 		# On the floor, the same key is your one way back up (ADR-050). A
 		# downed player has exactly one thing to spend and this is it, so it
 		# does not need a binding of its own.
@@ -676,7 +681,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			ask_to_self_recover()
 		else:
 			ask_to_spend_waystone()
-	elif event.is_action_pressed("interact") and _bag <= 0.0 and not is_incapacitated():
+	elif (event.is_action_pressed("interact") and _driving and _bag <= 0.0
+			and not is_incapacitated()):
 		_tell_host_reviving(true)
 		# The Shaft first: standing in one and pressing interact means leaving,
 		# not picking up whatever is also lying there. A player in the exit
@@ -723,10 +729,62 @@ func reaching_for() -> WorldItem:
 ## Whether this body is taking orders. `PauseMenu` turns it off while a menu is
 ## open — the world keeps running, so the consequence of opening one is that
 ## you stand still in it.
+## **A menu has the player, or the player has the body** (ADR-141).
+##
+## This set a flag that gated exactly one thing — `_wish_direction()` — so a
+## screen opened over a live body stopped the feet and nothing else. The body
+## went on swinging, went on turning, and went on **recapturing the mouse every
+## frame** in `_update_bag`, which is why the Legacy screen at the fire could
+## not be clicked at all: there was no cursor to click it with, and no screen in
+## this game grabs focus, so a controller had nothing to move between either.
+##
+## Reported as *"still able to attack in the background just not walk or close
+## the death screen."* All three halves of that sentence are this function.
+##
+## `PauseMenu` was the only caller and the only screen that worked. It is the
+## seam now: whatever takes the player's attention calls this, and everything
+## the body would otherwise do about input hangs off it in one place.
 func set_driving(on: bool) -> void:
+	if _driving == on:
+		return
 	_driving = on
 	if not on:
 		_bag_wanted = false
+	_apply_pointer()
+
+
+## Where the mouse belongs, decided once.
+##
+## Captured only when this body is actually being driven and the bag is shut.
+## Two places used to answer this — `_update_bag` per frame and a click handler
+## in `_unhandled_input` — and both of them fought any menu that wanted a
+## cursor. Neither knew about `_driving`.
+func _apply_pointer() -> void:
+	if not _is_local or not InputDevices.pointer_allowed():
+		return
+	_pointer_captured = _driving and is_zero_approx(_bag)
+	var wanted: int = Input.MOUSE_MODE_CAPTURED if _pointer_captured \
+		else Input.MOUSE_MODE_VISIBLE
+	if Input.mouse_mode != wanted:
+		Input.mouse_mode = wanted
+
+
+## What `_apply_pointer` last decided, which is **not** the same question as
+## `Input.mouse_mode`.
+##
+## Godot's headless dummy display ignores `mouse_mode` entirely, so a probe
+## reading the engine gets `VISIBLE` whatever the game asked for — a row that
+## passes whether the code is right or wrong. Planting the capture rule proved
+## it: deleting the `_driving` term changed nothing the sweep could see. The
+## decision is the part worth asserting, and it is the part that was wrong.
+func pointer_captured() -> bool:
+	return _pointer_captured
+
+
+## Does this body answer to input at all right now? False while a menu holds
+## the player, which is what stops a swing landing behind an open screen.
+func driving() -> bool:
+	return _driving
 
 
 ## The bag changed on whichever peer holds it.
@@ -1210,7 +1268,7 @@ func _stand_up(fraction: float) -> void:
 func _offer_a_hand(delta: float) -> void:
 	var holding: bool = _reviving
 	if _is_local:
-		holding = Input.is_action_pressed("interact") and _bag <= 0.0
+		holding = _driving and Input.is_action_pressed("interact") and _bag <= 0.0
 	if not holding:
 		return
 	var reach: float = Config.tuning.interact_reach + Config.tuning.interact_reach_slack
@@ -1455,15 +1513,12 @@ func _update_bag(delta: float) -> void:
 		return
 	if _bag_screen != null:
 		_bag_screen.set_openness(_bag)
-	if not InputDevices.pointer_allowed():
-		return
 	# The mouse is released as soon as the bag starts opening and recaptured
 	# only once it is fully shut, so a half-open bag is never a state where
-	# neither the cursor nor the camera answers to the mouse.
-	if _bag > 0.0 and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-	elif is_zero_approx(_bag) and Input.mouse_mode == Input.MOUSE_MODE_VISIBLE:
-		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# neither the cursor nor the camera answers to the mouse. `_apply_pointer`
+	# decides it, because a menu has a claim on the cursor too (ADR-141) and
+	# this line used to answer without knowing that.
+	_apply_pointer()
 
 
 ## Put this body somewhere, whoever is playing it.
@@ -1601,7 +1656,7 @@ func _physics_process(delta: float) -> void:
 	# that rummaging leaves you unable to fight well; a player who could still
 	# swing at full strength with their bag open is not paying the cost the
 	# no-pause design charges, and the tension it exists to create evaporates.
-	if (_is_local and not bag_is_open() and not is_incapacitated()
+	if (_is_local and _driving and not bag_is_open() and not is_incapacitated()
 			and Input.is_action_just_pressed("attack")):
 		# One weapon in the hands (`M3-T11`). A body carrying a bow does not
 		# also swing, which is `DES-011`'s *"poor in a straight fight"* written
@@ -1894,7 +1949,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	# exactly the vulnerability being paid for.
 	_hold(delta, tuning)
 	_snare(delta, tuning)
-	blocking = (Input.is_action_pressed("block")
+	blocking = (_driving and Input.is_action_pressed("block")
 		and stamina.current >= tuning.block_stamina_minimum
 		and _bag <= 0.0
 		and not is_incapacitated())
@@ -1964,7 +2019,7 @@ func _hold(delta: float, tuning: TuningProfile) -> void:
 	# whether you are one.
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
 	var wants: bool = (body != null and body.verb == &"hold"
-		and Input.is_action_pressed("verb")
+		and _driving and Input.is_action_pressed("verb")
 		and not is_incapacitated()
 		and _bag <= 0.0
 		and stamina.current > 0.0)
@@ -2176,7 +2231,7 @@ func _loose_arrow(aim: Vector3) -> void:
 func _snare(delta: float, tuning: TuningProfile) -> void:
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
 	var wants: bool = (body != null and body.verb == &"snare"
-		and Input.is_action_pressed("verb")
+		and _driving and Input.is_action_pressed("verb")
 		and not is_incapacitated()
 		and _bag <= 0.0
 		and stamina.current >= tuning.snare_stamina_cost)

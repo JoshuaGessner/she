@@ -290,10 +290,34 @@ func _enter() -> void:
 	if resume_is_this_life():
 		get_tree().change_scene_to_file(THRESHOLD)
 		return
-	if GameState.class_id == &"":
+	# **A life that just ended is asked about at the fire, not here** (ADR-141).
+	#
+	# `die()` leaves `last_life` behind and clears `class_id`, so both of the
+	# questions below look unanswered. They are the *same* question: `DES-003`
+	# makes the Legacy screen one flow — what you learned, what she keeps, who
+	# you are next — and `PRO-001` is explicit that it is *"one flow and not two
+	# screens"*, because a Rite node in a slot only pays out if the next life
+	# repeats its class.
+	#
+	# Asking here as well split that flow in half across a scene change. The
+	# profile that reported this had `last_life.class_id = "veidimadr"` sitting
+	# under `life.class_id = "huskarl"`: a class sworn at the menu, and the dead
+	# life still waiting to be answered. The Threshold then opened the Legacy
+	# screen on a **brand-new life**, which reads exactly like what it was
+	# reported as — *"an overlay like I was dead right off the bat"*.
+	#
+	# So the menu asks only when nobody has died: a first life ever, or one
+	# whose Legacy question has already been answered.
+	if menu_asks_the_class():
 		_choose_a_class()
 		return
-	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	# **Only a sworn life opens a run** (ADR-141). Reaching here with no class
+	# means the Legacy question is still open and the fire is about to ask it —
+	# beginning a run for nobody would write `class_id: ""` into `run.active`,
+	# and ADR-138's own guard would then read that back as an orphan and drop it
+	# on the next launch. `M3-T20` gives the sworn path its run file.
+	if GameState.class_id != &"":
+		RunFile.begin(GameState.class_id, GameState.pact_rank)
 	get_tree().change_scene_to_file(THRESHOLD)
 
 
@@ -330,6 +354,24 @@ func resume_is_this_life() -> bool:
 		+ "'%s'; dropping it") % [sworn, GameState.class_id])
 	RunFile.clear()
 	return false
+
+
+## **Is the class question this screen's to ask?** (ADR-141)
+##
+## Only when nobody is waiting to be buried. `die()` clears `class_id` *and*
+## leaves `last_life` behind, so both questions look open — but they are the
+## same question, and `DES-003` gives it to the fire as one flow: what you
+## learned, what she keeps, who you are next. `PRO-001` calls that *"one flow
+## and not two screens"* because a Rite node in a slot only pays out if the next
+## life repeats its class, so the class and the slots have to be chosen in sight
+## of each other.
+##
+## Asking here as well split that flow across a scene change, and the profile
+## that reported it proved the split: `last_life.class_id = "veidimadr"` sitting
+## under `life.class_id = "huskarl"`. The fire then opened a death screen on a
+## life that had just begun.
+func menu_asks_the_class() -> bool:
+	return GameState.class_id == &"" and GameState.last_life.is_empty()
 
 
 func _choose_a_class() -> void:
@@ -988,6 +1030,31 @@ func _resume_rows() -> PackedStringArray:
 
 	RunFile.clear()
 	GameState.class_id = &""
+
+	# ── one question, asked in one place ────────────────────────────────
+	#
+	# Asserted as a **change** across the one fact that decides it, on the same
+	# body of state. A row that only ever watched the refusal would be satisfied
+	# by a menu that never asks anybody's class.
+	GameState.last_life = {}
+	var fresh_life: bool = menu_asks_the_class()
+	GameState.last_life = {"class_id": "veidimadr", "worn": [], "stash": [],
+		"taken": [], "rank": 1}
+	var after_a_death: bool = menu_asks_the_class()
+	GameState.last_life = {}
+	print("[class] who asks     first life=%s, after a death=%s (want yes/no)"
+		% [fresh_life, after_a_death])
+	if not fresh_life:
+		problems.append(("the menu never asks for a class, so a first life "
+			+ "reaches the fire sworn to nothing and ADR-138's guard refuses "
+			+ "the descent — a game that cannot be started"))
+	if after_a_death:
+		problems.append(("the menu asks for a class while a death is still "
+			+ "unanswered — the Legacy screen asks the same question at the "
+			+ "fire, so the player is asked twice for one life and the second "
+			+ "answer is silently discarded by `take_the_oath`. The fire then "
+			+ "opens a death screen on a life that has just begun"))
+
 	return problems
 
 

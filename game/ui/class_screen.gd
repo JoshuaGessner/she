@@ -43,6 +43,9 @@ const CARD_WIDTH: float = 520.0
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	# A pad has to be able to swear an oath (ADR-141, ADR-075). Deferred, since
+	# a `Control` takes focus only once the cards below are in the tree.
+	MenuStyle.focus_first.call_deferred(self)
 
 	var backdrop := ColorRect.new()
 	backdrop.color = MenuStyle.INK

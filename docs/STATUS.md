@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`50/69` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`51/70` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
   M0 --> M1
   M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>19/19"]:::current
+  M3["M3 The Pact<br/>20/20"]:::current
   M2 --> M3
   M4["M4 Vertical Slice<br/>0/13"]:::ahead
   M3 --> M4
@@ -37,7 +37,7 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 19/19 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 20/20 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
@@ -51,7 +51,7 @@ _None. Sequencing is clean._
 | Check | Note |
 |---|---|
 | `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15) but still has 2 ⟨tune⟩ marker(s) |
-| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13) but still has 6 ⟨tune⟩ marker(s) |
+| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19) but still has 4 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08) but still has 1 ⟨tune⟩ marker(s) |
@@ -116,6 +116,7 @@ _None. Sequencing is clean._
 - ✔ `M3-T17` **A descent has somebody in it** — *ADR-138, reported from the first play of the exported build: "there was no weapon or class selection of any kind". One fault with four steps, and **not one of the steps was wrong on its own**. A `user://run.active` sat beside no profile; `_enter()` returned early on its mere existence, correctly by ADR-050; the run file **stores** `class_id` and **nothing read it** — dead data, which `check_dead.py` cannot see because `begin()` is called. So class select was skipped, no class meant no kit, no kit meant an empty hand, and `MeleeWeapon.request_swing` refuses on an empty hand: **the attack button did nothing at all**. **And the run file was ours** — every probe boots a level directly into the player's `user://`, and one exiting between `begin()` and `clear()` leaves a run open. `SaveFile` has had *nothing is written back to a file that was never read* since `M3-T06`; `RunFile` did not, and the difference cost a play session. Two gates now, and **both load-bearing**: planting the read gate alone reported NOT CAUGHT, because the read gate hid the file the write had just created — *a guard whose failure another guard conceals is not covered by a row about the other guard*. `resume_is_this_life()` drops an orphan rather than entering it, which costs one run and is what a run file is worth. The Threshold refuses separately, because `M2-T15` proved a level can be reached without the menu. **The failure deleted its own witness**: both descent plants passed silently, since `_descend` is `call_local` and frees the node holding the assertion — `_probing` holds the scene now, with `--doorway-probe` named as the exception whose subject *is* the transition* `TEC-003` `DES-011`
 - ✔ `M3-T18` **One control list** — *ADR-139, and it **corrects ADR-137**, whose premise was wrong. There was never *no in-game control list*: there were **four** — the fire's readout, two lines at the bottom of `DebugReadout`, the bag's footer, and the screen ADR-137 built. Three hand-typed, two already stale (`DebugReadout` still said `i/Y ink` after ADR-137 moved that binding to Back), and **not one of them named the class verb**, so `F` — a whole milestone of Hold and Snare — was a built verb no player could discover. A stale ADR is believed, which is the reason this project writes them. **And ADR-137 made it worse first**: `DebugReadout` was two things fused into one node, the diagnostics the gate requires *off* and the only in-level control reference in the game, so gating the node took the guidance with it and the very next play reported no guidance in the Deep. One node, two jobs, opposite audiences — and nothing could have caught it, because no probe reads a `Label` for guidance and `check_dead` sees a node that is used. **One table, three renderings**: `glyphs_for` for a contextual prompt (the bag still says *take & place*, which is context and not drift — only the keys come from the table, because the keys are the half that moves) and `compact_lines` for a readout that is a `Label`. **Mouse look is not an `InputMap` action**, so the generated half can structurally never mention it and the authored label carries it — noticing which side a fact falls on is the whole job. `check_project.py` now refuses any string literal outside `controls_screen.gd` that names a key, comments exempt on purpose; and the fire's readout must contain every line the screen teaches, because a hand-typed list is always internally consistent right up until it is wrong. Five plants, none uncaught* `DES-019` `ART-002`
 - ✔ `M3-T19` **A dead button and text on top of text** — *ADR-140, the last two items from the first play. **An empty hand said nothing at all**: `request_swing` returned false and stopped — no sound, no motion, no refusal — which is indistinguishable from a broken build, and principle 4 has no sentence for *the button does nothing*. **Deliberately not an unarmed attack**: a punch is new combat content with reach, damage and a place among `DES-009`'s five verbs, and inventing one here would answer a legibility question with a balance change. Two channels for `DES-018` — a dull `THUMP` and the reticle flinching **inward**, the reach ticks run backwards, motion rather than a new symbol. `empty_hand_gap` ⟨tune⟩, with **two rows because the failures are opposite**: without the gap it rattles under a held button, without the tick it fires once per life and goes silent, which is the silence it replaces. **The blurb drew through the prompts** — `BLURB` was 34 px for a name line and two wrapped lines, 58 by the font's own metrics, so the third landed in the footer. Nothing saw it for the same reason twice: `overflowing()` measured **widths** and never asked whether a block fits its height, and every bag screenshot ever taken had **nothing under the cursor**, so the one region drawing variable-height text had never appeared in a photograph. `--bag-shot` hovers now. And `0.04 kg` clipped to `0.04 k` in a 36 px cell; the unit is dropped at one cell wide, because every number in the panel is kilograms and the header says so. **The check for that is coarser than the screen it defends** — headless font metrics are a few pixels generous, so the marginal case measures as a fit and only the photograph caught it. **And the counters were lying**: a GDScript lambda captures a local by value, so the refusal rows reported zero cues against a refusal firing perfectly — a green-looking failure, and the wrong one got believed for a minute* `DES-009` `DES-019` `DES-018`
+- ✔ `M3-T20` **A death screen on a life that had just begun** — *ADR-141, reported from play and proved by the reporter's own profile: `last_life.class_id = "veidimadr"` sitting under `life.class_id = "huskarl"`. **The class question was asked twice**, because `die()` clears `class_id` *and* leaves `last_life`, so both look open when they are one question — `DES-003` gives it to the fire as one flow and `PRO-001` says *one flow and not two screens*, since a Rite node only pays out if the next life repeats its class. The menu asked anyway, and the Threshold then opened the Legacy screen on a life that had just begun; the second answer was silently discarded, because `take_the_oath` refuses to overwrite an oath and `ClassScreen` emits `chosen` regardless. **And a screen over a live body could not be used at all**: `set_driving` gated exactly one thing, `_wish_direction()`, so the body went on swinging, turning, and **recapturing the mouse every frame** — all three halves of *"able to attack in the background just not walk or close the death screen"* are that one fact. `PauseMenu` was its only caller and the only screen that worked; it is the seam now. **Nothing in the game grabbed focus** — zero calls across the Legacy, Class and Pact screens — so with the cursor gone there was no input path on either device, which ADR-075 forbids. **Why nothing caught it**: every probe presses these screens by calling `press()` or `finished.emit()`, so they were fully tested and completely unreachable; `--threshold-probe` sends `ui_accept` through `Input.parse_input_event` now and asserts the screen moves. **And one row could not fail**: the cursor check read `Input.mouse_mode`, which the headless dummy display ignores — third time this milestone that headless has been more generous than a window, so it asserts the decision instead. Seven plants, none uncaught* `DES-003` `DES-011` `DES-019`
 
 ### M4 — Vertical Slice
 
@@ -144,6 +145,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 140 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 141 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

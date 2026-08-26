@@ -461,6 +461,7 @@ func _threshold_probe() -> void:
 			+ "`DES-003` puts the choice at the moment of death, and a screen "
 			+ "nothing opens is a screen that does not exist")
 	else:
+		problems.append_array(await _screen_has_the_player(shown))
 		shown.finished.emit()
 		await get_tree().process_frame
 		print("[camp] and then asks   record=%s (want empty)"
@@ -468,6 +469,10 @@ func _threshold_probe() -> void:
 		if not GameState.last_life.is_empty():
 			problems.append("the record outlived the choice, so the fire would "
 				+ "ask about the same death every time you came back to it")
+		var after: Player = _session.local_player() if _session != null else null
+		if after != null and not after.driving():
+			problems.append("the body never got the controls back after the "
+				+ "screen closed, so answering the question costs you the run")
 
 	# ─ 1. the reserved instrument ─
 	var reserved: Array[String] = []
@@ -1029,12 +1034,93 @@ func _face_what_happened() -> void:
 	layer.layer = 7
 	layer.add_child(screen)
 	add_child(layer)
+	# **The screen has the player** (ADR-141). Without this the body underneath
+	# keeps driving — and keeps recapturing the mouse every frame — so there is
+	# no cursor to press any of these buttons with, and this screen is the one
+	# you cannot skip. `PauseMenu` has always done it; it is a rule now rather
+	# than one screen's good manners.
+	_hand_over(true)
 	screen.finished.connect(func() -> void:
 		# **The question is answered, so it stops being asked.** Clearing this
 		# is what ends the flow; leaving it would greet the player with their
 		# own death every time they came back to the fire.
 		GameState.forget_the_last_life()
+		_hand_over(false)
 		layer.queue_free())
+
+
+## **Can a person actually use the screen that is up?** (ADR-141)
+##
+## Every probe in this project drives a screen by calling its methods —
+## `press()`, `press_give_back()`, `finished.emit()`. That is the right way to
+## assert what a screen *decides*, and it is why nothing ever noticed that the
+## Legacy screen could not be **reached**: the body underneath kept driving,
+## kept recapturing the mouse every frame, and no screen in the game grabbed
+## focus, so there was neither a cursor nor a focused control. Reported from
+## play as a death screen that could not be closed.
+##
+## So this row does the one thing the others do not: it presses `ui_accept` and
+## checks the screen moved. Four claims, and the first three are the conditions
+## that make the fourth possible at all.
+func _screen_has_the_player(shown: LegacyScreen) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var body: Player = _session.local_player() if _session != null else null
+	if body == null:
+		return PackedStringArray(["no body at the fire to take the controls from"])
+
+	var driving: bool = body.driving()
+	var focused: Control = get_viewport().gui_get_focus_owner()
+	var captured: bool = body.pointer_captured()
+	print("[camp] the screen    body driving=%s, focus=%s, wants cursor=%s" % [
+		driving, focused != null, captured])
+	if driving:
+		problems.append(("the body is still being driven under an open screen "
+			+ "— it goes on swinging and goes on recapturing the mouse, which "
+			+ "is what left the death screen with no cursor to close it"))
+	if focused == null:
+		problems.append(("nothing on the screen has focus, so a controller has "
+			+ "nowhere to start — ADR-075 makes both devices reach everything, "
+			+ "and a screen a pad cannot move around in is the same bug as an "
+			+ "action with no pad binding"))
+	if captured:
+		problems.append("the body still wants the cursor under an open screen, "
+			+ "so there is nothing to press a button with. Asserted against the "
+			+ "decision, not `Input.mouse_mode`: the headless display ignores "
+			+ "that, so a row reading the engine passes either way")
+
+	# **The composition row.** Everything above is a preconditionCheck; this is
+	# the claim: a press reaches the screen and it moves.
+	var before: int = shown.panel()
+	var press := InputEventAction.new()
+	press.action = &"ui_accept"
+	press.pressed = true
+	Input.parse_input_event(press)
+	await get_tree().process_frame
+	var lift := InputEventAction.new()
+	lift.action = &"ui_accept"
+	lift.pressed = false
+	Input.parse_input_event(lift)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	print("[camp] a press       panel %d -> %d" % [before, shown.panel()])
+	if shown.panel() == before:
+		problems.append(("pressing accept did not move the Legacy screen off "
+			+ "panel %d — every other check here calls its methods directly, "
+			+ "so the input path is the one thing they cannot see, and it is "
+			+ "the one that was broken") % before)
+	return problems
+
+
+## Give the player's attention to a screen, or give it back.
+##
+## Looked up rather than held, because bodies are spawned and despawned by
+## `CoopSession` at runtime and a reference caught when the screen opened can be
+## freed before it closes — the lifetime fault `--edges-probe` already found
+## twice in this file.
+func _hand_over(to_a_screen: bool) -> void:
+	var body: Player = _session.local_player() if _session != null else null
+	if body != null:
+		body.set_driving(not to_a_screen)
 
 
 ## Reachable without a mouse, for `--legacy-probe`.

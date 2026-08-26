@@ -3602,5 +3602,58 @@ Five plants on the refusal, three on the bag. One reported NOT CAUGHT while fail
 
 ---
 
+## ADR-141 — A death screen on a life that had just begun
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T20`** · **Reported from play**
+
+**Context:** *"I exited the game and when I started it and descended again it had an overlay like I was dead right off the bat but I was still able to attack in the background just not walk or close the death screen."*
+
+Four defects, and the player's own profile proved the first one:
+
+```
+legacy.last_life.class_id = "veidimadr"   ← a life that died, never answered
+life.class_id             = "huskarl"     ← a new life, already sworn
+```
+
+### 1. The class question was asked twice, in two places
+
+`die()` clears `class_id` **and** leaves `last_life` behind, so both questions look open. They are the same question. `DES-003` gives it to the fire as **one flow** — what you learned, what she keeps, who you are next — and `PRO-001` says *"one flow and not two screens"* for a mechanical reason: a Rite node in a Legacy slot only pays out if the next life repeats that class, so the class and the slots must be chosen in sight of each other.
+
+`MainMenu._enter()` asked anyway, then changed scene. The Threshold, still holding an unanswered `last_life`, opened the Legacy screen **on a life that had just begun**. And the second answer was silently discarded: `take_the_oath` refuses to overwrite an existing oath, and `ClassScreen` emits `chosen` regardless of whether it succeeded.
+
+The menu asks only when nobody is waiting to be buried.
+
+### 2. A screen over a live body could not be used at all
+
+`set_driving()` gated exactly one thing — `_wish_direction()`. So a screen opened over a body stopped the feet and nothing else. The body went on swinging, went on turning, and went on **recapturing the mouse every frame** in `_update_bag`. A second recapture sat in `_unhandled_input`, so the first click aimed at a button stole the pointer instead of pressing it.
+
+All three halves of the report are that one fact: *attack in the background* (never gated), *not walk* (the only thing that was), *not close the death screen* (no cursor).
+
+`PauseMenu` was the **only** caller of `set_driving` and the only screen that worked. It is the seam now: movement, the attack, the guard, the class verb, the bag, drop, throw, interact, the Waystone and the cursor all hang off it in one place.
+
+### 3. Nothing in the game grabbed focus
+
+`LegacyScreen`, `ClassScreen` and `PactScreen` contained **zero** `grab_focus()` calls between them. With the mouse captured and nothing focused there was no input path at all — not one device, not either. ADR-075 makes controller parity a project rule; a screen a pad cannot move around in is the same bug as an action with no pad binding, and it had gone unnoticed in all three.
+
+The Chamber's Pact screen had the identical fault. It set `MOUSE_MODE_VISIBLE` directly and the body underneath set it straight back on the next frame.
+
+### 4. Every probe pressed the buttons by calling them
+
+`press()`, `press_give_back()`, `finished.emit()`. That is the right way to assert what a screen *decides*, and it is exactly why nothing caught any of the above: the screens were fully tested and completely unreachable.
+
+So `--threshold-probe` now presses **`ui_accept` through `Input.parse_input_event`** and asserts the Legacy screen moves off panel 0. Three preconditions guard it — the body is not driving, something has focus, the body does not want the cursor — and then one claim that a press arrives.
+
+### The row that could not fail, caught by planting it
+
+The cursor check first read `Input.mouse_mode`, and deleting the `_driving` term from the capture rule changed **nothing the sweep could see**: Godot's headless dummy display ignores `mouse_mode` entirely, so the probe read `VISIBLE` whether the code was right or wrong. `pointer_captured()` exposes the **decision** instead, which is both testable and the part that was actually wrong.
+
+Third time this milestone that a headless renderer has been more generous than the real one — after the bag's font metrics and the 64×64 viewport. **What the engine does in `--headless` is not evidence about what it does in a window.**
+
+### Verification
+
+Seven plants, none uncaught: the menu asking twice, the menu never asking, the body still driving under a screen, nothing grabbing focus, the cursor rule losing its `_driving` term, a press reaching nothing, and the controls never coming back.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

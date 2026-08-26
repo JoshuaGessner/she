@@ -37,6 +37,8 @@ var _column: VBoxContainer = null
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	# The tree is bought with a pad as well as a mouse (ADR-141, ADR-075).
+	MenuStyle.focus_first.call_deferred(self)
 
 	var backdrop := ColorRect.new()
 	backdrop.color = MenuStyle.INK

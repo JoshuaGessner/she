@@ -352,8 +352,17 @@ func _open_the_pact() -> void:
 	add_child(layer)
 	_pact.tree_exited.connect(func() -> void:
 		_pact = null
+		if _player != null and is_instance_valid(_player):
+			_player.set_driving(true)
 		layer.queue_free())
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# **Through the body, not around it** (ADR-141). This set the mouse mode
+	# directly and the body underneath set it straight back on the next frame —
+	# `_update_bag` recaptured whenever the bag was shut, which it is. The tree
+	# was as unclickable as the Legacy screen; only `--pact-probe` ever reached
+	# it, because probes press buttons by calling `press_*` rather than through
+	# input.
+	if _player != null:
+		_player.set_driving(false)
 
 
 func _leave() -> void:
