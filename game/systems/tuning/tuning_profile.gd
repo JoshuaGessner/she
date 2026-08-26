@@ -248,6 +248,18 @@ extends Resource
 ## how much of a floor you can turn into power, which is `DES-003`'s coupling
 ## stated once. Below 1.0 because a cycle that converts its whole obligation
 ## into Boon every cycle makes the debt self-financing.
+## **How many things she remembers** ⟨tune⟩ (`M3-T05`, ADR-003, `DES-003`).
+##
+## Three, *"expanding very slowly — one at lineage milestones, capped at 5
+## lifetime."* The expansion is `M4`'s; what matters here is that the number is
+## small and fixed, because `DES-003`'s claim is that **power creep is bounded
+## by design rather than by tuning**: three slots is three slots, and it cannot
+## spiral however many lifetimes accrue.
+@export var legacy_slot_count: int = 3
+## What a Scarred item is worth against a fresh one ⟨tune⟩. `DES-003` says
+## *"carried through death at reduced power"* — a head start, not a stockpile.
+@export var scarred_power: float = 0.7
+
 @export var boon_cap_fraction: float = 0.75
 
 @export var boon_per_tribute: int = 60

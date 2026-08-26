@@ -3189,5 +3189,57 @@ Tenth assertion this milestone that could not fail, and a **new variant**: the p
 
 ---
 
+## ADR-133 — She'll only remember three things
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T05`** · **Builds ADR-003, ADR-006** · **Save v7**
+
+**Context:** `M3-T05`. `DES-003` calls the Legacy tier *"the anti-wipe-cliff mechanism, and the piece I feel strongest about"* — one screen doing enormous emotional work, on the oldest trick in roguelite design: **convert the wipe into a decision.** Players remember choices; they resent deletions. None of it existed. Death called `GameState.die()` and the player arrived at the fire with nothing to say about it.
+
+### The life is over before the choice is made
+
+`die()` snapshots the life into `last_life` and **then** wipes. The screen chooses from that record afterwards.
+
+The obvious alternative — offer the choice, then wipe — is wrong in a way that matters: a wipe that waits on a decision is **a life you keep by not deciding**, and quitting at that moment would be exactly the escape `M3-T15` closed a task ago. `last_life` is LINEAGE tier, so coming back later and picking is allowed; coming back later and being alive is not.
+
+It also keeps `TEC-003`'s death operation the one-function thing it is meant to be: delete LIFE, keep LINEAGE, move LEGACY across. The snapshot is one line at the top of it rather than a new flow wrapped around it.
+
+### Three panels, and the order is the argument
+
+| | |
+|---|---|
+| **What you learned** | ADR-006: *no run can ever return zero*, and the death screen must show what was **gained**. First, because it is the answer to the question a player is actually asking. |
+| **What she keeps** | ADR-003: three slots, one item or one node each, **never raw Boon**. |
+| **Who you are next** | ADR-009: death is the door to a new class. `M3-T02`'s screen, reused rather than rebuilt. |
+
+`PRO-001` insisted these are **one flow, not two screens**, and the reason is mechanical: a Rite node in a slot only applies if the next life repeats that class, so the choice and its payload must be made in sight of each other. Panels on one object rather than a scene each is what makes that structural instead of a note.
+
+**The refusal of Boon is on the *kind*, not on a list of ids.** ADR-003's argument is that a fungible payload is the optimal pick every time and collapses the screen into percentage retention with extra UI — so anything that is not an item or a node is refused, and a future currency cannot arrive through a gap in a denylist.
+
+### Scarred is two halves, and shipping one is shipping none
+
+`DES-003`: *"carried through death at reduced power and cannot be tributed. They're a head start, not a stockpile."*
+
+`check_dead.py` caught the first draft with `scarred_power` **unread** — the tribute rule was built and the power rule was a number in a file. The scale lands on **damage alone**, deliberately: a Scarred blade that also swung slower would be two penalties for one sentence, and `DES-009`'s timings are what a player reads a fight by. It hits softer; it does not handle like a different weapon.
+
+The tribute half bites where value is **counted** rather than where items are stored — `total_tribute`, `richest`, `GameState.tribute` and the Tithe all read `tribute_worth()`. Otherwise a Legacy slot launders a hoard through a life you were going to lose, which is raw Boon arriving through the door marked *item*.
+
+A kept **node** is simply already bought. That raises the new life's rank and therefore its Tithe from the first cycle — measured: rank 2, owing 85. You begin stronger and owing more, which is `DES-003`'s coupling holding across death rather than being dodged.
+
+### `check_dead.py` found the join, for the second time this milestone
+
+`--legacy-probe` proves every rule inside the screen. **Nothing proved the Threshold ever opens one** — the composition, which is the shape ADR-105, ADR-108, ADR-110 and ADR-117 all had. It surfaced as an orphaned `legacy_screen()` accessor, exactly as `ask_to_unequip` surfaced a one-way equipment slot at `M3-T07` (ADR-127).
+
+The tool only asks whether a name is referenced, and says so about itself. *"Nobody references this"* keeps turning out to be a reliable smell for *"nobody built the join."*
+
+### Three uncaught plants, three different faults
+
+- **The cap row could not fail.** It offered exactly three things against a cap of three, so deleting the cap changed nothing. Eleventh assertion this milestone that could not fail. There is a fourth thing now, and the probe **names** what it keeps rather than looping `offers()` — which had made both the cap row and the rank row hostage to an ordering neither is about.
+- **A plant that was a no-op.** Reordering `carried.clear()` ahead of the snapshot proves nothing, because `_remember_the_life` never reads `carried`. The real violation is taking the record after `stash` and `taken` are gone.
+- **A plant whose expectation could never match.** Built with a `.replace()` that left a double space, so it would have reported NOT CAUGHT against correct code forever. The mirror of the `label + FAIL on one line` fix from `M3-T09`: there, the matching was too loose; here, the expectation was simply wrong.
+
+And one row was wrong rather than the code: it asserted a kept node raises rank, using a **lesser** node worth 1 Boon when rank 2 needs more. The claim was never true of that life.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

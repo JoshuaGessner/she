@@ -51,6 +51,8 @@ var _buffered_until: float = -1.0
 ## verbs and none of them is a punch, so there is nothing to fall back to and
 ## nothing is invented to fill the gap.
 var _held: WieldableTrait = null
+## Whether what is held came back through a Legacy slot (`M3-T05`).
+var _scarred: bool = false
 
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _model: Node3D = $Model
@@ -65,9 +67,18 @@ func _ready() -> void:
 ## Give it what the main hand holds, or null. Called down by the body, which is
 ## the only thing that knows whose slots these are — `Equipment` never reaches
 ## up and this never reaches sideways.
-func wield(blade: WieldableTrait) -> void:
-	if _held == blade:
+## **Scarred, or whole** (`M3-T05`, `DES-003`). *"Legacy items are Scarred:
+## carried through death at reduced power."*
+##
+## Passed in rather than looked up, on this node's own rule — it is told what it
+## holds and never asks. The scale lands on **damage alone**, deliberately: a
+## Scarred blade that also swung slower would be two penalties for one sentence,
+## and `DES-009`'s timings are what a player reads a fight by. It hits softer;
+## it does not handle like a different weapon.
+func wield(blade: WieldableTrait, scarred: bool = false) -> void:
+	if _held == blade and _scarred == scarred:
 		return
+	_scarred = scarred
 	_held = blade
 	# A weapon that leaves your hand mid-swing takes the swing with it. The
 	# alternative is a hitbox armed by a blade nobody is holding.
@@ -87,7 +98,7 @@ func _dress() -> void:
 	if _held == null:
 		_hitbox.disarm()
 		return
-	_hitbox.damage = _held.damage
+	_hitbox.damage = _held.damage * (Config.tuning.scarred_power if _scarred else 1.0)
 	var shape := _hitbox.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape != null:
 		var box := shape.shape as BoxShape3D

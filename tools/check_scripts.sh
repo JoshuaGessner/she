@@ -326,6 +326,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **She'll only remember three things** (`M3-T05`, ADR-003, ADR-006).
+	#
+	# `DES-003` calls the Legacy screen the anti-wipe-cliff mechanism and the
+	# piece it feels strongest about. The rows that matter are the ones keeping
+	# it a *bounded* decision: three slots and no fourth, never raw Boon, and
+	# what comes back is Scarred and worth nothing to her — without that last
+	# one a slot launders a hoard through a life you were going to lose.
+	legacy="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/chamber.tscn -- --legacy-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$legacy" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a death has to be a decision" >&2
+		printf '%s\n' "$legacy" | grep -E '\[legacy\]|\[pact\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **A run you cannot walk away from** (`M3-T15`, ADR-050, ADR-132).
 	#
 	# ADR-050: *"disconnecting is never an escape from a bad run."* The load-
@@ -701,6 +716,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "what you hold decides the swing and the pack decides the bag,"
 	echo "the fallen can see what is happening to them and go on playing,"
 	echo "a run stays open until it resolves and quitting is not an escape,"
+	echo "she remembers three things and they come back Scarred,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

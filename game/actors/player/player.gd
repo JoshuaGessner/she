@@ -1983,7 +1983,8 @@ func _dress_the_body(body: ClassResource) -> void:
 func _on_equipment_changed() -> void:
 	var swung := equipment.trait_in(Enums.Slot.MAIN_HAND, WieldableTrait) as WieldableTrait
 	var drawn := equipment.trait_in(Enums.Slot.MAIN_HAND, RangedTrait) as RangedTrait
-	weapon.wield(swung)
+	var in_hand: ItemInstance = equipment.in_slot(Enums.Slot.MAIN_HAND)
+	weapon.wield(swung, in_hand != null and in_hand.scarred)
 	if drawn != null and ranged == null:
 		ranged = RangedWeapon.new()
 		ranged.name = "Bow"

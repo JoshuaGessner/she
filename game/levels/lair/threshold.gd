@@ -80,6 +80,7 @@ func _ready() -> void:
 	add_child(hud)
 	hud.add_child(Reticle.new())
 	add_child(PauseMenu.new())
+	_face_what_happened()
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--threshold-shot="):
 			_threshold_shot(arg.split("=", true, 1)[1])
@@ -329,6 +330,38 @@ func _doorway_probe() -> void:
 ##    makes this a driver rather than a looping file.
 func _threshold_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ 0. **the fire asks about the death** (`M3-T05`, ADR-133) ─
+	#
+	# The composition row. `--legacy-probe` builds a `LegacyScreen` itself and
+	# proves every rule inside it; **nothing proved the Threshold ever shows
+	# one**, which is the shape ADR-105, ADR-108, ADR-110 and ADR-117 all had —
+	# every piece checked and the join built by nobody. `check_dead.py` found it
+	# as an orphaned accessor, which is the second time it has been the thing
+	# that noticed (`ask_to_unequip`, ADR-127).
+	print("[camp] no death yet  screen=%s (want none)" % (legacy_screen() != null))
+	if legacy_screen() != null:
+		problems.append("the Legacy screen is up with no life behind it — it "
+			+ "would greet every arrival at the fire with a death that did not "
+			+ "happen")
+	GameState.last_life = {"class_id": "huskarl", "worn": [], "stash": [],
+		"taken": [], "rank": 1}
+	_face_what_happened()
+	await get_tree().process_frame
+	var shown: LegacyScreen = legacy_screen()
+	print("[camp] a life ended  screen=%s" % (shown != null))
+	if shown == null:
+		problems.append("a life ended down there and the fire said nothing — "
+			+ "`DES-003` puts the choice at the moment of death, and a screen "
+			+ "nothing opens is a screen that does not exist")
+	else:
+		shown.finished.emit()
+		await get_tree().process_frame
+		print("[camp] and then asks   record=%s (want empty)"
+			% (not GameState.last_life.is_empty()))
+		if not GameState.last_life.is_empty():
+			problems.append("the record outlived the choice, so the fire would "
+				+ "ask about the same death every time you came back to it")
 
 	# ─ 1. the reserved instrument ─
 	var reserved: Array[String] = []
@@ -807,3 +840,48 @@ func _arrived_from_the_deep() -> void:
 	print("[extract] %s arrived at the Threshold, body=%s, carried=%d" % [
 		"host" if multiplayer.is_server() else "client",
 		"yes" if body != null else "NO", GameState.carried.size()])
+
+
+## **A life ended down there, and she is waiting to be told what to keep**
+## (`M3-T05`, ADR-133).
+##
+## `last_life` is written by `die()` and cleared when the choice is made, so its
+## presence *is* the question. Checked here rather than at the moment of death
+## because `DES-003` wants a scene rather than a modal over a corpse — and
+## because the fire is where the rest of the loop's decisions already happen
+## (`M2-T06`).
+##
+## Not gated on a probe flag: the screen draws nothing unless a life actually
+## ended, so it cannot fade over a screenshot, and a probe that kills a player
+## deliberately should be meeting it rather than skipping past it.
+func _face_what_happened() -> void:
+	if GameState.last_life.is_empty():
+		return
+	var screen := LegacyScreen.new()
+	# Its own layer, above whatever the Threshold built. Same reason
+	# `MainMenu._choose_a_class` does it: this can be the last thing between a
+	# player and their next run, and a failure to build it must not leave them
+	# looking at nothing (ADR-107's grey screen).
+	var layer := CanvasLayer.new()
+	layer.layer = 7
+	layer.add_child(screen)
+	add_child(layer)
+	screen.finished.connect(func() -> void:
+		# **The question is answered, so it stops being asked.** Clearing this
+		# is what ends the flow; leaving it would greet the player with their
+		# own death every time they came back to the fire.
+		GameState.forget_the_last_life()
+		layer.queue_free())
+
+
+## Reachable without a mouse, for `--legacy-probe`.
+func legacy_screen() -> LegacyScreen:
+	for child: Node in get_children():
+		var layer := child as CanvasLayer
+		if layer == null:
+			continue
+		for grandchild: Node in layer.get_children():
+			var found := grandchild as LegacyScreen
+			if found != null:
+				return found
+	return null

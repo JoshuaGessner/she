@@ -66,6 +66,22 @@ var hoard_value: int = 0
 ## floor at the same rate, so nothing may ever read this and hand out a number.
 ## `M3-T05` is what spends it, on Legacy slots.
 var lineage_progress: int = 0
+## **What she agreed to remember** (`M3-T05`, ADR-003, `DES-003`).
+##
+## LINEAGE tier: these are the bridge across death and the only thing that
+## crosses it besides knowledge. At most `legacy_slot_count` of them, each one
+## `{"kind": "item"|"node", "id": ...}` — **never raw Boon**, which ADR-003
+## disallows because a fungible payload is the optimal pick every time and
+## collapses the death screen into percentage retention with extra UI.
+var legacy: Array[Dictionary] = []
+## **What the last life had to offer**, snapshotted the instant before the wipe.
+##
+## LINEAGE tier so that quitting between the death and the choice cannot dodge
+## either: the life is already over — `die()` is still the one-function
+## operation `TEC-003` describes — and this is the record the Legacy screen
+## chooses *from*. Coming back later and picking is allowed; coming back later
+## and being alive is not.
+var last_life: Dictionary = {}
 
 ## Runs completed this session, for the readouts. Not progression; `DES-003`'s
 ## Pact Rank is `M3-T04` and is a different number with different rules.
@@ -167,7 +183,11 @@ func bring_home(items: Array[ItemInstance]) -> void:
 ## her and never gives any of it back.
 func tribute(item: ItemInstance) -> void:
 	hoard.append(item.definition.id)
-	var value: int = item.definition.tribute_value
+	# **Scarred is worth nothing** (`M3-T05`, ADR-003). A Legacy slot carries a
+	# head start across death and never value — otherwise it launders a hoard
+	# through a life you were going to lose, which is raw Boon arriving through
+	# the door marked *item*.
+	var value: int = item.tribute_worth()
 	hoard_value += value
 	# **Only the surplus becomes Boon** (`DES-004`): *"surplus tribute beyond
 	# your Tithe converts to Boon at full rate; tribute below the Tithe converts
@@ -198,7 +218,7 @@ func tribute(item: ItemInstance) -> void:
 	# The same gesture pays two things at once, which is the point: there is no
 	# separate "pay the Tithe" button anywhere, because `DES-014` puts the
 	# keep-or-give decision at the hoard and giving *is* paying.
-	tithe_paid += item.definition.tribute_value
+	tithe_paid += item.tribute_worth()
 	carried.erase(item)
 	stash.erase(item)
 	_persist()
@@ -221,7 +241,110 @@ func withdraw(item: ItemInstance) -> void:
 ## **The great reset** (`DES-008`, ADR-004). Everything you were carrying and
 ## everything you had put aside, gone. The hoard is untouched and that is the
 ## entire point: the pile is what you have to show for the lives it cost.
+## **The instant before the wipe** (`M3-T05`). What this life could still be
+## remembered for: what it was wearing, what waited in the stash, and what it
+## bought in the tree. Not the carried bag — `DES-012` is explicit that dying
+## costs you what you were carrying, and rescue is the only thing that saves it.
+## **Ask her to remember one thing** (`M3-T05`, ADR-003).
+##
+## An item id or a node id, and never Boon. Returns why not, or `""`.
+func why_not_keep(kind: String, id: StringName) -> String:
+	if legacy.size() >= Config.tuning.legacy_slot_count:
+		return "she will remember %d things and no more" \
+			% Config.tuning.legacy_slot_count
+	for slot: Dictionary in legacy:
+		if String(slot.get("id", "")) == String(id):
+			return "she is already keeping that"
+	if kind == "item":
+		if ItemCatalogue.by_id(id) == null:
+			return "this build does not have that item"
+		if not (last_life.get("worn", []) as Array).has(String(id)) \
+				and not (last_life.get("stash", []) as Array).has(String(id)):
+			return "that was not yours to lose"
+	elif kind == "node":
+		if AspectCatalogue.by_id(id) == null:
+			return "this build does not have that node"
+		if not (last_life.get("taken", []) as Array).has(String(id)):
+			return "that life never bought it"
+	else:
+		# **Not Boon, and not anything else either** (ADR-003). A fungible
+		# payload would be the optimal pick every time and turn this screen into
+		# percentage retention with extra UI, so the refusal is on the *kind*
+		# rather than on a list of banned ids.
+		return "she keeps a thing or a lesson, never a measure of Boon"
+	return ""
+
+
+func keep_in_legacy(kind: String, id: StringName) -> bool:
+	if why_not_keep(kind, id) != "":
+		return false
+	legacy.append({"kind": kind, "id": String(id)})
+	_persist()
+	return true
+
+
+## **What the new life starts with.** Called once, when a life begins.
+##
+## `DES-003`: *"Legacy items are Scarred — carried through death at reduced
+## power and cannot be tributed. They're a head start, not a stockpile."* A kept
+## **node** is simply already bought, which raises the new life's rank and
+## therefore its Tithe from the first cycle: you begin stronger and owing more,
+## which is `DES-003`'s coupling working rather than being circumvented.
+func draw_on_legacy() -> void:
+	for slot: Dictionary in legacy:
+		var id := StringName(slot.get("id", ""))
+		match String(slot.get("kind", "")):
+			"item":
+				var definition: ItemResource = ItemCatalogue.by_id(id)
+				if definition == null:
+					continue
+				var made: ItemInstance = ItemInstance.of(definition, _next_stash_id())
+				made.scarred = true
+				stash.append(made)
+			"node":
+				if AspectCatalogue.by_id(id) != null and not taken.has(id):
+					taken.append(id)
+	_persist()
+
+
+## The Legacy question has been answered. Clears the record `die()` left, so
+## the Threshold stops asking — and so a second death has a clean one to write.
+func forget_the_last_life() -> void:
+	last_life = {}
+	_persist()
+
+
+func _next_stash_id() -> int:
+	var highest: int = 0
+	for item: ItemInstance in stash:
+		highest = maxi(highest, item.instance_id)
+	return highest + 1
+
+
+func _remember_the_life() -> Dictionary:
+	var wearing: Array[String] = []
+	for slot: String in worn:
+		wearing.append(String(worn[slot]))
+	var stashed: Array[String] = []
+	for item: ItemInstance in stash:
+		stashed.append(String(item.definition.id))
+	var nodes: Array[String] = []
+	for node: StringName in taken:
+		nodes.append(String(node))
+	return {
+		"class_id": String(class_id),
+		"worn": wearing,
+		"stash": stashed,
+		"taken": nodes,
+		"rank": pact_rank,
+	}
+
+
 func die() -> void:
+	# **Before anything is cleared.** The Legacy screen chooses from this, and
+	# it has to exist for a life that has already ended — a choice offered
+	# *instead* of the wipe would be a life you could keep by not choosing.
+	last_life = _remember_the_life()
 	carried.clear()
 	stash.clear()
 	# **Death is the door to a new class** (ADR-009), and that is a retention
@@ -599,6 +722,11 @@ func to_dict() -> Dictionary:
 	return {
 		"lineage": {"hoard": pile, "hoard_value": hoard_value,
 			"progress": lineage_progress},
+		# **Its own section** (`TEC-003`), not a corner of `lineage`. The three
+		# tiers are the design's own (`DES-003`) and the save mirrors them
+		# deliberately, because that alignment is what keeps death a one-function
+		# operation: delete LIFE, keep LINEAGE, move LEGACY across.
+		"legacy": {"slots": legacy, "last_life": last_life},
 		"life": {
 			"stash": kept,
 			"class_id": String(class_id),
@@ -629,6 +757,13 @@ func from_dict(data: Dictionary) -> void:
 		hoard.append(StringName(raw))
 	hoard_value = int(lineage.get("hoard_value", 0))
 	lineage_progress = int(lineage.get("progress", 0))
+	var kept: Dictionary = _section(data, "legacy")
+	legacy.clear()
+	for row: Variant in kept.get("slots", []) as Array:
+		var slot := row as Dictionary
+		if slot != null:
+			legacy.append(slot)
+	last_life = (kept.get("last_life", {}) as Dictionary).duplicate(true)
 
 	var life: Dictionary = _section(data, "life")
 	stash.clear()

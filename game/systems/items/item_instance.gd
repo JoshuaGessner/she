@@ -56,6 +56,17 @@ var rotated: bool = false
 ## cannot live on the shared definition — that is ADR-084's argument arriving as
 ## a real case rather than a hypothetical lantern.
 var bound_to: int = 0
+## **She remembered this one** (`M3-T05`, `DES-003`).
+##
+## *"Legacy items are Scarred: carried through death at reduced power and
+## cannot be tributed. They're a head start, not a stockpile."*
+##
+## Per-instance rather than per-definition, which is the whole reason this class
+## exists: a Scarred seax and a fresh one are the same `ItemResource` and must
+## not be the same object. The tribute rule is the load-bearing half — without
+## it, a Legacy slot would be a way to carry **value** across death, and
+## `DES-003` puts Legacy in the tier that is power-free of *economy* as well.
+var scarred: bool = false
 
 
 static func of(from: ItemResource, id: int) -> ItemInstance:
@@ -101,6 +112,17 @@ func clamor() -> float:
 ## The wire and save form: the **stable string id** plus this instance's own
 ## state, never a resource path (`TEC-003`, `TEC-006` principle 3). Moving the
 ## file that defines an item must not break a save or desync a party.
+## What this one is worth as tribute. **Zero if Scarred** (`DES-003`): a
+## Legacy slot carries a head start across death, never value — otherwise it
+## becomes a way to launder a hoard through a life you were going to lose
+## anyway, which is the loophole ADR-003 closed for raw Boon arriving through
+## the door marked *item*.
+func tribute_worth() -> int:
+	if scarred:
+		return 0
+	return definition.tribute_value
+
+
 func to_wire() -> Dictionary:
 	return {
 		"instance": instance_id,
@@ -108,6 +130,7 @@ func to_wire() -> Dictionary:
 		"cell": cell,
 		"rotated": rotated,
 		"bound": bound_to,
+		"scarred": scarred,
 	}
 
 
@@ -122,4 +145,7 @@ static func from_wire(row: Dictionary) -> ItemInstance:
 	made.cell = row["cell"] as Vector2i
 	made.rotated = bool(row["rotated"])
 	made.bound_to = int(row["bound"])
+	# Absent in a save written before `M3-T05`, and false is right for every one
+	# of them: nothing was Scarred before there were Legacy slots to scar it.
+	made.scarred = bool(row.get("scarred", false))
 	return made

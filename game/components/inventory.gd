@@ -201,7 +201,7 @@ func heaviest() -> ItemInstance:
 func richest() -> ItemInstance:
 	var best: ItemInstance = null
 	for item: ItemInstance in _items:
-		if best == null or item.definition.tribute_value > best.definition.tribute_value:
+		if best == null or item.tribute_worth() > best.tribute_worth():
 			best = item
 	return best
 
@@ -224,7 +224,10 @@ func embers() -> Array[int]:
 func total_tribute() -> int:
 	var sum: int = 0
 	for item: ItemInstance in _items:
-		sum += item.definition.tribute_value
+		# `tribute_worth`, not the definition's value: a Scarred item is worth
+		# nothing to her (`M3-T05`, `DES-003`), and a bag that still counted it
+		# would report a haul the Chamber then refuses to take.
+		sum += item.tribute_worth()
 	return sum
 
 

@@ -119,6 +119,8 @@ func _ready() -> void:
 			_chamber_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
 			_tithe_probe()
+		elif arg == "--legacy-probe":
+			_legacy_probe()
 		elif arg == "--pact-probe":
 			_pact_probe()
 
@@ -915,3 +917,147 @@ func _report_pact(problems: PackedStringArray) -> void:
 	for problem: String in problems:
 		printerr("[pact] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **She'll only remember three things** (`M3-T05`, ADR-003, ADR-006, ADR-133).
+##
+## `DES-003` calls the Legacy screen the anti-wipe-cliff mechanism and the piece
+## it feels strongest about. Every row here is one of the rules that make it a
+## bounded decision rather than percentage retention with extra UI.
+func _legacy_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# A life worth losing: gear on, something stashed, and a tree bought.
+	GameState.legacy.clear()
+	GameState.last_life = {}
+	GameState.class_id = &"huskarl"
+	# **A tree worth enough to move a rank.** The first draft kept one lesser
+	# node and asserted rank rose; a lesser node costs 1 Boon and rank 2 needs
+	# more, so the row failed on a claim that was never true of that life
+	# rather than on anything the code did. Ballast *and* its keystone is a
+	# real route (`why_not` enforces the prerequisite), and 6 Boon is a rank.
+	GameState.worn = {"MAIN_HAND": "wpn_seax"}
+	GameState.stash.clear()
+	GameState.stash.append(ItemInstance.of(
+		ItemCatalogue.by_id(&"glt_hoard_coin"), 1))
+	GameState.taken.clear()
+	GameState.taken.append(&"hrd_ballast")
+	GameState.taken.append(&"hrd_weight_of_kings")
+	var rank_before: int = GameState.pact_rank
+
+	# ─ 1. death leaves a record, and the record is what is offered ─
+	GameState.die()
+	var went: Dictionary = GameState.last_life
+	print("[legacy] the life that ended  class '%s', %d worn, %d stashed, %d node(s)" % [
+		went.get("class_id", ""), (went.get("worn", []) as Array).size(),
+		(went.get("stash", []) as Array).size(),
+		(went.get("taken", []) as Array).size()])
+	if went.is_empty():
+		problems.append("death left no record, so there is nothing for her to "
+			+ "be asked to remember and `DES-003`'s whole screen has no input")
+		_report_pact(problems)
+		return
+	print("[legacy] and it is over        rank %d → %d, stash %d, tree %d" % [
+		rank_before, GameState.pact_rank, GameState.stash.size(),
+		GameState.taken.size()])
+	if not GameState.stash.is_empty() or not GameState.taken.is_empty():
+		problems.append("the life did not actually end — the record is meant to "
+			+ "be taken *before* the wipe and the wipe still has to happen, or "
+			+ "the screen becomes a life you keep by not choosing")
+
+	# ─ 2. the screen is one flow, in ADR-006's order ─
+	var screen := LegacyScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	print("[legacy] the screen           %.0f x %.0f, panel %d (want 0)" % [
+		screen.size.x, screen.size.y, screen.panel()])
+	if screen.size.x < 2.0 or screen.size.y < 2.0:
+		problems.append("the Legacy screen has no rect (ADR-111)")
+	if screen.panel() != 0:
+		problems.append("the flow does not open on *what you learned* — ADR-006 "
+			+ "puts it first because it is the answer to the question a player "
+			+ "is actually asking after a death")
+	var offered: Array[Dictionary] = screen.offers()
+	print("[legacy] offered              %d thing(s) and lesson(s)" % offered.size())
+	if offered.size() < 4:
+		problems.append(("only %d thing(s) offered from a life that wore one, "
+			+ "stashed one and bought two — `DES-003` chooses *from what you "
+			+ "had*, and a fourth is what gives the cap something to refuse")
+			% offered.size())
+
+	# ─ 3. **never raw Boon** (ADR-003) ─
+	var boon_refusal: String = GameState.why_not_keep("boon", &"boon")
+	print("[legacy] asked for Boon       '%s'" % boon_refusal)
+	if boon_refusal == "":
+		problems.append("raw Boon could be kept — ADR-003 disallows it because "
+			+ "a fungible payload is the optimal pick every time, which "
+			+ "collapses this screen into percentage retention with extra UI")
+
+	# ─ 4. three, and no more ─
+	# **Named rather than looped**, so the tree that comes back is worth a rank
+	# and the fourth thing is left over to be refused. Looping every offer took
+	# whatever `offers()` happened to list first, which made both the cap row
+	# and the rank row hostage to an ordering neither is about.
+	var kept: int = 0
+	for wanted: Array in [["item", &"glt_hoard_coin"], ["node", &"hrd_ballast"],
+			["node", &"hrd_weight_of_kings"]]:
+		if GameState.keep_in_legacy(String(wanted[0]), wanted[1] as StringName):
+			kept += 1
+	var over_the_cap: String = GameState.why_not_keep("item", &"wpn_seax")
+	var refused: bool = not GameState.keep_in_legacy("item", &"wpn_seax")
+	print("[legacy] kept                 %d of %d offered (cap %d)" % [
+		kept, offered.size(), Config.tuning.legacy_slot_count])
+	print("[legacy] a fourth thing       %s — '%s'" % [
+		"refused" if refused else "ACCEPTED", over_the_cap])
+	if not refused:
+		problems.append(("a fourth thing was kept against a cap of %d — "
+			+ "`DES-003` bounds power creep *by design rather than by tuning*, "
+			+ "and three slots is three slots however many lifetimes accrue")
+			% Config.tuning.legacy_slot_count)
+	if GameState.legacy.size() > Config.tuning.legacy_slot_count:
+		problems.append(("she is keeping %d things against a cap of %d — "
+			+ "`DES-003` bounds power creep *by design rather than by tuning*, "
+			+ "and three slots is three slots however many lifetimes accrue")
+			% [GameState.legacy.size(), Config.tuning.legacy_slot_count])
+
+	# ─ 5. **what comes back is Scarred, and worth nothing to her** ─
+	GameState.stash.clear()
+	GameState.taken.clear()
+	GameState.draw_on_legacy()
+	var scarred: int = 0
+	var worth: int = 0
+	for item: ItemInstance in GameState.stash:
+		if item.scarred:
+			scarred += 1
+		worth += item.tribute_worth()
+	print("[legacy] came back            %d stashed, %d Scarred, worth %d to her" % [
+		GameState.stash.size(), scarred, worth])
+	if GameState.stash.is_empty() and GameState.taken.is_empty():
+		problems.append("the slots paid out nothing, so a Legacy slot is a "
+			+ "promise with no payload")
+	if scarred != GameState.stash.size():
+		problems.append(("%d of %d items came back unmarked — `DES-003` says "
+			+ "Legacy items are **Scarred**, and one that is not is a full-power "
+			+ "item carried across a death") % [
+			GameState.stash.size() - scarred, GameState.stash.size()])
+	if worth != 0:
+		problems.append(("what she remembered is worth %d back to her — a "
+			+ "Scarred item **cannot be tributed**, or a Legacy slot launders a "
+			+ "hoard through a life you were going to lose anyway, which is raw "
+			+ "Boon arriving through the door marked *item*") % worth)
+
+	# ─ 6. a kept node is already bought, and it costs what it always did ─
+	print("[legacy] a kept lesson        rank %d (the last life reached %d), "
+		% [GameState.pact_rank, rank_before]
+		+ "tree %d node(s), tithe %d" % [
+			GameState.taken.size(), GameState.tithe_due()])
+	if GameState.taken.is_empty():
+		problems.append("no lesson came back, so a node in a slot is a payload "
+			+ "that pays nothing")
+	elif GameState.pact_rank <= 1:
+		problems.append(("a tree worth %d node(s) left rank at 1 — `DES-003` "
+			+ "derives rank from the tree, so a life that starts with nodes "
+			+ "starts **owing more**, which is the coupling working rather "
+			+ "than being dodged") % GameState.taken.size())
+
+	_report_pact(problems)

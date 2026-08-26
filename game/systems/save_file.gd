@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 6
+const SAVE_VERSION: int = 7
 
 const PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
@@ -74,6 +74,7 @@ static func migrations() -> Dictionary:
 		3: _migrate_3_to_4,
 		4: _migrate_4_to_5,
 		5: _migrate_5_to_6,
+		6: _migrate_6_to_7,
 	}
 
 
@@ -321,4 +322,20 @@ static func _migrate_5_to_6(old: Dictionary) -> Dictionary:
 	var life: Dictionary = out.get("life", {}) as Dictionary
 	life["boon_converted"] = 0
 	out["life"] = life
+	return out
+
+
+## v6 → v7: the Legacy tier (`M3-T05`, ADR-003, ADR-133).
+##
+## **The section `TEC-003` has always drawn and `M3-T06` deliberately left
+## out.** ADR-116 set the policy — the schema is only ever as wide as the state
+## that exists — and `legacy` was named there as arriving with this task rather
+## than being written empty at v1, which would have been the stub ADR-064 bans.
+##
+## Empty for every existing save, and that is the truth rather than a default:
+## a profile written before this task had no slots to fill, and `last_life` is
+## the record of a death that had nowhere to be recorded.
+static func _migrate_6_to_7(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	out["legacy"] = {"slots": [], "last_life": {}}
 	return out
