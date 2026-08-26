@@ -58,7 +58,7 @@ DEEP = "levels/room_set/room_set.tscn"
 # A three-player party, because that is the size the crash was reported at —
 # though it reproduces at two, and asserting it at three costs one process.
 EXTRACT_CLIENTS = 2
-EXTRACT_SECONDS = 26
+EXTRACT_SECONDS = 44   # M3-T09: every peer extracts in turn now, not just the host
 
 
 def launch(args: list[str], scene: str = CAMP) -> subprocess.Popen:
@@ -219,6 +219,24 @@ def main() -> int:
         arrived = "arrived at the Threshold" in log
         rows.append((f"{name} left the floor", arrived,
                      "at the fire" if arrived else "STRANDED in the Deep"))
+
+    # **One player leaves and the floor stays open** (`M3-T09`, ADR-131).
+    #
+    # The row above says everybody eventually got home, which was the whole
+    # claim while extraction ended the run for the party at the first Waystone.
+    # It is now the *weaker* half: a host that leaves must not take the floor
+    # with it, and "everybody arrived" is equally true of a build that sends
+    # them all home the instant the first one spends a stone.
+    #
+    # The host prints how many bodies were still in the run after the first
+    # extraction resolved. Anything but a positive number means the party left
+    # together, which is the behaviour this task exists to end.
+    staggered = re.search(r"one out, (\d+) still on the floor", leaving["host"])
+    left_behind = int(staggered.group(1)) if staggered else 0
+    rows.append(("the floor stayed open after the first left",
+                 left_behind > 0,
+                 f"{left_behind} still down there" if staggered
+                 else "the host never reported"))
 
     for name, log in leaving.items():
         quiet = "SCRIPT ERROR" not in log

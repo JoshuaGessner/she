@@ -156,6 +156,11 @@ const STATE_PROPERTIES: Dictionary = {
 	".:bleeding": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:revival": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:spent": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **Out, and still here** (`M3-T09`). Peers cannot stand in different levels
+	# (ADR-102), so leaving is a state rather than a scene change — and it has
+	# to be one every peer knows about, because it is what stops a teammate's
+	# body being a wall in a doorway they already walked out of.
+	".:got_out": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# **Who this body is, and what it brought** (`M3-T07`).
 	#
 	# These rode the spawn packet from `M3-T02` until `M3-T07`, and that was a
@@ -333,7 +338,20 @@ var spent: bool = false:
 		if spent == value:
 			return
 		spent = value
-		_apply_vordr()
+		_apply_out()
+## **You made it out, and the run is still going on without you** (`M3-T09`).
+##
+## Host-authored, like `spent`. The two are the only ways to leave a floor and
+## they get the same body treatment for the same reason — see `_apply_out` —
+## but they are **not** the same state, and nothing here should collapse them:
+## one keeps their bag and one lost it, one is owed an outcome and one is owed
+## a Legacy screen.
+var got_out: bool = false:
+	set(value):
+		if got_out == value:
+			return
+		got_out = value
+		_apply_out()
 
 ## Solo's single self-recovery (ADR-050) — *"once per run, costly, and never
 ## better than having a friend."* Spent, not regenerating.
@@ -1042,7 +1060,13 @@ func is_downed() -> bool:
 ## Down, dead, or otherwise not playing. Movement, the weapon and the bag all
 ## ask this rather than each testing three things and drifting apart.
 func is_incapacitated() -> bool:
-	return bleeding > 0.0 or spent
+	return bleeding > 0.0 or spent or got_out
+
+
+## **Out of the run, by either door** (`M3-T09`). Down is *not* out — a bleeding
+## body is still in it, which is the whole of what a teammate is deciding about.
+func is_out() -> bool:
+	return spent or got_out
 
 
 func _on_health_emptied(_from: Node) -> void:
@@ -1755,7 +1779,7 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 	# stood frozen at 0.00 m/s with a live camera — which reads from the seat as
 	# being a ghost with nothing to do, and is the state ADR-114 found enemies
 	# still attacking. *"The point is that a dead player is still playing."*
-	if spent:
+	if is_out():
 		return tuning.vordr_speed
 	# Two multipliers, and they compound on purpose. Load is `DES-005` Layer 1 —
 	# greed in your legs. The bag term is `DES-019`'s vulnerable act, scaled by
@@ -2127,16 +2151,16 @@ func _place_snare(at: Vector3) -> void:
 ## mobile, and a ghost that walks is mobile — flight is a movement system with
 ## its own tuning, and `M4-T05`'s ping system is what the scouting is actually
 ## for.
-func _apply_vordr() -> void:
+func _apply_out() -> void:
 	if _hurtbox == null:
 		return
-	if spent:
+	if is_out():
 		collision_layer &= ~CollisionLayers.PLAYER_BODY
 		_hurtbox.set_deferred("monitorable", false)
 	else:
 		collision_layer |= CollisionLayers.PLAYER_BODY
 		_hurtbox.set_deferred("monitorable", true)
-	_dress_as_vordr()
+	_dress_as_out()
 
 
 ## Blockout, per ADR-046: the body it was, made faint. Not a new mesh — the
@@ -2145,7 +2169,7 @@ func _apply_vordr() -> void:
 ##
 ## Monochrome-safe (`DES-018`): it is a transparency change, not a colour, so
 ## it reads with the sound muted and with any colour vision.
-func _dress_as_vordr() -> void:
+func _dress_as_out() -> void:
 	if _body == null:
 		return
 	if _skin == null:
@@ -2158,6 +2182,15 @@ func _dress_as_vordr() -> void:
 		_skin.emission_enabled = true
 		_skin.emission = Color(0.44, 0.58, 0.80)
 		_skin.emission_energy_multiplier = 0.5
+	elif got_out:
+		# **Faint, and warm rather than cold.** A Vörðr is blue and a body that
+		# got out is lit like the surface — the two are the only translucent
+		# things on the floor and a party has to be able to tell at a glance
+		# which of their friends is dead and which is safe.
+		_skin.albedo_color = Color(0.92, 0.82, 0.56, 0.30)
+		_skin.emission_enabled = true
+		_skin.emission = Color(0.86, 0.70, 0.34)
+		_skin.emission_energy_multiplier = 0.4
 	else:
 		_skin.albedo_color = Color(0.72, 0.70, 0.66, 1.0)
 		_skin.emission_enabled = false

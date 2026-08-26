@@ -3095,5 +3095,45 @@ Ninth true-but-beside-the-point assertion this milestone.
 
 ---
 
+## ADR-131 — Leaving is a state, not a scene change
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T09`** · **Extends ADR-102** · **Follows ADR-129, ADR-130**
+
+**Context:** `M3-T09`, narrowed by ADR-129 to the one system its title names. `M2` ended the run for **everybody** at the first extraction, and `_on_extracted` said why in one line: it called `_end_the_run()`.
+
+That was not an oversight. ADR-102 established that peers cannot stand in different levels, so the only way for one player to be *out* was for the floor to stop existing for all of them. The constraint is still true; what changes is the conclusion drawn from it.
+
+### Out is a state on the body
+
+`got_out` sits beside `spent` and replicates the same way, and `_apply_out` gives both the same treatment: off the body layer, hurtbox unmonitorable, moving at `vordr_speed`. `M3-T14` built that for the Vörðr a task ago and this reuses it rather than growing a second one — ADR-129 said it would, and the seam was already the right shape.
+
+They are **not** collapsed into one state, and that matters. Both mean *the floor has nothing further to ask of you*; they differ in everything that happens next. One keeps their bag and is owed an outcome; the other lost theirs and is owed a Legacy screen. A single flag would have made those the same event, and `M3-T05` would have had to take it apart again.
+
+Warm rather than cold, visually: a Vörðr is blue and a body that got out is lit like the surface. They are the only two translucent things on a floor, and a party has to be able to tell at a glance which of their friends is dead and which is safe.
+
+### Down is not out
+
+`_the_party_is_gone()` asked `spent` alone — the whole truth while extraction ended the run for everybody, and a hole the moment it did not. A party can now end with one body walked out and one lying spent, and a predicate counting only the dead would keep that floor open with nobody on it.
+
+A **downed** player is emphatically still in the run. They are bleeding, an ember is coming, and their teammates are deciding — which is the entire mechanism `DES-012` builds the co-op gate on. Ending a run on a body that is still deciding would take the decision away from the people it was designed for.
+
+And no settle window on the extraction path, unlike the wipe. The wipe waits because a revive inside the window has to cancel it; two players going down a second apart is an ordinary way for a fight to go. Nothing cancels an extraction — the last player walked out on purpose, and there is nobody left to change their mind.
+
+### The harness was asserting the behaviour being removed
+
+`run_doorway.py`'s extraction scenario spent **one** Waystone, on the host, and asserted the whole party reached the Threshold. Correct under `M2`'s rule, and the first thing to fail here — with all three peers *stranded in the Deep*, which is exactly right: a host that leaves no longer takes the floor with it, and nobody else had left.
+
+Every peer extracts in turn now, host-side, because the bag is the host's to grant (`M2-T19`) and a client adding to its own would be writing a bag it does not own.
+
+**And "everybody arrived" turned out to be the weaker half.** It is equally true of a build that sends the entire party home the instant the first stone is spent — which is the behaviour this task exists to end, so the row could not tell the old design from the new one. The harness asserts the thing only individual extraction can produce: after the first extraction resolves, **somebody is still down there**.
+
+Not a weak assertion in the sense this milestone has produced nine of. This one was correct, and stopped being *sufficient* when the design underneath it moved. Worth naming as a separate failure mode: a check can rot without ever becoming wrong.
+
+### One number that was written down twice
+
+The scenario waited a literal for the Waystone's channel. It reads `ExtractionTrait.channel_seconds` off the item now — a harness carrying its own copy of a game value is a second source of truth, and this milestone has already produced two: the revive row measured against `TuningProfile.player_health` while a Húskarl revives against 125 (ADR-127), and `--tithe-probe` assigning a `pact_rank` that had become derived (ADR-126).
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

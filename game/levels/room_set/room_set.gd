@@ -2867,9 +2867,30 @@ func _the_party_is_gone() -> bool:
 	if bodies.is_empty():
 		return false
 	for body: Player in bodies:
-		if not body.spent:
+		# **Out by either door** (`M3-T09`). This asked `spent` alone, which was
+		# the whole truth while extraction ended the run for everybody — a party
+		# can now end with one body walked out and one lying spent, and a
+		# predicate that counted only the dead would keep that floor open with
+		# nobody on it.
+		#
+		# Down is deliberately **not** out: a bleeding body is still in the run,
+		# and that is the whole of what a teammate is deciding about.
+		if not body.is_out():
 			return false
 	return true
+
+
+## **Nobody is left in it, so settle** (`M3-T09`).
+##
+## No window here, unlike the wipe path. That one waits because a revive inside
+## it has to cancel it — two players going down a second apart is an ordinary
+## way for a fight to go. Nothing cancels an extraction: the last player walked
+## out on purpose, and there is nobody left to change their mind.
+func _settle_if_nobody_is_left() -> void:
+	if not multiplayer.is_server():
+		return
+	if _the_party_is_gone():
+		_end_the_run()
 
 
 ## **The run is over, and everybody goes home together** (ADR-102).
@@ -3002,8 +3023,19 @@ func _on_extracted(player: Player) -> void:
 
 	extracted.emit(player, player.inventory.total_tribute())
 
-	# Home — everybody, each with their own bag, on their own machine.
-	_end_the_run()
+	# **One player leaves; the run goes on** (`M3-T09`, ADR-102).
+	#
+	# This called `_end_the_run()` here, which is why `M2` ended the run for
+	# everybody at the first extraction: peers cannot stand in different levels,
+	# so the only way one player could be *out* was for the floor to stop
+	# existing for all of them.
+	#
+	# Out is a **state** now. The body stays on the floor — safe, translucent,
+	# unable to touch anything — and the run resolves when nobody is left in it.
+	# Identical to before for a solo player, and materially different for a
+	# party.
+	player.got_out = true
+	_settle_if_nobody_is_left()
 
 
 ## Put the floor back, for the probes that need a second descent without a
@@ -3712,11 +3744,48 @@ func _extraction() -> void:
 			% _session.players().size())
 		return
 	print("[extract] host ready, party=%d" % _session.players().size())
-	var me: Player = _session.local_player()
-	me.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
-	me.inventory.add(ItemCatalogue.by_id(&"con_waystone"))
-	await _hold(0.5)
-	me.ask_to_spend_waystone()
+
+	# **One at a time, host first** (`M3-T09`). This spent one Waystone and
+	# expected the whole party home, which was the truth while extraction ended
+	# the run for everybody — and is now the bug it would be hiding: a host that
+	# leaves while its clients are still down there must **not** take the floor
+	# with it.
+	#
+	# Driven host-side for every body rather than from each peer, because the
+	# bag is the host's to grant (`M2-T19`) and a client adding to its own would
+	# be writing a bag it does not own.
+	var bodies: Array[Player] = _session.players()
+	var first: bool = true
+	for body: Player in bodies:
+		body.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+		body.inventory.add(ItemCatalogue.by_id(&"con_waystone"))
+		await _hold(0.5)
+		body.ask_to_spend_waystone()
+		# Long enough for the Waystone to finish channelling and for the floor
+		# to *not* end, which is the half of this the old scenario could not
+		# ask: everybody still here after the first one leaves.
+		await _hold(_waystone_seconds() + 1.5)
+		if first:
+			first = false
+			var still_in: int = 0
+			for other: Player in _session.players():
+				if not other.is_out():
+					still_in += 1
+			print("[extract] one out, %d still on the floor" % still_in)
+
+
+## What a Waystone costs in seconds, read off the item rather than from a number
+## typed beside the scenario — the channel is `ExtractionTrait`'s to say, and a
+## harness carrying its own copy is a second source of truth that drifts.
+func _waystone_seconds() -> float:
+	var stone: ItemResource = ItemCatalogue.by_id(&"con_waystone")
+	if stone == null:
+		return 4.0
+	for item_trait: ItemTrait in stone.traits:
+		var extraction := item_trait as ExtractionTrait
+		if extraction != null:
+			return maxf(extraction.channel_seconds, 0.01)
+	return 4.0
 
 
 ## **What the floor does about a body on it** (`M2-T21`, ADR-114).
