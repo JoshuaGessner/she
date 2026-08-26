@@ -17,6 +17,7 @@ Deliberately dependency-free, matching tools/reindex.py and tools/status.py.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 from typing import Iterator, NamedTuple
@@ -457,6 +458,31 @@ def check_placeholders(path: Path) -> list[Issue]:
     return issues
 
 
+def check_gamepad() -> list[Issue]:
+    """Controller parity, run locally instead of only in CI (ADR-137).
+
+    `bind_gamepad.py --check` existed and was wired into `ci.yml` and nowhere
+    else, so a binding fault was invisible until roughly fifty seconds after a
+    push — which ADR-104 already established is the same as invisible. It found
+    `sprint` and `verb` sharing the left-stick click only because somebody read
+    the table by hand, and by then the Húskarl had been unable to run on a pad
+    for eleven tasks.
+
+    `project.godot` is this file's subject, so the check belongs here, in the
+    sweep that runs before the commit rather than after it.
+    """
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "tools" / "bind_gamepad.py"), "--check"],
+        capture_output=True, text=True)
+    if result.returncode == 0:
+        return []
+    detail = (result.stderr or result.stdout).strip().splitlines()
+    return [Issue(
+        "error", "gamepad-bindings", "game/project.godot",
+        "; ".join(line.strip() for line in detail if line.strip()),
+        "run: python3 tools/bind_gamepad.py")]
+
+
 def main() -> int:
     strict = "--strict" in sys.argv[1:]
 
@@ -466,6 +492,7 @@ def main() -> int:
         issues += check_collision_layers()
         issues += check_workflows()
         issues += check_lfs_content()
+        issues += check_gamepad()
         scripts = 0
         for path in game_files():
             issues += check_naming(path)

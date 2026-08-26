@@ -28,6 +28,7 @@ PROJECT = ROOT / "game" / "project.godot"
 
 # Godot 4 JoyButton / JoyAxis indices.
 A, B, X, Y = 0, 1, 2, 3
+BACK, GUIDE, START = 4, 5, 6
 LEFT_STICK, RIGHT_STICK = 7, 8
 LEFT_SHOULDER, RIGHT_SHOULDER = 9, 10
 DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT = 11, 12, 13, 14
@@ -75,22 +76,33 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # input you must never press by accident should not sit under your thumb.
     "use_waystone": [(BUTTON, DPAD_UP, 0.0)],
     "debug_reset": [(BUTTON, DPAD_LEFT, 0.0)],
-    "debug_ink": [(BUTTON, Y, 0.0)],
+    # Off the face buttons and onto `BACK` (ADR-137), which nothing was using.
+    # A debug toggle does not get to hold prime real estate while a class verb
+    # goes unbound — and `GUIDE` stays empty deliberately, because it is the
+    # system button and the OS eats it.
+    "debug_ink": [(BUTTON, BACK, 0.0)],
     # The diagnostic overlay (`M2-T13`, ADR-105). Beside the other two debug
     # keys, because it is one: vision cones and the clamor field are for tuning,
     # and they were drawn in every session including a playtester's.
     "debug_overlays": [(BUTTON, DPAD_RIGHT, 0.0)],
     "interact": [(BUTTON, X, 0.0)],
-    # **Hold** (`M3-T02`, `DES-011`), the Húskarl's verb. On the left-stick
-    # click, which `sprint` also carries: sprinting and planting yourself in a
-    # doorway are opposites, so no hand ever wants both in the same instant.
+    # **Hold and Snare** (`M3-T02`, `M3-T11`, `DES-011`) — the class verb, on
+    # the face button every shooter puts a class ability on.
     #
-    # It shares rather than takes, because **the pad has no free button**.
-    # Every face, shoulder, trigger, stick and d-pad direction is spoken for
-    # while three of `DES-009`'s five combat verbs — heavy, block, shove — have
-    # no binding at all. Two of them now share. The layout pass that fixes this
-    # properly belongs with rebinding at `M4-T06`.
-    "verb": [(BUTTON, LEFT_STICK, 0.0)],
+    # **It used to share `LEFT_STICK` with `sprint`, and that was a bug, not a
+    # trade** (ADR-137). The argument was *sprinting and planting yourself in a
+    # doorway are opposites, so no hand ever wants both in the same instant* —
+    # true about intent, false about code. Nothing checked context: one click
+    # fired both actions, and since `_target_speed` returns **zero** while
+    # `planted > 0`, a Húskarl on a pad who pressed sprint stopped dead. On a
+    # pad that class could not run at all. The Veiðimaðr had the quieter half of
+    # it — sprinting set a snare at their feet and spent the stamina for it.
+    #
+    # The claim that made sharing necessary — *the pad has no free button* —
+    # was also false: `BACK` was empty the whole time, and `Y` was spent on
+    # `debug_ink`. A debug toggle was holding a face button while a combat verb
+    # was not reachable. That is the trade that actually existed.
+    "verb": [(BUTTON, Y, 0.0)],
     # **Blocking** (`M3-T02`, `DES-009`). Right mouse, and on the pad it shares
     # RIGHT_SHOULDER with `rotate_item` — the two contexts are disjoint, since
     # you cannot raise a shield while rummaging and cannot turn an item while
@@ -103,6 +115,21 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # block, shove and throw — of which three are still unbound. The layout
     # pass that fixes that properly belongs with rebinding at `M4-T06`.
     "block": [(BUTTON, RIGHT_SHOULDER, 0.0)],
+}
+
+# Pairs allowed to sit on one physical input, and the context that keeps them
+# apart. **Everything not named here is a conflict and fails the check**
+# (ADR-137), because `sprint` and `verb` shared `LEFT_STICK` for eleven tasks
+# with a comment explaining why it was fine, and it was not fine: the comment
+# was the only thing separating them, and a comment does not run.
+#
+# The test for entry is not "would a player want both at once" — that is an
+# argument about intent. It is **"does code refuse one of them in the state the
+# other is used in"**, which is a thing a probe can ask.
+SHARED_OK: dict[frozenset[str], str] = {
+    frozenset({"block", "rotate_item"}):
+        "disjoint by the bag: `blocking` requires `_bag <= 0.0`, and "
+        "`rotate_item` is only read by BagScreen while it is open",
 }
 
 JOY_BUTTON = ('Object(InputEventJoypadButton,"resource_local_to_scene":false,'
@@ -125,8 +152,11 @@ def event_text(kind: str, index: int, value: float) -> str:
     return JOY_AXIS.format(index=index, value=value)
 
 
+ELEMENT_SPLIT = re.compile(r",\s*(?=Object\()")
+
+
 def rewrite(text: str) -> tuple[str, list[str]]:
-    """Return the updated file and the actions that gained a binding."""
+    """Return the updated file and the actions whose bindings moved."""
     changed: list[str] = []
 
     def replace(match: re.Match) -> str:
@@ -135,10 +165,6 @@ def rewrite(text: str) -> tuple[str, list[str]]:
             return match.group(0)
         events = match.group("events")
         wanted = [event_text(*b) for b in BINDINGS[name]]
-        missing = [e for e in wanted if e not in events]
-        if not missing:
-            return match.group(0)
-        changed.append(name)
 
         # Strip the Array[T](...) wrapper: a typed array cannot hold a mix of
         # key and joypad events, which is the whole reason this tool exists.
@@ -147,13 +173,48 @@ def rewrite(text: str) -> tuple[str, list[str]]:
         inner = re.sub(r'\]\)$', ']', inner)
         inner = inner.rstrip()
         assert inner.endswith("]"), f"unexpected events block for {name}"
-        joined = inner[:-1].rstrip()
-        if not joined.endswith("["):
-            joined += ", "
-        joined += ", ".join(missing) + "\n]"
+        listed = inner[1:-1].strip()
+        elements = ELEMENT_SPLIT.split(listed) if listed else []
+
+        # **Keep every keyboard and mouse event, replace every joypad one.**
+        # This used to only append what was missing, which made the tool
+        # idempotent for additions and silently wrong for moves: sending `verb`
+        # from LEFT_STICK to Y (ADR-137) would have left LEFT_STICK bound and
+        # produced an action on two buttons rather than a moved one. A generator
+        # that cannot take a binding away is a generator you cannot use to fix a
+        # layout, which is exactly what ADR-137 needed it for.
+        kept = [e.strip() for e in elements
+                if not e.strip().startswith("Object(InputEventJoypad")]
+        rebuilt = kept + wanted
+        if [e.strip() for e in elements] == rebuilt:
+            return match.group(0)
+        changed.append(name)
+        joined = "[" + ", ".join(rebuilt) + "\n]"
         return f'{name}={{\n{match.group("head")}"events": {joined}\n}}'
 
     return ACTION_RE.sub(replace, text), changed
+
+
+def conflicts() -> list[str]:
+    """Actions sharing one physical input without a documented context split.
+
+    Axis *direction* is part of the identity — `move_forward` and `move_back`
+    are the same stick and opposite signs, which is one input used two ways and
+    not two actions fighting over one.
+    """
+    seen: dict[tuple, list[str]] = {}
+    for action, binds in BINDINGS.items():
+        for kind, index, value in binds:
+            key = (kind, index) if kind == BUTTON else (kind, index, value)
+            seen.setdefault(key, []).append(action)
+    out: list[str] = []
+    for key, actions in sorted(seen.items(), key=lambda kv: str(kv[0])):
+        if len(actions) < 2:
+            continue
+        if SHARED_OK.get(frozenset(actions)) is not None:
+            continue
+        out.append("%s: %s" % (key[1], ", ".join(sorted(actions))))
+    return out
 
 
 def main() -> int:
@@ -183,6 +244,16 @@ def main() -> int:
               file=sys.stderr)
         print("→ add them to BINDINGS; ADR-075 makes controller parity a rule",
               file=sys.stderr)
+        return 1
+
+    clashes = conflicts()
+    if clashes:
+        print("two actions on one pad input, with nothing separating them:",
+              file=sys.stderr)
+        for line in clashes:
+            print("  button %s" % line, file=sys.stderr)
+        print("→ move one, or add the pair to SHARED_OK with the context that "
+              "keeps them apart (ADR-137)", file=sys.stderr)
         return 1
 
     updated, changed = rewrite(text)

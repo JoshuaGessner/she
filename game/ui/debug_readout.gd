@@ -7,17 +7,43 @@ extends Label
 ## Scope note: `M1-T04` owns the real debug overlay, **Weight *and* Clamor**.
 ## Clamor does not exist yet and is not faked here — a zero next to a label
 ## would read as "silent" rather than "unbuilt" (ADR-064).
+##
+## ## Off until asked for (ADR-137)
+##
+## This was mounted in `room_set.tscn` — the Deep, the level a playtester
+## actually plays — with **no way to turn it off**, printing health, speed,
+## stamina, cells and kilograms every frame. `GATE M3 EXIT` requires the
+## diagnostic overlay off, and this one does not merely violate that: it answers
+## three of the gate's four questions for the tester before they are asked. A
+## player reading a health number does not need damage feedback to be legible,
+## and a player reading a weight number does not need the bag to be. The session
+## would have come back green on questions it never posed.
+##
+## It shares `debug_overlays` with `DebugOverlays` rather than taking a key of
+## its own, because "the x-ray" is one idea to whoever is tuning and two nodes
+## only by accident of where they had to live.
 
 @export var player_path: NodePath
 
 var _player: Player
+var _shown: bool = false
 
 
 func _ready() -> void:
+	visible = false
 	_player = get_node_or_null(player_path) as Player
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if not event.is_action_pressed("debug_overlays"):
+		return
+	_shown = not _shown
+	visible = _shown
+
+
 func _process(_delta: float) -> void:
+	if not _shown:
+		return
 	if _player == null or not is_instance_valid(_player):
 		# The session spawns bodies at runtime, so bind on the first frame one
 		# is actually there rather than assuming scene order — and bind to

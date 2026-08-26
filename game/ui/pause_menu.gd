@@ -31,6 +31,7 @@ const MENU: String = "res://ui/main_menu.tscn"
 var _root: Control
 var _column: VBoxContainer
 var _settings: SettingsScreen
+var _controls: ControlsScreen
 var _open: bool = false
 
 
@@ -59,6 +60,14 @@ func _build() -> void:
 	var resume: Button = MenuStyle.button("BACK TO IT")
 	resume.pressed.connect(close)
 	_column.add_child(resume)
+
+	# Reachable mid-run as well as from the menu (ADR-137). A player who forgets
+	# which key drops loot forgets it while holding loot, and the Deep does not
+	# stop while this is open — so the answer has to be one screen away from
+	# where the question is actually asked.
+	var controls: Button = MenuStyle.button("CONTROLS")
+	controls.pressed.connect(_show_controls)
+	_column.add_child(controls)
 
 	var settings: Button = MenuStyle.button("SETTINGS")
 	settings.pressed.connect(_show_settings)
@@ -122,6 +131,16 @@ func _show_settings() -> void:
 		_settings.queue_free()
 		_settings = null)
 	_root.add_child(_settings)
+
+
+func _show_controls() -> void:
+	if _controls != null:
+		return
+	_controls = ControlsScreen.new()
+	_controls.closed.connect(func() -> void:
+		_controls.queue_free()
+		_controls = null)
+	_root.add_child(_controls)
 
 
 ## Out, and it costs what leaving always costs.

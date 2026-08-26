@@ -582,11 +582,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# between them* is broken — a mistyped scene path fails only when somebody
 	# presses the button, which in a playtest means it fails in front of a
 	# tester who then stops reporting anything useful.
+	#
+	# It also carries the **control list** (`M3-T16`, ADR-137): `GATE M3 EXIT`
+	# allows a tester no coaching beyond that screen, so an action it does not
+	# name is an action that does not exist as far as the session is concerned.
+	# Asked in both directions, and in the same boot as the menu walk because it
+	# is the same screen family — a second launch would cost three seconds to
+	# re-answer a question this one is already standing in front of.
 	menu="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		ui/main_menu.tscn -- --menu-probe 2>&1)"
 	if [[ $? -ne 0 ]] || printf '%s\n' "$menu" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
 		echo "FAIL the way in and out" >&2
-		printf '%s\n' "$menu" | grep -E '\[menu\]|ERROR' | sed 's/^/      /' >&2
+		printf '%s\n' "$menu" | grep -E '\[menu\]|\[controls\]|ERROR' \
+			| sed 's/^/      /' >&2
 		exit 1
 	fi
 
@@ -766,6 +774,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a run ends on evidence and never interrupts itself to say so,"
 	echo "the Wing gets out quietly and every node it sells does something,"
 	echo "a build can be reconsidered and a keystone cannot,"
+echo "every verb the game has is named on a screen a tester can find,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

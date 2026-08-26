@@ -30,6 +30,7 @@ const THRESHOLD: String = "res://levels/lair/threshold.tscn"
 var _column: VBoxContainer
 var _panel: VBoxContainer
 var _settings: SettingsScreen
+var _controls: ControlsScreen
 
 
 func _ready() -> void:
@@ -108,6 +109,14 @@ func _show_root() -> void:
 	var join: Button = MenuStyle.button("JOIN A DESCENT")
 	join.pressed.connect(_show_join)
 	_column.add_child(join)
+
+	# **Above SETTINGS, not below it** (ADR-137). `GATE M3 EXIT` allows a tester
+	# no coaching beyond this list, so it is the one menu entry a first-time
+	# player is expected to open before their first descent — and a person
+	# looking for *how do I play* does not look under a heading called settings.
+	var controls: Button = MenuStyle.button("CONTROLS")
+	controls.pressed.connect(_show_controls)
+	_column.add_child(controls)
 
 	var settings: Button = MenuStyle.button("SETTINGS")
 	settings.pressed.connect(_show_settings)
@@ -219,6 +228,21 @@ func _show_settings() -> void:
 		_column.visible = true
 		_show_root())
 	add_child(_settings)
+
+
+func _show_controls() -> void:
+	if _controls != null:
+		return
+	_controls = ControlsScreen.new()
+	# Same hide-rather-than-cover rule as the settings panel above, and for the
+	# same reason: 94% opacity over another menu leaves a ghost of it behind.
+	_column.visible = false
+	_controls.closed.connect(func() -> void:
+		_controls.queue_free()
+		_controls = null
+		_column.visible = true
+		_show_root())
+	add_child(_controls)
 
 
 ## Into the Lair, and the one place a profile is opened (`M3-T06`).
@@ -341,6 +365,8 @@ func _menu_probe() -> void:
 			+ "is a channel somebody cannot turn down")
 			% [sliders, Settings.VOLUME_BUSES.size()])
 
+	problems.append_array(await _controls_probe())
+
 	# Held before the walk, because its last stop presses Descend and
 	# `change_scene_to_file` detaches this menu **synchronously** — so by the
 	# time the report is printed, `get_tree()` on this node is null. The
@@ -351,6 +377,112 @@ func _menu_probe() -> void:
 	for problem: String in problems:
 		printerr("[menu] FAIL %s" % problem)
 	tree.quit(1 if problems.size() > 0 else 0)
+
+
+## **The control list agrees with the input map, in both directions** (ADR-137).
+##
+## `GATE M3 EXIT` allows a tester no coaching beyond this screen, so an action
+## the screen does not name is an action that does not exist as far as the
+## session is concerned — and the failure it produces is attributed to whatever
+## system the tester could not reach, not to the list. That is the expensive
+## kind of wrong answer: it looks like a design finding.
+##
+## Asked both ways on purpose. A screen checked only against its own table can
+## only ever confirm itself, which is the fault `bind_gamepad.py` shipped with
+## and `M3-T06` found again in `load_profile` — a check that enumerates its own
+## expectations is not a check.
+func _controls_probe() -> PackedStringArray:
+	var problems: PackedStringArray = PackedStringArray()
+	var covered: PackedStringArray = ControlsScreen.covered()
+
+	# The guard. Everything below compares two sets, and two empty sets agree
+	# perfectly — so the row that says they match has to know they are not both
+	# empty first.
+	if covered.is_empty():
+		problems.append("the control list teaches nothing at all")
+		return problems
+
+	var playable: PackedStringArray = PackedStringArray()
+	for action: StringName in InputMap.get_actions():
+		var name: String = String(action)
+		if name.begins_with("ui_") or ControlsScreen.HIDDEN.has(name):
+			continue
+		playable.append(name)
+
+	var untaught: PackedStringArray = PackedStringArray()
+	for action: String in playable:
+		if not covered.has(action):
+			untaught.append(action)
+	var invented: PackedStringArray = PackedStringArray()
+	for action: String in covered:
+		if not InputMap.has_action(action):
+			invented.append(action)
+
+	print("[controls] %d playable action(s), %d taught, %d hidden" % [
+		playable.size(), covered.size(), ControlsScreen.HIDDEN.size()])
+	if untaught.size() > 0:
+		problems.append(("the input map has %d action(s) the control list never "
+			+ "mentions (%s) — a tester cannot be expected to find a verb "
+			+ "nothing told them about, and GATE M3 EXIT forbids telling them")
+			% [untaught.size(), ", ".join(untaught)])
+	if invented.size() > 0:
+		problems.append(("the control list teaches %s, which is not in the input "
+			+ "map — it names a key that does nothing") % ", ".join(invented))
+
+	# Every taught action reaches both devices, asked through the screen rather
+	# than through `BINDINGS`. ADR-075 is a rule about what a player can reach,
+	# and the list is where the player finds out.
+	var dashes: PackedStringArray = PackedStringArray()
+	for action: String in covered:
+		var one: PackedStringArray = PackedStringArray([action])
+		if ControlsScreen.keyboard_glyphs(one).is_empty():
+			dashes.append(action + " (keyboard)")
+		if ControlsScreen.pad_glyphs(one).is_empty():
+			dashes.append(action + " (pad)")
+	if dashes.size() > 0:
+		problems.append(("the control list would draw a dash for %s — an empty "
+			+ "cell reads as *this verb has no binding on this device*, which "
+			+ "ADR-075 says can never be true") % ", ".join(dashes))
+
+	# **Reached from the menu, not merely constructible.** The composition
+	# question, which every piece having its own check does not answer.
+	#
+	# The precondition is **set rather than assumed**, and the row asserts the
+	# *change*. It did not, at first: the settings block above leaves its panel
+	# mounted and `_column` already hidden, so `_column.visible == false` was
+	# true before `_show_controls()` ran, and the plant that deletes the hide
+	# passed. Caught by planting it — which is the whole argument for planting,
+	# since the probe was reporting a green row about a screen it never opened
+	# correctly.
+	if _settings != null:
+		_settings.closed.emit()
+		await get_tree().process_frame
+	_show_root()
+	_column.visible = true
+	_show_controls()
+	await get_tree().process_frame
+	var opened: bool = _controls != null and not _column.visible
+	var glyphs: int = 0
+	if _controls != null:
+		for node: Node in _controls.find_children("*", "Label", true, false):
+			if not (node as Label).text.is_empty():
+				glyphs += 1
+		_controls.closed.emit()
+		await get_tree().process_frame
+	var shut: bool = _controls == null and _column.visible
+	print("[controls] opened %s, %d label(s), closed %s" % [opened, glyphs, shut])
+	if not opened:
+		problems.append("CONTROLS did not open, or left the menu behind it "
+			+ "visible through a 94%-opaque backdrop")
+	if not shut:
+		problems.append("BACK did not return to the menu — the list is a "
+			+ "one-way door, which on the root screen means a relaunch")
+	if glyphs < covered.size():
+		problems.append(("the control list drew %d label(s) for %d taught "
+			+ "action(s) — rows are being lost between the table and the screen")
+			% [glyphs, covered.size()])
+
+	return problems
 
 
 ## **Menu → Threshold → Deep → Chamber → Threshold**, actually walked.

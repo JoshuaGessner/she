@@ -71,7 +71,7 @@ _Visual and audio direction._
 | `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✔ accepted | 2026-08-14 | DES-001, DES-005, DES-006 |
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-08-17 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-08-14 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
-| `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-08-14 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
+| `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-08-26 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
 | `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-08-15 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
 
 ## By Tag

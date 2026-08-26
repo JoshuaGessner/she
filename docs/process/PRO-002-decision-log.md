@@ -3377,5 +3377,61 @@ Fifteen tasks. The milestone's goal was *prove meta-progression makes runs more 
 
 ---
 
+## ADR-137 — The gate needed a control list, and finding that found three more
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T16`** · **Amends `ART-004`** · **Borrows the display half of `M4-T06`**
+
+**Context:** `M3` closed code-complete at ADR-136 with both gates `pending`, and both gates are human playtests. The pre-gate sweep asks one question — *what would make a tester fail a clause for a reason that is not the design?* — because a gate is only worth booking if a failure points where the clause says it points.
+
+Four faults, none of which any probe could have been failing, because all four are about **what a player is told or shown** rather than what the code computes.
+
+### 1. `GATE M3 EXIT` depends on a screen that did not exist
+
+The protocol reads *"no coaching beyond the in-game control list."* There was no in-game control list. The main menu had five buttons, the pause menu four, `SETTINGS` had volumes and a sensitivity slider, and `ArrivalBrief` names the place, the job and the way home but **no verb**. `project.godot` defines twenty-four actions; contextual prompts existed on `WorldItem` and `Shaft` and nowhere else.
+
+This does not merely fail the *"discovers they can drop loot without being told"* clause — **it contaminates the other three with it.** A tester who never found crouch cannot answer *"how much noise are you making"*, and the failure gets written down against the Ear. That is the expensive kind of wrong answer: it looks like a design finding, and it is a missing menu.
+
+**`ControlsScreen` is generated from `InputMap`**, so the thing that drifts (keys) is derived and the thing that does not (the English name of a verb) is authored. `bind_gamepad.py` rewrites the pad half of `project.godot` on demand, so a hand-written list would have been stale the first time it ran.
+
+**It is not rebinding.** `M4-T06` keeps that. Read-only is honest; a greyed row promising a rebind that does not exist is the stub ADR-064 bans. Reachable from the main menu **above** `SETTINGS` — a person looking for *how do I play* does not look under settings — and from the pause menu, because a player forgets which key drops loot while holding loot.
+
+### 2. The diagnostic overlay could not be turned off
+
+`DebugReadout` was mounted in `room_set.tscn` — the Deep, the level a tester plays — printing health, speed, stamina, cells and kilograms every frame with no visibility gate. The gate requires the overlay off.
+
+It answers three of the four clauses before they are asked. A player reading a health number does not need damage feedback to be legible; a player reading a weight number does not need the bag to be. The session would have come back green on questions it never posed. It shares `debug_overlays` with `DebugOverlays` now and starts hidden, because *the x-ray* is one idea to whoever is tuning and two nodes only by accident of where they had to live.
+
+### 3. On a pad, the Húskarl could not run
+
+`sprint` and `verb` were both bound to `LEFT_STICK`. The comment said *sprinting and planting yourself in a doorway are opposites, so no hand ever wants both in the same instant* — **true about intent, false about code.** Nothing checked context. One click fired both actions, and `_target_speed` returns **zero** while `planted > 0`, so a Húskarl who pressed sprint stopped dead. The Veiðimaðr had the quieter half: sprinting set a snare at their feet and spent the stamina for it.
+
+The claim that made the share necessary — *the pad has no free button* — was **also false**. `BACK` was empty, and `Y` was held by `debug_ink`. A debug toggle owned a face button while a combat verb was unreachable. `verb` takes `Y`; `debug_ink` takes `BACK`.
+
+**The rule now runs rather than being commented.** `SHARED_OK` names the one pair allowed to share — `block` and `rotate_item`, disjoint by the bag, and both halves check it — and every other collision fails `check_project.py`. The test for entry is not *would a player want both at once*, which is an argument about intent, but **does code refuse one of them in the state the other is used in**, which a probe can ask.
+
+Two smaller things fell out. `bind_gamepad.py` could only **add** bindings, so moving one would have left the old button bound and produced an action on two buttons rather than a moved one — a generator that cannot take a binding away is not one you can fix a layout with. And its `--check` ran in `ci.yml` **and nowhere else**, which by ADR-104's finding is the same as nowhere; it is in `check_project.py` now, in the sweep that runs before the commit rather than fifty seconds after it.
+
+### 4. `ART-004` was lying in both directions about assets
+
+`Q94` — *what does the shader read* — was marked **OPEN** with *"decide before Phase 2"*, and ADR-051 closed it on 2026-08-14 with the exact channel table printed three sections above it. The one sentence naming the decision that gates Phase 2 asset production went on saying it was unmade for twelve days. `status.py --check` compares `OPEN-QUESTIONS.md` against every ADR's `Closes:` line in both directions and neither it nor `reindex.py` reads prose inside an `ART-` document.
+
+And **delivery pointed at `game/assets/<category>/`, which does not exist.** `TEC-002` fixes the layout as `game/art/`, `check_project.py` lists `art` in `REQUIRED_DIRS` and would not have created the other one. The first asset delivered by following that sentence lands outside the tree the project checks — on the one page a person reads *because* they do not yet know where things go.
+
+### What this says about the gate, and about assets
+
+`ART-004` schedules Phase 2 at M3: two class models with rigs, hoard geometry, skill-tree and Legacy UI art, the Ear final, a Delvings kit. **That list is written for the milestone and the gate is the last thing in it.** Every clause in both gates fails to a *system* — wayfinding, the Ear, combat readability, the bag, the ember's presentation. Not one fails to a model.
+
+So the gate is run at Phase 1, deliberately, and the assets it needs are: this screen, a Windows build for testers, and confirmation that the ember and the three loot size classes still read at distance in blockout. **If the ember does not read, that is the gate's finding and not a reason to pre-empt it with art** — `DES-009`'s ordering says blockout must feel good unjuiced, and ADR-042 files the ember's read as a prototype question precisely because only a build answers it. Finalising the Ear before the clause that fails to *"the Ear, or clamor legibility"* has been run would be drawing the answer before hearing the question.
+
+One sequencing problem is filed rather than fixed: `ART-004` wants the Delvings modular kit at M3, and `M4-T01` is the generator that consumes it. `game/levels/modules/` is empty and correctly so. The kit is specified a milestone ahead of the system it feeds.
+
+### Verification
+
+Six plants against the control list, all caught — **after one was not.** The row *"CONTROLS opened and the menu behind it is hidden"* passed with the hide deleted, because the settings block earlier in the same probe leaves `_column` already invisible and never restores it. `_column.visible == false` was true before `_show_controls()` ran. It sets the precondition and asserts the **change** now. That is this milestone's rule arriving in the first check written after the milestone that taught it: *a row that could have passed before the code ran is not a check.*
+
+Three plants against the pad-conflict rule, all caught first time: the old `sprint`/`verb` clash, a `SHARED_OK` entry that stops covering its pair, and a stray joypad event hand-added to `project.godot`.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -4,7 +4,7 @@ title: Asset Pipeline & Production Schedule
 status: accepted
 owner: art
 tags: [art, assets, pipeline, blender, godot, production, specs]
-updated: 2026-08-14
+updated: 2026-08-26
 related: [ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017]
 ---
 
@@ -34,7 +34,7 @@ For a solo project this is the highest-leverage art decision available, and it m
 
 > **See `ART-005`.** The shader is **hand-inked printmaking** — screen-space edge detection with hand-drawn wobble, hatching instead of gradients, pale ink on black in the Deep and black ink on white in the Threshold.
 
-**Proposed vertex-colour channels (Q94):**
+**Vertex-colour channels — settled by ADR-051 (Q94), not proposed:**
 
 | Channel | Drives |
 |---|---|
@@ -212,13 +212,17 @@ ASSET REQUEST
   notes:       three variants eventually; one is enough for blockout
 ```
 
-**Delivery:** drop `.glb` files into `game/assets/<category>/`. Godot imports on focus. If something imports wrong, the fix is almost always transform, scale, or orientation — check those three before anything else.
+**Delivery:** drop `.glb` files into `game/art/<category>/` — e.g. `game/art/characters/`, which is where `humanoid_rig.glb` already lives. Godot imports on focus.
+
+> **This said `game/assets/` until ADR-137**, and no such directory exists. `TEC-002` fixes the layout as `game/art/`, `check_project.py` lists `art` in `REQUIRED_DIRS` and would not have created the other one — so the first asset delivered by following this sentence would have landed outside the tree the project checks, on the one page a person is reading *because* they do not yet know where things go. Found while costing the M3 asset list against the gate; the schedule below is the part of this document that gets read, and the instruction underneath it had never been walked. If something imports wrong, the fix is almost always transform, scale, or orientation — check those three before anything else.
 
 **Standing rule:** if an asset is needed that isn't on the schedule above, **the schedule is wrong and gets updated** in this document. The schedule is the source of truth for what production owes the design.
 
 ## Open questions
 
-> **OPEN (Q94):** What does the custom shader read — vertex colours, mask texture, palette atlas, or material IDs? **Decide before Phase 2**; it changes how every model is authored and is painful to retrofit.
+> **DECIDED (ADR-051):** **Vertex colours** — **R** outline weight, **G** hatch density bias, **B** ink/material ID, exactly as the table above proposes. Nothing else is read: no mask texture, no palette atlas, no material IDs. ~~Original:~~ What does the custom shader read — vertex colours, mask texture, palette atlas, or material IDs? Decide before Phase 2; it changes how every model is authored and is painful to retrofit.
+
+**That line read `OPEN` for twelve days after ADR-051 closed it** (ADR-137). `ART-005` had recorded the answer under a heading that says so, and `status.py --check` compares `OPEN-QUESTIONS.md` against every ADR's `Closes:` line in both directions — but neither of them reads prose inside an `ART-` document, so the one sentence naming *the decision that gates Phase 2 asset production* went on saying it was unmade. A stale citation is worse than a missing one: it is believed, and it stops work that was never blocked.
 
 > **DECIDED (ADR-054):** **2m grid.** Divides cleanly into first-person corridor and room widths while staying fine enough for interesting silhouettes; a 4m grid would force coarser spaces. Makes modules interchangeable across biomes. ~~Original:~~ Is there a shared **modular kit grid** (e.g. 2m or 4m) for architecture? Cell-based generation (ADR-014) strongly favours one, and it makes environment assets interchangeable across biomes.
 
