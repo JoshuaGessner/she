@@ -658,9 +658,17 @@ func _pact_probe() -> void:
 
 	# ─ 2. …and the surplus does ─
 	var plate: ItemResource = ItemCatalogue.by_id(&"glt_altar_plate")
+	# **A cycle at a time**, because `M3-T03` caps how much converts per cycle
+	# and a probe that piles forty plates into one is the *carried* case rather
+	# than the ordinary one. The first draft of this loop predates the cap and
+	# spun forever the moment it arrived — the same shape ADR-126 found in
+	# `--tithe-probe`, one task later: a setup that manufactures its premise
+	# through another system's rules stops working when those rules land, and
+	# it does it silently.
 	var runs: int = 0
-	while GameState.boon < tuning.node_cost_keystone + 4 and runs < 40:
+	while GameState.boon < tuning.node_cost_keystone + 4 and runs < 60:
 		GameState.tribute(ItemInstance.of(plate, 1))
+		GameState.boon_converted = 0
 		runs += 1
 	print("[pact] after %d plates      boon %d" % [runs, GameState.boon])
 	if GameState.boon <= 0:
@@ -745,8 +753,11 @@ func _pact_probe() -> void:
 			+ "so the tag lookup is not keyed to what this life actually owns")
 
 	# ─ 7. the keystone becomes reachable once its route is walked ─
-	while GameState.boon < tuning.node_cost_keystone:
+	var more: int = 0
+	while GameState.boon < tuning.node_cost_keystone and more < 60:
 		GameState.tribute(ItemInstance.of(plate, 1))
+		GameState.boon_converted = 0
+		more += 1
 	var open_now: String = GameState.why_not(&"hrd_weight_of_kings")
 	print("[pact] keystone, prepared   '%s' (want empty)" % open_now)
 	if open_now != "":
@@ -824,6 +835,79 @@ func _pact_probe() -> void:
 			+ "gives the skill tree as *all of it*, and rank is derived from "
 			+ "exactly that list so clearing it is what returns rank to 1"))
 
+
+	# ─ **the cap** (`M3-T03`, ADR-011) ─
+	#
+	# ADR-010 lets a rank-1 player stand on a rank-9 floor and carry rank-9
+	# value home. ADR-011 is the line that stops that being a rank-9 tree, and
+	# these rows are the only place that claim is checked.
+	GameState.hoard.clear()
+	GameState.hoard_value = 0
+	GameState.lineage_progress = 0
+	GameState.boon = 0
+	GameState.boon_progress = 0
+	GameState.boon_converted = 0
+	# Nothing owed, so every point below is surplus and the rows are about the
+	# cap rather than about the Tithe eating the haul first.
+	GameState.tithe_paid = 9999
+	var cap: int = GameState.boon_cap()
+	# **Through `tribute()`, not through the arithmetic underneath it.**
+	#
+	# The first draft called `convert_with_decay` directly and read beautifully,
+	# and a plant that made `tribute` ignore the cap **entirely** walked straight
+	# past it — the row was testing the calculator while the till was the thing
+	# that could be wrong. One carried haul, paid in the way a run pays it.
+	var plates: ItemResource = ItemCatalogue.by_id(&"glt_altar_plate")
+	var before_carry: int = GameState.lineage_progress
+	var carried_out: int = 0
+	while carried_out < 900:   # what `DES-003` says a rank-9 cycle is worth
+		GameState.tribute(ItemInstance.of(plates, 1))
+		carried_out += plates.tribute_value
+	var converted: int = carried_out - (GameState.lineage_progress - before_carry)
+	print("[pact] rank %d cap %d — carried %d, converted %d, learned %d" % [
+		GameState.pact_rank, cap, carried_out, converted, carried_out - converted])
+	if cap <= 0:
+		problems.append("a rank-1 player has no conversion headroom at all, so "
+			+ "the tree is unreachable rather than merely slow")
+	if converted >= carried_out:
+		problems.append(("a rank-1 player converted %d of %d — ADR-011 says you "
+			+ "may be carried but *not carried past your own ability to use "
+			+ "what you are given*, and this is a rank-9 tree bought in one run")
+			% [converted, carried_out])
+	# The wall is soft but it **is** a wall: halving bands sum to twice the cap,
+	# so no cycle converts much beyond that however much is carried out.
+	if converted > cap * 2:
+		problems.append(("%d converted against a cap of %d — halving bands sum "
+			+ "to twice the cap, so anything above it means the decay is not "
+			+ "compounding and a big enough haul still buys the whole tree")
+			% [converted, cap])
+
+	# **And the overflow is not thrown away.** ADR-011 pays the remainder into
+	# LINEAGE, which `DES-003` makes power-free by construction — so the run
+	# still pays generously (ADR-006) without paying in power.
+	GameState.boon_converted = 0   # a fresh cycle, so the bands start over
+	var before_learned: int = GameState.lineage_progress
+	GameState.tribute(ItemInstance.of(plates, 700))
+	var learned: int = GameState.lineage_progress - before_learned
+	print("[pact] one plate           boon %d, learned %d, spent cap %d" % [
+		GameState.boon, learned, GameState.boon_converted])
+	if learned <= 0:
+		problems.append("tribute past the cap earned no Lineage — ADR-011 pays "
+			+ "the remainder out rather than discarding it, and a carried "
+			+ "player is meant to advance fast in knowledge and slowly in power")
+
+	# LINEAGE is the tier death does not touch (`DES-003`).
+	var kept_learning: int = GameState.lineage_progress
+	GameState.die()
+	print("[pact] learning after death %d (was %d)" % [
+		GameState.lineage_progress, kept_learning])
+	if GameState.lineage_progress != kept_learning:
+		problems.append(("what the lineage learned did not survive a death — "
+			+ "`DES-003` puts it in the tier that *survives death, always, "
+			+ "forever*, and it is the whole compensation for ADR-004"))
+	if GameState.boon_converted != 0:
+		problems.append("the cycle's conversion headroom survived a death, so "
+			+ "a new life would inherit a spent cap")
 	_report_pact(problems)
 
 

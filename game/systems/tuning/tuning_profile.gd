@@ -242,6 +242,14 @@ extends Resource
 ## the obligation; only the surplus becomes Boon. ADR-060 wants roughly one node
 ## per two runs at a flat rate across ranks — the Tithe rising with every node
 ## is what does the throttling, so this number does not need to.
+## **How much of your own Tithe converts at full rate each cycle** ⟨tune⟩
+## (`M3-T03`, ADR-011). A fraction of the obligation rather than a second
+## table: the number that says what she expects of you is the number that says
+## how much of a floor you can turn into power, which is `DES-003`'s coupling
+## stated once. Below 1.0 because a cycle that converts its whole obligation
+## into Boon every cycle makes the debt self-financing.
+@export var boon_cap_fraction: float = 0.75
+
 @export var boon_per_tribute: int = 60
 ## What missing a cycle costs: seconds of Hunt **already elapsed** when your
 ## next descent begins (ADR-118) ⟨tune⟩.
@@ -528,6 +536,11 @@ func validate() -> PackedStringArray:
 		problems.append(("block_damage_fraction is %.2f — it must sit in [0, 1), "
 			+ "because DES-009 says a block reduces damage and never negates it")
 			% block_damage_fraction)
+	if boon_cap_fraction <= 0.0 or boon_cap_fraction > 1.0:
+		problems.append(("boon_cap_fraction is %.2f — at or below zero nothing "
+			+ "converts and the tree is unreachable; above 1.0 a cycle earns "
+			+ "back more than it owes and `DES-003`'s coupling runs backwards")
+			% boon_cap_fraction)
 	if block_stamina_cost <= 0.0:
 		problems.append("block_stamina_cost must be positive or blocking is free, "
 			+ "and a free block is a stance rather than a resource")

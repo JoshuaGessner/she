@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 5
+const SAVE_VERSION: int = 6
 
 const PATH: String = "user://profile.save"
 ## Written first, then renamed over `PATH`. A rename is atomic on every
@@ -73,6 +73,7 @@ static func migrations() -> Dictionary:
 		2: _migrate_2_to_3,
 		3: _migrate_3_to_4,
 		4: _migrate_4_to_5,
+		5: _migrate_5_to_6,
 	}
 
 
@@ -303,3 +304,21 @@ static func _migrate_4_to_5(old: Dictionary) -> Dictionary:
 static func _meta_of(data: Dictionary) -> Dictionary:
 	var meta: Variant = data.get("meta", {})
 	return meta as Dictionary if typeof(meta) == TYPE_DICTIONARY else {}
+
+
+## v5 → v6: the Boon cap (`M3-T03`, ADR-011).
+##
+## `lineage_progress` is **LINEAGE** tier and `boon_converted` is **LIFE**, and
+## both start at zero for the same reason: a profile written before the cap
+## existed converted everything at full rate, so there is no overflow it failed
+## to record — there was none. Backfilling either would invent a history the
+## save never had.
+static func _migrate_5_to_6(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var lineage: Dictionary = out.get("lineage", {}) as Dictionary
+	lineage["progress"] = 0
+	out["lineage"] = lineage
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["boon_converted"] = 0
+	out["life"] = life
+	return out

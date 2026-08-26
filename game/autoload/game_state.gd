@@ -58,6 +58,14 @@ var stash: Array[ItemInstance] = []
 ## instances because nothing ever comes back off the pile — she is lying on it.
 var hoard: Array[StringName] = []
 var hoard_value: int = 0
+## **What this lineage has learned** (`M3-T03`, ADR-011, `DES-003`).
+##
+## LINEAGE tier, so it is the one thing here that death does not touch. It is
+## **power-free by construction** — `DES-003` is explicit that a lineage-40
+## player and a lineage-1 player at the same Pact Rank must die to the same
+## floor at the same rate, so nothing may ever read this and hand out a number.
+## `M3-T05` is what spends it, on Legacy slots.
+var lineage_progress: int = 0
 
 ## Runs completed this session, for the readouts. Not progression; `DES-003`'s
 ## Pact Rank is `M3-T04` and is a different number with different rules.
@@ -91,6 +99,10 @@ var pact_rank: int:
 ## as *"all of it"*.
 var boon: int = 0
 var boon_progress: int = 0
+## Tribute value already converted this cycle (`M3-T03`). LIFE tier, and reset
+## by the cycle rather than by the run: the Tithe is the accounting period the
+## whole obligation is measured in, so the cap is measured in it too.
+var boon_converted: int = 0
 
 ## Node ids taken this life, in the order they were taken. The **only** record
 ## of the tree: rank, spend and what you can reach next are all read off this,
@@ -167,7 +179,18 @@ func tribute(item: ItemInstance) -> void:
 	# which is ADR-060's intended flat income and the reason growth has to be
 	# *felt through loud nodes* rather than through a rate that accelerates.
 	var still_owed: int = maxi(0, tithe_due() - tithe_paid)
-	boon_progress += maxi(0, value - still_owed)
+	var surplus: int = maxi(0, value - still_owed)
+	# **Capped by your own rank** (`M3-T03`, ADR-011). ADR-010 lets a rank-1
+	# player stand on a rank-9 floor and carry rank-9 value home; this is the
+	# line that stops that being a rank-9 tree. What the cap turns away is not
+	# lost — it becomes what this lineage *learned*, which `DES-003` makes
+	# power-free by construction, so the run still pays generously (ADR-006)
+	# without paying in power.
+	var cap: int = boon_cap()
+	var earned: int = convert_with_decay(surplus, cap, boon_converted)
+	boon_converted += surplus
+	lineage_progress += surplus - earned
+	boon_progress += earned
 	var per: int = maxi(1, Config.tuning.boon_per_tribute)
 	while boon_progress >= per:
 		boon_progress -= per
@@ -223,6 +246,7 @@ func die() -> void:
 	worn.clear()
 	tithe_paid = 0
 	cycle_runs = 0
+	boon_converted = 0
 	hunt_head_start = 0.0
 	# `TEC-003` calls this the critical path: a hard kill during the death
 	# sequence must never produce a half-wiped profile. It cannot, because
@@ -371,6 +395,57 @@ func tithe_due() -> int:
 ## own, and would then be testing its own fiction. This asks the table the
 ## question the table can answer, and `--pact-probe` separately proves that
 ## `tithe_due()` tracks a rank a player actually earned.
+## **How much tribute converts at full rate this cycle** (`M3-T03`, ADR-011).
+##
+## Deliberately **your own Tithe**, not a second table. ADR-010 lets a rank-1
+## player extract rank-9 value, and ADR-011's whole point is that they may be
+## carried but *"not carried past your own ability to use what you're given."*
+## Tying the headroom to the obligation is `DES-003`'s coupling stated once:
+## the number that says what she expects of you is the number that says how
+## much of a floor you can turn into power.
+##
+## A fraction of it rather than the whole, because the Tithe is what a cycle
+## must *return*; converting a cycle's entire obligation into Boon every cycle
+## would make the debt self-financing.
+func boon_cap() -> int:
+	return int(round(tithe_for(pact_rank) * Config.tuning.boon_cap_fraction))
+
+
+## Tribute value → Boon-earning value, with everything past the cap decaying.
+##
+## **Halving bands.** The first `cap` of surplus converts whole, the next `cap`
+## at half, the next at a quarter, and so on — so no cycle can ever convert
+## much more than **twice** the cap however much is carried out of a floor.
+## ADR-011 asked for *"a steeply decaying rate"* rather than a wall, and this is
+## the version that is explicable in one sentence: *each band is worth half the
+## last.* A flat second rate was tried on paper first and does not hold the
+## line — at 25%%, a carried rank-1 player still converts 210 of a rank-9
+## floor's 900, which is the power-levelling ADR-011 exists to prevent.
+##
+## `already` is what this cycle has spent, so the bands are a property of the
+## cycle rather than of a single item — otherwise four coins would each get
+## their own full-rate band and the cap would mean nothing.
+func convert_with_decay(value: int, cap: int, already: int) -> int:
+	if value <= 0:
+		return 0
+	if cap <= 0:
+		return value
+	var earned: float = 0.0
+	var left: int = value
+	var at: int = already
+	while left > 0:
+		var band: int = at / cap
+		var rate: float = pow(0.5, float(band))
+		if rate < 0.001:
+			break
+		var room: int = cap - (at % cap)
+		var take: int = mini(left, room)
+		earned += float(take) * rate
+		left -= take
+		at += take
+	return int(round(earned))
+
+
 func tithe_for(rank: int) -> int:
 	var table: PackedInt32Array = Config.tuning.tithe_by_rank
 	if table.is_empty():
@@ -410,6 +485,8 @@ func settle_cycle() -> bool:
 	# with nothing at the bottom of it.
 	tithe_paid = 0
 	cycle_runs = 0
+	# The conversion headroom is the cycle's, so it refills with the cycle.
+	boon_converted = 0
 	_persist()
 	return met
 
@@ -520,7 +597,8 @@ func to_dict() -> Dictionary:
 	for id: StringName in taken:
 		spent.append(String(id))
 	return {
-		"lineage": {"hoard": pile, "hoard_value": hoard_value},
+		"lineage": {"hoard": pile, "hoard_value": hoard_value,
+			"progress": lineage_progress},
 		"life": {
 			"stash": kept,
 			"class_id": String(class_id),
@@ -530,6 +608,7 @@ func to_dict() -> Dictionary:
 			"worn": worn,
 			"boon": boon,
 			"boon_progress": boon_progress,
+			"boon_converted": boon_converted,
 			"taken": spent,
 			"tithe_paid": tithe_paid,
 			"cycle_runs": cycle_runs,
@@ -549,6 +628,7 @@ func from_dict(data: Dictionary) -> void:
 	for raw: Variant in lineage.get("hoard", []) as Array:
 		hoard.append(StringName(raw))
 	hoard_value = int(lineage.get("hoard_value", 0))
+	lineage_progress = int(lineage.get("progress", 0))
 
 	var life: Dictionary = _section(data, "life")
 	stash.clear()
@@ -568,6 +648,7 @@ func from_dict(data: Dictionary) -> void:
 	worn = (life.get("worn", {}) as Dictionary).duplicate()
 	boon = maxi(0, int(life.get("boon", 0)))
 	boon_progress = maxi(0, int(life.get("boon_progress", 0)))
+	boon_converted = maxi(0, int(life.get("boon_converted", 0)))
 	taken.clear()
 	for raw: Variant in life.get("taken", []) as Array:
 		var node: AspectNode = AspectCatalogue.by_id(StringName(raw))

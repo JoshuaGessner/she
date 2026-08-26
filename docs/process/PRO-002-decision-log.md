@@ -2959,5 +2959,47 @@ That is real coverage, and it is not the same coverage. *"The guard is protected
 
 ---
 
+## ADR-128 — You may be carried, and not carried past yourself
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T03`** · **Settles ADR-011's ⟨tune⟩**
+
+**Context:** `M3-T03`. ADR-011 decided in 2026-08 that Boon conversion is capped by your *own* Pact Rank, with overflow decaying and the remainder paid into LINEAGE — and left the rate ⟨tune⟩. It could not be built until two things existed: `M3-T10`, which made a floor above your own rank somewhere you can stand, and `M3-T01`, which made a rank that can differ from a friend's. Both now do.
+
+### The cap is your own Tithe, not a second table
+
+ADR-118 built a nine-row Tithe table from `DES-003`'s three anchors — 40 / 260 / 900. The conversion headroom is a fraction of **that**, so the number saying what she expects of you is the same number saying how much of a floor you can turn into power.
+
+That is `DES-003`'s coupling stated once rather than twice. A second table would be a second set of anchors to argue about and a second thing to drift; `boon_cap_fraction` is one ⟨tune⟩ value with a `validate()` that refuses ≤ 0 (the tree becomes unreachable) and > 1.0 (a cycle earns back more than it owes, and the coupling runs backwards from there).
+
+### Halving bands, because a flat second rate does not hold the line
+
+ADR-011 asked for *"a steeply decaying rate"* rather than a wall. The obvious reading is a flat overflow rate, and it fails on the numbers: at 25%, a carried rank-1 player still converts **210** of a rank-9 floor's 900 — which is the power-levelling the ADR exists to prevent, arriving more slowly.
+
+Each `cap`-sized band is worth half the last. The series sums to at most **twice the cap** however much is carried out, so the wall is soft to walk into and hard to pass. It is explicable in one sentence, which principle 6 asks of anything a player has to reason about.
+
+Measured, at rank 1 with a cap of 30: a haul of 980 converts **60** and pays **920** into Lineage. That is ADR-011's *"fast in knowledge, slowly in power"* as an actual number rather than an intention.
+
+### What the overflow becomes
+
+`lineage_progress`, at LINEAGE tier — the one thing `die()` does not touch. `DES-003` is explicit that it must stay **power-free by construction**: a lineage-40 player and a lineage-1 player at the same Pact Rank have to die to the same floor at the same rate, so nothing may ever read this and hand out a number. `M3-T05` is what spends it, on Legacy slots, and it is in this milestone — which is what keeps a counter that currently buys nothing on the right side of ADR-064, the same way the hoard was between `M2-T06` and `M3-T01`.
+
+`boon_converted` is LIFE tier and resets with the **cycle**, not the run. The Tithe is the accounting period the whole obligation is measured in, so the headroom is measured in it too.
+
+Save **v6**. Both fields start at zero for the same reason: a profile written before the cap converted everything at full rate, so there is no overflow it failed to record. Backfilling would invent a history the save never had.
+
+### The cap broke a probe's setup, one task after the last one did
+
+`--pact-probe` piles forty plates into a single cycle to buy the nodes its later rows need. That is the *carried* case, and the cap now correctly refuses it — so the loop spun forever the moment this landed.
+
+Same shape as ADR-126's finding in `--tithe-probe`, one task later: **a setup that manufactures its premise through another system's rules stops working when those rules arrive, and it does it silently.** The tree rows settle a cycle between tributes now, which is what real play does, and both loops carry a bound so a future rule change fails the probe instead of hanging it.
+
+### A row that tested the calculator instead of the till
+
+The headline row — *a rank-1 player cannot convert a rank-9 floor* — called `convert_with_decay` directly. It read beautifully and a plant that made `tribute()` **ignore the cap entirely** walked straight past it, because the row never touched `tribute()` at all.
+
+It goes through `tribute()` now, one carried haul paid the way a run pays it. Eighth true-but-beside-the-point assertion this milestone, and the second whose lesson is about *which* seam a row exercises rather than what it claims: a pure function is the easiest thing to assert about and routinely the wrong one, because the bug lives in the caller.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
