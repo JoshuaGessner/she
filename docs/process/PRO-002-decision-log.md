@@ -3739,5 +3739,45 @@ Five plants, none uncaught: the haul unwritten, the haul unread, the old `carrie
 
 ---
 
+## ADR-144 — Measuring how the floor is walked, and finding the probe stuck instead
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T22`** · **Completes ADR-142**
+
+**Context:** ADR-142 gave the Gullsjúkr a path and deliberately left three tuning questions open, each argued from a reading of the code rather than from a number: its collider is **0.75** against a mesh baked at **0.45**, `Enemy.avoidance_enabled` is false, and steering drops to a straight line inside `DIRECT_RANGE`. None of those should be answered by opinion.
+
+`--nav-probe` asks whether a path *exists*. It cannot ask whether a body actually gets anywhere, and that is the symptom that was reported.
+
+### What it measures
+
+One body starts in each room and walks to the exit **through its own real steering** — an `Enemy` returning `_home` is `_act`'s own unaware branch, not a route driven from outside — and every frame in contact with a wall is counted.
+
+**Arrival is not the claim; movement is.** How far a body gets in a fixed time is a function of speed and distance and says nothing on its own. A body that moved **less than its own width in twenty seconds** is stuck, and that is true whatever the clock says. The scrape percentage is printed as a **number, not a threshold**: it exists so `M4-T01` can argue about the three questions above from a baseline instead of from a reading.
+
+**Baseline, this floor:** every room reaches the exit within 0.4 m, scraping a wall between **0.0% and 2.8%** of the way.
+
+### Three faults in the measurement, before it measured anything
+
+The first run reported **every body rubbing a wall 100% of the way** and eight of nine stranded. All three were the probe's.
+
+- **It counted the floor.** `get_slide_collision_count() > 0` is true every frame for anything standing on ground. A contact is a wall when its normal is roughly horizontal.
+- **It measured the garrison too.** The floor already carries authored enemies, so nine rows appeared for five labels and the report was unreadable.
+- **It ran for four seconds.** `enemy_walk_speed` is 2 m/s and the far corners are forty metres apart, so it measured nothing but how far a body gets in eight metres.
+
+### And then it blamed the level for its own spawn point
+
+With those fixed, one body still never moved: the west corridor, **0.82 m off the navmesh** against 0.15 m everywhere else, scraping 100%.
+
+That reads exactly like the reported bug, and it was about to be written up as one. It is not. `LANDMARKS["west"]` is a **barricade at `(-9, -10)`** — which is precisely `_room_centre("west")`. The probe spawned a body inside the scenery and reported it as stuck on the floor's geometry. It was stuck on the probe's.
+
+Spawns snap to the nearest navmesh point now, and the off-mesh distance is printed beside every row, because *"was it ever standing on the mesh"* is the first question to ask about a body that will not move and the last one anybody thinks of.
+
+**Worth recording plainly: a measurement built to find a fault found itself three times before it found anything else.** Every number a new probe prints is a claim about the probe until something independent agrees with it.
+
+### Verification
+
+Three plants, none uncaught: nobody walked at all, the steering deleted, and spawns returned to the room centres — the last of which reproduces the false positive above, so the fix for it cannot silently come undone.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

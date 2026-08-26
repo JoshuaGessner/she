@@ -656,6 +656,28 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And is the floor actually walked** (`M3-T22`, ADR-144)? `--nav-probe`
+	# asks whether a path *exists*; this walks a body out of every room and
+	# asserts none of them is held on the geometry — which is the symptom that
+	# was reported, and the one a path being available does not rule out.
+	#
+	# It also prints how much of each journey is spent scraping a wall. That is
+	# a **number, not a threshold**: ADR-142 left three tuning questions open
+	# (the Hunter's radius against the bake, avoidance, the direct-line range)
+	# and every one of them wants a measurement to argue from at `M4-T01`.
+	#
+	# Twenty seconds of simulation, because `enemy_walk_speed` is 2 m/s and the
+	# far corners are forty metres apart. The first draft ran four seconds and
+	# measured nothing but how far a body gets in eight metres.
+	walk="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --walk-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$walk" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a body walks out of every room" >&2
+		printf '%s\n' "$walk" | grep -E '\[walk\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+	printf '%s\n' "$walk" | grep -E '^\[walk\]' | sed 's/^/      /'
+
 	# Can you leave, and does leaving late cost more (`M2-T04`)? The assertion
 	# that earns its place is ADR-015's absolute: **the player is never truly
 	# trapped.** A Sealing implemented as a lock satisfies every reading of
@@ -775,6 +797,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the Wing gets out quietly and every node it sells does something,"
 	echo "a build can be reconsidered and a keystone cannot,"
 echo "every verb the game has is named on a screen a tester can find,"
+echo "a body walks out of every room without sticking to it,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

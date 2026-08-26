@@ -461,6 +461,8 @@ func _ready() -> void:
 			_route_probe()
 		elif arg == "--sight-probe":
 			_sight_probe()
+		elif arg == "--walk-probe":
+			_walk_probe()
 		elif arg == "--nav-probe":
 			_nav_probe()
 		elif arg.begins_with("--sight-shot="):
@@ -3454,6 +3456,124 @@ func _all_lights(root: Node) -> Array[Node]:
 
 
 ## The middle of a room, for a probe that needs somewhere to stand in it.
+## **How badly is this floor actually walked?** (`M3-T22`, ADR-144)
+##
+## ADR-142 gave the Hunter a path and left three tuning questions open, each of
+## which had been argued from a reading of the code rather than from a number:
+## its collider is 0.75 against a mesh baked at 0.45, `Enemy.avoidance_enabled`
+## is false, and steering drops to a straight line inside `DIRECT_RANGE`, which
+## is wrong whenever a wall separates two points two metres apart.
+##
+## So this measures instead of asserting a threshold nobody has grounds for. One
+## body starts in each room and walks to the exit **through its own real
+## steering** — an `Enemy` returning `_home` is `_act`'s own unaware branch, not
+## a path driven from outside — and every frame in contact with the world is
+## counted.
+##
+## **Arrival is the claim; contacts are the diagnostic.** A body that never
+## reaches its goal is stuck, and that is a fact about the floor rather than a
+## number needing a baseline. The contact ratio is printed so a change can be
+## compared against the run before it, which is what makes the three questions
+## above answerable at `M4-T01` rather than guessable now.
+func _walk_probe() -> void:
+	await _hold(1.0)
+	var problems: PackedStringArray = PackedStringArray()
+	var goal: Vector3 = _room_centre("exit")
+	var tuning: TuningProfile = Config.tuning
+
+	# **Only the bodies this probe put down.** The floor already carries the
+	# authored garrison, and measuring those as well produced nine rows for five
+	# labels and a report nobody could read.
+	var before: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	var walkers: Array[Enemy] = []
+	var from: PackedStringArray = PackedStringArray()
+	for room: String in ROOMS:
+		if room == "exit":
+			continue
+		# **Snapped to the mesh, not dropped on the centre.** Three rooms keep
+		# their landmark at the exact centre — `LANDMARKS["west"]` is a
+		# barricade at `(-9, -10)`, which is `_room_centre("west")` — so the
+		# first version spawned a body *inside* the scenery, 0.82 m off the
+		# navmesh against 0.16 m everywhere else, and reported it as a body
+		# stuck on the floor's geometry. It was stuck on the probe's.
+		var at: Vector3 = NavigationServer3D.map_get_closest_point(
+			get_world_3d().get_navigation_map(), _room_centre(room))
+		_session.spawn_enemy(at + Vector3(0.0, 0.1, 0.0), 0.0)
+		await get_tree().process_frame
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			var walker := node as Enemy
+			if walker == null or before.has(node):
+				continue
+			before.append(node)
+			walkers.append(walker)
+			from.append(room)
+			# `_home` rather than a chase: the unaware branch of `_act` walks a
+			# body home through the same `_steer_toward` a hunt uses, so this
+			# measures the shipped steering rather than a probe's idea of it.
+			walker._home = goal
+
+	var started: Array[Vector3] = []
+	var contacts: Array[int] = []
+	contacts.resize(walkers.size())
+	for walker: Enemy in walkers:
+		started.append(walker.global_position)
+
+	# Long enough to cross the floor: `enemy_walk_speed` is 2 m/s and the far
+	# corners are ~40 m apart, so four seconds — the first draft — measured
+	# nothing but how far a body gets in eight metres.
+	var frames: int = 1200
+	for i: int in range(frames):
+		await get_tree().physics_frame
+		for w: int in range(walkers.size()):
+			if not is_instance_valid(walkers[w]):
+				continue
+			# **Walls, not the floor.** `get_slide_collision_count() > 0` is
+			# true every frame for anything standing on ground, which is how the
+			# first run reported every body rubbing a wall 100% of the way. A
+			# contact is a wall when its normal is roughly horizontal.
+			for c: int in range(walkers[w].get_slide_collision_count()):
+				if absf(walkers[w].get_slide_collision(c).get_normal().y) < 0.7:
+					contacts[w] += 1
+					break
+
+	var stuck := PackedStringArray()
+	for w: int in range(walkers.size()):
+		if not is_instance_valid(walkers[w]):
+			continue
+		var left: float = walkers[w].global_position.distance_to(goal)
+		var went: float = walkers[w].global_position.distance_to(started[w])
+		var rubbing: float = 100.0 * float(contacts[w]) / maxf(float(frames), 1.0)
+		# **And whether it was ever standing on the mesh.** A body that starts
+		# off-navmesh gets no path at all and falls back to the straight line,
+		# which walks it into the nearest wall and holds it there — so the first
+		# question to ask about a stuck body is not about its steering.
+		var agent := walkers[w].get_node_or_null("Nav") as NavigationAgent3D
+		var drift: float = -1.0
+		if agent != null and agent.get_navigation_map().is_valid():
+			drift = started[w].distance_to(NavigationServer3D.map_get_closest_point(
+				agent.get_navigation_map(), started[w]))
+		print("[walk] %-10s went %5.1f m, %5.1f m short, scraping %4.1f%%, "
+			% [from[w] if w < from.size() else "?", went, left, rubbing]
+			+ "started %.2f m off the mesh" % drift)
+		# **Progress, not arrival.** How far a body gets in a fixed time is a
+		# function of speed and distance and says nothing on its own; a body that
+		# moved less than its own width in twenty seconds is stuck, and that is
+		# true whatever the clock says.
+		if went < 1.0:
+			stuck.append("%s (%.1f m)" % [from[w], went])
+	print("[walk] stuck       %d of %d" % [stuck.size(), walkers.size()])
+	if walkers.is_empty():
+		problems.append("nothing was walked, so the rows above are about an "
+			+ "empty floor")
+	if stuck.size() > 0:
+		problems.append(("%d of %d bodies never moved at all (%s) — they are "
+			+ "held on the floor's own geometry, and unlike the scrape figure "
+			+ "that is a fact rather than a number wanting a baseline")
+			% [stuck.size(), walkers.size(), ", ".join(stuck)])
+
+	_report(problems, "walk")
+
+
 func _room_centre(room: String) -> Vector3:
 	var rect: Array = ROOMS[room]
 	return Vector3((float(rect[0]) + float(rect[1])) * 0.5, 0.0,
