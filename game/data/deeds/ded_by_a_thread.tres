@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="DeedResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/deeds/deed_resource.gd" id="1_deed"]
+
+[resource]
+script = ExtResource("1_deed")
+id = &"ded_by_a_thread"
+name_key = &"deed.by_a_thread.name"
+description_key = &"deed.by_a_thread.desc"
+category = &"endurance"
+condition = &"by_a_thread"
+threshold = 0.1

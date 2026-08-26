@@ -2960,6 +2960,7 @@ func _end_the_run() -> void:
 	RunFile.clear()
 	var my_haul: Array = []
 	var my_loss: bool = false
+	var my_deeds: Array = []
 	var mine_found: bool = false
 	for body: Player in _session.players():
 		var peer: int = body.get_multiplayer_authority()
@@ -2970,6 +2971,7 @@ func _end_the_run() -> void:
 			# Held, not taken. Taking it here is what detached the node.
 			my_haul = packed
 			my_loss = body.spent
+			my_deeds = _deeds_for(body)
 			mine_found = true
 			continue
 		# **A body outlives its peer by a frame** (`M2-T16`). `_on_peer_disconnected`
@@ -2981,10 +2983,10 @@ func _end_the_run() -> void:
 			print("[exit] %s belongs to peer %d, which is no longer connected "
 				% [body.name, peer] + "— nothing to hand back")
 			continue
-		_take_the_outcome.rpc_id(peer, packed, body.spent)
+		_take_the_outcome.rpc_id(peer, packed, body.spent, _deeds_for(body))
 	# Last, because this is the one that takes the floor out from under us.
 	if mine_found:
-		_take_the_outcome(my_haul, my_loss)
+		_take_the_outcome(my_haul, my_loss, my_deeds)
 
 
 ## What this peer walked away with, delivered to the peer it belongs to.
@@ -2993,11 +2995,21 @@ func _end_the_run() -> void:
 ## player's progression — it can only tell them what happened and let them
 ## write their own.
 @rpc("any_peer", "reliable")
-func _take_the_outcome(packed: Array, lost: bool) -> void:
+func _take_the_outcome(packed: Array, lost: bool, earned: Array = []) -> void:
 	# Sender 0 is the host calling this on itself, which is not an RPC at all.
 	var from: int = multiplayer.get_remote_sender_id()
 	if from != 0 and from != CoopSession.HOST_PEER:
 		return
+	# **Marked before anything is settled** (`M3-T08`, `DES-016`). LINEAGE tier,
+	# so a death does not cost them — and awarding *before* `die()` is what makes
+	# that true rather than merely intended.
+	#
+	# The host worked out what was earned, because it is the only peer that saw
+	# the run; `GameState` is never networked (`TEC-004`), so what crosses is a
+	# list of ids and each peer writes its own profile.
+	for row: Variant in earned:
+		var mark := row as Dictionary
+		GameState.award(StringName(mark.get("id", "")), String(mark.get("who", "")))
 	if lost:
 		# `DES-008`'s great reset. The hoard is untouched; it always is.
 		GameState.die()
@@ -3064,6 +3076,51 @@ func _on_extracted(player: Player) -> void:
 	# party.
 	player.got_out = true
 	_settle_if_nobody_is_left()
+
+
+## **What this body did, answered from what the run already knows** (`M3-T08`).
+##
+## `DES-016`'s rule for what may be a deed: *"conditions are evaluated by the run
+## systems that already exist — extraction state, ember events, Clamor history,
+## loot decisions. No bespoke tracking subsystems; if a deed needs new
+## instrumentation, it's probably the wrong deed."*
+##
+## Every line below reads something the loop keeps for its own reasons. Nothing
+## here added a field, and a deed that would have needed one was not written.
+func _deeds_for(body: Player) -> Array:
+	var earned: Array = []
+	if body.spent:
+		# Nothing is earned by a body that did not leave. `DES-016`'s categories
+		# are all about a run you came back from, and the run you did not is
+		# what the Legacy screen is for.
+		return earned
+	earned.append({"id": "ded_first_way_out", "who": ""})
+	for peer: int in body.inventory.embers():
+		var saved: Player = _session.player_for(peer)
+		earned.append({"id": "ded_bore_them_home",
+			"who": saved.name if saved != null else "peer %d" % peer})
+	if body.inventory.count() == 0:
+		earned.append({"id": "ded_empty_handed", "who": ""})
+	if _the_prize_is_still_here():
+		earned.append({"id": "ded_left_the_prize", "who": ""})
+	var thread: DeedResource = DeedCatalogue.by_id(&"ded_by_a_thread")
+	if thread != null and body.health.maximum > 0.0 \
+			and body.health.current / body.health.maximum <= thread.threshold:
+		earned.append({"id": "ded_by_a_thread", "who": ""})
+	return earned
+
+
+## Is the best thing down here still down here? Read off the floor rather than
+## tracked, which is the whole of `DES-016`'s instrumentation rule: the world
+## already knows, and asking it costs nothing.
+func _the_prize_is_still_here() -> bool:
+	for node: Node in get_tree().get_nodes_in_group("world_items"):
+		var item := node as WorldItem
+		if item == null or not is_instance_valid(item):
+			continue
+		if item.global_position.distance_to(PRIZE_AT) < 3.0:
+			return true
+	return false
 
 
 ## Put the floor back, for the probes that need a second descent without a

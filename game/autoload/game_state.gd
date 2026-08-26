@@ -73,6 +73,21 @@ var lineage_progress: int = 0
 ## `{"kind": "item"|"node", "id": ...}` — **never raw Boon**, which ADR-003
 ## disallows because a fungible payload is the optimal pick every time and
 ## collapses the death screen into percentage retention with extra UI.
+## **What this lineage is known for** (`M3-T08`, `DES-016`).
+##
+## LINEAGE tier, always, and `DES-003` explains why that is safe to be generous
+## with: it is power-free by construction. A camp full of marks says something
+## about a player and gives them nothing.
+##
+## `{id: who}` rather than a list, because ADR-050 puts **another player's name**
+## in your save for a rescue — *"rescue deeds record who you carried out"* — and
+## that is the first time this profile stores anyone but you. `""` for the deeds
+## that are about nobody.
+var deeds: Dictionary = {}
+## Earned this run and not yet shown. `DES-016`: **no popups mid-run**, they
+## break the pressure the whole game is built on — so a deed waits here and
+## surfaces at the Settle beat, after the tribute decision.
+var fresh_deeds: Array[String] = []
 var legacy: Array[Dictionary] = []
 ## **What the last life had to offer**, snapshotted the instant before the wipe.
 ##
@@ -309,6 +324,32 @@ func draw_on_legacy() -> void:
 
 ## The Legacy question has been answered. Clears the record `die()` left, so
 ## the Threshold stops asking — and so a second death has a clean one to write.
+## **Mark it, once** (`M3-T08`). Returns whether it was new.
+##
+## Deeds never un-earn and never re-earn: the first time is the whole record,
+## which is what makes a camp readable as a history rather than a tally.
+func award(id: StringName, who: String = "") -> bool:
+	if deeds.has(String(id)):
+		return false
+	if DeedCatalogue.by_id(id) == null:
+		push_warning("GameState: no deed '%s' in this build" % id)
+		return false
+	deeds[String(id)] = who
+	fresh_deeds.append(String(id))
+	_persist()
+	return true
+
+
+## Taken by the Settle beat when it has shown them. Emptying it here rather than
+## at the next descent is deliberate: a deed shown is a deed spent, and one that
+## surfaced twice would read as having been earned twice.
+func take_fresh_deeds() -> Array[String]:
+	var shown: Array[String] = fresh_deeds.duplicate()
+	fresh_deeds.clear()
+	_persist()
+	return shown
+
+
 func forget_the_last_life() -> void:
 	last_life = {}
 	_persist()
@@ -721,7 +762,11 @@ func to_dict() -> Dictionary:
 		spent.append(String(id))
 	return {
 		"lineage": {"hoard": pile, "hoard_value": hoard_value,
-			"progress": lineage_progress},
+			"progress": lineage_progress, "deeds": deeds,
+			# Carried across a quit, because a deed earned on the last run and
+			# not yet seen is still owed to the player — `DES-016` puts it at
+			# the Settle beat, and quitting before the fire is not a forfeit.
+			"fresh_deeds": fresh_deeds},
 		# **Its own section** (`TEC-003`), not a corner of `lineage`. The three
 		# tiers are the design's own (`DES-003`) and the save mirrors them
 		# deliberately, because that alignment is what keeps death a one-function
@@ -757,6 +802,10 @@ func from_dict(data: Dictionary) -> void:
 		hoard.append(StringName(raw))
 	hoard_value = int(lineage.get("hoard_value", 0))
 	lineage_progress = int(lineage.get("progress", 0))
+	deeds = (lineage.get("deeds", {}) as Dictionary).duplicate()
+	fresh_deeds.clear()
+	for row: Variant in lineage.get("fresh_deeds", []) as Array:
+		fresh_deeds.append(String(row))
 	var kept: Dictionary = _section(data, "legacy")
 	legacy.clear()
 	for row: Variant in kept.get("slots", []) as Array:

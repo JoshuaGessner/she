@@ -73,6 +73,8 @@ const VALUE_PER_LUMP: int = 25
 const MAX_LUMPS: int = 400
 
 var _player: Player = null
+## The Settle beat's banner, while it is up (`M3-T08`).
+var _deeds_banner: DeedsBanner = null
 var _hoard_root: Node3D = null
 var _readout: Label = null
 ## The Aspects, while they are open. Non-null is what stops the room reopening
@@ -119,6 +121,8 @@ func _ready() -> void:
 			_chamber_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
 			_tithe_probe()
+		elif arg == "--deeds-probe":
+			_deeds_probe()
 		elif arg == "--legacy-probe":
 			_legacy_probe()
 		elif arg == "--pact-probe":
@@ -163,11 +167,13 @@ func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 		_rebuild_hoard()
 		print("[lair] gave %s — the hoard is worth %d" % [
 			item.definition.display(), GameState.hoard_value])
+		_settle()
 		return
 	if at.distance_to(global_position + STASH_AT) <= PLACE_REACH:
 		GameState.keep(item)
 		print("[lair] kept %s — the stash holds %d" % [
 			item.definition.display(), GameState.stash.size()])
+		_settle()
 		return
 	# Neither. It is on the floor of your own Chamber, which is a perfectly
 	# good place for a thing to be and needs no handling at all.
@@ -1059,5 +1065,139 @@ func _legacy_probe() -> void:
 			+ "derives rank from the tree, so a life that starts with nodes "
 			+ "starts **owing more**, which is the coupling working rather "
 			+ "than being dodged") % GameState.taken.size())
+
+	_report_pact(problems)
+
+
+## **The Settle beat** (`M3-T08`, `DES-002`, `DES-016`).
+##
+## `DES-016` puts deeds *"after the tribute decision, so the run ends on
+## evidence of what you did rather than on a balance sheet"* — and the tribute
+## decision here is per-item, made by walking to one side of the room or the
+## other, with no dialog and therefore no "done" button to hang this on.
+##
+## An **empty bag is the done button**. Everything you came back with has been
+## given or kept, so the sorting is over. A run that came back with nothing has
+## nothing to sort and settles the moment you arrive, which is correct: there
+## was no decision to be after.
+func _settle() -> void:
+	if _player == null or _player.inventory.count() > 0:
+		return
+	if GameState.fresh_deeds.is_empty():
+		return
+	if _deeds_banner != null and is_instance_valid(_deeds_banner):
+		return
+	var banner := DeedsBanner.new()
+	var layer := CanvasLayer.new()
+	layer.layer = 7
+	layer.add_child(banner)
+	add_child(layer)
+	_deeds_banner = banner
+	banner.dismissed.connect(func() -> void: layer.queue_free())
+	# **Taken, not read.** A deed shown is a deed spent, and one that surfaced
+	# twice would read as having been earned twice.
+	banner.show_these(GameState.take_fresh_deeds())
+
+
+## Reachable without a mouse, for `--deeds-probe`.
+func deeds_banner() -> DeedsBanner:
+	return _deeds_banner
+
+
+## **Evidence of what you did** (`M3-T08`, `DES-016`, ADR-134).
+##
+## `DES-016` awards deeds at the Settle beat, *after* the tribute decision, so
+## the run ends on evidence rather than on a balance sheet — and **never
+## mid-run**, because a popup in the Deep breaks the pressure the whole game is
+## built on.
+func _deeds_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ 1. the corpus is there, and every deed is one a run can answer ─
+	var authored: Array[DeedResource] = DeedCatalogue.all()
+	print("[deeds] authored             %d" % authored.size())
+	if authored.is_empty():
+		problems.append("no deeds authored — every row below is conditional on "
+			+ "there being a corpus, which is the guard the item probe already "
+			+ "has and the reason an empty export is invisible without it")
+		_report_pact(problems)
+		return
+	for mark: DeedResource in authored:
+		for problem: String in mark.validate():
+			problems.append(problem)
+
+	# ─ 2. **nothing surfaces mid-run** ─
+	#
+	# The rule `DES-016` states most firmly, and the one a naive implementation
+	# breaks first: award on the event, show it immediately.
+	GameState.deeds.clear()
+	GameState.fresh_deeds.clear()
+	var awarded: bool = GameState.award(&"ded_first_way_out")
+	print("[deeds] awarded              %s, waiting to be shown: %d" % [
+		awarded, GameState.fresh_deeds.size()])
+	if not awarded:
+		problems.append("a deed could not be awarded at all")
+	if GameState.fresh_deeds.size() != 1:
+		problems.append("an awarded deed did not queue for the Settle beat — "
+			+ "`DES-016` says deeds surface there and **never in the Deep**, "
+			+ "because a popup mid-run breaks the pressure the game is built on")
+
+	# ─ 3. once, and only once ─
+	var again: bool = GameState.award(&"ded_first_way_out")
+	print("[deeds] the same deed twice  %s (want false)" % again)
+	if again:
+		problems.append("a deed was earned twice — the first time is the whole "
+			+ "record, and it is what makes a camp readable as a history rather "
+			+ "than a tally")
+
+	# ─ 4. **another player's name** (ADR-050) ─
+	GameState.award(&"ded_bore_them_home", "player_2")
+	print("[deeds] whose ember          '%s'" % GameState.deeds.get(
+		"ded_bore_them_home", ""))
+	if String(GameState.deeds.get("ded_bore_them_home", "")) != "player_2":
+		problems.append("a rescue deed did not record who was carried out — "
+			+ "ADR-050 puts their name in your save, and it is the first time "
+			+ "this profile stores anyone but you")
+
+	# ─ 5. shown is spent ─
+	var shown: Array[String] = GameState.take_fresh_deeds()
+	print("[deeds] shown                %d, still waiting %d" % [
+		shown.size(), GameState.fresh_deeds.size()])
+	if shown.size() != 2 or not GameState.fresh_deeds.is_empty():
+		problems.append(("the Settle beat took %d and left %d — a deed shown is "
+			+ "a deed spent, and one that surfaced twice would read as having "
+			+ "been earned twice") % [shown.size(), GameState.fresh_deeds.size()])
+
+	# ─ 6. **it survives a death** ─
+	#
+	# `DES-016`: *must survive death, LINEAGE tier, always.* `DES-003` is why
+	# that is safe to be generous with — power-free by construction.
+	var carried: int = GameState.deeds.size()
+	GameState.die()
+	print("[deeds] after a death        %d (was %d)" % [
+		GameState.deeds.size(), carried])
+	if GameState.deeds.size() != carried:
+		problems.append("deeds did not survive a death — `DES-016` puts them at "
+			+ "LINEAGE tier *always*, and a record of what you did that dies "
+			+ "with you is a record of nothing")
+
+	# ─ 7. and the Settle beat is what shows them ─
+	#
+	# The composition. Every row above is about `GameState`; this is the one
+	# that asks whether the Chamber ever opens a banner — the join, which is
+	# what `check_dead.py` keeps finding by accident.
+	GameState.fresh_deeds.append("ded_first_way_out")
+	if _player != null:
+		_player.inventory.clear()
+	_settle()
+	await get_tree().process_frame
+	var banner: DeedsBanner = deeds_banner()
+	print("[deeds] the Settle beat      banner=%s" % (banner != null))
+	if banner == null:
+		problems.append("the bag was empty and the fire said nothing — "
+			+ "`DES-016` puts deeds *after the tribute decision*, and a banner "
+			+ "nothing opens is a banner that does not exist")
+	elif banner.size.x < 2.0:
+		problems.append("the banner has no rect (ADR-111)")
 
 	_report_pact(problems)

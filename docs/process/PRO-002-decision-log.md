@@ -3241,5 +3241,47 @@ And one row was wrong rather than the code: it asserted a kept node raises rank,
 
 ---
 
+## ADR-134 — A run ends on evidence, and never interrupts itself to say so
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T08`** · **Builds ADR-050's rescue clause**
+
+**Context:** `M3-T08`. `DES-016` wants 40–60 deeds at 1.0, weighted toward rescue, refusal and memorial. None existed, and the profile had no record of anything a lineage had ever done.
+
+### The doc supplies its own test for what may be a deed
+
+> *"Deed conditions are evaluated by the run systems that already exist — extraction state, ember events, Clamor history, loot decisions. No bespoke tracking subsystems; **if a deed needs new instrumentation, it's probably the wrong deed.**"*
+
+So the five that ship are exactly the five extraction state can already answer: you got out, you carried somebody's ember, your bag was empty, the Prize is still down there, you left on almost nothing. **Not one of them added a field.**
+
+`DeedResource.CONDITIONS` is a **closed list**, and `validate()` refuses a deed waiting on anything outside it. That is the difference between honouring the rule and intending to: a deed that would need new tracking now fails the build rather than quietly arriving with a new subsystem behind it.
+
+Memorial and Calamity are **absent rather than stubbed** (ADR-064). One needs NPCs who die while you know them (`DES-014`), the other expeditions with patterns (`DES-015`) — both `M4`.
+
+### Two rules that a naive build breaks immediately
+
+**No popups mid-run.** `DES-016` states this most firmly of anything in the document, and the obvious implementation — award on the event, show it there — breaks it on the first deed. A deed waits in `fresh_deeds` and surfaces at the Settle beat. The probe asserts the queue rather than the award, because the award is the easy half.
+
+**No checklist.** *"A gallery of everything you haven't done converts the system from evidence into a chore"* (`PRO-005` §11). The banner shows what happened and has **no view of what did not** — there is no completion count anywhere, and no description says how a deed was earned, because ADR-050 makes them secret and found through Bound gossip.
+
+### An empty bag is the done button
+
+`DES-016` puts deeds *"after the tribute decision, so the run ends on evidence of what you did rather than on a balance sheet."* But the tribute decision here is **per item**, made by walking to one side of the room or the other — `DES-019` refuses a confirmation dialog and asks for the decision to be physical, so there is no "done" to hang this on.
+
+An empty bag is that moment: everything you came back with has been given or kept. A run that came back with nothing settles on arrival, which is correct — there was no decision to be after.
+
+### The first time this profile stores anyone but you
+
+ADR-050: *"rescue deeds record who you carried out."* `deeds` is `{id: who}` rather than a list for that one clause. Every other deed stores `""`, and the banner leaves a description's `%s` unformatted when there is no name to fill, because a stray blank reads as a bug and a deed about nobody should not pretend otherwise.
+
+### What the host decides and what crosses
+
+Deeds are worked out **host-side** at the end of the run, because the host is the only peer that saw it. What crosses is a list of ids and a name — `GameState` is never networked (`TEC-004`), so each peer writes its own profile from what it is told, exactly as it does with its haul.
+
+Awarded **before** `die()`, which is what makes LINEAGE tier true rather than merely intended.
+
+Seven violations planted, all caught first time — the first task this milestone where that happened. Worth noting only because eleven assertions before it could not fail: the difference here is that every row asserts a *state change* (queued, recorded, spent, survived) rather than a value that might have been correct already.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

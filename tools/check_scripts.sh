@@ -326,6 +326,22 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Evidence of what you did** (`M3-T08`, `DES-016`, ADR-134). The rule the
+	# doc states most firmly is the one a naive build breaks first — **no popups
+	# mid-run**, because they break the pressure the whole game rests on — so a
+	# deed waits and surfaces at the Settle beat, after the tribute decision.
+	#
+	# The corpus guard is first for the reason the item one has it: every row
+	# below is conditional on there being deeds, and an export that packs none is
+	# otherwise a silent pass.
+	deeds="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/chamber.tscn -- --deeds-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$deeds" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a run has to end on evidence" >&2
+		printf '%s\n' "$deeds" | grep -E '\[deeds\]|\[pact\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **She'll only remember three things** (`M3-T05`, ADR-003, ADR-006).
 	#
 	# `DES-003` calls the Legacy screen the anti-wipe-cliff mechanism and the
@@ -717,6 +733,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the fallen can see what is happening to them and go on playing,"
 	echo "a run stays open until it resolves and quitting is not an escape,"
 	echo "she remembers three things and they come back Scarred,"
+	echo "a run ends on evidence and never interrupts itself to say so,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"
