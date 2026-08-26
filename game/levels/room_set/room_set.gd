@@ -783,11 +783,37 @@ func _hunt_probe() -> void:
 	var moved: Vector3 = hunter.global_position - started
 	var toward_noise: float = moved.dot((noise_at - started).normalized())
 	var toward_player: float = moved.dot((hide_at - started).normalized())
-	print("[hunt] chased noise  %+.2f m toward the sound, %+.2f m toward the player" % [
-		toward_noise, toward_player])
-	if toward_noise <= toward_player:
-		problems.append("the Hunter moved toward the player rather than toward the "
-			+ "noise — it is reading a transform, and TEC-001 says it must not")
+	# **Asked of the goal, not of the route** (ADR-142).
+	#
+	# This compared displacement against two reference directions 56° apart and
+	# read the winner as evidence about what the Hunter *wants*. That inference
+	# held only while it walked in straight lines. The moment it had a path, a
+	# waypoint a metre off the direct line flipped the comparison — and the row
+	# failed on a change that never touched goal selection at all.
+	#
+	# The claim `TEC-001` actually makes is about the **goal**: it walks up the
+	# clamor gradient and must never read a player transform. That goal is now
+	# a public fact — `NavigationAgent3D.target_position` is where it is trying
+	# to get to — so it can be asserted directly instead of inferred from which
+	# way the body happened to drift in two and a half seconds.
+	var nav := hunter.get_node_or_null("Nav") as NavigationAgent3D
+	var goal: Vector3 = nav.target_position if nav != null else Vector3.ZERO
+	var to_sound: float = goal.distance_to(noise_at)
+	var to_hiding: float = goal.distance_to(hide_at)
+	print("[hunt] chased noise  %+.2f m travelled toward the sound; goal is %.1f m "
+		% [toward_noise, to_sound] + "from it and %.1f m from the player" % to_hiding)
+	if nav == null:
+		problems.append("the Hunter has no agent, so where it is trying to get "
+			+ "to cannot be read and the row below is about the origin")
+	elif to_sound >= to_hiding:
+		problems.append(("the Hunter is heading for the player rather than for "
+			+ "the noise — %.1f m from the sound against %.1f m from where they "
+			+ "hid. It is reading a transform, and TEC-001 says it must not")
+			% [to_sound, to_hiding])
+	if toward_noise <= 0.0:
+		problems.append(("the Hunter did not move toward the sound at all "
+			+ "(%+.2f m) — wanting the right place and never setting off is the "
+			+ "same to a player as ignoring the noise") % toward_noise)
 
 	# ─ 2 and 3. wealth, through walls and through silence ─
 	#
@@ -832,6 +858,27 @@ func _hunt_probe() -> void:
 	if not collecting:
 		problems.append("a thrown purse did not divert the Hunter — DES-017 calls "
 			+ "this the best interaction in the design and it must be reliable")
+
+	# **And it reads the path it carries** (ADR-142).
+	#
+	# `--nav-probe` asserts the Hunter *has* an agent; deleting the block in
+	# `_walk` that consults it passed everything, which is ADR-098's question
+	# arriving on the fix for ADR-098's question. An agent nothing reads is the
+	# straight line with extra steps.
+	#
+	# `target_position` starts at the origin and is only ever written by that
+	# block, so a non-zero value is proof it ran — and by this point in the
+	# probe the Hunter has been chasing a thrown purse for seconds.
+	var agent := hunter.get_node_or_null("Nav") as NavigationAgent3D
+	var asked: bool = agent != null and agent.target_position != Vector3.ZERO
+	print("[hunt] the path      agent=%s, target asked for=%s" % [agent != null, asked])
+	if agent == null:
+		problems.append("the Hunter has no navigation agent, so it walks "
+			+ "straight at its goal and grinds along whatever is between")
+	elif not asked:
+		problems.append(("the Hunter never asked its agent for anything — it "
+			+ "carries a `NavigationAgent3D` and steers straight past it, which "
+			+ "is a path with extra steps and still a body stuck in a wall"))
 
 	print("[hunt] field         %d cells, %.1f total clamor, %.1f m wealth range" % [
 		_field.width() * _field.height(), _field.total(), hunter.wealth_range()])
@@ -3477,19 +3524,45 @@ func _nav_probe() -> void:
 		problems.append(("the entrance→exit path is %.1f m against %.1f m "
 			+ "straight — it is not going around anything") % [walked, direct])
 
-	# ─ 3. the enemies are carrying agents bound to that map ─
+	# ─ 3. everything that chases you is carrying an agent bound to that map ─
+	#
+	# **Both groups** (ADR-142). This asked `"enemies"` and the Gullsjúkr is in
+	# `"hunters"`, so the check about pursuit excluded the one body that pursues
+	# you across the entire floor — and it had no agent at all, steering straight
+	# at its goal and grinding along whatever stood between. Reported from play
+	# as the Hunter getting stuck in walls; it was total, not intermittent.
+	#
+	# A group list rather than a single group, because that is the shape of the
+	# fault: the next thing that walks the floor will arrive with a name of its
+	# own, and a check naming one group silently exempts it.
+	var chasers: Array[Node] = []
+	for group: StringName in [&"enemies", &"hunters"]:
+		chasers.append_array(get_tree().get_nodes_in_group(group))
 	var agentless: int = 0
-	for node: Node in get_tree().get_nodes_in_group("enemies"):
+	var named := PackedStringArray()
+	for node: Node in chasers:
 		var agent := node.get_node_or_null("Nav") as NavigationAgent3D
 		if agent == null or not agent.get_navigation_map().is_valid():
 			agentless += 1
-	var total: int = get_tree().get_nodes_in_group("enemies").size()
-	print("[nav] enemies on the map         %d of %d" % [total - agentless, total])
+			named.append(node.name)
+	print("[nav] chasers on the map         %d of %d" % [
+		chasers.size() - agentless, chasers.size()])
+	if chasers.is_empty():
+		problems.append("nothing on this floor chases anybody, so the row "
+			+ "below is about an empty list")
+	# **And the census still reaches past the enemies.** Narrowing the group
+	# list back would shrink this check in silence — the Hunter would simply
+	# stop being counted, which is precisely how it went uncovered in the first
+	# place. A hunter has to be in the count for the count to mean what it says.
+	if get_tree().get_nodes_in_group(&"hunters").is_empty():
+		problems.append("no hunter is in the census — either this floor has "
+			+ "none, or the group list narrowed back to `enemies` and the one "
+			+ "body that pursues you across the whole floor is exempt again")
 	if agentless > 0:
-		problems.append("%d enemy/enemies have no navigation agent on a valid "
-			% agentless
-			+ "map — the mesh exists and nothing is reading it, which is "
-			+ "ADR-098's question rather than ADR-097's")
+		problems.append(("%d of %d bodies that chase you have no navigation "
+			+ "agent on a valid map (%s) — the mesh exists and they are not "
+			+ "reading it, which is ADR-098's question rather than ADR-097's")
+			% [agentless, chasers.size(), ", ".join(named)])
 
 	_report(problems, "nav")
 

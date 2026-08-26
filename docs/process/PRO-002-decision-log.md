@@ -3655,5 +3655,49 @@ Seven plants, none uncaught: the menu asking twice, the menu never asking, the b
 
 ---
 
+## ADR-142 — The check about pursuit excluded the pursuer
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T21`** · **Reported from play**
+
+**Context:** *"The hunter and enemies still path into walls and get stuck."*
+
+### The Gullsjúkr had no navigation at all
+
+Not intermittently — **at all**. `_walk` computed `to_goal.normalized() * speed` and `move_and_slide()` ground it along whatever stood between. `gullsjukr.gd` contained zero references to `NavigationAgent3D`. The one body that pursues you across the entire floor was the one body with no path.
+
+`Enemy` has had an agent since `M2` and its steering is the shape to copy: path at range, walk directly when close or when the map has nothing to say. That is one idea about how a body crosses a floor, so the Hunter uses it rather than a second one.
+
+### And the check that should have caught it asked the wrong group
+
+`--nav-probe` asserts every body has an agent bound to a valid map, and walked `"enemies"`. The Gullsjúkr is in `"hunters"`.
+
+It is fixed as a **list of groups**, not by adding one name, because that is the shape of the fault: the next thing that walks the floor arrives with a group of its own and a check naming one group exempts it silently. And a row now fails if no hunter is in the census at all — narrowing the list back would otherwise shrink the check in silence, which is exactly how this went uncovered.
+
+### An agent nothing reads is the straight line with extra steps
+
+Deleting the block in `_walk` that consults the agent passed **everything** — ADR-098's question arriving on the fix for ADR-098's question. `--hunt-probe` asserts the Hunter actually asked: `target_position` starts at the origin and is only ever written by that block, so a non-zero value is proof it ran.
+
+### The probe that broke was measuring the route and calling it the goal
+
+`--hunt-probe`'s oldest row parks the player in the west corridor, makes them loud, teleports them east and silences them, then asks whether the Hunter walked west. It compared displacement against two reference directions **56° apart** and read the winner as evidence about what the Hunter *wants*.
+
+That inference held only while it walked in straight lines. The moment it had a path, a waypoint a metre off the direct line flipped the comparison — and the row failed on a change that never touched goal selection at all.
+
+`TEC-001`'s claim is about the **goal**: it walks up the clamor gradient and never reads a player transform. Giving it an agent made that goal a *public fact* — `target_position` is where it is trying to get to — so it is asserted directly now: **1.0 m from the sound against 18.0 m from where the player hid**, where the old row was deciding on tenths of a metre of drift. Plus a separate row that it actually set off, because wanting the right place and never leaving is the same to a player as ignoring the noise.
+
+A fix that makes an existing check *sharper* is worth more than the fix.
+
+### What this does not solve
+
+**The Hunter's collider is 0.75 and `room_set` bakes the mesh at 0.45.** The path is planned for a body narrower than this one, so corners will still catch it. That wants either a second bake at the Hunter's radius or path smoothing away from walls, and it belongs with `M4-T01` — the mesh is hand-authored until then. This stops it walking *into* walls; it does not yet stop it clipping their corners.
+
+The ordinary enemies keep two rough edges, both deliberate for now and both measurable rather than guessable: `avoidance_enabled = false`, so bodies shove each other; and a 2.5 m direct-line fallback that is wrong when a wall separates two points 2 m apart. `M3-T22` measures wall contacts before tuning either.
+
+### Verification
+
+Four plants, none uncaught: the Hunter losing its agent, the census emptying, the Hunter leaving the `hunters` group, and the steering ignoring the agent it carries.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

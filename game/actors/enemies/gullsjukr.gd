@@ -97,6 +97,31 @@ const TINTS: Dictionary = {
 	State.LOST: Color(0.44, 0.37, 0.22),
 }
 
+## **It walks the navigation mesh now** (ADR-142).
+##
+## It never did. `_walk` steered straight at `_goal` and `move_and_slide()`
+## ground it along whatever stood between — reported from play as the Hunter
+## getting stuck in walls, and it was total rather than intermittent: the one
+## body that pursues you across the whole floor was the one body with no path.
+##
+## `--nav-probe` asserts every enemy has an agent on a valid map, and asked the
+## `"enemies"` group. The Gullsjúkr is in `"hunters"`. The check about pursuit
+## excluded the pursuer.
+##
+## **The radius is a known compromise.** Its collider is 0.75 and `room_set`
+## bakes the mesh at 0.45, so a path is planned for a body narrower than this
+## one and corners will still catch it. That needs either a second bake or path
+## smoothing away from walls, and it is `M4-T01`'s to solve properly — the mesh
+## is hand-authored until then. This stops it walking *into* walls; it does not
+## yet stop it clipping their corners.
+const NAV_RADIUS: float = 0.75
+const NAV_HEIGHT: float = 2.4
+const REPATH_SECONDS: float = 0.25
+## Inside this, walk straight. Same reasoning as `Enemy.DIRECT_RANGE`: a path
+## node closer than the body is worse than the direct line, and the map takes a
+## frame or two to come up.
+const DIRECT_RANGE: float = 2.0
+
 const REPLICATION_HZ: float = 20.0
 const REPLICATED_PROPERTIES: Dictionary = {
 	".:position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
@@ -137,6 +162,10 @@ var _has_goal: bool = false
 ## Seconds spent stooping over the player so far. Cleared whenever it stops
 ## being in reach, so backing away really does cancel it.
 var _taking: float = 0.0
+## Its path around the floor. Null until `_ready`; a body with no valid map
+## falls back to the straight line, which is what it always did.
+var _agent: NavigationAgent3D = null
+var _repath_in: float = 0.0
 var _material: StandardMaterial3D = null
 var _mesh: MeshInstance3D = null
 
@@ -165,6 +194,16 @@ func hunt_with(field: ClamorField) -> void:
 
 func _ready() -> void:
 	add_to_group(&"hunters")
+	_agent = NavigationAgent3D.new()
+	_agent.name = "Nav"
+	_agent.radius = NAV_RADIUS
+	_agent.height = NAV_HEIGHT
+	# Off, on `Enemy`s reasoning: avoidance is a second steering system with
+	# its own tuning, and there is only ever one Hunter to avoid anything with.
+	_agent.avoidance_enabled = false
+	_agent.path_desired_distance = 0.6
+	_agent.target_desired_distance = 0.35
+	add_child(_agent)
 	# **The reason the Snare exists** (`DES-011`): *"including against the
 	# Hunter, the only reliable way to buy time during the Sealing."* Same
 	# component as the ordinary enemies carry, so there is one definition of
@@ -607,6 +646,30 @@ func _walk(delta: float) -> void:
 		velocity.z = 0.0
 		move_and_slide()
 		return
+
+	# **Around the walls rather than into them** (ADR-142). It steered straight
+	# at `_goal` and ground along whatever stood between; the straight line
+	# survives only as the fallback, for the frame or two before the map is up
+	# and for the last couple of metres where a path node is worse than the
+	# direct line. Same shape as `Enemy._steer_toward`, deliberately — one idea
+	# about how a body crosses a floor, not two.
+	var steer_to: Vector3 = _goal
+	if _agent != null and to_goal.length() > DIRECT_RANGE \
+			and _agent.get_navigation_map().is_valid():
+		_repath_in -= delta
+		if _repath_in <= 0.0 or not _agent.target_position.is_equal_approx(_goal):
+			_agent.target_position = _goal
+			_repath_in = REPATH_SECONDS
+		if not _agent.is_navigation_finished():
+			steer_to = _agent.get_next_path_position()
+	to_goal = steer_to - global_position
+	to_goal.y = 0.0
+	if to_goal.length() < 0.01:
+		velocity.x = 0.0
+		velocity.z = 0.0
+		move_and_slide()
+		return
+
 	var pursuing: bool = state() in [State.SIGHTED, State.COURSING, State.COLLECTING]
 	var wish: Vector3 = to_goal.normalized() * speed_for(pursuing)
 	velocity.x = wish.x
