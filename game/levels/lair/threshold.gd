@@ -52,6 +52,10 @@ const DESCENT_COLOUR: Color = Color(0.04, 0.04, 0.05)
 const CHAMBER_DOOR: Color = Color(0.42, 0.40, 0.36)
 
 const SESSION_SCENE: PackedScene = preload("res://systems/net/coop_session.tscn")
+## The Legacy screen's claim on the body (ADR-146). Named, so the pause
+## menu opening and closing over the top of it cannot give the player back
+## to a world this screen is still standing in front of.
+const LEGACY_CLAIM: StringName = &"legacy"
 const SPAWNS: Array[Vector3] = [
 	Vector3(-1.6, 0.1, 3.2), Vector3(1.6, 0.1, 3.2),
 	Vector3(-3.4, 0.1, 4.0), Vector3(3.4, 0.1, 4.0),
@@ -503,6 +507,7 @@ func _threshold_probe() -> void:
 			+ "nothing opens is a screen that does not exist")
 	else:
 		problems.append_array(await _screen_has_the_player(shown))
+		problems.append_array(_screens_stack())
 		shown.finished.emit()
 		await get_tree().process_frame
 		print("[camp] and then asks   record=%s (want empty)"
@@ -1161,6 +1166,55 @@ func _screen_has_the_player(shown: LegacyScreen) -> PackedStringArray:
 	return problems
 
 
+## **A screen closing gives back only what it took** (ADR-146).
+##
+## The rows above prove the Legacy screen takes the body when it opens. Nothing
+## proved what happens when a **second** screen opens over the top of one, and
+## that is exactly where the fault was: `PauseMenu.close()` said
+## `set_driving(true)` — a statement about the whole game rather than about
+## itself — so opening and closing the pause menu under the death screen handed
+## the body back and recaptured the mouse while the screen was still up.
+##
+## Reported as *"it still showed the death or tithe screen ... but had the new
+## run already playing in the background."* The Chamber had the same fault with
+## the Pact tree, and one boolean was the reason both were possible.
+func _screens_stack() -> PackedStringArray:
+	var problems := PackedStringArray()
+	var body: Player = _session.local_player() if _session != null else null
+	var pause: PauseMenu = null
+	for child: Node in get_children():
+		var found := child as PauseMenu
+		if found != null:
+			pause = found
+	if body == null or pause == null:
+		return PackedStringArray(["no body or no pause menu at the fire to "
+			+ "stack a second screen over"])
+
+	pause.open()
+	var both: PackedStringArray = body.attention_claims()
+	pause.close()
+	var left: PackedStringArray = body.attention_claims()
+	print("[camp] two screens   held %s -> %s, driving=%s (want legacy, no)" % [
+		both, left, body.driving()])
+	if both.size() != 2:
+		problems.append(("two screens are open and the body records %d claim(s) "
+			+ "— a count that cannot reach two is the boolean this replaced")
+			% both.size())
+	if body.driving():
+		problems.append(("closing the pause menu gave the body back while the "
+			+ "Legacy screen was still up — it drives, and it recaptures the "
+			+ "mouse, so the screen you cannot skip is the screen you cannot "
+			+ "click. This is the reported bug"))
+	if not left.has(String(LEGACY_CLAIM)):
+		problems.append(("the pause menu released the Legacy screen's claim as "
+			+ "well as its own. A screen may only give back what it took, or "
+			+ "the seam is a boolean again wearing a list's clothes"))
+	if left.has(String(PauseMenu.CLAIM)):
+		problems.append("the pause menu closed and kept its claim, which parks "
+			+ "the body for the rest of the level")
+	return problems
+
+
 ## Give the player's attention to a screen, or give it back.
 ##
 ## Looked up rather than held, because bodies are spawned and despawned by
@@ -1169,8 +1223,12 @@ func _screen_has_the_player(shown: LegacyScreen) -> PackedStringArray:
 ## twice in this file.
 func _hand_over(to_a_screen: bool) -> void:
 	var body: Player = _session.local_player() if _session != null else null
-	if body != null:
-		body.set_driving(not to_a_screen)
+	if body == null:
+		return
+	if to_a_screen:
+		body.hold_attention(LEGACY_CLAIM)
+	else:
+		body.release_attention(LEGACY_CLAIM)
 
 
 ## Reachable without a mouse, for `--legacy-probe`.

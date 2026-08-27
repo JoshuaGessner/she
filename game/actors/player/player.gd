@@ -291,7 +291,17 @@ var _pitch: float = 0.0
 var _crouching: bool = false
 var _crouch_latched: bool = false
 var _is_local: bool = false
-## False while a menu has the player's attention. See `set_driving`.
+## **Who is holding the player's attention** (ADR-146, replacing ADR-141's
+## flag). Empty means the body drives.
+##
+## A list rather than a boolean because screens stack: the Legacy screen at the
+## fire takes the player, the pause menu opens on top of it, and closing the
+## pause menu used to hand the body straight back while the Legacy screen was
+## still up.
+var _attention: Array[StringName] = []
+## Derived from `_attention` by `_recount_attention`. Kept as a flag because a
+## dozen call sites ask this every frame and none of them care who is holding
+## it — only whether anybody is.
 var _driving: bool = true
 ## What `_apply_pointer` last decided about the cursor. See `pointer_captured`.
 var _pointer_captured: bool = true
@@ -726,31 +736,64 @@ func reaching_for() -> WorldItem:
 	return _reaching_for
 
 
-## Whether this body is taking orders. `PauseMenu` turns it off while a menu is
-## open — the world keeps running, so the consequence of opening one is that
-## you stand still in it.
-## **A menu has the player, or the player has the body** (ADR-141).
+## **A menu has the player, or the player has the body** (ADR-141, ADR-146).
 ##
-## This set a flag that gated exactly one thing — `_wish_direction()` — so a
-## screen opened over a live body stopped the feet and nothing else. The body
-## went on swinging, went on turning, and went on **recapturing the mouse every
-## frame** in `_update_bag`, which is why the Legacy screen at the fire could
-## not be clicked at all: there was no cursor to click it with, and no screen in
-## this game grabs focus, so a controller had nothing to move between either.
+## ADR-141 made this the seam. Before it, the flag gated exactly one thing —
+## `_wish_direction()` — so a screen opened over a live body stopped the feet
+## and nothing else: it went on swinging, went on turning, and went on
+## **recapturing the mouse every frame**, which is why the Legacy screen at the
+## fire could not be clicked at all. Reported as *"still able to attack in the
+## background just not walk or close the death screen."*
 ##
-## Reported as *"still able to attack in the background just not walk or close
-## the death screen."* All three halves of that sentence are this function.
+## **It was still a boolean, and screens stack** (ADR-146). `PauseMenu.close()`
+## said `set_driving(true)` unconditionally, because it assumed it was the only
+## screen in the game. Open the pause menu over the Legacy screen at the fire,
+## close it, and the body drives again with the mouse captured while the death
+## screen is still up — the same three symptoms, reached through a different
+## door, and reported the same way: *"it still showed the death or tithe screen
+## ... but had the new run already playing in the background."* The Chamber had
+## the identical fault with the Pact tree.
 ##
-## `PauseMenu` was the only caller and the only screen that worked. It is the
-## seam now: whatever takes the player's attention calls this, and everything
-## the body would otherwise do about input hangs off it in one place.
-func set_driving(on: bool) -> void:
-	if _driving == on:
+## Two writers to one number is the fault `_on_inventory_changed` already
+## carries a comment about; this was that fault in the input path. So a claim is
+## **named and held**: the body drives when nobody is holding it, and a screen
+## can only ever release the claim it took.
+func hold_attention(claim: StringName) -> void:
+	if _attention.has(claim):
 		return
-	_driving = on
-	if not on:
+	_attention.append(claim)
+	_recount_attention()
+
+
+## Give it back. Releasing a claim nobody holds is deliberately not an error —
+## a screen freed by its scene going away never gets to call this, and a body
+## parked forever because of a missed release is a worse failure than a no-op.
+func release_attention(claim: StringName) -> void:
+	var at: int = _attention.find(claim)
+	if at < 0:
+		return
+	_attention.remove_at(at)
+	_recount_attention()
+
+
+func _recount_attention() -> void:
+	var free_to_drive: bool = _attention.is_empty()
+	if _driving == free_to_drive:
+		return
+	_driving = free_to_drive
+	if not _driving:
 		_bag_wanted = false
 	_apply_pointer()
+
+
+## Who is holding this body, for `--threshold-probe`. Names rather than a count,
+## because the failure this exists to catch is one screen releasing another
+## screen's claim, and a count cannot tell that apart from an honest close.
+func attention_claims() -> PackedStringArray:
+	var held := PackedStringArray()
+	for claim: StringName in _attention:
+		held.append(String(claim))
+	return held
 
 
 ## Where the mouse belongs, decided once.

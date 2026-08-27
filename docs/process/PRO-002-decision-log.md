@@ -3817,5 +3817,45 @@ A profile planted with a distinctive hoard value, then run over by the complete 
 
 ---
 
+## ADR-146 — A boolean cannot hold two screens
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T25`** · **Extends ADR-141**
+
+**Context:** reported from play — *"it still showed the death or tithe screen like I was supposed to offer something but had the new run already playing in the background."*
+
+ADR-141 made `Player.set_driving` the seam that decides whether the body answers to input, and it was the right seam: movement, the attack, the guard, the class verb, the bag, drop, throw, interact, the Waystone and the cursor all hang off it in one place. It was left a **boolean**, and it acquired four independent writers — `PauseMenu` twice, `Threshold._hand_over`, and the Chamber's Pact tree twice.
+
+**Screens stack.** `PauseMenu.close()` said `set_driving(true)`, which is a statement about the whole game rather than about the pause menu. So:
+
+1. Die or abandon; arrive at the fire; the Legacy screen takes the body.
+2. Press Escape. The pause menu opens on top of it and takes the body too.
+3. Close it. The body is handed straight back and **recaptures the mouse**, while the Legacy screen is still up.
+
+The result is the death screen with a live world behind it and no cursor to dismiss it — the same three symptoms ADR-141 fixed, reached through a different door. The Chamber had the identical fault with the Pact tree, and one boolean is why both were possible.
+
+`Player._on_inventory_changed` already carries a comment naming this exact hazard — *"two writers to one number is the second weight path ADR-064 bans."* This was that hazard in the input path, and the comment was one file away from the code that had it.
+
+### A claim is named and held
+
+`_attention` is a list of claim names. The body drives when it is empty. `hold_attention(&"pause")` and `release_attention(&"pause")` replace `set_driving` outright rather than sitting beside it — a screen can only ever give back what it took, and the property is structural instead of a rule every future screen has to remember.
+
+Releasing a claim nobody holds is deliberately **not** an error: a screen freed by its scene going away never gets to release, and a body parked forever is a worse failure than a no-op.
+
+### Why nothing caught it
+
+Every probe in this project drives a screen by calling its methods. ADR-141 added the one row that presses real input, and that row proves the Legacy screen takes the body **when it opens**. Nothing anywhere opened a *second* screen over a first — so the entire fault class was outside what the sweep could see, in both places it existed.
+
+`--threshold-probe` now opens the pause menu over the Legacy screen and asserts three things about closing it: the body still does not drive, the Legacy claim survives, and the pause claim does not. Planted by restoring the old semantics — release every claim on close — which fails two of the three rows.
+
+### Also, while here
+
+`PauseMenu.close()` freed the settings panel and not the controls screen, so a controls screen opened from the pause menu was still standing behind it when the menu reopened, and `_show_controls` refused to build another for the rest of the level.
+
+### Verification
+
+`--threshold-probe`, with the violation planted and the named rows observed to fail.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

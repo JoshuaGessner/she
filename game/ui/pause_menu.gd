@@ -27,6 +27,10 @@ extends CanvasLayer
 ## risky haul by quitting would make every extraction optional.
 
 const MENU: String = "res://ui/main_menu.tscn"
+## This menu's claim on the body (ADR-146). Named, so closing this screen
+## cannot hand the player back to a world that another screen is still standing
+## in front of.
+const CLAIM: StringName = &"pause"
 
 var _root: Control
 var _column: VBoxContainer
@@ -103,10 +107,17 @@ func open() -> void:
 		return
 	_open = true
 	_root.visible = true
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var body: Player = _local_body()
 	if body != null:
-		body.set_driving(false)
+		# The body owns the cursor, because it is the thing that would take it
+		# back (ADR-141). Setting `mouse_mode` here as well was the second
+		# writer, and it is gone rather than left beside the first.
+		body.hold_attention(CLAIM)
+	else:
+		# No body to drive — between a despawn and a spawn, or on a floor that
+		# never built one. Nothing else is competing for the cursor, so this
+		# menu takes it directly.
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func close() -> void:
@@ -117,10 +128,19 @@ func close() -> void:
 	if _settings != null:
 		_settings.queue_free()
 		_settings = null
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# Freed for the same reason the settings panel is, and it was not: a
+	# controls screen left standing behind a hidden pause menu is still there
+	# when the menu reopens, and `_show_controls` refuses to build a second one
+	# for the rest of the level.
+	if _controls != null:
+		_controls.queue_free()
+		_controls = null
 	var body: Player = _local_body()
 	if body != null:
-		body.set_driving(true)
+		# **Only our own claim** (ADR-146). This said `set_driving(true)`, which
+		# is a statement about the whole game rather than about this menu, and
+		# it handed the body back from underneath the Legacy screen.
+		body.release_attention(CLAIM)
 
 
 func _show_settings() -> void:

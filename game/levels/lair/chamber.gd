@@ -65,6 +65,10 @@ const SPAWN_AT: Vector3 = Vector3(0.0, 0.1, 4.0)
 
 ## How close you have to be for a thing you put down to mean something.
 const PLACE_REACH: float = 2.6
+## The Pact tree's claim on the body (ADR-146), on the same terms as the
+## Legacy screen's: the pause menu can open over this and must give back
+## only what it took.
+const PACT_CLAIM: StringName = &"pact"
 
 ## One coin-mesh per this much tribute ⟨tune⟩, so the pile grows visibly
 ## without becoming a mesh budget. `DES-014` costs it at *"a growing-pile-of-
@@ -353,7 +357,7 @@ func _open_the_pact() -> void:
 	_pact.tree_exited.connect(func() -> void:
 		_pact = null
 		if _player != null and is_instance_valid(_player):
-			_player.set_driving(true)
+			_player.release_attention(PACT_CLAIM)
 		layer.queue_free())
 	# **Through the body, not around it** (ADR-141). This set the mouse mode
 	# directly and the body underneath set it straight back on the next frame —
@@ -362,7 +366,7 @@ func _open_the_pact() -> void:
 	# it, because probes press buttons by calling `press_*` rather than through
 	# input.
 	if _player != null:
-		_player.set_driving(false)
+		_player.hold_attention(PACT_CLAIM)
 
 
 func _leave() -> void:
