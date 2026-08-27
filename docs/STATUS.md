@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`63/82` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`64/84` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -17,9 +17,9 @@ flowchart LR
   M0 --> M1
   M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>32/32"]:::current
+  M3["M3 The Pact<br/>33/33"]:::current
   M2 --> M3
-  M4["M4 Vertical Slice<br/>0/13"]:::ahead
+  M4["M4 Vertical Slice<br/>0/14"]:::ahead
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -37,8 +37,8 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 32/32 | `EXIT` pending<br>`COOP` pending |
-|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 33/33 | `EXIT` pending<br>`COOP` pending |
+|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/14 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -51,7 +51,7 @@ _None. Sequencing is clean._
 | Check | Note |
 |---|---|
 | `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30, M3-T31) but still has 2 ⟨tune⟩ marker(s) |
-| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32) but still has 6 ⟨tune⟩ marker(s) |
+| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19) but still has 4 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
@@ -129,6 +129,7 @@ _None. Sequencing is clean._
 - ✔ `M3-T30` **The run ends on a press, not on a silent clock** — *ADR-151, extending ADR-108. What a wipe was from the seat: the bleed bar empties, the readout changes, and three seconds later the scene does. No acknowledgement, no agency, and solo no way to tell an ending from a hang — which is what the reporter met, and abandoned out of. ADR-108 gave the window's first reason as *"a cut to the camp on the frame you go out gives the player nothing to read"*: right about the problem, and three seconds of the **same readout** was not a solution. `RunOverScreen` says what happened and what it cost, takes the body on ADR-146's named-claim seam, and the wait becomes a **floor rather than a fixed price** — whoever is ready presses, the clock backstops whoever is not. **It is not a death screen and must not become one**: `DES-003` puts the Legacy choice at the fire, ADR-133 wants a scene rather than a modal over a corpse, and ADR-141 is the scar from splitting that flow. One button, because the reporter's second ask — *restart a fresh delve* — would have to jump the Legacy flow, which is what starts the next life. **And the re-check's comment was false**: it claimed a self-recovery or a teammate's hand clears `spent`; `_stand_up` never touches it and both callers refuse a body that is not `is_downed()`, so **a spent body cannot be revived by anything in this build**. `--wipe-probe` looked like it proved otherwise because it stands bodies up with `restore_for_descent()` — a reset, not a rescue. The re-check stays for the peer-joining path; the comment is now what the code does, and that is also what makes the press safe. Four plants, each failing by name* `DES-012` `DES-002` `PRO-005`
 - ✔ `M3-T31` **Abandoning a run you were not on** — *ADR-152, extending ADR-145. Reported as "starting a new run showed the tithe menu", and the reporter's log has the moment: two lines of stashing loot in the Chamber, then a new Threshold with a classless body. `PauseMenu` is the same object in all three levels and `_leave()` called `die()` in all three — **and in two of them there is no run**, since `RunFile` opens at the descent and closes when the run resolves. A player at the fire between descents, with a class and a tree and a stash, ended their life on one click of a button that promised to abandon a run, with no confirmation and nothing else on the menu that goes back to the main menu at all. The Legacy screen on the next descent was correct behaviour about a death nobody recognised as one. `RunFile.exists()` now decides what leaving costs; with a run it asks first, without one it is `TO THE MENU` and free. **The pause menu had never been checked** — before ADR-146 the only line about it outside its own file was `add_child(PauseMenu.new())`, while `--menu-probe` carefully asserts every button on the *main* menu is wired. Six rows now, and **the first draft could not fail**: run after the Legacy section they all read a life that had already ended, so they passed green against code incapable of failing them. **And the third plant printed nothing** — with the price wrong the button is wired to `_leave`, which changed scene and detached the probe mid-row, so the failure deleted its own witness. **Four probes were writing the player's run file**: `--run-probe` (armed, path never questioned), `--edges-probe` (read *it has to arm* as *it has to use the real file*), `--class-probe` (reached past `RunFile` with raw `DirAccess`/`FileAccess`), and `--menu-probe` (presses DESCEND, which runs the real `_enter()`). None of it appeared in any output. `arm()` now **refuses** the real path in a probe process — loud rather than lint, which is what found the fourth, since nothing about `--menu-probe` looks like it touches a run file. Verified by planting a real run and a real profile and reading both back byte-identical after a full sweep* `DES-008` `DES-002` `TEC-003`
 - ✔ `M3-T32` **She took the bow and gave nothing, and the floor ate the Seax** — *ADR-153. Reported as "the hoard went to 999 after I tributed my bow". The 999 was a fixture left in the reporter's `user://` by ADR-145's own verification and is not a reachable state — `tribute()` appends to `hoard` and adds to `hoard_value` in consecutive lines, and one coin under a value of 999 cannot happen. **The bow was real and worse than the number.** `_on_put_down` handed the pile anything that landed near it with no question asked, and `DES-014` makes the hoard one-way by construction — so anything given for nothing is destroyed for nothing. Two ways to be worth nothing and both reachable: **Scarred**, which `DES-003` says *cannot be tributed* and the build implemented as *can be, for zero* — the refusal lived in `tribute_worth()` and stopped at the arithmetic; and **worth nothing to begin with**, since every weapon in this build is `tribute_value` 0, so a Veiðimaðr could disarm themselves permanently by walking too close to the pile. `why_not_tribute()` refuses both, and value is the judgment rather than the category — `rlc_regin_blade` is a weapon worth 120. **And the Chamber floor was a deletion with a cheerful line about it**: nothing spawns a `WorldItem` in that room, so a dropped item left the bag and existed nowhere, and `_leave()` rebuilds `carried` from the bag alone. The reporter's log has `put Seax down on the floor` and their profile has no Seax. There is no third gesture — `DES-019` makes this give-or-keep — so a mis-drop is handed back. `put_back` rather than `add`, because `scarred` and `bound_to` live on the instance and a return through `add()` would launder a Legacy item into full power. **Nothing caught it because `--lair-probe` gives her `inventory.richest()`** — a check written around the best case cannot see a rule about the worthless one. Four rows, three planted* `DES-014` `DES-003` `DES-019`
+- ✔ `M3-T33` **Bearing an ember out was a print** — *ADR-154, completing `M2-T05`. `DES-012` §3: "if your ember reaches an extraction point, **your LIFE survives** — you lose the run, your carried loot, and take a Scar, but your skill tree, stash, and Pact Rank are intact." `_on_extracted` emitted `rescued` and printed the sentence, and **`rescued` was connected by one probe and by nothing in the game** — ADR-098's question exactly. `_end_the_run` read `body.spent` and wiped the rescued player anyway, so a rescuer paid the whole price (12 kg, 5.5 clamor, and the Gullsjúkr stops for you) and the person they saved lost their tree, stash and rank regardless. The comment above it was honest and is why it survived: *"there is no tree, stash or rank until `M3`, so this is reported rather than enforced"* — true when written, and `M3` built all three across `M3-T01`, `M3-T03` and `M3-T05` without anyone returning to the sentence waiting on them. `_borne_out` records who reached an exit and `gone = spent and not borne`; the empty haul falls out of code that already existed, so only *the LIFE survives* had to be added. Per floor, or a rescue would forgive a death on the next one for free. **The token is spent at the exit** — left in the bag it rides home in `carried`, reaches the Chamber, and the pile takes anything it is given (ADR-153, the same day's other half). **The Scar is absent, not stubbed** (`M4-T14`): inventing one would be a state with no rules, display or consequence, present only so a doc reads as done. Every existing ember row passed against a build where the rescue did nothing; the new one asserts the class, tree, stash and rank survive and that no death record is left for the fire. **Two of its own rows could not fail until planted**: the helper stood 29 m from the exit, because a body nobody drives eases toward `net_position` and that starts at the origin, and the token check looked after `_reset_floor` had emptied every bag* `DES-012` `DES-003`
 
 ### M4 — Vertical Slice
 
@@ -145,6 +146,7 @@ _None. Sequencing is clean._
 - · `M4-T12` **Audio occlusion and reverb zones** — raycast → lerp `attenuation_filter_cutoff_hz`, and `Area3D` reverb driven by the player's current cell. *Split out by ADR-099: `M2-T03` and `M2-T09` built the adaptive driver, and `TEC-005` was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by `ART-002`'s own costing, and **portal propagation is for the Gullsjúkr only**, never a general system* `TEC-005` `ART-002` `DES-015`
 - · `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* `ART-001` `ART-005` `DES-008`
 - · `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs `ART-004`
+- · `M4-T14` **The Scar** — *`DES-012` §3 charges a rescued life a Scar alongside losing the run and the carried loot, and `M3-T33` implemented the other two-thirds of that sentence because there is no Scar system to implement. Absent rather than stubbed (ADR-064, ADR-154): a state with no rules, no display and no consequence would be present only so a doc reads as done. Needs a decision first — what a Scar **costs**, whether it stacks, and whether it is visible to the party, since `DES-012` makes rescue a social act and a hidden penalty is one the rescuer cannot weigh* `DES-012` `PRO-005`
 
 ### M5 — Content & Breadth
 
@@ -157,6 +159,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 153 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 154 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

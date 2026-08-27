@@ -4148,5 +4148,43 @@ Four rows now, three planted: the shipped no-gate build (the weapon and the Scar
 
 ---
 
+## ADR-154 — Bearing an ember out was a print
+
+**Date:** 2026-08-27 · **Status:** accepted · **Implements `M3-T33`** · **Completes `M2-T05`**
+
+**Context:** found while scoping the tribute fix. `DES-012` §3:
+
+> **Carried out.** If your ember reaches an extraction point, **your LIFE survives.** You lose the run, your carried loot, and take a Scar — but your skill tree, stash, and Pact Rank are intact.
+
+`_on_extracted` emitted `rescued(peer, player)` and printed *"their LIFE survives."* **`rescued` was connected by one probe and by nothing in the game.** ADR-098's question exactly: it fired, and the only thing listening was the check that it fired.
+
+`_end_the_run` read `body.spent` and wiped the rescued player anyway. So a rescuer paid `DES-012`'s whole price — an ember is 12 kg and 5.5 clamor, it makes the Gullsjúkr stop for you (ADR-114), and it makes the walk home materially worse — and the person they saved lost their tree, their stash and their rank regardless.
+
+The comment above it was honest about this and is the reason it survived: *"There is no tree, stash or rank until `M3`, so this is reported rather than enforced."* True when it was written. `M3` built all three, across `M3-T01`, `M3-T03` and `M3-T05`, and nobody came back to the sentence that was waiting on them.
+
+### Out is not the same as lost
+
+`_borne_out` records the peers whose ember reached an exit, and `_end_the_run` computes `gone = body.spent and not _borne_out.has(peer)`. That is the whole change: a rescued body still returns an empty haul, because `packed` is already `[]` for a spent body and `DES-012` is explicit that the bag stays with the body — so *"you lose the run and your carried loot"* falls out of code that already existed, and only *"the LIFE survives"* had to be added.
+
+Per floor, and cleared with it. A rescue carried past a floor reset would forgive a death on the next one, for free.
+
+### The token is spent at the exit
+
+The ember is removed from the rescuer's bag when it is delivered. Left in, it rides home in `carried`, arrives in the Chamber as an ordinary item, and the pile takes anything it is given (ADR-153 is the same day's other half) — so the token for a life somebody has already saved becomes a thing you can throw away by accident.
+
+### The Scar is absent, not stubbed
+
+`DES-012` asks for a Scar and there is no Scar system in this build. Inventing one to satisfy the sentence would be the stub ADR-064 bans — a state with no rules, no display and no consequence, present only so a doc reads as done. It is scoped as `M4-T14` instead. Two thirds of the sentence are now true and the third is honestly missing, which is better than three thirds of it being a lie.
+
+### Verification
+
+`--vordr-probe` and `--ember-probe` between them had asserted that the ember drops, that it costs the carrier speed and quiet, that carrying it to the exit **reports** a rescue, and that an ember bound to somebody else does not stand in for yours. Every one of those passed against a build where the rescue did nothing.
+
+The new row spawns a second body, has the host go out, puts its ember in the helper's bag and sends the helper up the Shaft — then asserts the host's class, tree, stash and rank all survive and that no death record was left for the fire to find. Planted by deleting the one line that records the rescue: two rows fail, the second being *"a rescued life left a death record"*, which is the Legacy screen opening over somebody who was carried home.
+
+**Two of its own rows could not fail before they were planted.** The helper started 29 m from the exit, because a body nobody drives is eased toward `net_position` every frame and that starts at the origin — `teleport` declines for a peer that is not a process, and setting `global_position` does not stick. And the token check looked at the bag *after* the run resolved, which is after `_reset_floor` has emptied every bag; it samples at the instant the rescue is announced now, which is the only moment it can.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
