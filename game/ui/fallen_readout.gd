@@ -67,29 +67,79 @@ func _process(_delta: float) -> void:
 	queue_redraw()
 
 
+## **What is happening to you** (ADR-150).
+##
+## Split out of `_draw` so `--fallen-probe` can assert the **wording** rather
+## than the pixels. That probe checked the rect was the screen, that three
+## states were reachable, and that the clock ran — it never asked what any of
+## them *said*, and what they said was the whole fault.
+func line() -> String:
+	if not _showing():
+		return ""
+	if _body.spent:
+		# **A Vörðr, and it says so.** What it needs to name is what you *are*,
+		# because a translucent body that walks through walls is otherwise a
+		# bug rather than a state.
+		#
+		# *"Scout for them"* was written for a party and shipped to everybody.
+		# Solo there is no them, the state lasts `party_wipe_seconds`, and the
+		# reporter read it exactly as written: **"there is never anyone to save
+		# them on a solo run."** The honest sentence is about who is left.
+		return tr("fallen.vordr") if _anyone_still_standing() \
+			else tr("fallen.vordr.alone")
+	if _body.revival > 0.0:
+		return tr("fallen.hand")
+	return tr("fallen.down") % int(ceil(_body.bleeding))
+
+
+## **And what you can still do about it** (ADR-150).
+##
+## `has_self_recovery()` has existed since ADR-050 — one way up, once per run,
+## costing the rest of it — and was read by **one probe and nothing else**.
+## ADR-098's question exactly: it worked, and nothing used it. So a downed solo
+## player got forty-five seconds of a shrinking bar and no hint that the thing
+## they were waiting to be saved from was theirs to end.
+##
+## Built from `ControlsScreen.glyphs_for` rather than typed, because ADR-139
+## made that file the only one that names a key.
+func hint() -> String:
+	if not _showing() or _body.spent or _body.revival > 0.0:
+		return ""
+	if _body.has_self_recovery():
+		return tr("fallen.up") % ControlsScreen.glyphs_for("use_waystone")
+	return tr("fallen.up.spent")
+
+
+func _showing() -> bool:
+	return _body != null and is_instance_valid(_body) and _body.is_incapacitated()
+
+
+## Is anybody left who could still do something? Excludes this body, which by
+## the time it is asked is a Vörðr and can do nothing for anyone.
+func _anyone_still_standing() -> bool:
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var body := node as Player
+		if body != null and body != _body and not body.is_out():
+			return true
+	return false
+
+
 func _draw() -> void:
-	if _body == null or not is_instance_valid(_body):
-		return
-	if not _body.is_incapacitated():
+	if not _showing():
 		return
 	var screen: Vector2 = size
 	var origin := Vector2((screen.x - BAR.x) * 0.5, screen.y - FROM_BOTTOM)
 	var font: Font = ThemeDB.fallback_font
-	var label: String = ""
 	var fill: float = 0.0
 	var tint: Color = DOWN_COLOUR
 
 	if _body.spent:
-		# **A Vörðr, and it says so.** No bar: there is no clock on this state
-		# and drawing an empty one would imply a deadline that does not exist.
-		# What it needs to say is what you *are*, because a translucent body
-		# that walks through walls is otherwise a bug rather than a state.
-		label = tr("fallen.vordr")
+		# No bar: there is no clock on this state, and drawing an empty one
+		# would imply a deadline that does not exist.
 		tint = VORDR_COLOUR
 	elif _body.revival > 0.0:
 		# **A hand on you.** Fills toward one, and it is the only bar here that
 		# grows — which is the whole reason direction carries the meaning.
-		label = tr("fallen.hand")
 		fill = clampf(_body.revival, 0.0, 1.0)
 		tint = HAND_COLOUR
 	else:
@@ -97,16 +147,23 @@ func _draw() -> void:
 		# decision: *"your ember is going out whether you choose or not."*
 		var whole: float = maxf(Config.tuning.bleed_out_seconds, 0.001)
 		fill = clampf(_body.bleeding / whole, 0.0, 1.0)
-		label = tr("fallen.down") % int(ceil(_body.bleeding))
-		tint = DOWN_COLOUR
 
 	if not _body.spent:
 		draw_rect(Rect2(origin, BAR), Color(0.06, 0.05, 0.05, 0.72))
 		draw_rect(Rect2(origin, Vector2(BAR.x * fill, BAR.y)), tint)
 		draw_rect(Rect2(origin, BAR), Color(0.0, 0.0, 0.0, 0.5), false, 1.0)
 
-	var text_at := Vector2(origin.x, origin.y - 12.0)
-	draw_string(font, text_at + Vector2(1.0, 1.0), label,
-		HORIZONTAL_ALIGNMENT_CENTER, BAR.x, 15, Color(0.0, 0.0, 0.0, 0.7))
-	draw_string(font, text_at, label,
-		HORIZONTAL_ALIGNMENT_CENTER, BAR.x, 15, tint)
+	_say(font, Vector2(origin.x, origin.y - 12.0), line(), 15, tint)
+	# **Under the bar rather than beside the state line**, so the thing you can
+	# do about it is not competing with the thing that is happening to you.
+	var help: String = hint()
+	if help != "":
+		_say(font, Vector2(origin.x, origin.y + BAR.y + 20.0), help, 13,
+			MenuStyle.DIM)
+
+
+func _say(font: Font, at: Vector2, text: String, size_of: int,
+		tint: Color) -> void:
+	draw_string(font, at + Vector2(1.0, 1.0), text,
+		HORIZONTAL_ALIGNMENT_CENTER, BAR.x, size_of, Color(0.0, 0.0, 0.0, 0.7))
+	draw_string(font, at, text, HORIZONTAL_ALIGNMENT_CENTER, BAR.x, size_of, tint)

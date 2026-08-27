@@ -3969,5 +3969,47 @@ So the camp went back to sounding empty on every relaunch, and the readout under
 
 ---
 
+## ADR-150 — Forty-five seconds, and nothing said you could end them
+
+**Date:** 2026-08-27 · **Status:** accepted · **Implements `M3-T29`** · **Option A of the reporter's three**
+
+**Context:** reported from play — *"they bleed out but there is never anyone to save them on a solo run."*
+
+There is someone. Yourself, once.
+
+`Player.ask_to_self_recover()` has been bound to the Waystone key while down since ADR-050 — *"once per run, costly, and never better than having a friend"* — returning 22% health and gone for the rest of the run. `has_self_recovery()` reports whether it is still there.
+
+**It was read by one probe and by nothing else.** ADR-098's question, exactly: it worked, and nothing used it. What a downed solo player saw was *"Bleeding out — 45 s. Your ember will drop where you fall."* — a clock, a shrinking bar, and no indication that the wait was theirs to end. Forty-five seconds, then three more, then a cut to the fire.
+
+### And the Vörðr line was written for a party
+
+*"Vörðr. You are loose, and nothing can touch you. **Scout for them.**"*
+
+Solo there is no them, and the state lasts `party_wipe_seconds` — three seconds — before the run resolves. The reporter read it as written and concluded nobody was coming, which is the correct reading of that sentence and the wrong fact about the game.
+
+The honest sentence is about who is actually left standing, which makes it right in a party wipe too: one player down among four still gets *scout for them*; a party with nobody up gets the truth.
+
+### Wording is a decision, so it is asserted like one
+
+`--vordr-probe` checked that the readout's rect was the screen, that all three states were reachable, and that the bleed clock ran. It never asked what any of them **said** — and what they said was the entire fault. `line()` and `hint()` are split out of `_draw` so the wording can be asserted rather than the pixels.
+
+Three rows, three plants:
+
+| Planted | Fails |
+|---|---|
+| no hint at all (the shipped build) | *"does not name the way up (v/D-pad Up)"* |
+| a hint that never changes once spent | *"the same thing it said when there was a way up"* |
+| the Vörðr always says *scout for them* | *"solo there is no them and three seconds left"* |
+
+The middle one matters as much as the first: a hint still naming a key that has stopped working is worse than no hint, because it is a promise broken at the moment it is believed — `PRO-005` §5's unexplainable event with a keybinding attached.
+
+Built from `ControlsScreen.glyphs_for` rather than typed, because ADR-139 made that file the only one in the project that names a key.
+
+### What this does not do
+
+It does not make dying alone easier. The self-recovery already existed, at the price `DES-012` set; this is the build finally saying so. `DES-012`'s *"a solo analogue so downing is not strictly worse alone"* was implemented and invisible, which is the same as absent to everyone except the person who wrote it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

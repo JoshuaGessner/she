@@ -5053,6 +5053,43 @@ func _vordr_probe() -> void:
 			+ "that does not shorten is a UI timer with no fiction behind it")
 			% [down_seconds, player.bleeding])
 
+	# ─ 2b. **and it names the one thing you can do about it** (ADR-150) ─
+	#
+	# The rows above ask whether the three states are *reachable*. None of them
+	# ever asked what one said, and the down state said nothing about the one
+	# way up: `has_self_recovery()` had existed since ADR-050 and was read by a
+	# probe and by nothing else. Forty-five seconds of a shrinking bar, and the
+	# reporter drew the only conclusion available — *"there is never anyone to
+	# save them on a solo run."*
+	var glyph: String = ControlsScreen.glyphs_for("use_waystone")
+	var down_hint: String = readout.hint()
+	print("[vordr] down says          '%s' | '%s'" % [readout.line(), down_hint])
+	if not down_hint.contains(glyph):
+		problems.append(("the downed readout does not name the way up (%s) — "
+			+ "a solo player has exactly one, it ends the wait they are sitting "
+			+ "through, and no screen in this game said so") % glyph)
+
+	# **Spend it, and the readout has to stop offering it.** A hint that still
+	# names a key which now does nothing is worse than no hint: it is a promise
+	# the game breaks at the moment it is believed.
+	player.ask_to_self_recover()
+	await _hold(0.3)
+	print("[vordr] one way up, spent  still has one=%s, standing=%s" % [
+		player.has_self_recovery(), not player.is_downed()])
+	if player.has_self_recovery() or player.is_downed():
+		problems.append("the one self-recovery did not spend or did not stand "
+			+ "the body up, so the row below is about nothing")
+	player.health.apply_damage(player.health.maximum * 2.0)
+	await _hold(0.4)
+	var spent_hint: String = readout.hint()
+	print("[vordr] down again         '%s'" % spent_hint)
+	if spent_hint == "" or spent_hint == down_hint:
+		problems.append(("down a second time with nothing left to spend, the "
+			+ "readout says '%s' — the same thing it said when there was a way "
+			+ "up. `PRO-005` §5 forbids the unexplainable, and a key that "
+			+ "stopped working without saying so is exactly that")
+			% spent_hint)
+
 	# ─ 3. **and it is still a body** — down is not loose ─
 	print("[vordr] down, not loose    spent=%s, on the body layer=%s" % [
 		player.spent, (player.collision_layer & CollisionLayers.PLAYER_BODY) != 0])
@@ -5069,6 +5106,17 @@ func _vordr_probe() -> void:
 			+ "Vörðr is unreachable")
 		_report(problems, "vordr")
 		return
+	# **And it says the right thing about being alone** (ADR-150). Asserted
+	# here rather than lower down because becoming spent is what starts
+	# `_watch_for_a_wipe`, and the rows below already spend most of
+	# `party_wipe_seconds`.
+	var loose_says: String = readout.line()
+	print("[vordr] loose says         '%s'" % loose_says)
+	if loose_says == "" or loose_says == tr("fallen.vordr"):
+		problems.append(("a Vörðr with nobody left standing is told to *scout "
+			+ "for them* — that line was written for a party and shipped to "
+			+ "everybody, and solo there is no them and three seconds left"))
+
 	var speed_now: float = player._target_speed(false, Config.tuning)
 	print("[vordr] a Vörðr moves at   %.1f m/s (walking is %.1f)" % [
 		speed_now, Config.tuning.walk_speed])
