@@ -3929,5 +3929,45 @@ Becoming a class is `spawn_player`'s one job. A second route that dressed a stan
 
 ---
 
+## ADR-149 — She remembered three things forever, and the camp forgot every descent
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T28`** · **Save v9**
+
+Two persistence faults, found while reading the reporter's profile for something else. Neither is a design change: both are the build failing to do what `DES-003` already says.
+
+### 1. The Legacy slots were never spent
+
+`draw_on_legacy()` read the list and left it there. Nothing else ever emptied it — `legacy.clear()` appears in `from_dict` (loading) and in two probes, and nowhere in play.
+
+The reporter's own save is the evidence: `slots: [wpn_yew_bow]` still occupied, `last_life: {}` already answered, the Scarred bow already paid out into the stash.
+
+Two consequences, and each of them is a sentence of `DES-003` being false:
+
+| `DES-003` says | The build did |
+|---|---|
+| *"a head start, not a stockpile"* | granted a **fresh copy** of everything ever kept, to every subsequent life, forever |
+| *"three slots is three slots. It cannot spiral no matter how many lifetimes accrue"* | it spiralled |
+| *"slots are chosen at the moment of death"* | once the board filled, `why_not_keep` refused every future pick — the choice was made **once per lineage** |
+
+The last one is the worst, because the screen `DES-003` calls *"a genuinely dramatic screen, and a real decision"* quietly stops being either. So `draw_on_legacy()` spends the board: the kept things become the new life's stash and tree, and the next death is a real choice again.
+
+No ADR was needed to *permit* this — it is the accepted document being complied with. This one exists to record why nothing caught it.
+
+**Why nothing caught it.** Every row of `--legacy-probe` is about **one** death. The fault only exists on the death *after* it, and no check had ever asked a second one. The new rows go last for exactly that reason, and dying twice inside the probe is what made ADR-147's guard show up as a real second death in `--pact-probe`.
+
+### 2. `descents` was never written
+
+It was absent from `to_dict` entirely. It counts how far down this lineage has been, `die()` does not touch it, and it drives two things: the camp readout, and `AudioDirector`'s company layer — the thing ADR-050 built so the Threshold *fills out as the camp does*.
+
+So the camp went back to sounding empty on every relaunch, and the readout under-counted from the second session on. It is LINEAGE tier, beside the hoard, because that is what it is.
+
+**Save v9.** `_migrate_8_to_9` writes `descents = 1`, because an old profile has no honest number to recover — a camp that sounds empty is the truthful reading of a count nobody kept. `from_dict` clamps to at least 1: `AudioDirector` divides by `descents - 1`, and a zero would make a fresh camp sound lived-in from below.
+
+### Verification
+
+`--legacy-probe` asserts the board is empty after a payout **and** that the next death can keep something again; planted by removing `legacy.clear()`, which fails both rows and prints the player-facing consequence verbatim — *"she will remember 3 things and no more"* on a fresh life's first death. `--save-probe` round-trips `descents`, planted by dropping the field. The v1 fixture still migrates the whole ladder to v9.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

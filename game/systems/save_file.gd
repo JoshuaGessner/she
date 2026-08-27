@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 8
+const SAVE_VERSION: int = 9
 
 ## **A `static var`, so a probe can point it somewhere harmless** (ADR-145).
 ##
@@ -97,6 +97,7 @@ static func migrations() -> Dictionary:
 		5: _migrate_5_to_6,
 		6: _migrate_6_to_7,
 		7: _migrate_7_to_8,
+		8: _migrate_8_to_9,
 	}
 
 
@@ -384,4 +385,15 @@ static func _migrate_7_to_8(old: Dictionary) -> Dictionary:
 	var life: Dictionary = out.get("life", {}) as Dictionary
 	life["carried"] = []
 	out["life"] = life
+	return out
+
+
+## `descents` was never written at all (ADR-149), so an old profile has no
+## honest number to recover — 1 is what the field defaults to in a fresh life,
+## and a camp that sounds empty is the truthful reading of a count nobody kept.
+static func _migrate_8_to_9(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var lineage: Dictionary = out.get("lineage", {}) as Dictionary
+	lineage["descents"] = 1
+	out["lineage"] = lineage
 	return out

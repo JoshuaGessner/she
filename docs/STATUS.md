@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`58/77` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`59/78` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
   M0 --> M1
   M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>27/27"]:::current
+  M3["M3 The Pact<br/>28/28"]:::current
   M2 --> M3
   M4["M4 Vertical Slice<br/>0/13"]:::ahead
   M3 --> M4
@@ -37,7 +37,7 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 27/27 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 28/28 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
@@ -51,7 +51,7 @@ _None. Sequencing is clean._
 | Check | Note |
 |---|---|
 | `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15) but still has 2 ⟨tune⟩ marker(s) |
-| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27) but still has 6 ⟨tune⟩ marker(s) |
+| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19) but still has 4 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
@@ -124,6 +124,7 @@ _None. Sequencing is clean._
 - ✔ `M3-T25` **A boolean cannot hold two screens** — *ADR-146, extending ADR-141, reported from play: "it still showed the death or tithe screen ... but had the new run already playing in the background." ADR-141 made `set_driving` the seam and it was the right seam; it was left a **boolean**, and it acquired four writers — `PauseMenu` twice, `Threshold._hand_over`, and the Pact tree twice. **Screens stack.** `PauseMenu.close()` said `set_driving(true)`, which is a statement about the whole game rather than about the pause menu, so opening and closing it under the Legacy screen handed the body back and **recaptured the mouse** with the death screen still up: the same three symptoms ADR-141 fixed, through a different door, and the Chamber had it too. `Player._on_inventory_changed` already carries a comment naming this hazard — *"two writers to one number is the second weight path ADR-064 bans"* — one file away from the code that had it. `_attention` is a list of named claims and the body drives when it is empty; `set_driving` is **gone** rather than kept beside it, so a screen can only give back what it took. **Nothing could have caught this**: every probe drives a screen by calling its methods, ADR-141's one real-input row proves the Legacy screen takes the body *when it opens*, and no check anywhere had ever opened a second screen over a first. `--threshold-probe` now does, and asserts the body still does not drive, the Legacy claim survives, and the pause claim does not — planted by restoring the old semantics, which fails two of the three. Also: `close()` freed the settings panel and not the controls screen, so one opened from the pause menu was still standing behind it and `_show_controls` refused to build another for the rest of the level* `DES-019` `TEC-004`
 - ✔ `M3-T26` **A life ends once** — *ADR-147, the other half of the ADR-146 report: "like I was supposed to offer something" — something to offer, and nothing offered. ABANDON calls `die()` with no idea whether anybody is alive to lose, which is the right decision and was never the problem. **The pause menu is the only way out of the Legacy screen**: its third panel is the class choice and it has no back button, by design, because `DES-003` makes this one flow. So a player who dies, reaches the fire and would rather not choose yet has exactly one door, and it calls `die()` again. The second call ran `_remember_the_life()` over state the first had already wiped and wrote `{"class_id": "", "worn": [], "stash": [], "taken": [], "rank": 1}` — **non-empty, and recording nothing** — and every symptom is that one property: the fire keeps asking (the record *is* the question), the menu keeps not asking about a class (`menu_asks_the_class` tests `is_empty()`), and the screen offers zero things on a life that had gear, a stash and a tree. The refusal lives in `die()` rather than in the caller, because guarding the one door known to reach it today leaves the property depending on nobody adding a ninth; `life_already_ended()` asks both halves together, since a fresh profile has no class either and can very much die. `--legacy-probe` dies twice and asserts nothing changed — planted by disabling the guard, which fails four rows, three of them the reported symptom restated* `DES-003`
 - ✔ `M3-T27` **After every death you stood at the fire as nobody** — *ADR-148, completing ADR-141, named by one line of the reporter's log: `peer 1 descends at rank 1 as 'nobody'`. `CoopSession` declares what a peer is in its `_ready` and `spawn_player` bakes the class into the spawn packet, both when the level begins; the Legacy screen asks *who you are next* after that, because ADR-141 moved it there and `PRO-001` wants **one flow and not two screens**. Nothing joined them up, so after **every** death — the normal path, not an edge case — the body at the camp had no class, no kit, nothing in its hand and plain health, coming right only on the next scene change. That is ADR-141's own report wearing different clothes: a body with no class has an empty hand, and ADR-140 made an empty hand refuse the swing. Rebuilt through `CoopSession` rather than dressed in place, because becoming a class is `spawn_player`'s one job and a second route would drift from the packet the first time the packet gained a field. **A frame between the despawn and the spawn is load-bearing**: `player_for` finds a body by node name and `queue_free` holds the name to the end of the frame, so doing both in one breath renames the new body `player_1@2` and the camp comes back with no body at all — ADR-107's grey screen by a new road, confirmed by planting it. Two more, found on the way: **`ClassScreen._commit` ignored what `take_the_oath` returned** and announced a choice anyway, so a screen opened on a life that already had a class made the Legacy flow pay out its slots and clear the death record on a life that never ended; and the flow **asked a question with no answers** — every button refused, which is the stub ADR-064 bans, reachable whenever an unwritable profile leaves `last_life` on disk. `--threshold-probe` drives the whole flow through the class panel rather than emitting `finished`, because the fault was in the join* `DES-011` `DES-003` `TEC-004`
+- ✔ `M3-T28` **She remembered three things forever, and the camp forgot every descent** — *ADR-149, **save v9**. Two persistence faults found while reading the reporter's profile for something else, neither of them a design change: both are the build failing to do what `DES-003` already says. **(1) The Legacy slots were never spent.** `draw_on_legacy()` read the list and left it there, and nothing in play ever emptied it — the reporter's save still holds `slots: [wpn_yew_bow]` with the Scarred bow already paid out. So every later life was granted a **fresh copy** of everything ever kept (`DES-003`: *"a head start, not a stockpile"*), it spiralled (*"three slots is three slots; it cannot spiral no matter how many lifetimes accrue"*), and once the board filled `why_not_keep` refused every future pick — so the screen `DES-003` calls *"a genuinely dramatic screen, and a real decision"* was a decision a lineage made **once**. **Nothing caught it because every row of `--legacy-probe` is about one death**, and the fault only exists on the death after it; the new rows go last for that reason. **(2) `descents` was never written** — absent from `to_dict` entirely, while driving the camp readout and `AudioDirector`'s company layer, the thing ADR-050 built so the Threshold fills out as the camp does. The camp went back to sounding empty on every relaunch. LINEAGE tier beside the hoard; `_migrate_8_to_9` writes 1, because a count nobody kept has no honest number to recover, and `from_dict` clamps to at least 1 since `AudioDirector` divides by `descents - 1`. Both planted: removing `legacy.clear()` fails two rows and prints the player-facing consequence verbatim — *"she will remember 3 things and no more"* on a fresh life's first death* `DES-003` `DES-014` `TEC-003`
 
 ### M4 — Vertical Slice
 
@@ -152,6 +153,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 148 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 149 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

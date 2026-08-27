@@ -1109,6 +1109,36 @@ func _legacy_probe() -> void:
 			+ "starts **owing more**, which is the coupling working rather "
 			+ "than being dodged") % GameState.taken.size())
 
+	# ─ 7. **and the slots are spent** (ADR-149) ─
+	#
+	# Last, because every row above is about **one** death and this is about the
+	# one after it — which is exactly why nothing caught it. `draw_on_legacy()`
+	# read the list and left it there, and nothing else ever emptied it, so the
+	# three kept things were re-granted to every later life forever *and*
+	# `why_not_keep` refused every future pick because the board was still full.
+	# `DES-003` calls this *"a head start, not a stockpile"* and says three
+	# slots *"cannot spiral no matter how many lifetimes accrue"*. It was a
+	# stockpile, and it spiralled.
+	print("[legacy] the board            %d slot(s) held after the payout "
+		% GameState.legacy.size() + "(want 0)")
+	if not GameState.legacy.is_empty():
+		problems.append(("the slots paid out and stayed full — every later life "
+			+ "is granted these %d things again for nothing, and the next death "
+			+ "keeps nothing at all because the board never empties")
+			% GameState.legacy.size())
+	# The claim that matters is the **next** death being a real choice again.
+	GameState.class_id = &"veidimadr"
+	GameState.worn = {"MAIN_HAND": "wpn_yew_bow"}
+	GameState.forget_the_last_life()
+	GameState.die()
+	var second: String = GameState.why_not_keep("item", &"wpn_yew_bow")
+	print("[legacy] the next death       keeping the bow — '%s' (want no reason)"
+		% second)
+	if second != "":
+		problems.append(("the second life could not keep anything — '%s'. The "
+			+ "screen `DES-003` calls a genuinely dramatic decision is then a "
+			+ "decision a lineage makes once and never again") % second)
+
 	_report_pact(problems)
 
 

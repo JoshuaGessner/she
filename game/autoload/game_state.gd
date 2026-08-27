@@ -105,6 +105,14 @@ var last_life: Dictionary = {}
 ## LIFE-tier `run_count` is a different number that counts against a Tithe
 ## cycle. It arrives with `M3-T04`, which is the first build in which there is
 ## a cycle to count against.
+## How many times this lineage has gone down. Drives the camp readout and
+## `AudioDirector`'s company layer, which is the thing that makes the Threshold
+## fill out as you keep coming back (ADR-050).
+##
+## **LINEAGE tier** (save v9, ADR-149): it counts descents rather than a life's
+## descents, `die()` does not touch it, and it was absent from `to_dict`
+## entirely — so the camp went back to sounding empty every time the game was
+## relaunched, and the readout under-counted from the second session on.
 var descents: int = 1
 
 ## **The pact** (`M3-T04`, `DES-003`). LIFE tier, all of it: `die()` puts every
@@ -319,6 +327,15 @@ func draw_on_legacy() -> void:
 			"node":
 				if AspectCatalogue.by_id(id) != null and not taken.has(id):
 					taken.append(id)
+	# **And the slots are spent** (ADR-149). This read the list and left it
+	# there, and nothing else ever emptied it — so the three things she
+	# remembers were re-granted to **every** subsequent life, forever, while
+	# `why_not_keep` refused every future pick because the slots were full.
+	# `DES-003` calls this *"a head start, not a stockpile"* and *"three slots
+	# is three slots; it cannot spiral no matter how many lifetimes accrue"*,
+	# and both were false: it was a stockpile, it spiralled, and the choice the
+	# whole screen exists for was one a lineage made once.
+	legacy.clear()
 	_persist()
 
 
@@ -855,6 +872,7 @@ func to_dict() -> Dictionary:
 		spent.append(String(id))
 	return {
 		"lineage": {"hoard": pile, "hoard_value": hoard_value,
+			"descents": descents,
 			"progress": lineage_progress, "deeds": deeds,
 			# Carried across a quit, because a deed earned on the last run and
 			# not yet seen is still owed to the player — `DES-016` puts it at
@@ -906,6 +924,10 @@ func from_dict(data: Dictionary) -> void:
 		hoard.append(StringName(raw))
 	hoard_value = int(lineage.get("hoard_value", 0))
 	lineage_progress = int(lineage.get("progress", 0))
+	# At least 1: `AudioDirector` divides by `descents - 1` against a full-camp
+	# constant, and a zero here would make a fresh camp sound like a lived-in
+	# one from below.
+	descents = maxi(1, int(lineage.get("descents", 1)))
 	deeds = (lineage.get("deeds", {}) as Dictionary).duplicate()
 	fresh_deeds.clear()
 	for row: Variant in lineage.get("fresh_deeds", []) as Array:
@@ -1030,6 +1052,12 @@ func _save_probe() -> void:
 	# fire lost the whole bag, and this file's own header table said it should
 	# not have.
 	carried.append(ItemInstance.of(ItemCatalogue.by_id(&"glt_altar_plate"), 7))
+	# **And how far down this lineage has been** (save v9, ADR-149). Recorded
+	# here for the reason `worn` and `carried` are: a field nothing asserts is a
+	# field that can silently stop reaching disk, and this one never reached it
+	# at all — the camp went back to sounding empty on every relaunch and
+	# nothing in the sweep could see it.
+	descents = 5
 	_persist()
 
 	if FileAccess.file_exists(SaveFile.TMP):
@@ -1043,6 +1071,7 @@ func _save_probe() -> void:
 	stash.clear()
 	worn.clear()
 	carried.clear()
+	descents = 1
 	from_dict(SaveFile.read())
 	print("[save] round trip     hoard %d/%d, value %d/%d, stash %d" % [
 		hoard.size(), pile, hoard_value, gave, stash.size()])
@@ -1059,6 +1088,12 @@ func _save_probe() -> void:
 			+ "the Settle beat happens at the Chamber and the fire is where you "
 			+ "land, so quitting in between used to cost the whole haul before "
 			+ "she was ever offered any of it"))
+	print("[save] the descent    %d down (want 5)" % descents)
+	if descents != 5:
+		problems.append(("how far down this lineage has been did not survive a "
+			+ "round trip — `AudioDirector` fills the camp out from this count "
+			+ "and the readout names it, so a lineage that forgets it is a camp "
+			+ "that sounds empty however long you have been coming back"))
 	print("[save] gear           main hand '%s'" % worn.get("MAIN_HAND", ""))
 	if String(worn.get("MAIN_HAND", "")) != "wpn_seax":
 		problems.append(("what was worn did not survive a round trip — "
