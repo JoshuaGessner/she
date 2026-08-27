@@ -298,6 +298,36 @@ func why_not_keep(kind: String, id: StringName) -> String:
 	return ""
 
 
+## **Will she take this?** (`M3-T32`, ADR-153)
+##
+## The fourth `why_not_*`, and the one that was missing. `_on_put_down` handed
+## the pile whatever landed near it with no question asked, and `DES-014` makes
+## the hoard **one-way by construction** — *"there is no method that takes
+## anything off a hoard"* — so anything she was given for nothing was destroyed
+## for nothing.
+##
+## Two ways a thing can be worth nothing, and both were reachable:
+##
+## **Scarred.** `DES-003` says Legacy items *"cannot be tributed"*, and the
+## build implemented that as *can be tributed, for zero*, which is a different
+## and much worse sentence: the refusal existed in `tribute_worth()` and stopped
+## at the arithmetic.
+##
+## **Worth nothing to begin with.** Every weapon in the game is `tribute_value`
+## 0 — the Seax you start with, the bow a Veiðimaðr *is* — as are the Waystone
+## and an ember. Reported from play: a bow given to the pile, gone forever, and
+## the hoard did not move. Value is the judgment rather than the category;
+## `rlc_regin_blade` is a weapon and she wants it very much.
+func why_not_tribute(item: ItemInstance) -> String:
+	if item == null:
+		return "there is nothing there"
+	if item.scarred:
+		return "she will not take back what she has already given you"
+	if item.definition.tribute_value <= 0:
+		return "she has no use for that"
+	return ""
+
+
 func keep_in_legacy(kind: String, id: StringName) -> bool:
 	if why_not_keep(kind, id) != "":
 		return false

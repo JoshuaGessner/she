@@ -65,6 +65,10 @@ const SPAWN_AT: Vector3 = Vector3(0.0, 0.1, 4.0)
 
 ## How close you have to be for a thing you put down to mean something.
 const PLACE_REACH: float = 2.6
+## How long the readout holds what she said about a refusal. Long enough to
+## read while walking away from the pile, short enough not to become furniture
+## (`DES-019` is hostile to persistent UI).
+const REFUSAL_SECONDS: float = 5.0
 ## The Pact tree's claim on the body (ADR-146), on the same terms as the
 ## Legacy screen's: the pause menu can open over this and must give back
 ## only what it took.
@@ -84,6 +88,11 @@ var _readout: Label = null
 ## The Aspects, while they are open. Non-null is what stops the room reopening
 ## them every frame the player holds the key at the pile.
 var _pact: PactScreen = null
+## What she last refused and why, shown on the readout while it lasts. The
+## visual twin of the refusal cue (`DES-018`): with the sound muted, the line is
+## still the whole answer.
+var _refusal: String = ""
+var _refusal_left: float = 0.0
 
 
 func _ready() -> void:
@@ -169,6 +178,13 @@ func _spawn_body() -> void:
 func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 		_launch: Vector3) -> void:
 	if at.distance_to(global_position + HOARD_AT) <= PLACE_REACH:
+		# **She refuses what is worth nothing to her** (`M3-T32`, ADR-153), and
+		# a refusal is not the confirmation dialog `DES-019` bans — it is her
+		# declining, which is flavour and a guard in the same gesture.
+		var refused: String = GameState.why_not_tribute(item)
+		if refused != "":
+			_hand_it_back(item, refused)
+			return
 		GameState.tribute(item)
 		_rebuild_hoard()
 		print("[lair] gave %s — the hoard is worth %d" % [
@@ -181,9 +197,90 @@ func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 			item.definition.display(), GameState.stash.size()])
 		_settle()
 		return
-	# Neither. It is on the floor of your own Chamber, which is a perfectly
-	# good place for a thing to be and needs no handling at all.
-	print("[lair] put %s down on the floor" % item.definition.display())
+	# **Neither, so it was a miss** (`M3-T32`, ADR-153).
+	#
+	# The comment that stood here said the Chamber floor was *"a perfectly good
+	# place for a thing to be and needs no handling at all."* It was not, and it
+	# needed handling badly: nothing spawns a `WorldItem` in this room — the
+	# Chamber builds its own body and `CoopSession`, which owns the spawner,
+	# never sees it — so the item left the bag and existed **nowhere**. Then
+	# `_leave()` rebuilds `carried` from the bag alone. The reporter's own log
+	# has `put Seax down on the floor` and their profile has no Seax anywhere.
+	#
+	# There is no third gesture here. `DES-019` makes this decision physical and
+	# binary — give, or keep — so anything else is a mis-drop, and the answer to
+	# a mis-drop is to hand it back rather than to invent a third state for it.
+	_hand_it_back(item, "")
+
+
+## Back into the bag, exactly as it was.
+##
+## Through `put_back` rather than `add`, because `scarred` and `bound_to` live
+## on the instance: handing a Scarred bow back through `add()` would quietly
+## un-Scar it, which is a Legacy slot laundering itself into full power.
+func _hand_it_back(item: ItemInstance, because: String) -> void:
+	if not _player.inventory.put_back(item):
+		# Nothing should be able to reach this: the item was in this bag one
+		# frame ago. Loud rather than silent, because the alternative is the
+		# deletion this whole change is about.
+		push_error("Chamber: could not give %s back; it is gone"
+			% item.definition.display())
+		return
+	_refusal = because
+	_refusal_left = REFUSAL_SECONDS if because != "" else 0.0
+	Foley.at(_player, Foley.Sound.THUMP, 0.7, -6.0)
+	if because == "":
+		print("[lair] %s missed both, so it is back in the bag"
+			% item.definition.display())
+	else:
+		print("[lair] she refused %s — %s" % [item.definition.display(), because])
+
+
+## One refusal, driven the way a player drives it: into the bag, out of the bag,
+## and down in front of her.
+##
+## Through `ask_to_drop_instance` rather than by calling `why_not_tribute`,
+## because the rule was never the thing that was wrong — `tribute_worth()` has
+## returned 0 for a Scarred item since `M3-T05`. What was wrong is that nothing
+## between the bag and the pile ever asked.
+func _she_refuses(id: StringName, scarred: bool,
+		called: String) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var thing: ItemInstance = _player.inventory.add(ItemCatalogue.by_id(id))
+	if thing == null:
+		return PackedStringArray(["no room in the bag to offer her %s thing"
+			% called])
+	thing.scarred = scarred
+	var pile_before: int = GameState.hoard_value
+	var on_the_pile: int = GameState.hoard.size()
+	_player.global_position = global_position + HOARD_AT + Vector3(0.0, 0.0, 1.5)
+	_player.ask_to_drop_instance(thing.instance_id)
+	await get_tree().process_frame
+
+	var back: ItemInstance = _player.inventory.find(thing.instance_id)
+	print("[lair] %-10s hoard %d → %d (%d → %d on it), back in the bag=%s%s" % [
+		called, pile_before, GameState.hoard_value, on_the_pile,
+		GameState.hoard.size(), back != null,
+		", still Scarred=%s" % back.scarred if back != null and scarred else ""])
+	print("[lair]            she said '%s'" % _refusal)
+	if GameState.hoard_value != pile_before \
+			or GameState.hoard.size() != on_the_pile:
+		problems.append(("%s thing reached the pile — `DES-014` never gives "
+			+ "anything back, so what she takes for nothing is destroyed for "
+			+ "nothing") % called)
+	if back == null:
+		problems.append(("%s thing was refused and then vanished — a refusal "
+			+ "that costs the item is the deletion it exists to prevent")
+			% called)
+	elif scarred and not back.scarred:
+		problems.append(("a Scarred item came back unmarked — `scarred` lives "
+			+ "on the instance, so a return through `add()` launders a Legacy "
+			+ "slot into a full-power item"))
+	if _refusal == "":
+		problems.append(("she refused %s thing and said nothing — with the "
+			+ "sound muted the readout line is the whole answer (`DES-018`), "
+			+ "and without it the gesture reads as a bug") % called)
+	return problems
 
 
 func _build_room() -> void:
@@ -296,9 +393,13 @@ func _the_tithe() -> String:
 		GameState.pact_rank, GameState.tithe_paid, owed, short, when]
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _player == null or _readout == null:
 		return
+	if _refusal_left > 0.0:
+		_refusal_left = maxf(0.0, _refusal_left - delta)
+		if _refusal_left <= 0.0:
+			_refusal = ""
 	_readout.text = "\n".join([
 		"THE CHAMBER    descent %d" % GameState.descents,
 		"",
@@ -311,9 +412,13 @@ func _process(_delta: float) -> void:
 		_the_tithe(),
 		"",
 		"open the bag and drag an item out:",
-		"  at the pile ahead   she keeps it",
+		"  at the pile ahead   she keeps it, and it is hers for good",
 		"  at the chest left   you keep it, until you die",
-		"  anywhere else       it is on the floor",
+		"  anywhere else       it goes back in the bag",
+		"",
+		# Held for `REFUSAL_SECONDS` and then gone. Blank rather than absent, so
+		# nothing below it moves when she speaks.
+		_refusal,
 		"",
 		_the_offer(),
 		"",
@@ -478,6 +583,43 @@ func _lair_probe() -> void:
 		problems.append("keeping something at the stash did not stash it — giving "
 			+ "and keeping must be distinguishable acts or DES-008's tug-of-war "
 			+ "has only two corners")
+
+	# ─ **and she refuses what is worth nothing to her** (`M3-T32`, ADR-153) ─
+	#
+	# Reported from play: a bow put on the pile, gone forever, and the hoard did
+	# not move. Every weapon in this build is `tribute_value` 0, the pile is
+	# one-way by construction (`DES-014`), and `_on_put_down` asked nothing —
+	# so the rows above, which only ever gave her the *richest* thing in the
+	# bag, could never have seen it.
+	problems.append_array(await _she_refuses(&"wpn_yew_bow", false, "a weapon"))
+	# Scarred is the other half, and it is the one that has to come back
+	# **still Scarred**: `add()` mints from a definition, so a careless return
+	# would un-Scar a Legacy item into full power.
+	problems.append_array(await _she_refuses(&"glt_hoard_coin", true, "a Scarred"))
+
+	# ─ **and a miss is a miss, not a deletion** ─
+	#
+	# Nothing spawns a `WorldItem` in this room, so an item dropped at neither
+	# place existed nowhere at all, and `_leave()` rebuilds `carried` from the
+	# bag. The reporter's log has `put Seax down on the floor` and their profile
+	# has no Seax anywhere.
+	var stray: ItemInstance = _player.inventory.add(
+		ItemCatalogue.by_id(&"mat_bog_iron"))
+	if stray == null:
+		problems.append("no room in the bag to test a mis-drop")
+	else:
+		var before_miss: int = _player.inventory.count()
+		_player.global_position = global_position + Vector3(5.0, 0.1, 4.0)
+		_player.ask_to_drop_instance(stray.instance_id)
+		await get_tree().process_frame
+		var kept_it: bool = _player.inventory.find(stray.instance_id) != null
+		print("[lair] a mis-drop  bag %d → %d, still there=%s" % [
+			before_miss, _player.inventory.count(), kept_it])
+		if not kept_it:
+			problems.append(("something dropped at neither place left the bag "
+				+ "and went nowhere — this room spawns no world item, so the "
+				+ "floor is a deletion with a cheerful line about it, and "
+				+ "`_leave()` rebuilds what comes home from the bag alone"))
 
 	# Death. `DES-008`'s great reset, and the one thing it must not touch.
 	var hoard_before_death: int = GameState.hoard_value

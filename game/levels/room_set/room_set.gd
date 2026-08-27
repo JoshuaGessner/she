@@ -354,6 +354,9 @@ var _she_sent_it_early: float = 0.0
 ## True while a wipe is counting down, so four bodies going out together start
 ## one run-end rather than four (`M2-T16`).
 var _ending: bool = false
+## Peers whose ember reached an exit in somebody's bag (`M3-T33`, `DES-012`).
+## Per floor, and cleared with it: a rescue is about this run and nothing else.
+var _borne_out: Dictionary = {}
 ## Set when somebody presses TO THE FIRE, which ends the wipe window early
 ## (ADR-151). The wait is a floor rather than a fixed price.
 var _skip_the_wait: bool = false
@@ -1182,14 +1185,22 @@ func _exit_probe() -> void:
 
 var _extracted_tribute: int = -1
 var _rescued_peer: int = -1
+## Was the delivered ember still in the rescuer's bag at the instant the rescue
+## was announced (`M3-T33`)? Sampled there because it is the only moment it can
+## be: `_on_extracted` consumes the token, marks the body out, and resolves the
+## run in one call stack, and a probe looking afterwards is looking past
+## `_reset_floor` emptying every bag. The first draft of that row did exactly
+## that and could not fail.
+var _token_survived: bool = false
 
 
 func _on_probe_extracted(_player: Player, tribute: int) -> void:
 	_extracted_tribute = tribute
 
 
-func _on_probe_rescued(saved_peer: int, _by: Player) -> void:
+func _on_probe_rescued(saved_peer: int, by: Player) -> void:
 	_rescued_peer = saved_peer
+	_token_survived = by.inventory.embers().has(saved_peer)
 
 
 ## Going down, bleeding out, and being carried home (`M2-T05`, `DES-012`).
@@ -1392,6 +1403,125 @@ func _ember_probe() -> void:
 			+ "somebody else's must never stand in for your own")
 			% [stranger, str(saved)])
 	player.inventory.clear()
+
+	# ─ 8. **and the life it saves actually survives** (`M3-T33`, ADR-154) ─
+	#
+	# Row 6 above has asserted since `M2` that the rescue is *reported*. It was
+	# never anything else: `rescued` was connected by `_on_probe_rescued` and by
+	# nothing in the game, so the signal this probe watched was the whole of the
+	# feature. `_end_the_run` read `body.spent` and wiped the rescued player
+	# anyway — the rescuer paid weight, noise and a worse walk home, and the
+	# person they saved lost their tree, their stash and their rank regardless.
+	#
+	# A second body, because a rescue needs somebody to do it. `GameState` is
+	# this process's and belongs to the **host** body, so the host is the one
+	# who has to be saved for the row to be about a real profile.
+	#
+	# **Put on the Shaft through the wire, not through a transform.** `teleport`
+	# asks the owning peer to move itself and this one's owner is a number
+	# rather than a process, so it prints and declines. Setting `global_position`
+	# does not stick either: a body nobody drives is eased toward `net_position`
+	# every frame, and that starts at the origin — which is where the first
+	# draft of this row found its helper standing, 29 m from the exit it was
+	# supposed to be climbing.
+	var helper: Player = _session.spawn_player(TEAMMATE_PEER, SHAFT_AT)
+	await _hold(0.4)
+	if helper != null:
+		helper.net_position = SHAFT_AT
+		helper.global_position = SHAFT_AT
+		await _hold(0.6)
+	if helper == null:
+		problems.append("could not spawn a second body, so nothing can carry "
+			+ "an ember out and DES-012's whole rescue is unmeasurable")
+		_report(problems, "ember")
+		return
+	player.restore_for_descent()
+	player.teleport(SHAFT_AT + Vector3(4.0, 0.1, 0.0), 0.0)
+	await _hold(0.4)
+	# A life worth keeping.
+	GameState.class_id = &"huskarl"
+	GameState.taken.clear()
+	GameState.taken.append(&"hrd_ballast")
+	GameState.stash.clear()
+	GameState.stash.append(ItemInstance.of(
+		ItemCatalogue.by_id(&"glt_hoard_coin"), 1))
+	var rank_before: int = GameState.pact_rank
+	var floor_before_rescue: int = _descent
+
+	# The host goes out, so its ember is on the floor for the helper.
+	player.health.apply_damage(player.health.maximum * 2.0)
+	await _hold(0.2)
+	player.bleeding = 0.02
+	await _hold(0.6)
+	var left_behind: WorldItem = null
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var found := node as WorldItem
+		if found != null and found.bound() == owner_peer:
+			left_behind = found
+	print("[ember] borne out   spent=%s, ember on the floor=%s" % [
+		player.spent, left_behind != null])
+	if not player.spent or left_behind == null:
+		problems.append("the host did not go out leaving an ember, so the "
+			+ "rescue below is about nothing")
+		_report(problems, "ember")
+		return
+
+	# **Into the helper's bag directly**, the way row 7 arranges its own tag.
+	# Row 6 above already asserts that an ember is picked up off the floor and
+	# what that costs; the subject here is what happens when a bag holding one
+	# reaches an exit, and driving the pickup as well would only add a
+	# proximity failure to a row that is not about proximity.
+	left_behind.queue_free()
+	var token: ItemInstance = helper.inventory.add(ItemCatalogue.by_id(&"con_ember"))
+	if token == null:
+		problems.append("no room in the helper's bag for an ember")
+		_report(problems, "ember")
+		return
+	token.bound_to = owner_peer
+	var carrying: Array[int] = helper.inventory.embers()
+	await _hold(0.3)
+	_token_survived = false
+	var climbing: bool = helper.reach_for_shaft_now()
+	print("[ember] the climb   helper %.1f m from the Shaft, channelling=%s" % [
+		helper.global_position.distance_to(_shaft.global_position), climbing])
+	if not climbing:
+		problems.append("the helper never reached the Shaft, so no bag with an "
+			+ "ember in it ever arrived at an exit")
+	await _hold(_shaft.channel_seconds() + 2.0)
+
+	print("[ember] and after   class '%s', tree %d, stash %d, rank %d → %d" % [
+		GameState.class_id, GameState.taken.size(), GameState.stash.size(),
+		rank_before, GameState.pact_rank])
+	if carrying.size() != 1 or carrying[0] != owner_peer:
+		problems.append(("the helper is carrying %s rather than the host's "
+			+ "ember, so what walked out is not the thing being tested")
+			% str(carrying))
+	elif _descent == floor_before_rescue:
+		problems.append("the run never resolved after the last body left, so "
+			+ "no outcome was taken and nothing below was decided")
+	elif GameState.class_id != &"huskarl" or GameState.taken.is_empty() \
+			or GameState.stash.is_empty() or GameState.pact_rank != rank_before:
+		problems.append(("the ember reached the exit and the life was wiped "
+			+ "anyway — `DES-012` says the tree, the stash and the rank are "
+			+ "**intact**, and the rescuer paid weight, noise and a worse walk "
+			+ "home for it. `rescued` fired and nothing but this probe was "
+			+ "listening"))
+	if not GameState.last_life.is_empty():
+		problems.append(("a rescued life left a death record, so the fire will "
+			+ "open the Legacy screen over somebody who was carried home"))
+	# **The token is spent at the exit**, sampled at the instant the rescue was
+	# announced rather than afterwards — `_on_extracted` consumes it, marks the
+	# body out and resolves the run in one call stack, so anything read later is
+	# read past `_reset_floor` emptying every bag. The first draft of this row
+	# looked afterwards, and planting the fault proved it could not fail.
+	print("[ember] the token   still in the bag at the exit=%s (want no)"
+		% _token_survived)
+	if _token_survived:
+		problems.append(("the delivered ember was still in the bag — it rides "
+			+ "home in `carried`, turns up in the Chamber, and the pile takes "
+			+ "anything it is given (`DES-014` never gives it back), so the "
+			+ "token for a life somebody already saved becomes a thing you can "
+			+ "throw away by accident"))
 
 	_report(problems, "ember")
 
@@ -3176,10 +3306,15 @@ func _end_the_run() -> void:
 		# Spent means you went out down there. Everything you were carrying
 		# stayed with your body, so there is nothing to hand back.
 		var packed: Array = [] if body.spent else body.inventory.pack()
+		# **Out is not the same as lost** (`M3-T33`, `DES-012`). A body whose
+		# ember somebody carried to an exit is spent and **not** dead: it loses
+		# the run and the bag that stayed with it, and keeps the tree, the
+		# stash and the rank.
+		var gone: bool = body.spent and not _borne_out.has(peer)
 		if peer == CoopSession.HOST_PEER:
 			# Held, not taken. Taking it here is what detached the node.
 			my_haul = packed
-			my_loss = body.spent
+			my_loss = gone
 			my_deeds = _deeds_for(body)
 			mine_found = true
 			continue
@@ -3192,7 +3327,10 @@ func _end_the_run() -> void:
 			print("[exit] %s belongs to peer %d, which is no longer connected "
 				% [body.name, peer] + "— nothing to hand back")
 			continue
-		_take_the_outcome.rpc_id(peer, packed, body.spent, _deeds_for(body))
+		if body.spent and not gone:
+			print("[death] %s went out and was carried home — the life survives"
+				% body.name)
+		_take_the_outcome.rpc_id(peer, packed, gone, _deeds_for(body))
 	# Last, because this is the one that takes the floor out from under us.
 	if mine_found:
 		_take_the_outcome(my_haul, my_loss, my_deeds)
@@ -3262,16 +3400,38 @@ func _on_extracted(player: Player) -> void:
 		player.inventory.total_tribute(),
 		"· ".join(carried) if carried.size() > 0 else "(nothing)"])
 
-	# **Bear my ember out** (`DES-012`). Anyone whose ember reached the exit in
-	# somebody's bag keeps their LIFE — tree, stash and rank intact. There is
-	# no tree, stash or rank until `M3`, so this is *reported* rather than
-	# enforced; what is real today is that the ember made it, which is the
-	# thing the M2 co-op gate is about.
+	# **Bear my ember out** (`DES-012`, and `M3-T33` is where it became true).
+	#
+	# *"If your ember reaches an extraction point, your LIFE survives. You lose
+	# the run, your carried loot, and take a Scar — but your skill tree, stash,
+	# and Pact Rank are intact."*
+	#
+	# This was **a print**. The comment said so honestly — *reported rather than
+	# enforced*, because there was no tree, stash or rank at `M2` — and then
+	# `M3` built all three and nobody came back. `rescued` was connected by one
+	# probe and by nothing else, which is ADR-098's question exactly: it fired,
+	# and the only thing listening was the check that it fired.
+	#
+	# So a rescue cost the rescuer weight, noise and a worse extraction all the
+	# way home, and bought the person it saved **nothing**: `_end_the_run` read
+	# `body.spent` and wiped them anyway.
 	for peer: int in player.inventory.embers():
 		var saved: Player = _session.player_for(peer)
 		var who: String = saved.name if saved != null else "peer %d" % peer
 		print("[death] %s carried %s's ember out — their LIFE survives" % [
 			player.name, who])
+		_borne_out[peer] = true
+		# **Delivered, so it is spent.** Left in the bag it rides home in
+		# `carried`, turns up in the Chamber as a thing you can put on the pile,
+		# and the pile is one-way (`DES-014`) — so the token for a life that has
+		# already been saved becomes a thing you can throw away by accident.
+		# Collected first: `items()` hands back the live array.
+		var delivered: Array[int] = []
+		for held: ItemInstance in player.inventory.items():
+			if held.bound_to == peer:
+				delivered.append(held.instance_id)
+		for instance: int in delivered:
+			player.inventory.remove(instance)
 		rescued.emit(peer, player)
 
 	extracted.emit(player, player.inventory.total_tribute())
@@ -3340,6 +3500,9 @@ func _the_prize_is_still_here() -> bool:
 ## scene change in the middle of their measurement.
 func _reset_floor() -> void:
 	_descent += 1
+	# A rescue belongs to the run it happened in (`M3-T33`). Carried past a
+	# floor reset it would forgive a death on the next one, for free.
+	_borne_out.clear()
 	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
 		node.queue_free()
 	_session.clear_enemies()

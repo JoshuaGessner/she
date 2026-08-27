@@ -4108,5 +4108,45 @@ A real run file planted in `user://`, a full sweep run over it, and the file rea
 
 ---
 
+## ADR-153 — She took the bow and gave nothing, and the floor ate the Seax
+
+**Date:** 2026-08-27 · **Status:** accepted · **Implements `M3-T32`**
+
+**Context:** reported from play as *"the hoard went to 999 after I tributed my bow."* The 999 was a test fixture left in the reporter's `user://` by ADR-145's own verification — one `glt_hoard_coin` sitting under a value of 999, which is not a reachable state: `tribute()` appends to `hoard` and adds to `hoard_value` in consecutive lines and they can never disagree.
+
+The bow was real, and it was worse than the number.
+
+### She takes whatever lands near her, and gives nothing back
+
+`Chamber._on_put_down` handed the pile anything dropped within `PLACE_REACH` with no question asked. `DES-014` makes the hoard **one-way by construction** — *"there is no method that takes anything off a hoard"* — so anything given for nothing is destroyed for nothing.
+
+Two ways a thing can be worth nothing, and both were reachable:
+
+**Scarred.** `DES-003` says Legacy items *"cannot be tributed"*. The build implemented that as *can be tributed, for zero* — the refusal existed in `tribute_worth()` and stopped at the arithmetic. The reporter's bow was Scarred; it had come back through a Legacy slot.
+
+**Worth nothing to begin with.** Every weapon in this build is `tribute_value` 0 — the Seax you start with, the bow a Veiðimaðr *is*, the spear, the hammer — as are the Waystone and an ember. So the pile silently ate any weapon in the game, and a Veiðimaðr could disarm themselves permanently by walking too close to it.
+
+`why_not_tribute()` is the fourth `why_not_*` and refuses both. Value is the judgment rather than the category: `rlc_regin_blade` is a weapon worth 120 and she wants it very much. A refusal is **not** the confirmation dialog `DES-019` bans — it is her declining, which is flavour and a guard in the same gesture.
+
+### The Chamber floor was a deletion with a cheerful line about it
+
+The third branch printed *"put X down on the floor"* and did nothing, under a comment saying the floor was *"a perfectly good place for a thing to be and needs no handling at all."*
+
+Nothing spawns a `WorldItem` in that room. The Chamber builds its own body and `CoopSession` — which owns the spawner — never sees it, so a dropped item left the bag and existed **nowhere**. Then `_leave()` rebuilds `carried` from the bag alone. The reporter's log has `put Seax down on the floor`; their profile has no Seax anywhere.
+
+There is no third gesture here. `DES-019` makes the decision physical and binary — give, or keep — so anything else is a mis-drop, and the answer to a mis-drop is to hand it back rather than to invent a third state for it. The readout said `anywhere else → it is on the floor`; it now says what actually happens.
+
+### `put_back`, because `add` mints
+
+`add()` builds a new instance from a definition, which is right for a pickup and wrong for a return: `scarred` and `bound_to` live on the **instance**. Handing a Scarred bow back through `add()` would quietly un-Scar it into full power, and a teammate's ember would come back bound to nobody.
+
+### Why nothing caught it
+
+`--lair-probe` has asserted since `M2` that giving works — and it gives her `inventory.richest()`, which is always the most valuable thing in the bag. A check written around the best case cannot see a rule about the worthless one.
+
+Four rows now, three planted: the shipped no-gate build (the weapon and the Scarred coin both reach the pile and vanish), a return through `add()` (the item comes back as a different instance, so it is gone), and the old floor branch (the mis-drop leaves the bag and goes nowhere).
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -360,6 +360,33 @@ func add(definition: ItemResource) -> ItemInstance:
 	return made
 
 
+## **Put an item back exactly as it was** (`M3-T32`, ADR-153).
+##
+## `add()` mints a new instance from a definition, which is right for a pickup
+## and wrong for a return: `scarred` and `bound_to` live on the **instance**, so
+## a Scarred bow handed back through `add()` would come back at full power, and
+## a teammate's ember would come back bound to nobody. The Chamber gives back
+## what it refuses, so it needs the thing rather than a copy of its kind.
+##
+## No `within_cap`: this item was in this bag a moment ago, so the single-bit
+## rule that call enforces (`DES-019`'s *do you still have a way out*) was
+## already true of it and is not being asked again.
+func put_back(item: ItemInstance) -> bool:
+	if item == null:
+		return false
+	var placement: Dictionary = placement_for(item.definition)
+	var at: Vector2i = placement["cell"] as Vector2i
+	if at.x < 0 and unlimited:
+		at = Vector2i.ZERO
+	elif at.x < 0:
+		return false
+	item.cell = at
+	item.rotated = bool(placement["rotated"])
+	_items.append(item)
+	changed.emit()
+	return true
+
+
 func remove(instance_id: int) -> ItemInstance:
 	var item: ItemInstance = find(instance_id)
 	if item == null:
