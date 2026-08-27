@@ -3857,5 +3857,41 @@ Every probe in this project drives a screen by calling its methods. ADR-141 adde
 
 ---
 
+## ADR-147 — A life ends once
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T26`**
+
+**Context:** the other half of the report behind ADR-146 — *"it still showed the death or tithe screen like I was supposed to offer something."* Something to offer, and nothing offered.
+
+`PauseMenu._leave()` calls `GameState.die()` on every ABANDON, with no idea whether anybody is alive to lose. That is the recorded decision and it is right: a menu that let you bank a risky haul by quitting would make every extraction optional.
+
+What it did not account for is that **the pause menu is the only way out of the Legacy screen.** Its third panel is the class choice, which has no back button — by design, because `DES-003` makes this one flow. So a player who dies, arrives at the fire, and decides they would rather not choose a class right now has exactly one door, and it calls `die()` a second time.
+
+The second call runs `_remember_the_life()` over state the first one already wiped:
+
+```
+{"class_id": "", "worn": [], "stash": [], "taken": [], "rank": 1}
+```
+
+**Non-empty, and recording nothing.** Every consequence follows from that one property:
+
+- the fire goes on asking, because the record *is* the question (`_face_what_happened`);
+- the menu goes on **not** asking about a class, because `menu_asks_the_class()` tests `last_life.is_empty()`;
+- and the screen offers **zero things**, on a life that had gear, a stash and a bought tree.
+
+So the player is returned, repeatedly, to a death screen about a life the game has forgotten, and the real record — the thing `DES-003` calls the anti-wipe-cliff mechanism — is gone.
+
+### The refusal is in `die()`, not in the caller
+
+`die()` is called from eight places. Guarding the pause menu would fix the one door that is known to reach it today and leave the property depending on nobody adding a ninth.
+
+`life_already_ended()` asks both halves together — no class **and** an unanswered record — because a fresh profile has no class either, and it very much can die.
+
+### Verification
+
+`--legacy-probe` dies twice and asserts the second death changed nothing. Planted by disabling the guard, which fails four rows: the record is overwritten, nothing is offered, the slots pay out nothing, and no lesson comes back. The first of those is the check; the other three are the reported symptom stated three more ways.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

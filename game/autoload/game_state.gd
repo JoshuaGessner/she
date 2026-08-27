@@ -381,7 +381,38 @@ func _remember_the_life() -> Dictionary:
 	}
 
 
+## **Is there a life here to end?** (ADR-147)
+##
+## A life that has already ended is one with nobody living it and a record still
+## waiting to be answered. `die()` clears `class_id` and leaves `last_life`
+## behind, so that pair is exactly the state between a death and the Legacy
+## screen — and it is a state a player can sit in for as long as they like,
+## because `DES-003` lets them come back to the fire later and choose.
+##
+## The two halves are asked together on purpose. A fresh profile has no class
+## either, and it very much can die.
+func life_already_ended() -> bool:
+	return class_id == &"" and not last_life.is_empty()
+
+
 func die() -> void:
+	# **A life ends once** (ADR-147). `PauseMenu._leave` calls this on every
+	# ABANDON with no idea whether anybody is alive to lose, and the way out of
+	# the Legacy screen — which has no back button on its class panel — is the
+	# pause menu. So: die in the Deep, arrive at the fire, decide you would
+	# rather not choose right now, abandon.
+	#
+	# The second call ran `_remember_the_life()` over state the first had
+	# already wiped and wrote `{"class_id": "", "worn": [], "stash": [],
+	# "taken": [], "rank": 1}` — **non-empty, and recording nothing**. So the
+	# fire went on asking (the record is the question), the menu went on not
+	# asking about a class (`last_life` is not empty), and the screen offered
+	# **nothing**, on a life that had really had gear, a stash and a tree.
+	#
+	# Reported as *"like I was supposed to offer something."* The real record is
+	# the thing worth protecting here, so this refuses rather than overwrites.
+	if life_already_ended():
+		return
 	# **Before anything is cleared.** The Legacy screen chooses from this, and
 	# it has to exist for a life that has already ended — a choice offered
 	# *instead* of the wipe would be a life you could keep by not choosing.

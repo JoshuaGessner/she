@@ -921,6 +921,15 @@ func _pact_probe() -> void:
 			+ "player is meant to advance fast in knowledge and slowly in power")
 
 	# LINEAGE is the tier death does not touch (`DES-003`).
+	#
+	# **A second death needs a second life** (ADR-147). This row died twice with
+	# nothing in between, and `die()` now refuses a life that has already ended
+	# — so the probe does what the fire does: the record is answered, somebody
+	# new goes down, and *that* life is the one this kills. The refusal found
+	# this the moment it landed, which is the check working rather than the
+	# check being in the way.
+	GameState.forget_the_last_life()
+	GameState.class_id = &"huskarl"
 	var kept_learning: int = GameState.lineage_progress
 	GameState.die()
 	print("[pact] learning after death %d (was %d)" % [
@@ -979,6 +988,24 @@ func _legacy_probe() -> void:
 			+ "be asked to remember and `DES-003`'s whole screen has no input")
 		_report_pact(problems)
 		return
+	# ─ 1b. **and it ends once** (ADR-147) ─
+	#
+	# ABANDON calls `die()` with no idea whether anybody is alive to lose, and
+	# it is the only way out of the class panel, which has no back button. The
+	# second call wrote a blank record over a real one: still non-empty, so the
+	# fire went on asking and the menu went on not asking, and the screen
+	# offered nothing at all.
+	GameState.die()
+	var again: Dictionary = GameState.last_life
+	print("[legacy] dying twice          class '%s', %d worn, %d stashed (want "
+		% [again.get("class_id", ""), (again.get("worn", []) as Array).size(),
+			(again.get("stash", []) as Array).size()] + "the same as above)")
+	if again != went:
+		problems.append(("a second death overwrote the record of the first — "
+			+ "`_remember_the_life()` over already-wiped state writes a record "
+			+ "that is non-empty and holds nothing, so the fire keeps asking "
+			+ "and has nothing left to offer"))
+
 	print("[legacy] and it is over        rank %d → %d, stash %d, tree %d" % [
 		rank_before, GameState.pact_rank, GameState.stash.size(),
 		GameState.taken.size()])
