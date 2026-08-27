@@ -411,6 +411,13 @@ func _menu_probe() -> void:
 	# came back with the profile gone, which is how it was found. Three probes
 	# touched that file and two of them were obvious.
 	SaveFile.use_a_scratch_profile()
+	# **And the run file** (ADR-152). This probe's last stop presses DESCEND,
+	# which runs the real `_enter()` — so it arms and can clear a run through
+	# the game's own front door rather than through anything probe-shaped.
+	# Found by `RunFile.arm()` refusing, which is the whole argument for that
+	# refusal being loud: four probes have reached this file and not one of
+	# them said so in any output.
+	RunFile.use_a_scratch_run()
 
 	var round_trip: String = NetPlan.code_for("192.168.1.20", NetPlan.DEFAULT_PORT)
 	var parsed: bool = NetPlan.adopt_code(round_trip)
@@ -673,6 +680,20 @@ func _class_probe() -> void:
 		get_tree().quit(1)
 		return
 	SaveFile.wipe()
+	# **And its own run file** (ADR-152). This one is worse than ADR-145's two:
+	# it does not merely call `RunFile`, it reaches past it — `DirAccess.remove`
+	# on `RunFile.PATH` and a raw `FileAccess` write to the same path — so
+	# ADR-138's arming discipline, which exists precisely to stop a probe
+	# touching a player's run, could not see it. A suspended run was deleted on
+	# every sweep, silently, and the file it deleted is the one ADR-138 was
+	# written about.
+	RunFile.use_a_scratch_run()
+	if RunFile.PATH == "user://run.active":
+		printerr("[class] FAIL this probe is pointed at the player's run file "
+			+ "and deletes it below — a suspended run would be gone and "
+			+ "nothing in the output would say so")
+		get_tree().quit(1)
+		return
 	GameState.class_id = &""
 	GameState.stash.clear()
 

@@ -22,9 +22,21 @@ extends CanvasLayer
 ##
 ## ## Leaving is a real thing that happens to the run
 ##
-## `LEAVE` is not a safe exit. Whatever you were carrying is gone, the same as
-## dying with it — `DES-008`'s great reset — because a menu that let you bank a
-## risky haul by quitting would make every extraction optional.
+## `ABANDON THE RUN` is not a safe exit. Whatever you were carrying is gone, the
+## same as dying with it — `DES-008`'s great reset — because a menu that let you
+## bank a risky haul by quitting would make every extraction optional.
+##
+## **But only when there is a run** (ADR-152). This menu is the same object in
+## the Deep, at the fire and in the Chamber, and in two of those three there is
+## no run to abandon: `RunFile` is opened at the descent and closed when the run
+## resolves. It called `die()` in all three anyway, so a player standing at the
+## fire between descents — with a class, a tree, a stash and gear — could end
+## their life with one click on a button that promised to abandon a run, with no
+## confirmation and nothing else on the menu that goes back to the main menu.
+##
+## Reported as *"starting a new run showed the tithe menu"*: the life ended at
+## the fire, so the Legacy screen was waiting on the next descent, which is
+## correct behaviour and an unrecognisable cause.
 
 const MENU: String = "res://ui/main_menu.tscn"
 ## This menu's claim on the body (ADR-146). Named, so closing this screen
@@ -37,6 +49,12 @@ var _column: VBoxContainer
 var _settings: SettingsScreen
 var _controls: ControlsScreen
 var _open: bool = false
+## True while the second press is being asked for. Cleared on close, so a menu
+## reopened later never comes back mid-question.
+var _confirming: bool = false
+## The button that leaves, held so a probe can press the one that is there
+## rather than guessing which of the two it is.
+var _way_out: Button = null
 
 
 func _ready() -> void:
@@ -52,10 +70,20 @@ func _ready() -> void:
 	_root.add_child(centre)
 	_column = MenuStyle.column(12)
 	centre.add_child(_column)
-	_build()
+	_rebuild()
 
 
-func _build() -> void:
+## Rebuilt rather than built once: what the way out costs depends on whether a
+## run is open, and a run resolving inside a level is exactly the moment that
+## changes.
+func _rebuild() -> void:
+	for child: Node in _column.get_children():
+		_column.remove_child(child)
+		child.queue_free()
+	if _confirming:
+		_build_confirmation()
+		MenuStyle.focus_first.call_deferred(_root)
+		return
 	_column.add_child(MenuStyle.title("PAUSED", 34))
 	_column.add_child(MenuStyle.line(
 		"The Deep does not stop while this is open.", 14))
@@ -77,13 +105,79 @@ func _build() -> void:
 	settings.pressed.connect(_show_settings)
 	_column.add_child(settings)
 
-	var leave: Button = MenuStyle.button("ABANDON THE RUN")
-	leave.pressed.connect(_leave)
-	_column.add_child(leave)
+	# **What this costs depends on where you are standing** (ADR-152), and it is
+	# rebuilt on every open because a run resolving is what changes the answer.
+	if leaving_ends_the_life():
+		_way_out = MenuStyle.button("ABANDON THE RUN")
+		_way_out.pressed.connect(_ask_first)
+	else:
+		_way_out = MenuStyle.button("TO THE MENU")
+		_way_out.pressed.connect(_leave)
+	_column.add_child(_way_out)
 
 	var quit: Button = MenuStyle.button("QUIT TO DESKTOP")
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	_column.add_child(quit)
+
+
+## **Ending a life takes two presses** (ADR-152). Everything else on this menu
+## is reversible; this one is the great reset, arriving through a button rather
+## than through a fight, and `PRO-005` is explicit that the harshness has to be
+## legible *in advance*.
+func _ask_first() -> void:
+	_confirming = true
+	_rebuild()
+
+
+func _build_confirmation() -> void:
+	_column.add_child(MenuStyle.title("ABANDON THE RUN", 30))
+	_column.add_child(MenuStyle.line(
+		"This ends the life. The tree, the stash, what you are wearing and "
+		+ "everything you are carrying go with it.", 15))
+	_column.add_child(MenuStyle.line(
+		"The hoard is untouched. It always is.", 14, MenuStyle.WARM))
+	_column.add_child(_gap(14))
+
+	_way_out = MenuStyle.button("END IT")
+	_way_out.pressed.connect(_leave)
+	_column.add_child(_way_out)
+
+	var back: Button = MenuStyle.button("NOT YET")
+	back.pressed.connect(func() -> void:
+		_confirming = false
+		_rebuild())
+	_column.add_child(back)
+
+
+## **Does leaving cost the life?** (ADR-152)
+##
+## `RunFile.exists()` rather than a level asking what kind of level it is: a run
+## is opened at the descent and closed when it resolves, so this is the game's
+## own definition of being inside one, in the one file that owns it (ADR-050).
+##
+## An unarmed process — a probe booting a level directly — sees no run at all
+## (ADR-138), so the default is the answer that costs nothing.
+func leaving_ends_the_life() -> bool:
+	return RunFile.exists()
+
+
+## What leaving costs, taken. **Separate from the departure**, because
+## `change_scene_to_file` detaches this node synchronously (ADR-117) and takes
+## any check with it — so the cost can be asserted and the going cannot.
+func take_what_leaving_costs() -> void:
+	if leaving_ends_the_life():
+		GameState.die()
+
+
+## The button that leaves, whichever of the two it currently is. For
+## `--threshold-probe`, which presses it rather than calling past it.
+func way_out() -> Button:
+	return _way_out
+
+
+## True while the confirmation is up and nothing has been taken yet.
+func confirming() -> bool:
+	return _confirming
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -106,7 +200,10 @@ func open() -> void:
 	if _open:
 		return
 	_open = true
+	_confirming = false
+	_rebuild()
 	_root.visible = true
+	MenuStyle.focus_first.call_deferred(_root)
 	var body: Player = _local_body()
 	if body != null:
 		# The body owns the cursor, because it is the thing that would take it
@@ -124,6 +221,7 @@ func close() -> void:
 	if not _open:
 		return
 	_open = false
+	_confirming = false
 	_root.visible = false
 	if _settings != null:
 		_settings.queue_free()
@@ -163,9 +261,9 @@ func _show_controls() -> void:
 	_root.add_child(_controls)
 
 
-## Out, and it costs what leaving always costs.
+## Out, and it costs what leaving costs **here**.
 func _leave() -> void:
-	GameState.die()
+	take_what_leaving_costs()
 	# The peer goes with us. A process that changed scene while still hosting
 	# would leave the other players connected to a lobby nobody is in.
 	if multiplayer.multiplayer_peer != null:

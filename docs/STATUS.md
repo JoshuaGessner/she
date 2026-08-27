@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`61/80` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`62/81` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
   M0 --> M1
   M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>30/30"]:::current
+  M3["M3 The Pact<br/>31/31"]:::current
   M2 --> M3
   M4["M4 Vertical Slice<br/>0/13"]:::ahead
   M3 --> M4
@@ -37,7 +37,7 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 30/30 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 31/31 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/13 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
@@ -50,7 +50,7 @@ _None. Sequencing is clean._
 
 | Check | Note |
 |---|---|
-| `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30) but still has 2 ⟨tune⟩ marker(s) |
+| `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30, M3-T31) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19) but still has 4 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08) but still has 2 ⟨tune⟩ marker(s) |
@@ -127,6 +127,7 @@ _None. Sequencing is clean._
 - ✔ `M3-T28` **She remembered three things forever, and the camp forgot every descent** — *ADR-149, **save v9**. Two persistence faults found while reading the reporter's profile for something else, neither of them a design change: both are the build failing to do what `DES-003` already says. **(1) The Legacy slots were never spent.** `draw_on_legacy()` read the list and left it there, and nothing in play ever emptied it — the reporter's save still holds `slots: [wpn_yew_bow]` with the Scarred bow already paid out. So every later life was granted a **fresh copy** of everything ever kept (`DES-003`: *"a head start, not a stockpile"*), it spiralled (*"three slots is three slots; it cannot spiral no matter how many lifetimes accrue"*), and once the board filled `why_not_keep` refused every future pick — so the screen `DES-003` calls *"a genuinely dramatic screen, and a real decision"* was a decision a lineage made **once**. **Nothing caught it because every row of `--legacy-probe` is about one death**, and the fault only exists on the death after it; the new rows go last for that reason. **(2) `descents` was never written** — absent from `to_dict` entirely, while driving the camp readout and `AudioDirector`'s company layer, the thing ADR-050 built so the Threshold fills out as the camp does. The camp went back to sounding empty on every relaunch. LINEAGE tier beside the hoard; `_migrate_8_to_9` writes 1, because a count nobody kept has no honest number to recover, and `from_dict` clamps to at least 1 since `AudioDirector` divides by `descents - 1`. Both planted: removing `legacy.clear()` fails two rows and prints the player-facing consequence verbatim — *"she will remember 3 things and no more"* on a fresh life's first death* `DES-003` `DES-014` `TEC-003`
 - ✔ `M3-T29` **Forty-five seconds, and nothing said you could end them** — *ADR-150, reported from play: "they bleed out but there is never anyone to save them on a solo run." **There is someone — yourself, once.** `ask_to_self_recover()` has been bound to the Waystone key while down since ADR-050, at `DES-012`'s price: 22% health and gone for the rest of the run. `has_self_recovery()` was read by **one probe and nothing else** — ADR-098's question exactly — so what a downed solo player saw was a clock, a shrinking bar, and no sign the wait was theirs to end. And the Vörðr line was written for a party and shipped to everybody: *"Scout for them"*, where solo there is no them and three seconds left. The reporter read it as written and drew the correct conclusion from the wrong fact. It now asks who is actually left standing, which makes it right in a party wipe too. **Wording is a decision, so it is asserted like one**: `--vordr-probe` checked the rect, the three states and the clock, and never asked what any of them *said* — `line()` and `hint()` are split out of `_draw` so the words can be planted against. Three plants, and the middle one matters as much as the first: a hint still naming a key that has stopped working is worse than no hint, because it is a promise broken at the moment it is believed. Built from `ControlsScreen.glyphs_for` per ADR-139. **This makes nothing easier** — the self-recovery already existed at the price `DES-012` set; implemented and invisible is the same as absent to everyone but the person who wrote it* `DES-012` `DES-018` `PRO-005`
 - ✔ `M3-T30` **The run ends on a press, not on a silent clock** — *ADR-151, extending ADR-108. What a wipe was from the seat: the bleed bar empties, the readout changes, and three seconds later the scene does. No acknowledgement, no agency, and solo no way to tell an ending from a hang — which is what the reporter met, and abandoned out of. ADR-108 gave the window's first reason as *"a cut to the camp on the frame you go out gives the player nothing to read"*: right about the problem, and three seconds of the **same readout** was not a solution. `RunOverScreen` says what happened and what it cost, takes the body on ADR-146's named-claim seam, and the wait becomes a **floor rather than a fixed price** — whoever is ready presses, the clock backstops whoever is not. **It is not a death screen and must not become one**: `DES-003` puts the Legacy choice at the fire, ADR-133 wants a scene rather than a modal over a corpse, and ADR-141 is the scar from splitting that flow. One button, because the reporter's second ask — *restart a fresh delve* — would have to jump the Legacy flow, which is what starts the next life. **And the re-check's comment was false**: it claimed a self-recovery or a teammate's hand clears `spent`; `_stand_up` never touches it and both callers refuse a body that is not `is_downed()`, so **a spent body cannot be revived by anything in this build**. `--wipe-probe` looked like it proved otherwise because it stands bodies up with `restore_for_descent()` — a reset, not a rescue. The re-check stays for the peer-joining path; the comment is now what the code does, and that is also what makes the press safe. Four plants, each failing by name* `DES-012` `DES-002` `PRO-005`
+- ✔ `M3-T31` **Abandoning a run you were not on** — *ADR-152, extending ADR-145. Reported as "starting a new run showed the tithe menu", and the reporter's log has the moment: two lines of stashing loot in the Chamber, then a new Threshold with a classless body. `PauseMenu` is the same object in all three levels and `_leave()` called `die()` in all three — **and in two of them there is no run**, since `RunFile` opens at the descent and closes when the run resolves. A player at the fire between descents, with a class and a tree and a stash, ended their life on one click of a button that promised to abandon a run, with no confirmation and nothing else on the menu that goes back to the main menu at all. The Legacy screen on the next descent was correct behaviour about a death nobody recognised as one. `RunFile.exists()` now decides what leaving costs; with a run it asks first, without one it is `TO THE MENU` and free. **The pause menu had never been checked** — before ADR-146 the only line about it outside its own file was `add_child(PauseMenu.new())`, while `--menu-probe` carefully asserts every button on the *main* menu is wired. Six rows now, and **the first draft could not fail**: run after the Legacy section they all read a life that had already ended, so they passed green against code incapable of failing them. **And the third plant printed nothing** — with the price wrong the button is wired to `_leave`, which changed scene and detached the probe mid-row, so the failure deleted its own witness. **Four probes were writing the player's run file**: `--run-probe` (armed, path never questioned), `--edges-probe` (read *it has to arm* as *it has to use the real file*), `--class-probe` (reached past `RunFile` with raw `DirAccess`/`FileAccess`), and `--menu-probe` (presses DESCEND, which runs the real `_enter()`). None of it appeared in any output. `arm()` now **refuses** the real path in a probe process — loud rather than lint, which is what found the fourth, since nothing about `--menu-probe` looks like it touches a run file. Verified by planting a real run and a real profile and reading both back byte-identical after a full sweep* `DES-008` `DES-002` `TEC-003`
 
 ### M4 — Vertical Slice
 
@@ -155,6 +156,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 151 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 152 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

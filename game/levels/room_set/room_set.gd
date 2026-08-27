@@ -5360,7 +5360,21 @@ func _run_file_probe() -> void:
 	# Every other probe stays unarmed and therefore cannot see, write or delete
 	# a run — which is the point: an unarmed sweep used to leave one open in the
 	# player's `user://`, and the next launch resumed it into a classless body.
+	#
+	# **And it gets its own file** (ADR-152). Arming was the fix for every probe
+	# that touched this file *by accident*, and this is the one that touches it
+	# on purpose — so it went on writing, and deleting, the player's open run on
+	# every sweep. ADR-145 wrote the general rule after the same shape cost a
+	# profile: a check that writes to `user://` must name the file it writes to,
+	# and it must not be the one the game uses.
+	RunFile.use_a_scratch_run()
 	RunFile.arm()
+	if RunFile.PATH == "user://run.active":
+		printerr("[run] FAIL this probe is pointed at the player's run file "
+			+ "and clears it below — a suspended run would be destroyed and "
+			+ "nothing in the output would say so")
+		get_tree().quit(1)
+		return
 
 	# A clean slate, so nothing below is reading a run left by an earlier probe.
 	RunFile.clear()

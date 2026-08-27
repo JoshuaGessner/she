@@ -378,13 +378,16 @@ func _sworn_to_nothing() -> PackedStringArray:
 ## first. Nothing could have caught it: no probe walked the class-select route,
 ## and a missing run file is indistinguishable from a finished run.
 ##
-## **Armed here, on `--run-probe`'s precedent** (ADR-138). Every other probe
-## stays unarmed so a sweep cannot touch a player's `user://`; this one has to,
-## because a run file that nothing writes is the fault being asserted. Cleared
-## on both sides, so the window is this function.
+## **Armed here, on `--run-probe`'s precedent** (ADR-138), and pointed at a
+## file that is nobody's (ADR-152). This one has to arm, because a run file that
+## nothing writes is the fault being asserted — but *"it has to arm"* was read
+## as *"it has to use the player's file"*, and it does not. It cleared a real
+## suspended run on every sweep, silently, which is ADR-145's finding arriving
+## for a third time in a third file. `arm()` now refuses this outright.
 func _the_descent_opens_a_run() -> PackedStringArray:
 	var problems := PackedStringArray()
 	var was: StringName = GameState.class_id
+	RunFile.use_a_scratch_run()
 	RunFile.arm()
 	RunFile.clear()
 
@@ -481,6 +484,16 @@ func _doorway_probe() -> void:
 ##    makes this a driver rather than a looping file.
 func _threshold_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ **the way out of here** (`M3-T31`, ADR-152) ─
+	#
+	# First, and that ordering is the check rather than tidiness. Run after the
+	# section below, every row read a life that had **already ended** — the
+	# plant leaves `class_id` empty with nothing left to lose, and ADR-147's
+	# guard then refuses the second `die()` — so all six rows passed without the
+	# code being able to fail them. A row that could have passed before the code
+	# ran is not a check.
+	problems.append_array(_the_way_out())
 
 	# ─ 0. **the fire asks about the death** (`M3-T05`, ADR-133) ─
 	#
@@ -1203,6 +1216,131 @@ func _screen_has_the_player(shown: LegacyScreen) -> PackedStringArray:
 			+ "so the input path is the one thing they cannot see, and it is "
 			+ "the one that was broken") % before)
 	return problems
+
+
+## **The pause menu, which nothing had ever checked** (ADR-152).
+##
+## It is the screen implicated in all three of the reports this session
+## answered, and before ADR-146 the only mention of it outside its own file was
+## `add_child(PauseMenu.new())`. `--menu-probe` carefully asserts that every
+## button on the **main** menu is wired and that none of them is the stub
+## ADR-064 bans; the menu that can end a lineage had nothing.
+##
+## Run here rather than in the Deep because the fault was about *where you are
+## standing*: this menu is the same object in all three levels, and at the fire
+## there is no run to abandon.
+func _the_way_out() -> PackedStringArray:
+	var problems := PackedStringArray()
+	var pause: PauseMenu = null
+	for child: Node in get_children():
+		var found := child as PauseMenu
+		if found != null:
+			pause = found
+	if pause == null:
+		return PackedStringArray(["no pause menu at the fire, so there is no "
+			+ "way back to the main menu from here at all"])
+	# **A life worth losing**, or the rows below are about an empty profile and
+	# cannot tell a menu that ends a life from one that does not.
+	GameState.forget_the_last_life()
+	GameState.class_id = &"huskarl"
+	GameState.taken.clear()
+	GameState.taken.append(&"hrd_ballast")
+	pause.open()
+
+	# ─ every button does something (the rule `--menu-probe` applies to the
+	#   other menu, on the screen that actually needed it) ─
+	var buttons: int = 0
+	var wired: int = 0
+	for node: Node in pause.find_children("*", "Button", true, false):
+		var button := node as Button
+		if button == null:
+			continue
+		buttons += 1
+		if button.pressed.get_connections().size() > 0:
+			wired += 1
+	print("[camp] the pause menu %d button(s), %d wired" % [buttons, wired])
+	if buttons == 0 or wired != buttons:
+		problems.append(("the pause menu has %d button(s) and %d of them do "
+			+ "anything — this is the screen a player reaches when something "
+			+ "has gone wrong, and a dead button here is worse than a dead "
+			+ "button anywhere else") % [buttons, wired])
+
+	# ─ **at the fire there is no run, so leaving costs nothing** ─
+	#
+	# This is the reported bug. `_leave` called `die()` in all three levels, and
+	# in two of them there is no run: a player standing at the fire between
+	# descents, with a class and a tree and a stash, ended their life on one
+	# click of a button that promised to abandon a run.
+	var sworn_before: StringName = GameState.class_id
+	print("[camp] no run here    leaving ends the life=%s (want no), sworn '%s'"
+		% [pause.leaving_ends_the_life(), sworn_before])
+	if pause.leaving_ends_the_life():
+		problems.append(("leaving the fire is priced as abandoning a run, and "
+			+ "there is no run at the fire — `RunFile` opens at the descent "
+			+ "and closes when the run resolves"))
+	pause.take_what_leaving_costs()
+	print("[camp] and it cost    class '%s' -> '%s', a death waiting=%s (want no)"
+		% [sworn_before, GameState.class_id,
+			not GameState.last_life.is_empty()])
+	if GameState.class_id != sworn_before or not GameState.last_life.is_empty():
+		problems.append(("walking back to the main menu from the fire ended "
+			+ "the life — reported as *starting a new run showed the tithe "
+			+ "menu*, which is the Legacy screen doing its job about a death "
+			+ "the player never recognised as one"))
+
+	# ─ **and inside a run it costs the life, and it asks first** ─
+	#
+	# Its own run file, never the player's (ADR-152/ADR-145): this opens one.
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	pause.close()
+	pause.open()
+	print("[camp] in a run       leaving ends the life=%s (want yes)"
+		% pause.leaving_ends_the_life())
+	if not pause.leaving_ends_the_life():
+		problems.append(("with a run open, leaving is priced at nothing — a "
+			+ "menu that let you bank a risky haul by quitting would make "
+			+ "every extraction optional (`DES-008`)"))
+		# **And nothing below is pressed**, because with the price wrong this
+		# button is wired straight to `_leave` — and `change_scene_to_file`
+		# detaches this node synchronously (ADR-117), so the press would take
+		# every assertion after it with it. Planted exactly that: the row above
+		# printed **nothing at all** and the probe exited zero, because the
+		# failure deleted its own witness. Same lesson as ADR-138's `_descend`,
+		# reached from the other end.
+		_put_the_fire_back(sworn_before)
+		return problems
+	var asked: Button = pause.way_out()
+	if asked != null:
+		asked.emit_signal("pressed")
+	print("[camp] it asks first  confirming=%s, class still '%s'" % [
+		pause.confirming(), GameState.class_id])
+	if not pause.confirming():
+		problems.append(("abandoning a run took one press — everything else on "
+			+ "this menu is reversible and this one is `DES-008`'s great reset "
+			+ "arriving through a button rather than through a fight"))
+	if GameState.class_id != sworn_before:
+		problems.append("the life ended while the menu was still asking, so "
+			+ "the question is a caption rather than a question")
+	pause.take_what_leaving_costs()
+	print("[camp] and then       class '%s', a death waiting=%s (want empty/yes)"
+		% [GameState.class_id, not GameState.last_life.is_empty()])
+	if GameState.class_id != &"" or GameState.last_life.is_empty():
+		problems.append(("abandoning an open run did not end the life — "
+			+ "ADR-050 makes quitting cost exactly what staying would have "
+			+ "cost, and this is the whole of that"))
+	_put_the_fire_back(sworn_before)
+	return problems
+
+
+## Put back what `_the_way_out` spent, so everything after it is about the
+## Legacy screen rather than about a life this check ended.
+func _put_the_fire_back(_was: StringName) -> void:
+	RunFile.clear()
+	GameState.forget_the_last_life()
+	GameState.class_id = &""
+	GameState.taken.clear()
 
 
 ## **A screen closing gives back only what it took** (ADR-146).

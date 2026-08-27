@@ -4049,5 +4049,64 @@ Four rows, four plants: no screen at all (the shipped build), a screen that does
 
 ---
 
+## ADR-152 — Abandoning a run you were not on
+
+**Date:** 2026-08-27 · **Status:** accepted · **Implements `M3-T31`** · **Extends ADR-145**
+
+**Context:** reported as *"starting a new run showed the tithe menu."* The reporter's own log has the moment:
+
+```
+[lair] kept Raw Gemstone — the stash holds 1
+[lair] kept Bog Iron — the stash holds 2
+[coop:solo] peer 1 descends at rank 1 as 'nobody'
+```
+
+Stashing loot in the Chamber, and the next thing is a new Threshold with a classless body. The life ended in between, and there was no run in progress to end it.
+
+`PauseMenu` is the same object in all three levels, and `_leave()` called `GameState.die()` in all three. **In two of them there is no run**: `RunFile` opens at the descent and closes when the run resolves. So a player standing at the fire between descents — with a class, a tree, a stash and gear — ended their life on one click of a button that promised to abandon a run, with no confirmation, and with nothing else on the menu that goes back to the main menu at all.
+
+The Legacy screen then appeared on the next descent. That was correct behaviour about a death the player never recognised as one.
+
+### Three changes, one rule
+
+`RunFile.exists()` decides what leaving costs — the game's own definition of being inside a run, in the file that owns it (ADR-050), rather than a level asking what kind of level it is. With a run: `ABANDON THE RUN`, and it **asks first**, because everything else on that menu is reversible and this one is `DES-008`'s great reset arriving through a button rather than through a fight. Without one: `TO THE MENU`, costing nothing.
+
+`take_what_leaving_costs()` is separate from the departure, because `change_scene_to_file` detaches the menu synchronously (ADR-117) and takes any check with it — so the cost can be asserted and the going cannot.
+
+### The pause menu had never been checked
+
+Before ADR-146 the only line about it outside its own file was `add_child(PauseMenu.new())`. `--menu-probe` carefully asserts that every button on the **main** menu is wired and that none is the stub ADR-064 bans; the menu that can end a lineage had nothing at all. It has six rows now, three of them planted.
+
+**And the first draft of those rows could not fail.** Run after the Legacy section, every one read a life that had already ended — the plant leaves `class_id` empty with nothing left to lose, and ADR-147's guard then refuses the second `die()` — so all six passed green against code that could not fail them. They run first now, on a life that has something to lose.
+
+**The third plant printed nothing at all.** With the price wrong the button is wired straight to `_leave`, so pressing it changed scene and detached the probe mid-row: the failure deleted its own witness, and the run exited zero. The rows now stop before the press when the price is already wrong. Same lesson as ADR-138's `_descend`, arrived at from the other end.
+
+### Four probes were writing the player's run file
+
+Fixing the abandon branch needed a probe with a run open, which meant asking where probes get run files. The answer was: the player's.
+
+| | How |
+|---|---|
+| `--run-probe` | armed and cleared it; ADR-138 sanctioned the arming and nobody asked about the path |
+| `--edges-probe` | reasoned correctly that it *had* to arm, and read that as having to use the real file |
+| `--class-probe` | reached past `RunFile` entirely — `DirAccess.remove_absolute` and a raw `FileAccess` write on `PATH` |
+| `--menu-probe` | presses DESCEND, which runs the real `_enter()` and arms through the game's own front door |
+
+Every one destroyed a suspended run on every sweep, and **none of it appeared in any output.** ADR-138 was written about precisely this file and fixed the probes that touched it by accident; the ones that touched it on purpose were left, because *"its subject is the run file"* reads like a licence and is not one. ADR-145 had already written the general rule after the same shape cost a profile: **a check that writes to `user://` must name the file it writes to, and it must not be the one the game uses.**
+
+`PATH` and `TMP` become `static var`s with `use_a_scratch_run()`, on `SaveFile`'s pattern.
+
+### The rule stops depending on being remembered
+
+Three sessions have now found this, in five places, and each fix was "remember to call the redirect." So `arm()` **refuses** when the path is the real one and the process was launched with a probe argument.
+
+Loud rather than lint: a refusal leaves `exists()` false, so the probe that did it fails its own assertions by name. That is what found `--menu-probe`, which no reading of the code would have turned up — it does not look like it touches a run file, because it does not: it presses a button, and the button does.
+
+### Verification
+
+A real run file planted in `user://`, a full sweep run over it, and the file read back byte-identical afterwards — alongside the profile, on ADR-145's check. Before the fix it was gone, three times running, each time for a different reason.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -34,8 +34,16 @@ extends Object
 ## about the items — and a ledger is `M4-T01`'s to keep, when a seed makes
 ## "this floor" mean something across processes.
 
-const PATH: String = "user://run.active"
-const TMP: String = "user://run.active.tmp"
+## **Static vars, so a check can be pointed somewhere else** (ADR-152, on
+## ADR-145's precedent). `--run-probe` arms itself because this file is its
+## subject — and then wrote, and deleted, the **player's** open run on every
+## sweep. ADR-138 is the record of what that costs; it fixed the probes that
+## touched this file by accident and left the one that touches it on purpose.
+##
+## The rule ADR-145 wrote down is general: a check that writes to `user://`
+## must name the file it writes to, and it must not be the one the game uses.
+static var PATH: String = "user://run.active"
+static var TMP: String = "user://run.active.tmp"
 
 const VERSION: int = 1
 
@@ -60,7 +68,43 @@ static var _live: bool = false
 ## This process owns its run state. Called by `MainMenu._enter()`, which is the
 ## only way into the game, and by the probe whose subject this is.
 static func arm() -> void:
+	# **A check may not arm the player's run file** (ADR-152).
+	#
+	# Three separate probes have now done it: `--run-probe`, whose subject this
+	# is; `--edges-probe`, which reasoned correctly that it had to arm and then
+	# read that as having to use the real file; and `--class-probe`, which
+	# reached past this class entirely with `DirAccess` and `FileAccess` on
+	# `PATH`. Every one of them destroyed a suspended run on every sweep, and
+	# **none of it appeared in any output** — which is what makes a lint rule
+	# the wrong answer and a refusal the right one.
+	#
+	# Loud rather than silent: refusing leaves `exists()` false, so the probe
+	# that did it fails its own assertions by name instead of quietly working
+	# on somebody's save.
+	if PATH == "user://run.active" and _a_check_is_running():
+		push_error("RunFile: a check tried to arm the player's run file. Call "
+			+ "`use_a_scratch_run()` first — a check that writes to `user://` "
+			+ "names its own file (ADR-145, ADR-152).")
+		return
 	_live = true
+
+
+## Was this process launched as a check? The same test `Threshold` and
+## `room_set` use to decide whether to hold a scene, and for the same reason:
+## a probe argument is the one honest signal that nobody is playing.
+static func _a_check_is_running() -> bool:
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.contains("probe") or arg.contains("shot"):
+			return true
+	return false
+
+
+## Point this process at a run file that is nobody's (ADR-152). Called by the
+## checks whose subject is opening and closing a run, which cannot be refused
+## the file the way every other probe is.
+static func use_a_scratch_run() -> void:
+	PATH = "user://run.probe"
+	TMP = "user://run.probe.tmp"
 
 
 ## Is a run open? A crash leaves this behind, which is the point: the next boot
