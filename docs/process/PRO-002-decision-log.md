@@ -3893,5 +3893,41 @@ So the player is returned, repeatedly, to a death screen about a life the game h
 
 ---
 
+## ADR-148 — After every death you stood at the fire as nobody
+
+**Date:** 2026-08-26 · **Status:** accepted · **Implements `M3-T27`** · **Completes ADR-141**
+
+**Context:** the reporter's own session log, one line:
+
+```
+[coop:solo] peer 1 descends at rank 1 as 'nobody' — the floor is rank 1
+```
+
+`CoopSession` declares what this peer is in its `_ready`, and `spawn_player` bakes the class into the spawn packet. Both happen when the level begins. The Legacy screen asks *who you are next* after that — ADR-141 moved it there deliberately, because `DES-003` makes it one flow with the slots and `PRO-001` is explicit that it is *"one flow and not two screens."*
+
+Nothing joined the two up. So after **every** death — not an edge case, the normal path — the body at the camp had no class, no kit, nothing in its hand and plain health, and it came right only on the next scene change, because the Deep builds a fresh session that declares the class the life now has.
+
+That is the fault ADR-141 was reported for, wearing different clothes: a body with no class has an empty hand, and ADR-140 made an empty hand refuse the swing.
+
+### Rebuilt, not dressed
+
+Becoming a class is `spawn_player`'s one job. A second route that dressed a standing body would be the parallel path ADR-064 bans, and it would drift from the spawn packet the first time the packet gained a field. So the body is taken away and the same person is put back, through `CoopSession`, at the same spot.
+
+`redeclare()` is routed exactly like `_ready`'s declaration — locally on the host, by RPC from a client — because the host owns the table, and a client writing its own is the fault ADR-121 avoided for the class arriving through a second door.
+
+**A frame between the despawn and the spawn, and it is load-bearing.** `player_for` finds a body by node name and `queue_free` does not release the name until the end of the frame, so doing both in one breath gives the new body a renamed node — `player_1@2` — that `player_for` can never find again. Planted: the camp came back with **no body at all**, which is ADR-107's grey screen by a new road. The screen is 94% opaque and is held up until after the swap, so the frame with no camera in it is a frame nobody sees.
+
+### Two things that made it worse than it had to be
+
+**`ClassScreen._commit` ignored what `take_the_oath` returned** and emitted `chosen` regardless. `DES-011` locks the class until death and `take_the_oath` is where that lock lives — so reporting past it made the lock true of the rules and false of the game. A screen opened on a life that already had a class told the Legacy flow a decision had been made, and the flow answered by paying out the Legacy slots and clearing the death record on a life that had never ended.
+
+**And the flow asked a question with no answers.** If this life has a class, every button on the class panel would be refused, which is the stub ADR-064 bans. It is reachable: a profile that could not be written leaves `last_life` on disk, so the next launch opens the flow over a live life.
+
+### Verification
+
+`--threshold-probe` drives the whole flow through the class panel rather than emitting `finished`, because the fault was in the join — every rule inside the screen was right, `take_the_oath` was right, and the body three metres away was still `'nobody'`. Two plants: skipping the swear-in (the body stays classless) and removing the frame (the body vanishes).
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

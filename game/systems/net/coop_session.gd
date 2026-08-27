@@ -871,6 +871,26 @@ func _log(message: String) -> void:
 ## Gathered here rather than at each of the four declaration sites, for the
 ## reason `_my_rank` gives one function down: four copies of a lookup is four
 ## places to forget it.
+## **Say again what this peer is** (ADR-148).
+##
+## The declaration is made once, in `_ready`, because a level beginning is when
+## a peer arrives and nothing about it changes inside one. Swearing a class at
+## the fire is the exception `M3-T02` created and nobody joined up: the Legacy
+## screen chooses who you are **next** after the camp has already built a body,
+## so from that moment the session's table is a life out of date.
+##
+## Routed exactly like `_ready`'s call — locally on the host, by RPC from a
+## client — because the host owns the table and a client writing its own would
+## be the fault ADR-121 avoided for the class arriving through a second door.
+func redeclare() -> void:
+	if multiplayer.is_server():
+		declare_descent(_my_rank(), String(GameState.class_id),
+			_my_effects(), _my_worn())
+	else:
+		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id),
+			_my_effects(), _my_worn())
+
+
 func _my_worn() -> Dictionary:
 	return GameState.worn.duplicate()
 

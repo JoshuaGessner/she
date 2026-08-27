@@ -162,6 +162,15 @@ func _take(kind: String, id: StringName) -> void:
 func _show_the_next_life() -> void:
 	_panel = 2
 	_clear()
+	# **Nobody is asked to be somebody they already are** (ADR-148). If this
+	# life has a class, every button here would be refused by `take_the_oath`,
+	# and a screen whose every control is a no-op is the stub ADR-064 bans. It
+	# is reachable: a profile that could not be written leaves `last_life`
+	# behind on disk, so the next launch opens this flow over a live life.
+	if GameState.class_id != &"":
+		GameState.draw_on_legacy()
+		finished.emit()
+		return
 	var screen := ClassScreen.new()
 	screen.chosen.connect(func(_id: StringName) -> void:
 		# The slots pay out **after** the class is sworn, because a Rite node

@@ -508,7 +508,41 @@ func _threshold_probe() -> void:
 	else:
 		problems.append_array(await _screen_has_the_player(shown))
 		problems.append_array(_screens_stack())
-		shown.finished.emit()
+
+		# ─ **and the answer reaches the body** (ADR-148) ─
+		#
+		# Driven all the way through the class panel rather than by emitting
+		# `finished`, because the fault is in the join: every rule inside the
+		# screen was right, `take_the_oath` was right, and the body standing
+		# three metres away was still `'nobody'`. The reporter's log named it —
+		# `peer 1 descends at rank 1 as 'nobody'` — after **every** death.
+		var before_body: Player = _session.local_player()
+		var was: StringName = before_body.sworn if before_body != null else &"?"
+		shown.advance()
+		await get_tree().process_frame
+		var picking: ClassScreen = null
+		for node: Node in shown.find_children("*", "ClassScreen", true, false):
+			picking = node as ClassScreen
+		if picking == null or not picking.press(&"huskarl"):
+			problems.append("the Legacy flow never reached a class to swear, so "
+				+ "the rows below are about nothing")
+		for _frame: int in 4:
+			await get_tree().process_frame
+		var now: Player = _session.local_player()
+		print("[camp] sworn in      body '%s' -> '%s', life '%s'" % [
+			was, now.sworn if now != null else &"none", GameState.class_id])
+		if now == null:
+			problems.append(("swearing a class at the fire left no body at all "
+				+ "— `player_for` finds a body by node name and `queue_free` "
+				+ "holds the name to the end of the frame, so a despawn and a "
+				+ "spawn in one breath renames the new one out of reach"))
+		elif now.sworn != GameState.class_id:
+			problems.append(("the class was sworn and the body at the fire is "
+				+ "still '%s' — no kit, nothing in its hand, plain health, "
+				+ "until the next scene change builds a session that declares "
+				+ "it. An empty hand refuses the swing, which is what ADR-141 "
+				+ "was reported for") % now.sworn)
+
 		await get_tree().process_frame
 		print("[camp] and then asks   record=%s (want empty)"
 			% (not GameState.last_life.is_empty()))
@@ -1100,6 +1134,11 @@ func _face_what_happened() -> void:
 		# is what ends the flow; leaving it would greet the player with their
 		# own death every time they came back to the fire.
 		GameState.forget_the_last_life()
+		# **And the answer reaches the body** (ADR-148). Held until after the
+		# swap, deliberately: the screen is 94% opaque and the body is rebuilt
+		# underneath it, so the frame with no camera in it is a frame nobody
+		# sees.
+		await _swear_in_the_body()
 		_hand_over(false)
 		layer.queue_free())
 
@@ -1213,6 +1252,69 @@ func _screens_stack() -> PackedStringArray:
 		problems.append("the pause menu closed and kept its claim, which parks "
 			+ "the body for the rest of the level")
 	return problems
+
+
+## **The class reaches the body standing at the fire** (ADR-148).
+##
+## `CoopSession` declares what this peer is in its `_ready`, and `spawn_player`
+## bakes the class into the spawn packet — both of which happen before the
+## Legacy screen has asked who you are next. So after **every** death the body
+## at the camp was `'nobody'`: no class, no kit, nothing in its hand, plain
+## health. The reporter's own log says so in as many words —
+## `peer 1 descends at rank 1 as 'nobody'` — and it came right only on the next
+## scene change, because the Deep builds a fresh session that declares the class
+## the life now has.
+##
+## That is the same fault ADR-141 was reported for, wearing different clothes:
+## a body with no class has an empty hand, and an empty hand refuses the swing.
+##
+## Rebuilt through `CoopSession` rather than dressed in place, because becoming
+## a class is `spawn_player`'s one job and a second route into it is the
+## parallel path ADR-064 bans.
+func _swear_in_the_body() -> void:
+	if _session == null or GameState.class_id == &"":
+		return
+	var peer: int = multiplayer.get_unique_id()
+	if _session.sworn_of(peer) == GameState.class_id:
+		return
+	_session.redeclare()
+	if not multiplayer.is_server():
+		# The host owns every body (`TEC-004`), so a client can only ask. The
+		# declaration above is a reliable RPC to the same peer and therefore
+		# arrives first, which is the whole reason the respawn can be a bare
+		# request with nothing in it.
+		_sworn_at_the_fire.rpc_id(CoopSession.HOST_PEER)
+		return
+	await _rebuild(peer)
+
+
+## Take the body away and put the same person back, as the class they have just
+## sworn.
+##
+## **A frame between the two halves, and it is load-bearing.** `player_for`
+## finds a body by node name and `queue_free` does not release the name until
+## the end of the frame, so despawning and spawning in one breath gives the new
+## body a renamed node — `player_1@2` — that `player_for` can never find again.
+## The camp would then have a body nobody could look up: no camera, no readout,
+## no descent.
+func _rebuild(peer: int) -> void:
+	var body: Player = _session.player_for(peer)
+	if body == null:
+		return
+	var where: Vector3 = body.global_position
+	_session.despawn_player(peer)
+	await get_tree().process_frame
+	_session.spawn_player(peer, where)
+
+
+## The client half. A client chooses its own class on its own machine — nothing
+## about `GameState` is networked (`TEC-004`) — so the only thing that crosses
+## is the request to be built again.
+@rpc("any_peer", "reliable")
+func _sworn_at_the_fire() -> void:
+	if not multiplayer.is_server():
+		return
+	await _rebuild(multiplayer.get_remote_sender_id())
 
 
 ## Give the player's attention to a screen, or give it back.

@@ -105,7 +105,15 @@ func _card(entry: ClassResource) -> Control:
 
 
 func _commit(entry: ClassResource) -> void:
-	GameState.take_the_oath(entry.id)
+	# **A refused oath is not a choice** (ADR-148). This ignored the answer and
+	# announced one anyway, so a screen opened on a life that already had a
+	# class told the Legacy flow a decision had been made — and the flow replied
+	# by paying out the Legacy slots and clearing the death record, on a life
+	# that had never ended. `DES-011` locks the class until death and
+	# `take_the_oath` is where that lock lives; reporting past it makes the lock
+	# true of the rules and false of the game.
+	if not GameState.take_the_oath(entry.id):
+		return
 	chosen.emit(entry.id)
 	queue_free()
 
