@@ -4011,5 +4011,43 @@ It does not make dying alone easier. The self-recovery already existed, at the p
 
 ---
 
+## ADR-151 — The run ends on a press, not on a silent clock
+
+**Date:** 2026-08-27 · **Status:** accepted · **Implements `M3-T30`** · **Extends ADR-108**
+
+**Context:** the second half of the reporter's solo-death account. What a wipe was, from the seat: the bleed bar empties, the readout changes to a line about being a Vörðr, and three seconds later the scene changes. No acknowledgement of the death, no agency, and — solo — no way to tell an ending from a hang.
+
+ADR-108 gave two reasons for `party_wipe_seconds`, and the first was *"a cut to the camp on the frame you go out gives the player nothing to read."* That was right about the problem and short of a solution: three seconds of the **same readout** is not something to read. Now there is a screen, and the wait is a **floor rather than a fixed price** — whoever is ready presses, and the clock is the backstop for whoever is not.
+
+### It is not a death screen, and it must not become one
+
+`DES-003` puts the Legacy choice at the fire; ADR-133 is explicit that it wants a scene rather than a modal over a corpse, and ADR-141 is the scar from splitting that flow in half. Nothing on this screen chooses anything. It names what happened, says what it cost, and takes you to the fire — where the screen that *is* a decision is waiting.
+
+**One button, because the second one the reporter asked for cannot exist here.** *"Restart a fresh delve"* would have to jump the Legacy flow, and the Legacy flow is what starts the next life. A button that skipped it would delete the choice `DES-003` calls the piece it feels strongest about.
+
+### The comment on the re-check was false
+
+The old code said: *"`_stand_up` clears `spent` on a self-recovery and a teammate's hand does the same, so this is the ordinary way out of here."*
+
+It does not. `_stand_up` sets `bleeding` to zero and never touches `spent`, and both `revive_by` and `_self_recover` refuse a body that is not `is_downed()`. **A spent body cannot be revived by anything in this build**, so once `_the_party_is_gone()` is true the only thing that can make it false is a peer connecting inside the window, whose body arrives standing.
+
+`--wipe-probe` appeared to prove otherwise because it stands its bodies up with `restore_for_descent()` — a full reset, not a rescue. The row is honest about what it measures (the re-check works) and was being read as something stronger (a rescue cancels a wipe). The re-check stays: the peer-joining path is real, and *"nobody has been standing for a while"* is the right rule whether or not today's build can exercise every road into it. The comment is now what the code does.
+
+That also settles whether the press is safe. The outcome is fixed by the time this screen exists — every body is out and nothing can revive a spent one — so a press from any peer costs nobody anything but the wait.
+
+### The screen comes down the moment somebody is standing
+
+Not at the end of the wait. `--ember-probe` found this within minutes of the screen existing: it downs its only body, stands it back up **inside** the window, and then measures what carrying an ember costs a rescuer. With the screen holding the body for the rest of the three seconds, it measured a rescuer who could not move and reported the cost as nothing.
+
+The re-check that decides the run is unchanged. Breaking the wait early only takes the screen down, which is the safe direction — ADR-108's rule guards against ending a run too eagerly, never against calling one off too eagerly.
+
+Worth naming because the cause and the symptom had nothing to do with each other: a new screen in the death path broke a check about the **weight of a rescue**, and the failure it printed was a true sentence about a false cause.
+
+### Verification
+
+Four rows, four plants: no screen at all (the shipped build), a screen that does not take the body, a press the window ignores, and a screen never put away. Each fails by name. The last matters because in a real session the scene change disposes of the screen, so nothing would ever notice it being left behind — it is the probe path, which resets the floor instead, that can see it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

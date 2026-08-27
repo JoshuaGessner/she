@@ -354,6 +354,12 @@ var _she_sent_it_early: float = 0.0
 ## True while a wipe is counting down, so four bodies going out together start
 ## one run-end rather than four (`M2-T16`).
 var _ending: bool = false
+## Set when somebody presses TO THE FIRE, which ends the wipe window early
+## (ADR-151). The wait is a floor rather than a fixed price.
+var _skip_the_wait: bool = false
+## The screen that says the run is over, or null. Held so a second body going
+## out does not build a second one, and so a cancelled wipe can take it away.
+var _run_over: CanvasLayer = null
 ## A peer id for the second body the wipe probe needs. Not a real peer and never
 ## on a wire: with the offline peer the host is the only process there is, so a
 ## spawn addressed to a stranger simply builds a body nobody drives.
@@ -1730,6 +1736,67 @@ func _wipe_probe() -> void:
 			+ "standing for a while, not that nobody was standing on one "
 			+ "particular frame") % Config.tuning.party_wipe_seconds)
 
+	# ─ 4. **and it ends on a press** (`M3-T30`, ADR-151) ─
+	#
+	# What a wipe used to be from the seat: the bar empties, the readout
+	# changes, and three seconds later the scene does. No acknowledgement, no
+	# agency, and solo no way to tell an ending from a hang — which is what the
+	# reporter met and abandoned out of. Measured end to end, from the moment
+	# the last body goes out to the floor resolving, because the claim is that
+	# the wait is now a floor rather than a fixed price.
+	for body: Player in _session.players():
+		body.restore_for_descent()
+	await _hold(0.4)
+	var floor_at_fourth: int = _descent
+	mine.health.apply_damage(mine.health.maximum * 2.0)
+	friend.health.apply_damage(friend.health.maximum * 2.0)
+	await _hold(0.2)
+	var began: int = Time.get_ticks_msec()
+	mine.bleeding = 0.02
+	friend.bleeding = 0.02
+	await _hold(0.6)
+	var screen: RunOverScreen = null
+	if _run_over != null:
+		for child: Node in _run_over.get_children():
+			var found := child as RunOverScreen
+			if found != null:
+				screen = found
+	print("[wipe] it says so    screen=%s, the body is held=%s" % [
+		screen != null, not mine.driving()])
+	if screen == null:
+		problems.append(("nobody was left standing and nothing said so — three "
+			+ "seconds of the same readout and then a cut is what ADR-108 "
+			+ "called *nothing to read*, and it is what a solo player cannot "
+			+ "tell apart from a hang"))
+		_report(problems, "wipe")
+		return
+	if mine.driving():
+		problems.append(("the run-over screen is up and the body still drives "
+			+ "— a Vörðr is mobile so a dead player can scout for the living, "
+			+ "and this window opens only when there are none left to scout "
+			+ "for (ADR-146's seam, and the reason it is a named claim)"))
+	if not screen.press():
+		problems.append("the run-over screen has no button to press, so the "
+			+ "only way out of it is the clock it exists to replace")
+	await _hold(0.6)
+	var took: float = float(Time.get_ticks_msec() - began) / 1000.0
+	print("[wipe] pressed       floor %d → %d in %.1f s (the wait alone is %.1f s)"
+		% [floor_at_fourth, _descent, took, Config.tuning.party_wipe_seconds])
+	if _descent == floor_at_fourth:
+		problems.append("pressing TO THE FIRE did not end the run, so the "
+			+ "button is the stub ADR-064 bans on the one screen a player "
+			+ "meets at their worst moment")
+	elif took >= Config.tuning.party_wipe_seconds:
+		problems.append(("the run took %.1f s to end against a %.1f s wait — "
+			+ "the press did not shorten anything, so the screen is a caption "
+			+ "on a timer rather than a way out of one")
+			% [took, Config.tuning.party_wipe_seconds])
+	print("[wipe] and it leaves screen still up=%s (want no)" % (_run_over != null))
+	if _run_over != null:
+		problems.append(("the run-over screen outlived the run — in a real "
+			+ "session the scene change takes it, which is exactly why nothing "
+			+ "would notice it being left behind here"))
+
 	_report(problems, "wipe")
 
 
@@ -2889,6 +2956,11 @@ func _on_died_here(player: Player, at: Vector3) -> void:
 	_watch_for_a_wipe()
 
 
+## The run-over screen's claim on the body (ADR-151, on ADR-146's seam). Named,
+## so the pause menu opening over it gives back only what it took.
+const RUN_OVER_CLAIM: StringName = &"run_over"
+
+
 ## **Nobody left standing ends the run** (`M2-T16`, ADR-108).
 ##
 ## Deliberately *not* "somebody died", which is ADR-102's decision and stays
@@ -2917,14 +2989,100 @@ func _watch_for_a_wipe() -> void:
 	_ending = true
 	print("[death] nobody is left standing — %.1f s and the run is over"
 		% Config.tuning.party_wipe_seconds)
-	await get_tree().create_timer(Config.tuning.party_wipe_seconds).timeout
+	# **Say so, and let it be ended** (`M3-T30`, ADR-151). ADR-108 gave reason 1
+	# for this window as *"a cut to the camp on the frame you go out gives the
+	# player nothing to read"* — right about the problem, and three seconds of
+	# the same readout was not a solution. The wait is now a floor rather than a
+	# fixed price: whoever is ready presses, and the clock is the backstop for
+	# whoever is not.
+	_the_run_is_over.rpc()
+	_skip_the_wait = false
+	var until: float = Time.get_ticks_msec() \
+		+ Config.tuning.party_wipe_seconds * 1000.0
+	while Time.get_ticks_msec() < until and not _skip_the_wait:
+		await get_tree().process_frame
+		# **Out the moment somebody is standing**, rather than at the end of the
+		# wait. The re-check below is what decides the run, and it is unchanged;
+		# this only takes the screen down early, which is the safe direction —
+		# ADR-108's rule guards against ending a run too eagerly, never against
+		# calling one off too eagerly.
+		#
+		# Found by `--ember-probe`, which stands its only body back up inside
+		# the window and then measures what carrying an ember costs. With the
+		# screen holding the body for the rest of the wait, it measured a
+		# rescuer who could not move and reported the cost as nothing.
+		if not _the_party_is_gone():
+			break
 	_ending = false
-	# Somebody got up. `_stand_up` clears `spent` on a self-recovery and a
-	# teammate's hand does the same, so this is the ordinary way out of here.
+	_skip_the_wait = false
+	# Somebody got up.
+	#
+	# **In practice nothing reachable does this**, and the comment that used to
+	# stand here said otherwise: *"`_stand_up` clears `spent` on a
+	# self-recovery and a teammate's hand does the same."* It does not —
+	# `_stand_up` never touches `spent`, and both `revive_by` and
+	# `_self_recover` refuse a body that is not `is_downed()`. What can still
+	# cancel a wipe is a peer connecting inside the window, whose body arrives
+	# standing. The re-check stays for that, and because a rule that reads
+	# *"nobody has been standing for a while"* is the right rule whether or not
+	# today's build can exercise every path into it.
 	if not _the_party_is_gone():
 		print("[death] somebody got back up — the run continues")
+		_the_run_goes_on.rpc()
 		return
 	_end_the_run()
+
+
+## Shown on every peer, because every peer in it has just lost the run and the
+## host is the only one that knows.
+@rpc("authority", "call_local", "reliable")
+func _the_run_is_over() -> void:
+	if _run_over != null:
+		return
+	var screen := RunOverScreen.new()
+	screen.leave_now.connect(_ask_to_end_it_now)
+	_run_over = CanvasLayer.new()
+	_run_over.layer = 9
+	_run_over.add_child(screen)
+	add_child(_run_over)
+	# The Vörðr is mobile (`M3-T14`) so a dead player can still scout for the
+	# living — and this window opens only when there are none, so there is
+	# nothing left to scout for and the screen takes the body.
+	var body: Player = _session.local_player()
+	if body != null:
+		body.hold_attention(RUN_OVER_CLAIM)
+
+
+@rpc("authority", "call_local", "reliable")
+func _the_run_goes_on() -> void:
+	_put_the_screen_away()
+
+
+func _put_the_screen_away() -> void:
+	if _run_over == null:
+		return
+	_run_over.queue_free()
+	_run_over = null
+	var body: Player = _session.local_player()
+	if body != null:
+		body.release_attention(RUN_OVER_CLAIM)
+
+
+## Whoever pressed it. The outcome is already decided by the time this screen
+## exists — every body is out and nothing can revive a spent one — so a press
+## from any peer costs nobody anything but the wait.
+func _ask_to_end_it_now() -> void:
+	if multiplayer.is_server():
+		_skip_the_wait = true
+	else:
+		_end_it_now.rpc_id(CoopSession.HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _end_it_now() -> void:
+	if not multiplayer.is_server():
+		return
+	_skip_the_wait = true
 
 
 ## Is there a body left that could still do something?
@@ -3058,6 +3216,10 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = []) -> void:
 	# The host worked out what was earned, because it is the only peer that saw
 	# the run; `GameState` is never networked (`TEC-004`), so what crosses is a
 	# list of ids and each peer writes its own profile.
+	# Whatever the run-over screen was saying, the run is now resolved and this
+	# node is about to go away underneath it — or, in a probe, is not, which is
+	# the case that would leave it standing over a live floor.
+	_put_the_screen_away()
 	for row: Variant in earned:
 		var mark := row as Dictionary
 		GameState.award(StringName(mark.get("id", "")), String(mark.get("who", "")))
