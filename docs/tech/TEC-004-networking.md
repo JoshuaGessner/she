@@ -158,6 +158,14 @@ The Lair is two scenes with opposite networking postures, and getting this right
 
 > **Reverses this document's earlier lean.** Late join is now core, not post-launch.
 
+> **AS BUILT: refused, not supported** (ADR-157, `M3-T36`). None of the section below exists — there is no gate, no world delta, no arrival state. What existed instead was an **ungated connection**: `CoopSession` is built per level and the peer outlives a scene change, so a peer joining mid-run left two processes in different scenes on one connection, and Godot addresses every RPC and spawn by node path. It broke both ends, and it could cost the *host* the run.
+>
+> A join is now refused once the descent has begun, with a readable reason. **That is absence rather than reversal** (`ADR-064`): the specification below stands unchanged and is scheduled as `M4-T15`. Building any part of it early — a partial delta, an arrival that half-works — is the stub `ADR-064` bans, and this section is the description of the thing that replaces the refusal.
+
+> **AS BUILT: refused, not supported** (ADR-157, `M3-T36`). None of the section below exists — there is no gate, no world delta, no arrival state. What existed instead was an **ungated connection**: `CoopSession` is built per level and the peer outlives a scene change, so a peer joining mid-run left two processes in different scenes on one connection, and Godot addresses every RPC and spawn by node path. It broke both ends, and it could cost the *host* the run.
+>
+> A join is now refused once the descent has begun, with a readable reason. **That is absence rather than reversal** (`ADR-064`): the specification below stands unchanged and is scheduled as `M4-T15`. Building any part of it early — a partial delta, an arrival that half-works — is the stub `ADR-064` bans, and this section is the description of the thing that replaces the refusal.
+
 A player waiting in the Lair opens a gate at the party's position and steps through (`DES-005` Layer 3b). Built on the extraction mechanism run backward, which is why it's affordable — but it is still the most demanding networking feature in the project.
 
 **Geometry is free.** The joiner has the seed and generates the identical floor (already required). What must be synchronized is the **world delta** — everything that has changed since generation:

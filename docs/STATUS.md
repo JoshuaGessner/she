@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`68/88` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`68/89` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>37/37"]:::current
   M2 --> M3
-  M4["M4 Vertical Slice<br/>0/14"]:::ahead
+  M4["M4 Vertical Slice<br/>0/15"]:::ahead
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 37/37 | `EXIT` pending<br>`COOP` pending |
-|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/14 | `EXIT` pending |
+|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/15 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -151,6 +151,7 @@ _None. Sequencing is clean._
 - · `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* `ART-001` `ART-005` `DES-008`
 - · `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs `ART-004`
 - · `M4-T14` **The Scar** — *`DES-012` §3 charges a rescued life a Scar alongside losing the run and the carried loot, and `M3-T33` implemented the other two-thirds of that sentence because there is no Scar system to implement. Absent rather than stubbed (ADR-064, ADR-154): a state with no rules, no display and no consequence would be present only so a doc reads as done. Needs a decision first — what a Scar **costs**, whether it stacks, and whether it is visible to the party, since `DES-012` makes rescue a social act and a hidden penalty is one the rescuer cannot weigh* `DES-012` `PRO-005`
+- · `M4-T15` **Join-in-progress, as `TEC-004` specifies it** — *ADR-016 made late join **core, not post-launch**, `TEC-004` specifies it in full — the gate at the party's position, the world delta of looted containers, dead enemies, opened doors and Hunt state, the arrival with no accumulated loot — and **no task on this roadmap had ever picked it up.** Found by ADR-157, which refused an ungated mid-run join because it left two processes in different scenes on one connection and cost the host the run; that refusal is `ADR-064` absence, and this is the named replacement it requires. Same shape as ADR-116 §1, where `GATE M3 COOP` named a rank-8 floor nothing built. **After `M4-T01`**, because the delta is bounded per floor and *"a joiner arriving on floor 3 does not need floor 1's state"* is only expressible once there are three floors; and it wants `M4-T07`'s lobbies to be the thing that hands a joiner an address mid-session. `TEC-004`'s own test target is the acceptance criterion: a 4th player joins a floor-3 party ~20 minutes in, on a floor with ~200 looted containers and ~80 dead enemies, without a hitch on the host* `TEC-004` `DES-005` `DES-012`
 
 ### M5 — Content & Breadth
 

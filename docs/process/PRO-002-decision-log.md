@@ -4302,6 +4302,14 @@ The joiner receives no body, no camera and nothing else. That is ADR-107's grey 
 
 In the reproduction, the host's run ended in a wipe within seconds of the join — `nobody is left standing`, `the great reset — carried and stash gone`. **The control run, identical but with nobody joining, had no deaths at all in forty seconds.** A friend arriving a minute late could cost you the run.
 
+### This does not reverse ADR-016, and the difference matters
+
+**Added after the fact, because the first version of this ADR did not name ADR-016 at all.** `TEC-004` has a full *Join-in-progress* section and ADR-016 makes late join **core, not post-launch** — so an ADR that refuses joining mid-run and says nothing about either one reads, to anybody arriving later, as a silent reversal of an accepted decision. `CLAUDE.md` §8 exists for exactly that failure, and this ADR walked into it.
+
+The two are compatible, and the distinction is the whole point: **what was refused here is not join-in-progress.** ADR-016's feature is a player opening a gate at the party's position and stepping through, with the world delta — looted containers, dead enemies, opened doors, Hunt state — synchronised behind the animation. None of that exists. What existed was an *ungated connection* that broke both processes and could cost the host the run.
+
+So this is `ADR-064`'s **absence with a named replacement**: the specification in `TEC-004` stands unchanged, and it is now `M4-T15` with a milestone attached. There was no task for it anywhere in `PRO-001` — `TEC-004` said *"build this test at M2, not M4"* and nothing on the roadmap ever picked it up, which is the same shape ADR-116 §1 found when `GATE M3 COOP` named a rank-8 floor nothing built. A refusal without that task would have been a stub in the other direction: a permanent-looking answer to a question the design had already answered differently.
+
 ### The first shape of the fix was wrong, and the harnesses said so
 
 *"Only the Threshold accepts arrivals"* is a rule about **scenes**, and it broke three harness scenarios that assemble a party directly in the Deep — `run_doorway.py`'s extraction and left-behind, and `run_coop.py --smoke`. Those are not cheating: every peer boots the same scene, so their node paths agree and a join between them is sound.
