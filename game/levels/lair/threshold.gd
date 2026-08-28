@@ -396,7 +396,27 @@ func _the_descent_opens_a_run() -> PackedStringArray:
 
 	GameState.class_id = &"huskarl"
 	_descending = false
+	# **The descent stops taking arrivals** (`M3-T36`, ADR-157), sampled either
+	# side of the one call that moves it.
+	#
+	# **Only this half is here**, and the missing half is the point. A row
+	# reading *the camp takes arrivals* was written first and **could not
+	# fail**: the flag starts open, so deleting the camp's own call to
+	# `the_party_is_at_the_fire()` changed nothing at boot and the row passed
+	# green against it. What that call is actually load-bearing for is the way
+	# **home** — a party that has descended has a shut door, and arriving at
+	# the fire must open it again — which is a claim about a second visit and
+	# belongs where a second visit happens. `run_doorway.py` asserts it on the
+	# peers that walk back out of the Deep.
 	_descend()
+	var shut_below: bool = not CoopSession.taking_arrivals()
+	print("[edges] the door      shut once down=%s (want yes)" % shut_below)
+	if not shut_below:
+		problems.append(("the descent did not shut the door — a peer that "
+			+ "connects after it is a second process in a scene the host is "
+			+ "not in, and Godot addresses every spawn by node path"))
+	# Put it back, because the rows after this one are about a camp.
+	CoopSession.the_party_is_at_the_fire()
 	var opened: bool = RunFile.exists()
 	var whose: String = String(RunFile.read().get("class_id", ""))
 	print("[edges] the run      opened=%s, for '%s'" % [opened, whose])
@@ -689,6 +709,14 @@ func _hold(seconds: float) -> void:
 func _spawn_actors() -> void:
 	_session = SESSION_SCENE.instantiate() as CoopSession
 	_session.spawn_points = SPAWNS
+	# **The fire takes arrivals** (`M3-T36`, ADR-157). Said before the session
+	# enters the tree, because its `_ready` is what applies it to the transport.
+	#
+	# This is also the way *back* open: a party that comes home from a run that
+	# resolved is assembling again, and the next person to knock should be let
+	# in. Stated here rather than in `_take_the_outcome` because arriving at the
+	# camp is the one thing every route home has in common.
+	CoopSession.the_party_is_at_the_fire()
 	add_child(_session)
 
 
@@ -801,6 +829,16 @@ func _descend() -> void:
 	# A no-op in an unarmed process (ADR-138), so a probe booting this level
 	# directly still cannot open a run in the player's `user://`.
 	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	# **And the door shuts behind the party** (`M3-T36`, ADR-157). Here rather
+	# than in `room_set`, because *the descent* is the event — a level cannot
+	# know whether the process that built it walked in or was launched into it,
+	# and a rule about scenes would refuse the harnesses that assemble a party
+	# in the Deep, whose peers do all agree about where they are.
+	#
+	# `call_local`, so the host runs this on the frame it commits, before the
+	# scene change and therefore before there is any window at all on the
+	# common path.
+	CoopSession.the_party_has_gone_down()
 	if _probing:
 		# The descent *happened* — `_descending` is already true and that is
 		# what a probe reads. Going through with it would free the node holding
@@ -1137,6 +1175,17 @@ func _arrived_from_the_deep() -> void:
 	print("[extract] %s at the fire, run still open=%s, leaving ends the life=%s"
 		% [role, RunFile.exists(),
 			pause.leaving_ends_the_life() if pause != null else "no menu"])
+	# **And the door is open again** (`M3-T36`, ADR-157). The descent shuts it,
+	# and a party that never reopened it would finish one run and be
+	# unjoinable for the rest of the session — a co-op game that quietly
+	# becomes single-player after the first descent, which is worse than the
+	# fault this replaced because nothing about it looks like an error.
+	#
+	# Reported from here because arriving at the camp is the one thing every
+	# route home has in common, and because it is a claim about a **second**
+	# visit: the flag starts open, so nothing asserted at boot can fail.
+	print("[extract] %s at the fire, taking arrivals again=%s"
+		% [role, CoopSession.taking_arrivals()])
 
 
 ## **A life ended down there, and she is waiting to be told what to keep**

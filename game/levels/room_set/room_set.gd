@@ -4453,9 +4453,31 @@ func _extraction() -> void:
 		get_tree().quit(1)
 		return
 	RunFile.begin(GameState.class_id, GameState.pact_rank)
-	print("[extract] %s descended, run open=%s" % [
+	print("[extract] %s opened a run, still open=%s" % [
 		"host" if multiplayer.is_server() else "client", RunFile.exists()])
 	await _hold(7.0)
+	# **And the other half of what a descent does** (`M3-T36`, ADR-157).
+	#
+	# This scenario boots straight into the Deep, so `Threshold._descend` never
+	# ran — and it already stands in for the half of it that matters by opening
+	# a run file above. The door is the same kind of claim: these peers *are* a
+	# party that has gone down, and a scenario that says so about one half and
+	# not the other leaves the way home asserting a default.
+	#
+	# **After the hold, not before.** The first version shut it in `_ready`, and
+	# a host that has gone down before its own party has assembled refuses the
+	# clients this scenario is made of — the same mistake, one layer in, as
+	# writing the rule about scenes instead of about the descent. Seven seconds
+	# is this scenario's "everybody is here".
+	#
+	# Found by planting the camp's reopen: the row *the fire takes arrivals
+	# again* passed with it deleted, because `_party_is_assembling` starts true
+	# and nothing here had ever made it false — a row reading an initial value
+	# rather than a decision.
+	CoopSession.the_party_has_gone_down()
+	print("[extract] %s is down, run open=%s, door shut=%s" % [
+		"host" if multiplayer.is_server() else "client", RunFile.exists(),
+		not CoopSession.taking_arrivals()])
 	if not multiplayer.is_server():
 		print("[extract] client waiting on the floor, party=%d"
 			% _session.players().size())

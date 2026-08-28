@@ -59,6 +59,13 @@ CAMP = "levels/lair/threshold.tscn"
 DEEP = "levels/room_set/room_set.tscn"
 # A three-player party, because that is the size the crash was reported at —
 # though it reproduces at two, and asserting it at three costs one process.
+# The host walks into the hole at 6 s of its own clock (`--doorway-probe`), so
+# a client launched after this is knocking on a descent that has begun. The
+# refusal is silent on the wire — ENet raises nothing when a host is not
+# accepting — so the client spends `CONNECT_TIMEOUT_MSEC` (8 s) before it says
+# so, and the window has to cover both.
+LATE_JOIN_AFTER = 11
+LATE_JOIN_SECONDS = 15
 EXTRACT_CLIENTS = 2
 EXTRACT_SECONDS = 44   # M3-T09: every peer extracts in turn now, not just the host
 # The host spends its own body at ~7 s of its own clock and then holds for
@@ -145,6 +152,34 @@ def run_left_behind(port: int) -> dict[str, str]:
     time.sleep(LEFT_BEHIND_SETTLE)
     host.kill()
     return {"host": host.communicate()[0] or "", "client0": left}
+
+
+def run_late_join(port: int) -> dict[str, str]:
+    """**Somebody knocks after the party has gone down** (`M3-T36`).
+
+    The peer outlives a scene change and `CoopSession` is built per level, so a
+    join accepted here puts two processes in two different scenes on one
+    connection — and Godot addresses every RPC and every spawn by node path.
+    The joiner receives nothing at all; the host builds a body nobody is
+    driving, hardens the floor for a player who is not there, and can lose the
+    run to it.
+
+    **The host descends rather than being launched into the Deep.** That is the
+    difference between asserting the rule and asserting a scene: a party that
+    boots straight into `room_set` — which is what the other scenarios here do,
+    and what `run_coop.py` does — has every peer in the same scene and is sound.
+    What is unsound is arriving after the descent, so the descent is what this
+    waits for. `--doorway-probe` is the flag that walks a host into the hole.
+    """
+    host = launch(["--host", f"--port={port}", "--doorway-probe"], CAMP, "host")
+    time.sleep(LATE_JOIN_AFTER)
+    client = launch(["--join=127.0.0.1", f"--port={port}", "--doorway-probe"],
+                    CAMP, "client0")
+    time.sleep(LATE_JOIN_SECONDS)
+    for process in (host, client):
+        process.kill()
+    return {"host": host.communicate()[0] or "",
+            "client0": client.communicate()[0] or ""}
 
 
 def run(probe: str, port: int, seconds: int) -> dict[str, str]:
@@ -369,6 +404,54 @@ def main() -> int:
         rows.append((f"nothing threw — left behind, {name}", quiet,
                      "quiet" if quiet else "script error"))
 
+    # **And the way back in reopens behind them** (`M3-T36`, ADR-157). The
+    # descent shuts the door; a party that never reopened it would finish one
+    # run and be unjoinable for the rest of the session — co-op that quietly
+    # becomes single-player, with nothing about it that looks like an error.
+    #
+    # Read on the host, which is the peer whose transport actually refuses.
+    # A client's copy of the flag decides nothing, so asserting it there would
+    # be a row about a variable rather than about a door.
+    reopened = re.search(r"\[extract\] host at the fire, taking arrivals again=(\w+)",
+                         leaving["host"])
+    rows.append(("and the fire takes arrivals again",
+                 reopened is not None and reopened.group(1) == "true",
+                 "open" if reopened and reopened.group(1) == "true"
+                 else ("still shut" if reopened else "never reported")))
+
+    # ── knocking after they have gone down ────────────────────────────────
+    late = run_late_join(PORT + 4)
+
+    # The precondition. Without it every row below passes against a host that
+    # never got as far as descending, which is the shape of a check that is
+    # really asserting that two processes failed to meet.
+    went = "the door is shut" in late["host"]
+    rows.append(("the host went down and shut the door", went,
+                 "shut" if went else "still taking arrivals"))
+
+    # The fault, in the words the engine used for it. Either direction of the
+    # node-path disagreement is the bug: the joiner cannot find the host's
+    # spawner, and the host cannot find the joiner's session.
+    for who, missing in (("client0", "RoomSet/CoopSession"),
+                         ("host", "Threshold/CoopSession")):
+        clean = missing not in late[who]
+        rows.append((f"no packets into a scene the {who} is not in", clean,
+                     "clean" if clean else f"addressed {missing}"))
+
+    # A body built for somebody whose process cannot see it is the half that
+    # costs the *host* the run: it counts in the party, so the floor scales for
+    # it and `_the_party_is_gone()` waits on it.
+    phantom = "joined" in late["host"]
+    rows.append(("and no body is built for somebody who is not there",
+                 not phantom, "none" if not phantom else "spawned a phantom"))
+
+    # And the person knocking is told something, rather than standing in an
+    # empty camp. The message names all three real causes because a client
+    # cannot tell them apart — see `CoopSession.NO_ANSWER`.
+    told = "gone down without you" in late["client0"]
+    rows.append(("the one knocking is told why", told,
+                 "told" if told else "left with no reason"))
+
     ok = True
     print()
     for label, passed, detail in rows:
@@ -379,7 +462,7 @@ def main() -> int:
         print("\nDOORWAY FAILED — a scene change breaks co-op", file=sys.stderr)
         for label, source in (("party door", logs), ("private door", private),
                               ("the way out", leaving),
-                              ("left behind", behind)):
+                              ("left behind", behind), ("late join", late)):
             for name, log in source.items():
                 print(f"\n--- {label}: {name} ---", file=sys.stderr)
                 for line in log.splitlines():
@@ -388,8 +471,8 @@ def main() -> int:
                         print(f"    {line}", file=sys.stderr)
         return 1
 
-    print("\nall three doorways hold, and a party that loses its last "
-          "member ends — verified")
+    print("\nall three doorways hold, a party that loses its last member "
+          "ends,\nand one that has gone down cannot be joined — verified")
     return 0
 
 

@@ -4281,5 +4281,74 @@ Five rows. The precondition — *one out, one standing, and the floor stayed* �
 
 ---
 
+## ADR-157 — Nobody joins a descent that has already begun
+
+**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T36`** · **Extends ADR-101, ADR-107**
+
+**Context:** the third finding of the session-flow sweep, and the only one of the four that was reproduced across two processes *before* being fixed rather than after.
+
+Nothing gated a late join. The peer lives on the `SceneTree` and outlives a scene change (ADR-101), and `CoopSession` is built per level — so a peer that connected while the host was in the Deep ended up with **two processes in two different scenes on one connection.** Godot addresses every RPC and every spawn by node path, so both directions break at once:
+
+```
+host      ERROR: Failed to get path from RPC: Threshold/CoopSession
+joiner    ERROR: Node not found: "RoomSet/CoopSession/Spawner"     … every packet
+```
+
+The joiner receives no body, no camera and nothing else. That is ADR-107's grey screen, arriving through the one door ADR-107 did not close.
+
+### It cost the host as much as the joiner
+
+`_on_peer_connected` spawned a body for them regardless. That body is **un-driven**, because its owner's process cannot see it; it counts in `players()`, so `_the_party_is_gone()` waits on it; and `_on_party_changed` re-runs `_spawn_enemies()` for a party that just grew, hardening the floor for a player who is not there.
+
+In the reproduction, the host's run ended in a wipe within seconds of the join — `nobody is left standing`, `the great reset — carried and stash gone`. **The control run, identical but with nobody joining, had no deaths at all in forty seconds.** A friend arriving a minute late could cost you the run.
+
+### The first shape of the fix was wrong, and the harnesses said so
+
+*"Only the Threshold accepts arrivals"* is a rule about **scenes**, and it broke three harness scenarios that assemble a party directly in the Deep — `run_doorway.py`'s extraction and left-behind, and `run_coop.py --smoke`. Those are not cheating: every peer boots the same scene, so their node paths agree and a join between them is sound.
+
+What is unsound is joining a party that has **already gone down**, which is a fact about the run rather than about which file is loaded. So the door is open while the party is assembling, `Threshold._descend()` shuts it, and `Threshold._spawn_actors()` opens it again — which also covers the way home, because arriving at the camp is the one thing every route back has in common.
+
+Static on `CoopSession`, for `NetPlan`'s reason: what it describes is the **connection**, and the connection outlives every level. A per-node flag would be reset by each doorway, which is precisely the moment it must be carried across.
+
+### Connecting is not arriving
+
+`refuse_new_connections` shuts the transport, and the joiner *still* fires `connected_to_server` — measured: the client logs `connected as peer N` and the host never fires `peer_connected` at all. `_on_connected` cleared the client's own deadline, so a refused client stood in an empty camp forever with nothing to read. That is the state ADR-108 called *"worse than the process quitting, because at least a quit is a signal"* — the fix had replaced one silent failure with another.
+
+The deadline is **extended** rather than cleared, so a slow link is not mistaken for a refusal, and what ends it is the thing you came for: your body, which only the host can send. No handshake was added — the arrival of the thing you were waiting for is the signal that you have arrived.
+
+### The fourth player gets an honest sentence out of it
+
+The same wait now ends the same way for the party-full case, which ADR-155's sweep had filed as not worth fixing on its own. There are three real causes and a client can distinguish none of them, because ENet raises nothing for two of them. The message named one and asserted it — *"Check the address, and that the host has opened the Threshold"* — which is **wrong two times in three** and sends somebody to re-check an address that was right. It names all three now. Telling them apart needs the host to answer before the transport refuses, which is a handshake this build does not have and which `M4-T07` brings for free.
+
+### Verification, including the plant that did not fail
+
+A fourth two-process scenario in `run_doorway.py`. The host **descends** rather than being launched into the Deep, which is the difference between asserting the rule and asserting a scene; `--doorway-probe` is the flag that walks a host into the hole. Five rows: the door shut, no packets addressed into a scene either peer is not in (both directions), no body built, and the one knocking is told why. The first is a precondition — without it the rest pass against a host that never got as far as descending.
+
+| plant | caught |
+|---|---|
+| the door never shuts | **yes** — all four rows, and it reproduces the original fault exactly: both node-path errors and the phantom body |
+| connecting counts as arriving | **yes** — *the one knocking is told why* |
+| the fire never reopens the door | **yes**, after two false starts of its own — see below |
+| the body guard inside `_on_peer_connected` | **no** |
+
+### The reopen row took three attempts to become a row at all
+
+The door shuts at the descent, so something has to open it again; a build that never did would finish one run and be **unjoinable for the rest of the session** — co-op quietly becoming single-player, with nothing about it that looks like an error.
+
+Asserting that turned out to be harder than fixing it, and both failures were the same failure:
+
+1. The row was first written in `--edges-probe` as *the camp takes arrivals*, sampled before `_descend`. It **passed with the camp's own call deleted**, because `_party_is_assembling` starts open — a row reading an initial value rather than a decision. That half is now gone from the probe entirely, with the reason written where it was.
+2. Moved to `run_doorway.py`'s extraction scenario, where peers really do come home, it **still** passed with the call deleted: those peers boot straight into the Deep, so nothing had ever shut the door and *reopened* meant nothing.
+
+The scenario now shuts it, which is not a concession — `--extraction` already stands in for the descent by opening a run file, and saying so about one half and not the other is what left the row reading a default. **And that had to happen after the party assembles, not in `_ready`:** the first attempt shut the door before the scenario's own clients had joined, and the host refused them. The same mistake as writing the rule about scenes instead of about the descent, one layer in.
+
+### One plant is not caught, and that is recorded rather than hidden
+
+With the door working, `_on_peer_connected` never fires for a refused peer at all, so deleting the guard inside it changes nothing the harness can see. It is not dead code and it is not a stub: it defends a genuine race — the door shuts as the descent begins, and a connection already in flight can land inside that window — and what it prevents is the phantom body that costs the host its run. But it is **unasserted**, it cannot be counted as a row, and a future change could break it silently. Constructing the race deliberately would need frame-accurate timing across two processes, which is a flakier check than no check. ADR-098's distinction applies exactly: `check_dead.py` proves nothing is orphaned, and only a probe proves the game reaches its own code.
+
+`check_dead.py` did earn its keep here, though: `taking_arrivals()` was added *"for `--threshold-probe`"* and then not called by it, and the sweep said so immediately.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

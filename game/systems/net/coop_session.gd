@@ -51,6 +51,30 @@ const MENU_SCENE: String = "res://ui/main_menu.tscn"
 ## for a slow link, short enough that a mistyped address is a small mistake.
 const CONNECT_TIMEOUT_MSEC: int = 8000
 const LOOPBACK: String = "127.0.0.1"
+## **Why a connection did not happen, when nobody can say which** (`M3-T36`,
+## ADR-157).
+##
+## There are three real causes and a client can tell them apart from none of
+## them: nothing is hosting, the party is full, or the host has already gone
+## down. ENet refuses the last two at the transport and never raises
+## `connection_failed` for either — measured, and the reason `_start_client`
+## carries its own deadline — so all three arrive here as silence.
+##
+## It used to say *"Check the address, and that the host has opened the
+## Threshold"*, which names one cause and asserts it. Two of the three times
+## that sentence appears it is **wrong**, and it sends somebody to re-check an
+## address that was right all along: a fourth player is told to check their
+## typing, and so is somebody whose friend simply started without them.
+##
+## Naming all three is honest about what this process knows, and each one is
+## something the reader can act on. Telling them apart needs the host to answer
+## before the transport refuses, which is a handshake this build does not have
+## and which `M4-T07` brings for free with lobbies — so this is the whole of
+## what is worth building today.
+const NO_ANSWER: String = ("No answer from %s:%d after %d seconds.\n\n"
+	+ "Either nothing is hosting there, the party is already full, or they "
+	+ "have gone down without you — a descent only takes arrivals while "
+	+ "everyone is at the fire.")
 ## Sentinel for "wherever the next spawn mark is". A real position, never used
 ## as one, because `Vector3` has no null.
 const NO_PLACE: Vector3 = Vector3(-99999.0, -99999.0, -99999.0)
@@ -109,6 +133,25 @@ var _floor_field: ClamorField = null
 var _waiting_until: int = 0
 var _waiting_layer: CanvasLayer = null
 
+## **Is the party still assembling?** (`M3-T36`, ADR-157)
+##
+## Static, because the thing it describes is the **connection**, and the
+## connection outlives every level (ADR-101). A per-node flag would be reset by
+## each doorway, which is precisely the moment it must not be — walking into the
+## Deep is what shuts this, and the session that finds out is the next one.
+## `NetPlan` is static for the same reason and gets the same benefit: no
+## autoload budget spent on a fact with no behaviour (`TEC-001`).
+##
+## Open until the party descends. **Not "open only at the Threshold"** — that
+## was the first shape of this fix and it is subtly the wrong rule, because it
+## is about scenes and the truth is about the descent. It also broke every
+## harness that assembles a party directly in the Deep, and those are not
+## cheating: their peers all boot the same scene, so their node paths agree and
+## a join between them is sound. What is unsound is joining a party that has
+## **already gone down**, which is a fact about the run rather than about which
+## file is loaded.
+static var _party_is_assembling: bool = true
+
 @onready var _actors: Node3D = $Actors
 @onready var _spawner: MultiplayerSpawner = $Spawner
 
@@ -143,6 +186,10 @@ func _ready() -> void:
 		# solely at connect would be a declaration the floor never sees.
 		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
 		if multiplayer.is_server():
+			# **Re-applied on every session, because the peer outlives them and
+			# the flag does too.** A doorway is exactly where this has to be
+			# carried across rather than reset.
+			_hold_the_door()
 			multiplayer.peer_connected.connect(_on_peer_connected)
 			multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 			# Every body has to exist again in the new scene, including the
@@ -194,6 +241,60 @@ func _ensure_a_peer() -> void:
 		return
 	_log("no peer at all — installing the offline one Godot starts with")
 	multiplayer.multiplayer_peer = OfflineMultiplayerPeer.new()
+
+
+## **Nobody joins a descent that has already begun** (`M3-T36`, ADR-157).
+##
+## Nothing gated a late join. The peer outlives a scene change and
+## `CoopSession` is built per level, so a peer connecting after the party went
+## down put **two processes in two different scenes on one connection** — and
+## Godot addresses every RPC and every spawn by node path. Reproduced across two
+## processes: the host logs *"Failed to get path from RPC:
+## Threshold/CoopSession"*, the joiner logs *"Node not found:
+## RoomSet/CoopSession/Spawner"* on every packet, and so the joiner receives no
+## body, no camera and nothing else — ADR-107's grey screen through the one door
+## ADR-107 did not close.
+##
+## **And it was not only the joiner's problem.** The host spawned a body for
+## them anyway; that body is un-driven, because its owner's process cannot see
+## it; `_on_party_changed` then hardens the floor for a player who is not there,
+## and `_the_party_is_gone()` waits on a body nobody can move. In the
+## reproduction the host's run ended in a wipe seconds after the join, where the
+## identical run with nobody joining had no deaths at all.
+##
+## **Refused rather than supported**, deliberately. Telling a joiner which scene
+## to load and reconciling a floor that is already half-cleared is a system, it
+## overlaps `M4-T07`, and `DES-012` has the party descend together — so *"wait
+## for them at the fire"* is the design's own answer rather than a limitation
+## wearing its clothes.
+##
+## `refuse_new_connections` rather than a test inside `_on_peer_connected`: a
+## peer that is never accepted cannot send a packet addressed to a scene nobody
+## is in, which is the failure itself rather than its consequences.
+static func the_party_has_gone_down() -> void:
+	_party_is_assembling = false
+
+
+## Home again, and the fire takes arrivals. Called by the Threshold, which is
+## the only place a joining process can land (`DES-014`, `MainMenu._enter`).
+static func the_party_is_at_the_fire() -> void:
+	_party_is_assembling = true
+
+
+## Whether somebody knocking right now would be let in. Public for
+## `--threshold-probe`, which asserts both halves.
+static func taking_arrivals() -> bool:
+	return _party_is_assembling
+
+
+## Apply the door to the transport. Called wherever this process becomes, or
+## discovers it already is, a host.
+func _hold_the_door() -> void:
+	if multiplayer.multiplayer_peer == null or not multiplayer.is_server():
+		return
+	multiplayer.multiplayer_peer.refuse_new_connections = not _party_is_assembling
+	_log("the door is %s" % ("open — the party is still at the fire"
+		if _party_is_assembling else "shut — the descent has begun"))
 
 
 ## Is there already a live connection this session should adopt?
@@ -288,6 +389,7 @@ func _start_host() -> void:
 		return
 	_configure(peer)
 	multiplayer.multiplayer_peer = peer
+	_hold_the_door()
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
@@ -322,9 +424,7 @@ func _process(_delta: float) -> void:
 	if _waiting_until == 0 or Time.get_ticks_msec() < _waiting_until:
 		return
 	_waiting_until = 0
-	_give_up("No answer from %s:%d after %d seconds. Check the address and "
-		% [_address, _port, CONNECT_TIMEOUT_MSEC / 1000]
-		+ "that the host has opened the Threshold.")
+	_give_up(NO_ANSWER % [_address, _port, CONNECT_TIMEOUT_MSEC / 1000])
 
 
 func _on_connected() -> void:
@@ -336,8 +436,22 @@ func _on_connected() -> void:
 	# was still announcing themselves is a rank-1 floor with a rank-8 player on
 	# it, which is the opposite of what ADR-010 is for.
 	declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
-	_waiting_until = 0
-	_hide_waiting()
+	# **Connecting is not arriving** (`M3-T36`, ADR-157).
+	#
+	# This cleared the deadline, and that is a claim the client is in no
+	# position to make: a host that is refusing new connections still lets ENet
+	# complete the handshake, so `connected_to_server` fires on a client the
+	# host has already dropped. Measured — the joiner logs *"connected as peer
+	# N"* and the host never fires `peer_connected` at all — and with the
+	# deadline gone that client stands in an empty camp forever with nothing to
+	# read, which is the state ADR-108 called *"worse than the process
+	# quitting, because at least a quit is a signal."*
+	#
+	# **Extended rather than cleared**, because the two failures are different
+	# lengths of the same wait and a slow link must not be mistaken for a
+	# refusal. What ends the wait is the thing you came for: your body, which
+	# only the host can send. See `_build_player`.
+	_waiting_until = Time.get_ticks_msec() + CONNECT_TIMEOUT_MSEC
 
 
 ## Something to read while the wire is quiet. A client changes scene the moment
@@ -372,8 +486,7 @@ func _hide_waiting() -> void:
 ## stop trying.
 func _on_connection_failed() -> void:
 	_log("could not reach a host at %s:%d" % [_address, _port])
-	_give_up("No answer from %s:%d. Check the address, and that the host has "
-		% [_address, _port] + "opened the Threshold.")
+	_give_up(NO_ANSWER % [_address, _port, CONNECT_TIMEOUT_MSEC / 1000])
 
 
 ## The host went away. Same treatment, and for the same reason: a client whose
@@ -564,6 +677,17 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 ## declaration arriving are independent events — so it takes the same answer
 ## from the other end: the declaration is what spawns the body.
 func _on_peer_connected(peer: int) -> void:
+	# **Belt as well as braces** (`M3-T36`, ADR-157). `refuse_new_connections`
+	# is the fix; this is what makes a failure of it visible instead of
+	# expensive. There is a real window — the door is shut as the descent
+	# begins, and a connection already in flight can land inside it — and a body
+	# built for somebody who cannot see it is what hardens the floor and holds
+	# the run open.
+	if not _party_is_assembling:
+		_log("peer %d knocked after the descent began — no body, and the "
+			% peer + "connection is closed")
+		multiplayer.multiplayer_peer.disconnect_peer(peer)
+		return
 	_log("peer %d joined" % peer)
 	spawn_player(peer)
 
@@ -631,6 +755,14 @@ func _build_player(payload: Dictionary) -> Node:
 	# its own body. Deciding afterwards means one frame of a remote player
 	# holding the camera and capturing the mouse.
 	player.configure_replication(peer)
+	# **This is what arriving looks like** (`M3-T36`, ADR-157). A client is in
+	# when the host has built it a body, and not when ENet says the socket is
+	# up — the host is the only peer that can decide, and this packet is the
+	# decision. No handshake was added for this: the thing you were waiting for
+	# turning up is the signal that you are no longer waiting.
+	if peer == multiplayer.get_unique_id() and not multiplayer.is_server():
+		_waiting_until = 0
+		_hide_waiting()
 	# Signals up, calls down (`TEC-002`): a player putting something down says
 	# so, and the session — which owns the spawner — is what makes it exist.
 	# `spawn_world_item` is host-only, so a client's copy of this connection is
