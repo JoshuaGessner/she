@@ -4400,5 +4400,31 @@ The single-process half lives in `--edges-probe`, and only the host's own share 
 
 ---
 
+## ADR-159 — One machine, one running copy
+
+**Date:** 2026-08-28 · **Status:** accepted · **Amends `TEC-003`, `TEC-004`** · **Closes the last question from the `M3-T34`–`M3-T37` sweep**
+
+**Context:** the session-flow sweep found that `user://` is derived from the **project name**, not from the process, so two copies of SHE on one machine resolve `profile.save` and `run.active` to the same bytes. Writes are atomic (`SaveFile` renames a complete file over the old one), so there is no torn file — but two different lives writing one profile is last-writer-wins, and **nothing anywhere would say so.**
+
+The sweep deliberately did not decide this, because the severity depends entirely on a fact only the person playing knows: *does anybody actually run two copies at once?*
+
+**Answered: no.** Testing happens on one machine with one client at a time; co-op is between machines.
+
+### So nothing is built
+
+This is `ADR-064`'s **gate decision** rather than a fallback — one path chosen once, the other never built. A lock file, or a second instance refusing to start, would be a system built for a configuration nobody uses, and the honest cost of *not* building it is a documented assumption rather than a hidden one.
+
+The design already leaned this way without saying so. `NetPlan.local_address()` filters loopback out of the address the host screen reads aloud, on the grounds that *"handing somebody `127.0.0.1` is handing them their own machine"* — which is this decision, expressed in one line, three tasks before anybody wrote it down. Loopback stays reachable by typing it, because every two-process check in the project connects that way.
+
+### What it looks like if the assumption breaks
+
+A profile that quietly loses a tithe, a rank, or a stash entry, with **no crash and no error**, because the other copy wrote last. Written down so a future session recognises the signature instead of chasing it as save corruption — the failure mode is the whole cost of the decision, and a cost nobody has written down is one somebody pays twice.
+
+### The one exception is named and already separated
+
+`tools/run_coop.py`'s windowed mode launches a host and a client side by side, which *is* two copies on one machine. It is a harness rather than the game, and since ADR-155 every process it launches gets its own `HOME` and therefore its own `user://`. So the exception exists, is named, and cannot corrupt anything — the sweep's harness split turns out to have closed the only live instance of the hazard as a side effect of making a check able to fail.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -4,7 +4,7 @@ title: Networking Architecture
 status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-08-17
+updated: 2026-08-28
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
@@ -104,6 +104,7 @@ Generation must be **bit-exact across machines**, which is stricter than "reprod
 
 Extends `TEC-003`:
 - Each client owns its own `profile.save`. The host never writes another player's progression.
+- **Co-op is between machines.** One running copy per machine, because `user://` belongs to the machine and not to the process — stated once in `TEC-003`, not restated here. Unguarded by decision (ADR-159); `tools/run_coop.py`'s two-window playtest launch is the named exception and separates its own save directories.
 - **Run outcome is host-reported, client-committed.** The host tells you that you extracted with X; your client writes it.
 - **Host disconnect = forced extraction for everyone** (`DES-012`). Clients hold enough local state to commit a run outcome without the host. This must be tested by killing the host process, not by a clean quit.
 - Ember rescue (`DES-012`) means **another player's death outcome depends on host state** — get the authority chain right early and test it deliberately.

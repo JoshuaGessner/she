@@ -4,8 +4,8 @@ title: Save System & Persistence Implementation
 status: accepted
 owner: tech
 tags: [save, persistence, serialization, migration, tech-debt]
-updated: 2026-08-14
-related: [DES-003, TEC-001, TEC-002]
+updated: 2026-08-28
+related: [DES-003, TEC-001, TEC-002, TEC-004]
 ---
 
 # Save System & Persistence Implementation
@@ -64,6 +64,18 @@ Rules:
 - **Autosave on state transitions**, not on a timer: run start, floor transition, extraction, death, any Lair action.
 - **Atomic writes**: write to `profile.save.tmp`, then rename. A crash mid-write must never destroy a profile.
 - **Death writes are the critical path.** Test that a hard kill (task-kill the process) during the death sequence never produces a half-wiped profile — either the life ended cleanly or it didn't end.
+
+## One machine, one running copy
+
+> **DECIDED (ADR-159):** **`user://` belongs to a machine, and only one copy of the game runs on it.** Co-op is between machines. Two copies on one machine is not a supported configuration and **nothing guards against it**.
+
+`user://` is derived from the project name, not from the process, so two copies resolve `profile.save` and `run.active` to the same bytes. Writes are atomic, so there is no torn file — but two lives writing one profile is last-writer-wins, and nothing would say so.
+
+The alternative was a guard: a lock file, or a second instance refusing to start. That is a system built for a configuration nobody uses, and `ADR-064` calls this shape correctly — a **gate decision**, one path chosen once and the other never built, rather than a fallback to maintain.
+
+**If the assumption is ever broken, this is what it looks like:** a profile that loses a tithe, a rank, or a stash entry with no crash and no error, because the other copy wrote last. Recognise it by that signature rather than chasing it as a save-corruption bug.
+
+**The one place two copies do run is `tools/run_coop.py`**, whose windowed mode launches a host and a client side by side for solo playtesting. That is a harness rather than the game, and since ADR-155 every launched process gets its own `HOME` and therefore its own `user://` — so the exception exists, is named, and is already separated.
 
 ## Run state (separate from profile)
 
