@@ -4234,5 +4234,52 @@ Planted by restoring the host-only clear: the host's two rows pass, all four cli
 
 ---
 
+## ADR-156 — A run ended on a death or an extraction, and never on somebody leaving
+
+**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T35`** · **Extends ADR-108**
+
+**Context:** the second finding of the session-flow sweep that produced ADR-155, and the one that most directly answers *"leaving games in progress."*
+
+Run resolution is reachable from exactly two places, and that was the whole of it:
+
+| | |
+|---|---|
+| `_on_died_here` | → `_watch_for_a_wipe()` |
+| `_on_extracted` | → `_settle_if_nobody_is_left()` |
+
+**A peer disconnecting is neither.** `CoopSession._on_peer_disconnected` freed the body, released the seat, and told the level nothing at all — no signal, no call. `_watch_for_a_wipe` returns immediately when somebody is still standing and leaves `_ending` false, so nothing re-armed it, and `_the_party_is_gone()` would have answered correctly if anything had thought to ask it again.
+
+### What that was, from the seat
+
+Your last teammate closes their laptop while you are lying there spent. A `spent` body cannot move, and **cannot be revived by anything in this build** — ADR-151 established that `_stand_up` never clears `spent` and both revive paths refuse a body that is not `is_downed()`. So the floor goes on running around somebody who can do nothing, until they close the process.
+
+The only way out is the pause menu, and with a run open that button is `ABANDON THE RUN` (ADR-152). So a friend's alt-F4 cost you the tree, the stash and the rank. The same shape reaches you from the other direction: you have already extracted and are waiting under `M3-T09`'s out-but-present rule, and the last person still down there disconnects.
+
+This is ADR-108's own finding — *"a player with no teammates simply never ended"* — arriving through the door ADR-108 did not cover: the teammate **leaving** rather than dying.
+
+### The level is told, and it chooses between the endings it already has
+
+`CoopSession` gains `player_left`, and `room_set` connects it. Deliberately **not** to `_on_party_changed`: that one grows the floor, and ADR-110's rule is that it never shrinks, because despawning an enemy somebody is fighting is a bug they can see. What a departure changes is not the size of the floor, it is whether anybody is still in the run.
+
+The two endings are not interchangeable and the handler picks between them. `RunOverScreen` says **"YOU WENT OUT"** — true for somebody lying spent, and a lie told to somebody who walked out on their own feet and was waiting for a friend who never came back. So: any remaining body `spent` → the wipe path, with its window and its screen; otherwise → settle, silently, as an extraction does.
+
+### The fix's first draft failed its own new row, and that is the useful half
+
+`queue_free` does not leave the tree until the deletion queue is flushed, which is after the frame the signal fires in. So the first version asked `_the_party_is_gone()` about a party that **still contained the person who had just left** — not `is_out()`, therefore reading as *somebody is standing* — and did nothing whatsoever. The check caught it immediately, which is the entire argument for writing the check first.
+
+Awaiting a frame appeared to be the fix. It is a guess about when Godot flushes a queue, and it would have been a guess sitting underneath a rule about whether a run is over. `players()` skips a body that is being freed instead — which is a statement about the party rather than about the frame, is true at all twenty of its call sites, and makes `_the_party_is_gone()`, `_end_the_run`'s per-peer loop and party scaling agree with each other for free.
+
+### Verification
+
+A new two-process scenario, `--abandoned`, in `run_doorway.py` — the first one that **kills a process on purpose**. The host spends its own body while a client is still standing, holds long enough to prove the run has *not* ended (ADR-102: a party with somebody standing is not a party that is gone), and then the harness kills the client.
+
+Five rows. The precondition — *one out, one standing, and the floor stayed* — is half the assertion: without it a build that ended the run at the first death would satisfy the rest for entirely the wrong reason.
+
+**Both halves of the fix were planted separately**, and each fails *and ended once the last of them left*, *the one left behind got home* and *with its run closed behind it* by name, while the precondition row passes throughout. No single-process probe could have caught any of this — `--wipe-probe` walks a two-body party all the way to a wipe and has always passed, because its second body is a peer id rather than a process, and a peer id cannot leave.
+
+`--abandoned` is named without the word `probe` for `--extraction`'s reason: `_probing` swaps the scene change for `_reset_floor`, and *arriving at the Threshold* is the whole assertion. `RunFile.HARNESS_FLAGS` names both, so neither can arm the player's run file — and the list carries a note that a third entry means it should become one `--scenario=NAME` argument instead of a longer list.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

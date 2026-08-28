@@ -120,7 +120,10 @@ func _ready() -> void:
 			_doorway_probe()
 		elif arg == "--chamber-probe":
 			_chamber_probe()
-		elif arg == "--extraction":
+		elif arg == "--extraction" or arg == "--abandoned":
+			# One arrival reporter, two scenarios (`M3-T35`). Both are asking
+			# the same question — did this peer's run resolve, and did its run
+			# file close with it — and they differ only in what ended the run.
 			_arrived_from_the_deep()
 		elif arg == "--edges-probe":
 			_edges_probe()

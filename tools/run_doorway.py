@@ -61,6 +61,13 @@ DEEP = "levels/room_set/room_set.tscn"
 # though it reproduces at two, and asserting it at three costs one process.
 EXTRACT_CLIENTS = 2
 EXTRACT_SECONDS = 44   # M3-T09: every peer extracts in turn now, not just the host
+# The host spends its own body at ~7 s of its own clock and then holds for
+# `party_wipe_seconds` + 1.5 to prove the run has *not* ended with a teammate
+# standing. The client is killed after that, so the party ends by departure
+# rather than by death.
+LEFT_BEHIND_KILL = 16
+# Long enough for the wipe window, the run-over screen, and the walk home.
+LEFT_BEHIND_SETTLE = 18
 
 
 def launch(args: list[str], scene: str = CAMP,
@@ -109,6 +116,35 @@ def run_extraction(port: int) -> dict[str, str]:
     for process in procs.values():
         process.kill()
     return {name: (p.communicate()[0] or "") for name, p in procs.items()}
+
+
+def run_left_behind(port: int) -> dict[str, str]:
+    """**The last person standing leaves, and the run has to end** (`M3-T35`).
+
+    Run resolution was reachable from a death and from an extraction and from
+    nowhere else, so a party that ended because somebody *left* was never
+    re-examined — the host lay spent on a floor that kept running, with no way
+    out but ABANDON, which costs the life.
+
+    **This is the one scenario that kills a process on purpose.** The comment
+    on `run` above warns that stopping peers in turn makes the survivor report
+    a disconnect the product never had; here the disconnect *is* the subject,
+    so the client is killed first and deliberately, and the host is given a
+    settle window of its own afterwards.
+    """
+    host = launch(["--host", f"--port={port}", "--abandoned"], DEEP, "host")
+    time.sleep(3.0)
+    client = launch(["--join=127.0.0.1", f"--port={port}", "--abandoned"],
+                    DEEP, "client0")
+    time.sleep(LEFT_BEHIND_KILL)
+    client.kill()
+    left = client.communicate()[0] or ""
+    # Read after the kill rather than at the end, because the host runs on for
+    # another window and reading them together would mean waiting to find out
+    # whether the client had even reached the floor.
+    time.sleep(LEFT_BEHIND_SETTLE)
+    host.kill()
+    return {"host": host.communicate()[0] or "", "client0": left}
 
 
 def run(probe: str, port: int, seconds: int) -> dict[str, str]:
@@ -288,6 +324,51 @@ def main() -> int:
                      "TO THE MENU" if said and said.group(2) == "false"
                      else ("ABANDON THE RUN" if said else "never reported")))
 
+    # ── somebody leaves, and the run ends ─────────────────────────────────
+    behind = run_left_behind(PORT + 3)
+
+    reached = "client standing on the floor" in behind["client0"]
+    rows.append(("the client was on the floor to leave it", reached,
+                 "standing" if reached else "never got there"))
+
+    # The precondition, and it is half the assertion: a party with somebody
+    # still standing must **not** end when one member goes out (ADR-102). A
+    # build that ended the run on the first death would satisfy the row below
+    # for entirely the wrong reason.
+    held = re.search(r"\[left\] host is out, spent=(\w+), still in the Deep=(\w+)",
+                     behind["host"])
+    rows.append(("one out, one standing, and the floor stayed",
+                 held is not None and held.group(1) == "true"
+                 and held.group(2) == "true",
+                 "held" if held and held.group(2) == "true"
+                 else ("ended too early" if held else "host never went out")))
+
+    # The fault itself. Nothing was watching for a party that shrinks by
+    # departure, so the host lay there until `--quit-after` killed it.
+    ended = "[left] nobody is left in the run" in behind["host"]
+    rows.append(("and ended once the last of them left", ended,
+                 "resolved" if ended else "STRANDED — nothing re-checked"))
+
+    got_home = "arrived at the Threshold" in behind["host"]
+    rows.append(("the one left behind got home", got_home,
+                 "at the fire" if got_home else "still in the Deep"))
+
+    closed = re.search(r"\[extract\] host at the fire, run still open=(\w+)",
+                       behind["host"])
+    rows.append(("with its run closed behind it",
+                 closed is not None and closed.group(1) == "false",
+                 "closed" if closed and closed.group(1) == "false"
+                 else ("STILL OPEN" if closed else "never reported")))
+
+    for name, log in behind.items():
+        # The client is killed mid-frame on purpose, so its own log is allowed
+        # to stop anywhere — what must be quiet is the peer that carries on.
+        if name != "host":
+            continue
+        quiet = "SCRIPT ERROR" not in log
+        rows.append((f"nothing threw — left behind, {name}", quiet,
+                     "quiet" if quiet else "script error"))
+
     ok = True
     print()
     for label, passed, detail in rows:
@@ -297,15 +378,18 @@ def main() -> int:
     if not ok:
         print("\nDOORWAY FAILED — a scene change breaks co-op", file=sys.stderr)
         for label, source in (("party door", logs), ("private door", private),
-                              ("the way out", leaving)):
+                              ("the way out", leaving),
+                              ("left behind", behind)):
             for name, log in source.items():
                 print(f"\n--- {label}: {name} ---", file=sys.stderr)
                 for line in log.splitlines():
-                    if re.search(r"chamber|coop|extract|ERROR|SCRIPT", line):
+                    if re.search(r"chamber|coop|extract|left|ERROR|SCRIPT",
+                                 line):
                         print(f"    {line}", file=sys.stderr)
         return 1
 
-    print("\nall three doorways hold — verified")
+    print("\nall three doorways hold, and a party that loses its last "
+          "member ends — verified")
     return 0
 
 

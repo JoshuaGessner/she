@@ -64,6 +64,17 @@ const VERSION: int = 1
 ## this file.
 static var _live: bool = false
 
+## **Harness scenarios that need the real scene change, so they cannot carry
+## the word `probe`** (`M3-T34`, ADR-155; extended by `M3-T35`).
+##
+## A list is a thing that rots, and this one is written down rather than
+## matched precisely because that is the point: these are the flags that opt
+## *out* of the naming convention the guard above relies on. If it ever grows a
+## fourth entry, the right answer is one `--scenario=NAME` argument rather than
+## a longer list — noted here so the decision is made deliberately instead of
+## by accretion.
+const HARNESS_FLAGS: PackedStringArray = ["--extraction", "--abandoned"]
+
 
 ## This process owns its run state. Called by `MainMenu._enter()`, which is the
 ## only way into the game, and by the probe whose subject this is.
@@ -95,7 +106,7 @@ static func arm() -> void:
 ## hold a scene, and for the same reason: a harness argument is the one honest
 ## signal that nobody is playing.
 ##
-## **`--extraction` is named here because it is deliberately not named
+## **The flags below are named because they are deliberately not named
 ## `--probe`** (`M3-T34`, ADR-155). `room_set` avoided the word so that
 ## `_probing` would stay false and the run could really change scene — the
 ## comment in `threshold.gd` says so in as many words — and that spelling walked
@@ -112,7 +123,7 @@ static func _a_check_is_running() -> bool:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.contains("probe") or arg.contains("shot"):
 			return true
-		if arg == "--extraction":
+		if HARNESS_FLAGS.has(arg):
 			return true
 	return false
 

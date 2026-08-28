@@ -59,6 +59,16 @@ const PLAYER_SCENE: PackedScene = preload("res://actors/player/player.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
 
 signal player_spawned(player: Player)
+## Somebody's connection went away, and their body with it (`M3-T35`,
+## ADR-156). The level listens because **a party can shrink without anybody
+## dying**, and every question about whether a run is over is a question about
+## who is left in it.
+##
+## Emitted after the body is freed and the seat released, so a handler asking
+## `players()` is asking about the party that remains — with the caveat the
+## handler carries: `queue_free` lands at the end of the frame, so the body is
+## still in the group when this fires.
+signal player_left(peer: int)
 ## The party's highest Pact Rank changed, because somebody declared (ADR-122).
 ## Levels listen: a floor is built in one frame and a client's declaration
 ## arrives in a later one, so "scale to the highest rank present" (ADR-010) is
@@ -566,6 +576,11 @@ func _on_peer_disconnected(peer: int) -> void:
 	# The seat is theirs until they are actually gone. A door does not free it;
 	# leaving does, so the next arrival is a new person rather than an heir.
 	_seats.erase(peer)
+	# **And the level has to be told** (`M3-T35`, ADR-156). This freed a body
+	# and said nothing, so a run whose last standing member *left* was never
+	# re-examined: run resolution is reachable from a death and from an
+	# extraction and from nowhere else, and a disconnect is neither.
+	player_left.emit(peer)
 
 
 # ── spawning ──────────────────────────────────────────────────────────────
@@ -851,9 +866,23 @@ func local_player() -> Player:
 	return player_for(multiplayer.get_unique_id())
 
 
+## Everybody who is actually in the party.
+##
+## **A body being freed is not one of them** (`M3-T35`, ADR-156). `queue_free`
+## does not leave the tree until the deletion queue is flushed, which is after
+## the frame the caller is in — so a body whose peer has just disconnected was
+## still answering this, still counted by `_the_party_is_gone()`, and still
+## reading as *standing*, which is the shape that kept a run open with nobody
+## in it.
+##
+## Stated here rather than worked around at each of the twenty call sites, and
+## rather than by awaiting a frame and hoping: *is this body still in the run*
+## is one question, and the honest answer to it is the same everywhere.
 func players() -> Array[Player]:
 	var found: Array[Player] = []
 	for node: Node in get_tree().get_nodes_in_group("player"):
+		if node.is_queued_for_deletion():
+			continue
 		found.append(node as Player)
 	return found
 

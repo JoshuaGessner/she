@@ -498,6 +498,8 @@ func _ready() -> void:
 			_toll_probe()
 		elif arg == "--extraction":
 			_extraction()
+		elif arg == "--abandoned":
+			_abandoned()
 		elif arg == "--fallen-probe":
 			_fallen_probe()
 		elif arg == "--ember-probe":
@@ -3242,6 +3244,52 @@ func _the_party_is_gone() -> bool:
 	return true
 
 
+## **A party can also end because somebody left** (`M3-T35`, ADR-156).
+##
+## Run resolution was reachable from exactly two places — `_on_died_here` and
+## `_on_extracted` — and a peer disconnecting is neither. `_watch_for_a_wipe`
+## returns immediately when somebody is still standing and leaves `_ending`
+## false, so nothing re-armed it; `_the_party_is_gone()` would have answered
+## correctly if anything had asked it again.
+##
+## What that was, from the seat: your last teammate alt-F4s while you are lying
+## there spent. A `spent` body cannot move and **cannot be revived by anything
+## in this build** (ADR-151 established that), so the floor keeps running around
+## somebody who can do nothing, forever. The only way out is the pause menu, and
+## with a run open that button is `ABANDON THE RUN` — so a friend closing their
+## laptop cost you the life. Same shape if you had already extracted and were
+## waiting for them (`M3-T09`).
+##
+## This is ADR-108's own finding — *"a player with no teammates simply never
+## ended"* — arriving through the door ADR-108 did not cover: the teammate
+## **leaving** rather than dying.
+##
+## **The departing body has to be out of the party before this can be right**,
+## and that is `players()`' job rather than this one's. `queue_free` does not
+## leave the tree until after the frame the signal fires in, so the first draft
+## of this asked `_the_party_is_gone()` about a party that still contained the
+## person who had just left — read as *somebody is standing*, and did nothing at
+## all. It failed its own new row, which is the only reason it is not still
+## doing that: awaiting a frame first appeared to be the fix and is a guess
+## about the deletion queue rather than a statement about the party.
+func _on_peer_left(_peer: int) -> void:
+	if not multiplayer.is_server():
+		return
+	if not _the_party_is_gone():
+		return
+	# **Which of the two endings this is.** Both already exist and they are not
+	# interchangeable: `RunOverScreen` says *"YOU WENT OUT"*, which is the truth
+	# for somebody lying spent and a lie to somebody who walked out on their own
+	# feet and was waiting for a friend who never came back.
+	for body: Player in _session.players():
+		if body.spent:
+			print("[left] nobody is left in the run — the last of them went")
+			_watch_for_a_wipe()
+			return
+	print("[left] everyone still here had already got out — settling")
+	_settle_if_nobody_is_left()
+
+
 ## **Nobody is left in it, so settle** (`M3-T09`).
 ##
 ## No window here, unlike the wipe path. That one waits because a revive inside
@@ -3611,6 +3659,12 @@ func _spawn_actors() -> void:
 	# except the host. See `_on_party_changed`: without this, party scaling is
 	# arithmetic the game never reaches.
 	_session.player_spawned.connect(_on_party_changed)
+	# **Deliberately not `_on_party_changed`** (`M3-T35`, ADR-156). That one
+	# grows the floor, and ADR-110's rule is that it never shrinks — despawning
+	# an enemy somebody is fighting is a bug they can see. What a departure
+	# changes is not the size of the floor, it is whether anyone is still in
+	# the run.
+	_session.player_left.connect(_on_peer_left)
 	_session.floor_rank_changed.connect(_on_floor_rank_changed)
 
 
@@ -4444,6 +4498,58 @@ func _extraction() -> void:
 		# notice it is no longer in the world it was measuring.
 		if not is_inside_tree():
 			return
+
+
+## **The last person standing leaves, and the run has to end** (`M3-T35`,
+## ADR-156).
+##
+## The host goes out while a client is still on the floor — correct, and not a
+## wipe, because somebody is standing. `run_doorway.py` then **kills the client
+## process**, which is the event nothing was watching: a party can shrink by
+## departure, and run resolution only ever heard about deaths and extractions.
+##
+## Two processes, because that is what the fault is made of. No single-process
+## probe has a second peer to lose, which is exactly why `--wipe-probe` — which
+## walks a two-body party all the way to a wipe — has always passed.
+##
+## Named without the word `probe` for `--extraction`'s reason: `_probing` swaps
+## the scene change for `_reset_floor`, and *arriving at the Threshold* is the
+## whole assertion. `RunFile` names it in `HARNESS_FLAGS`, so this cannot arm
+## the player's run file.
+func _abandoned() -> void:
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	if RunFile.PATH == "user://run.active":
+		printerr("[left] FAIL this scenario is pointed at the player's run "
+			+ "file and opens one below")
+		get_tree().quit(1)
+		return
+	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	await _hold(7.0)
+	if not multiplayer.is_server():
+		print("[left] client standing on the floor, party=%d"
+			% _session.players().size())
+		return
+
+	var mine: Player = _session.local_player()
+	if mine == null:
+		printerr("[left] FAIL no host body to send out")
+		get_tree().quit(1)
+		return
+	print("[left] host going out with %d in the party"
+		% _session.players().size())
+	# The same two lines `--wipe-probe` uses to spend a body: damage past the
+	# pool, then a bleed short enough to run out on the next tick.
+	mine.health.apply_damage(mine.health.maximum * 2.0)
+	await _hold(0.2)
+	mine.bleeding = 0.02
+	await _hold(Config.tuning.party_wipe_seconds + 1.5)
+	# **Still here, and that is correct.** A party with somebody standing is not
+	# a party that is gone (ADR-102), so the run must *not* have ended yet — and
+	# saying so is what stops the row below being satisfied by a build that ends
+	# a run the moment anybody goes out.
+	print("[left] host is out, spent=%s, still in the Deep=%s, party=%d" % [
+		mine.spent, is_inside_tree(), _session.players().size()])
 
 
 ## What a Waystone costs in seconds, read off the item rather than from a number
