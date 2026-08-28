@@ -354,7 +354,47 @@ func _sworn_to_nothing() -> PackedStringArray:
 	GameState.class_id = &"huskarl"
 	var opens: bool = may_descend()
 
+	# **And the party gate, which is a different question** (`M3-T37`,
+	# ADR-158). The rows above are about the body walking in; these are about
+	# whether the party may go, which is what a client with the Legacy screen
+	# open used to have decided for it by somebody else's footsteps.
+	#
+	# Only the host's own half is reachable in one process — `still_choosing()`
+	# reads `multiplayer.get_peers()`, and there are none — but that half is
+	# the one solo depends on, and `run_doorway.py` walks the other with a real
+	# second peer.
+	_session.redeclare()
+	var ready_when_sworn: int = _session.still_choosing()
+	GameState.class_id = &""
+	_session.redeclare()
+	var waiting_when_not: int = _session.still_choosing()
+	print("[edges] the party    still choosing: sworn=%d, unsworn=%d (want 0, 1)"
+		% [ready_when_sworn, waiting_when_not])
+	if ready_when_sworn != 0:
+		problems.append(("a sworn party is counted as still choosing, so the "
+			+ "hole would never open for anybody — a gate that never lets "
+			+ "the party through is worse than the one it replaced"))
+	if waiting_when_not != 1:
+		problems.append(("a life sworn to nothing is not counted as still "
+			+ "choosing, so the descent would take it down with no class, no "
+			+ "kit and an empty hand — which is the fault this exists for"))
+
+	# **And the person standing in the hole is told why nothing happened.**
+	# The wording is the deliverable here: a hole that silently does nothing
+	# reads as a broken trigger, which is the bug report this would otherwise
+	# generate instead of the one it is preventing.
+	var before_line: String = _readout.text if _readout != null else ""
+	_still_at_the_fire(1)
+	var said: bool = _readout != null and _readout.text != before_line \
+		and _readout.text.contains("still at the fire")
+	print("[edges] and it says  the hole explains itself=%s" % said)
+	if not said:
+		problems.append(("the hole refused and said nothing — a trigger that "
+			+ "does nothing with no explanation is indistinguishable from a "
+			+ "broken one, and principle 4 has no sentence for it"))
+
 	GameState.class_id = was
+	_session.redeclare()
 	_descending = false
 	print("[edges] the descent  classless walked in=%s, shut=%s, opens once sworn=%s"
 		% [walked_in, closed, opens])
@@ -802,7 +842,7 @@ func _ask_to_descend() -> void:
 		return
 	_descending = true
 	if multiplayer.is_server():
-		_descend.rpc()
+		_take_the_party_down(CoopSession.HOST_PEER)
 	else:
 		_ask_host_to_descend.rpc_id(CoopSession.HOST_PEER)
 
@@ -811,7 +851,61 @@ func _ask_to_descend() -> void:
 func _ask_host_to_descend() -> void:
 	if not multiplayer.is_server():
 		return
-	_descend.rpc()
+	_take_the_party_down(multiplayer.get_remote_sender_id())
+
+
+## **Nobody is taken down in the middle of answering a question** (`M3-T37`,
+## ADR-158).
+##
+## ADR-101 made the hole the host's decision, so that the party arrives
+## together — right, and it asked nobody whether they were ready. `_descend` is
+## `call_local` on an authority RPC, so a client with the **Legacy screen open**
+## ran it too: `RunFile.begin()` with an empty `class_id`, a scene change out
+## from under a screen it had not answered, and `declare_descent` sending `""`
+## — so the host built it a body with no class, therefore no kit, therefore an
+## empty hand, and `MeleeWeapon.request_swing` refuses on an empty hand.
+##
+## That is exactly the fault ADR-138 and ADR-148 were written about, reached
+## through a door neither closed: both fixed the *menu* and the *fire*, and
+## neither could see a client's class question being answered for it by
+## somebody else's footsteps. It is the ordinary state of any client at the
+## fire after any death (`DES-003` lets them take as long as they like), so it
+## is not an edge case — it is the second co-op run in every session.
+##
+## **The host already knew.** `declare_descent` has carried the class since
+## `M3-T02`, and a peer that has not chosen declares `""`. No new message, no
+## readiness protocol: the gate is a question asked of data that was already
+## crossing.
+func _take_the_party_down(asked_by: int) -> void:
+	var waiting: int = _session.still_choosing()
+	if waiting == 0:
+		_descend.rpc()
+		return
+	# **Let them try again.** `_descending` latches so a body standing in the
+	# hole does not ask every frame while the scene changes; a refusal is not a
+	# descent, so it has to come back off or the hole is dead for the rest of
+	# the visit.
+	_descending = false
+	print("[camp] the descent waits — %d of the party still at the fire"
+		% waiting)
+	if asked_by == CoopSession.HOST_PEER:
+		_still_at_the_fire(waiting)
+	else:
+		_still_at_the_fire.rpc_id(asked_by, waiting)
+
+
+## Told to whoever walked in, because they are the one standing in a hole that
+## did nothing. Both peers are in the Threshold — the paths agree — which is
+## the whole reason this can be said at all (ADR-157 is the case where they do
+## not).
+@rpc("authority", "reliable")
+func _still_at_the_fire(waiting: int) -> void:
+	_descending = false
+	if _readout == null:
+		return
+	_readout.text += ("\n\n%d of the party %s still at the fire — the Deep "
+		+ "takes you together, or not at all") % [
+			waiting, "is" if waiting == 1 else "are"]
 
 
 ## Down. Whatever is in the stash is what you take, because `DES-014` puts

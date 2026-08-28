@@ -4350,5 +4350,55 @@ With the door working, `_on_peer_connected` never fires for a refused peer at al
 
 ---
 
+## ADR-158 — The hole asked the host and nobody else
+
+**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T37`** · **Completes the `M3-T34`–`M3-T37` sweep** · **Extends ADR-101, ADR-138, ADR-148**
+
+**Context:** the fourth and last finding of the session-flow sweep.
+
+ADR-101 made the hole the host's decision, so that a party arrives together rather than one player dropping into the Deep while everybody else stands at the fire. That is right, and it asked **nobody whether they were ready.**
+
+`_descend` is `@rpc("authority", "call_local", "reliable")`, so it runs on every peer — including a client with the **Legacy screen open**. What that peer does, in order: `RunFile.begin()` with an empty `class_id`, a scene change out from under a question it has not answered, and then `declare_descent` sending `""` to a host that builds it a body with no class. No class is no kit, no kit is an empty hand, and `MeleeWeapon.request_swing` refuses on an empty hand.
+
+An attack button that does nothing, for a whole run. Principle 4 has no sentence for that.
+
+### The same fault, through a third door
+
+ADR-138 put a guard at the menu — *nobody descends as nobody*. ADR-148 fixed the body at the fire — *after every death you stood at the fire as nobody*. Both were right, and neither could see a client's class question being **answered for it by somebody else's footsteps**.
+
+And it is not an edge case. `DES-003` deliberately lets a player come back to the fire and take as long as they like over what she keeps, so a client sitting on the Legacy screen is the ordinary state of anybody whose life ended last run — which is the second co-op run in every session.
+
+### The host already knew
+
+No new message and no readiness protocol. `declare_descent` has carried the class since `M3-T02`, because the host builds every body and a Húskarl who is only a Húskarl on their own screen is not one. A peer that has not chosen declares `""`.
+
+So `still_choosing()` counts the peers whose class is empty, and the descent waits on it. It counts the **host** too, so a classless host cannot take a sworn party down either. `Threshold.may_descend()` is not a duplicate of this: that one decides whether the body you are driving may walk into the hole, this decides whether the party may go, and `M2-T15`'s lesson — a level can be reached without passing through the menu — is why both exist.
+
+A peer that has connected but not yet declared counts as still choosing. That is correct rather than merely convenient: they are not ready, they are about to be, and the answer changes on its own a frame later. ADR-122 is the same observation about ranks.
+
+### And the hole says why
+
+A trigger that silently does nothing is indistinguishable from a broken one, and it generates the wrong bug report — *"the descent doesn't work"* rather than *"we were waiting for someone."* Whoever walked in is told, on their own readout: **N of the party are still at the fire — the Deep takes you together, or not at all.** Both peers are in the Threshold, so the node paths agree and the reply routes; ADR-157 is the case where they do not.
+
+### Verification
+
+A fifth two-process scenario. The client is launched **without** `--as-class`, which is exactly the state of a real client whose life ended last run, and the sworn host walks into the hole at six seconds. Three rows: the hole waited, and neither peer reached the Deep.
+
+`--as-class` is how the harness says a party has chosen — the same lever `--as-rank` has been for ADR-010 since `M3-T10` — and the party-door scenario now passes it, because a party at the fire has chosen who they are. A scenario that leaves it off is saying something, and this one says it on purpose.
+
+Three plants, all failing by name:
+
+| plant | the row that caught it |
+|---|---|
+| the gate is never asked | *the hole waits for somebody still choosing* → **TOOK THEM DOWN unchosen**, and both peers *went down anyway* |
+| the host does not count itself | *a life sworn to nothing is not counted as still choosing* |
+| the hole refuses and says nothing | *the hole refused and said nothing* |
+
+The first is the one worth reading twice: with the gate deleted, the classless client **went down anyway**, while the party-door row saying a sworn client follows the host down still passed. The plant is the fault and nothing else, which is what tells a check apart from a smoke alarm.
+
+The single-process half lives in `--edges-probe`, and only the host's own share of it is reachable there — `still_choosing()` reads `multiplayer.get_peers()` and there are none. That half is the one solo depends on; `run_doorway.py` walks the other with a real second peer.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

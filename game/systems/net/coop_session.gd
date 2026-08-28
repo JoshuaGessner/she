@@ -589,6 +589,34 @@ func sworn_of(peer: int) -> StringName:
 	return StringName(_sworn.get(peer, ""))
 
 
+## **How many of us have not said who they are** (`M3-T37`, ADR-158).
+##
+## No new wire and no new bit: `declare_descent` has carried the class since
+## `M3-T02` because the host builds every body, and a peer whose class question
+## is still open declares `""`. The host already knew; nothing asked it.
+##
+## Counts a peer that has connected and not yet declared, which is correct
+## rather than merely convenient — they are not ready, they are about to be,
+## and the answer changes on its own a frame later (ADR-122 is the same
+## observation about ranks).
+##
+## The host counts itself, so a classless host cannot take a sworn party down
+## either. `Threshold.may_descend()` is **not** a duplicate of this: that one
+## decides whether the body you are driving may walk into the hole, and this
+## decides whether the party may go. `M2-T15`'s lesson — a level can be reached
+## without passing through the menu — is why both exist.
+func still_choosing() -> int:
+	if not multiplayer.is_server():
+		return 0
+	var waiting: int = 0
+	for peer: int in multiplayer.get_peers():
+		if sworn_of(peer) == &"":
+			waiting += 1
+	if sworn_of(multiplayer.get_unique_id()) == &"":
+		waiting += 1
+	return waiting
+
+
 ## **Has everyone here said who they are** (ADR-122)?
 ##
 ## A body arriving and a declaration arriving are two independent events: the

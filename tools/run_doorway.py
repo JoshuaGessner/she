@@ -64,6 +64,12 @@ DEEP = "levels/room_set/room_set.tscn"
 # refusal is silent on the wire — ENet raises nothing when a host is not
 # accepting — so the client spends `CONNECT_TIMEOUT_MSEC` (8 s) before it says
 # so, and the window has to cover both.
+# **A party at the fire has chosen who they are** (`M3-T37`). `--as-class` is
+# how a harness says so — the same lever `--as-rank` is for ADR-010 — because a
+# process that never went through the class screen has `class_id` empty, and an
+# unchosen class is now what holds the descent. Scenarios that leave it off are
+# saying something, and `run_not_ready` says it on purpose.
+SWORN = "--as-class=huskarl"
 LATE_JOIN_AFTER = 11
 LATE_JOIN_SECONDS = 15
 EXTRACT_CLIENTS = 2
@@ -171,11 +177,37 @@ def run_late_join(port: int) -> dict[str, str]:
     What is unsound is arriving after the descent, so the descent is what this
     waits for. `--doorway-probe` is the flag that walks a host into the hole.
     """
-    host = launch(["--host", f"--port={port}", "--doorway-probe"], CAMP, "host")
+    host = launch(["--host", f"--port={port}", "--doorway-probe", SWORN],
+                  CAMP, "host")
     time.sleep(LATE_JOIN_AFTER)
+    client = launch(["--join=127.0.0.1", f"--port={port}", "--doorway-probe",
+                     SWORN], CAMP, "client0")
+    time.sleep(LATE_JOIN_SECONDS)
+    for process in (host, client):
+        process.kill()
+    return {"host": host.communicate()[0] or "",
+            "client0": client.communicate()[0] or ""}
+
+
+def run_not_ready(port: int) -> dict[str, str]:
+    """**Somebody is still answering the Legacy screen** (`M3-T37`).
+
+    `_descend` is `call_local` on an authority RPC, so a client with a screen
+    open ran it too — a scene change out from under a question it had not
+    answered, and a body built with no class, therefore no kit, therefore an
+    empty hand for the whole run.
+
+    The client here has no `--as-class`, which is exactly the state of any real
+    client at the fire whose life ended last run: `DES-003` lets them take as
+    long as they like over what she keeps. The host is sworn and walks into the
+    hole at 6 s.
+    """
+    host = launch(["--host", f"--port={port}", "--doorway-probe", SWORN],
+                  CAMP, "host")
+    time.sleep(3.0)
     client = launch(["--join=127.0.0.1", f"--port={port}", "--doorway-probe"],
                     CAMP, "client0")
-    time.sleep(LATE_JOIN_SECONDS)
+    time.sleep(SECONDS)
     for process in (host, client):
         process.kill()
     return {"host": host.communicate()[0] or "",
@@ -184,9 +216,9 @@ def run_late_join(port: int) -> dict[str, str]:
 
 def run(probe: str, port: int, seconds: int) -> dict[str, str]:
     """One scenario: a host, a client, and a door."""
-    host = launch(["--host", f"--port={port}", probe], CAMP, "host")
+    host = launch(["--host", f"--port={port}", probe, SWORN], CAMP, "host")
     time.sleep(3.0)
-    client = launch(["--join=127.0.0.1", f"--port={port}", probe], CAMP,
+    client = launch(["--join=127.0.0.1", f"--port={port}", probe, SWORN], CAMP,
                     "client0")
 
     # Both stopped on **one** deadline, then both read. Reading them in turn
@@ -419,6 +451,25 @@ def main() -> int:
                  "open" if reopened and reopened.group(1) == "true"
                  else ("still shut" if reopened else "never reported")))
 
+    # ── somebody is still choosing ────────────────────────────────────────
+    unready = run_not_ready(PORT + 5)
+
+    waited = re.search(r"\[camp\] the descent waits — (\d+) of the party",
+                       unready["host"])
+    rows.append(("the hole waits for somebody still choosing",
+                 waited is not None,
+                 f"{waited.group(1)} at the fire" if waited
+                 else "TOOK THEM DOWN unchosen"))
+
+    # The consequence, rather than the decision: neither peer may reach the
+    # Deep. `adopted the existing connection` is what a session prints when it
+    # is built on a live peer, and the only second session either of these
+    # processes can build is the one in the floor.
+    for who in ("host", "client0"):
+        stayed = "adopted the existing connection" not in unready[who]
+        rows.append((f"and the {who} is still at the fire", stayed,
+                     "at the fire" if stayed else "went down anyway"))
+
     # ── knocking after they have gone down ────────────────────────────────
     late = run_late_join(PORT + 4)
 
@@ -462,7 +513,8 @@ def main() -> int:
         print("\nDOORWAY FAILED — a scene change breaks co-op", file=sys.stderr)
         for label, source in (("party door", logs), ("private door", private),
                               ("the way out", leaving),
-                              ("left behind", behind), ("late join", late)):
+                              ("left behind", behind), ("late join", late),
+                              ("not ready", unready)):
             for name, log in source.items():
                 print(f"\n--- {label}: {name} ---", file=sys.stderr)
                 for line in log.splitlines():
@@ -472,7 +524,8 @@ def main() -> int:
         return 1
 
     print("\nall three doorways hold, a party that loses its last member "
-          "ends,\nand one that has gone down cannot be joined — verified")
+          "ends,\none that has gone down cannot be joined, and one still "
+          "choosing is waited for — verified")
     return 0
 
 
