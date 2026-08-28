@@ -40,6 +40,8 @@ import sys
 import time
 from pathlib import Path
 
+import own_user_dir
+
 ROOT = Path(__file__).resolve().parent.parent
 GAME = ROOT / "game"
 PORT = 47019  # not run_coop's, so the two can be run at once
@@ -61,11 +63,20 @@ EXTRACT_CLIENTS = 2
 EXTRACT_SECONDS = 44   # M3-T09: every peer extracts in turn now, not just the host
 
 
-def launch(args: list[str], scene: str = CAMP) -> subprocess.Popen:
+def launch(args: list[str], scene: str = CAMP,
+           slot: str = "host") -> subprocess.Popen:
+    """One process, with a `user://` no other process in this run can reach.
+
+    The separation is not tidiness. Every peer opens its own run file at the
+    descent and settles its own profile at the end, so a scenario sharing one
+    `user://` has the host's clear standing in for the client's — and the row
+    about the client passes without the client having done anything (ADR-155).
+    """
     return subprocess.Popen(
         [GODOT, "--headless", "--path", str(GAME), "--quit-after", "60000",
          scene, "--"] + args,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+        env=own_user_dir.env_for(slot))
 
 
 def run_extraction(port: int) -> dict[str, str]:
@@ -84,11 +95,13 @@ def run_extraction(port: int) -> dict[str, str]:
     as a hard crash after it.
     """
     procs: dict[str, subprocess.Popen] = {
-        "host": launch(["--host", f"--port={port}", "--extraction"], DEEP)}
+        "host": launch(["--host", f"--port={port}", "--extraction"], DEEP,
+                       "host")}
     time.sleep(3.0)
     for index in range(EXTRACT_CLIENTS):
         procs[f"client{index}"] = launch(
-            [f"--join={'127.0.0.1'}", f"--port={port}", "--extraction"], DEEP)
+            [f"--join={'127.0.0.1'}", f"--port={port}", "--extraction"], DEEP,
+            f"client{index}")
         time.sleep(1.0)
     # One deadline for everybody, for the reason `run` gives above: killing them
     # in turn makes the survivors report a disconnect the product never had.
@@ -100,9 +113,10 @@ def run_extraction(port: int) -> dict[str, str]:
 
 def run(probe: str, port: int, seconds: int) -> dict[str, str]:
     """One scenario: a host, a client, and a door."""
-    host = launch(["--host", f"--port={port}", probe])
+    host = launch(["--host", f"--port={port}", probe], CAMP, "host")
     time.sleep(3.0)
-    client = launch(["--join=127.0.0.1", f"--port={port}", probe])
+    client = launch(["--join=127.0.0.1", f"--port={port}", probe], CAMP,
+                    "client0")
 
     # Both stopped on **one** deadline, then both read. Reading them in turn
     # killed the host first, and the client — still running — dutifully
@@ -248,6 +262,31 @@ def main() -> int:
     kept = "carried=1" in leaving["host"]
     rows.append(("and the host kept what it carried out", kept,
                  "1 item" if kept else "haul lost in the transition"))
+
+    # **A run that resolved is closed for everyone who was in it** (`M3-T34`,
+    # ADR-155, invariant 2).
+    #
+    # `RunFile.clear()` lived inside `_end_the_run`, which returns on its first
+    # line for anything that is not the host — so `user://run.active` survived
+    # every run a client came home from *alive*, and `PauseMenu` then priced
+    # walking out of camp at the whole life (ADR-152). Read per peer, because
+    # the fault is per peer: a row that looked at the host alone passed against
+    # the broken build, and one run against a shared `user://` would have had
+    # the host's clear answering for the client.
+    for name, log in leaving.items():
+        said = re.search(r"\[extract\] \w+ at the fire, run still open=(\w+), "
+                         r"leaving ends the life=(\w+)", log)
+        rows.append((f"{name} closed its run on the way out",
+                     said is not None and said.group(1) == "false",
+                     "closed" if said and said.group(1) == "false"
+                     else ("STILL OPEN" if said else "never reached the fire")))
+        # The half a player actually meets. Kept separate from the row above so
+        # a future build that clears the file without fixing the menu — or the
+        # reverse — fails the half that is wrong rather than both or neither.
+        rows.append((f"and {name} can leave the fire for nothing",
+                     said is not None and said.group(2) == "false",
+                     "TO THE MENU" if said and said.group(2) == "false"
+                     else ("ABANDON THE RUN" if said else "never reported")))
 
     ok = True
     print()

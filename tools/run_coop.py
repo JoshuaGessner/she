@@ -49,6 +49,8 @@ import tempfile
 import time
 from pathlib import Path
 
+import own_user_dir
+
 ROOT = Path(__file__).resolve().parent.parent
 GAME = ROOT / "game"
 SCENE = "res://levels/room_set/room_set.tscn"
@@ -106,11 +108,19 @@ def launch(godot: str, role_args: list[str], args: argparse.Namespace,
         command += ["--resolution", f"{WINDOW[0]}x{WINDOW[1]}",
                     "--position", f"{40 + slot * (WINDOW[0] + 20)},80"]
     command += [SCENE, "--"] + role_args
+    # **One `user://` per slot** (ADR-155). Two processes of one project
+    # resolve `user://profile.save` and `user://run.active` to the same bytes,
+    # so a claim about what *this* peer saved is a claim about whichever peer
+    # wrote last. Nothing here loads a profile today — the smoke boots a level
+    # directly, so `load_profile()` never runs — and the separation is the rule
+    # rather than the current reachability, because the day a scenario does
+    # reach the front door is not the day to remember this.
     return subprocess.Popen(
         command,
         stdout=subprocess.PIPE if args.smoke else None,
         stderr=subprocess.STDOUT if args.smoke else None,
         text=True,
+        env=own_user_dir.env_for("host" if slot == 0 else f"client{slot - 1}"),
     )
 
 

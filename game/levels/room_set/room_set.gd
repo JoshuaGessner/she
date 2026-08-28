@@ -3292,11 +3292,10 @@ func _settle_if_nobody_is_left() -> void:
 func _end_the_run() -> void:
 	if not multiplayer.is_server():
 		return
-	# **The one place a run closes** (`M3-T15`, ADR-050). Reached by extraction
-	# and by the wipe and by nothing else, which is exactly the property that
-	# makes quitting not an escape: there is no path from the pause menu to
-	# here.
-	RunFile.clear()
+	# **The run file closes in `_take_the_outcome`, not here** (`M3-T34`,
+	# ADR-155). This line used to be the clear, and it is inside a function that
+	# returns on its first line for everybody who is not the host — so a run
+	# resolved for the whole party and closed for exactly one of them.
 	var my_haul: Array = []
 	var my_loss: bool = false
 	var my_deeds: Array = []
@@ -3347,6 +3346,27 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = []) -> void:
 	var from: int = multiplayer.get_remote_sender_id()
 	if from != 0 and from != CoopSession.HOST_PEER:
 		return
+	# **This peer's run is over, so this peer's run file closes** (`M3-T34`,
+	# ADR-155, completing `M3-T15`).
+	#
+	# It was in `_end_the_run`, which returns immediately on anything that is
+	# not the host — so `user://run.active` survived every run a **client** came
+	# home from alive. `PauseMenu.leaving_ends_the_life()` is `RunFile.exists()`
+	# (ADR-152), so a client standing at the fire after a successful extraction
+	# was told that leaving ends their life, and the button that says so calls
+	# `GameState.die()`. There is no `TO THE MENU` on that menu while a run is
+	# open, so the only way back to the front door was through the great reset.
+	#
+	# **It bites only on runs you survive**, which is why it lasted: a wipe
+	# sends `lost = true`, `die()` clears `class_id`, and the stale file is then
+	# an orphan that `resume_is_this_life()` drops on the next launch (ADR-138).
+	# Every failed run cleaned up after itself and every good one did not.
+	#
+	# Here rather than beside the host's clear because this message already
+	# *is* the per-peer sentence — *your run resolved, and here is what it came
+	# to* — delivered to every peer including the host (`TEC-004`: the host
+	# reports, each peer writes). One writer, on the one event, on each machine.
+	RunFile.clear()
 	# **Marked before anything is settled** (`M3-T08`, `DES-016`). LINEAGE tier,
 	# so a death does not cost them — and awarding *before* `die()` is what makes
 	# that true rather than merely intended.
@@ -4361,6 +4381,26 @@ func _toll_probe() -> void:
 ## and passes for that reason: solo, and it skips the transition. A check for a
 ## scene change has to be allowed to change scene.
 func _extraction() -> void:
+	# **Every peer descends with a run open, because every peer really does**
+	# (`M3-T34`, ADR-155). `Threshold._descend` is `call_local`, so a real
+	# party opens one run file per machine — and the scenario that walks a
+	# party out of the floor had none at all, which is why nothing could see
+	# that only one of them ever closed.
+	#
+	# Its own file, never the player's (ADR-145, ADR-152). Asserted rather than
+	# trusted: this flag is deliberately not named `--probe` so the scene change
+	# is real, and that spelling is exactly what used to get past `arm()`.
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	if RunFile.PATH == "user://run.active":
+		printerr("[extract] FAIL this scenario is pointed at the player's run "
+			+ "file and opens one below — a sweep would leave a run open in "
+			+ "somebody's `user://` and the next launch would resume it")
+		get_tree().quit(1)
+		return
+	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	print("[extract] %s descended, run open=%s" % [
+		"host" if multiplayer.is_server() else "client", RunFile.exists()])
 	await _hold(7.0)
 	if not multiplayer.is_server():
 		print("[extract] client waiting on the floor, party=%d"

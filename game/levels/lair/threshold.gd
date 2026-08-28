@@ -1107,9 +1107,33 @@ func _rejoin_the_world() -> void:
 func _arrived_from_the_deep() -> void:
 	await get_tree().create_timer(1.5).timeout
 	var body: Player = _session.local_player() if _session != null else null
+	var role: String = "host" if multiplayer.is_server() else "client"
 	print("[extract] %s arrived at the Threshold, body=%s, carried=%d" % [
-		"host" if multiplayer.is_server() else "client",
-		"yes" if body != null else "NO", GameState.carried.size()])
+		role, "yes" if body != null else "NO", GameState.carried.size()])
+
+	# **The run resolved for everybody, so it is closed for everybody**
+	# (`M3-T34`, ADR-155).
+	#
+	# Asked here rather than in the Deep for the reason the line above is here:
+	# `_take_the_outcome` ends in `change_scene_to_file`, which detaches the
+	# floor synchronously (ADR-113, ADR-117), so the process best placed to say
+	# what its run file did is the one least able to. Whoever reaches the camp
+	# says so, and `run_doorway.py` reads both peers.
+	#
+	# **And the price of the way out, because that is the part a player meets.**
+	# `RunFile.exists()` is what `PauseMenu` reads to decide between `ABANDON
+	# THE RUN` and `TO THE MENU` (ADR-152) — so a stale run file is not a stale
+	# file, it is a fire where the only door out costs the life. Asserting the
+	# menu's own answer rather than the file keeps the row about the thing that
+	# was reported.
+	var pause: PauseMenu = null
+	for child: Node in get_children():
+		var found := child as PauseMenu
+		if found != null:
+			pause = found
+	print("[extract] %s at the fire, run still open=%s, leaving ends the life=%s"
+		% [role, RunFile.exists(),
+			pause.leaving_ends_the_life() if pause != null else "no menu"])
 
 
 ## **A life ended down there, and she is waiting to be told what to keep**

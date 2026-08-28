@@ -89,12 +89,30 @@ static func arm() -> void:
 	_live = true
 
 
-## Was this process launched as a check? The same test `Threshold` and
-## `room_set` use to decide whether to hold a scene, and for the same reason:
-## a probe argument is the one honest signal that nobody is playing.
+## Was this process launched as a check?
+##
+## Nearly the same test `Threshold` and `room_set` use to decide whether to
+## hold a scene, and for the same reason: a harness argument is the one honest
+## signal that nobody is playing.
+##
+## **`--extraction` is named here because it is deliberately not named
+## `--probe`** (`M3-T34`, ADR-155). `room_set` avoided the word so that
+## `_probing` would stay false and the run could really change scene — the
+## comment in `threshold.gd` says so in as many words — and that spelling walked
+## straight through ADR-152's refusal, because the refusal matches on the word
+## rather than on the fact. So the one harness flag that most needs a run file
+## was the one flag allowed to arm the player's.
+##
+## Nothing had exercised the hole, which is the only reason this is a fix and
+## not an incident: the extraction scenario had no run file at all until the
+## check that needed one was written. A guard whose coverage depends on a
+## naming convention is a guard that expires the first time somebody names a
+## flag well.
 static func _a_check_is_running() -> bool:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.contains("probe") or arg.contains("shot"):
+			return true
+		if arg == "--extraction":
 			return true
 	return false
 

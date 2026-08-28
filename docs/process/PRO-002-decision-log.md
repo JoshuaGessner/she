@@ -4186,5 +4186,53 @@ The new row spawns a second body, has the host go out, puts its ember in the hel
 
 ---
 
+## ADR-155 — The run resolved for the host and stayed open for everybody else
+
+**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T34`** · **Completes `M3-T15`** · **Extends ADR-152**
+
+**Context:** a playtester reported *"there is still an issue with joining and leaving games in progress."* That is all there was, so the whole menu / session / save-state flow was audited against the six pieces of state that can disagree. This is the first and worst of what it found, and it is the one that most plausibly *is* the report.
+
+`Threshold._descend()` is `@rpc("authority", "call_local", "reliable")`, so `RunFile.begin()` runs on **every** peer — each machine opens its own run file, which is correct and is what makes ADR-050's *quitting is never an escape* true for a client at all.
+
+`RunFile.clear()` was inside `_end_the_run()`, which returns on its first line for anything that is not the server. So a run opened on four machines closed on one.
+
+### What that costs, on the path out of camp
+
+`PauseMenu.leaving_ends_the_life()` is `RunFile.exists()` — ADR-152 chose that deliberately, as *"the game's own definition of being inside a run, in the file that owns it."* The definition is right and it was being read off a file that had stopped telling the truth.
+
+So a client who extracted successfully, walked back to the fire and pressed Escape was offered `ABANDON THE RUN`. Pressing it calls `GameState.die()`: the tree, the stash, the Pact Rank, the worn gear and the class, for walking out of camp after a run they won. **And there is no other way back to the main menu** — the menu offers `BACK TO IT`, `CONTROLS`, `SETTINGS`, the abandon, and `QUIT TO DESKTOP`. The trap was on the exit.
+
+### It bites only on runs you survive
+
+This is why it lasted through three sessions of work in exactly this area. A wipe sends the client `lost = true`, `die()` clears `class_id`, and the stale run file is then an orphan that `resume_is_this_life()` drops on the next launch (ADR-138). Every **failed** run cleaned up after itself. Only the good ones left the trap armed, which is also the cruellest possible distribution.
+
+### The clear belongs to the peer whose run resolved
+
+`_take_the_outcome` already *is* the per-peer sentence — *your run is over, and here is what it came to* — and `_end_the_run` already delivers it to every peer including itself. `TEC-004` says the host reports and each peer writes its own profile; the run file is the same kind of state and now follows the same rule. One writer, one event, on each machine, and `_end_the_run` loses a line rather than gaining a guard.
+
+### Nothing caught it because the row that should have could not fail
+
+`--threshold-probe` has asserted since ADR-152 that *"at the fire there is no run, so leaving costs nothing."* It is a single-process check, and **solo is the host** — the one peer whose file was always cleared. The row's premise held for exactly the case that was not broken.
+
+### A two-process check needed a `user://` per process first
+
+`user://` is derived from the **project name**, not the process, so both peers of every harness scenario resolve `user://run.active` to the same bytes. Godot 4.7 has no `--user-data-dir`, so `tools/own_user_dir.py` gives each launched process its own `HOME` and XDG roots; `run_coop.py` and `run_doorway.py` route every launch through it.
+
+**This was planted, and it is the finding underneath the finding.** With the fault still in place and every slot sharing one directory, all six new rows go **green** — the host's clear answers for the client, and the check asserts nothing. That is the fifth time this project has written a row that could not fail, and the first time one was caught before it shipped rather than after.
+
+### `--extraction` was the hole in ADR-152's refusal
+
+ADR-152 made `arm()` refuse the real run file in a process launched with a probe argument, matching on `probe` or `shot` in the name. `room_set` had deliberately kept those words **out** of `--extraction` so that `_probing` would stay false and the scene change would be real — `threshold.gd` says so in as many words. So the one harness flag that most needs a run file was the one flag allowed to open the player's.
+
+Nothing had exercised it, because the extraction scenario had no run file until this task gave it one. `_a_check_is_running()` names `--extraction` now, and the scenario redirects and asserts on top of that. A guard whose coverage depends on a naming convention expires the first time somebody names a flag well.
+
+### Verification
+
+Six new rows in `run_doorway.py`'s extraction scenario, two per peer, read from the fire rather than from the Deep — `_take_the_outcome` ends in `change_scene_to_file`, which detaches the floor synchronously (ADR-113), so the process best placed to report is the one least able to. One row asks whether the run file closed; the other asks what the **pause menu** prices leaving at, kept separate so a build that fixes the file without the menu fails the half that is wrong.
+
+Planted by restoring the host-only clear: the host's two rows pass, all four client rows fail, and the second of each names the symptom as reported — `ABANDON THE RUN`. Then planted a second time, on the harness, as described above.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
