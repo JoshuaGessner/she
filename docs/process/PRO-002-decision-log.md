@@ -4499,5 +4499,71 @@ And because this session has spent four tasks inside the save and run-file paths
 
 ---
 
+## ADR-161 — A fire that answers nothing, and a save that stops saving
+
+**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T39`** · **Completes `M3-T38`**
+
+**Context:** `M3-T38` built the walk that covers a second descent. This is the fix for the thing it was built to find, and the finding is not a single bug — it is that **three separate failures in this build produce no line anywhere.**
+
+### The camp goes blind and says nothing
+
+Every trigger at the fire hangs off `_session.local_player()` finding `player_1`. When that lookup fails, `Threshold._process` returns at its **first line**: no Descent, no Chamber, no readout. The body is still there, still drawn, still drivable — so the player walks around a camp that answers nothing, and the log looks exactly like somebody who never found the hole.
+
+That is the reported symptom, word for word:
+
+> when I got into the new run around the fire room I couldn't enter the dungeon again
+
+It cost two play sessions and eight headless reproductions to place, and the reason is entirely that **nothing said anything.** The reporter's log ends mid-session with no error, no warning and no scene change — which is the least useful artefact a fault can leave, because it is consistent with a dozen explanations including the player simply stopping.
+
+### The hole refuses onto a wall nobody keeps
+
+`may_descend()` failing wrote *"you have sworn to nothing"* to the readout and nowhere else. The readout is the right place for the player and the wrong place for a report: it is gone the moment the scene changes, and no bug report has ever carried one. Both now, and the log line is the half that survives.
+
+### And the save had stopped saving
+
+`_persist()` returns early when `_live` is false. That is correct — a process that never opened a profile must not write one, and a profile that was found and refused must not be overwritten (ADR-117) — and it was **completely silent.** A session in which every write is discarded looks identical to one in which they all landed.
+
+Found chasing a reported profile whose `updated` stamp was **minutes older than a session that contained both a death and a class oath**, each of which calls `_persist()`. Whether that session was writing at all should have been answerable from its log in one line. It was not, and the question is still open — but it is answerable now, which is the difference that matters.
+
+`push_error` rather than a print, because this is data loss in progress. And `load_profile()` names which of its three branches it took: a profile read, a profile refused, and no profile at all lead to three different games and produced one silence between them.
+
+### Never opened is not the same as opened and refused
+
+**The first draft of the save half said both, and the sweep failed it.** Every probe in this project boots a level directly and never sees the front door, so `_live` is false for all of them **by design** — erroring there broke six checks at once and would have buried the one occurrence that matters under a hundred that do not.
+
+ADR-138 had already written this rule down, for `RunFile._write`, in as many words:
+
+> Not an error. A probe booting a level directly has no business opening a run, and saying so on every one of them would bury the output that matters in noise.
+
+Same rule, a second file, and it was found by the sweep rather than by remembering — which is the argument for running the sweep before the commit rather than after.
+
+So the error is now for the case with a player behind it: a profile that **is on disk**, was read, and was refused (ADR-117) — a lineage that exists while this session quietly discards everything that happens to it. `_refused_a_profile` is that state, and it is the one the row plants.
+
+### Once, not per frame
+
+Each of these latches. Sixty lines a second is not a diagnosis — it is the reason nobody reads the log, and it would bury the line that matters under the one that is merely repeating. The camp's latch clears when it finds its body again, so a recovery is visible too.
+
+### What this does not do
+
+It does not fix the reported fault. **It makes the reported fault legible**, which is the honest position: I could not reproduce it headlessly across eight attempts, including against a copy of the reporter's own save, and shipping a speculative fix for a mechanism I have not observed would be worse than shipping the instrument that names it. The next occurrence writes down which of the three branches it took, and the fix follows from that rather than from a guess.
+
+Two of the three suspects were ruled out by measurement on the way here, and both are recorded so nobody re-walks them: the `_rebuild` node-rename theory (one frame **is** enough, even driven from `_process`, where a real button press lands) and the rebuilt body being undrivable (`driving=true`, walks 12 m). ADR-158's party gate was also cleared — `still_choosing()` is 0 throughout and prints nothing in the reporter's logs.
+
+### Verification
+
+Three plants, each failing by name:
+
+| plant | the row that caught it |
+|---|---|
+| the camp is blind in silence | *the camp lost the body it is standing next to and said nothing* |
+| the hole refuses in silence | *the hole refused a life sworn to nothing and only the readout said so* |
+| the save discards in silence | *the profile refused to go live and then discarded every write in silence* |
+
+The first row takes the body away and gives it back, because every row after it needs one — and it asserts the return, so a plant cannot pass by leaving the camp empty.
+
+The full sweep was run with the developer's real `profile.save` checksummed either side: **byte-identical**, no run file left behind.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

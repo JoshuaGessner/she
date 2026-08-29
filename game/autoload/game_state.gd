@@ -185,6 +185,12 @@ var worn: Dictionary = {}
 ## Whether a profile has been opened. See the header: nothing is written back
 ## to a file that was never read.
 var _live: bool = false
+## **A profile exists and this build would not open it** (`M3-T39`, ADR-161).
+##
+## Distinct from `_live` being false, which is also the ordinary state of every
+## probe: this is the one where a lineage is on disk and every write is being
+## discarded. See `_persist`.
+var _refused_a_profile: bool = false
 
 
 func _ready() -> void:
@@ -811,12 +817,27 @@ func take_hunt_head_start() -> float:
 ## build that refuses a save from a newer version must not then overwrite it
 ## with what it managed to understand.
 func load_profile() -> bool:
+	# **Which of the three ways this went** (`M3-T39`, ADR-161). The branches
+	# differ in what the player keeps and none of them was distinguishable
+	# afterwards: a profile read, a profile refused, and no profile at all lead
+	# to three different games and produced one silence. A reported save that
+	# stopped being written could not be diagnosed from the log because the log
+	# did not say which of these happened.
 	if SaveFile.exists():
 		var data: Dictionary = SaveFile.read()
 		if data.is_empty():
+			# `SaveFile.read` has already said what was wrong with it.
+			print("[save] a profile is there and could not be read — playing "
+				+ "on, and writing nothing")
 			_live = false
+			_refused_a_profile = true
 			return false
 		from_dict(data)
+		print("[save] opened a profile — life '%s', descent %d, %d in the hoard"
+			% [class_id, descents, hoard_value])
+	else:
+		print("[save] no profile yet — this is a first descent")
+	_refused_a_profile = false
 	_live = true
 	return true
 
@@ -1021,10 +1042,51 @@ func from_dict(data: Dictionary) -> void:
 	# old line was even read.
 
 
+## **A profile that is not being written says so, once** (`M3-T39`, ADR-161).
+##
+## `_live` is false before a profile is opened and false again if one was found
+## and refused — both correct, and both silent. `TEC-003` calls the death write
+## *the critical path*, and the state this guards is one where **every** write
+## is discarded: a life ends, a class is sworn, a tithe is paid, and none of it
+## reaches disk. There is nothing on screen to notice and nothing in the log to
+## find afterwards.
+##
+## Found chasing a reported profile whose `updated` stamp was minutes older
+## than a session containing two writes that cannot be skipped. That question
+## should have been answerable from the log and was not.
+##
+## **Never opened is not the same as opened and refused**, and the first draft
+## of this said both. Every probe in the sweep boots a level directly and never
+## sees the front door, so `_live` is false for all of them by design — and
+## erroring there broke six checks at once and would have buried the one
+## occurrence that matters under a hundred that do not. ADR-138 wrote this rule
+## down for `RunFile._write` in as many words: *"Not an error. A probe booting a
+## level directly has no business opening a run, and saying so on every one of
+## them would bury the output that matters in noise."* Same rule, a second file,
+## found by the sweep rather than by remembering.
+##
+## So the error is for the case with a player behind it: a profile that **is on
+## disk**, was read, and was refused (ADR-117) — where a lineage exists and this
+## session is quietly discarding everything that happens to it.
+##
+## `push_error`, not a warning: that is data loss in progress.
+var _said_it_is_not_saving: bool = false
+
+
 func _persist() -> void:
 	if not _live:
+		if _refused_a_profile and not _said_it_is_not_saving:
+			_said_it_is_not_saving = true
+			push_error("GameState: there is a profile on disk that this build "
+				+ "would not open, so nothing in this session — a death, an "
+				+ "oath, a tithe — is being written to it.")
 		return
-	SaveFile.write(to_dict())
+	_said_it_is_not_saving = false
+	if not SaveFile.write(to_dict()):
+		# `SaveFile.write` already says which half failed and why. This says
+		# what it *costs*, which is the part a reader of the log needs.
+		push_error("GameState: the profile was not written — this life's "
+			+ "progress is only in memory.")
 
 
 func _section(data: Dictionary, name: String) -> Dictionary:
@@ -1177,7 +1239,18 @@ func _save_probe() -> void:
 			+ "cannot be parsed is the case a player most needs protected, not "
 			+ "the one where it parses and is merely too new"))
 	hoard_value = 7
+	_said_it_is_not_saving = false
 	_persist()
+	# **And it said so** (`M3-T39`, ADR-161). Refusing to write is correct and
+	# was silent, so a session in which every write is discarded looks exactly
+	# like one in which they all landed. `TEC-003` calls the death write the
+	# critical path; this is the state where the critical path is a no-op.
+	print("[save] not saving     said so=%s" % _said_it_is_not_saving)
+	if not _said_it_is_not_saving:
+		problems.append(("the profile refused to go live and then discarded "
+			+ "every write in silence — a life ends, a class is sworn, a tithe "
+			+ "is paid, and none of it reaches disk with nothing on screen or "
+			+ "in the log to say so"))
 	var still_garbage: bool = FileAccess.open(
 		SaveFile.PATH, FileAccess.READ).get_as_text().begins_with("this is not")
 	print("[save] corrupt        refused, left on disk=%s" % still_garbage)

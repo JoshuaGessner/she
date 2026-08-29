@@ -287,6 +287,32 @@ func _edges_probe() -> void:
 		await _walk_out_of_the_chamber(again,
 			again.get_node_or_null("chamber_body") as Player)
 
+	# ─ 4b. **a camp that has lost its body says so** (`M3-T39`, ADR-161) ─
+	#
+	# Every trigger here hangs off finding `player_1`; when that lookup fails,
+	# `_process` returns at its first line and the fire is dead while still
+	# drawn. The reported symptom — *"I couldn't enter the dungeon again"* —
+	# had no line anywhere in the log, which is what made it cost two sessions
+	# to place. Taken away and given back, because the rows after this need one.
+	_said_it_lost_the_body = false
+	_session.despawn_player(multiplayer.get_unique_id())
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var complained: bool = _said_it_lost_the_body
+	_session.spawn_player(multiplayer.get_unique_id(), FIRE_AT)
+	await get_tree().process_frame
+	print("[edges] blind camp   said so=%s, body back=%s" % [
+		complained, _session.local_player() != null])
+	if not complained:
+		problems.append(("the camp lost the body it is standing next to and "
+			+ "said nothing — the Descent, the Chamber and the readout are all "
+			+ "dead, the player can still walk around, and there is nothing in "
+			+ "the log to tell that apart from somebody who never found the "
+			+ "hole"))
+	if _session.local_player() == null:
+		problems.append("the body did not come back, so every row below this "
+			+ "is about a camp with nobody in it")
+
 	# ─ 5. nobody descends as nobody ─
 	#
 	# **Before the teardown below, not after.** Row 6 calls `_exit_tree()` and
@@ -347,11 +373,20 @@ func _sworn_to_nothing() -> PackedStringArray:
 	# which is enough to stop the refusal being a Threshold nobody can leave.
 	GameState.class_id = &""
 	_descending = false
+	_said_it_cannot_go = false
 	body.teleport(DESCENT_AT, 0.0)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	var walked_in: bool = _descending
 	var closed: bool = not may_descend()
+	# **And it said so where a bug report can carry it** (`M3-T39`, ADR-161).
+	# The readout is what the player reads and it goes nowhere afterwards; the
+	# log is the half that survives into a report.
+	print("[edges] the refusal  in the log=%s" % _said_it_cannot_go)
+	if not _said_it_cannot_go:
+		problems.append(("the hole refused a life sworn to nothing and only "
+			+ "the readout said so — a refusal that leaves no trace is what "
+			+ "made the reported fault take two sessions to place"))
 
 	GameState.class_id = &"huskarl"
 	var opens: bool = may_descend()
@@ -762,10 +797,34 @@ func _spawn_actors() -> void:
 	add_child(_session)
 
 
+## **A camp that has lost its body says so, once** (`M3-T39`, ADR-161).
+##
+## Every trigger at the fire — the Descent, the Chamber, the readout — hangs off
+## finding `player_1` under the session. When that lookup fails this function
+## returns at its first line and the camp is **dead while still drawn**: the
+## body is there, the player can walk and look, and nothing they walk into
+## does anything. Reported as *"I couldn't enter the dungeon again"*, with a
+## log that simply stopped — which is the worst shape a fault can have, because
+## it is indistinguishable from a player who did not find the hole.
+##
+## Once, not per frame: sixty lines a second is not a diagnosis, it is a reason
+## nobody reads the log.
+var _said_it_lost_the_body: bool = false
+## The same, for a life with no class standing in the hole.
+var _said_it_cannot_go: bool = false
+
+
 func _process(_delta: float) -> void:
 	var player: Player = _session.local_player() if _session != null else null
 	if player == null:
+		if not _said_it_lost_the_body:
+			_said_it_lost_the_body = true
+			push_error(("Threshold: the camp cannot find the body it is "
+				+ "standing next to (peer %d). The Descent, the Chamber and "
+				+ "the readout are all dead until it can.")
+				% multiplayer.get_unique_id())
 		return
+	_said_it_lost_the_body = false
 	if _readout != null:
 		_readout.text = "\n".join([
 			"THE THRESHOLD    descent %d" % GameState.descents,
@@ -817,9 +876,17 @@ func _process(_delta: float) -> void:
 	if player.global_position.distance_to(DESCENT_AT) <= 2.0:
 		if may_descend():
 			_ask_to_descend()
-		elif _readout != null:
-			_readout.text += ("\n\nyou have sworn to nothing — there is "
-				+ "no one here to go down")
+		else:
+			# **Said on the screen and in the log** (`M3-T39`, ADR-161). The
+			# readout is what the player reads; the log is what a bug report
+			# carries, and the reported fault was a refusal that appeared in
+			# neither. Once, like the blindness above.
+			if not _said_it_cannot_go:
+				_said_it_cannot_go = true
+				print("[camp] the hole refuses — this life has sworn to nothing")
+			if _readout != null:
+				_readout.text += ("\n\nyou have sworn to nothing — there is "
+					+ "no one here to go down")
 	elif (_chamber_armed
 			and player.global_position.distance_to(CHAMBER_AT) <= 1.8):
 		_open_the_chamber()
