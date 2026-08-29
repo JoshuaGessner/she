@@ -500,6 +500,8 @@ func _ready() -> void:
 			_extraction()
 		elif arg == "--abandoned":
 			_abandoned()
+		elif arg == "--again":
+			_again()
 		elif arg == "--fallen-probe":
 			_fallen_probe()
 		elif arg == "--ember-probe":
@@ -4520,6 +4522,57 @@ func _extraction() -> void:
 		# notice it is no longer in the world it was measuring.
 		if not is_inside_tree():
 			return
+
+
+## **The floor's half of the second descent** (`M3-T38`, ADR-160).
+##
+## First arrival: abandon, through the menu's own two presses rather than past
+## them — `take_what_leaving_costs` is where the cost lives and a scenario that
+## called it directly would prove the rule and not the button (`M2-T18`).
+## Second arrival: there is nothing left to ask, so the walk is done.
+##
+## **The scenario keeps its own count, and the first draft did not.** Telling
+## the two arrivals apart by `last_life` looked right — `die()` leaves the
+## record and the Legacy screen clears it — and it walked the loop **forever**:
+## answering the screen empties the record, so the second arrival looked exactly
+## like the first and abandoned again. The record is a question the *game* asks
+## and answers; how far along a scenario is, is the scenario's to know. Static,
+## because a level is rebuilt on every descent and this outlives them.
+static var _abandoned_once: bool = false
+
+
+func _again() -> void:
+	await get_tree().create_timer(2.0).timeout
+	if _abandoned_once:
+		print("[again] down a second time — the loop closes")
+		get_tree().quit(0)
+		return
+	_abandoned_once = true
+
+	var pause: PauseMenu = null
+	for child: Node in get_children():
+		var found := child as PauseMenu
+		if found != null:
+			pause = found
+	if pause == null:
+		printerr("[again] FAIL no way out of the Deep at all")
+		get_tree().quit(1)
+		return
+	pause.open()
+	await get_tree().process_frame
+	if not pause.leaving_ends_the_life():
+		printerr("[again] FAIL leaving the Deep is priced at nothing — a run "
+			+ "is open and ADR-050 makes quitting cost what staying would")
+		get_tree().quit(1)
+		return
+	var asks: Button = pause.way_out()
+	if asks != null:
+		asks.emit_signal("pressed")
+	await get_tree().process_frame
+	print("[again] abandoning the first run, confirming=%s" % pause.confirming())
+	var ends: Button = pause.way_out()
+	if ends != null:
+		ends.emit_signal("pressed")
 
 
 ## **The last person standing leaves, and the run has to end** (`M3-T35`,

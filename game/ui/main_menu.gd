@@ -47,6 +47,8 @@ func _ready() -> void:
 	_show_root()
 
 	for arg: String in OS.get_cmdline_user_args():
+		if arg == "--again":
+			_again()
 		if arg == "--class-probe":
 			_class_probe()
 		if arg == "--menu-probe":
@@ -146,6 +148,72 @@ func _show_root() -> void:
 		_column.add_child(MenuStyle.line(NetPlan.last_error, 14,
 			Color(0.82, 0.42, 0.36)))
 		NetPlan.last_error = ""
+
+
+## **Down, out, and down again** (`M3-T38`, ADR-160).
+##
+## Reported from play: descend, abandon immediately, start another run, answer
+## the Legacy screen at the fire — and the hole does nothing. **Nothing in the
+## sweep had ever walked that**, and the reason is structural rather than an
+## oversight: every probe boots one level directly, `--menu-probe`'s loop
+## instantiates levels side by side without entering them, and `run_doorway.py`
+## is about two processes. A player's second descent of a session crosses four
+## scenes and two of the six pieces of state in `M3-T34`'s table, and no check
+## in this project had ever crossed even one scene boundary in a single
+## process.
+##
+## So this walks the loop the way a player does — through the front door, the
+## camp, the floor, the pause menu, back to the front door, and down again —
+## and the assertion is the blunt one: **you can descend a second time.**
+##
+## Its own profile and its own run file (ADR-145, ADR-152). This one genuinely
+## needs both: it opens a run, ends a life, and reads the profile back through
+## the menu's own `load_profile()`.
+func _again() -> void:
+	SaveFile.use_a_scratch_profile()
+	RunFile.use_a_scratch_run()
+	if SaveFile.PATH == "user://profile.save" or RunFile.PATH == "user://run.active":
+		printerr("[again] FAIL pointed at the player's own files, and this "
+			+ "scenario ends a life and opens a run")
+		get_tree().quit(1)
+		return
+	SaveFile.wipe()
+	await get_tree().create_timer(0.4).timeout
+	print("[again] the front door, life '%s', a life waiting to be buried=%s, "
+		% [GameState.class_id, GameState.life_already_ended()]
+		+ "a run still open=%s" % RunFile.exists())
+
+	# **A life that has ended has no run in progress** (`M3-T38`, ADR-160).
+	#
+	# `life_already_ended()` is ADR-147's own predicate — a cleared class with a
+	# record still waiting — so this is the state immediately after abandoning,
+	# named by the game rather than counted by the scenario.
+	#
+	# **Asserted here and nowhere else, because here is the only place it is
+	# still visible.** `_enter()` runs `resume_is_this_life()` a few lines
+	# further on, which drops the stale file as an orphan — so by the time the
+	# camp could ask, the evidence has been tidied away by the repair that was
+	# standing in for the fix.
+	if GameState.life_already_ended() and RunFile.exists():
+		printerr("[again] FAIL abandoning ended the life and left its run open "
+			+ "— ADR-050 allows one run per life and that life is over, so the "
+			+ "next entry has to drop it as an orphan instead of never having "
+			+ "been handed it")
+		get_tree().quit(1)
+		return
+	_enter()
+	# `_enter()` may change scene, which detaches this node (ADR-117) — so
+	# anything after it has to check it is still in the tree before awaiting.
+	if not is_inside_tree():
+		return
+	await get_tree().process_frame
+	if not is_inside_tree():
+		return
+	for node: Node in find_children("*", "ClassScreen", true, false):
+		var picking := node as ClassScreen
+		if picking != null:
+			print("[again] swearing at the front door")
+			picking.press(&"huskarl")
 
 
 func _play_solo() -> void:

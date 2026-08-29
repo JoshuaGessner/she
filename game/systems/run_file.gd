@@ -73,7 +73,8 @@ static var _live: bool = false
 ## fourth entry, the right answer is one `--scenario=NAME` argument rather than
 ## a longer list — noted here so the decision is made deliberately instead of
 ## by accretion.
-const HARNESS_FLAGS: PackedStringArray = ["--extraction", "--abandoned"]
+const HARNESS_FLAGS: PackedStringArray = ["--extraction", "--abandoned",
+	"--again"]
 
 
 ## This process owns its run state. Called by `MainMenu._enter()`, which is the

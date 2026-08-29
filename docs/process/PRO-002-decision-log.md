@@ -4434,5 +4434,70 @@ A profile that quietly loses a tithe, a rank, or a stash entry, with **no crash 
 
 ---
 
+## ADR-160 — The second descent of a session was walked by nothing
+
+**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T38`** · **Extends ADR-050, ADR-152**
+
+**Context:** reported from play, on the build cut at `d9f3da3`:
+
+> I entered a solo run. I immediately abandoned it and was taken back to the menu. When I started another run it showed a screen to select loot to give up and I was allowed to offer my weapon and then when I got into the new run around the fire room I couldn't enter the dungeon again.
+
+The reporter's own logs have it twice, in two separate sessions, identically:
+
+```
+[coop:solo] peer 1 descends at rank 1 as 'veidimadr'    ← the camp
+[coop:solo] peer 1 descends at rank 1 as 'veidimadr'    ← the Deep
+[descent] carried 1 of 1 stashed item(s) down, 11.0 kg
+WARNING: the open run belongs to 'veidimadr' and this life is ''; dropping it
+[coop:solo] peer 1 descends at rank 1 as 'nobody'       ← the camp again
+[coop:solo] peer 1 descends at rank 1 as 'veidimadr'    ← sworn at the fire
+                                                        ← and the log ends
+```
+
+One descent per launch, and then nothing: **no error, no refusal, no scene change.** The fix for that silence is `M3-T39`. This ADR is the instrument that makes it visible, and the one defect the instrument proved on its own.
+
+### Nothing had ever walked a second descent
+
+Every probe in this project boots **one level directly**. `--menu-probe`'s loop instantiates each level side by side and frees it without ever entering one. `run_doorway.py` is about two processes walking through a single door. Not one check had ever crossed a scene boundary in a single process.
+
+A player's second descent of a session crosses four scenes — menu, camp, floor, menu — and rewrites half the state table `M3-T34` wrote down. It was covered by nothing whatsoever, which is why a fault this reachable survived a green sweep and four ADRs written about exactly this area on the same day.
+
+`--again` walks it the way a player does: through the front door, the camp, the floor, the pause menu, back to the front door and down again. Its assertion is blunt, because the failure is silent — **the second run begins**, and a body that stands in the hole for three seconds without a run starting is a failure with a name.
+
+Booted with no scene argument, through `run/main_scene`, because the front door is the only thing in the build that opens a profile (`M3-T06`) and half of what this walks is what the menu decides.
+
+### Abandoning never closed the run it abandoned
+
+`take_what_leaving_costs()` called `GameState.die()` and left `user://run.active` on disk. ADR-050 permits exactly one open run per life, so what that leaves is **a run file describing a life that has just ended** — precisely the state `M3-T34` was written to eliminate, manufactured deliberately on every abandon.
+
+It looked harmless because `resume_is_this_life()` drops it as an orphan on the next entry: `die()` clears `class_id`, so the run and the life no longer agree and ADR-138 throws it away. That is the `WARNING` line in the reporter's log above — **on a path that is not an error**, appearing every single time they abandoned.
+
+A repair standing in for a fix. It depends on the next thing the player does being the menu; it leaves an open run on disk for as long as the game is closed, which the next launch will find and reason about; and it spends ADR-138's orphan-drop — a guard written for probe litter — on ordinary play. `M3-T34` settled the rule for the other two ways a run ends: *the run resolved for this peer, so this peer's run file closes.* Abandoning **is** the run resolving, and it is the only one you pay for on purpose.
+
+### Where the assertion had to go
+
+At the front door, before `_enter()` runs, and nowhere else — because `_enter()`'s own orphan drop is a few lines further on and **tidies the evidence away**. By the time the camp could ask, the file is gone and the build looks correct. A check placed one scene later would have passed against the broken build.
+
+The condition is `GameState.life_already_ended()` — ADR-147's own predicate, a cleared class with a record still waiting — so the scenario names the state using the game's vocabulary rather than counting steps of its own.
+
+### The walk needed its own memory, and the first draft did not have one
+
+Telling the two arrivals in the Deep apart by `last_life` read well — `die()` leaves the record, the Legacy screen clears it — and walked the loop **forever**: answering the screen empties the record, so the second arrival looked exactly like the first and abandoned again. The record is a question the *game* asks and answers; how far along a scenario is, is the scenario's own business. A static on the level, because a level is rebuilt on every descent and this outlives them.
+
+### Verification
+
+Two plants, each failing by name:
+
+| plant | the row that caught it |
+|---|---|
+| the abandon leaves its run open | *abandoning ended the life and left its run open* |
+| the camp cannot find its body | *the camp cannot find the body it is standing next to* |
+
+The second is the reported symptom made assertable: with no body, `Threshold._process` returns at its first line, so the Descent, the Chamber and the readout are all dead while the player walks around a fire that answers nothing.
+
+And because this session has spent four tasks inside the save and run-file paths, the full sweep was run with the developer's real `profile.save` checksummed either side: **byte-identical**, and no run file left behind.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

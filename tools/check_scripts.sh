@@ -516,6 +516,30 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Down, out, and down again** (`M3-T38`, ADR-160).
+	#
+	# Reported from play: descend, abandon at once, start another run, answer
+	# the Legacy screen at the fire — and the hole does nothing, with a log that
+	# simply stops. No error, no refusal, no scene change.
+	#
+	# **Nothing here had ever crossed a scene boundary in one process.** Every
+	# probe above boots one level directly; `--menu-probe` instantiates levels
+	# side by side without entering them; `run_doorway.py` is about two
+	# processes walking through one door. A player's *second* descent of a
+	# session crosses four scenes and rewrites half of `M3-T34`'s state table,
+	# and no check in this project had ever walked it.
+	#
+	# Booted with no scene argument on purpose — through `run/main_scene`, which
+	# is the front door and the only thing that opens a profile (`M3-T06`). The
+	# scenario quits 0 when the second run begins and 1 when it does not.
+	again="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		-- --again 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$again" | grep -qE 'FAIL|SCRIPT ERROR'; then
+		echo "FAIL you have to be able to descend a second time" >&2
+		printf '%s\n' "$again" | grep -E '\[again\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Do both kinds of doorway hold (ADR-101, ADR-102)? `run_coop.py` never
 	# changes scene and no single-process probe has a second peer to lose, so
 	# every check in this file passed while walking from the Threshold into the

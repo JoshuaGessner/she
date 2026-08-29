@@ -165,8 +165,26 @@ func leaving_ends_the_life() -> bool:
 ## `change_scene_to_file` detaches this node synchronously (ADR-117) and takes
 ## any check with it — so the cost can be asserted and the going cannot.
 func take_what_leaving_costs() -> void:
-	if leaving_ends_the_life():
-		GameState.die()
+	if not leaving_ends_the_life():
+		return
+	GameState.die()
+	# **And the run it belonged to is over** (`M3-T38`, ADR-160).
+	#
+	# This took the cost and left `user://run.active` on disk. ADR-050 permits
+	# exactly one open run per life, so what that leaves behind is a run file
+	# describing a life that has just ended — the state `M3-T34` was written to
+	# eliminate, manufactured deliberately on every abandon.
+	#
+	# It looked harmless because `resume_is_this_life()` drops it as an orphan
+	# on the next entry: `die()` clears `class_id`, so the run and the life no
+	# longer agree. That is a **repair**, not a design — it depends on the next
+	# thing a player does being the menu, it logs a warning on a path that is
+	# not an error, and it leaves an open run on disk for as long as the game is
+	# closed. `M3-T34` settled the rule for the other two ways a run ends:
+	# the run resolved for this peer, so this peer's run file closes.
+	# Abandoning **is** the run resolving — it is the only one you pay for on
+	# purpose — and it now closes the same way.
+	RunFile.clear()
 
 
 ## The button that leaves, whichever of the two it currently is. For

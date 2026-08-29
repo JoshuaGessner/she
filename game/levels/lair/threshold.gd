@@ -127,6 +127,8 @@ func _ready() -> void:
 			_arrived_from_the_deep()
 		elif arg == "--edges-probe":
 			_edges_probe()
+		elif arg == "--again":
+			_again()
 
 
 ## **The three ways a run can end up somewhere it cannot come back from**
@@ -940,6 +942,67 @@ func _descend() -> void:
 		print("[edges] descended (held, probing)")
 		return
 	get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
+
+
+## **The camp's half of the second descent** (`M3-T38`, ADR-160).
+##
+## Answers the Legacy screen if one is up — which it is on the way back, because
+## abandoning ends the life — and then walks into the hole. The whole scenario
+## is the walk; the assertion is that the second one arrives.
+##
+## **The failure this exists for is silence.** Reported from play as *"I
+## couldn't enter the dungeon again"*, with a log that simply stops: no error,
+## no refusal, no scene change. So the deadline below is the check — a descent
+## that does not happen has to say so, because the fault does not announce
+## itself and every other check in this project would sit through it green.
+func _again() -> void:
+	await get_tree().create_timer(1.5).timeout
+	var shown: LegacyScreen = legacy_screen()
+	print("[again] the camp, life '%s', a death to answer=%s" % [
+		GameState.class_id, shown != null])
+	if shown != null:
+		# Driven through the panels rather than by emitting `finished`, because
+		# the join is what breaks: `M3-T05`'s rules were all correct while the
+		# body three metres away stayed `'nobody'` (ADR-148).
+		shown.advance()
+		await get_tree().process_frame
+		shown.advance()
+		await get_tree().process_frame
+		var picking: ClassScreen = null
+		for node: Node in shown.find_children("*", "ClassScreen", true, false):
+			picking = node as ClassScreen
+		if picking == null or not picking.press(&"huskarl"):
+			printerr("[again] FAIL the Legacy flow never reached a class to "
+				+ "swear, so there is nobody to go back down")
+			get_tree().quit(1)
+			return
+		for _frame: int in 8:
+			await get_tree().process_frame
+
+	var body: Player = _session.local_player() if _session != null else null
+	print("[again] ready to go down: life '%s', body=%s, camp awake=%s, "
+		% [GameState.class_id, body != null, is_processing()]
+		+ "party still choosing=%d" % _session.still_choosing())
+	if body == null:
+		printerr("[again] FAIL the camp cannot find the body it is standing "
+			+ "next to — `_process` returns at its first line, so the Descent, "
+			+ "the Chamber and the readout are all dead while the player walks "
+			+ "around a fire that answers nothing")
+		get_tree().quit(1)
+		return
+
+	body.teleport(DESCENT_AT, 0.0)
+	# Long enough for the trigger, the party gate and the scene change. If this
+	# node is still here afterwards, the descent did not happen — and *that* is
+	# the reported bug, which nothing else in the sweep can see.
+	await get_tree().create_timer(3.0).timeout
+	if not is_inside_tree():
+		return
+	printerr("[again] FAIL stood in the hole for 3 s and the run did not "
+		+ "begin — life '%s', may_descend=%s, still choosing=%d, asking=%s"
+		% [GameState.class_id, may_descend(), _session.still_choosing(),
+			_descending])
+	get_tree().quit(1)
 
 
 func _build_ground() -> void:
