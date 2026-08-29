@@ -56,6 +56,18 @@ const SESSION_SCENE: PackedScene = preload("res://systems/net/coop_session.tscn"
 ## menu opening and closing over the top of it cannot give the player back
 ## to a world this screen is still standing in front of.
 const LEGACY_CLAIM: StringName = &"legacy"
+## How many frames `_rebuild` will wait for a freed body to leave the tree
+## before giving up and spawning anyway. Two is the measured requirement from
+## the worst caller; this is bounded generosity, not a tuned number — the loop
+## exits the moment the body is gone, so the only thing this decides is how
+## long a genuinely stuck body delays the new one.
+const REBUILD_FRAMES: int = 8
+## How long the camp tolerates having no body it can find before it puts one
+## back ⟨tune⟩. Not zero: a client has no body until the host's spawn packet
+## arrives, and a host has none for the frames `_rebuild` is mid-swap, and
+## neither is a fault. Long enough to be sure, short enough that a player who
+## is about to file a bug report has not stood up yet.
+const NO_BODY_GRACE: float = 1.5
 const SPAWNS: Array[Vector3] = [
 	Vector3(-1.6, 0.1, 3.2), Vector3(1.6, 0.1, 3.2),
 	Vector3(-3.4, 0.1, 4.0), Vector3(3.4, 0.1, 4.0),
@@ -287,31 +299,44 @@ func _edges_probe() -> void:
 		await _walk_out_of_the_chamber(again,
 			again.get_node_or_null("chamber_body") as Player)
 
-	# ─ 4b. **a camp that has lost its body says so** (`M3-T39`, ADR-161) ─
+	# ─ 4b. **a camp that has lost its body says so, and then fixes it** ─
+	#      (`M3-T39`, ADR-161; `M3-T40`, ADR-162)
 	#
-	# Every trigger here hangs off finding `player_1`; when that lookup fails,
-	# `_process` returns at its first line and the fire is dead while still
-	# drawn. The reported symptom — *"I couldn't enter the dungeon again"* —
-	# had no line anywhere in the log, which is what made it cost two sessions
-	# to place. Taken away and given back, because the rows after this need one.
+	# Every trigger here hangs off finding the local body; when that lookup
+	# fails, `_process` returns at its first line and the fire is dead while
+	# still drawn. The reported symptom — *"I couldn't enter the dungeon
+	# again"* — had no line anywhere in the log, which is what made it cost two
+	# sessions to place.
+	#
+	# **Taken away and not given back**, which is the change. `M3-T39`'s
+	# version handed the body back itself and could therefore only ever assert
+	# that the camp *complained*; a player standing in that camp does not care
+	# whether it complained. The row now waits out `NO_BODY_GRACE` and asserts
+	# the camp put a body back **on its own** — and the rows below still get
+	# their body, from the recovery rather than from the probe.
+	#
+	# A real timer rather than counted frames: the grace is a duration, and
+	# headless frames are far shorter than real ones.
+	_went_blind = 0
 	_said_it_lost_the_body = false
+	_without_a_body = 0.0
 	_session.despawn_player(multiplayer.get_unique_id())
-	await get_tree().process_frame
-	await get_tree().process_frame
-	var complained: bool = _said_it_lost_the_body
-	_session.spawn_player(multiplayer.get_unique_id(), FIRE_AT)
-	await get_tree().process_frame
-	print("[edges] blind camp   said so=%s, body back=%s" % [
-		complained, _session.local_player() != null])
+	await get_tree().create_timer(NO_BODY_GRACE + 0.75).timeout
+	var complained: bool = _went_blind > 0
+	var recovered: bool = _session.local_player() != null
+	print("[edges] blind camp   said so=%s, put one back=%s" % [
+		complained, recovered])
 	if not complained:
 		problems.append(("the camp lost the body it is standing next to and "
 			+ "said nothing — the Descent, the Chamber and the readout are all "
 			+ "dead, the player can still walk around, and there is nothing in "
 			+ "the log to tell that apart from somebody who never found the "
 			+ "hole"))
-	if _session.local_player() == null:
-		problems.append("the body did not come back, so every row below this "
-			+ "is about a camp with nobody in it")
+	if not recovered:
+		problems.append(("the camp never put a body back, so a player who "
+			+ "loses one is stuck at a fire that answers nothing until they "
+			+ "quit — and every row below this is about a camp with nobody "
+			+ "in it"))
 
 	# ─ 5. nobody descends as nobody ─
 	#
@@ -812,18 +837,60 @@ func _spawn_actors() -> void:
 var _said_it_lost_the_body: bool = false
 ## The same, for a life with no class standing in the hole.
 var _said_it_cannot_go: bool = false
+## How long the camp has been without a body it can find. See `_process`.
+var _without_a_body: float = 0.0
+## **How many times this camp has gone blind**, counted rather than latched.
+##
+## `_said_it_lost_the_body` clears the moment a body is found again — which is
+## the right behaviour for a latch and useless to anything asking afterwards.
+## The row in `--edges-probe` read it after the recovery and saw `false`, which
+## is the check quietly measuring nothing. A count is what survives the fix.
+var _went_blind: int = 0
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	var player: Player = _session.local_player() if _session != null else null
 	if player == null:
-		if not _said_it_lost_the_body:
-			_said_it_lost_the_body = true
-			push_error(("Threshold: the camp cannot find the body it is "
-				+ "standing next to (peer %d). The Descent, the Chamber and "
-				+ "the readout are all dead until it can.")
+		# **A gap this code made itself is not a fault** (`M3-T40`, ADR-162).
+		#
+		# `M3-T39` shouted the moment the lookup failed, and that was one frame
+		# too eager: `_rebuild` deliberately takes the body away and puts it
+		# back, so swearing a class at the fire — an ordinary thing, on the
+		# ordinary route — logged an error every single time. An error that
+		# fires when nothing is wrong is how a log stops being read, which is
+		# the failure `M3-T39` was written to end rather than to reproduce.
+		#
+		# So blindness has to **persist** before it is news. Both halves wait
+		# for that, because they are answers to the same question.
+		_without_a_body += delta
+		if _without_a_body < NO_BODY_GRACE or _said_it_lost_the_body:
+			return
+		_said_it_lost_the_body = true
+		_went_blind += 1
+		push_error(("Threshold: the camp cannot find the body it is standing "
+			+ "next to (peer %d), and has not for %.1fs. The Descent, the "
+			+ "Chamber and the readout are all dead until it can. Actors "
+			+ "holds: [%s].")
+			% [multiplayer.get_unique_id(), _without_a_body,
+				", ".join(_session.actor_names()) if _session != null
+					else "no session"])
+		# **And then it puts one back.** Being loud was `M3-T39`; it is not
+		# enough on its own, because the player is still standing in a camp
+		# that answers nothing and a log is not something they can read. Every
+		# trigger here hangs off this one lookup, so recovering it recovers the
+		# whole scene.
+		#
+		# Host only — `spawn_player` refuses on a client anyway, and a client
+		# legitimately has no body until the host's packet arrives. Once, not
+		# per frame: the failure being recovered from is one where a body is
+		# unfindable rather than absent, so retrying would build a fresh one
+		# sixty times a second.
+		if _session != null and _session.is_host():
+			push_warning("Threshold: putting a body back for peer %d."
 				% multiplayer.get_unique_id())
+			_session.spawn_player(multiplayer.get_unique_id())
 		return
+	_without_a_body = 0.0
 	_said_it_lost_the_body = false
 	if _readout != null:
 		_readout.text = "\n".join([
@@ -1729,19 +1796,49 @@ func _swear_in_the_body() -> void:
 ## Take the body away and put the same person back, as the class they have just
 ## sworn.
 ##
-## **A frame between the two halves, and it is load-bearing.** `player_for`
-## finds a body by node name and `queue_free` does not release the name until
-## the end of the frame, so despawning and spawning in one breath gives the new
-## body a renamed node — `player_1@2` — that `player_for` can never find again.
-## The camp would then have a body nobody could look up: no camera, no readout,
-## no descent.
+## **This waited one frame and that was the bug** (`M3-T40`, ADR-162).
+##
+## The note that used to be here had the mechanism exactly right — a body
+## spawned while its predecessor still holds the name arrives renamed, and the
+## camp then has a body nobody can look up — and drew the wrong conclusion from
+## it, that one frame is enough. One frame is enough from *some* places:
+##
+## | started from | old body after 1 frame |
+## |---|---|
+## | `_process` | **still valid** |
+## | a coroutine already resumed at `process_frame` | gone |
+##
+## The deletion queue is flushed after `process_frame` is emitted. So a
+## coroutine resumed *by* that signal wakes up on the far side of the flush and
+## a caller running during idle processing wakes up on the near side — and
+## input is dispatched earlier still, which is where this function is called
+## from in the only way that matters. `LegacyScreen.finished` fires from a
+## button press; every probe fires it from a coroutine. Both reach here, one
+## frame apart, and only one of them worked.
+##
+## So it no longer asks how many frames: it waits for the body to actually be
+## **gone**. `player_for` no longer depends on the name either, which makes this
+## belt as well as braces — deliberately, because the two failures are
+## independent and this one also decides *where* the new body stands.
 func _rebuild(peer: int) -> void:
 	var body: Player = _session.player_for(peer)
 	if body == null:
 		return
 	var where: Vector3 = body.global_position
 	_session.despawn_player(peer)
-	await get_tree().process_frame
+	var waited: int = 0
+	while is_instance_valid(body) and waited < REBUILD_FRAMES:
+		await get_tree().process_frame
+		waited += 1
+	if is_instance_valid(body):
+		# Bounded rather than a bare `while`: a body that never leaves would
+		# hang this coroutine forever holding the player's input, which is a
+		# worse failure than the one being fixed. Spawn anyway — `player_for`
+		# keys on authority now, so even a renamed body is findable, and a camp
+		# with two bodies is recoverable where a camp with none is not.
+		push_error(("Threshold: peer %d's old body would not leave the tree "
+			+ "in %d frames, so the new one may be renamed.")
+			% [peer, REBUILD_FRAMES])
 	_session.spawn_player(peer, where)
 
 

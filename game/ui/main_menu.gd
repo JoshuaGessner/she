@@ -214,6 +214,20 @@ func _again() -> void:
 		if picking != null:
 			print("[again] swearing at the front door")
 			picking.press(&"huskarl")
+			# The press lands a frame later, from `_process`, because that is
+			# where a real click lands (`M3-T40`). Nothing below reads the
+			# oath, but the scenario continues into a descent and a body with
+			# no class arrives with empty hands (`M3-T07`).
+			#
+			# **Guarded every time round**, not once before the loop: swearing
+			# here changes scene, which detaches this node — so `get_tree()`
+			# goes null *between* iterations and the await on the next one is
+			# a null dereference. Same rule as the two guards above (ADR-117),
+			# and the loop is a third place it has to be asked.
+			for _frame: int in 4:
+				if not is_inside_tree():
+					return
+				await get_tree().process_frame
 
 
 func _play_solo() -> void:
@@ -804,6 +818,11 @@ func _class_probe() -> void:
 
 	# ── pressing one swears the oath and stocks the kit ──────────────────
 	var reached: bool = screen.press(&"huskarl")
+	# **A frame, because the press is real** (`M3-T40`). `press` queues input
+	# rather than emitting a signal inline, so `GameState` on the next line is
+	# a frame behind the button and this row read the oath before it was sworn.
+	for _frame: int in 4:
+		await get_tree().process_frame
 	print("[class] the oath     pressed=%s, sworn as '%s', stash %d" % [
 		reached, GameState.class_id, GameState.stash.size()])
 	if not reached:

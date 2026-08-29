@@ -1016,8 +1016,63 @@ func is_host() -> bool:
 	return multiplayer.is_server()
 
 
+## **Whose body is this?** — asked of the body, not of its name (`M3-T40`,
+## ADR-162).
+##
+## This used to be `_actors.get_node_or_null("player_%d" % peer)`, and a node
+## name is the one property of a body Godot will silently change out from under
+## you. `add_child` renames on collision, so a body spawned while its
+## predecessor is still in the deletion queue arrives as `player_1@2` — and
+## this lookup then answers `null` for that peer **for the rest of the level**,
+## with no error and a body still standing there.
+##
+## Measured, because the previous note here asserted the opposite. Freeing a
+## node and adding a same-named one with a single `process_frame` between them:
+##
+## | started from | old body after 1 frame | new name | lookup finds |
+## |---|---|---|---|
+## | `_process` | **still valid** | renamed | the **dying** node |
+## | a coroutine already resumed at `process_frame` | gone | `player_1` | the new one |
+##
+## Input is dispatched before idle processing, so a real button press is on the
+## first row and every probe in this project is on the second. That is the whole
+## reason this survived two play sessions and eight headless reproductions: the
+## instrument shared the blind spot with the code (`M3-T40` builds the row that
+## does not).
+##
+## Authority is the right key because it is what the body actually *is*:
+## `configure_replication` sets it before `add_child`, it rides the spawn packet
+## to every peer, and nothing renames it. Scoped to `_actors` and skipping the
+## deletion queue, so this can return neither a corpse nor somebody else's
+## session's body — `players()` learned the second half in ADR-156 and this is
+## the same sentence about one peer.
 func player_for(peer: int) -> Player:
-	return _actors.get_node_or_null("player_%d" % peer) as Player
+	if _actors == null:
+		return null
+	for node: Node in _actors.get_children():
+		var body: Player = node as Player
+		if body == null or body.is_queued_for_deletion():
+			continue
+		if body.get_multiplayer_authority() == peer:
+			return body
+	return null
+
+
+## Every actor this session is holding, named, with the dying ones marked.
+##
+## For a report that has to say what it **did** find. `M3-T39` made the camp
+## say it had lost its body; that line named the peer and nothing else, which
+## narrows the cause to "the lookup failed" and stops. A rename, an empty
+## `Actors`, and a body that belongs to the wrong peer are three different bugs
+## and produced one sentence between them.
+func actor_names() -> PackedStringArray:
+	var names: PackedStringArray = []
+	if _actors == null:
+		return names
+	for node: Node in _actors.get_children():
+		names.append("%s%s" % [node.name,
+			" (being freed)" if node.is_queued_for_deletion() else ""])
+	return names
 
 
 ## The body this process is playing. Every peer has exactly one; on the host

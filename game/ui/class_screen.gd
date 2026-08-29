@@ -118,17 +118,88 @@ func _commit(entry: ClassResource) -> void:
 	queue_free()
 
 
-## Used by `--class-probe`: press an entry without a mouse, so the check
-## exercises the same path a click does rather than calling `_commit` past the
-## button. `M2-T18` is the reason that distinction is not pedantic — the bag's
-## rules were all correct and no click had ever reached them.
+## Press an entry the way a player does (`M3-T40`, ADR-162).
+##
+## `M2-T18` is why this goes through the button at all rather than calling
+## `_commit`: the bag's rules were all correct and no click had ever reached
+## them. **This did not go far enough**, and the gap cost two play sessions.
+##
+## `emit_signal("pressed")` runs the handler *inline, in the caller's frame* —
+## and every probe in this project calls it from a coroutine that has already
+## been resumed by `process_frame`. A real click runs the same handler during
+## **input dispatch**, which is earlier in the frame than idle processing and
+## therefore on the other side of the deletion-queue flush. Measured:
+##
+## | the oath is sworn from | the body `_rebuild` spawns |
+## |---|---|
+## | a coroutine resumed at `process_frame` | keeps its name; the camp works |
+## | input dispatch (a real click) | **renamed; the camp goes dead** |
+##
+## So every class row in this project was green about a code path players do
+## not take. `--threshold-probe` swears a class at the fire and asserts the
+## body afterwards, and it passed throughout the fault being reported.
+##
+## Not a second press path beside the old one (ADR-064): the old one is gone,
+## so no check can accidentally take the easy road again.
+##
+## **Where in the frame it happens is the whole point**, and getting that right
+## took three attempts, each of which measured the last one wrong:
+##
+## 1. `emit_signal("pressed")` — runs the handler inline in the caller's
+##    frame. Every probe calls this from a coroutine resumed by
+##    `process_frame`, which is **after** the deletion queue is flushed.
+## 2. `Input.parse_input_event` from the same coroutine — no better.
+##    `parse_input_event` dispatches *synchronously*, so the event went
+##    through the button, through focus, through `BaseButton`'s action
+##    handling, and still arrived at the same place in the frame.
+## 3. Awaiting the press through to the oath — hangs forever. `_commit` frees
+##    this screen, and a coroutine whose `self` has been freed never resumes.
+##    A function cannot watch its own destruction.
+##
+## What a real click actually does is arrive during **input dispatch**, which
+## is before idle processing and therefore before that frame's flush. So the
+## press is armed here and fired from `_process`, which is the same side of the
+## flush and the earliest place a probe can stand. Measured, with the fix
+## removed: pressed from a coroutine the camp survives, pressed from `_process`
+## it goes dead — the same code, the same button, one frame apart.
+##
+## The bool still means *"there is a button for this class and it is now
+## armed"*; the oath lands a frame later, and all four callers already wait.
 func press(id: StringName) -> bool:
 	for entry: ClassResource in ClassCatalogue.all():
 		if entry.id != id:
 			continue
 		for node: Node in find_children("*", "Button", true, false):
 			var pick := node as Button
-			if pick != null and pick.text == entry.display():
-				pick.emit_signal("pressed")
-				return true
+			if pick == null or pick.text != entry.display():
+				continue
+			# A focused control is what `ui_accept` is delivered to, and
+			# nothing here has focus by default. Immediate, unlike the press.
+			pick.grab_focus()
+			_armed = pick
+			set_process(true)
+			return true
 	return false
+
+
+## The button `_process` is about to press. See `press`.
+var _armed: Button = null
+
+
+func _process(_delta: float) -> void:
+	if _armed == null:
+		set_process(false)
+		return
+	_armed = null
+	set_process(false)
+	var down := InputEventAction.new()
+	down.action = &"ui_accept"
+	down.pressed = true
+	Input.parse_input_event(down)
+	# Both halves in one breath. `BaseButton` emits `pressed` on the release by
+	# default, so a press with no matching lift is a button held down forever
+	# and never actually clicked.
+	var up := InputEventAction.new()
+	up.action = &"ui_accept"
+	up.pressed = false
+	Input.parse_input_event(up)

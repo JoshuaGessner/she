@@ -4565,5 +4565,82 @@ The full sweep was run with the developer's real `profile.save` checksummed eith
 
 ---
 
+## ADR-162 — The camp that would not take you back, and the instrument that could not see it
+
+**Date:** 2026-08-29 · **Status:** accepted · **Implements `M3-T40`** · **Completes `M3-T39`**
+
+**Context:** `M3-T39` shipped the instrument and said in as many words that it did not fix the fault: *"I could not reproduce it headlessly across eight attempts, and shipping a speculative fix for a mechanism I have not observed would be worse."* The next play session reproduced it again. This is the mechanism, measured, and the fix.
+
+### What actually happens
+
+Swearing a class at the fire rebuilds the body — `LegacyScreen.finished` → `_swear_in_the_body` → `_rebuild` — which despawns it and spawns a new one. `_rebuild` waited exactly one frame between the two halves, and `player_for` found a body by **node name**:
+
+```gdscript
+return _actors.get_node_or_null("player_%d" % peer) as Player
+```
+
+`add_child` renames on collision. So a body spawned while its predecessor is still in the deletion queue arrives as something other than `player_1`, and from that moment `player_for(1)` answers `null` for the rest of the level. `Threshold._process` returns at its first line, and the Descent, the Chamber and the readout are all dead while the body is still drawn and still walkable. That is the report, word for word:
+
+> around the fire room I couldn't enter the dungeon again
+
+### Why one frame was enough eight times and never once in play
+
+The deletion queue is flushed **early in the frame**, before idle processing. Measured directly — free a node, add a same-named one with a single `process_frame` between them:
+
+| the swap is started from | old node after 1 frame | the new node | `get_node_or_null` returns |
+|---|---|---|---|
+| `_process` | **still valid** | renamed | the **dying** node |
+| a coroutine already resumed at `process_frame` | gone | `player_1` | the new one |
+
+Input is dispatched before idle processing, so a real button press is on the first row. **Every probe in this project was on the second.** `LegacyScreen.finished` fires from a click for a player and from `emit_signal` in a coroutine for every check — the same line, one frame apart, and only one of them worked.
+
+The previous note on `_rebuild` had the mechanism exactly right and drew the wrong conclusion from it — *"a frame between the two halves, and it is load-bearing"* — because it was verified from the side of the frame where it is true.
+
+### Fixed at both ends, and neither alone is the fix
+
+**The rebuild stops counting frames.** It waits until the old body is actually gone, bounded, and says so if it never leaves. Bounded rather than a bare loop: a body that never goes would hang the coroutine holding the player's input, which is worse than the fault being fixed.
+
+**The lookup stops depending on the name.** `player_for` keys on **multiplayer authority**, which is what the body actually is: `configure_replication` sets it before `add_child`, it rides the spawn packet to every peer, and nothing renames it. Scoped to `_actors` and skipping the deletion queue, so it can return neither a corpse nor somebody else's session's body — `players()` learned that second half in ADR-156 and this is the same sentence about one peer.
+
+Both, deliberately. They are independent failures — planted separately, each one alone still passes, because either fix rescues the other's absence. The pair is what the reported bug is.
+
+**And the camp recovers rather than only complaining.** `M3-T39` made blindness loud, which was necessary and is not sufficient: a player standing in a dead camp cannot read a log. The camp now puts a body back. It also names what `Actors` held, because a rename, an empty `Actors` and a body belonging to the wrong peer are three different bugs that produced one sentence between them.
+
+**A gap the code made itself is not a fault.** `M3-T39`'s error fired the moment the lookup failed, which is one frame too eager — `_rebuild` takes the body away on purpose, so an ordinary class oath logged an error every time. Blindness has to persist before it is news, or the log stops being read, which is the failure `M3-T39` existed to end rather than to reproduce.
+
+### The part that makes this definitive
+
+The other three parts fix this bug. This one is why it took three rounds.
+
+`ClassScreen.press` now fires from `_process`, where a real click lands, instead of `emit_signal` in the caller's frame. Three attempts, each of which measured the last one wrong:
+
+1. `emit_signal("pressed")` — runs the handler inline in the caller's frame, on the safe side of the flush.
+2. `Input.parse_input_event` from the same coroutine — no better. `parse_input_event` dispatches **synchronously**, so the event went through the button, through focus, through `BaseButton`'s action handling, and arrived at the same place in the frame.
+3. Awaiting the press through to the oath — hangs, every time. `_commit` frees the screen, and **a coroutine whose `self` has been freed never resumes.** A function cannot watch its own destruction.
+
+A `SceneTreeTimer` was tried too, and is also on the safe side.
+
+### Verification
+
+The A/B is the finding:
+
+| | the press is driven from | `--threshold-probe` |
+|---|---|---|
+| **A** the bug planted | `_process` (a real click) | **exit 1** — *"swearing a class at the fire left no body at all"* |
+| **B** the bug planted | `emit_signal` (how every probe pressed) | **exit 0, green** |
+| **C** fixed | `_process` | exit 0, green |
+
+The same broken code, two instruments, opposite verdicts. A and B are one line apart.
+
+Three further plants, each failing by name: the rebuild counting frames again, the lookup keyed on the name again, and the camp complaining without recovering. The first two pass alone and fail together, which is the point above.
+
+`--edges-probe`'s blind-camp row was rewritten to stop handing the body back itself — it could only ever assert that the camp *complained*, and a player standing in that camp does not care. It waits out the grace and asserts the camp recovered on its own. Its latch also had to become a **count**: `_said_it_lost_the_body` clears when a body is found, so the row was reading it after the recovery had already reset it — a check quietly measuring nothing.
+
+### What this does not cover
+
+`run_doorway.py`'s *left behind* scenario fails on macOS — three rows, reproducibly, **on this commit and on its parent alike**, and green on CI's Linux. It is a co-op disconnect-detection difference, it predates this work, and it is not touched by it. Recorded rather than absorbed: `M3-T41`.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
