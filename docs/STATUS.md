@@ -2,13 +2,13 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-29_
+<!-- generated-stamp --> _Regenerated 2026-08-30_
 
 **Current milestone: M3 — The Pact**
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`71/93` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`72/93` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -17,7 +17,7 @@ flowchart LR
   M0 --> M1
   M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>40/41"]:::current
+  M3["M3 The Pact<br/>41/41"]:::current
   M2 --> M3
   M4["M4 Vertical Slice<br/>0/15"]:::ahead
   M3 --> M4
@@ -37,7 +37,7 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 40/41 | `EXIT` pending<br>`COOP` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 41/41 | `EXIT` pending<br>`COOP` pending |
 |  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/15 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
@@ -137,7 +137,7 @@ _None. Sequencing is clean._
 - ✔ `M3-T38` **The second descent of a session was walked by nothing** — *ADR-160. Reported from play: descend, abandon at once, start another run, answer the Legacy screen at the fire, and the hole does nothing — with a log that simply **stops**. No error, no refusal, no scene change. Reproduced twice in the reporter's own two session logs, identically, and the fix for the reported symptom is `M3-T39`; this is the instrument that makes it visible and the one defect the walk proved on its own. **Nothing in this project had ever crossed a scene boundary in a single process.** Every probe boots one level directly, `--menu-probe`'s loop instantiates levels side by side without entering them, and `run_doorway.py` is about two processes walking through one door — so a player's *second* descent, which crosses four scenes and rewrites half of `M3-T34`'s state table, was covered by nothing at all. `--again` walks it through the front door, the camp, the floor, the pause menu, back to the front door and down again, and asserts the blunt thing: **the second run begins.** **And abandoning never closed the run it abandoned**: `take_what_leaving_costs()` called `die()` and left `user://run.active` on disk, which is a run file describing a life that has just ended — the state `M3-T34` was written to eliminate, manufactured deliberately on every abandon. It looked harmless only because `resume_is_this_life()` drops it as an orphan on the next entry, which is a **repair** standing in for a fix: it depends on the next thing the player does being the menu, it logs a warning on a path that is not an error, and it leaves an open run on disk for as long as the game is closed. Abandoning **is** the run resolving — the only one you pay for on purpose — so it now closes the same way extraction and the wipe do. Asserted at the front door because that is the only place the stale file is still visible; by the time the camp could ask, the repair has tidied the evidence away. Two plants, both failing by name, and the sweep verified byte-identical against a real profile* `TEC-003` `DES-002` `DES-003`
 - ✔ `M3-T39` **A fire that answers nothing, and a save that stops saving** — *ADR-161, and the fix for the symptom `M3-T38` built the instrument for. Three places in this build could fail in a way that produced **no line anywhere**: `Threshold._process` returns at its first line when it cannot find `player_1`, which kills the Descent, the Chamber and the readout while the body is still there and still walkable — the player wanders a camp that answers nothing, and the log is indistinguishable from somebody who never found the hole. That is exactly the reported fault, and it cost two play sessions and eight headless reproductions to place **because nothing said anything**. The hole's refusal of a classless life was written to the readout only, which the player reads and no bug report ever carries. And `GameState._persist()` discarded every write in silence when `_live` was false — a life ends, a class is sworn, a tithe is paid, and none of it reaches disk, which `TEC-003` calls the critical path. Found chasing a reported profile whose `updated` stamp was **minutes older than a session containing two writes that cannot be skipped**; that question should have been answerable from the log and was not. All three now say so **once** — sixty lines a second is not a diagnosis — and `load_profile()` names which of its three branches it took, because a profile read, a profile refused and no profile at all lead to three different games and produced one silence. `push_error` for the save, because it is data loss in progress. Three plants, each failing by name; the sweep run with the developer's real profile checksummed either side* `TEC-003` `DES-002` `PRO-005`
 - ✔ `M3-T40` **The camp that would not take you back, and the instrument that could not see it** — *ADR-162. The reported fault, reproduced and fixed: swear a class at the fire and the camp goes dead — no Descent, no Chamber, no readout — while the body stands there, drawn and walkable. `_rebuild` despawned the body and spawned the new one a single frame later, and `player_for` found bodies **by node name**, so a body built while its predecessor still held `player_1` arrived renamed and was unfindable for the rest of the level. **One frame is enough from some places and not others**, which is why this survived two play sessions and eight headless reproductions: the deletion queue is flushed early in the frame, so a coroutine resumed by `process_frame` wakes on the far side of it and a caller running during input dispatch wakes on the near side. `LegacyScreen.finished` fires from a button press; every probe fired it from a coroutine. Both reach the same line, one frame apart, and only one of them worked. Fixed at both ends and neither alone: the rebuild waits for the body to actually be **gone** rather than counting frames, and `player_for` keys on **multiplayer authority** — which rides the spawn packet, is set before `add_child`, and nothing renames — skipping the deletion queue so it can return neither a corpse nor null. A camp that loses its body now also **puts one back** rather than only complaining (`M3-T39` made it loud; loud is not enough for somebody standing in it), and says what `Actors` actually held. **And the blind spot itself is closed**: `ClassScreen.press` fires from `_process`, where a real click lands, instead of `emit_signal` in the caller's frame — measured three ways before one of them reproduced anything. Verified as an A/B: the same broken code fails by name under the new press and passes green under the old one* `TEC-004` `DES-014` `PRO-005`
-- · `M3-T41` **The last one out of a co-op floor stays in it, on macOS** — *`run_doorway.py`'s left-behind scenario: the host goes out spent, the remaining client is killed, and the host never reports `nobody is left in the run` and never reaches the Threshold. Three rows, reproducible, and identical on `M3-T40` and its parent — so it predates that work and is not caused by it. **Green on CI**, which runs the same harness on Linux, so this is a platform difference in how a hard-killed peer's disconnect is detected and not a check nobody runs. Found while sweeping `M3-T40`; recorded rather than folded into it, because a co-op disconnect is a different subject from a camp that loses its body* `TEC-004` `DES-012`
+- ✔ `M3-T41` **A check that fails when the machine is busy is a check that lies** — *ADR-163. Filed as a co-op bug and it was not one: `run_doorway.py`'s left-behind rows failed three runs in a row, and the diagnosis written into `M3-T40` — a macOS platform difference in disconnect detection — **was wrong, and was never tested**. Run alone at its real budget the scenario passes 3/3; after the scenario that precedes it, it passes; on a quiet machine the whole harness passes. What it actually is: `LEFT_BEHIND_SETTLE` was a flat 18 s sleep for a chain that takes about **10 s** idle, and the long pole in it is **ENet's peer timeout** at 5.4 s — a timeout, not an event, so it stretches under load while a `sleep` does not. Eight seconds of headroom, and it evaporated because the machine was loaded with processes a mistake of mine had left running. So the harness stops sleeping for a budget and **waits for the line it is actually about**, with a 45 s ceiling that only a genuine failure reaches: faster when it works, honest when it does not. `launch()` now drains stdout on a thread — which is what makes waiting possible, and also removes a second latent fault, since a chatty process fills macOS's 8 KB pipe buffer and blocks on write until somebody reads it. Planted by breaking `_on_peer_left`: the scenario hits its ceiling and all three rows miss, so waiting did not make the check unfalsifiable* `TEC-004` `DES-012`
 
 ### M4 — Vertical Slice
 
@@ -168,6 +168,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 162 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 163 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

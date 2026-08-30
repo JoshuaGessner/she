@@ -4638,7 +4638,57 @@ Three further plants, each failing by name: the rebuild counting frames again, t
 
 ### What this does not cover
 
-`run_doorway.py`'s *left behind* scenario fails on macOS — three rows, reproducibly, **on this commit and on its parent alike**, and green on CI's Linux. It is a co-op disconnect-detection difference, it predates this work, and it is not touched by it. Recorded rather than absorbed: `M3-T41`.
+~~`run_doorway.py`'s *left behind* scenario fails on macOS — three rows, reproducibly, **on this commit and on its parent alike**, and green on CI's Linux. It is a co-op disconnect-detection difference, it predates this work, and it is not touched by it. Recorded rather than absorbed: `M3-T41`.~~
+
+**Retracted — this was wrong** (ADR-163). There is no platform difference and there was no pre-existing co-op bug. The scenario passes 3/3 alone at the same budget; the harness passes entire on a quiet machine. Its 18 s sleep had 1.8x headroom over ENet's peer timeout, and the machine was loaded with processes a mistake of mine had left running. The explanation above was inferred from three identical failures and never tested, which is the same error this ADR spent a page warning about one section earlier. `M3-T41` fixes the harness.
+
+---
+
+## ADR-163 — A check that fails when the machine is busy is a check that lies
+
+**Date:** 2026-08-30 · **Status:** accepted · **Implements `M3-T41`** · **Corrects ADR-162**
+
+**Context:** `M3-T40` shipped with the sweep red. The three failing rows were `run_doorway.py`'s *left behind* scenario, and ADR-162 recorded them as a pre-existing macOS platform difference in how a hard-killed peer's disconnect is detected.
+
+**That explanation was wrong, and nothing had tested it.** It was inferred from a failure that reproduced three times, and "reproducible" was taken to mean "real" when it only meant the cause was still present.
+
+### What the measurements say
+
+| test | result |
+|---|---|
+| `run_left_behind` alone, at its real 18 s budget | **3/3 pass** |
+| after `run_extraction`, the sweep's own order | pass |
+| the full harness, quiet machine | **exit 0** |
+| the full harness, earlier the same day | 3 failures, three times |
+
+Timestamped against the kill, the chain is:
+
+```
++5.4s   [coop:host] peer 461268956 left        ← ENet's peer timeout
++5.4s   [left] nobody is left in the run
++5.4s   [death] nobody is left standing — 3.0 s and the run is over
++10.0s  [extract] host arrived at the Threshold
+```
+
+Ten seconds of an eighteen-second budget. **1.8x headroom over an event that is a timeout rather than a packet** — so it stretches under load, and a `sleep` does not stretch with it. The machine was loaded because a hung process of mine and its children were still running; killing them was not enough, because by then the measurement had already been taken and believed.
+
+### The fix is in the harness, and the product is untouched
+
+The scenario knows what it is waiting for, so it waits for **that** — `wait_for(host, HOME_AGAIN, LEFT_BEHIND_CEILING)` — and carries on the moment the line appears. The 45 s ceiling is a backstop that only a real failure reaches, not a budget every run pays. Faster when it works, and on a slow machine it simply takes longer instead of lying.
+
+This needs the output readable *while the process runs*, so `launch()` returns a `Launched` that drains stdout on a thread. That removes a second latent fault nobody had hit yet: `subprocess.PIPE` read only at the end means a chatty process fills the OS pipe buffer — 8 KB on macOS — and blocks on write until somebody reads it. Every scenario went through the wrapper rather than only this one, because two ways to read a process is the parallel path ADR-064 bans, in a file where the second one would rot unnoticed.
+
+### Verification
+
+`_on_peer_left` was planted to return at its first line. The scenario reaches its ceiling, prints *"gave up after 45s"*, and all three rows miss — so waiting for a marker did not make the check unfalsifiable, which is the obvious way this change could have gone wrong.
+
+The full sweep is green, and so is CI.
+
+### The lesson worth keeping
+
+A check whose budget is a fixed sleep encodes an assumption about the machine it runs on, and it fails in the least useful direction: **it blames the product.** That cost an ADR paragraph, a filed task, and a wrong answer given with confidence. Where a check waits for something the process will say, it should wait for the thing it will say.
+
+The `M3-T40` fix and its A/B are unaffected; only ADR-162's closing section is retracted.
 
 ---
 

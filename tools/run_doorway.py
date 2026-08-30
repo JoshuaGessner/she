@@ -37,6 +37,7 @@ import os
 import re
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -79,12 +80,55 @@ EXTRACT_SECONDS = 44   # M3-T09: every peer extracts in turn now, not just the h
 # standing. The client is killed after that, so the party ends by departure
 # rather than by death.
 LEFT_BEHIND_KILL = 16
-# Long enough for the wipe window, the run-over screen, and the walk home.
-LEFT_BEHIND_SETTLE = 18
+# **A ceiling, not a budget** (`M3-T41`, ADR-163). The scenario waits for
+# `HOME_AGAIN` and carries on the moment it appears — about 10 s idle, of which
+# ENet's peer timeout is 5.4 s. This is only how long a genuine failure takes
+# to be called one, so it is generous on purpose: the old flat 18 s sleep had
+# 1.8x headroom over a timeout-driven event, which is none at all under load.
+LEFT_BEHIND_CEILING = 45
+# The last line any left-behind row reads: the host noticed, resolved the run,
+# and got back to the fire.
+HOME_AGAIN = "[extract] host at the fire, run still open"
+
+
+class Launched:
+    """One process, with its output drained *while it runs* (`M3-T41`).
+
+    `subprocess.PIPE` read only at the end is two problems wearing one coat.
+    The output cannot be **watched**, so every wait has to be a fixed `sleep`
+    sized for the worst case — and a fixed sleep is a budget that silently
+    becomes too small the day the machine is busy. And a chatty process fills
+    the OS pipe buffer and blocks on write until somebody reads it, which on
+    macOS is 8 KB.
+
+    A thread per process costs nothing at this scale and removes both.
+    """
+
+    def __init__(self, proc: subprocess.Popen) -> None:
+        self._proc = proc
+        self._lines: list[str] = []
+        self._reader = threading.Thread(target=self._pump, daemon=True)
+        self._reader.start()
+
+    def _pump(self) -> None:
+        for line in self._proc.stdout:
+            self._lines.append(line)
+
+    def text(self) -> str:
+        """Everything printed so far. Safe to call while the process runs."""
+        return "".join(self._lines)
+
+    def saw(self, needle: str) -> bool:
+        return needle in self.text()
+
+    def kill(self) -> None:
+        self._proc.kill()
+        self._proc.wait()
+        self._reader.join(timeout=2.0)
 
 
 def launch(args: list[str], scene: str = CAMP,
-           slot: str = "host") -> subprocess.Popen:
+           slot: str = "host") -> Launched:
     """One process, with a `user://` no other process in this run can reach.
 
     The separation is not tidiness. Every peer opens its own run file at the
@@ -92,11 +136,36 @@ def launch(args: list[str], scene: str = CAMP,
     `user://` has the host's clear standing in for the client's — and the row
     about the client passes without the client having done anything (ADR-155).
     """
-    return subprocess.Popen(
+    return Launched(subprocess.Popen(
         [GODOT, "--headless", "--path", str(GAME), "--quit-after", "60000",
          scene, "--"] + args,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-        env=own_user_dir.env_for(slot))
+        env=own_user_dir.env_for(slot)))
+
+
+def wait_for(process: Launched, needle: str, ceiling: float) -> float:
+    """Wait until `process` prints `needle`, or `ceiling` seconds pass.
+
+    **The ceiling is a backstop, not the budget** (`M3-T41`, ADR-163). It used
+    to be the budget: `LEFT_BEHIND_SETTLE` was a flat 18 s sleep for a chain
+    that takes about 10 s idle, and the long pole in it is ENet's peer
+    timeout — which is a *timeout*, not an event, so it stretches under load
+    while a `sleep` does not. Eight seconds of headroom held on a quiet machine
+    and vanished on a busy one, and the check then reported a co-op bug the
+    product did not have. It cost an ADR paragraph and a task, both wrong.
+
+    Waiting on the thing itself is faster when it works and honest when it does
+    not: on a slow machine it simply takes longer, and only a genuine failure
+    reaches the ceiling.
+
+    Returns the seconds waited, or `-1.0` if the ceiling was hit.
+    """
+    started = time.time()
+    while time.time() - started < ceiling:
+        if process.saw(needle):
+            return time.time() - started
+        time.sleep(0.25)
+    return -1.0
 
 
 def run_extraction(port: int) -> dict[str, str]:
@@ -128,7 +197,7 @@ def run_extraction(port: int) -> dict[str, str]:
     time.sleep(EXTRACT_SECONDS)
     for process in procs.values():
         process.kill()
-    return {name: (p.communicate()[0] or "") for name, p in procs.items()}
+    return {name: p.text() for name, p in procs.items()}
 
 
 def run_left_behind(port: int) -> dict[str, str]:
@@ -151,13 +220,17 @@ def run_left_behind(port: int) -> dict[str, str]:
                     DEEP, "client0")
     time.sleep(LEFT_BEHIND_KILL)
     client.kill()
-    left = client.communicate()[0] or ""
-    # Read after the kill rather than at the end, because the host runs on for
-    # another window and reading them together would mean waiting to find out
-    # whether the client had even reached the floor.
-    time.sleep(LEFT_BEHIND_SETTLE)
+    left = client.text()
+    # **Waited for, not slept through** (`M3-T41`). The host has to notice a
+    # peer that stopped answering, end the run, and walk home, and the first of
+    # those is ENet's timeout rather than a packet — so how long it takes is a
+    # property of the machine, not of the game. `HOME_AGAIN` is the last line
+    # any row here reads, so waiting for it covers all three.
+    waited = wait_for(host, HOME_AGAIN, LEFT_BEHIND_CEILING)
     host.kill()
-    return {"host": host.communicate()[0] or "", "client0": left}
+    if waited < 0.0:
+        print(f"  (left behind: gave up after {LEFT_BEHIND_CEILING:.0f}s)")
+    return {"host": host.text(), "client0": left}
 
 
 def run_late_join(port: int) -> dict[str, str]:
@@ -185,8 +258,7 @@ def run_late_join(port: int) -> dict[str, str]:
     time.sleep(LATE_JOIN_SECONDS)
     for process in (host, client):
         process.kill()
-    return {"host": host.communicate()[0] or "",
-            "client0": client.communicate()[0] or ""}
+    return {"host": host.text(), "client0": client.text()}
 
 
 def run_not_ready(port: int) -> dict[str, str]:
@@ -210,8 +282,7 @@ def run_not_ready(port: int) -> dict[str, str]:
     time.sleep(SECONDS)
     for process in (host, client):
         process.kill()
-    return {"host": host.communicate()[0] or "",
-            "client0": client.communicate()[0] or ""}
+    return {"host": host.text(), "client0": client.text()}
 
 
 def run(probe: str, port: int, seconds: int) -> dict[str, str]:
@@ -228,8 +299,7 @@ def run(probe: str, port: int, seconds: int) -> dict[str, str]:
     time.sleep(seconds)
     for process in (host, client):
         process.kill()
-    return {"host": host.communicate()[0] or "",
-            "client": client.communicate()[0] or ""}
+    return {"host": host.text(), "client": client.text()}
 
 
 def census(log: str, tag: str) -> dict[str, str] | None:
