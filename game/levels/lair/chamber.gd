@@ -85,6 +85,9 @@ var _player: Player = null
 var _deeds_banner: DeedsBanner = null
 var _hoard_root: Node3D = null
 var _readout: Label = null
+## The reticle this room built, so the pile can speak through it (`M3-T42`).
+## Held rather than looked up: this room makes it, so this room knows it.
+var _mark: Reticle = null
 ## The Aspects, while they are open. Non-null is what stops the room reopening
 ## them every frame the player holds the key at the pile.
 var _pact: PactScreen = null
@@ -123,7 +126,8 @@ func _ready() -> void:
 	var hud := CanvasLayer.new()
 	hud.layer = 5
 	add_child(hud)
-	hud.add_child(Reticle.new())
+	_mark = Reticle.new()
+	hud.add_child(_mark)
 	add_child(PauseMenu.new())
 	for arg: String in OS.get_cmdline_user_args():
 		if arg == "--lair-probe":
@@ -239,6 +243,54 @@ func _hand_it_back(item: ItemInstance, because: String) -> void:
 ## One refusal, driven the way a player drives it: into the bag, out of the bag,
 ## and down in front of her.
 ##
+## **Does the pile tell you it is a pile?** (`M3-T42`, ADR-164)
+##
+## Reported from play: *"there was no UI pop up or cue for talking with the
+## dragon in the treasure room."* True, and nothing here could have caught it —
+## every row in this probe reaches the tree by **calling** `_open_the_pact` or
+## by dropping through `ask_to_drop_instance`, so all of them passed in a room
+## that announced nothing to anybody standing in it. `M2-T18`'s lesson, in a
+## second room: the rules were right and no player could reach them.
+##
+## Walked to and walked away from, because the clearing half is the half that
+## goes wrong — a standing offer nothing withdraws is a prompt for something
+## you have left behind, which is worse than silence because it is a lie.
+##
+## Asserted with **no boon**, which is the state of every first life and the
+## one the old corner-readout line went quiet in.
+func _the_pile_speaks() -> PackedStringArray:
+	var problems := PackedStringArray()
+	var was: int = GameState.boon
+	GameState.boon = 0
+	_player.global_position = global_position + HOARD_AT + Vector3(0.0, 0.0, 1.5)
+	for _frame: int in 3:
+		await get_tree().process_frame
+	var at_it: String = _mark.showing() if _mark != null else "<no reticle>"
+
+	# Far enough that `PLACE_REACH` cannot reach, and somewhere a body can
+	# stand: the door, which is the other end of the room.
+	_player.global_position = global_position + DOOR_AT + Vector3(0.0, 0.0, 3.0)
+	for _frame: int in 3:
+		await get_tree().process_frame
+	var away: String = _mark.showing() if _mark != null else "<no reticle>"
+	GameState.boon = was
+
+	print("[lair] the pile   at it '%s' | away '%s'" % [at_it, away])
+	if at_it == "":
+		problems.append("standing at the pile with nothing to spend, the room "
+			+ "said nothing at all — the Pact tree is the whole of `DES-003` "
+			+ "and it is behind an interaction that announces itself nowhere")
+	elif ControlsScreen.glyphs_for("interact") not in at_it:
+		problems.append(("the pile prompt does not name the verb (%s) — "
+			+ "ADR-075 requires both devices, and a cue you cannot act on is "
+			+ "decoration") % at_it)
+	if away != "":
+		problems.append(("the prompt survived walking away from the pile "
+			+ "('%s') — a standing offer nothing withdraws points at "
+			+ "something that is no longer in front of you") % away)
+	return problems
+
+
 ## Through `ask_to_drop_instance` rather than by calling `why_not_tribute`,
 ## because the rule was never the thing that was wrong — `tribute_worth()` has
 ## returned 0 for a Scarred item since `M3-T05`. What was wrong is that nothing
@@ -428,14 +480,52 @@ func _process(delta: float) -> void:
 	# that is the gesture `DES-003` couples them to: what you hand over is what
 	# pays for them, and putting the tree behind a different door would make it
 	# a shop rather than a pact.
-	if (_pact == null and _player.global_position.distance_to(
-			global_position + HOARD_AT) <= PLACE_REACH
-			and Input.is_action_just_pressed("interact")):
+	#
+	# **And the pile says so** (`M3-T42`, ADR-164). It did not, and nothing
+	# else did either: the corner readout names the verb only once you have
+	# boon to spend, so a first life stands in front of the one interaction
+	# that opens `DES-003`'s whole tree with no prompt, no highlight and no
+	# sentence anywhere telling them the pile is a thing you can use. Reported
+	# from play as *"no UI pop up or cue for talking with the dragon"*.
+	var at_the_pile: bool = _player.global_position.distance_to(
+		global_position + HOARD_AT) <= PLACE_REACH
+	_tell_the_reticle(at_the_pile)
+	if _pact == null and at_the_pile \
+			and Input.is_action_just_pressed("interact"):
 		_open_the_pact()
 	# Standing on the door is leaving. No prompt: `DES-019` puts nothing in the
 	# centre of the screen, and a doorway you walk through needs no verb.
 	if _player.global_position.distance_to(global_position + DOOR_AT) <= 1.6:
 		_leave()
+
+
+## **Stand at the pile and be told what it is** (`M3-T42`, ADR-164).
+##
+## Through `Reticle`, which every scene already builds and which `DES-019`
+## Layer 5 already owns — not a new widget, and nothing added to the centre of
+## the screen that was not there before (rule 1).
+##
+## **It says something even with nothing to spend**, and that is the fix rather
+## than a detail. The readout's existing line goes quiet when `boon` is 0 —
+## which is every first life — so the version of this that only prompted when
+## there was something to buy would have been invisible to exactly the player
+## who does not know the pile is interactive. What she is owed is the thing
+## worth saying then: it names her, and it names the gesture.
+##
+## Cleared on the frame you step away, because a standing offer that is never
+## withdrawn is a prompt for something you have walked away from.
+func _tell_the_reticle(at_the_pile: bool) -> void:
+	if _mark == null or not is_instance_valid(_mark):
+		return
+	if not at_the_pile:
+		_mark.offer("")
+		return
+	if GameState.boon > 0:
+		_mark.offer("hold %s — her aspects (%d unspent)"
+			% [ControlsScreen.glyphs_for("interact"), GameState.boon])
+		return
+	_mark.offer("hold %s — the hoard, and what she is owed"
+		% ControlsScreen.glyphs_for("interact"))
 
 
 ## What is on offer, or why nothing is. Beside the Tithe on purpose — the two
@@ -591,6 +681,11 @@ func _lair_probe() -> void:
 	# one-way by construction (`DES-014`), and `_on_put_down` asked nothing —
 	# so the rows above, which only ever gave her the *richest* thing in the
 	# bag, could never have seen it.
+	# **Before the refusals**, which move the body around the room and leave it
+	# wherever the last one put it. A row about standing somewhere has to place
+	# the body itself, and it does — but reading the prompt after three rows of
+	# drop-testing would be reading whatever they left on screen.
+	problems.append_array(await _the_pile_speaks())
 	problems.append_array(await _she_refuses(&"wpn_yew_bow", false, "a weapon"))
 	# Scarred is the other half, and it is the one that has to come back
 	# **still Scarred**: `add()` mints from a definition, so a careless return

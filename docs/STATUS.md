@@ -2,13 +2,13 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-30_
+<!-- generated-stamp --> _Regenerated 2026-08-31_
 
 **Current milestone: M3 — The Pact**
 
 > **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
 
-`72/93` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`73/95` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -17,9 +17,9 @@ flowchart LR
   M0 --> M1
   M2["M2 The Loop Prototype<br/>21/21"]:::passed
   M1 --> M2
-  M3["M3 The Pact<br/>41/41"]:::current
+  M3["M3 The Pact<br/>42/42"]:::current
   M2 --> M3
-  M4["M4 Vertical Slice<br/>0/15"]:::ahead
+  M4["M4 Vertical Slice<br/>0/16"]:::ahead
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -37,8 +37,8 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 41/41 | `EXIT` pending<br>`COOP` pending |
-|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/15 | `EXIT` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` pending<br>`COOP` pending |
+|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/16 | `EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -50,9 +50,7 @@ _None. Sequencing is clean._
 
 | Check | Note |
 |---|---|
-| `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30, M3-T31, M3-T34, M3-T35, M3-T38, M3-T39) but still has 2 ⟨tune⟩ marker(s) |
-| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33, M3-T37, M3-T38) but still has 6 ⟨tune⟩ marker(s) |
-| `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19) but still has 4 ⟨tune⟩ marker(s) |
+| `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33, M3-T37, M3-T38, M3-T42) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
 
@@ -138,10 +136,12 @@ _None. Sequencing is clean._
 - ✔ `M3-T39` **A fire that answers nothing, and a save that stops saving** — *ADR-161, and the fix for the symptom `M3-T38` built the instrument for. Three places in this build could fail in a way that produced **no line anywhere**: `Threshold._process` returns at its first line when it cannot find `player_1`, which kills the Descent, the Chamber and the readout while the body is still there and still walkable — the player wanders a camp that answers nothing, and the log is indistinguishable from somebody who never found the hole. That is exactly the reported fault, and it cost two play sessions and eight headless reproductions to place **because nothing said anything**. The hole's refusal of a classless life was written to the readout only, which the player reads and no bug report ever carries. And `GameState._persist()` discarded every write in silence when `_live` was false — a life ends, a class is sworn, a tithe is paid, and none of it reaches disk, which `TEC-003` calls the critical path. Found chasing a reported profile whose `updated` stamp was **minutes older than a session containing two writes that cannot be skipped**; that question should have been answerable from the log and was not. All three now say so **once** — sixty lines a second is not a diagnosis — and `load_profile()` names which of its three branches it took, because a profile read, a profile refused and no profile at all lead to three different games and produced one silence. `push_error` for the save, because it is data loss in progress. Three plants, each failing by name; the sweep run with the developer's real profile checksummed either side* `TEC-003` `DES-002` `PRO-005`
 - ✔ `M3-T40` **The camp that would not take you back, and the instrument that could not see it** — *ADR-162. The reported fault, reproduced and fixed: swear a class at the fire and the camp goes dead — no Descent, no Chamber, no readout — while the body stands there, drawn and walkable. `_rebuild` despawned the body and spawned the new one a single frame later, and `player_for` found bodies **by node name**, so a body built while its predecessor still held `player_1` arrived renamed and was unfindable for the rest of the level. **One frame is enough from some places and not others**, which is why this survived two play sessions and eight headless reproductions: the deletion queue is flushed early in the frame, so a coroutine resumed by `process_frame` wakes on the far side of it and a caller running during input dispatch wakes on the near side. `LegacyScreen.finished` fires from a button press; every probe fired it from a coroutine. Both reach the same line, one frame apart, and only one of them worked. Fixed at both ends and neither alone: the rebuild waits for the body to actually be **gone** rather than counting frames, and `player_for` keys on **multiplayer authority** — which rides the spawn packet, is set before `add_child`, and nothing renames — skipping the deletion queue so it can return neither a corpse nor null. A camp that loses its body now also **puts one back** rather than only complaining (`M3-T39` made it loud; loud is not enough for somebody standing in it), and says what `Actors` actually held. **And the blind spot itself is closed**: `ClassScreen.press` fires from `_process`, where a real click lands, instead of `emit_signal` in the caller's frame — measured three ways before one of them reproduced anything. Verified as an A/B: the same broken code fails by name under the new press and passes green under the old one* `TEC-004` `DES-014` `PRO-005`
 - ✔ `M3-T41` **A check that fails when the machine is busy is a check that lies** — *ADR-163. Filed as a co-op bug and it was not one: `run_doorway.py`'s left-behind rows failed three runs in a row, and the diagnosis written into `M3-T40` — a macOS platform difference in disconnect detection — **was wrong, and was never tested**. Run alone at its real budget the scenario passes 3/3; after the scenario that precedes it, it passes; on a quiet machine the whole harness passes. What it actually is: `LEFT_BEHIND_SETTLE` was a flat 18 s sleep for a chain that takes about **10 s** idle, and the long pole in it is **ENet's peer timeout** at 5.4 s — a timeout, not an event, so it stretches under load while a `sleep` does not. Eight seconds of headroom, and it evaporated because the machine was loaded with processes a mistake of mine had left running. So the harness stops sleeping for a budget and **waits for the line it is actually about**, with a 45 s ceiling that only a genuine failure reaches: faster when it works, honest when it does not. `launch()` now drains stdout on a thread — which is what makes waiting possible, and also removes a second latent fault, since a chatty process fills macOS's 8 KB pipe buffer and blocks on write until somebody reads it. Planted by breaking `_on_peer_left`: the scenario hits its ceiling and all three rows miss, so waiting did not make the check unfalsifiable* `TEC-004` `DES-012`
+- ✔ `M3-T42` **The pile that asked for nothing** — *ADR-164. Reported from play: *"there was no UI pop up or cue for talking with the dragon in the treasure room."* Exactly right, and worse than it sounds — the Chamber's pile is the only way into the Pact tree, which is the whole of `DES-003` and the spine of `M3-T01`, and **it announced itself nowhere**. No prompt, no highlight, and a corner readout whose line naming the verb only appears once `boon > 0` — which is never true on a first life, so the one player who does not know the pile is interactive is precisely the one told nothing. **Nothing here could have caught it**: every row in `--lair-probe` reaches the tree by calling `_open_the_pact` or by dropping through `ask_to_drop_instance`, so all of them passed in a room that spoke to nobody standing in it. `M2-T18`'s lesson in a second room — the rules were all correct and no player could reach them. Fixed through `Reticle`, which every scene already builds and which `DES-019` Layer 5 already owns, rather than a second prompt widget beside it (ADR-064): a level sets a standing offer, the reticle draws it, the Shaft still speaks first and a fixture the room is offering outranks a coin on the floor. Three plants, each failing by name — silent, sticky, and a prompt that does not name the verb* `DES-019` `DES-003` `DES-014`
 
 ### M4 — Vertical Slice
 
 - · `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* `DES-015` `DES-006` `DES-017` `DES-005`
+- · `M4-T16` **Enemy behaviour, before enemy variety** — *`M4-T02` is "~6 enemy archetypes, 2 hazard types", and **nothing on this roadmap, in any milestone, is about how an enemy behaves.** Raised from play — *"the gameplay feels a little stale still and AI will have to be greatly worked on"* — and the ordering is the point: six archetypes built on one behaviour is six ways to meet the same fight, which is content rather than systems (principle 5) and fails ADR-058's test outright, since a new silhouette on the same behaviour is a bigger number wearing a face. Principle 3 is the specification: **a fight has to be a decision**, and today it is a swing timed against a telegraph. What is absent and load-bearing: enemies that commit to an attack and can be punished for it, that use the floor's geometry rather than walking through it, that react to clamor as a *group* rather than each alone (`DES-013`'s Ear is a systemic input nothing reads socially), and that give the player a reason to disengage — `DES-002` wants "do I take this fight" to be live, and it cannot be while every fight is winnable by standing still. **Before `M4-T02`**, so the six archetypes are variations on something worth varying* `DES-013` `DES-002` `DES-009`
 - · `M4-T02` ~6 enemy archetypes, 2 hazard types `DES-013`
 - · `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* `DES-011`
 - · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) — *the board hangs in the Threshold, which `M2-T06` built as a fire and a doorway* `DES-007` `DES-014`
@@ -168,6 +168,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 163 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 164 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

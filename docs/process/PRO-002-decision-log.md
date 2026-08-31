@@ -4692,5 +4692,60 @@ The `M3-T40` fix and its A/B are unaffected; only ADR-162's closing section is r
 
 ---
 
+## ADR-164 — The pile that asked for nothing
+
+**Date:** 2026-08-30 · **Status:** accepted · **Implements `M3-T42`**
+
+**Context:** Reported from play, at the end of the first session on a build containing the whole `M3` loop:
+
+> There was no UI pop up or cue for talking with the dragon in the treasure room and its not very apparent what it is in the blockout.
+
+Both halves are true and they are different problems. This ADR is the first one.
+
+### The Pact tree was behind an unannounced interaction
+
+Standing within `PLACE_REACH` of the pile and pressing `interact` opens `PactScreen` — her aspects, the whole tree, `DES-003`'s coupling of *what you hand over* to *what you may become*. Nothing told the player that. There was no prompt at the pile, no highlight on it, and the only sentence naming the verb lived in the corner readout **behind a condition**:
+
+```
+her aspects   2 boon unspent — hold e/X at the pile      ← only when boon > 0
+her aspects   nothing yet — 40 more tribute buys the first   ← what a first life sees
+```
+
+A first life has no boon. So the player who has never seen the tree gets the line that does not mention the pile, and the player who already knows what the pile is gets the instructions.
+
+### No check could have found it
+
+Every row in `--lair-probe` reaches the tree by **calling** `_open_the_pact()`, or by dropping tribute through `ask_to_drop_instance`. All of them passed, correctly, in a room that announced nothing to anybody standing in it.
+
+That is `M2-T18` again — *"the bag's rules were all correct and no click had ever reached them"* — in a second room, and it is the third time this shape has appeared this milestone. A rule can be right, replicated, saved, and unreachable.
+
+### Through the reticle, not beside it
+
+`Reticle` is already built by `room_set`, `threshold` **and** `chamber`; `DES-019` Layer 5 is *"interaction prompts — appears, then leaves"*; and the widget already names two things off the body — an item you could take, and the Shaft you are standing in. What it had no way to hear was a **room** saying *this is reachable, and here is the verb*.
+
+So a level sets a standing offer and the reticle draws it. Precedence is the design's own: the Shaft speaks first (`DES-005` makes leaving the decision the floor is about), then the room's offer, then a loose item — a fixture that is asking you something outranks a coin on the floor. Nothing new arrives in the centre of the screen that was not there before, so rule 1 holds.
+
+**It says something with nothing to spend, and that is the fix rather than a detail.** The version of this that prompted only when there was something to buy would have been invisible to exactly the player the report is about. With no boon it names her and the gesture — *"hold e/X — the hoard, and what she is owed"* — which is the thing worth saying to somebody who does not yet know what the room is.
+
+Both glyphs, from `ControlsScreen`, per ADR-075 and ADR-139.
+
+### Verification
+
+Three plants, each failing by name:
+
+| plant | the row that caught it |
+|---|---|
+| the room never speaks | *standing at the pile with nothing to spend, the room said nothing at all* |
+| the offer is never withdrawn | *the prompt survived walking away from the pile* |
+| the prompt does not name the verb | *the pile prompt does not name the verb — ADR-075 requires both devices* |
+
+The row walks to the pile and away again, with `boon` forced to 0, because the clearing half is the half that goes wrong: a standing offer nothing withdraws points at something you have left behind, which is worse than silence because it is wrong rather than absent.
+
+### What this does not fix
+
+**She is still three grey boxes.** `_build_her` is an 11 m slab and two lumps, and *"not very apparent what it is"* is a fair description of that. This is blockout, which ADR-046 permits as a named production phase, and her real model is scheduled at `M4-T10`. The cue is what could not wait — a player who cannot tell the pile is interactive never reaches the tree, whereas a player who knows what to do at a grey shape has only been shown a grey shape.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

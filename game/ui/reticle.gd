@@ -34,6 +34,19 @@ const RING_SEGMENTS: int = 48
 
 var _body: Player = null
 var _shaft: Shaft = null
+## **What the room is offering, if anything** (`M3-T42`, ADR-164).
+##
+## The reticle knew two things — an item you could take, and the Shaft you are
+## standing in — and both come off the *body*. Nothing let a **room** say "this
+## is reachable and here is the verb", so the Chamber's pile, which opens the
+## whole Pact tree, announced itself nowhere at all: no prompt, and a corner
+## readout that only names the verb once you already have boon to spend.
+##
+## A level sets this; the reticle draws it. Not a second prompt widget beside
+## this one (ADR-064) — `DES-019` Layer 5 is *"interaction prompts, appears then
+## leaves"*, and this is that layer, already built and already on screen in
+## every scene that matters.
+var _offer: String = ""
 var _grown: float = 0.0
 var _name: Label
 ## **The visual half of an empty-handed swing** (ADR-140). 1 the instant the
@@ -67,6 +80,25 @@ func _ready() -> void:
 ##
 ## `is_inside_tree()` is the question that was actually meant. It implies
 ## validity, so it replaces the test rather than joining it.
+## What the reticle is actually saying, for `--lair-probe`.
+##
+## The rendered line rather than `_offer`, deliberately: the Shaft outranks an
+## offer and an offer outranks an item name, and a row reading the field it
+## just set would pass while the player saw something else entirely.
+func showing() -> String:
+	return _name.text
+
+
+## **What this room is offering right now**, or `""` for nothing.
+##
+## Set every frame by the level that owns the fixture, and cleared the same
+## way — a standing offer that is never cleared is a prompt for something you
+## walked away from, which is worse than no prompt because it is wrong rather
+## than absent.
+func offer(text: String) -> void:
+	_offer = text
+
+
 func _body_to_read() -> Player:
 	if _body != null and is_instance_valid(_body) and _body.is_inside_tree():
 		return _body
@@ -88,7 +120,8 @@ func _process(delta: float) -> void:
 		# a corridor, and `DES-019` wants that to feel like a different posture.
 		hidden = _body.bag_is_open() or _body.is_incapacitated()
 
-	var wanted: float = 1.0 if reaching != null or _shaft != null else 0.0
+	var wanted: float = 1.0 if reaching != null or _shaft != null \
+		or _offer != "" else 0.0
 	_grown = move_toward(_grown, wanted, delta * 6.0)
 	visible = not hidden
 	# **The way out speaks first.** Standing in the Shaft while looking at a
@@ -102,6 +135,11 @@ func _process(delta: float) -> void:
 		# of these existed; both are gone, and the seam is what stops a third.
 		_name.text = ("climbing out — hold still" if _shaft.is_channelling()
 			else "hold %s — climb out" % ControlsScreen.glyphs_for("interact"))
+	elif _offer != "":
+		# **After the Shaft, before an item.** The way out still speaks first;
+		# an offer is a fixture of the room and a loose coin is not, so a room
+		# that is asking you something outranks something lying on the floor.
+		_name.text = _offer
 	else:
 		_name.text = "" if reaching == null or reaching.definition() == null \
 			else _label_for(reaching)
