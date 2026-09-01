@@ -4924,5 +4924,66 @@ A carried instrument that sharpens the Hunter read — finer bearing, or range �
 
 ---
 
+## ADR-169 — Topology before geometry, and the seed nothing was reading
+
+**Date:** 2026-09-01 · **Status:** accepted · **`M4-T01` in progress**
+
+**Context:** `M4-T01` is the Delvings — `DES-015`'s eight-step pipeline, costed in that document at ⟨1–2 months⟩ and called *"the single highest-leverage technical investment in the project."* This records the two decisions taken before any of it was written, and the fault found while taking them.
+
+### What was actually there
+
+Nothing. `room_set.gd`'s "generation" is six literal `AABB`s in a `const ROOMS`, six literal doorways, and three literal enemy posts. `M4-T01` is not improving a generator; it is writing the first one.
+
+### Decision 1 — the graph, before any geometry
+
+Step 3 of the pipeline is built and steps 4–7 are not. `MissionGraph` produces nodes, edges and roles: no rooms, no metres, no meshes.
+
+Three reasons, in order of weight:
+
+1. **The design risk is topological.** Whether a floor poses a decision is a property of its shape — a cycle means the way back is not the way in, which is the whole of `DES-015` Layer 1. That can be asserted with no art, no navmesh and no scene, and 1200 floors validate in under a second.
+2. **It defers the room-module contract until the graph can state its requirements.** `M4-T01` says *"generation from room modules"*, and a `RoomModule` resource designed before anything consumes it would be a guess. The graph will say what a module needs to expose — sockets, footprint, which roles it can host — and then it gets written.
+3. **`DES-015` step 8 is mostly a graph question.** Exits reachable, Prize reachable, the ADR-032 bypass, no soft-lock. Catching those here costs nothing; catching them after placement costs a re-roll of work already done.
+
+The structure is a spine with one or two alternate arms rejoining it. The Prize sits inside the first arm's span and the Shaft beyond its rejoin, so both routes reach the way out and only one is held. **That is not a new idea** — it is the hand-authored room set's own recorded finding, that confining danger to one branch makes *"west long and safe, east short and held"*. The generator's job is to keep producing that property rather than rediscover it by luck, which is what `problems()` is for.
+
+### Decision 2 — determinism is asserted in both directions
+
+`check_determinism.py` has passed `--seed=` on every run since `M1-T07`, and **nothing in this project has ever read it.** `room_set.gd` does not contain the word. The layout is constant, so every seed yields an identical hash and the harness has been asserting that a constant is constant.
+
+That is not a criticism of the harness. `WorldHash`'s own header says so plainly — *"what it currently proves is real but modest… coverage grows the day `M4-T01` lands"* — and being written before the generator is what makes it a **specification** rather than a description of whatever the generator happens to do. ADR-098's distinction applies exactly: it works, and until today nothing used the part of it that mattered.
+
+But it means the harness catches *"the engine introduced variance"* and cannot catch the failure a generator actually has: **ignoring its seed.** A generator returning one floor forever is perfectly deterministic and passes `check_determinism.py` at every seed.
+
+So `--graph-probe` asserts both directions — *same seed, same graph* **and** *different seed, different graph*. The plant is the proof:
+
+```
+plant: the generator ignores its seed
+  [graph] same seed    identical          ← passes
+  [graph] seed matters 1 distinct from 400 ← FAILS
+```
+
+### The check found a real weakness immediately
+
+The first generator emitted **82 distinct topologies from 400 seeds** — a floor space a player would start recognising inside an evening, which is the flatness `DES-015` opens by diagnosing. The assertion was kept and the generator widened rather than the reverse: the spine now grows with depth (`DES-015` Layer 4 wants depth to be visible, and a longer floor is the structural half of that), and a floor may carry a second arm. 308 distinct from 400, and the three floors of one expedition can no longer be the same size, so they can no longer be the same floor.
+
+### Verification
+
+Four plants, each caught:
+
+| plant | caught by |
+|---|---|
+| the generator ignores its seed | *400 seeds produced only 1 distinct floor* |
+| no alternate arm | *1026 of 1200 floors failed step 8* · *the bypass does not reach the Shaft* |
+| the Shaft inside the held span | *1200 of 1200 failed step 8* · *ADR-032's way round does not exist* |
+| the Prize outside the held arm | *the greedy line is also the safe one and the cycle costs nothing* |
+
+Validation runs over 1200 generated floors rather than one, because `problems()` is a claim about every floor the generator can emit and a single sample proves nothing about a random process.
+
+### What is not done
+
+Steps 4–7 — space, history bias, machines, population — and the `RoomModule` resource. `WorldHash` does not yet consume the graph, so `check_determinism.py` still measures the hand-authored rooms; wiring it is what makes that harness mean across processes what `--graph-probe` means within one.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

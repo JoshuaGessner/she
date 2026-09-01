@@ -526,8 +526,127 @@ func _ready() -> void:
 			_ember_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hash":
 			_print_hash()
+		elif arg == "--graph-probe":
+			_graph_probe()
 		elif arg.begins_with("--coop-probe="):
 			_coop_probe(arg.split("=", true, 1)[1])
+
+
+## **The mission graph, before it has any geometry** (`M4-T01`, `DES-015`).
+##
+## Six claims, and the third is the one that could not have existed before
+## today.
+##
+## `check_determinism.py` has passed `--seed=` since `M1-T07` and **nothing in
+## this project has ever read it.** The layout is six literal `AABB`s, so every
+## seed produces an identical hash and the harness has been asserting that a
+## constant is constant. That is not a criticism of the harness — `WorldHash`
+## says so in its own header, and being written before the generator is what
+## makes it a specification rather than a description. But it means the harness
+## can catch *"the engine introduced variance"* and cannot catch the failure a
+## generator actually has: **ignoring its seed.** A generator that returned the
+## same floor every time would pass `check_determinism.py` perfectly.
+##
+## So determinism is asserted in both directions here. Same seed, same graph —
+## and *different seed, different graph*, which is the half that has been
+## missing and the half a stubbed generator fails.
+##
+## Run over many seeds rather than one, because `problems()` is a claim about
+## every floor the generator can emit and a single sample proves nothing about
+## a random process. Cheap: no scene, no navmesh, no meshes — the whole point
+## of building topology first.
+func _graph_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var trials: int = 400
+
+	# ─ 1. no floor the generator can emit is invalid ─
+	var broken: int = 0
+	var first_fault: String = ""
+	for i: int in trials:
+		for depth: int in 3:
+			var graph: MissionGraph = MissionGraph.build(9000 + i, depth)
+			var faults: PackedStringArray = graph.problems()
+			if faults.is_empty():
+				continue
+			broken += 1
+			if first_fault == "":
+				first_fault = "seed %d floor %d: %s" % [
+					9000 + i, depth, faults[0]]
+	print("[graph] validity     %d floor(s) built, %d invalid" % [
+		trials * 3, broken])
+	if broken > 0:
+		problems.append(("%d of %d generated floors failed `DES-015` step 8 — "
+			+ "first: %s. A generator without a validation pass ships "
+			+ "soft-locks, and one whose validation fails ships them knowingly")
+			% [broken, trials * 3, first_fault])
+
+	# ─ 2. same seed, same graph ─
+	var twice_a: String = MissionGraph.build(4242, 1).digest()
+	var twice_b: String = MissionGraph.build(4242, 1).digest()
+	print("[graph] same seed    %s" % ("identical" if twice_a == twice_b
+		else "DIVERGED"))
+	if twice_a != twice_b:
+		problems.append("one seed built two different graphs — `TEC-004` "
+			+ "makes this bit-exact across machines, and a host and client "
+			+ "disagreeing about the floor is the most expensive bug here")
+
+	# ─ 3. **different seed, different graph** ─
+	#
+	# The assertion `check_determinism.py` could never make, because until now
+	# there was nothing that read a seed. A generator that ignores its input is
+	# perfectly deterministic and completely useless, and every existing
+	# determinism check in this project would pass it.
+	var distinct: Dictionary = {}
+	for i: int in trials:
+		distinct[MissionGraph.build(70000 + i, 0).digest()] = true
+	print("[graph] seed matters %d distinct graph(s) from %d seeds" % [
+		distinct.size(), trials])
+	if distinct.size() < trials / 4:
+		problems.append(("%d seeds produced only %d distinct floors — a "
+			+ "generator that ignores its seed passes every determinism check "
+			+ "in this project, which is exactly why this row exists")
+			% [trials, distinct.size()])
+
+	# ─ 4. three floors of one expedition are three floors ─
+	var by_depth: Dictionary = {}
+	for depth: int in 3:
+		by_depth[MissionGraph.build(555, depth).digest()] = true
+	print("[graph] three floors %d distinct" % by_depth.size())
+	if by_depth.size() != 3:
+		problems.append(("one expedition produced %d distinct floors rather "
+			+ "than 3 — ADR-015 wants three, and descending into the same "
+			+ "room twice is the flatness `DES-015` opens by diagnosing")
+			% by_depth.size())
+
+	# ─ 5. the cycle is real, and the bypass avoids what it claims to ─
+	var sample: MissionGraph = MissionGraph.build(31337, 0)
+	var entrance: int = sample.node_with(MissionGraph.Role.ENTRANCE)
+	var shaft: int = sample.node_with(MissionGraph.Role.SHAFT)
+	var held: PackedInt32Array = PackedInt32Array()
+	for id: int in sample.size():
+		if sample.is_held(id):
+			held.append(id)
+	var quiet: PackedInt32Array = sample.reachable(entrance, held)
+	print("[graph] the loop     %d node(s), cycle=%s, bypass=%s, held=%d" % [
+		sample.size(), sample.has_cycle(), sample.has_bypass(), held.size()])
+	if not quiet.has(shaft):
+		problems.append("the bypass does not reach the Shaft without crossing "
+			+ "the held arm, so ADR-032's way round does not exist")
+	for id: int in held:
+		if quiet.has(id):
+			problems.append(("the bypass route passes through held node %d, "
+				+ "which means it is not a bypass") % id)
+			break
+
+	# ─ 6. the Prize is on the held arm, not the quiet one ─
+	var prize: int = sample.node_with(MissionGraph.Role.PRIZE)
+	print("[graph] the prize    node %d, held=%s" % [
+		prize, sample.is_held(prize)])
+	if not sample.is_held(prize):
+		problems.append("the Prize sits outside the held arm, so the greedy "
+			+ "line is also the safe one and the cycle costs nothing")
+
+	_report(problems, "graph")
 
 
 ## Print the world fingerprint and quit (`M1-T07`). Two processes given the
