@@ -486,8 +486,9 @@ In order, and each is a commit. **1–3 are done** (ADR-171):
 3. ~~The cycle catalogue, with a variety assertion that counts cycle
    *types*.~~ Done — five types, 372 digests and 5 classes from 400 seeds.
 4. ~~`RoomModule` as `.tres` (§5.2), then `DES-015` step 4.~~ Done (ADR-172) — 24 modules, 360 floors planned with 0 invalid, corpus coverage asserted.
-5. `WorldHash` wired to the generated floor, so `check_determinism.py` becomes a
-   cross-process guarantee rather than a check on six literal `AABB`s.
+5. ~~`WorldHash` wired to the generated floor, so `check_determinism.py`
+   becomes a cross-process guarantee rather than a check on six literal
+   `AABB`s.~~ Done (ADR-173), and it asserts both directions.
 6. Steps 5–7, then extended step 8 with §6's split.
 
 ---

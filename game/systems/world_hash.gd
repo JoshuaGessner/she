@@ -87,11 +87,22 @@ static func _walk(node: Node, rows: Array[String]) -> void:
 		_walk(child, rows)
 
 
-## A stable hex digest of the world under `root`.
-static func digest(root: Node) -> String:
+## A stable hex digest of the world under `root`, plus anything in `extra`.
+##
+## `extra` exists for the parts of a world that are **decided but not yet
+## built**. `M4-T01` generates a floor as data before it generates it as
+## geometry, and that data is precisely what `TEC-004` needs two machines to
+## agree about — the host sends a seed, every client builds the identical floor,
+## and a divergence is two players disagreeing about where a wall is. Hashing
+## only the scene tree would keep measuring the hand-authored rooms and call
+## that a determinism guarantee.
+static func digest(root: Node, extra: PackedStringArray = PackedStringArray()) -> String:
 	var context := HashingContext.new()
 	context.start(HashingContext.HASH_SHA256)
 	for row: String in entries(root):
+		context.update(row.to_utf8_buffer())
+		context.update("\n".to_utf8_buffer())
+	for row: String in extra:
 		context.update(row.to_utf8_buffer())
 		context.update("\n".to_utf8_buffer())
 	return context.finish().hex_encode()

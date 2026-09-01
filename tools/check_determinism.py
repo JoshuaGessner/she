@@ -32,7 +32,8 @@ GAME = ROOT / "game"
 SCENE = "res://levels/room_set/room_set.tscn"
 
 HASH_RE = re.compile(r"^\[hash\] ([0-9a-f]{64})$", re.MULTILINE)
-COUNT_RE = re.compile(r"^\[hash\] entries (\d+)$", re.MULTILINE)
+COUNT_RE = re.compile(r"^\[hash\] seed -?\d+, entries (\d+), generated (\d+)$",
+                      re.MULTILINE)
 
 GODOT_CANDIDATES = [
     "godot", "godot4",
@@ -86,16 +87,41 @@ def main() -> int:
         digests.append(digest)
         print(f"  run {i + 1}   {count:>4} entries   {digest[:16]}…")
 
-    if len(set(digests)) == 1:
-        print("\nDETERMINISTIC — every process agreed")
-        return 0
+    if len(set(digests)) != 1:
+        print(f"\nNON-DETERMINISTIC — {len(set(digests))} distinct hashes "
+              "from one seed", file=sys.stderr)
+        print("→ TEC-004: never consume a gameplay RNG stream from code whose "
+              "call order can vary, and prefer integer/grid maths where layout "
+              "is decided", file=sys.stderr)
+        return 1
 
-    print(f"\nNON-DETERMINISTIC — {len(set(digests))} distinct hashes from one seed",
-          file=sys.stderr)
-    print("→ TEC-004: never consume a gameplay RNG stream from code whose call "
-          "order can vary, and prefer integer/grid maths where layout is decided",
-          file=sys.stderr)
-    return 1
+    # ── and the other direction ──────────────────────────────────────────────
+    #
+    # Same seed, same world is half a guarantee, and it is the half that a
+    # generator ignoring its seed passes perfectly. This harness asserted only
+    # that half from M1-T07 until M4-T01, over six literal AABBs — so it proved
+    # the engine introduced no variance and could not prove anything about the
+    # generator (ADR-169). Both directions, always, in every stage added.
+    other = args.seed ^ 0x5DEECE66D
+    apart, _, output = build(godot, other)
+    if not apart:
+        print(f"\nseed {other} produced no hash — engine output follows:",
+              file=sys.stderr)
+        print(output, file=sys.stderr)
+        return 1
+    print(f"  seed {other}   {apart[:16]}…")
+
+    if apart == digests[0]:
+        print(f"\nSEED IGNORED — seeds {args.seed} and {other} built the same "
+              "world", file=sys.stderr)
+        print("→ a generator that ignores its input is perfectly deterministic "
+              "and completely useless; this is the half of TEC-004 that only "
+              "this row can see", file=sys.stderr)
+        return 1
+
+    print("\nDETERMINISTIC — every process agreed, and a different seed "
+          "built a different world")
+    return 0
 
 
 if __name__ == "__main__":

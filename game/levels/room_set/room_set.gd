@@ -463,6 +463,15 @@ func _ready() -> void:
 	# and assert what it does.
 	if not _probing:
 		_carry_the_stash_down()
+	# **Read the seed before acting on anything.** `check_determinism.py` passes
+	# `--hash --seed=N` in that order, so parsing the seed in the same pass that
+	# dispatches the switch would hash the floor for seed 0 every time — which
+	# is exactly the shape of the bug ADR-169 found here, where the seed was
+	# passed and nothing read it at all.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--seed="):
+			_run_seed = int(arg.split("=", true, 1)[1])
+
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
@@ -887,11 +896,35 @@ func _graph_probe() -> void:
 ## and compares. Waits for physics to settle first, because a body that has not
 ## finished resolving its first frame reports a position that is *nearly*
 ## right, which is exactly the kind of near-miss this must not tolerate.
+## The run seed the host would have sent (`TEC-001`: visible and shareable).
+## Zero when nobody passed one, which is a real seed and not a missing value.
+var _run_seed: int = 0
+
+
+## Every floor this seed generates, as rows for `WorldHash`.
+##
+## This is what makes `check_determinism.py` a **cross-process** guarantee
+## rather than a check that a constant is constant. It ran against six literal
+## `AABB`s from `M1-T07` until now, so it could prove the engine introduced no
+## variance and could not prove anything at all about the generator.
+func _generated_rows() -> PackedStringArray:
+	var rows := PackedStringArray()
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+	for depth: int in 3:
+		var graph: MissionGraph = MissionGraph.build(_run_seed, depth)
+		rows.append("graph %d %s" % [depth, graph.digest()])
+		rows.append("plan %d %s" % [
+			depth, FloorPlan.build(graph, _run_seed, depth, modules).digest()])
+	return rows
+
+
 func _print_hash() -> void:
 	for i: int in range(8):
 		await get_tree().physics_frame
-	print("[hash] entries %d" % WorldHash.entries(self).size())
-	print("[hash] %s" % WorldHash.digest(self))
+	var generated: PackedStringArray = _generated_rows()
+	print("[hash] seed %d, entries %d, generated %d" % [
+		_run_seed, WorldHash.entries(self).size(), generated.size()])
+	print("[hash] %s" % WorldHash.digest(self, generated))
 	get_tree().quit()
 
 

@@ -5180,5 +5180,43 @@ That is ADR-169's finding one layer down, and it now has the assertion that bite
 
 ---
 
+## ADR-173 — The determinism harness finally measures the generator
+
+**Date:** 2026-09-01 · **Status:** accepted · **Completes ADR-169's second half** · **`TEC-007` §11 item 5** · **`M4-T01` in progress**
+
+**Context:** `check_determinism.py` has run in CI since `M1-T07`. It generated the same seed in two processes, hashed the resulting world, and asserted the hashes matched. It passed every time, and until this change it could not have failed for any reason connected to the generator: `room_set.gd` never parsed `--seed=`, and the world it hashed was six literal `AABB`s in a `const`. The harness was asserting that a constant is constant.
+
+ADR-169 named this and fixed half of it, in `--graph-probe`, **inside one process**. The half that was still missing is the one `TEC-004` actually needs: the host sends a seed, every client builds the floor from it, geometry is never replicated, and a divergence is two players disagreeing about where a wall is. That is a claim about *separate processes*, and nothing was making it.
+
+### Decision 1 — the hash covers the floor that was decided, not only the one that was built
+
+`WorldHash.digest()` takes an `extra` array of rows alongside the scene tree, and `--hash` fills it with the graph and plan digests for all three floors of the given seed.
+
+`M4-T01` generates a floor as data before it generates it as geometry, and that data is exactly what two machines must agree about. Hashing only the scene tree would have kept measuring the hand-authored rooms and calling it a determinism guarantee until blockout geometry existed — which is months of the guarantee not existing while a green check says it does.
+
+### Decision 2 — the seed is read before any switch is dispatched
+
+`check_determinism.py` passes `--hash --seed=N` **in that order**. Parsing the seed in the same pass that dispatches switches would have hashed seed 0 every time, and the harness would have gone green while proving nothing — the identical shape to the bug ADR-169 found, in the code written to fix it. The seed now gets its own pass first.
+
+### Decision 3 — the harness asserts both directions, like the probe does
+
+Same seed → same world was the whole check. It is the half a generator that ignores its seed passes perfectly. `check_determinism.py` now also builds a second, unrelated seed and requires a **different** hash.
+
+Verified in both directions rather than assumed: seeds 111 and 222 produce different digests, two processes on one seed produce identical ones, and forcing `_run_seed = 0` makes the run fail with `SEED IGNORED` rather than pass.
+
+**Every stage added after this needs its own version of this row.** `--plan-probe` already found the same trap one layer down — its whole-pipeline variety row could not see a placer with a frozen stream, because the graph varied underneath it — and the pattern will keep recurring, because a stage that ignores its input is always perfectly deterministic.
+
+### What this costs
+
+Two extra process launches per CI run and one more seed's worth of generation. The harness went from proving the engine introduced no variance to proving the generator is bit-identical across processes, which is the guarantee `DES-015` and `TEC-004` both depend on and the one `TEC-007` §11 put fifth precisely so it would land before steps 5–7 were built on top of it.
+
+### Rejected
+
+- **Waiting for blockout geometry so `WorldHash` could see the floor in the scene tree.** The guarantee would not exist until then, and the check would stay green throughout — the worst combination available.
+- **A separate cross-process generator harness beside this one.** Two harnesses making overlapping claims, one of which would rot. This one already ran in CI and already had the process-launching machinery.
+- **Hashing the plan only, not the graph.** The graph is what the Hunt, the contracts and the Sealing will read. A desync in it would not show up in a plan digest that happened to match.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
