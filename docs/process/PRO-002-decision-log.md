@@ -5118,5 +5118,67 @@ Six assertions were planted before being believed: the seed-mix known answer, a 
 
 ---
 
+## ADR-172 — The floor is the mission, and a search budget fails like a constraint
+
+**Date:** 2026-09-01 · **Status:** accepted · **Implements `TEC-007` §5.2 (ADR-170)** · **`M4-T01` in progress**
+
+**Context:** ADR-169 deferred the `RoomModule` contract so the graph could state what it needed rather than have somebody guess. `DES-015` step 4 turns that graph into a space. The whole risk of the step is that the space stops being the graph — every guarantee the topology passed is about routes, and routes become geometry the moment geometry exists.
+
+### Decision 1 — rooms never touch, and connectivity is read back off the grid
+
+Rooms are seated one per cell of a coarse **lattice**, each rectangle inset inside its own cell, so two rooms **cannot** overlap or touch. Every graph edge is then routed as a corridor through the margins, and a corridor joins rooms **only at its two doors**.
+
+The alternative — let rooms share a wall and call the shared edge a link — cannot be made safe. Two rooms that are not graph-neighbours will end up flush during packing, and then either they are joined, which is a route ADR-032 never authorised, or they are not, and the level contains a wall indistinguishable from every other wall that happens to be the one the player cannot open. A mandatory gap makes accidental adjacency impossible instead of detectable.
+
+`problems()` then asserts it anyway, and asserts it **independently**: `realised_links()` reads which rooms each corridor joins off the grid, not from the graph that asked for it. That independence is the entire value. A corridor that clipped a third room shows up there and nowhere else.
+
+Adjacency turned out not to be connection, which cost a debugging pass: a corridor threading a gutter runs *past* three or four rooms and opens into exactly two. Links come from doors.
+
+### Decision 2 — corridors may cross, and may not merge
+
+A shared corridor cell would join four rooms where the graph joined two. Crossing at different heights does not: a **bridge** cell carries two routes and no doors, so the floor's shape changes and its meaning does not. Only a single, straight-running corridor may be bridged, square-on — there is nothing to be perpendicular to at a corner, and a cell carrying three routes is a junction nobody can build. Both are asserted.
+
+`DES-015` asks for this independently: *"shafts and chasms you can look down into and see the next floor, while traversal still happens via stairs."*
+
+**Measured, because "it helped once" is not a reason to keep a mechanism.** With crossings forbidden, 360 floors cost 458 re-rolls and one floor could not be laid out at all. With them, 4 re-rolls and none. Kept on that number.
+
+### Decision 3 — the search budget was the bug, and it did not look like one
+
+Placement failed on 82 of 360 floors. The message was *"no corridor could reach 5 from 4"*, which reads as a geometry failure, and it was diagnosed as one **twice**: first the lattice was too tight, then the graph was non-planar and needed a crossing mechanism. Widening the lattice from 12 to 15 made it **worse** — 6 invalid floors became 17 — and that was the tell, because a bigger grid costs more cells to search.
+
+The router's cell budget was 4000. It was giving up mid-search on the larger floors. At 24000 the same corpus and the same generator plan 360 floors with **zero failures and four re-rolls between them**, in 11 seconds rather than 77.
+
+Recorded as a decision because the lesson generalises past this constant: **a search budget that is too small fails like a constraint violation.** Nothing in the failure said "I ran out of room to look", and two plausible structural explanations fitted the evidence first. Bounded search wants a distinguishable exhaustion signal, and the next bounded search in this project should have one.
+
+Two of the three fixes were kept regardless — the crossing mechanism pays for itself on its own numbers, and the lattice went back to 12.
+
+### Decision 4 — the corpus is asserted to cover what the generator can ask for
+
+A node's role and link count are properties of the topology: several arms can rejoin the spine at one node, so a Shaft can be a five-way junction. Each time the vocabulary fell short the symptom was one unplaceable floor in a hundred and the diagnosis cost a probe run — twice.
+
+So `--plan-probe` asserts **coverage**: every `(role, links, held, depth)` the generator emits over 360 floors has a module that could serve it. 54 demands, 0 unserved. A corpus falling behind the generator now says so in one line instead of presenting as a rare placement failure.
+
+### Decision 5 — `RoomModule` carries only what step 4 consumes
+
+Volume profile, vista affordance and prop weighting are all named in `TEC-007` §5.2 and all **absent**. Steps 5–7 read them and steps 5–7 are not built. A field nothing reads is a dead name that `check_dead.py` cannot see, because a `.tres` mentions it — the ADR-098 gap with a data file standing in for a call site.
+
+Empty `roles` means **connective tissue only**, not "anything". A corridor must never stand in for the Guardian's chamber because nobody wrote down that it could not.
+
+### What the check caught that reading would not have
+
+The `seed matters` row — 120 distinct spaces from 120 seeds — **cannot detect a placer that ignores its own seed**, and looked like it could. The graph varies with the seed too, so a frozen placer stream still yields 115 distinct spaces from 120 and sails through. Found by planting it.
+
+That is ADR-169's finding one layer down, and it now has the assertion that bites: **one graph, sixty seeds, and the layouts must differ.** Every stage added after this one needs its own version of that row, because the whole-pipeline variety row will keep passing without it.
+
+### Rejected
+
+- **Sharing walls instead of a gap.** Decision 1.
+- **Forbidding crossings.** 458 re-rolls per 360 floors against 4, and a floor that could not be laid out.
+- **A wider lattice.** Tried, measured, worse.
+- **Deriving `realised_links()` from the routing record rather than the grid.** It would agree with the graph by construction and assert nothing.
+- **A simpler placer to fall back on when routing fails.** ADR-064. The floor is not offered rather than quietly made worse.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

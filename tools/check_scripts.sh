@@ -636,6 +636,25 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The floor** (`M4-T01`, `DES-015` step 4, ADR-170, ADR-172). The graph
+	# became a space, and the row no other check can make is that it is still
+	# the same space: connectivity is read back off the grid rather than taken
+	# from the graph that asked for it. A corridor that opened into a third
+	# room, or two rooms that ended up flush, would leave every topology
+	# assertion passing about a floor that no longer matches — and the ADR-032
+	# bypass is a claim about routes, so it becomes a claim about geometry the
+	# moment geometry exists.
+	#
+	# Also asserts what the corpus can serve, because the failure mode when it
+	# falls behind the generator is one unplaceable floor in a hundred.
+	plan="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 120000 \
+		levels/room_set/room_set.tscn -- --plan-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$plan" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the floor is the mission" >&2
+		printf '%s\n' "$plan" | grep -E '\[plan\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The mission graph** (`M4-T01`, `M4-T19`, `DES-015` step 3, ADR-169,
 	# ADR-170). The probe existed from the day the generator did and nothing
 	# ran it: ADR-169 describes it as the check that asserts determinism in
@@ -842,6 +861,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the Wing gets out quietly and every node it sells does something,"
 	echo "a build can be reconsidered and a keystone cannot,"
 	echo "every floor the generator can emit poses a question and reads its seed,"
+	echo "and the space built from it is still that floor,"
 echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"

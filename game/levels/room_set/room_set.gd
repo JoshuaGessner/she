@@ -528,6 +528,8 @@ func _ready() -> void:
 			_print_hash()
 		elif arg == "--graph-probe":
 			_graph_probe()
+		elif arg == "--plan-probe":
+			_plan_probe()
 		elif arg.begins_with("--coop-probe="):
 			_coop_probe(arg.split("=", true, 1)[1])
 
@@ -555,6 +557,174 @@ func _ready() -> void:
 ## every floor the generator can emit and a single sample proves nothing about
 ## a random process. Cheap: no scene, no navmesh, no meshes — the whole point
 ## of building topology first.
+## `DES-015` step 4 — the graph became a space, and is still the graph.
+##
+## The row no other check can make: **connectivity is read back off the grid**,
+## not taken from the graph that asked for it. `MissionGraph.problems()` proves
+## the topology poses a decision; this proves the floor built from it still
+## does. A corridor that clipped a third room, or two rooms that ended up
+## flush, would leave every graph assertion passing about a floor that no
+## longer matches — the ADR-032 bypass in particular, which is a claim about
+## routes and therefore about geometry the moment geometry exists.
+func _plan_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var trials: int = 120
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+
+	# ─ 1. the corpus loads at all ─
+	#
+	# ADR-086: the repo holds `.tres` and a shipped build does not. A catalogue
+	# that finds nothing does not crash — it generates floors with no rooms in
+	# them and passes every other row here.
+	print("[plan] corpus      %d module(s)" % modules.size())
+	if modules.size() < 8:
+		problems.append(("only %d room module(s) loaded — a generator with no "
+			+ "vocabulary emits empty floors and passes every other check")
+			% modules.size())
+		_report(problems, "plan")
+		return
+
+	var ids: Dictionary = {}
+	for module: RoomModule in modules:
+		if ids.has(String(module.id)):
+			problems.append("two modules answer to `%s`" % module.id)
+		ids[String(module.id)] = true
+
+	# ─ 1b. the corpus covers every demand the graph can make ─
+	#
+	# **The row that stops this being whack-a-mole.** A node's role and its link
+	# count are properties of the topology, not of the art: several arms can
+	# rejoin the spine at one node, so a Shaft can be a five-way junction. Each
+	# time the corpus fell short the symptom was one unplaceable floor in a
+	# hundred and the diagnosis took a probe run. This asserts the *coverage*
+	# instead — every (role, links, held, depth) the generator emits has a room
+	# it could be — so a corpus that falls behind the generator says so directly.
+	var demands: Dictionary = {}
+	for i: int in trials:
+		for depth: int in 3:
+			var graph: MissionGraph = MissionGraph.build(74000 + i, depth)
+			for node: int in graph.size():
+				demands[Vector4i(graph._role[node],
+					graph.neighbours(node).size(),
+					1 if graph.is_held(node) else 0, depth)] = true
+	var uncovered: PackedStringArray = PackedStringArray()
+	var wants: Array = demands.keys()
+	wants.sort()
+	for want: Vector4i in wants:
+		var served: bool = false
+		for module: RoomModule in modules:
+			if module.fits(want.x, want.y, want.z == 1, want.w):
+				served = true
+				break
+		if not served:
+			uncovered.append("role %d/%d link(s)%s on floor %d" % [
+				want.x, want.y, ", held" if want.z == 1 else "", want.w])
+	print("[plan] coverage    %d demand(s), %d unserved" % [
+		wants.size(), uncovered.size()])
+	if not uncovered.is_empty():
+		problems.append(("the graph asks for %d room(s) the corpus cannot "
+			+ "provide: %s") % [uncovered.size(), ", ".join(uncovered)])
+
+	# ─ 2. every floor the generator can emit lays out, and stays the graph ─
+	var broken: int = 0
+	var first_fault: String = ""
+	var rerolled: int = 0
+	for i: int in trials:
+		for depth: int in 3:
+			var graph: MissionGraph = MissionGraph.build(41000 + i, depth)
+			var plan: FloorPlan = FloorPlan.build(graph, 41000 + i, depth, modules)
+			rerolled += plan.rolls()
+			var faults: PackedStringArray = plan.problems()
+			if faults.is_empty():
+				continue
+			broken += 1
+			if first_fault == "":
+				first_fault = "seed %d floor %d: %s" % [
+					41000 + i, depth, " · ".join(faults)]
+	print("[plan] validity    %d floor(s) planned, %d invalid, %d re-roll(s)" % [
+		trials * 3, broken, rerolled])
+	if broken > 0:
+		problems.append(("%d of %d planned floors failed `DES-015` step 8 — "
+			+ "first: %s") % [broken, trials * 3, first_fault])
+
+	# ─ 3. same seed, same space; different seed, different space ─
+	#
+	# Both halves, for the reason ADR-169 gives: a placer that ignored its seed
+	# would satisfy the first and be useless.
+	var g: MissionGraph = MissionGraph.build(4242, 1)
+	var once: String = FloorPlan.build(g, 4242, 1, modules).digest()
+	var twice: String = FloorPlan.build(g, 4242, 1, modules).digest()
+	print("[plan] same seed   %s" % ("identical" if once == twice else "DIVERGED"))
+	if once != twice:
+		problems.append("one seed laid out two different floors — `TEC-004` "
+			+ "needs this bit-exact or two players disagree about a wall")
+
+	var shapes: Dictionary = {}
+	for i: int in trials:
+		var gg: MissionGraph = MissionGraph.build(52000 + i, 0)
+		shapes[FloorPlan.build(gg, 52000 + i, 0, modules).digest()] = true
+	print("[plan] seed matters %d distinct space(s) from %d seeds" % [
+		shapes.size(), trials])
+	if shapes.size() < trials / 2:
+		problems.append(("%d seeds produced only %d distinct spaces — a placer "
+			+ "that ignores its seed passes every determinism check there is")
+			% [trials, shapes.size()])
+
+	# ─ 3b. the *placer* reads its seed, with the graph held still ─
+	#
+	# **The row above cannot make this claim, and it looked like it could.**
+	# `seed matters` varies the run seed and watches the finished space change —
+	# but the graph changes too, so a placer whose own stream were frozen would
+	# still produce 115 distinct spaces from 120 seeds and sail through. That is
+	# ADR-169's finding exactly, one layer down: a stage that ignores its seed is
+	# perfectly deterministic and completely useless, and only an assertion that
+	# holds everything else still can see it.
+	#
+	# So: one graph, many seeds, and the layouts must differ.
+	var fixed: MissionGraph = MissionGraph.build(777, 0)
+	var layouts: Dictionary = {}
+	for i: int in 60:
+		layouts[FloorPlan.build(fixed, 90000 + i, 0, modules).digest()] = true
+	print("[plan] placer seed %d distinct layout(s) of one graph from 60 seeds"
+		% layouts.size())
+	if layouts.size() < 30:
+		problems.append(("one graph laid out only %d different ways in 60 seeds "
+			+ "— the placer is not reading its own stream, which every other "
+			+ "determinism row here would happily pass") % layouts.size())
+
+	# ─ 4. the vocabulary is used, not just present ─
+	#
+	# A module nothing ever picks is authored content that does not exist, and
+	# it reads as alive to `check_dead.py` because the `.tres` is on disk.
+	var used: Dictionary = {}
+	for i: int in trials:
+		for depth: int in 3:
+			var gg: MissionGraph = MissionGraph.build(63000 + i, depth)
+			var plan: FloorPlan = FloorPlan.build(gg, 63000 + i, depth, modules)
+			for node: int in gg.size():
+				used[String(plan.module_of(node))] = true
+	used.erase("")
+	print("[plan] vocabulary  %d of %d module(s) placed" % [
+		used.size(), modules.size()])
+	if used.size() != modules.size():
+		var idle: PackedStringArray = PackedStringArray()
+		for module: RoomModule in modules:
+			if not used.has(String(module.id)):
+				idle.append(String(module.id))
+		problems.append(("%d module(s) were never placed in %d floors: %s — "
+			+ "authored content nothing selects is content that does not exist")
+			% [idle.size(), trials * 3, ", ".join(idle)])
+
+	# ─ 5. one floor, described, so a person can read what came out ─
+	var shown: MissionGraph = MissionGraph.build(31337, 1)
+	var plan: FloorPlan = FloorPlan.build(shown, 31337, 1, modules)
+	print("[plan] the floor   %s: %d room(s), %d corridor cell(s), %d link(s)" % [
+		MissionGraph.cycle_name(shown.cycle()), plan.seated(),
+		plan.corridor_cells(), plan.realised_links().size()])
+
+	_report(problems, "plan")
+
+
 func _graph_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var trials: int = 400

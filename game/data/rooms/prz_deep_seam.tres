@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="RoomModule" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/generation/room_module.gd" id="1_room"]
+
+[resource]
+script = ExtResource("1_room")
+id = &"prz_deep_seam"
+footprint = Vector2i(4, 5)
+roles = PackedInt32Array(2)
+held_capable = true
+max_links = 2
+min_floor = 1
+max_floor = 2
