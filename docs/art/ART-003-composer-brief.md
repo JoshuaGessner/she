@@ -4,7 +4,7 @@ title: Composer & Sound Design Brief
 status: accepted
 owner: art
 tags: [audio, handoff, brief, music, sound-design, specs]
-updated: 2026-08-14
+updated: 2026-09-01
 related: [ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014]
 ---
 
@@ -204,4 +204,8 @@ This does **not** constrain what you make. It does mean: **if you invent a new a
 
 > Whether the Threshold theme should grow as the camp fills with survivors (`ART-002` Q88) — lovely, and nearly free if the stems exist.
 
-> Whether the three environments share any musical DNA, or are entirely separate voices. A shared interval or instrument across all three would tie the world together; total separation makes each descent feel like a different place.
+> **DECIDED (ADR-167 — Q93): one shared interval, no shared instrument.** Not the composer's call after all, because it is a question about whether the Deep is *one place*, and that is a design answer the brief should carry rather than a preference to be discovered.
+
+> The three environments get entirely separate instrumentation — the Delvings ring, the Barrow-Fields are dry and close, the Sunken Wood is wet and wrong — and **one interval in common**, present in all three and nowhere else in the game. It is not a melody and it is never stated plainly; it is the thing that makes the Barrows sound like somewhere under the same mountain as the Delvings rather than a different game's level.
+
+> The reason to decide it here is `DES-022`: the Deep is one antagonist with three faces, and total separation would make three antagonists. The reason to keep it to an interval rather than an instrument is that a shared *instrument* is recognisable, and recognisable is the opposite of what the Deep is for. **Closes Q93.**

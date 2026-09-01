@@ -4,7 +4,7 @@ title: The Gold-Sick — the Hunter
 status: accepted
 owner: design
 tags: [hunter, pressure, ai, theme, clamor, extraction]
-updated: 2026-08-16
+updated: 2026-09-01
 related: [DES-005, DES-013, DES-008, DES-014, DES-018]
 ---
 
@@ -139,8 +139,8 @@ It is the game's hero asset: the most animation, the most audio, the most AI att
 
 > **DECIDED (ADR-038):** **Yes, minimally and rarely.** Reuses ADR-027's existing death record plus one boolean; the Hunter spawns wearing that Bound's class silhouette and one distinguishing token. No gear reconstruction. Rare by design — if every Hunter is a dead friend it becomes cheap melodrama.
 
-> **OPEN (Q75):** Does killing one leave a **stave** you can bring back to the Threshold? Grim, cheap, and it would make the memorial wall include people you personally put down.
+> **DECIDED (ADR-166):** **Only when it was one of your Bound.** A stave per kill would be a kill counter wearing a memorial's clothes — staves for strangers, and the wall stops meaning anything. ADR-038 already makes the Hunter *rarely* a dead Bound wearing that person's class silhouette, and that rare case is exactly the one worth marking: the wall then reads *people I knew, and people I put down*, which is this document's thesis standing in the camp as an object. No new state — ADR-038's death record and boolean already carry it. **Closes Q75.**
 
 > **DECIDED (ADR-039):** **Proportional to carried value.** The richer you are, the more it takes to make a thrown purse more interesting than you — so baiting stays a real decision at every wealth level instead of a fixed toll that trivialises late runs.
 
-> **OPEN (Q77):** Does it ever speak? Leaning **no words, but recognisable human sounds** — breathing, effort, counting. Never dialogue; the moment it talks, the player is told rather than shown.
+> **DECIDED (ADR-166):** **Human sounds, never words.** Breathing, effort, counting — confirming the lean this question already carried. It was a person, and wordless human sound is how that gets *shown*; the moment it speaks, the player is told instead, and being told is what this document spends its length avoiding. Counting earns its place twice over: it is the sound of something searching methodically, so it is information as well as dread. **`DES-018`'s parity rule applies and is not free** — every audio channel needs a visual twin, so these need one too, or a muted build loses the one cue that says *it is working through the room rather than passing through it*. **Closes Q77.**

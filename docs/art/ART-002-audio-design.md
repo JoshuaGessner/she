@@ -4,7 +4,7 @@ title: Audio Design
 status: accepted
 owner: art
 tags: [audio, music, sound-design, clamor, godot, budget]
-updated: 2026-08-17
+updated: 2026-09-01
 related: [ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001]
 ---
 
@@ -127,6 +127,12 @@ Adaptive audio is a genuine specialism and this is a solo build, so priorities m
 
 > **DECIDED (ADR-050):** **Yes.** A fuller camp gets a fuller arrangement — nearly free once the stems exist, and it makes momentum audible as well as visible.
 
-> **OPEN (Q89):** Do the six classes have any audio identity — the Skald's Verse obviously, but do the others sound different to play? Probably footsteps and gear weight only; anything more competes with the Clamor read.
+> **DECIDED (ADR-167):** **Gear weight only, and it is not a flourish — it is the Clamor read.** The question's own instinct was right and undersold: a class does not get a *voice*, because the mix has one job during a run and that is telling you how loud **you** are. A Húskarl in mail and a Veiðimaðr in leather already differ in Clamor, so making them differ in sound is not decoration competing with the read — it *is* the read, arriving through the channel that already carries it.
 
-> **OPEN (Q90):** How does audio handle the **Vörðr** state (`DES-012`)? A ghost that hears everything and makes nothing is a real mix problem, and possibly a lovely one — the world going quiet around you.
+> So no class stingers, no per-class instrument, no signature layer. What differs is footstep material, gear rustle and swing weight, all of them **proportional to the Clamor the class actually generates**, so that learning the sound is learning the mechanic. The Skald's Verse (`DES-011`) is an ability with its own audio, which is a different thing from a class sounding different to walk around as. **Closes Q89.**
+
+> **DECIDED (ADR-167):** **You keep the world and lose yourself.** The Vörðr makes no sound — no footsteps, no gear, no Clamor, because `M3-T14` already says it cannot be heard and a body that makes noise nobody can react to would be a lie in the mix. But the world does *not* go quiet: the party stays at full presence, and the Hunt stays exactly as loud as it is.
+
+> The instinct in the question — *the world going quiet around you* — is the lovelier mix and the wrong one, because it makes death **restful**. `DES-012` wants a dead player still playing, still tense, still useful; muffling the room is how a game says *you may put the controller down*. The horror of the state is that you can hear the fight perfectly and contribute nothing to it.
+
+> One change only: your own channel drops out. That is legible without explanation — the absence is you — and it needs no visual twin under `DES-018`, because what is removed is the sound of a body the player can see is gone. **Closes Q90.**

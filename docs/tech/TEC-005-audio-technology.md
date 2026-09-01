@@ -4,7 +4,7 @@ title: Audio Technology
 status: accepted
 owner: tech
 tags: [audio, occlusion, middleware, godot, engine, risk]
-updated: 2026-08-17
+updated: 2026-09-01
 related: [ART-002, ART-003, TEC-001, TEC-004, DES-018]
 ---
 
@@ -115,4 +115,8 @@ Deciding now means guessing. Deciding at M1 means knowing.
 >
 > **If middleware is ever adopted, this document's own table points at Wwise for this project** — rooms-and-portals is native and matches the cell-based design (ADR-014), and it has official Godot support. Not decided; recorded so the next reader does not inherit "FMOD" as a default.
 
-> **OPEN (Q92):** Confirm FMOD indie licensing terms at the point of adoption. They change, and it affects whether middleware is free.
+> **DECIDED (ADR-167): this was never a design question, and it is now a precondition of `M4-T09`.** It asks for a third party's commercial terms *at a future date*, and the honest answer today is not a licence tier — it is that nobody should write one down here, because a term recorded now expires silently and is then believed.
+
+> ADR-050 already decided the thing that matters: **raw Godot first**, migrating to FMOD only when the musician is onboarded and their workflow becomes the deciding factor. So there is no adoption pending, no dependency taken, and nothing blocked on the answer.
+
+> The verification moves to where the adoption happens. `M4-T09` carries it as a precondition: **confirm current FMOD indie terms before a single bank enters the repo**, and if they have moved, `TEC-005`'s own table already names Wwise as the strong second choice. **Closes Q92.**

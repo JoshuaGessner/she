@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-08-15
+updated: 2026-09-01
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -203,9 +203,17 @@ Cheap to author, no texture work in Phase 1 or 2, and outline suppression is ess
 
 ## Open questions
 
-> **OPEN (Q97):** Does the ink colour shift with biome (bone-white in the Delvings, ochre in the Barrows), or stay constant so only the accent changes? Constant is more disciplined; shifting is more atmospheric.
+> **DECIDED (ADR-167):** **Constant.** The ink is the game's handwriting, and handwriting that changes per room is not a style, it is three styles.
 
-> **OPEN (Q98):** How hard is the transition between Threshold-white and Deep-black? A hard cut at the Descent is dramatic; a gradient down the first stair is more elegant. Leaning **hard cut** — crossing that threshold should feel like stepping into a different page.
+> The argument that settles it is not taste, it is `DES-018` and `ART-005`'s own reservation: **saturated colour is reserved for treasure**, and legibility is built on the reader knowing what a colour *means* before they know where they are. An ink that is bone-white in the Delvings and ochre in the Barrows spends the palette's discipline on atmosphere and then has nothing left to say *this is worth picking up* — in the one biome where ochre is also the ink.
+
+> Atmosphere comes from the accent, the light and the material response, all three of which are already per-biome. Nothing is lost except a temptation. **Closes Q97.**
+
+> **DECIDED (ADR-167):** **Hard cut**, confirming the lean. Crossing the Descent should feel like stepping onto a different page, and a gradient down the first stair converts a threshold into a corridor.
+
+> There is a systems argument underneath the aesthetic one, and it is the stronger of the two. `DES-014` builds the whole Threshold around a single irreversible gesture — walking away from the Lodge's fire — and `DES-005` makes leaving the decision the floor is about. A gradient makes the moment of commitment **unlocatable**: there is no frame at which the player crossed, so there is no frame they can regret. The hard cut gives the decision a timestamp.
+
+> It is also the cheaper of the two and the one that survives a loading transition, which the gradient does not. **Closes Q98.**
 
 > **OPEN (Q99):** Do *player characters* get heavier outlines than the world, so teammates read instantly in a cluttered room? Almost certainly yes, and it is nearly free.
 

@@ -4795,5 +4795,89 @@ This **serves ADR-061 rather than contradicting it.** That ADR cut `M4` from six
 
 ---
 
+## ADR-166 — What the Hunt is, and what it tells you
+
+**Date:** 2026-09-01 · **Status:** accepted · **Closes Q75, Q77, Q80** · **Feeds `M4-T16`**
+
+**Context:** `M4-T16` is enemy behaviour, and three questions about the Gullsjúkr and the Ear had been open since `DES-017` and `DES-018` were written. All three are load-bearing for it, and none of them could be answered by building — they are what the building is supposed to express.
+
+### Q75 — a stave only when it was somebody
+
+ADR-038 already makes the Hunter *rarely* a dead Bound, wearing that person's class silhouette and one distinguishing token, and it made it rare deliberately: *"if every Hunter is a dead friend it becomes cheap melodrama."*
+
+A stave per kill would undo that from the other end. It would be a **kill counter wearing a memorial's clothes** — staves for strangers, planted beside staves for people, and a wall that no longer distinguishes them. So the stave is only for ADR-038's case, which costs nothing to implement because the death record and the boolean already exist.
+
+What it buys is the document's own thesis standing in the camp as an object: the wall reads *people I knew, and people I put down*, and those are the same wall.
+
+### Q77 — human sounds, never words
+
+Confirming the lean `DES-017` already carried. It was a person; wordless human sound is how that is **shown**, and the moment it speaks the player is *told* instead — which is the thing this document spends its length avoiding.
+
+Counting earns its place twice: it is dread, and it is information — the sound of something working through a room methodically rather than passing through it.
+
+**With a cost that is not free.** `DES-018` requires every audio channel to have a visual twin, and from `M2` the build must be completable muted. So the vocalisations need one, or a muted player loses the cue that distinguishes a search from a transit. `M4-T16` carries that, not a later audio task, because the twin is a *behaviour* readout and not a decoration.
+
+### Q80 — coursing versus sighted, coarse bearing, never position
+
+The question reads as being about the Ear and is really about the **mix**: parity forces the Ear to show whatever the audio reveals, so deciding the Ear alone would have let the two drift apart, which is precisely the failure `DES-018` exists to prevent.
+
+Principle 4 discriminates. *"It had sighted me and I kept looting"* is a death explainable in one sentence. *"It was somewhere"* is not — and that sentence is what `GATE M4 EXIT` asks a stranger for.
+
+So the **state change** is revealed, because it is what makes `DES-005`'s stay-or-leave a decision. **Precise position is withheld**, because a position readout is a radar, and a radar converts the Hunt from a judgement into a reflex optimisation — which principle 3 puts second.
+
+The question's final clause is a task rather than a flourish: *confirm the mix isn't accidentally revealing more than intended*. `HuntMix` is computed once per frame and feeds both channels (ADR-090), so there is exactly one place to audit and one place to assert it. `M4-T16` carries that too.
+
+### What none of this decides
+
+Whether the Gullsjúkr is *killable* at all at a given rank is `DES-017`'s existing ⟨tune⟩ — *"not at low Pact Rank, and possibly never by force alone"*. Q75 answers what happens **if** you kill one, and deliberately does not reopen whether you can.
+
+---
+
+## ADR-167 — The six art questions, and three rows that were never questions
+
+**Date:** 2026-09-01 · **Status:** accepted · **Closes Q89, Q90, Q92, Q93, Q97, Q98** · **Schedules `M4-T17`, `M4-T18`**
+
+**Context:** `M4` could not start with twelve questions filed against it. ADR-166 answered the three the Hunt needed; these are the rest. Answering them all now was chosen deliberately over reclassifying them, and it turned out to be the better call — four of the six were decidable on principles already written down, and two of them were not questions at all.
+
+### Q89 — gear weight only, and that is the Clamor read
+
+The question's own instinct was right and undersold itself as *"probably footsteps and gear weight only"*. A class does not get a voice, because the mix has one job during a run: telling you how loud **you** are. A Húskarl in mail and a Veiðimaðr in leather already differ in Clamor — so making them differ in sound is not decoration competing with the read, it *is* the read arriving through the channel that carries it. Learning the sound is learning the mechanic.
+
+### Q90 — you keep the world and lose yourself
+
+The Vörðr makes no sound at all. But the world does **not** go quiet, and the question's lovely instinct is the wrong one: muffling the room makes death *restful*, and `DES-012` wants a dead player still playing, still tense, still useful. Going quiet is how a game says *you may put the controller down*. The horror of the state is hearing the fight perfectly and contributing nothing to it.
+
+Your own channel drops out and nothing else changes. No visual twin needed under `DES-018` — what is removed is the sound of a body the player can see is gone.
+
+### Q93 — one shared interval, no shared instrument
+
+Filed as *the composer's call*, and it is not: it asks whether the Deep is **one place**, which is a design answer the brief should carry rather than a preference to be discovered by whoever is hired.
+
+Separate instrumentation for all three environments, and one interval in common — present in all three, nowhere else in the game, never stated plainly. `DES-022` makes the Deep one antagonist with three faces; total separation would make three antagonists. An *instrument* in common would be recognisable, and recognisable is the opposite of what the Deep is for.
+
+### Q97 — constant ink
+
+The ink is the game's handwriting, and handwriting that changes per room is three styles. The argument that settles it is not taste: `ART-005` reserves saturated colour for treasure, and an ink that is ochre in the Barrows has nothing left to say *this is worth picking up* in the one biome where ochre is also the ink. Atmosphere comes from the accent, the light and the material response, all already per-biome.
+
+### Q98 — hard cut
+
+Confirming the lean, on a systems argument stronger than the aesthetic one. `DES-014` builds the Threshold around a single irreversible gesture and `DES-005` makes leaving the decision the floor is about. A gradient makes the moment of commitment **unlocatable** — no frame at which the player crossed, so no frame they can regret. The hard cut gives the decision a timestamp. It is also cheaper and survives a loading transition.
+
+### Q92 — never a design question
+
+It asks a third party for commercial terms *at a future date*. The honest answer is not a licence tier: it is that nobody should write one down here, because a term recorded now expires silently and is then believed. ADR-050 already decided the thing that mattered — raw Godot first, FMOD only when the musician's workflow becomes the deciding factor — so no adoption is pending and nothing is blocked. The verification moves to `M4-T09`, where the adoption happens.
+
+### And three rows that were never questions
+
+`OPEN-QUESTIONS.md` carried three unnumbered rows that blocked `M4` while being unanswerable **by shape**: none of them has an answer that fits in a sentence, because each is a piece of work.
+
+- **Onboarding / the first hour** already said in its own text *"scheduled as `M5-T05`"*. A scheduled task filed as an open question blocks a milestone twice and is addressable in neither place.
+- **Item & weapon taxonomy** is a document somebody writes — now `M4-T17`, in `M4·A`, because `M4-T02` and `M4-T03` both want a table of what exists to swing, wear and carry.
+- **A marketing plan** is `PRO-007`'s named failure mode — now `M4-T18`, in `M4·B`, tied to `M4-T08` by its own note that the devlog starts when the shader works.
+
+**The lesson is about the table, not the rows.** A question with no answer-shape is a task wearing a question's clothes, and it blocks work while being impossible to resolve — which is how all three sat untouched from the design lock to here.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

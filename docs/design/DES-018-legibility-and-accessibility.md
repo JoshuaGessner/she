@@ -4,7 +4,7 @@ title: Legibility & Accessibility
 status: accepted
 owner: design
 tags: [accessibility, ui, hud, audio, legibility, clamor]
-updated: 2026-08-17
+updated: 2026-09-01
 related: [DES-005, DES-013, DES-017, ART-001, PRO-005]
 ---
 
@@ -126,4 +126,10 @@ Still absent, deliberately: rumble, glyph-swapping prompt icons, and rebinding U
 
 > **DECIDED (ADR-039):** **Yes** — controller rumble as a third twin for Clamor and Hunter proximity. Cheap, and it helps players comfortable with neither of the other channels. It must never be the *only* carrier of anything.
 
-> **OPEN (Q80):** How much of the Hunter's *state* does the Ear reveal — bearing only, or coursing-versus-sighted too? Full parity with audio says everything the mix reveals. Confirm the mix isn't accidentally revealing more than intended.
+> **DECIDED (ADR-166):** **Coursing versus sighted, and coarse bearing — never precise position.** The question is really *what should the mix reveal*, because parity then forces the Ear to match it; answering the Ear alone would have let the two drift.
+
+> Principle 4 is the discriminator. *"It had sighted me and I kept looting"* is a death a player can explain in one sentence; *"it was somewhere"* is not, and that is the failure `GATE M4 EXIT` asks about. So the **state change** is revealed, because it is what makes the stay-or-leave decision (`DES-005`) a decision at all — and precise position is withheld, because a position readout is a radar, and a radar turns the Hunt into a stealth minigame optimised by reflex rather than judgement (principle 3).
+
+> Bearing stays **coarse** for the same reason: enough to run the right way, never enough to strafe around it.
+
+> This question's own last clause is a task, not a rhetorical flourish — *confirm the mix isn't accidentally revealing more than intended*. `HuntMix` is computed once per frame and feeds both channels, so it is a single place to audit and a single place to assert. `M4-T16` carries it. **Closes Q80.**
