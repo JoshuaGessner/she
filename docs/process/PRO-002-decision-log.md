@@ -4879,5 +4879,50 @@ It asks a third party for commercial terms *at a future date*. The honest answer
 
 ---
 
+## ADR-168 — What the Ear reveals, decided against the literature
+
+**Date:** 2026-09-01 · **Status:** accepted · **Sharpens ADR-166 (Q80)** · **Clarifies ADR-167 (Q90)**
+
+**Context:** ADR-166 answered Q80 from this project's own principles — reveal the state change, withhold the position. That reasoning stands, and it was asked to be checked against design practice, player psychology and the genre's track record before `M4-T16` is built on it. It was. **The conclusion did not move; its precision did**, and three specifics came back that the principles alone did not produce.
+
+### The evidence points both ways, and that is the useful part
+
+**Stealth practice says reveal more.** The design literature is consistent that enemies should traverse *named, discrete* awareness states — at ease, curious, searching, alerted — and that the player must be told which one is current, because it is what "keeps the player in control" and gives them the chance to disengage. Detection meters and visibility gems exist for this reason.
+
+**Horror psychology says reveal less.** Work on ambiguous threat finds that *spatial* and *temporal* uncertainty produce a distinctly anxious response, and that people faced with uncertain cues overestimate the probability of bad outcomes. The dread we want is manufactured by not knowing exactly where it is.
+
+**Alien: Isolation is the case study that reconciles them.** Its motion tracker is deliberately imprecise — it reports movement and rough direction, not identity, distance or intent — and the imprecision is the design rather than a limitation. It also *costs* something: the alien learns to listen for the tracker's beeps, so the instrument that keeps you safe is the one that gives you away.
+
+**And the genre supplies the failure mode.** Extraction shooters accumulate players posting variants of *"died out of nowhere, with no reason of death"* — Tarkov's forums carry them by the hundred — and the genre is widely described as one full of dead games. Principle 4 is not a stylistic preference in this genre; it is the churn mechanism.
+
+The synthesis: **reveal the state, withhold the position.** Which is where ADR-166 already was. What the literature adds is *how*.
+
+### The three sharpenings
+
+**1. Two discrete states, never a continuous meter.** Coursing and sighted, plus the absence of both. Discrete states are learnable and attributable; a continuous bar invites optimisation by nudging — creeping forward to watch a number tick — which is principle 3's failure mode wearing a progress bar. This is the specific thing the stealth literature is right about and it costs us nothing.
+
+**2. The transition is the event.** A readout you have to consult is a radar. A change that announces itself is a cue. The Ear marks the *moment* coursing becomes sighted, and that moment is the one a player remembers and can recount — which is exactly the sentence `GATE M4 EXIT` asks a stranger to produce.
+
+**3. Coarse bearing is quantised, not attenuated.** Eight wedges of 45° ⟨tune⟩. A smoothly-varying needle is a position readout with extra steps: given two seconds of watching it, a player can triangulate. Quantisation is what makes the imprecision *structural* rather than a matter of how carefully you stare.
+
+### The accessibility argument arrives at the same place
+
+Deaf-accessibility practice names awareness indicators — *warn the player when an enemy is about to spot them, and from which direction* — as a baseline expectation, alongside directional indicators for sound. `DES-018`'s parity rule and the genre's accessibility standard therefore converge: state plus coarse direction is simultaneously the tension-optimal read and the accessible one. It is worth recording that they agreed, because the cases where they disagree are the expensive ones.
+
+### Noted, not decided
+
+Alien: Isolation's tracker **costs** the player something, and this project already has the economy for that: ADR-040 makes the compass an item, and `DES-019` describes the map, lantern and compass as *"three tools that give you information, each of which costs you something to carry."*
+
+A carried instrument that sharpens the Hunter read — finer bearing, or range — would sit naturally in that economy and make information a thing you *equipped* rather than a thing the HUD gave you. **Not opened as a question and not scheduled**, because the free readout above has to be right on its own first, and because an instrument that improves it is only meaningful once there is something to improve. Recorded here so the idea is not re-derived from scratch at `M4-T13`, which is the task that already owns the instrument economy.
+
+### What `M4-T16` inherits
+
+- `HuntMix` computes both channels once per frame (ADR-090), so there is one place to assert what is revealed and one place for it to drift.
+- The assertion is a **negative** as much as a positive: the mix must reveal state and coarse bearing, **and not distance, and not a continuous value**. A probe that only checks the state is present would pass a build that shipped a radar.
+
+**Sources.** [Stealth game design principles](https://gamedesignskills.com/game-design/stealth/) · [Stealth AI states](https://www.gamedesigndiary.co.uk/post/design-stealth-part-2-ai-behaviours) · [Visibility Meter](https://tvtropes.org/pmwiki/pmwiki.php/Main/VisibilityMeter) · [The Underwood Project: eliciting ambiguous threat](https://pmc.ncbi.nlm.nih.gov/articles/PMC10700233/) · [Anticipation of uncertain threat](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6297831/) · [Alien: Isolation motion tracker](https://alienisolation.fandom.com/wiki/Motion_Tracker) · [Deaf accessibility in video games](https://www.gamedeveloper.com/audio/deaf-accessibility-in-video-games) · [Fortnite's sound visualiser](https://accessibility-labs.com/feature-highlight-fortnites-sound-visualizer/) · [Tarkov: "died out of nowhere"](https://forum.escapefromtarkov.com/topic/134336-was-running-to-an-extract-and-i-died-out-of-nowhere-with-no-reason-of-death/) · [Extraction shooters: a niche full of dead games](https://gaming.news/codex/extraction-shooters-explained-niche-genre-full-of-dead-games/)
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

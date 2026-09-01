@@ -130,6 +130,12 @@ Still absent, deliberately: rumble, glyph-swapping prompt icons, and rebinding U
 
 > Principle 4 is the discriminator. *"It had sighted me and I kept looting"* is a death a player can explain in one sentence; *"it was somewhere"* is not, and that is the failure `GATE M4 EXIT` asks about. So the **state change** is revealed, because it is what makes the stay-or-leave decision (`DES-005`) a decision at all — and precise position is withheld, because a position readout is a radar, and a radar turns the Hunt into a stealth minigame optimised by reflex rather than judgement (principle 3).
 
-> Bearing stays **coarse** for the same reason: enough to run the right way, never enough to strafe around it.
+> Bearing stays **coarse** for the same reason: enough to run the right way, never enough to strafe around it. **Eight wedges of 45°** ⟨tune⟩, quantised — a needle is a position readout with extra steps.
+
+> **Sharpened by ADR-168 against the literature.** Three specifics that the principles alone did not give:
+>
+> 1. **Two discrete states, never a continuous meter.** Stealth design practice moves enemies through *named* awareness states — at ease, curious, searching, alerted — precisely because discrete states are learnable and attributable. A continuous 0–1 bar invites optimisation by nudging, which is principle 3's failure mode wearing a progress bar. Ours are **coursing** and **sighted**, plus the absence of both.
+> 2. **The transition is the event, not the steady state.** A readout you consult is a radar; a change that announces itself is a cue. The Ear marks the *moment* coursing becomes sighted, and that moment is what the player remembers and can recount afterwards.
+> 3. **This is the accessibility floor, not a design luxury.** Deaf-accessibility practice names awareness indicators — *warn the player when an enemy is about to spot them, and from which direction* — as a baseline expectation. `DES-018`'s parity rule and the genre's accessibility standard arrive at the same readout from opposite directions.
 
 > This question's own last clause is a task, not a rhetorical flourish — *confirm the mix isn't accidentally revealing more than intended*. `HuntMix` is computed once per frame and feeds both channels, so it is a single place to audit and a single place to assert. `M4-T16` carries it. **Closes Q80.**
