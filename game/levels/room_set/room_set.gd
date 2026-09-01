@@ -575,10 +575,24 @@ func _ready() -> void:
 ## flush, would leave every graph assertion passing about a floor that no
 ## longer matches — the ADR-032 bypass in particular, which is a claim about
 ## routes and therefore about geometry the moment geometry exists.
+## Every kind of Prize the corpus can actually build. The roll draws from
+## this rather than a written-down list, so a history can never promise a Prize
+## no floor could hold.
+func _prize_kinds(modules: Array[RoomModule]) -> PackedStringArray:
+	var kinds: PackedStringArray = PackedStringArray()
+	for module: RoomModule in modules:
+		if module.prize_kind != &"" and not kinds.has(String(module.prize_kind)):
+			kinds.append(String(module.prize_kind))
+	kinds.sort()
+	return kinds
+
+
 func _plan_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var trials: int = 120
 	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
+	var kinds: PackedStringArray = _prize_kinds(modules)
 
 	# ─ 1. the corpus loads at all ─
 	#
@@ -599,6 +613,67 @@ func _plan_probe() -> void:
 			problems.append("two modules answer to `%s`" % module.id)
 		ids[String(module.id)] = true
 
+	# ─ 1a. the history rolls, reaches the architecture, and reads its seed ─
+	#
+	# `DES-015` Layer 2 is only worth its "absurd return on investment" if the
+	# roll actually changes what gets built. A Calamity that rolls and leaves
+	# the floor identical is set dressing, which is the failure the document
+	# opens by diagnosing in Dark and Darker.
+	print("[plan] calamities  %d authored, %d prize kind(s)" % [
+		calamities.size(), kinds.size()])
+	if calamities.size() < 3 or kinds.is_empty():
+		problems.append(("%d Calamity/Calamities and %d prize kind(s) — an "
+			+ "expedition that always has the same history has none")
+			% [calamities.size(), kinds.size()])
+		_report(problems, "plan")
+		return
+
+	var rolled: Dictionary = {}
+	for i: int in trials:
+		rolled[ExpeditionHistory.roll(31000 + i, calamities, kinds).digest()] = true
+	print("[plan] history     %d distinct history/histories from %d seeds" % [
+		rolled.size(), trials])
+	if rolled.size() < mini(trials / 4, calamities.size()):
+		problems.append(("%d seeds rolled only %d histories — a roll that "
+			+ "ignores its seed is perfectly deterministic and changes nothing")
+			% [trials, rolled.size()])
+
+	# **The row that makes Layer 2 real rather than decorative.** One graph,
+	# one placer seed, every Calamity in turn: the floors must differ. If they
+	# do not, the history rolled and never reached the architecture, and every
+	# other row here would still pass.
+	var fixed_graph: MissionGraph = MissionGraph.build(8800, 0)
+	var by_calamity: Dictionary = {}
+	for calamity: CalamityResource in calamities:
+		var forced := ExpeditionHistory.roll(0, [calamity], kinds)
+		# `module_digest()`, not `digest()`: the full digest folds in the
+		# history, so five Calamities would differ by their own names alone
+		# and this row could never fail. Found by planting it.
+		by_calamity[FloorPlan.build(fixed_graph, 8800, 0, modules,
+			forced).module_digest()] = true
+	print("[plan] bias        %d distinct floor(s) from %d Calamities on one graph"
+		% [by_calamity.size(), calamities.size()])
+	if by_calamity.size() < calamities.size():
+		problems.append(("%d Calamities produced only %d distinct floors from "
+			+ "one graph — the history is not reaching the architecture, which "
+			+ "is the whole of `DES-015` Layer 2") % [
+				calamities.size(), by_calamity.size()])
+
+	# Every Calamity needs rooms that answer to it, or its bias is a no-op that
+	# the row above would only catch by luck.
+	var thin: PackedStringArray = PackedStringArray()
+	for calamity: CalamityResource in calamities:
+		var forced := ExpeditionHistory.roll(0, [calamity], kinds)
+		var on_theme: int = 0
+		for module: RoomModule in modules:
+			if forced.favours(module):
+				on_theme += 1
+		if on_theme < 3:
+			thin.append("%s has %d" % [calamity.id, on_theme])
+	if not thin.is_empty():
+		problems.append(("a Calamity needs rooms that answer to it: %s"
+			% ", ".join(thin)))
+
 	# ─ 1b. the corpus covers every demand the graph can make ─
 	#
 	# **The row that stops this being whack-a-mole.** A node's role and its link
@@ -608,26 +683,42 @@ func _plan_probe() -> void:
 	# hundred and the diagnosis took a probe run. This asserts the *coverage*
 	# instead — every (role, links, held, depth) the generator emits has a room
 	# it could be — so a corpus that falls behind the generator says so directly.
+	# The Prize kind is part of the demand, because the history promises one and
+	# the placer will not substitute another. Leaving it out let a `vault` node
+	# with three corridors pass coverage and then fail placement — the exact
+	# class of failure this row exists to make loud, hiding inside this row.
 	var demands: Dictionary = {}
 	for i: int in trials:
 		for depth: int in 3:
 			var graph: MissionGraph = MissionGraph.build(74000 + i, depth)
 			for node: int in graph.size():
-				demands[Vector4i(graph._role[node],
+				var role: int = graph._role[node]
+				var shape: String = "%d/%d/%d/%d" % [role,
 					graph.neighbours(node).size(),
-					1 if graph.is_held(node) else 0, depth)] = true
+					1 if graph.is_held(node) else 0, depth]
+				if role == MissionGraph.Role.PRIZE:
+					for kind: String in kinds:
+						demands["%s/%s" % [shape, kind]] = true
+				else:
+					demands["%s/" % shape] = true
 	var uncovered: PackedStringArray = PackedStringArray()
 	var wants: Array = demands.keys()
 	wants.sort()
-	for want: Vector4i in wants:
+	for want: String in wants:
+		var bits: PackedStringArray = want.split("/")
 		var served: bool = false
 		for module: RoomModule in modules:
-			if module.fits(want.x, want.y, want.z == 1, want.w):
-				served = true
-				break
+			if not module.fits(int(bits[0]), int(bits[1]), bits[2] == "1",
+					int(bits[3])):
+				continue
+			if bits[4] != "" and String(module.prize_kind) != bits[4]:
+				continue
+			served = true
+			break
 		if not served:
-			uncovered.append("role %d/%d link(s)%s on floor %d" % [
-				want.x, want.y, ", held" if want.z == 1 else "", want.w])
+			uncovered.append("role %s/%s link(s)%s on floor %s%s" % [
+				bits[0], bits[1], ", held" if bits[2] == "1" else "", bits[3],
+				", %s" % bits[4] if bits[4] != "" else ""])
 	print("[plan] coverage    %d demand(s), %d unserved" % [
 		wants.size(), uncovered.size()])
 	if not uncovered.is_empty():
@@ -641,7 +732,8 @@ func _plan_probe() -> void:
 	for i: int in trials:
 		for depth: int in 3:
 			var graph: MissionGraph = MissionGraph.build(41000 + i, depth)
-			var plan: FloorPlan = FloorPlan.build(graph, 41000 + i, depth, modules)
+			var plan: FloorPlan = FloorPlan.build(graph, 41000 + i, depth, modules,
+				ExpeditionHistory.roll(41000 + i, calamities, kinds))
 			rerolled += plan.rolls()
 			var faults: PackedStringArray = plan.problems()
 			if faults.is_empty():
@@ -661,8 +753,9 @@ func _plan_probe() -> void:
 	# Both halves, for the reason ADR-169 gives: a placer that ignored its seed
 	# would satisfy the first and be useless.
 	var g: MissionGraph = MissionGraph.build(4242, 1)
-	var once: String = FloorPlan.build(g, 4242, 1, modules).digest()
-	var twice: String = FloorPlan.build(g, 4242, 1, modules).digest()
+	var lore := ExpeditionHistory.roll(4242, calamities, kinds)
+	var once: String = FloorPlan.build(g, 4242, 1, modules, lore).digest()
+	var twice: String = FloorPlan.build(g, 4242, 1, modules, lore).digest()
 	print("[plan] same seed   %s" % ("identical" if once == twice else "DIVERGED"))
 	if once != twice:
 		problems.append("one seed laid out two different floors — `TEC-004` "
@@ -671,7 +764,8 @@ func _plan_probe() -> void:
 	var shapes: Dictionary = {}
 	for i: int in trials:
 		var gg: MissionGraph = MissionGraph.build(52000 + i, 0)
-		shapes[FloorPlan.build(gg, 52000 + i, 0, modules).digest()] = true
+		shapes[FloorPlan.build(gg, 52000 + i, 0, modules,
+		ExpeditionHistory.roll(52000 + i, calamities, kinds)).digest()] = true
 	print("[plan] seed matters %d distinct space(s) from %d seeds" % [
 		shapes.size(), trials])
 	if shapes.size() < trials / 2:
@@ -693,7 +787,8 @@ func _plan_probe() -> void:
 	var fixed: MissionGraph = MissionGraph.build(777, 0)
 	var layouts: Dictionary = {}
 	for i: int in 60:
-		layouts[FloorPlan.build(fixed, 90000 + i, 0, modules).digest()] = true
+		layouts[FloorPlan.build(fixed, 90000 + i, 0, modules,
+			ExpeditionHistory.roll(777, calamities, kinds)).digest()] = true
 	print("[plan] placer seed %d distinct layout(s) of one graph from 60 seeds"
 		% layouts.size())
 	if layouts.size() < 30:
@@ -709,7 +804,8 @@ func _plan_probe() -> void:
 	for i: int in trials:
 		for depth: int in 3:
 			var gg: MissionGraph = MissionGraph.build(63000 + i, depth)
-			var plan: FloorPlan = FloorPlan.build(gg, 63000 + i, depth, modules)
+			var plan: FloorPlan = FloorPlan.build(gg, 63000 + i, depth, modules,
+				ExpeditionHistory.roll(63000 + i, calamities, kinds))
 			for node: int in gg.size():
 				used[String(plan.module_of(node))] = true
 	used.erase("")
@@ -726,10 +822,11 @@ func _plan_probe() -> void:
 
 	# ─ 5. one floor, described, so a person can read what came out ─
 	var shown: MissionGraph = MissionGraph.build(31337, 1)
-	var plan: FloorPlan = FloorPlan.build(shown, 31337, 1, modules)
-	print("[plan] the floor   %s: %d room(s), %d corridor cell(s), %d link(s)" % [
-		MissionGraph.cycle_name(shown.cycle()), plan.seated(),
-		plan.corridor_cells(), plan.realised_links().size()])
+	var lore2 := ExpeditionHistory.roll(31337, calamities, kinds)
+	var plan: FloorPlan = FloorPlan.build(shown, 31337, 1, modules, lore2)
+	print("[plan] the floor   %s under %s: %d room(s), %d corridor cell(s), %d link(s)"
+		% [MissionGraph.cycle_name(shown.cycle()), lore2.digest(), plan.seated(),
+			plan.corridor_cells(), plan.realised_links().size()])
 
 	_report(problems, "plan")
 
@@ -910,11 +1007,18 @@ var _run_seed: int = 0
 func _generated_rows() -> PackedStringArray:
 	var rows := PackedStringArray()
 	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var history := ExpeditionHistory.roll(_run_seed, CalamityCatalogue.all(),
+		_prize_kinds(modules))
+	# The history is hashed as well as the floors. Two machines that disagreed
+	# about what happened here would build rooms that differ before a single
+	# co-ordinate did, and `DES-015` Layer 2 is what makes the expedition an
+	# expedition rather than three floors.
+	rows.append("history %s" % history.digest())
 	for depth: int in 3:
 		var graph: MissionGraph = MissionGraph.build(_run_seed, depth)
 		rows.append("graph %d %s" % [depth, graph.digest()])
-		rows.append("plan %d %s" % [
-			depth, FloorPlan.build(graph, _run_seed, depth, modules).digest()])
+		rows.append("plan %d %s" % [depth,
+			FloorPlan.build(graph, _run_seed, depth, modules, history).digest()])
 	return rows
 
 

@@ -11,3 +11,5 @@ held_capable = false
 max_links = 2
 min_floor = 0
 max_floor = 2
+tags = Array[StringName]([&"burnt"])
+prize_kind = &""

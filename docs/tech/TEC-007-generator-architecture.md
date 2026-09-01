@@ -290,10 +290,10 @@ Mapped onto `DES-015`'s eight steps:
 
 | Step | Technique | Status |
 |---|---|---|
-| 1–2 | seed, expedition, rank; roll history | — |
+| 1–2 | seed, expedition, rank; roll history | Done (ADR-174) |
 | **3** | **Cycle-type catalogue applied by seeded graph rewriting** | Exists as a single hardcoded cycle; needs the catalogue (§4) |
 | **4** | **Integer-grid module placement, seeded backtracking over a sorted candidate list, socket-compatibility driven** | To build. Needs `RoomModule` |
-| 5 | History bias — depth-weighted prop/room tables | To build. Data, not code |
+| 5 | History bias — Calamity-weighted room tables | Done (ADR-174). Props await steps 6–7 |
 | 6 | Machines stamped into sockets (Brogue) | To build |
 | 7 | Population against the greed gradient | To build |
 | **8** | Construct-so-it-cannot-fail, then assert. **Bounded sub-graph re-roll, then loud failure** | Graph half exists; needs placement and navmesh halves |
@@ -489,7 +489,7 @@ In order, and each is a commit. **1–3 are done** (ADR-171):
 5. ~~`WorldHash` wired to the generated floor, so `check_determinism.py`
    becomes a cross-process guarantee rather than a check on six literal
    `AABB`s.~~ Done (ADR-173), and it asserts both directions.
-6. Steps 5–7, then extended step 8 with §6's split.
+6. Steps 2 and 5 done (ADR-174) — the history rolls and reaches the architecture. **Steps 6 and 7 remain**: machines stamped into sockets, and population against the greed gradient. Then extended step 8 with §6's split.
 
 ---
 

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="CalamityResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/generation/calamity_resource.gd" id="1_cal"]
+
+[resource]
+script = ExtResource("1_cal")
+id = &"cal_the_waking"
+name_key = &"calamity.cal_the_waking.name"
+tags = Array[StringName]([&"deepworks", &"burnt"])

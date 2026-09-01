@@ -69,6 +69,15 @@ const LATTICE: int = 12
 ## Largest footprint a module may declare. Asserted, so an over-large `.tres`
 ## fails the build instead of silently overlapping its neighbour.
 const MAX_FOOTPRINT: int = 5
+## How many times an on-theme module is entered in the candidate list against
+## a neutral one's single entry (`DES-015` step 5) ⟨tune⟩.
+##
+## Weighted rather than filtered, deliberately. Restricting a floor to modules
+## that match the Calamity would make every room of an expedition say the same
+## thing, and `DES-015` Layer 2's payoff is a floor you can *read*, not one that
+## shouts. Neutral rooms are the quiet between the evidence.
+const THEME_WEIGHT: int = 4
+
 ## Whole-plan re-rolls before the generator gives up (`TEC-007` §5.3 rule 6).
 ##
 ## Each re-roll draws a fresh lattice embedding and a fresh routing order, so it
@@ -96,6 +105,7 @@ const MAX_ROUTE: int = 24000
 const LATTICE_REACH: int = 3
 
 var _graph: MissionGraph = null
+var _history: ExpeditionHistory = null
 var _floor_index: int = 0
 ## Per node: the module standing in for it, `null` until seated.
 var _mods: Array[RoomModule] = []
@@ -128,9 +138,11 @@ static func _sub_seed(run_seed: int, floor_index: int, attempt: int) -> int:
 ## Lay `graph` out. `modules` is normally `RoomCatalogue.all()`; it is a
 ## parameter so a probe can pin a corpus rather than depend on what is on disk.
 static func build(graph: MissionGraph, run_seed: int, floor_index: int,
-		modules: Array[RoomModule]) -> FloorPlan:
+		modules: Array[RoomModule],
+		history: ExpeditionHistory = null) -> FloorPlan:
 	var plan := FloorPlan.new()
 	plan._graph = graph
+	plan._history = history
 	plan._floor_index = floor_index
 	for attempt: int in MAX_ROLLS:
 		plan._reset()
@@ -235,13 +247,25 @@ func _seat_rooms(rng: RandomNumberGenerator, order: PackedInt32Array,
 		var role: int = _graph._role[node]
 		var links: int = _graph.neighbours(node).size()
 		var held: bool = _graph.is_held(node)
+		# Structural fit first, then what the history promised, then the
+		# weighting that makes the Calamity legible (`DES-015` step 5).
+		var wanted: StringName = &""
+		if _history != null and role == MissionGraph.Role.PRIZE:
+			wanted = _history.prize_kind()
 		var options: Array[RoomModule] = []
 		for module: RoomModule in modules:
-			if module.fits(role, links, held, _floor_index):
-				options.append(module)
+			if not module.fits(role, links, held, _floor_index):
+				continue
+			if wanted != &"" and module.prize_kind != wanted:
+				continue
+			options.append(module)
+			if _history != null and _history.favours(module):
+				for extra: int in THEME_WEIGHT - 1:
+					options.append(module)
 		if options.is_empty():
-			_failure = ("no module can serve node %d (role %d, %d link(s)%s)"
-				% [node, role, links, ", held" if held else ""])
+			_failure = ("no module can serve node %d (role %d, %d link(s)%s%s)"
+				% [node, role, links, ", held" if held else "",
+					", %s" % wanted if wanted != &"" else ""])
 			return false
 		var module: RoomModule = options[rng.randi_range(0, options.size() - 1)]
 		var span: Vector2i = module.footprint
@@ -541,10 +565,27 @@ func problems() -> PackedStringArray:
 	return found
 
 
+## Which module stands at each node, and nothing else.
+##
+## Separate from `digest()` on purpose. `digest()` folds in the history, because
+## two machines must agree about what happened here before they build a room
+## from it — which makes it useless for asking *whether the history changed the
+## rooms*, since the label alone would make two floors differ. That question is
+## the whole of `DES-015` Layer 2 and it needs a fingerprint of the architecture
+## with no history written on it.
+func module_digest() -> String:
+	var parts := PackedStringArray()
+	for node: int in _graph.size():
+		parts.append("%d:%s" % [node, module_of(node)])
+	return "|".join(parts)
+
+
 ## A stable fingerprint of the *space*, for `--plan-probe` and for the day this
 ## feeds `WorldHash` across processes.
 func digest() -> String:
 	var parts := PackedStringArray()
+	if _history != null:
+		parts.append("h%s" % _history.digest())
 	for node: int in _graph.size():
 		var rect: Rect2i = _rect[node]
 		parts.append("%d:%s@%d,%d+%d,%d" % [node, module_of(node),

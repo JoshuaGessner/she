@@ -11,3 +11,5 @@ held_capable = true
 max_links = 8
 min_floor = 0
 max_floor = 2
+tags = Array[StringName]([&"deepworks"])
+prize_kind = &""

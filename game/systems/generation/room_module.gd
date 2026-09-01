@@ -47,6 +47,20 @@ extends Resource
 ## this says whether the module can take them.
 @export var max_links: int = 4
 
+@export_group("History")
+## Room flavours this module carries, matched against the Calamity's own tags
+## (`DES-015` Layer 2). A module sharing a tag with what happened here is
+## weighted up when the floor is built.
+##
+## **Empty is the common case and is not a gap.** A neutral module can appear
+## under any Calamity, and it is what stops a floor reading as a single note
+## repeated fourteen times.
+@export var tags: Array[StringName] = []
+## Which kind of Prize this module can hold — `DES-015` Layer 2 rolls one per
+## expedition, and the room the player finally walks into has to be the one the
+## history promised. Empty on everything that is not a Prize room.
+@export var prize_kind: StringName = &""
+
 @export_group("Depth")
 ## Floors this module is legal on, inclusive. `DES-015` Layer 2 reads the
 ## disaster backward as you descend, so a module can belong to the Aftermath
@@ -85,6 +99,14 @@ func validate() -> PackedStringArray:
 	if held_capable and max_links < 2:
 		problems.append(("`%s` can hold danger but takes one corridor — the "
 			+ "held arm is a span and a dead end cannot be one") % id)
+	var serves_prize: bool = roles.has(MissionGraph.Role.PRIZE)
+	if serves_prize and prize_kind == &"":
+		problems.append(("`%s` can be the Prize but names no kind, so the "
+			+ "history could promise a barrow and the player walk into a "
+			+ "vault") % id)
+	if prize_kind != &"" and not serves_prize:
+		problems.append("`%s` names a Prize kind but cannot serve the Prize"
+			% id)
 	return problems
 
 

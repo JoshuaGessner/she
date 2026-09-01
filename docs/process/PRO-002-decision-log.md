@@ -5218,5 +5218,62 @@ Two extra process launches per CI run and one more seed's worth of generation. T
 
 ---
 
+## ADR-174 — The history reaches the architecture, and two rows that could not fail
+
+**Date:** 2026-09-01 · **Status:** accepted · **`DES-015` steps 2 and 5** · **`TEC-007` §11 item 6, in part** · **`M4-T01` in progress**
+
+**Context:** `DES-015` Layer 2 is the cheapest thing in the whole design — *"generate the history first, then generate the space to express it"*, costed at *"a weighted prop/room table keyed on depth"* and called an absurd return on investment. It is also the layer that decides whether a floor is a place where something happened or a set of rooms. This builds it: the roll (step 2) and the bias it puts on what gets built (step 5).
+
+### Decision 1 — the Calamity expresses itself as tags a room can carry
+
+A `CalamityResource` names room *flavours* rather than text. Five are authored for the Delvings — the deepening, the drowning, the sealing, the turning, the waking — and per ADR-018 they are variations on one story rather than unrelated disasters: the Dvergar mined the seam her hoard grew from and then they kept mining, and what differs is how that ended.
+
+Room modules carry matching tags, and a module sharing a tag with the rolled Calamity is **weighted up** rather than exclusively selected. Filtering would make every room of an expedition say the same thing; `DES-015`'s payoff is a floor you can read, not one that shouts. Neutral rooms — the majority, and not a gap — are the quiet between the evidence.
+
+The Prize is a harder constraint: the history promises a vault or a barrow, and the room the player finally walks into has to be the one promised, so the Prize node's module must declare the rolled kind.
+
+**What is not built:** the legibility rule — *the Calamity readable within 30 seconds of arriving* — is a claim about what a room looks like, and there is no art. It is an obligation on the `M4·B` art pass, not something this layer can assert.
+
+### Decision 2 — the Claimant is rolled before anything reads it, and has no accessor
+
+The Calamity and the Prize both have readers. The Claimant does not: who holds the Prize becomes visible through enemies, and enemies are `M4-T02`.
+
+It is rolled anyway, for **seed stability**. `TEC-001` calls the run seed's shareability non-negotiable, and adding a third draw to this stream later would shift every subsequent value and silently repurpose every seed anybody had written down. One value now fixes the stream's shape.
+
+`check_dead.py` then refused a `claimant()` accessor, and was right to — a getter nothing calls is a name that reads as alive and answers no question. The value is rolled, hashed and agreed across processes; the getter arrives with the enemies that read it. That is the distinction ADR-064 draws between *absent* and *stubbed*, holding at the level of a single function.
+
+### The two rows that could not fail, both found by planting
+
+**The bias row was comparing labels, not floors.** It builds one graph and lays it out under every Calamity in turn, requiring the results to differ. It used `FloorPlan.digest()` — which folds in the history, because two machines must agree about what happened here before they build a room from it. So five Calamities differed by their own names and the row passed with `favours()` hard-wired to `false`. It now uses a `module_digest()` that carries the architecture and no history, and fails correctly.
+
+**The coverage row was missing a dimension.** ADR-172 added it precisely so a corpus falling behind the generator would say so in one line instead of presenting as a rare unplaceable floor. It keyed on `(role, links, held, depth)` and not the Prize kind — so a `vault` node with three corridors passed coverage and then failed placement, 22 floors in 360. **The class of failure that row exists to make loud was hiding inside that row.** Coverage now includes the kind: 72 demands, 0 unserved.
+
+Both are the same mistake in different clothes: an assertion whose subject is not quite the thing it claims to be about. This is now the third instance in `M4-T01` — after the graph variety row counting digests rather than shapes (ADR-170) and the plan variety row that could not see a frozen placer stream (ADR-172) — and the pattern is worth stating plainly:
+
+> **An assertion built from a convenient existing value tends to measure that value, not the property.** Ask what the row would say if the feature were deleted, then delete it and check.
+
+### Measured
+
+```
+[plan] calamities  5 authored, 4 prize kind(s)
+[plan] history     61 distinct history/histories from 120 seeds
+[plan] bias        5 distinct floor(s) from 5 Calamities on one graph
+[plan] coverage    72 demand(s), 0 unserved
+[plan] validity    360 floor(s) planned, 0 invalid, 2 re-roll(s)
+[plan] the floor   foldback under cal_the_drowning/seam/dvergar_remnant:
+                   12 room(s), 182 corridor cell(s), 13 link(s)
+```
+
+Four assertions planted: a roll that ignores its seed, a Calamity that never reaches the rooms, no authored Calamities at all, and a Calamity with no rooms that answer to it. The history is folded into `WorldHash`, so two machines must agree on it before they build.
+
+### Rejected
+
+- **Filtering to on-theme modules instead of weighting them.** Every room saying the same thing is the flatness `DES-015` opens by diagnosing.
+- **Rolling the Claimant later, when enemies exist.** Every logged seed would change meaning.
+- **Keeping a `claimant()` accessor "for when it is needed".** That is the shape of every dead name ADR-098 was written about.
+- **Asserting the 30-second legibility rule now.** It is about what a room looks like, and there is no art. Naming it as an `M4·B` obligation is honest; asserting it against blockout would be a check that means nothing.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
