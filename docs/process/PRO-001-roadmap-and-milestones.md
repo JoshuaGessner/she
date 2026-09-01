@@ -170,22 +170,19 @@ The most common way a project like this dies is building the meta-progression fi
 
 - [x] `M3-T42` **The pile that asked for nothing** — *ADR-164. Reported from play: *"there was no UI pop up or cue for talking with the dragon in the treasure room."* Exactly right, and worse than it sounds — the Chamber's pile is the only way into the Pact tree, which is the whole of `DES-003` and the spine of `M3-T01`, and **it announced itself nowhere**. No prompt, no highlight, and a corner readout whose line naming the verb only appears once `boon > 0` — which is never true on a first life, so the one player who does not know the pile is interactive is precisely the one told nothing. **Nothing here could have caught it**: every row in `--lair-probe` reaches the tree by calling `_open_the_pact` or by dropping through `ask_to_drop_instance`, so all of them passed in a room that spoke to nobody standing in it. `M2-T18`'s lesson in a second room — the rules were all correct and no player could reach them. Fixed through `Reticle`, which every scene already builds and which `DES-019` Layer 5 already owns, rather than a second prompt widget beside it (ADR-064): a level sets a standing offer, the reticle draws it, the Shaft still speaks first and a fixture the room is offering outranks a coin on the floor. Three plants, each failing by name — silent, sticky, and a prompt that does not name the verb* → DES-019, DES-003, DES-014
 
-> **GATE M3 EXIT** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
+> **GATE M3 EXIT** `pending` — **one life ends and the next is visibly a consequence of it.** The Tithe is paid, an aspect is bought at the pile, and the player can say in one sentence what the pact cost them.
 >
-> **And first, the stranger session M2 did not spend** (ADR-115). Three testers × three runs, no coaching beyond the in-game control list, diagnostic overlay off. Asked **before** the rank comparison, because a wayfinding failure found late is buried under everything built on top of it — and asked *here* because by now there are classes, a Tithe and ranks to be strange about:
-> - a first-time tester reaches an exit having entered **≤4 of the 6 rooms**. Fails ⇒ wayfinding, not pressure.
-> - asked mid-run *"how much noise are you making?"*, they answer roughly right. Fails ⇒ the Ear, or clamor legibility.
-> - asked after a death, they explain it in **one sentence** (principle 4). Fails ⇒ combat readability or damage feedback.
-> - they discover they can drop loot **without being told**. Fails ⇒ the control list, or the bag.
+> **Restated by ADR-165**, because the gate this replaces asked a question `M3` cannot answer. *"A rank-8 and a rank-1 player die at similar rates for different reasons"* needs two different reasons to exist, and every enemy on the floor still shares one stat line — the comparison has nothing to compare. It has moved to `M4`, where `M4-T16` and `M4-T02` build the difference it is about.
+>
+> **This is what `M3` actually claims.** The milestone is called The Pact: `DES-003`'s coupling of what you hand over to what you may become, and whether that coupling is *legible to the person doing it*. That is answerable on the current build, solo, in one sitting.
+>
+> **Protocol.** One session, solo, no coaching. Play until a life ends, then keep playing.
+> - the run resolves and the loss is legible — the player can say what she kept and what they kept. Fails ⇒ `DES-003`'s presentation, not its economy.
+> - the Tithe's demand is findable without being told where to look. Fails ⇒ the Chamber readout.
+> - a first life reaches the Pact tree **without coaching** (`M3-T42`). Fails ⇒ the pile's cue, which had no answer at all before ADR-164.
+> - the next life is different in a way the player names unprompted. Fails ⇒ the Aspects are a menu rather than a pact, and `DES-022`'s whole model is decorative.
 
-> **GATE M3 COOP** `pending` — a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
->
-> **Protocol.** Two machines, remote, not two windows on one desk — `M2-T12` found five faults that only exist over a real connection. One run where a death is allowed to happen rather than staged.
->
-> **Preconditions, inherited from `GATE M2 COOP` by ADR-115:**
-> - the surviving player notices the ember **without being told it exists**. Fails ⇒ the ember's presentation, not the rescue design.
-> - they can say what carrying it costs them — squares, weight, or noise. Fails ⇒ `DES-012`'s sacrifice is invisible, and a sacrifice nobody can feel is not one.
-> - the downed player can tell what is happening to them while down. Fails ⇒ the Vörðr readout (`M3-T09`), which is the first build in which this question has an answer at all.
+> **The stranger session moves to `M4` (ADR-165)** — for the second time, on ADR-115's own argument. ADR-115 moved it out of `M2` because *"a first-time player is not a renewable resource, and spending one here spends them on six grey rooms"*. It is still those six grey rooms: `M4-T01` replaces the Deep entirely with the Delvings, so wayfinding tested here is wayfinding against a level that is about to be deleted. Same sentence, same reason, one milestone later.
 
 ## M4 — Vertical Slice  ·  *largest; art and audio dominate*
 
@@ -194,22 +191,67 @@ The most common way a project like this dies is building the meta-progression fi
 > **M4 ships two classes, not six.** All six remain required *for launch* (ADR-012 — they are available from the start), but they move to **M5**. The slice's job is to prove the game is worth finishing; class breadth is what you build once you know it is.
 <!-- milestone id=M4 depends=M3 size=unknown -->
 **Goal:** one biome, complete and polished, representative of the final game.
+
+> **RESEQUENCED (ADR-165).** The tasks below are unchanged; their **order** is not. `M4` mixes the systems that make a run worth playing with the presentation that makes it worth looking at, and the original order interleaved them — so the polish would have been applied to a game whose combat was one enemy behaviour and whose level was six grey rooms. Raised from play: *"the gameplay feels a little stale still and AI will have to be greatly worked on."*
+>
+> **`M4·A` is depth at blockout fidelity; `M4·B` is everything that makes it look and sound like a product.** This serves ADR-061 rather than contradicting it: that ADR cut breadth so we would learn whether the game is good *sooner*, and depth-first is how that is learned — polishing a shallow slice tells you how a shallow slice looks.
+>
+> **The gates `M3` could not ask are asked here**, between the two, where floors and enemies exist to make them mean something.
+
+### M4·A — Depth  ·  *blockout fidelity, no art pass*
+
 - [ ] `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* → DES-015, DES-006, DES-017, DES-005
+
 - [ ] `M4-T16` **Enemy behaviour, before enemy variety** — *`M4-T02` is "~6 enemy archetypes, 2 hazard types", and **nothing on this roadmap, in any milestone, is about how an enemy behaves.** Raised from play — *"the gameplay feels a little stale still and AI will have to be greatly worked on"* — and the ordering is the point: six archetypes built on one behaviour is six ways to meet the same fight, which is content rather than systems (principle 5) and fails ADR-058's test outright, since a new silhouette on the same behaviour is a bigger number wearing a face. Principle 3 is the specification: **a fight has to be a decision**, and today it is a swing timed against a telegraph. What is absent and load-bearing: enemies that commit to an attack and can be punished for it, that use the floor's geometry rather than walking through it, that react to clamor as a *group* rather than each alone (`DES-013`'s Ear is a systemic input nothing reads socially), and that give the player a reason to disengage — `DES-002` wants "do I take this fight" to be live, and it cannot be while every fight is winnable by standing still. **Before `M4-T02`**, so the six archetypes are variations on something worth varying* → DES-013, DES-002, DES-009
 
 - [ ] `M4-T02` ~6 enemy archetypes, 2 hazard types → DES-013
-- [ ] `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* → DES-011
+
 - [ ] `M4-T04` Contracts tier 1–3, one faction (`DES-007`) — *the board hangs in the Threshold, which `M2-T06` built as a fire and a doorway* → DES-007, DES-014
-- [ ] `M4-T05` Real art pass, real audio, real UI, ping system → ART-001, ART-002, DES-019, DES-012
-- [ ] `M4-T06` **Save/load surfaced, settings, controls rebinding** — *narrowed by ADR-116. It read "full save/load", which stopped being true when ADR-109 moved the save system to `M3-T06`: the format, the versioning, the migrations and the write policy are built there and grow a version per `M3` task. What is left here is the part a **player** touches — profile management, and what a build does with a save from a newer build than itself — plus settings and rebinding. Two tasks reading "save/load" is how one of them gets built twice or neither gets built* → TEC-003, DES-018
-- [ ] `M4-T11` **The accessibility suite** — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. *Split out of `M4-T06` by ADR-077: "settings" was standing in for a dozen deliverables, several of which are architectural constraints rather than options* → DES-018
-- [ ] `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest → TEC-004
-- [ ] `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library → ART-005
-- [ ] `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key → ART-003
-- [ ] `M4-T12` **Audio occlusion and reverb zones** — raycast → lerp `attenuation_filter_cutoff_hz`, and `Area3D` reverb driven by the player's current cell. *Split out by ADR-099: `M2-T03` and `M2-T09` built the adaptive driver, and `TEC-005` was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by `ART-002`'s own costing, and **portal propagation is for the Gullsjúkr only**, never a general system* → TEC-005, ART-002, DES-015
+
 - [ ] `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* → ART-001, ART-005, DES-008
-- [ ] `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs → ART-004
+
 - [ ] `M4-T14` **The Scar** — *`DES-012` §3 charges a rescued life a Scar alongside losing the run and the carried loot, and `M3-T33` implemented the other two-thirds of that sentence because there is no Scar system to implement. Absent rather than stubbed (ADR-064, ADR-154): a state with no rules, no display and no consequence would be present only so a doc reads as done. Needs a decision first — what a Scar **costs**, whether it stacks, and whether it is visible to the party, since `DES-012` makes rescue a social act and a hidden penalty is one the rescuer cannot weigh* → DES-012, PRO-005
+
+- [ ] `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* → DES-011
+
+### The gates `M3` could not ask
+
+> **GATE M4 COOP** `pending` — a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
+>
+> **Moved from `M3` by ADR-165**, unchanged in wording. A rank-8 floor that a newcomer can be repeatedly downed on needs enemies that differ by rank, and until `M4-T16` and `M4-T02` there is one behaviour and one stat line — so the floor the gate names could be built and the *experience* it asks about could not.
+>
+> **Protocol.** Two machines, remote, not two windows on one desk — `M2-T12` found five faults that only exist over a real connection. One run where a death is allowed to happen rather than staged. Note this is the one gate ADR-159's *one machine, one running copy* cannot cover.
+>
+> **Preconditions, inherited from `GATE M2 COOP` by ADR-115:**
+> - the surviving player notices the ember **without being told it exists**. Fails ⇒ the ember's presentation, not the rescue design.
+> - they can say what carrying it costs them — squares, weight, or noise. Fails ⇒ `DES-012`'s sacrifice is invisible, and a sacrifice nobody can feel is not one.
+> - the downed player can tell what is happening to them while down. Fails ⇒ the Vörðr readout (`M3-T14`).
+
+> **The rank comparison, moved from `GATE M3 EXIT` by ADR-165** — a rank-8 player and a rank-1 player both die at similar rates **for different reasons**. Verify against the `DES-003` balance guardrails. Solo-runnable, and worth running the day `M4-T02` lands rather than waiting for `GATE M4 EXIT`: it is the check that says whether `DES-022`'s power model survives contact, and everything in `M4·B` is painted on top of that answer.
+
+> **The stranger session, moved from `GATE M3 EXIT` by ADR-165** — three testers × three runs, no coaching beyond the in-game control list, diagnostic overlay off. Asked here because `M4-T01` is the first level worth spending a stranger on:
+> - a first-time tester reaches an exit having entered **≤4 of the rooms on a floor**. Fails ⇒ wayfinding, not pressure.
+> - asked mid-run *"how much noise are you making?"*, they answer roughly right. Fails ⇒ the Ear, or clamor legibility.
+> - asked after a death, they explain it in **one sentence** (principle 4). Fails ⇒ combat readability or damage feedback.
+> - they discover they can drop loot **without being told**. Fails ⇒ the control list, or the bag.
+
+### M4·B — Polish  ·  *the slice becomes a product*
+
+- [ ] `M4-T05` Real art pass, real audio, real UI, ping system → ART-001, ART-002, DES-019, DES-012
+
+- [ ] `M4-T06` **Save/load surfaced, settings, controls rebinding** — *narrowed by ADR-116. It read "full save/load", which stopped being true when ADR-109 moved the save system to `M3-T06`: the format, the versioning, the migrations and the write policy are built there and grow a version per `M3` task. What is left here is the part a **player** touches — profile management, and what a build does with a save from a newer build than itself — plus settings and rebinding. Two tasks reading "save/load" is how one of them gets built twice or neither gets built* → TEC-003, DES-018
+
+- [ ] `M4-T11` **The accessibility suite** — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. *Split out of `M4-T06` by ADR-077: "settings" was standing in for a dozen deliverables, several of which are architectural constraints rather than options* → DES-018
+
+- [ ] `M4-T07` **Steam networking integration** (lobbies, invites, relay) — before any external playtest → TEC-004
+
+- [ ] `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library → ART-005
+
+- [ ] `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key → ART-003
+
+- [ ] `M4-T12` **Audio occlusion and reverb zones** — raycast → lerp `attenuation_filter_cutoff_hz`, and `Area3D` reverb driven by the player's current cell. *Split out by ADR-099: `M2-T03` and `M2-T09` built the adaptive driver, and `TEC-005` was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by `ART-002`'s own costing, and **portal propagation is for the Gullsjúkr only**, never a general system* → TEC-005, ART-002, DES-015
+
+- [ ] `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs → ART-004
 
 - [ ] `M4-T15` **Join-in-progress, as `TEC-004` specifies it** — *ADR-016 made late join **core, not post-launch**, `TEC-004` specifies it in full — the gate at the party's position, the world delta of looted containers, dead enemies, opened doors and Hunt state, the arrival with no accumulated loot — and **no task on this roadmap had ever picked it up.** Found by ADR-157, which refused an ungated mid-run join because it left two processes in different scenes on one connection and cost the host the run; that refusal is `ADR-064` absence, and this is the named replacement it requires. Same shape as ADR-116 §1, where `GATE M3 COOP` named a rank-8 floor nothing built. **After `M4-T01`**, because the delta is bounded per floor and *"a joiner arriving on floor 3 does not need floor 1's state"* is only expressible once there are three floors; and it wants `M4-T07`'s lobbies to be the thing that hands a joiner an address mid-session. `TEC-004`'s own test target is the acceptance criterion: a 4th player joins a floor-3 party ~20 minutes in, on a floor with ~200 looted containers and ~80 dead enemies, without a hitch on the host* → TEC-004, DES-005, DES-012
 
@@ -224,6 +266,7 @@ The most common way a project like this dies is building the meta-progression fi
 > **If it fails with every system present and polished, the pressure model is wrong** — and that conclusion is finally trustworthy, because `GATE M2 EXIT` has already ruled out wayfinding, clamor legibility, combat readability and the bag, and the slice has ruled out "it is grey boxes".
 
 ## M5 — Content & Breadth
+
 <!-- milestone id=M5 depends=M4 size=unknown -->
 - [ ] `M5-T01` **The remaining four classes** — moved here by ADR-061; all six are required for launch (ADR-012) → DES-011
 - [ ] `M5-T02` Remaining biomes — Barrow-Fields, Sunken Wood → DES-006, DES-015

@@ -4747,5 +4747,53 @@ The row walks to the pile and away again, with `boon` forced to 0, because the c
 
 ---
 
+## ADR-165 — Depth before polish, and gates asked where they can be answered
+
+**Date:** 2026-09-01 · **Status:** accepted · **Resequences `M4`** · **Restates `GATE M3 EXIT`** · **Moves `GATE M3 COOP` to `M4`**
+
+**Context:** the first play session on a build containing the whole `M3` loop, reported as:
+
+> There is still not enough gameplay mechanic or level depth to test any of our gates or real flow. We need to change plan accordingly and move forward with more system design cohesively.
+
+That is a correct reading of a real problem, and it is a **sequencing** problem rather than a scope one. Nothing below is added or cut.
+
+### The gates asked questions this milestone cannot answer
+
+`GATE M3 EXIT` asked whether *"a rank-8 player and a rank-1 player both die at similar rates for different reasons."* That needs two different reasons to exist. Every enemy in the build shares one stat line — `M3-T10` asserts it deliberately, because *"worse things, not bigger numbers"* is what this design would lose first — so the comparison has nothing to compare. It could not have failed and it could not have passed.
+
+`GATE M3 COOP` asked for a newcomer downed repeatedly on a rank-8 floor. The floor can be built; the **experience** it names cannot, for the same reason.
+
+So both move to `M4`, where `M4-T16` and `M4-T02` build the difference they are about.
+
+### And the stranger session moves for the second time, on its own precedent
+
+ADR-115 moved it out of `M2` because *"a first-time player is not a renewable resource, and spending one here spends them on six grey rooms with no classes, no Tithe and no ranks."*
+
+**It is still those six grey rooms.** `M4-T01` replaces the Deep entirely with the Delvings, so wayfinding tested now is wayfinding against a level that is about to be deleted. Same sentence, same reason, one milestone later — and the fact that the argument recurs unchanged is the evidence that it is right rather than convenient.
+
+### What `GATE M3 EXIT` becomes
+
+The milestone is called The Pact. Its subject is `DES-003`'s coupling of what you hand over to what you may become, and whether that coupling is legible to the person doing it. That is answerable on the current build, solo, in one sitting — so the gate now asks it: **one life ends and the next is visibly a consequence of it.**
+
+Four preconditions, and the third is there because ADR-164 found it failing three days ago: a first life has to reach the Pact tree without coaching. Until the pile had a cue, it could not.
+
+### `M4·A` and `M4·B`
+
+`M4` interleaved the systems that make a run worth playing with the presentation that makes it worth looking at. Ordered as written, the art pass, the shader, the composer and the accessibility suite would have been applied to a game with one enemy behaviour and six grey rooms.
+
+This **serves ADR-061 rather than contradicting it.** That ADR cut `M4` from six classes to two so we would learn whether the game is good *sooner*; depth-first is how that is learned, because polishing a shallow slice tells you how a shallow slice looks.
+
+`M4-T16` is filed ahead of `M4-T02` for the same reason: six archetypes on one behaviour is six ways to meet the same fight, which is content rather than systems (principle 5) and fails ADR-058's test — a new silhouette on the same behaviour is a bigger number wearing a face.
+
+### Two things found in the check while doing this, and not fixed here
+
+**`GATE M4 GREED` is invisible to `status.py`.** `GATE_RE` matches `(EXIT|COOP)` and nothing else, so the gate that ADR-109 called *"the whole game in one moment"* has never been parsed, never been counted, and could never have blocked `M5`. It is a gate in prose only. Same shape as ADR-098: it reads as alive and nothing calls it.
+
+**The `question-open` check over-counts `M4`.** `OPEN-QUESTIONS.md` heads its section *"Needed at M4 / M5"* and every row in it is attributed to `M4` — including one that says in its own text *"scheduled as `M5-T05`"*, and two with no milestone at all. Nine of the twelve are art and audio questions that belong to `M4·B`; two of those can only be answered by a composer who has not been hired and at an FMOD licensing decision that has not arrived.
+
+**Both are left alone deliberately.** Either one could be adjusted to make `M4` unblock sooner, and adjusting a check because it is inconvenient — while actively trying to get past it — is how a check stops meaning anything. They are recorded so the decision to change them is taken on its own merits, by a person, on a day when nothing depends on the answer.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

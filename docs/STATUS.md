@@ -2,11 +2,11 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-08-31_
+<!-- generated-stamp --> _Regenerated 2026-09-01_
 
 **Current milestone: M3 — The Pact**
 
-> **Gate:** `pending` — a rank-8 player and a rank-1 player both die at similar rates for different reasons. Verify against the `DES-003` balance guardrails.
+> **Gate:** `pending` — **one life ends and the next is visibly a consequence of it.** The Tithe is paid, an aspect is bought at the pile, and the player can say in one sentence what the pact cost them.
 
 `73/95` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
@@ -37,8 +37,8 @@ flowchart LR
 | ✔ | **M0** Design Lock | — | ✔ | `EXIT` passed 2026-08-14 |
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
-| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` pending<br>`COOP` pending |
-|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/16 | `EXIT` pending |
+| ▶ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` pending |
+|  | **M4** Vertical Slice<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/16 | `COOP` pending<br>`EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -143,8 +143,10 @@ _None. Sequencing is clean._
 - · `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* `DES-015` `DES-006` `DES-017` `DES-005`
 - · `M4-T16` **Enemy behaviour, before enemy variety** — *`M4-T02` is "~6 enemy archetypes, 2 hazard types", and **nothing on this roadmap, in any milestone, is about how an enemy behaves.** Raised from play — *"the gameplay feels a little stale still and AI will have to be greatly worked on"* — and the ordering is the point: six archetypes built on one behaviour is six ways to meet the same fight, which is content rather than systems (principle 5) and fails ADR-058's test outright, since a new silhouette on the same behaviour is a bigger number wearing a face. Principle 3 is the specification: **a fight has to be a decision**, and today it is a swing timed against a telegraph. What is absent and load-bearing: enemies that commit to an attack and can be punished for it, that use the floor's geometry rather than walking through it, that react to clamor as a *group* rather than each alone (`DES-013`'s Ear is a systemic input nothing reads socially), and that give the player a reason to disengage — `DES-002` wants "do I take this fight" to be live, and it cannot be while every fight is winnable by standing still. **Before `M4-T02`**, so the six archetypes are variations on something worth varying* `DES-013` `DES-002` `DES-009`
 - · `M4-T02` ~6 enemy archetypes, 2 hazard types `DES-013`
-- · `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* `DES-011`
 - · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) — *the board hangs in the Threshold, which `M2-T06` built as a fire and a doorway* `DES-007` `DES-014`
+- · `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* `ART-001` `ART-005` `DES-008`
+- · `M4-T14` **The Scar** — *`DES-012` §3 charges a rescued life a Scar alongside losing the run and the carried loot, and `M3-T33` implemented the other two-thirds of that sentence because there is no Scar system to implement. Absent rather than stubbed (ADR-064, ADR-154): a state with no rules, no display and no consequence would be present only so a doc reads as done. Needs a decision first — what a Scar **costs**, whether it stacks, and whether it is visible to the party, since `DES-012` makes rescue a social act and a hidden penalty is one the rescuer cannot weigh* `DES-012` `PRO-005`
+- · `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* `DES-011`
 - · `M4-T05` Real art pass, real audio, real UI, ping system `ART-001` `ART-002` `DES-019` `DES-012`
 - · `M4-T06` **Save/load surfaced, settings, controls rebinding** — *narrowed by ADR-116. It read "full save/load", which stopped being true when ADR-109 moved the save system to `M3-T06`: the format, the versioning, the migrations and the write policy are built there and grow a version per `M3` task. What is left here is the part a **player** touches — profile management, and what a build does with a save from a newer build than itself — plus settings and rebinding. Two tasks reading "save/load" is how one of them gets built twice or neither gets built* `TEC-003` `DES-018`
 - · `M4-T11` **The accessibility suite** — colour-blind support with no information in hue alone, UI scaling, dyslexia-friendly font, high contrast, per-bus volume sliders, mono output, and independently adjustable shake / blur / head-bob / FOV. *Split out of `M4-T06` by ADR-077: "settings" was standing in for a dozen deliverables, several of which are architectural constraints rather than options* `DES-018`
@@ -152,9 +154,7 @@ _None. Sequencing is clean._
 - · `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library `ART-005`
 - · `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key `ART-003`
 - · `M4-T12` **Audio occlusion and reverb zones** — raycast → lerp `attenuation_filter_cutoff_hz`, and `Area3D` reverb driven by the player's current cell. *Split out by ADR-099: `M2-T03` and `M2-T09` built the adaptive driver, and `TEC-005` was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by `ART-002`'s own costing, and **portal propagation is for the Gullsjúkr only**, never a general system* `TEC-005` `ART-002` `DES-015`
-- · `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* `ART-001` `ART-005` `DES-008`
 - · `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs `ART-004`
-- · `M4-T14` **The Scar** — *`DES-012` §3 charges a rescued life a Scar alongside losing the run and the carried loot, and `M3-T33` implemented the other two-thirds of that sentence because there is no Scar system to implement. Absent rather than stubbed (ADR-064, ADR-154): a state with no rules, no display and no consequence would be present only so a doc reads as done. Needs a decision first — what a Scar **costs**, whether it stacks, and whether it is visible to the party, since `DES-012` makes rescue a social act and a hidden penalty is one the rescuer cannot weigh* `DES-012` `PRO-005`
 - · `M4-T15` **Join-in-progress, as `TEC-004` specifies it** — *ADR-016 made late join **core, not post-launch**, `TEC-004` specifies it in full — the gate at the party's position, the world delta of looted containers, dead enemies, opened doors and Hunt state, the arrival with no accumulated loot — and **no task on this roadmap had ever picked it up.** Found by ADR-157, which refused an ungated mid-run join because it left two processes in different scenes on one connection and cost the host the run; that refusal is `ADR-064` absence, and this is the named replacement it requires. Same shape as ADR-116 §1, where `GATE M3 COOP` named a rank-8 floor nothing built. **After `M4-T01`**, because the delta is bounded per floor and *"a joiner arriving on floor 3 does not need floor 1's state"* is only expressible once there are three floors; and it wants `M4-T07`'s lobbies to be the thing that hands a joiner an address mid-session. `TEC-004`'s own test target is the acceptance criterion: a 4th player joins a floor-3 party ~20 minutes in, on a floor with ~200 looted containers and ~80 dead enemies, without a hitch on the host* `TEC-004` `DES-005` `DES-012`
 
 ### M5 — Content & Breadth
@@ -168,6 +168,6 @@ _None. Sequencing is clean._
 
 ---
 
-_39 docs (39 accepted) · 164 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
+_39 docs (39 accepted) · 165 ADRs · 12 open questions · 117 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).
