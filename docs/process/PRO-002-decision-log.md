@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-08-25
+updated: 2026-09-01
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -4982,6 +4982,88 @@ Validation runs over 1200 generated floors rather than one, because `problems()`
 ### What is not done
 
 Steps 4–7 — space, history bias, machines, population — and the `RoomModule` resource. `WorldHash` does not yet consume the graph, so `check_determinism.py` still measures the hand-authored rooms; wiring it is what makes that harness mean across processes what `--graph-probe` means within one.
+
+---
+
+## ADR-170 — The generator, chosen from the field rather than from the one paper we had
+
+**Date:** 2026-09-01 · **Status:** proposed · **Adopts `TEC-007`** · **Narrows `DES-015` step 8** · **`M4-T01` in progress**
+
+**Context:** `DES-015` Layer 1 adopts cyclic dungeon generation, cites Dormans & Bakkes (2011), and stops — the right amount of detail for a design document and not enough to build a month of work from. It never says how a graph becomes a space, which techniques were considered, or which of them our own constraints forbid. ADR-169 built step 3 and deliberately deferred everything after it. This ADR adopts `TEC-007`, the review that was supposed to happen before steps 4–7 exist.
+
+### The review's job was to be able to say no
+
+It can. Two techniques that a reasonable person would reach for are ruled out by constraints we already hold, and saying so here is cheaper than discovering it in a desync:
+
+- **Answer Set Programming** is the strongest rejected alternative and deserves the record. It is the only surveyed technique that would make `DES-015` step 8 unnecessary, because the validity conditions become the generator and a soft-lock is then unrepresentable. It dies on two independent grounds: solver tie-breaking is not a stability contract, and `TEC-004` needs a promise rather than a reproducibility that holds until a version bump; and there is no GDScript-native solver, so adopting it means a native dependency on four platforms, on a solo project, for a subsystem that has a working alternative.
+- **Wave Function Collapse** cannot express a global reachability constraint — it is a local propagator and "the Prize is reachable without passing the held arm" is not local. The standard workaround is generate-and-test, which is unbounded search against `TEC-001`'s 2 s budget.
+
+Neither is a close call, and neither was obvious before the constraints were written down together.
+
+### The finding that made the review worth doing first
+
+The graph stage is healthy: 1200 floors built with 0 invalid, same seed identical, 308 distinct graphs from 400 seeds. **That number measures the wrong thing.**
+
+`build()` is a fixed construction — a spine, one arm from `leave` to `rejoin`, the Prize on the spine inside that span, the Shaft past the rejoin, plus zero or one further arms. There is no branch that can produce a second topology class. All 308 graphs are the same *kind* of floor with different numbers in it. The digests differ; the shape does not.
+
+That is `DES-015`'s own diagnosis of Dark and Darker, one level up the stack: *the randomness is in the stuff, not the space.* We moved it into the space and stopped one step short. A player who learns "the Prize is on the loop, the Shaft is past where the loop closes" has learned every floor this generator can produce.
+
+Dormans' actual contribution is not "put a loop in it" — it is that **the type of cycle is the design content.** So step 3 gains a **cycle-type catalogue** applied by seeded rewriting: danger-and-detour (the current shape), lock-and-key, foldback, two-fronted, shortcut, nested. Each names a question the floor asks, which is `DES-015` Layer 3's test for machines applied one level up.
+
+Had steps 4–7 been built first, all of that work would have had its variety ceiling fixed before any of it started. This is the concrete answer to "why not just keep building."
+
+### Decision 1 — the technique, and the pipeline it implies
+
+Cyclic graph rewriting over a named cycle catalogue for topology; integer-grid module placement with bounded, seeded backtracking for space; Brogue machines stamped into sockets. WFC and constraint solving rejected for topology. `TEC-001`'s existing choice of authored modules over generated geometry is not reopened.
+
+The Spelunky lesson is adopted as a general pattern rather than as an algorithm: **guarantee by construction, then assert anyway.** The graph already does this — `build()` places the Shaft and Prize so that reachability and the ADR-032 bypass cannot fail, and `problems()` checks them regardless. Every later stage inherits that shape.
+
+### Decision 2 — the determinism rule was protecting against the wrong thing
+
+`mission_graph.gd`'s header says nothing iterates a `Dictionary` because traversal order is not a promised invariant. The conservatism is right; the reason is wrong, and a wrong reason defends the wrong border.
+
+Measured on Godot 4.7: `Dictionary` iterates in **insertion order**, forward and reverse, and two dictionaries holding the same keys inserted in different orders iterate differently. `RandomNumberGenerator` gives identical sequences for identical seeds over 10 000 draws.
+
+So a `Dictionary` is not a nondeterminism source. The hazard is one step back — **iteration faithfully reproduces insertion order, and insertion order is a function of call order.** Two machines building the same collection by different code paths diverge with no hash table involved. The rule that actually holds is *never let a decision depend on the order a collection was built in; sort by an explicit total order first* — which also covers rewrite-rule candidate matching, where enumeration must be sorted by node id.
+
+Also decided: **own the seed mix.** `hash("%d:%d:%d")` is safe against desync, since every player in a session runs the same binary, but it is not a contract across engine versions — and `TEC-001` calls the run seed's shareability non-negotiable, which means a seed in a bug report should survive a Godot upgrade. A SplitMix64-style integer mix we own costs about an hour.
+
+### Decision 3 — `DES-015` step 8 says two things that cannot both hold
+
+Step 8 requires *"navmesh sane"* and requires that validation be deterministic because *"a re-roll that happens on one machine and not another is a desync."* Runtime navmesh baking is Recast, voxel-based, and threaded per platform. It is not a bit-exactness substrate, so a bake-triggered re-roll is exactly the desync the second clause forbids.
+
+Resolved by splitting the two jobs the word "validate" was doing:
+
+- **Traversability is decided on the integer generation grid, before any bake.** Deterministic, and the only thing that may trigger a bounded re-roll.
+- **Navmesh sanity is a build-time assertion** over a seed corpus, in the sweep and in CI, failing the build. It never runs as a gameplay decision, so it cannot desync anything.
+
+Step 8 keeps its teeth. This narrows an accepted document, which is why it is here and not a silent implementation choice.
+
+Re-roll itself is bounded and seeded — sub-seed from `mix(stage_seed, attempt)`, a hard cap, and loud failure on exhaustion. **No fallback generator**, which ADR-064 forbids and which would otherwise be the obvious thing to reach for: two generators, one never tested, both needing determinism.
+
+### What the review found in the tree, which is not a design decision
+
+`--graph-probe` **is not run by anything.** It exists in `room_set.gd`; ADR-169 describes it as the check asserting determinism in both directions; `check_scripts.sh` does not invoke it and neither does CI. Across the whole repository the string appears only in `room_set.gd`, a comment in `mission_graph.gd`, the M4 brief, and ADR-169. It reads as alive to `check_dead.py` because `room_set.gd` calls its own handler — the "does anything use it?" gap ADR-098 exists for.
+
+**ADR-169's central claim is therefore currently true only when somebody runs the probe by hand.** Wiring it in is `M4-T19` and comes before further generator work.
+
+Related: the variety row counts distinct digests, which cannot tell 308 different floors from 308 numberings of one floor. When the catalogue lands it needs a companion assertion counting distinct *cycle types*, or it will keep passing while the catalogue is ignored.
+
+### Cost
+
+⟨5–6 weeks⟩ across catalogue, `RoomModule` and placement, steps 5–7, and extended validation — inside `DES-015`'s own ⟨1–2 months⟩ costing. Measured aside: the whole graph probe, 1200 floors plus a 400-seed census, runs in about a second including engine boot. Step 3 is free at floor scale; the 2 s budget belongs to steps 4–7 and the navmesh bake, and the bake is the thing to measure first.
+
+### Rejected
+
+- **Building steps 4–7 on the existing single-topology generator.** Cheapest today, and it fixes the variety ceiling before the expensive work starts.
+- **Adjusting the variety threshold rather than widening the generator.** The same choice ADR-169 already faced at 82 topologies and answered the same way.
+- **Treating the `--graph-probe` gap as a fix to fold into this change.** It is a task with an ID, not a quiet repair inside an ADR about something else.
+
+### What `M4-T01` inherits
+
+In order: wire the probe (`M4-T19`); own the seed mix; the cycle catalogue with a type-counting assertion; `RoomModule` and step 4; `WorldHash` on the generated floor; steps 5–7 and extended step 8.
+
+`TEC-007` and this ADR are both **proposed**, not accepted. The M4 brief requires sign-off before anything is built on the review, and a month of work is the thing being signed off.
 
 ---
 

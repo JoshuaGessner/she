@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-01 · 39 documents_
+_Regenerated 2026-09-01 · 40 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -47,6 +47,7 @@ _How it gets built._
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-28 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-01 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-17 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
+| `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ◆ proposed | 2026-09-01 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
 
 ## Process
 
@@ -54,8 +55,8 @@ _How we work, what we decided, what we must not do._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-08-25 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-08-25 | DES-001, DES-003, PRO-001 |
+| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-01 | DES-001, TEC-001, TEC-003 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-01 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
@@ -101,10 +102,12 @@ _Visual and audio direction._
 - **conventions** — TEC-002
 - **core-loop** — DES-002
 - **cosmetics** — PRO-006
+- **cyclic** — TEC-007
 - **data** — TEC-006
 - **death** — DES-003
 - **decisions** — PRO-002
 - **deeds** — DES-016
+- **determinism** — TEC-007
 - **difficulty** — DES-022
 - **dmz** — DES-007
 - **economy** — DES-003, DES-008
@@ -118,9 +121,9 @@ _Visual and audio direction._
 - **first-person** — DES-020
 - **gameplay** — DES-009
 - **gear** — DES-008, DES-020, DES-022
-- **generation** — DES-015
+- **generation** — DES-015, TEC-007
 - **glossary** — PRO-003
-- **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006
+- **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006, TEC-007
 - **greed** — DES-008
 - **handoff** — ART-003
 - **history** — PRO-002
@@ -137,7 +140,7 @@ _Visual and audio direction._
 - **lair** — DES-014
 - **legal** — PRO-004
 - **legibility** — ART-005, DES-018, DES-019
-- **levels** — DES-015
+- **levels** — DES-015, TEC-007
 - **lineage** — DES-016
 - **loot** — DES-008
 - **lore** — DES-006
@@ -165,7 +168,7 @@ _Visual and audio direction._
 - **premortem** — PRO-007
 - **pressure** — DES-005, DES-017
 - **process** — PRO-002
-- **procgen** — DES-015
+- **procgen** — DES-015, TEC-007
 - **production** — ART-004, PRO-001, PRO-007
 - **progression** — DES-004, DES-011, DES-014, DES-016, DES-022
 - **psychology** — PRO-005
@@ -174,7 +177,7 @@ _Visual and audio direction._
 - **readability** — ART-001
 - **rendering** — ART-005
 - **replayability** — DES-007
-- **research** — PRO-005
+- **research** — PRO-005, TEC-007
 - **resources** — TEC-006
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
 - **risk** — PRO-004, PRO-007, TEC-004, TEC-005
