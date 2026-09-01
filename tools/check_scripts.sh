@@ -636,6 +636,27 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The mission graph** (`M4-T01`, `M4-T19`, `DES-015` step 3, ADR-169,
+	# ADR-170). The probe existed from the day the generator did and nothing
+	# ran it: ADR-169 describes it as the check that asserts determinism in
+	# both directions, and until now that was true only when somebody typed it
+	# by hand. `check_dead.py` could not see the gap either, because
+	# `room_set.gd` calls its own handler — names, not reachability (ADR-098).
+	#
+	# The row no other check in this file can make is the second half of the
+	# determinism claim. `check_determinism.py` proves *same seed, same world*
+	# and is satisfied by a generator that ignores its seed entirely, which is
+	# perfectly deterministic and useless. This asserts *different seed,
+	# different graph* as well, plus `DES-015` step 8 over 400 seeds: nothing
+	# unreachable, the ADR-032 bypass real, and the Prize inside the held arm.
+	graph="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --graph-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$graph" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the floor poses a question" >&2
+		printf '%s\n' "$graph" | grep -E '\[graph\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Can a player *find* their way (`M2-T13`)? `--route-probe` has always
 	# asserted a clean route exists and has always passed — it cannot see that
 	# nobody could find it, which is exactly what six identically-lit box rooms
@@ -820,6 +841,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a run ends on evidence and never interrupts itself to say so,"
 	echo "the Wing gets out quietly and every node it sells does something,"
 	echo "a build can be reconsidered and a keystone cannot,"
+	echo "every floor the generator can emit poses a question and reads its seed,"
 echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
