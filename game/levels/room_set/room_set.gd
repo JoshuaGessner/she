@@ -559,6 +559,27 @@ func _graph_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var trials: int = 400
 
+	# ─ 0. the seed mix is ours, and it is pinned ─
+	#
+	# `TEC-001` calls the run seed's shareability non-negotiable — it goes on
+	# the death screen and into bug reports — so a seed has to name the same
+	# floor after an engine upgrade. `hash()` was stable within a build, which
+	# is all a desync needs, but it is not a contract across versions, so the
+	# mix is SplitMix64 we own (`TEC-007` §5.3 rule 7, ADR-170).
+	#
+	# A known answer, not a property: this asserts the arithmetic still lands
+	# on the number it landed on the day it was written. If GDScript ever stops
+	# wrapping `int` multiplication at 64 bits, or the shift stops zero-filling,
+	# every seed anybody has written down changes meaning and this row is the
+	# only thing that would say so.
+	const SEED_MIX_KNOWN_ANSWER: int = 4278115658868624668
+	var pinned: int = MissionGraph.stage_seed(12345, 0)
+	print("[graph] seed mix    stage_seed(12345, 0) = %d" % pinned)
+	if pinned != SEED_MIX_KNOWN_ANSWER:
+		problems.append(("the seed mix returned %d where it has always returned "
+			+ "%d — every logged run seed now names a different floor")
+			% [pinned, SEED_MIX_KNOWN_ANSWER])
+
 	# ─ 1. no floor the generator can emit is invalid ─
 	var broken: int = 0
 	var first_fault: String = ""
@@ -570,8 +591,14 @@ func _graph_probe() -> void:
 				continue
 			broken += 1
 			if first_fault == "":
+				# **Every fault on that floor, not just the first.** Reporting
+				# `faults[0]` hid the rest, and a floor is usually wrong in
+				# more than one way at once — the fix for the loudest fault
+				# then ships beside the quiet one it was masking. Found while
+				# planting the key-behind-its-own-door row, which fired
+				# correctly and reported a different fault's name.
 				first_fault = "seed %d floor %d: %s" % [
-					9000 + i, depth, faults[0]]
+					9000 + i, depth, " · ".join(faults)]
 	print("[graph] validity     %d floor(s) built, %d invalid" % [
 		trials * 3, broken])
 	if broken > 0:
@@ -617,6 +644,42 @@ func _graph_probe() -> void:
 			+ "than 3 — ADR-015 wants three, and descending into the same "
 			+ "room twice is the flatness `DES-015` opens by diagnosing")
 			% by_depth.size())
+
+	# ─ 4b. the catalogue is used, and no one shape dominates ─
+	#
+	# **The row the old variety check could not make.** `seed matters` counts
+	# distinct digests, and 308 digests from 400 seeds read as healthy while
+	# every one of them was the same *kind* of floor — a spine, one arm, the
+	# Prize inside it — because `build()` had no branch that could emit a
+	# second topology (`TEC-007` §4, ADR-170). Counting shapes instead of
+	# fingerprints is what makes the catalogue assertable: a type that stops
+	# being generated, or one that quietly swallows the floor space, both show
+	# up here and neither shows up above.
+	var shapes: Dictionary = {}
+	for i: int in trials:
+		for depth: int in 3:
+			var kind: int = MissionGraph.build(80000 + i, depth).cycle()
+			shapes[kind] = int(shapes.get(kind, 0)) + 1
+	var seen_shapes: Array = shapes.keys()
+	seen_shapes.sort()
+	var shape_names := PackedStringArray()
+	for kind: int in seen_shapes:
+		shape_names.append("%s×%d" % [MissionGraph.cycle_name(kind), shapes[kind]])
+	print("[graph] cycle types %d of %d: %s" % [
+		seen_shapes.size(), MissionGraph.CYCLE_NAMES.size(),
+		", ".join(shape_names)])
+	if seen_shapes.size() != MissionGraph.CYCLE_NAMES.size():
+		problems.append(("only %d of %d cycle types were generated in %d floors "
+			+ "— a type nothing emits is a type that does not exist, and the "
+			+ "catalogue is the whole of ADR-170")
+			% [seen_shapes.size(), MissionGraph.CYCLE_NAMES.size(), trials * 3])
+	var floors: int = trials * 3
+	for kind: int in seen_shapes:
+		if int(shapes[kind]) * 2 > floors:
+			problems.append(("`%s` is %d of %d floors — one shape past half the "
+				+ "floor space is the single-topology failure ADR-170 was "
+				+ "written about, wearing a catalogue")
+				% [MissionGraph.cycle_name(kind), shapes[kind], floors])
 
 	# ─ 5. the cycle is real, and the bypass avoids what it claims to ─
 	var sample: MissionGraph = MissionGraph.build(31337, 0)

@@ -27,7 +27,7 @@ _What the game is._
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
 | `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-08-16 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
 | `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
-| `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-08-14 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004 |
+| `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-01 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-01 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-01 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
@@ -47,7 +47,7 @@ _How it gets built._
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-28 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-01 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-17 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
-| `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ◆ proposed | 2026-09-01 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
+| `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-01 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
 
 ## Process
 

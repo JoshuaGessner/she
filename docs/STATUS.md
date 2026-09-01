@@ -140,7 +140,7 @@ _None. Sequencing is clean._
 
 ### M4 — Vertical Slice
 
-- ▶ `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* `DES-015` `DES-006` `DES-017` `DES-005`
+- ▶ `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* `DES-015` `TEC-007` `DES-006` `DES-017` `DES-005`
 - ✔ `M4-T19` **Run the graph probe in the sweep** — *`--graph-probe` exists in `room_set.gd` and ADR-169 calls it the check that asserts determinism in both directions, but `check_scripts.sh` never invokes it and neither does CI, so the claim holds only when somebody runs it by hand. `check_dead.py` reads it as alive because `room_set.gd` calls its own handler — the "does anything use it?" gap of ADR-098. Plant every row before believing it* `DES-015` `TEC-004`
 - · `M4-T16` **Enemy behaviour, before enemy variety** — *`M4-T02` is "~6 enemy archetypes, 2 hazard types", and **nothing on this roadmap, in any milestone, is about how an enemy behaves.** Raised from play — *"the gameplay feels a little stale still and AI will have to be greatly worked on"* — and the ordering is the point: six archetypes built on one behaviour is six ways to meet the same fight, which is content rather than systems (principle 5) and fails ADR-058's test outright, since a new silhouette on the same behaviour is a bigger number wearing a face. Principle 3 is the specification: **a fight has to be a decision**, and today it is a swing timed against a telegraph. What is absent and load-bearing: enemies that commit to an attack and can be punished for it, that use the floor's geometry rather than walking through it, that react to clamor as a *group* rather than each alone (`DES-013`'s Ear is a systemic input nothing reads socially), and that give the player a reason to disengage — `DES-002` wants "do I take this fight" to be live, and it cannot be while every fight is winnable by standing still. **Before `M4-T02`**, so the six archetypes are variations on something worth varying* `DES-013` `DES-002` `DES-009`
 - · `M4-T02` ~6 enemy archetypes, 2 hazard types `DES-013`
@@ -171,6 +171,6 @@ _None. Sequencing is clean._
 
 ---
 
-_40 docs (39 accepted) · 170 ADRs · 0 open questions · 121 ⟨tune⟩ markers._
+_40 docs (40 accepted) · 171 ADRs · 0 open questions · 122 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

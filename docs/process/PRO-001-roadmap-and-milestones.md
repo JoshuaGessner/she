@@ -200,7 +200,7 @@ The most common way a project like this dies is building the meta-progression fi
 
 ### M4·A — Depth  ·  *blockout fidelity, no art pass*
 
-- [~] `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* → DES-015, DES-006, DES-017, DES-005
+- [~] `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on* → DES-015, TEC-007, DES-006, DES-017, DES-005
 
 - [x] `M4-T19` **Run the graph probe in the sweep** — *`--graph-probe` exists in `room_set.gd` and ADR-169 calls it the check that asserts determinism in both directions, but `check_scripts.sh` never invokes it and neither does CI, so the claim holds only when somebody runs it by hand. `check_dead.py` reads it as alive because `room_set.gd` calls its own handler — the "does anything use it?" gap of ADR-098. Plant every row before believing it* → DES-015, TEC-004
 

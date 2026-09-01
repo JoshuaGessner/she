@@ -1,7 +1,7 @@
 ---
 id: TEC-007
 title: Generator Architecture
-status: proposed
+status: accepted
 owner: tech
 tags: [procgen, generation, determinism, godot, research, levels, cyclic]
 updated: 2026-09-01
@@ -10,9 +10,9 @@ related: [DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001]
 
 # Generator Architecture
 
-> **Status note.** This document is `proposed`, not `accepted`. It exists to be
-> argued with before `M4-T01` steps 4–7 are built on top of it. ADR-170 records
-> the adoption and is also `proposed` until sign-off.
+> **Accepted 2026-09-01 by ADR-170.** Changing anything here now requires a
+> further ADR. The rejected alternatives in §9 are rejected *with reasons*; if
+> one is reopened, the reason is what has to be argued with.
 
 ## 0. Why this document exists
 
@@ -300,16 +300,19 @@ Mapped onto `DES-015`'s eight steps:
 
 ### 5.1 The cycle catalogue — the first coding job in step 3
 
-Six cycle types is enough to change the character of a floor, and each is a rewrite
-rule, not a special case in `build()`:
+Five cycle types (six were proposed; ADR-171 cut one) is enough to change the
+character of a floor, and each is a rewrite rule, not a special case in
+`build()`:
 
 - **Danger-and-detour** — the current shape. One arm held, one long and safe.
 - **Lock-and-key** — the loop opens from the far side; you must go around before
   the short way exists.
 - **Foldback** — the loop returns you to a node you have already been through, so
   the second traversal is of known ground under new pressure.
-- **Two-fronted** — both arms held differently, so there is no safe route, only a
-  choice of danger. The floor that has no good answer.
+- ~~**Two-fronted**~~ — *cut by ADR-171.* Both arms held is either no bypass at
+  all, which ADR-032 forbids, or it is `danger-detour` with something nastier on
+  the quiet arm — which is `DES-015` step 7, population, not topology. The
+  interesting version of "both ways are bad" is real and belongs there.
 - **Shortcut** — the loop is closed by something you open at cost, which pays back
   only on the way out. The Dark Souls shortcut, made structural.
 - **Nested** — a cycle inside an arm of a cycle. Rare, deep floors only.
@@ -475,13 +478,13 @@ counts exists.
 
 ## 11. What this obliges `M4-T01` to do next
 
-In order, and each is a commit:
+In order, and each is a commit. **1–3 are done** (ADR-171):
 
-1. `M4-T19` — wire `--graph-probe` into `check_scripts.sh` and CI (§10.1). Plant
-   every row.
-2. Own the seed mix (§5.3 rule 7).
-3. The cycle catalogue, with a variety assertion that counts cycle *types* (§5.1,
-   §10.2).
+1. ~~`M4-T19` — wire `--graph-probe` into `check_scripts.sh` and CI (§10.1).~~
+   Done, every row planted.
+2. ~~Own the seed mix (§5.3 rule 7).~~ Done — SplitMix64, pinned by a known answer.
+3. ~~The cycle catalogue, with a variety assertion that counts cycle
+   *types*.~~ Done — five types, 372 digests and 5 classes from 400 seeds.
 4. `RoomModule` as `.tres` (§5.2), then `DES-015` step 4.
 5. `WorldHash` wired to the generated floor, so `check_determinism.py` becomes a
    cross-process guarantee rather than a check on six literal `AABB`s.
@@ -491,8 +494,8 @@ In order, and each is a commit:
 
 ## Open questions
 
-> **Q — How many cycle types before the catalogue is "enough"?** Six is proposed
-> from the shape of the design, not from measurement. The honest answer arrives
+> **Q — How many cycle types before the catalogue is "enough"?** Five shipped
+> (ADR-171), from the shape of the design, not from measurement. The honest answer arrives
 > when a tester describes two floors as different kinds of place rather than as
 > two floors. ⟨tune⟩
 

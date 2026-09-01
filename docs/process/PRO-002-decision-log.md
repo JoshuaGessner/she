@@ -4987,7 +4987,7 @@ Steps 4–7 — space, history bias, machines, population — and the `RoomModul
 
 ## ADR-170 — The generator, chosen from the field rather than from the one paper we had
 
-**Date:** 2026-09-01 · **Status:** proposed · **Adopts `TEC-007`** · **Narrows `DES-015` step 8** · **`M4-T01` in progress**
+**Date:** 2026-09-01 · **Status:** accepted · **Adopts `TEC-007`** · **Narrows `DES-015` step 8** · **`M4-T01` in progress**
 
 **Context:** `DES-015` Layer 1 adopts cyclic dungeon generation, cites Dormans & Bakkes (2011), and stops — the right amount of detail for a design document and not enough to build a month of work from. It never says how a graph becomes a space, which techniques were considered, or which of them our own constraints forbid. ADR-169 built step 3 and deliberately deferred everything after it. This ADR adopts `TEC-007`, the review that was supposed to happen before steps 4–7 exist.
 
@@ -5063,7 +5063,58 @@ Related: the variety row counts distinct digests, which cannot tell 308 differen
 
 In order: wire the probe (`M4-T19`); own the seed mix; the cycle catalogue with a type-counting assertion; `RoomModule` and step 4; `WorldHash` on the generated floor; steps 5–7 and extended step 8.
 
-`TEC-007` and this ADR are both **proposed**, not accepted. The M4 brief requires sign-off before anything is built on the review, and a month of work is the thing being signed off.
+Signed off 2026-09-01. `TEC-007` is `accepted` and `DES-015` step 8 is edited to carry Decision 3, which is the only accepted document this ADR changes.
+
+---
+
+## ADR-171 — The catalogue is five types, and a seal has two ends
+
+**Date:** 2026-09-01 · **Status:** accepted · **Amends `TEC-007` §5.1 (ADR-170)** · **`M4-T01` in progress**
+
+**Context:** ADR-170 adopted `TEC-007`, whose §5.1 proposed six named cycle types for `DES-015` step 3. Building them found one that cannot exist at this layer and one that did not work as specified. Both were found by checks rather than by reading, which is the argument for having written the checks first.
+
+### Decision 1 — `two-fronted` is not a topology, and is dropped
+
+`TEC-007` §5.1 proposed **two-fronted**: both arms held differently, so there is no safe route, only a choice of danger. It is cut, and the catalogue ships as five.
+
+It is a category error. At the graph layer "held" means exactly one thing — the nodes a route may not use if it is to count as an ADR-032 bypass. So marking both arms held has only two possible readings, and both are wrong:
+
+- If `_held` really covers both arms, **there is no bypass**, and ADR-032 wants a way out that does not cross the danger. The floor fails `problems()` by construction, and rightly: the Prize stops being a choice and becomes a toll.
+- If `_held` covers only the Prize's arm and the other arm is merely *dangerous*, then the graph is identical to `danger-detour`. The difference lives entirely in what gets placed on the second arm, which is `DES-015` step 7 — population, not topology.
+
+So the interesting version of "both ways are bad" is real, and it is a **population** decision belonging to step 7. Recorded here so it is not re-derived as a topology later. Shipping it as a sixth type would have been variety on the digest and nothing on the floor — the exact failure ADR-170 exists to prevent, wearing a catalogue.
+
+### Decision 2 — a key-gated span is sealed at both ends
+
+`lock-and-key` shuts the short way and puts the opener down the long one. As specified it gated one edge, the near end of the held span. **275 of 1200 floors failed step 8**, all with the same fault: *the Prize can be reached without opening the locked span, so the lock decides nothing.*
+
+The held span has two ends. Gating only the near one left it reachable backwards from the rejoin, by walking the quiet arm and turning round — so the key opened a door with a hole beside it. Both ends are gated now, and extra arms on a `lock-and-key` floor are drawn wholly beyond the rejoin so none can span the seal.
+
+This is the case ADR-169's *"widen the generator, not the tolerance"* was about, arriving in the other direction: the check was right, the generator was wrong, and the fix was structural rather than a threshold.
+
+### Decision 3 — the validity row reports every fault on a floor, not the first
+
+`--graph-probe` printed `faults[0]` for the first invalid floor. A floor is usually wrong in more than one way, and reporting one fault means the fix for the loudest ships beside the quiet one it was masking.
+
+Found by planting. Writing `KEY` over a spine index inside the seal to plant *the key is behind the door it opens* also deleted the Prize that had been placed on that node, so the floor was wrong twice and the probe named the other one. The row had fired correctly and was invisible. The plant was then narrowed to one meaning, and the reporting widened to all faults — **the reporting change makes the check more legible, never weaker**, which is the only kind of check adjustment permitted while trying to get past one.
+
+### What the catalogue is worth, measured
+
+| | before ADR-170 | now |
+|---|---|---|
+| distinct digests / 400 seeds | 308 | 372 |
+| distinct topology *classes* | 1 | 5 |
+| invalid floors / 1200 | 0 | 0 |
+
+Across 1200 floors: `danger-detour` 273, `foldback` 229, `lock-and-key` 276, `shortcut` 250, `nested` 172. `nested` is lower because it is legal only from floor 1 (⟨tune⟩), which is deliberate — `DES-015`'s three floors escalate.
+
+Six assertions were planted before being believed: the seed-mix known answer, a cycle type nothing emits, one shape past half the floor space, the key behind its own door, the Shaft beside the entrance, and a cost gate as the only cycle.
+
+### Rejected
+
+- **Keeping `two-fronted` as a sixth type by relaxing ADR-032 on floors that use it.** A bypass rule with an exception is not a rule, and the exception would be invisible to `problems()` — which is where every soft-lock in this project is going to be caught.
+- **Gating the whole held span as one object rather than two edges.** An edge is what a gate physically is once step 4 turns it into geometry; a "span gate" would need translating into edges anyway, later, with less information.
+- **Reporting all faults for every invalid floor rather than the first.** 275 invalid floors × several faults is a wall of text nobody reads. One floor, fully described, is the useful unit.
 
 ---
 

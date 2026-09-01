@@ -4,8 +4,8 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-08-14
-related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004]
+updated: 2026-09-01
+related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
 # Level Generation
@@ -134,10 +134,17 @@ Loot and enemies placed against the rules already established: greed gradient (`
 6. machines           → stamp authored situations into valid sockets
 7. population         → loot, enemies, hazards, Clamor topology
 8. VALIDATE           → exits reachable · Prize reachable · no soft-lock
-                      · a bypass route to an exit exists (ADR-032) · navmesh sane
+                      · a bypass route to an exit exists (ADR-032)
+                      [navmesh sanity is asserted at build time, not here —
+                       ADR-170]
 ```
 
 **Step 8 is not optional.** A generator without a validation pass ships soft-locks. Failing validation should re-roll the offending sub-graph, not the whole level.
+
+**Two jobs, split by ADR-170.** This step originally asked for "navmesh sane" *and* for validation to be deterministic, and those cannot both hold: runtime navmesh baking is Recast, voxel-based and threaded per platform, so a bake-triggered re-roll on one machine and not another is exactly the desync the determinism clause forbids. So:
+
+- **Traversability is decided on the integer generation grid**, before any bake. Deterministic, and the only thing that may trigger a re-roll. The re-roll is bounded and seeded — sub-seed from `mix(stage_seed, attempt)`, a hard attempt cap, and a loud failure on exhaustion. **No fallback generator** (ADR-064).
+- **Navmesh sanity is a build-time assertion** over a seed corpus, in the sweep and in CI, failing the build. It never runs as a gameplay decision, so it cannot desync anything.
 
 ## Technical constraints (`TEC-004`)
 
