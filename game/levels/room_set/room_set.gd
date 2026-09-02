@@ -424,6 +424,14 @@ signal rescued(saved_peer: int, by: Player)
 
 @onready var _world: Node3D = $World
 
+## The floor under this level (`M4-T01`, ADR-182).
+##
+## Every hand-placed position `_ready` and its builders used to read inline is
+## read through here instead, so the same machinery serves a generated floor by
+## being handed a different source. Defaults to the Deep, which is what keeps
+## this level and the thirty probes that measure it behaving exactly as before.
+var _floor: FloorSource = AuthoredFloor.new()
+
 
 func _ready() -> void:
 	# **First, before anything reads it.** Any probe at all means this process
@@ -4080,8 +4088,9 @@ func _spawn_enemies() -> void:
 	# here and how far along the deepest of them is are different questions, and
 	# a floor answers both: four rank-1 players and one rank-8 player are
 	# different floors for different reasons.
+	var posts: Array[Vector3] = _floor.enemy_posts()
 	var wanted: int = RankScaling.denser(
-		PartyScaling.enemies(ENEMY_POSTS.size(), party), _session.floor_rank())
+		PartyScaling.enemies(posts.size(), party), _session.floor_rank())
 	# Spread on a **ring**, not jittered.
 	#
 	# Random offsets put two bodies in the same place, and two capsules in the
@@ -4099,15 +4108,15 @@ func _spawn_enemies() -> void:
 	# or grew to four. A formula that divided by `wanted` would move every
 	# enemy already standing there each time somebody joined.
 	for index: int in range(_enemies_placed, wanted):
-		var post: Vector3 = ENEMY_POSTS[index % ENEMY_POSTS.size()]
-		var ring: int = index / ENEMY_POSTS.size()
+		var post: Vector3 = posts[index % posts.size()]
+		var ring: int = index / posts.size()
 		if ring > 0:
-			var angle: float = TAU * float(index) / float(ENEMY_POSTS.size())
+			var angle: float = TAU * float(index) / float(posts.size())
 			post += Vector3(cos(angle), 0.0, sin(angle)) * SPREAD * float(ring)
 		_session.spawn_enemy(post)
 	if _enemies_placed == 0:
 		# The Guardian faces its prize's doorway and never leaves the room.
-		_session.spawn_enemy(GUARDIAN_POST)
+		_session.spawn_enemy(_floor.guardian())
 	_enemies_placed = maxi(_enemies_placed, wanted)
 
 
@@ -4150,12 +4159,13 @@ func _spawn_loot() -> void:
 		# the floor: what a player did with it afterwards is their bag's
 		# business, and a resumed run keeps its bag.
 		RunFile.note({"stripped": true})
-		for row: Array in FIXTURES:
+		for row: Array in _floor.fixtures():
 			_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
 	var party: int = PartyScaling.size_of(self)
-	var wanted: int = mini(FILLER.size(), PartyScaling.loot(_solo_loot(), party))
+	var spread: Array = _floor.filler()
+	var wanted: int = mini(spread.size(), PartyScaling.loot(_solo_loot(), party))
 	for index: int in range(_loot_placed, wanted):
-		var row: Array = FILLER[index]
+		var row: Array = spread[index]
 		_session.spawn_world_item(row[0] as StringName, row[1] as Vector3)
 	_loot_placed = maxi(_loot_placed, wanted)
 
@@ -4298,8 +4308,9 @@ func _build_hunt() -> void:
 	_field = ClamorField.new()
 	_field.name = "ClamorField"
 	add_child(_field)
-	_field.configure(FIELD_FROM, FIELD_TO)
-	_hunter = _session.spawn_hunter(HUNTER_POST)
+	var heard: AABB = _floor.field()
+	_field.configure(heard.position, heard.end)
+	_hunter = _session.spawn_hunter(_floor.hunter())
 	# Arrows and Snares deposit into it too (`M3-T11`), and both are built by
 	# the session rather than by this level, so the session needs the same
 	# handoff the Hunter gets below. One field, two listeners.
@@ -4344,7 +4355,7 @@ func _build_hunt() -> void:
 func _build_shaft() -> void:
 	_shaft = Shaft.new()
 	_shaft.name = "Shaft"
-	_shaft.position = SHAFT_AT
+	_shaft.position = _floor.shaft()
 	# Before it enters the tree, so the synchronizer exists at the same node
 	# path on every peer. Both sides build this identically — it is authored
 	# geometry rather than a spawn — so the paths match by construction.
@@ -4938,37 +4949,26 @@ func _build_lighting() -> void:
 	env.environment = environment
 	_world.add_child(env)
 
-	for door: Array in DOORS:
-		_door_light(door[0] as String, door[1] as String, float(door[2]))
+	for at: Vector3 in _floor.door_lights():
+		_door_light(at)
 
 
-## A pale light in every doorway, on the near side of the wall it is cut from.
-##
-## Every doorway is listed twice in `DOORS` — once per room it joins — so this
-## lights both approaches without knowing anything about which side you are on.
-## That duplication was already there to cut the hole from both rooms; it turns
-## out to be exactly what "visible from either side" needs.
-func _door_light(room: String, side: String, offset: float) -> void:
-	var rect: Array = ROOMS[room]
+## A pale light in a doorway. **Where** they hang is the floor's business now
+## (`FloorSource.door_lights`); what they look like is `ART-005`'s and stays
+## here, so a generated floor and the Deep are lit by the same lamp.
+func _door_light(at: Vector3) -> void:
 	var light := OmniLight3D.new()
 	light.light_color = PALE
 	light.light_energy = DOOR_LIGHT_ENERGY
 	light.omni_range = DOOR_LIGHT_RANGE
-	# Inside the room by a little more than the wall is thick, so the lamp is
-	# in the room it belongs to rather than buried in the masonry.
-	var inset: float = WALL_THICK * 1.5
-	match side:
-		"n": light.position = Vector3(offset, DOOR_LIGHT_HEIGHT, float(rect[2]) + inset)
-		"s": light.position = Vector3(offset, DOOR_LIGHT_HEIGHT, float(rect[3]) - inset)
-		"w": light.position = Vector3(float(rect[0]) + inset, DOOR_LIGHT_HEIGHT, offset)
-		"e": light.position = Vector3(float(rect[1]) - inset, DOOR_LIGHT_HEIGHT, offset)
+	light.position = at
 	light.add_to_group(DOOR_LIGHT_GROUP)
 	_world.add_child(light)
 
 
 func _spawn_actors() -> void:
 	_session = SESSION_SCENE.instantiate() as CoopSession
-	_session.spawn_points = SPAWNS
+	_session.spawn_points = _floor.spawns()
 	add_child(_session)
 
 	# Host-only, and silently so: on a client these calls do nothing and the

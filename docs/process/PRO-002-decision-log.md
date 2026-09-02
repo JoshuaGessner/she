@@ -5663,5 +5663,48 @@ It is **printed rather than asserted**, because it is the number that decides a 
 
 ---
 
+## ADR-182 — A seam, not an extraction: `FloorSource`
+
+**Date:** 2026-09-02 · **Status:** accepted · **Changes the route approved for `M4-T01` phase 2b** · **`M4-T01` in progress**
+
+**Context:** the approved plan for making a generated floor playable was: *extract the floor-agnostic machinery out of `room_set.gd` into a `RunFloor` component both levels compose, then build the Delvings on it.* Reading the machinery closely before moving it says the extraction is unnecessary, and this ADR records the change of route rather than making it quietly.
+
+### Decision — parameterise the reads instead of moving the functions
+
+`room_set.gd` is 7436 lines and is two things: **the machinery a run needs** — a session, a party, a Hunt, an extraction, a wipe, thirty probes — and **one hand-authored floor**, as a dozen constants that machinery reads inline.
+
+The run lifecycle was to be the extraction's subject. It does not mention the floor. `_end_the_run`, `_take_the_outcome`, `_watch_for_a_wipe`, `_the_party_is_gone`, `_on_peer_left`, `_settle_if_nobody_is_left` and `_deeds_for` talk to `_session`, `GameState` and `RunFile` and nothing else — **they are already floor-agnostic.** Moving them would relocate code that is not coupled to the thing it would be decoupled from, and it would cost:
+
+- an `@rpc` whose **node path is part of its contract** (`_take_the_outcome` is addressed by `rpc_id`), moved to a different node,
+- ~30 probes that call into the cluster, re-pointed,
+- a week, against a plan estimate that already flagged this phase as the one likely to overrun.
+
+What *is* floor-specific is **six functions reading a dozen constants**: `_spawn_actors` (spawns), `_spawn_enemies` (posts, guardian), `_spawn_loot` (fixtures, filler), `_build_hunt` (field bounds, hunter post), `_build_shaft` (shaft), `_build_lighting` (door lights). `FloorSource` is the one object those six read instead, with `AuthoredFloor` returning the Deep's constants unchanged.
+
+**The same result by arithmetic rather than by surgery**, and the reason it works is that the extraction's premise was wrong: the machinery did not need separating, it needed *asking somewhere else*.
+
+### Why this is not a stub or a parallel path (ADR-064)
+
+`AuthoredFloor` is not a second, worse implementation kept beside a real one. It is the Deep — the floor thirty probes exist to measure, and which stays exactly as it was. `DelvingsFloor` will be the other implementation of one contract, chosen once at the descent. That is ADR-064's **gate decision**, not its banned fallback.
+
+The base is `@abstract` (Godot 4.5+, confirmed on 4.7), so a source that forgets a method fails at parse time rather than returning a plausible empty list — which is exactly the shape of stub this project keeps finding.
+
+### What it does not cover yet
+
+**Geometry.** `AuthoredFloor` answers *where things stand*; the Deep's walls are still built by `_build_room` and its landmarks by `_build_landmark`, from `ROOMS` and `DOORS` directly. Raising the geometry is the other half of the seam and the next commit, because it is the half that needs `FloorBuilder` wired in and a scene to put it in.
+
+Naming this rather than half-doing it: a `build()` on the contract that only one implementation honoured would be the stub the paragraph above rejects.
+
+### Evidence
+
+The sweep is the assertion. Every probe passes unchanged, including `--sight-probe`, which reports the lighting the seam now routes: **12 of 12 doorway lights, 6 of 6 rooms seeing the way out** — identical to before, and computed through `FloorSource.door_lights()` rather than from `ROOMS` and `DOORS` inline.
+
+### Rejected
+
+- **The `RunFloor` extraction**, as above — and it is worth being precise that it was rejected on evidence rather than on cost. Had the run lifecycle actually read the floor, the cost would have been worth paying.
+- **`Delvings extends RoomSet`.** Cheaper still, and it makes a 7400-line class a base class, which is the shape `CLAUDE.md` names in as many words when it asks for composition over a 900-line `Actor`.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
