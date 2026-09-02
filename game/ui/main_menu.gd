@@ -1071,7 +1071,7 @@ func _resume_rows() -> PackedStringArray:
 	# write had just created. A guard whose failure another guard conceals is
 	# not covered by a row about the other guard.
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(RunFile.PATH))
-	RunFile.begin(&"huskarl", 1)
+	RunFile.begin(&"huskarl", 1, 31346)
 	var wrote_unarmed: bool = FileAccess.file_exists(RunFile.PATH)
 	print("[class] unarmed write left a file=%s (want no)" % wrote_unarmed)
 	if wrote_unarmed:
@@ -1088,6 +1088,7 @@ func _resume_rows() -> PackedStringArray:
 	var planted := FileAccess.open(RunFile.PATH, FileAccess.WRITE)
 	planted.store_string(JSON.stringify(
 		{"version": RunFile.VERSION, "class_id": "huskarl", "rank": 1,
+		"floor": 0, "seed": 31346,
 		"carried": [], "hunt_age": 0.0, "stripped": false}))
 	planted.close()
 	var on_disk: bool = FileAccess.file_exists(RunFile.PATH)
@@ -1124,7 +1125,7 @@ func _resume_rows() -> PackedStringArray:
 			+ "one is open, and this one can never be finished"))
 
 	# ── a run belonging to another life is dropped too ───────────────────
-	RunFile.begin(&"veidimadr", 1)
+	RunFile.begin(&"veidimadr", 1, 31346)
 	GameState.class_id = &"huskarl"
 	var stranger_resumed: bool = resume_is_this_life()
 	print("[class] another life resumed=%s (want no)" % stranger_resumed)
@@ -1138,7 +1139,7 @@ func _resume_rows() -> PackedStringArray:
 	# The row that stops all of the above being satisfied by *never* resuming,
 	# which would close the escape ADR-050 exists to close by deleting the
 	# feature.
-	RunFile.begin(&"huskarl", 1)
+	RunFile.begin(&"huskarl", 1, 31346)
 	var mine_resumed: bool = resume_is_this_life()
 	var mine_kept: bool = RunFile.exists()
 	print("[class] my own run   resumed=%s, still open=%s (want yes/yes)" % [

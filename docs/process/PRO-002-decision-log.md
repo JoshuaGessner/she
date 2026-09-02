@@ -5756,5 +5756,69 @@ Measured on floor 1 of seed 31346: **764 nodes of geometry, 30 door lights, a Sh
 
 ---
 
+## ADR-184 — A run knows which floor it is on, and which expedition it is
+
+**Date:** 2026-09-02 · **Status:** accepted · **Supersedes ADR-183 Decision 3** · **`M4-T01`: the first half of the multi-floor run**
+
+**Context:** ADR-183 left the floor index coming from `--floor=N` and said why: `GameState.descents` counts a *lineage's* descents, `RunFile` held no floor, and a run that goes down three floors did not exist. This builds the thing that was missing. It does **not** yet carry a party down — that is the next decision, and the one-line switch that points the Threshold at the Delvings must land after both.
+
+### Decision 1 — the floor index lives in the run file, because that is what a run file is
+
+`RunFile` is *"where you are inside one run"*, kept separate from the profile so `TEC-003`'s death operation stays a one-liner. Depth into an expedition is exactly that kind of state, and `TEC-003` has listed **floor transition** as an autosave point since before there were floors to transition between. `RunFile`'s own note named this task as the owner: *"a ledger is `M4-T01`'s to keep, when a seed makes 'this floor' mean something across processes."*
+
+So `floor` (0…`LAST_FLOOR`) and `seed` join the run file, `VERSION` goes to 2, and `descend()` is the one place the index moves.
+
+The alternatives were worse in specific ways rather than merely less tidy. `GameState` is profile-tier — LIFE and LINEAGE — and putting run position there is the coupling the two-file split exists to prevent. A new autoload spends from a budget of six (`CLAUDE.md` §4) on a single integer that already has a home.
+
+### Decision 2 — the seed goes with it, and that is the half that is easy to miss
+
+An index alone resumes you onto *a* floor 2, not *the* floor 2. `stripped` — the flag that says **you have already been through here** — would then be asserted about a floor nobody had ever walked, and a resumed run would arrive on unfamiliar ground stripped bare. That is the same farming exploit ADR-132 closed, wearing the opposite face: the fix eating the feature instead of the feature eating the fix.
+
+`descend()` therefore carries the seed forward untouched and clears `stripped`, because a new floor has not been looted. Both are asserted, and the `stripped` row is the one that would otherwise have made every floor after the first lay no loot at all.
+
+### Decision 3 — the host rolls the seed, and the descent RPC already crosses the wire
+
+**Every peer builds its own floor geometry.** `room_set._ready` calls `_floor.build()` with no `is_server` gate, on the same reasoning as `_build_shaft`: a floor both sides can derive is not worth a spawn packet. That makes the *number they derive it from* a value the party must agree on — and a seed rolled per process would put four players in four different Delvings, each solid on one machine and thin air on the other three.
+
+It would also have looked perfect solo, and the co-op smoke has never launched with `--delvings`, so nothing in the sweep would have said a word.
+
+No new wire was needed. `Threshold._descend` is already `@rpc("authority", "call_local", "reliable")`: the host is its only caller, so it rolls `randi()` once and every peer runs the same call with the same integer. The seed is printed at the descent, which `TEC-001` requires — a run seed has to be readable off a bug report.
+
+### Decision 4 — the flags stay, as the unarmed process's door
+
+`--floor=N` and `--seed=N` still work, and this is **not** the parallel fallback ADR-064 bans. A probe booting a level directly is not on an expedition; `RunFile` shows an unarmed process no run at all, deliberately (ADR-138). So there is no second *game* path to drift out of step — the open run is the only source when there is one, and the flags are how a measurement asks for a floor to look at. Same shape as `--as-rank=N` against `_declared_rank` (ADR-119), and documented at the read site as such.
+
+`LAST_FLOOR` is a constant on `RunFile` because `room_set` had the same `0, 2` written inline: two places saying how long an expedition is, one of which would eventually have been found by a player rather than by a check.
+
+### The rows, and what they caught
+
+Five new assertions on `--run-probe`, **every one planted and every one caught**:
+
+| Planted | Fires |
+|---|---|
+| a run opens at floor 1 | *"an expedition starts at the top"* |
+| the seed is not recorded | *"a resume would rebuild a different floor under the same index"* |
+| `descend()` does not increment | *"depth would be a lie"* |
+| `descend()` keeps `stripped` | *"every floor after the first would lay no loot"* |
+| the index is not clamped | *"the Deep Gate is the way out of the third, not a fourth"* |
+
+### What is still absent (ADR-064, deliberately)
+
+- **Nothing carries a party down yet.** The bag, the Hunt's age and the bodies do not cross a floor. `descend()` exists and the game does not call it.
+- **The Threshold still opens onto the Deep.** One line, and it stays uncut until the party can actually survive the trip.
+
+### Found on the way, and not fixed here
+
+`RunFile`'s `carried` and `hunt_age` are **written once at `begin()` and never read or updated by anything**. They are dead fields inside a live file — ADR-098's question at field granularity, which `check_dead.py` cannot see because it checks names. The visible consequence today is that a resumed run gives you back your class and your rank but an **empty bag**. They are what the next decision uses to carry a party between floors; noted here so the fix is not mistaken for new construction.
+
+### Rejected
+
+- **A floor index on `GameState`** — profile-tier state, and the coupling `TEC-003`'s two-file split exists to prevent.
+- **A new `Expedition` autoload** — one integer, against a budget of six.
+- **Each process rolling its own seed** (Decision 3), which is correct solo and silently catastrophic in co-op.
+- **Migrating v1 run files.** `read()` drops what it cannot read, by standing policy: keeping a bad run file blocks every future descent and dropping one costs a single run. `SaveFile` takes the opposite decision because a lineage is not replaceable.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

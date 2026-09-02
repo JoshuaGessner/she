@@ -4,8 +4,8 @@ title: Save System & Persistence Implementation
 status: accepted
 owner: tech
 tags: [save, persistence, serialization, migration, tech-debt]
-updated: 2026-08-28
-related: [DES-003, TEC-001, TEC-002, TEC-004]
+updated: 2026-09-02
+related: [DES-003, DES-015, TEC-001, TEC-002, TEC-004]
 ---
 
 # Save System & Persistence Implementation
@@ -82,6 +82,12 @@ The alternative was a guard: a lock file, or a second instance refusing to start
 Mid-run state lives in a separate `user://run.active` file so a crash or quit mid-run can be resumed rather than silently converted into a death.
 
 > **DECIDED (ADR-050):** **Suspend with forced resume.** Quitting mid-run suspends; you resume into the same run. **Dropping out of a co-op run leaves you a Vörðr** (`DES-012`), so disconnecting is never an escape from a bad run.
+
+> **`floor` and `seed` added at `M4-T01`** (ADR-184, save v2). *Autosave on state transitions* above has always listed **floor transition** as one of them, and until `M4` there were no floors to transition between. `floor` is depth into **this expedition**, 0–2 — never `GameState.descents`, which counts what a *lineage* has done and would roll floor 47 on somebody's forty-eighth run. `seed` is which expedition it is, and it is not optional decoration: `stripped` claims *you have already been through here*, and "here" is only a place if the seed that built it comes back with the index. A resume that re-rolled would strip a floor nobody had walked.
+>
+> **The host rolls the seed and the descent RPC carries it.** Every peer builds its own floor geometry, so the number they derive it from must be agreed; `Threshold._descend` is already `authority`/`call_local`, so this cost no new wire (ADR-184 Decision 3).
+>
+> **No migration path, deliberately, and this file is the exception to the rule above.** `read()` drops a run file whose version it does not know. Keeping an unreadable one blocks every future descent; dropping it costs a single run. The profile takes the opposite decision for the opposite reason — a lineage is not replaceable (ADR-117).
 
 ## Caches (`DES-005`)
 

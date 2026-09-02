@@ -510,7 +510,7 @@ func _the_descent_opens_a_run() -> PackedStringArray:
 	# the fire must open it again — which is a claim about a second visit and
 	# belongs where a second visit happens. `run_doorway.py` asserts it on the
 	# peers that walk back out of the Deep.
-	_descend()
+	_descend(31346)
 	var shut_below: bool = not CoopSession.taking_arrivals()
 	print("[edges] the door      shut once down=%s (want yes)" % shut_below)
 	if not shut_below:
@@ -1015,7 +1015,13 @@ func _ask_host_to_descend() -> void:
 func _take_the_party_down(asked_by: int) -> void:
 	var waiting: int = _session.still_choosing()
 	if waiting == 0:
-		_descend.rpc()
+		# **Rolled here, once, by the host** (`M4-T01`, ADR-184) — this is the
+		# only line in the game that chooses an expedition. `randi()` rather
+		# than a hash of anything: two parties descending in the same second
+		# should not be in the same Delvings, and nothing here is required to
+		# be reproducible *across* runs. Reproducing one is what the printed
+		# seed and `--seed=` are for.
+		_descend.rpc(randi())
 		return
 	# **Let them try again.** `_descending` latches so a body standing in the
 	# hole does not ask every frame while the scene changes; a refusal is not a
@@ -1046,8 +1052,22 @@ func _still_at_the_fire(waiting: int) -> void:
 
 ## Down. Whatever is in the stash is what you take, because `DES-014` puts
 ## loadout choices in the Chamber and this is the doorway rather than a menu.
+##
+## **The seed is an argument because the party has to agree about it**
+## (`M4-T01`, ADR-184).
+##
+## Every peer builds its own floor geometry — `room_set` calls `_floor.build()`
+## in `_ready` with no `is_server` gate, on the same reasoning as `_build_shaft`:
+## a floor both sides can derive is not worth a spawn packet. That is exactly
+## why the *number they derive it from* must cross. A seed rolled per process
+## would give a party of four four different Delvings, each one solid on one
+## machine and thin air on the other three — and it would look fine solo, which
+## is how it would ship.
+##
+## `authority` + `call_local` is already the shape that fixes it: the host is the
+## only caller, it rolls once, and every peer runs this with the same integer.
 @rpc("authority", "call_local", "reliable")
-func _descend() -> void:
+func _descend(seed: int) -> void:
 	set_process(false)
 	GameState.descents += 1
 	# **A run is a descent, so this is where one opens** (ADR-143). `MainMenu`
@@ -1058,7 +1078,12 @@ func _descend() -> void:
 	#
 	# A no-op in an unarmed process (ADR-138), so a probe booting this level
 	# directly still cannot open a run in the player's `user://`.
-	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	RunFile.begin(GameState.class_id, GameState.pact_rank, seed)
+	# **Printed, because a seed nobody can read is not reproducible** —
+	# `TEC-001` wants a run seed loggable and replayable off a bug report, and
+	# this is the one line in the game where an expedition is chosen.
+	print("[descent] the expedition is seed %d — floor 0 of %d" % [
+		seed, RunFile.LAST_FLOOR + 1])
 	# **And the door shuts behind the party** (`M3-T36`, ADR-157). Here rather
 	# than in `room_set`, because *the descent* is the event — a level cannot
 	# know whether the process that built it walked in or was launched into it,
@@ -1660,7 +1685,7 @@ func _the_way_out() -> PackedStringArray:
 	# Its own run file, never the player's (ADR-152/ADR-145): this opens one.
 	RunFile.use_a_scratch_run()
 	RunFile.arm()
-	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	RunFile.begin(GameState.class_id, GameState.pact_rank, 31346)
 	pause.close()
 	pause.open()
 	print("[camp] in a run       leaving ends the life=%s (want yes)"

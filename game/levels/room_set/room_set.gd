@@ -494,20 +494,30 @@ func _ready() -> void:
 	# generator re-rolls up to `MAX_ROLLS` times and has never failed a corpus,
 	# so arriving here with problems means something is wrong that walking
 	# around in it would only obscure.
-	# **Depth comes from a flag, not from `GameState.descents`**, and that is a
-	# scoping fact rather than a shortcut. `descents` counts every descent a
-	# lineage has ever made; the floor index this wants is *how deep into this
-	# expedition* you are, 0 to 2 — and a run that goes down three floors does
-	# not exist yet, because nothing carries a party from one to the next.
-	# `RunFile` deliberately holds no floor (its own note says so).
+	# **Depth and seed come from the open run** (`M4-T01`, ADR-184).
 	#
-	# Reading `descents` here would have looked right and quietly rolled floor
-	# 47 on somebody's forty-eighth run. `--floor=N` is honest about being for
-	# walking the three depths until the run that owns the number is built.
+	# Never from `GameState.descents`, which counts every descent a *lineage*
+	# has ever made: reading it would look right and quietly roll floor 47 on
+	# somebody's forty-eighth run. What this wants is how deep into *this
+	# expedition* the party is, 0 to `LAST_FLOOR`, and that is what a run file
+	# is for — `TEC-003` has named *floor transition* an autosave point since
+	# before there were floors to transition between.
+	#
+	# **The flags are the unarmed process's door, on the `--as-rank=` precedent**
+	# (ADR-119), and this is not the parallel fallback ADR-064 bans. A probe
+	# booting this level directly is not on an expedition — `RunFile` shows it
+	# no run at all, deliberately — so there is no second *game* path here to
+	# drift: the run is the only source when there is one, and `--floor=`/
+	# `--seed=` are how a measurement asks for a floor to look at.
 	var depth: int = 0
-	for arg: String in OS.get_cmdline_user_args():
-		if arg.begins_with("--floor="):
-			depth = clampi(int(arg.split("=", true, 1)[1]), 0, 2)
+	if RunFile.exists():
+		depth = RunFile.floor_index()
+		_run_seed = RunFile.seed_of()
+	else:
+		for arg: String in OS.get_cmdline_user_args():
+			if arg.begins_with("--floor="):
+				depth = clampi(int(arg.split("=", true, 1)[1]),
+					0, RunFile.LAST_FLOOR)
 	for arg: String in OS.get_cmdline_user_args():
 		if arg != "--delvings" and arg != "--delvings-probe":
 			continue
@@ -5713,7 +5723,7 @@ func _extraction() -> void:
 			+ "somebody's `user://` and the next launch would resume it")
 		get_tree().quit(1)
 		return
-	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	RunFile.begin(GameState.class_id, GameState.pact_rank, 31346)
 	print("[extract] %s opened a run, still open=%s" % [
 		"host" if multiplayer.is_server() else "client", RunFile.exists()])
 	await _hold(7.0)
@@ -5858,7 +5868,7 @@ func _abandoned() -> void:
 			+ "file and opens one below")
 		get_tree().quit(1)
 		return
-	RunFile.begin(GameState.class_id, GameState.pact_rank)
+	RunFile.begin(GameState.class_id, GameState.pact_rank, 31346)
 	await _hold(7.0)
 	if not multiplayer.is_server():
 		print("[left] client standing on the floor, party=%d"
@@ -7029,7 +7039,7 @@ func _run_file_probe() -> void:
 		return
 
 	# ─ 1. a descent opens one, and it holds who went down ─
-	RunFile.begin(&"huskarl", 3)
+	RunFile.begin(&"huskarl", 3, 31346)
 	var opened: Dictionary = RunFile.read()
 	print("[run] opened              class '%s', rank %d, stripped=%s" % [
 		opened.get("class_id", ""), int(opened.get("rank", 0)),
@@ -7041,6 +7051,60 @@ func _run_file_probe() -> void:
 			or int(opened.get("rank", 0)) != 3:
 		problems.append("the run file does not say who went down, so a resume "
 			+ "cannot put the same person back")
+
+	# ─ 1b. **and where they are** (`M4-T01`, ADR-184) ─
+	#
+	# A run opens at the top of its expedition and remembers which expedition
+	# it is. Both halves asserted, because only the pair is useful: an index
+	# with no seed resumes onto *a* floor 2 rather than *the* floor 2, and
+	# `stripped` would then strip a floor nobody had walked.
+	print("[run] the expedition      floor %d of %d, seed %d (want 0, seed 31346)"
+		% [RunFile.floor_index(), RunFile.LAST_FLOOR + 1, RunFile.seed_of()])
+	if RunFile.floor_index() != 0:
+		problems.append("a run opened somewhere other than floor 0 — an "
+			+ "expedition starts at the top, and `DES-015`'s Aftermath is the "
+			+ "floor that explains the two beneath it")
+	if RunFile.seed_of() != 31346:
+		problems.append("the run does not remember which expedition it is — a "
+			+ "resume would rebuild a different floor under the same index, and "
+			+ "`stripped` would empty one nobody had ever walked")
+
+	# ─ 1c. **descending moves the index and keeps the expedition** ─
+	#
+	# The whole of the multi-floor run in three assertions. `stripped` is the
+	# third and least obvious: a new floor has not been looted, so `descend()`
+	# clears it — without that, every floor after the first lays no loot at all
+	# and the expedition is one room of treasure followed by two empty ones.
+	RunFile.note({"stripped": true})
+	var went_to: int = RunFile.descend()
+	var deeper: Dictionary = RunFile.read()
+	print("[run] descended           floor %d, seed %d, stripped=%s "
+		% [went_to, RunFile.seed_of(), deeper.get("stripped", true)]
+		+ "(want 1, seed 31346, false)")
+	if went_to != 1 or RunFile.floor_index() != 1:
+		problems.append("descending did not move the floor index, so the "
+			+ "expedition would rebuild floor 0 under the party for all three "
+			+ "descents and depth would be a lie")
+	if RunFile.seed_of() != 31346:
+		problems.append("descending re-rolled the expedition — the three floors "
+			+ "of one run are three graphs from one seed (`DES-015`), and a "
+			+ "fresh seed per floor makes them three unrelated places")
+	if bool(deeper.get("stripped", true)):
+		problems.append("the floor below arrived already stripped — every floor "
+			+ "after the first would lay no loot, which is the resume exploit's "
+			+ "fix eating the feature it was protecting")
+
+	# And there is nothing under the last floor. Clamped rather than wrapped, so
+	# a caller at the bottom cannot be handed floor 0 and rebuild the Aftermath.
+	RunFile.note({"floor": RunFile.LAST_FLOOR})
+	var past_the_bottom: int = RunFile.descend()
+	print("[run] under the last      floor %d (want %d)" % [
+		past_the_bottom, RunFile.LAST_FLOOR])
+	if past_the_bottom != RunFile.LAST_FLOOR:
+		problems.append("descending past the last floor did not stop at it — "
+			+ "`DES-015` is three floors and the Deep Gate is the way out of "
+			+ "the third, not a fourth")
+	RunFile.note({"floor": 0})
 
 	# ─ 2. **quitting is not an escape** ─
 	#

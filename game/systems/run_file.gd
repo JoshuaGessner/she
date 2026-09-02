@@ -22,9 +22,17 @@ extends Object
 ##
 ## ## What it does not restore, and why that is a decision
 ##
-## Not the floor. Which enemies are dead and which rooms are cleared are not in
-## here, and `Q43` already says the Hunt repopulates cleared space — so a
-## resumed floor is a populated one.
+## Not the floor's *state*. Which enemies are dead and which rooms are cleared
+## are not in here, and `Q43` already says the Hunt repopulates cleared space —
+## so a resumed floor is a populated one.
+##
+## It does restore **which floor**, and that is `M4-T01` (ADR-184). `floor` is
+## how deep into this expedition you are, 0 to 2; `seed` is which expedition it
+## is. Both, and not just the first: `stripped` says *you have already been
+## through here*, and "here" is only a place if the seed that built it comes
+## back with the index. A resumed run that re-rolled its seed would strip a
+## floor nobody had ever walked — the same farming exploit `stripped` exists to
+## close, wearing the opposite face.
 ##
 ## **The loot is the exception, and it has to be**, because a resume that hands
 ## back a full floor turns quit-and-relaunch into farming the same rooms twice.
@@ -45,7 +53,22 @@ extends Object
 static var PATH: String = "user://run.active"
 static var TMP: String = "user://run.active.tmp"
 
-const VERSION: int = 1
+## Bumped to 2 by `M4-T01` (ADR-184), which added `floor` and `seed`.
+##
+## No migration, and that is this file's standing policy rather than a shortcut:
+## `read()` drops a run file it cannot read, because keeping one blocks every
+## future descent and dropping one costs a single run. `SaveFile` takes the
+## opposite decision for the opposite reason — a lineage is not replaceable.
+const VERSION: int = 2
+
+## The deepest floor of an expedition, zero-based — `DES-015` and ADR-015 are
+## three floors, the Aftermath, the Retreat and the Cause.
+##
+## Here rather than in the generator because this file is what *clamps* the
+## index, and `room_set` had the same `0, 2` written inline: two places saying
+## how long an expedition is, one of which would have been found by a player.
+## The generator takes a depth and does not care how many there are.
+const LAST_FLOOR: int = 2
 
 ## **Only a process that came in through the menu may touch a run file**
 ## (ADR-138). `SaveFile` has had this rule since `M3-T06` — *nothing is written
@@ -147,15 +170,59 @@ static func exists() -> bool:
 
 
 ## Open a run. Called at the descent, before a floor is built.
-static func begin(class_id: StringName, rank: int) -> void:
+##
+## **The seed is passed in rather than rolled here** (`M4-T01`, ADR-184), and
+## that is the whole co-op story. Every peer builds its own geometry — the floor
+## is derived, not spawned, exactly like the Shaft — so a seed each process
+## rolled for itself would put a party of four in four different Delvings, each
+## solid on one machine and thin air on the other three. `Threshold._descend` is
+## `@rpc("authority", "call_local")`: the host rolls once and every peer runs the
+## same call with the same number, so the agreement costs no new wire.
+static func begin(class_id: StringName, rank: int, seed: int) -> void:
 	_write({
 		"version": VERSION,
 		"class_id": String(class_id),
 		"rank": rank,
+		# How deep into *this expedition*, 0 to 2 — never `GameState.descents`,
+		# which counts what a lineage has done and would roll floor 47 on
+		# somebody's forty-eighth run.
+		"floor": 0,
+		"seed": seed,
 		"carried": [],
 		"hunt_age": 0.0,
 		"stripped": false,
 	})
+
+
+## Down one floor. Returns the new index, and writes it before the scene changes
+## so a crash between floors resumes onto the floor you were descending *to* —
+## which is the floor whose Shaft you already paid for.
+##
+## Clamped rather than wrapped: `DES-015` is three floors and there is nothing
+## under the third. A caller that reaches the bottom gets 2 back and has to
+## decide what that means, because *"you are at the bottom"* is a fact about the
+## expedition and not about this file.
+static func descend() -> int:
+	var run: Dictionary = read()
+	if run.is_empty():
+		return 0
+	var next: int = clampi(int(run.get("floor", 0)) + 1, 0, LAST_FLOOR)
+	note({"floor": next, "stripped": false})
+	return next
+
+
+## How deep this run is, 0 to 2. Zero in an unarmed process, which is every
+## probe: a check booting a level directly is not on an expedition, and the flag
+## that tells it which floor to build is read by the level rather than invented
+## here.
+static func floor_index() -> int:
+	return clampi(int(read().get("floor", 0)), 0, LAST_FLOOR)
+
+
+## Which expedition this is. Zero when no run is open — and zero is a legitimate
+## seed, so callers ask `exists()` when they need to tell "seed 0" from "no run".
+static func seed_of() -> int:
+	return int(read().get("seed", 0))
 
 
 ## Update the open run. Merged rather than replaced, so a caller that knows one
