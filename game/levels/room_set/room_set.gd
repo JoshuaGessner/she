@@ -152,6 +152,29 @@ const GENERATED_NAV_GROUP: StringName = &"generated_nav_source"
 const NAV_REACH: float = 1.5
 const NAV_AGENT_RADIUS: float = 0.45
 const NAV_AGENT_HEIGHT: float = 1.8
+
+## How many physics frames the build probe will wait for the navigation map to
+## rebuild after a bake before calling it a failure.
+##
+## Godot 4.4 made map synchronisation asynchronous by default
+## (`navigation/world/map_use_async_iterations`), so the rebuild lands on a
+## worker thread some frames after `bake_navigation_mesh()` returns, and
+## `map_force_update()` does not wait for it. A *fixed* wait is therefore an
+## assumption about how fast the machine is: six frames was ample on this desk
+## and not enough on a two-core CI runner, where every room reported "no mesh
+## under it" and the row blamed the geometry for a question asked too early
+## (ADR-177).
+##
+## A budget for a poll, not a delay to sit out. Generous on purpose: it costs
+## nothing when the map is ready on the first pass, which is the normal case.
+const NAV_SYNC_FRAMES: int = 240
+
+## How much of the planned floor's footprint the baked navmesh must span before
+## the build probe will ask it anything. Measured, not guessed — see the row it
+## prints. The mesh is inset by the agent radius and skips crawls, so it is
+## always somewhat smaller than the plan's hull; this is the margin below which
+## "the map holds a fragment" is the better explanation. ⟨tune⟩
+const NAV_SPAN_SHARE: float = 0.8
 const NAV_SOURCE_GROUP: StringName = &"navigation_source"
 
 ## The network boundary (`M1-T05`). Levels ask it for actors and never
@@ -760,12 +783,23 @@ func _build_probe() -> void:
 	var again := Node3D.new()
 	add_child(again)
 	var twice: Dictionary = FloorBuilder.build(plan, graph, 31337, 0, again)
-	var first: Dictionary = FloorBuilder.build(plan, graph, 31337, 0, Node3D.new())
+	# Parented, and freed below. The first draft built this floor into a bare
+	# `Node3D.new()` written inline — never added to the tree, so nothing ever
+	# freed it, and its 472 static bodies were still allocated at exit. Godot
+	# reports that as seven `ERROR: ... leaked at exit` lines, `check_scripts.sh`
+	# greps for `^ERROR:`, and the row therefore failed while every assertion
+	# inside it passed. Nodes in the tree are released by teardown; an orphan is
+	# the one thing that has to free itself.
+	var apart := Node3D.new()
+	add_child(apart)
+	var first: Dictionary = FloorBuilder.build(plan, graph, 31337, 0, apart)
 	print("[build] same seed   %s" % ("identical"
 		if twice["slabs"] == first["slabs"] else "DIVERGED"))
 	if twice["slabs"] != first["slabs"]:
 		problems.append("one plan raised two different floors — `TEC-004` needs "
 			+ "geometry bit-exact or two players disagree about a wall")
+	again.free()
+	apart.free()
 
 	# ─ 6. the floor bakes a navmesh, and the AI can use most of it ─
 	#
@@ -868,8 +902,6 @@ func _build_probe() -> void:
 	region.navigation_mesh = navmesh
 	add_child(region)
 	region.bake_navigation_mesh(false)
-	for i: int in range(6):
-		await get_tree().physics_frame
 
 	var vertices: int = navmesh.get_vertices().size()
 	print("[build] navmesh     %d vertices baked" % vertices)
@@ -879,20 +911,100 @@ func _build_probe() -> void:
 		_report(problems, "build")
 		return
 
+	# ─ 6c. the map has actually rebuilt before anything asks it a question ─
+	#
+	# A baked resource and a navigable map are different claims, and the gap
+	# between them is asynchronous. Waiting a fixed six frames measured this
+	# desk: CI baked the *same 260 vertices* and then reported all eight
+	# standing rooms off the mesh, because the map had not swapped the rebuild
+	# in yet and `map_get_closest_point` answers honestly about an empty map.
+	#
+	# **`region_get_bounds()` is not the sentinel**, and finding that out is
+	# what reproduced CI here. The region reports its full 77 x 81 m one frame
+	# after the bake — while the *map* it belongs to still answers nothing, for
+	# several frames more. A poll that waited on the region's own extent turned
+	# this desk red in exactly CI's words. The region receiving its data and
+	# the map merging it are two events, and only the second can be asked a
+	# question.
+	#
+	# So poll the map for the population it is about to be measured on
+	# (`TEC-007` §1) — every room that ought to be walkable — and stop as soon
+	# as they are all there. A genuinely stranded room spends the whole budget
+	# and is then reported by the rows below, which is the right trade: four
+	# seconds on a floor that is already failing.
 	var map: RID = get_world_3d().navigation_map
-	# Baking queues work the server applies on its own tick, and a query made
-	# before that lands answers about a map that is not there yet.
-	NavigationServer3D.map_force_update(map)
 	var entrance: int = graph.node_with(MissionGraph.Role.ENTRANCE)
 	var start_at: Vector3 = _plan_centre(plan, entrance)
-	var stranded: PackedStringArray = PackedStringArray()
+
+	# A crawl is 1.4 m and the agent stands 1.8 m, so a crawl with no mesh is
+	# correct — and must not hold the poll open for the whole budget.
+	var standing: Array[int] = []
 	var crawls: int = 0
 	for node: int in graph.size():
-		if node == entrance:
-			continue
 		var module: RoomModule = RoomCatalogue.by_id(plan.module_of(node))
 		if module != null and module.volume == RoomModule.Volume.CRAWL:
 			crawls += 1
+			continue
+		standing.append(node)
+
+	var synced: int = -1
+	var on_mesh: int = 0
+	for frame: int in NAV_SYNC_FRAMES:
+		NavigationServer3D.map_force_update(map)
+		# Asking before the server's first synchronization is an engine error,
+		# not merely an empty answer — Godot prints "navigation map query
+		# failed because it was made before first map synchronization", and an
+		# `ERROR:` line fails the sweep however green the rows below read.
+		# `map_get_iteration_id` is the honest signal that a map exists to ask.
+		if NavigationServer3D.map_get_iteration_id(map) > 0:
+			on_mesh = 0
+			for node: int in standing:
+				var centre: Vector3 = _plan_centre(plan, node)
+				if NavigationServer3D.map_get_closest_point(map, centre) \
+						.distance_to(centre) <= NAV_REACH:
+					on_mesh += 1
+			if on_mesh == standing.size():
+				synced = frame
+				break
+		await get_tree().physics_frame
+
+	var bounds: AABB = NavigationServer3D.region_get_bounds(region.get_rid())
+	var hull: Rect2i = plan.rect_of(0)
+	for node: int in graph.size():
+		hull = hull.merge(plan.rect_of(node))
+	var want: Vector2 = Vector2(hull.size) * FloorBuilder.CELL
+	print("[build] nav sync    %d/%d room(s) on a %.0f x %.0f m mesh of the "
+		% [on_mesh, standing.size(), bounds.size.x, bounds.size.z]
+		+ "plan's %.0f x %.0f, after %d frame(s)"
+		% [want.x, want.y, synced if synced >= 0 else NAV_SYNC_FRAMES])
+	if on_mesh == 0:
+		# Two different failures reach this line, and the region's bounds tell
+		# them apart: if the server is holding a mesh, the rooms are simply not
+		# on it, and blaming synchronisation would send the next reader to the
+		# wrong place entirely.
+		problems.append((("the map holds a %.0f x %.0f m mesh and not one of "
+			+ "%d rooms could reach it in %d frames — the mesh is somewhere "
+			+ "the rooms are not")
+			% [bounds.size.x, bounds.size.z, standing.size(), NAV_SYNC_FRAMES])
+			if bounds.get_volume() > 0.0 else
+			(("the navigation map never rebuilt in %d frames — the mesh baked "
+			+ "%d vertices and the server is still holding nothing, so every "
+			+ "route question below would answer about an empty map")
+			% [NAV_SYNC_FRAMES, vertices]))
+		_report(problems, "build")
+		return
+	if bounds.size.x < want.x * NAV_SPAN_SHARE \
+			or bounds.size.z < want.y * NAV_SPAN_SHARE:
+		problems.append(("the navmesh spans %.0f x %.0f m of a %.0f x %.0f m "
+			+ "floor — the map holds a fragment, and a fragment answers every "
+			+ "question below about the part of the floor it happens to cover")
+			% [bounds.size.x, bounds.size.z, want.x, want.y])
+		_report(problems, "build")
+		return
+
+	var stranded: PackedStringArray = PackedStringArray()
+	for node: int in standing:
+		if node == entrance:
 			continue
 		var centre: Vector3 = _plan_centre(plan, node)
 		var route: PackedVector3Array = NavigationServer3D.map_get_path(

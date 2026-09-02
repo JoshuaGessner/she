@@ -5402,5 +5402,48 @@ The general shape: when an expensive check can only afford a small sample, look 
 
 ---
 
+## ADR-177 — The map is not the region, and the probe's own litter failed the row
+
+**Date:** 2026-09-01 · **Status:** accepted · **Fixes ADR-176's navmesh row** · **Sharpens `TEC-007` §1** · **`M4-T01` in progress**
+
+**Context:** ADR-176 landed the navmesh half of `DES-015` step 8 and the local sweep was read as green. CI went **red on the merge commit** — the first time that row had ever run on Linux — reporting all eight standing rooms off the mesh and no route from the entrance to the Shaft, on a floor that baked *the same 260 vertices* it bakes here. Two independent faults, both introduced by ADR-176, and the local sweep was hiding the second one.
+
+### Decision 1 — wait for the map, not for the region
+
+Godot 4.4 made navigation map synchronisation asynchronous by default (`navigation/world/map_use_async_iterations`, confirmed `true` on 4.7). The rebuild lands on a worker thread some frames after `bake_navigation_mesh()` returns, and **`map_force_update()` does not wait for it**. ADR-176 waited a fixed six physics frames, which is not a synchronisation primitive — it is a measurement of this desk. A two-core runner needs more, gets asked anyway, and `map_get_closest_point` answers honestly about a map that is not there yet.
+
+The row now polls until every room that ought to be walkable can find the mesh, with a budget (`NAV_SYNC_FRAMES`) rather than a delay. It costs nothing in the normal case — two frames — and a genuinely stranded room spends the budget and is then reported by the rows below, which is the right trade on a floor that is already failing.
+
+**`region_get_bounds()` is not the sentinel, and finding that out is what reproduced CI here.** The first attempt polled the region's own extent, on the reasoning that it is what the *server* holds rather than what the resource was baked with. It reports the full 77 × 81 m one frame after the bake — while the map it belongs to still answers nothing, for several frames more. That version turned this desk red in exactly CI's words, which is how the mechanism was confirmed rather than assumed. The region receiving its data and the map merging it are two events, and only the second one can be asked a question.
+
+So `TEC-007` §1 gains a third rule:
+
+> **Wait for the thing you are about to measure, not for something that arrives near it.** A sentinel one step upstream of the measurement is a race with better manners.
+
+### Decision 2 — the two failures must not share a message
+
+`on_mesh == 0` is reachable from a map that never rebuilt *and* from geometry the rooms are nowhere near, and blaming synchronisation for the second sends the next reader somewhere useless. The region bounds tell them apart — held mesh means the rooms are not on it — and the row says which. Both branches were planted by starving the budget to 1 and 2 frames, and produce distinct, correct sentences.
+
+A third plant — the floor built 500 m from where the plan says it is — confirms the poll cannot *hide* a coverage failure: 1/9 rooms, budget spent, and the stranded row reports it. An earlier attempt at that plant displaced the region *before* baking and was a no-op, because the bake converts world geometry into region-local space and the transform cancels; recorded because a plant that quietly tests nothing is the failure mode this whole file exists to catch.
+
+### Decision 3 — the probe must exit clean, because its litter is read as a failure
+
+`check_scripts.sh` greps `^ERROR:`, so **anything the engine prints at exit fails the row regardless of what the row measured.** Two sources:
+
+- Querying before the server's first synchronization is an *engine error*, not an empty answer: Godot prints "navigation map query failed because it was made before first map synchronization". The poll now checks `map_get_iteration_id(map) > 0` before asking.
+- Section 5 built a floor into a bare `Node3D.new()` written inline as an argument. Never parented, so nothing ever freed it, and its 472 static bodies were still allocated at exit — seven `ERROR: ... leaked at exit` lines. **Nodes in the tree are released by teardown; an orphan is the one thing that has to free itself.**
+
+**The local sweep was already failing on `main` before any of this session's work**, for the second reason, and had been reported as green. Verified by stashing and re-running. That is the ADR-104 lesson arriving a second time from the other direction: it is not enough to run the sweep, the result has to be *read*.
+
+Two frees added here were removed again. They released the navmesh probe's floor at the end of the row, on the theory that it was the leak; it was not — everything parented is freed at teardown — and keeping code whose comment states a false cause is worse than the code being merely unnecessary.
+
+### Rejected
+
+- **A larger fixed frame wait.** The same bug with a bigger constant, and it would have gone red again on a slower runner without saying why.
+- **Turning async iterations off for the probe's map.** Would likely work and hides the mechanism: the game runs with them on, so the probe should ask the same server the game asks.
+- **Suppressing the leak lines in the grep.** The grep is right. A probe that cannot exit cleanly reports a failure it does not have, and the fix is to stop littering.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

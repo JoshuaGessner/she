@@ -92,6 +92,15 @@ And a second rule, earned the same way (ADR-176):
 > — for floors carrying about 1500 — and was green, because Godot had silently
 > renamed every slab past the first and the filter matched one of them.
 
+And a third, from the navmesh row going red on Linux alone (ADR-177):
+
+> **Wait for the thing you are about to measure, not for something that arrives
+> near it.** A sentinel one step upstream of the measurement is a race with
+> better manners. The navigation *region* reports its full extent one frame
+> after a bake; the *map* it belongs to cannot answer a query for several
+> frames more, and a poll on the first turned a green desk red in CI's exact
+> words.
+
 `RandomNumberGenerator` is PCG32 and integer-based; identical seeds give identical
 integer sequences, which the same probe confirms over 10 000 draws. The danger is
 never the RNG. It is what you do with the numbers afterwards.
