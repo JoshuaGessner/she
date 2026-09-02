@@ -46,6 +46,7 @@ Recorded so they are not mistaken for undesigned areas.
 | Shader | Do player characters get heavier outlines? (Q99) | `ART-005` |
 | Inventory | **Cell sizes and rummage speed.** Grid dimensions are settled at 6×5 by ADR-087 — measured, not guessed: it is where a bag of gear runs out of squares and a bag of glitter runs out of legs. Whether 44 px cells read at a glance, and whether `bag_open_time` ⟨tune⟩ 0.35 s feels vulnerable or merely slow, are questions only a playtest answers | `DES-019` |
 | Pressure | **Waystone drop rate** — the strongest single lever in the game | `DES-005` |
+| Enemies | **Where does standing danger go on a floor with no held arm?** `FloorAnchors` posts enemies in held rooms, which is ADR-032 generalised — but only two of the five cycle types hold a span, so **145 floors of 360 have nothing held** and would carry no standing danger at all beyond the Hunt. Either posts derive from something richer than held-ness, or the catalogue guarantees a held arm per floor. Measured, not guessed; it is `M4-T02`'s to answer | `DES-013`, `DES-015`, ADR-171, ADR-181 |
 | Audio | Crossfade length between states | `ART-002`, ADR-043 |
 | Co-op | Per-capita extracted value at 1 / 2 / 4 players | `DES-012` |
 | Hunter | **Gold-bait cost curve; how long a bait buys.** Built at `M2-T02`: proportional to carried value (ADR-039) with an absolute floor (ADR-089), buying ⟨tune⟩ 4.5 s of Collecting. Whether that is a window worth spending a torc on is the playtest question | `DES-017` |

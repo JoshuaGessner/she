@@ -5617,5 +5617,51 @@ Ledges fall from about 20 per three floors to 7, because a ledge now needs a fiv
 
 ---
 
+## ADR-181 — `FloorAnchors`: the mission decides where things stand
+
+**Date:** 2026-09-02 · **Status:** accepted · **`M4-T01` in progress** · **First half of making a generated floor playable**
+
+**Context:** the generator produces a floor you could walk if anything put you on it. Nothing does. `room_set.gd` knows where the party arrives, where the Shaft is, where the Gullsjúkr posts, and which corner the coin is in — as **twelve hand-placed constants**, checked by hand against one authored level. A generated floor has as many such positions as it has rooms, and a different set every seed.
+
+### Decision 1 — positions are derived from the mission, and contents are not
+
+`FloorAnchors` answers *where*, from the graph's roles and the plan's rectangles: arrival points, the Shaft, the Prize, where the Hunt begins, standing posts, door lights, landmarks, the Clamor field's bounds, and one loot spot per room tagged `prize` / `held` / `bypass`.
+
+**It never answers *what*.** Which Prize, which enemy archetype, which item — those are `DES-008`, `DES-013` and `M4-T17`, and none of them exists yet. Splitting on that line is what lets the item taxonomy arrive later without touching this file, and it is why the loot spots carry a tag naming what the room is *for* rather than an item id.
+
+### Decision 2 — loot placement is ADR-032 generalised
+
+ADR-032's finding on the authored floor was that a cycle only means something if its two arms pay differently: the long safe branch carries bog iron and a working knife, the short held branch carries coin and gold, and the guarded room carries the three things worth the fight. **Held-versus-unheld is a property of the graph**, so that rule generalises to any floor with no hand-placed coordinate at all. Measured across 360 floors: every floor has a bypass payoff.
+
+### Decision 3 — the Hunt starts far in hops, not in metres, and never in a crawl
+
+`DES-017` wants the first meeting on the walk *out* with a full bag, so the Hunter begins as deep as the floor allows. On a graph that means **hops**: a room two corridors away across a cycle is nearer than its distance suggests. And never in a crawl — a crawl carries no navmesh by design, so a Hunter posted in one cannot move, and the deepest room on a floor is exactly where a crawl gets seated.
+
+### Decision 4 — the party arrives in a grid, and the line that preceded it would have failed 103 floors
+
+Four players spread along one axis need 4.8 m of clear interior. The smallest entrance module is three cells: 6.0 m of room, **4.2 m once the walls and a body's radius come off**. Of 360 floors, **103 could not have seated a four-stack**, and the failure mode is bodies spawned inside each other, shoved apart host-side, which reads on a client as two peers disagreeing about where somebody is. A 2×2 needs 1.6 m on each axis and every entrance has it.
+
+**The row that found it was itself wrong first.** It asked whether the *room* was big enough — a proxy, and one that encodes the layout it is meant to be checking. It measures the points that come out instead: no two of a four-stack closer than a body's width. 103 → 0.
+
+### Decision 5 — one row was removed because the design never promised it
+
+The first draft asserted that every floor has a held room. **145 of 360 do not**, and they are not faults: only two of the five cycle types hold a span at all (`DANGER_DETOUR` and `LOCK_AND_KEY`, ADR-171), so a foldback or shortcut floor having nothing held is the catalogue working. The assertion was inventing a promise and would have failed 40% of a healthy corpus.
+
+It is **printed rather than asserted**, because it is the number that decides a real question: whether standing posts can be derived from held rooms alone, or whether 40% of floors would have no standing danger on them at all. That belongs to `M4-T02` and `DES-013`, not here.
+
+### What is asserted
+
+- **Every placement stands on the navmesh** — asked of the mesh, not of the geometry, because "inside a room" is not the claim and "somewhere a body can stand and walk away from" is. 18 placements on the baked floor, worst 0.24 m off. Planted by pushing the inset negative: 5 adrift.
+- **A light per doorway, a landmark per great room, every room inside the Clamor field** — each checked against the thing it is derived from, not against itself. Planted separately; both fire.
+- **No two of a four-stack spawn inside each other**, over 360 floors.
+- **Every floor has a bypass payoff** (ADR-032).
+
+### Rejected
+
+- **Asserting that posts land only in held rooms.** True by construction — the function skips everything else — so it is a claim about the code, and `TEC-007` §1 is a list of what those cost.
+- **Deriving posts from something richer than held-ness** to cover the 145 floors. That is enemy placement design; inventing it here would put a rule with no document behind it into the generator.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

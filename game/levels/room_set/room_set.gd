@@ -1152,6 +1152,82 @@ func _build_probe() -> void:
 			+ "not have safe rooms")
 			% [marooned.size(), decks.size(), "; ".join(marooned)])
 
+	# ─ 6e. everything the level will place stands somewhere it can be placed ─
+	#
+	# `FloorAnchors` turns the mission into positions: where the party arrives,
+	# where the Shaft is, where the Hunt begins, where a post goes, where the
+	# coin is. Every one is a point a body or an item gets spawned at, and a
+	# point inside masonry **does not error** — it drops the thing out of the
+	# world or wedges it, and whatever measures that thing afterwards then
+	# reports confident nonsense. `--walk-probe` spent a run blaming the level
+	# for a body it had itself dropped inside a barricade (ADR-144), and the
+	# authored floor had twelve hand-checked coordinates; a generated one has
+	# as many as the graph has rooms.
+	#
+	# Asked of the **navmesh**, not of the geometry: "inside a room" is not the
+	# claim, "somewhere a body can stand and walk away from" is.
+	var anchors: FloorAnchors = FloorAnchors.of(bake_plan, bake, BAKE_SEED, 0)
+	var placed: Array[Vector3] = anchors.spawns(4)
+	placed.append(anchors.shaft())
+	placed.append(anchors.prize())
+	placed.append(anchors.hunter())
+	placed.append_array(anchors.posts())
+	for spot: Dictionary in anchors.loot():
+		placed.append(spot["at"])
+	var adrift: int = 0
+	var worst_at: float = 0.0
+	for at: Vector3 in placed:
+		var off: float = NavigationServer3D.map_get_closest_point(
+			map, at).distance_to(at)
+		if off > NAV_REACH:
+			adrift += 1
+		worst_at = maxf(worst_at, off)
+	# The three lists a level reads but does not spawn bodies at: a light per
+	# doorway (`ART-005`'s pale light is the way through), a silhouette per
+	# great room (Lynch's landmarks), and the bounds the Clamor field covers.
+	# Each is checked against the thing it is derived from rather than against
+	# itself — a light list that had quietly become empty would otherwise leave
+	# a floor unlit and every row here passing.
+	var doorways: Array[Vector2i] = []
+	var halls: int = 0
+	for node: int in bake.size():
+		for cell: Vector2i in bake_plan.doors_of(node):
+			if not doorways.has(cell):
+				doorways.append(cell)
+		var module: RoomModule = RoomCatalogue.by_id(bake_plan.module_of(node))
+		if module != null and module.volume == RoomModule.Volume.GREAT:
+			halls += 1
+	var lit: int = anchors.door_lights().size()
+	var marks: int = anchors.landmarks().size()
+	var covers: AABB = anchors.field()
+	var outside: int = 0
+	for node: int in bake.size():
+		var mid: Vector3 = anchors.centre_of(node)
+		if not covers.has_point(Vector3(mid.x, covers.position.y, mid.z)):
+			outside += 1
+	print("[build] fittings    %d light(s) for %d doorway(s), %d landmark(s) "
+		% [lit, doorways.size(), marks]
+		+ "for %d great room(s), %d room(s) outside the clamor field"
+		% [halls, outside])
+	if lit != doorways.size():
+		problems.append(("%d door light(s) for %d doorway(s) — a doorway with "
+			+ "no light is a way out the room does not show, which `M2-T13` "
+			+ "found is the difference between a floor you can read and six "
+			+ "identically lit boxes") % [lit, doorways.size()])
+	if marks != halls:
+		problems.append("%d landmark(s) for %d great room(s)" % [marks, halls])
+	if outside > 0:
+		problems.append(("%d room(s) sit outside the clamor field — noise made "
+			+ "in them lands nowhere and the Ear reports silence") % outside)
+
+	print("[build] anchors     %d placement(s), %d off the mesh, worst %.2f m"
+		% [placed.size(), adrift, worst_at])
+	if adrift > 0:
+		problems.append(("%d of %d placements are off the navmesh (worst "
+			+ "%.2f m) — a spawn point inside masonry drops what it spawns out "
+			+ "of the world and every measurement of it afterwards is fiction")
+			% [adrift, placed.size(), worst_at])
+
 	var to_at: Vector3 = _plan_centre(bake_plan, bake.node_with(
 		MissionGraph.Role.SHAFT))
 	var route: PackedVector3Array = NavigationServer3D.map_get_path(
@@ -1367,6 +1443,9 @@ func _plan_probe() -> void:
 	var sight: PackedInt32Array = PackedInt32Array()
 	var behind_a_crawl: int = 0
 	var crawl_rooms: int = 0
+	var no_held: int = 0
+	var no_bypass: int = 0
+	var cramped: int = 0
 	for i: int in trials:
 		for depth: int in 3:
 			var seed_at: int = 60000 + i
@@ -1401,6 +1480,34 @@ func _plan_probe() -> void:
 			for node: int in g2.size():
 				if not crawl.has(node) and not seen2.has(node):
 					behind_a_crawl += 1
+
+			# **Both halves of the bargain, on every floor.** ADR-032's finding is
+			# that a cycle only means something if its two arms pay differently —
+			# the held one short and guarded, the bypass long and poor. A floor
+			# with no held room has nothing to be afraid of and a floor with no
+			# unheld room has no choice to offer, and either way the cycle the
+			# graph went to such trouble to build is decoration.
+			var anchor := FloorAnchors.of(p2, g2, seed_at, depth)
+			var held_rooms: int = 0
+			var open_rooms: int = 0
+			for spot: Dictionary in anchor.loot():
+				if spot["tag"] == &"bypass":
+					open_rooms += 1
+				elif spot["tag"] == &"held":
+					held_rooms += 1
+			no_held += 1 if held_rooms == 0 else 0
+			no_bypass += 1 if open_rooms == 0 else 0
+			# And a four-stack has to fit inside its own front door. Measured on
+			# the points that come **out**, not on the room they came from: the
+			# room is a proxy, and the property is that no two players are spawned
+			# inside one another.
+			var four: Array[Vector3] = anchor.spawns(4)
+			var touching: bool = false
+			for a: int in four.size():
+				for b: int in range(a + 1, four.size()):
+					touching = touching \
+						or four[a].distance_to(four[b]) < BODY_RADIUS * 2.0
+			cramped += 1 if touching else 0
 
 			for route: int in p2.routes():
 				var path: Array[Vector2i] = p2.path_of(route)
@@ -1451,6 +1558,26 @@ func _plan_probe() -> void:
 		problems.append("no floor placed a crawl at all — the rule that keeps "
 			+ "a crawl off the only way in has swallowed the mechanic instead "
 			+ "of shaping it, and `DES-009`'s crouch verb has nowhere to matter")
+
+	# `no_held` is **reported, not asserted**. Only two of the five cycle types
+	# hold a span at all (`DANGER_DETOUR` and `LOCK_AND_KEY`, ADR-171), so a
+	# foldback or a shortcut floor having nothing held is the catalogue working,
+	# not a fault — and a row asserting it would be inventing a promise the
+	# design never made. It is printed because it is the number that decides
+	# whether posts can be derived from held rooms alone, which is `M4-T02`'s
+	# question and not this file's.
+	print("[plan] anchors     %d floor(s) of %d with nothing held, %d with no "
+		% [no_held, trials * 3, no_bypass]
+		+ "bypass, %d that would spawn a party inside itself" % cramped)
+	if no_bypass > 0:
+		problems.append(("%d floor(s) have no unheld room — every payoff is "
+			+ "behind a guard, so the bypass ADR-032 exists to protect is not "
+			+ "on the floor") % no_bypass)
+	if cramped > 0:
+		problems.append(("%d floor(s) would spawn two of a four-stack inside "
+			+ "each other — the shove that separates them is host-side, so it "
+			+ "reads on a client as two peers disagreeing about where somebody "
+			+ "is") % cramped)
 
 	# ─ 3. same seed, same space; different seed, different space ─
 	#
