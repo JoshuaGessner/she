@@ -325,6 +325,24 @@ func _route_all(rng: RandomNumberGenerator) -> bool:
 	return true
 
 
+## Does this cell run flush against a room it is not opening into?
+##
+## Room walls stand outside the room's rect, which puts them **inside** the
+## corridor cell next door and takes 0.6 m off its 2.0 m width. A cell with a
+## room on two sides keeps 0.8 m, and the navmesh agent is 0.9 m across, so the
+## corridor seals — which is exactly how a room ends up an island with both its
+## doorways cut correctly.
+##
+## Only this route's own two rooms may be touched, and touching them is what a
+## doorway *is*.
+func _hugs(cell: Vector2i, from: int, to: int) -> bool:
+	for step: Vector2i in STEPS:
+		var owner: int = _cells.get(cell + step, -1)
+		if owner >= 0 and owner != from and owner != to:
+			return true
+	return false
+
+
 ## Which axis a step runs along: 0 horizontal, 1 vertical.
 func _axis_of(step: int) -> int:
 	return 0 if step % 2 == 1 else 1
@@ -342,9 +360,12 @@ func _route(edge: Vector2i, index: int) -> bool:
 	var over: Dictionary = {}
 	var queue: Array[Vector2i] = []
 	for seed_cell: Vector2i in _perimeter(from):
-		if not _cells.has(seed_cell) and not _corridor.has(seed_cell):
-			came[seed_cell] = seed_cell
-			queue.append(seed_cell)
+		if _cells.has(seed_cell) or _corridor.has(seed_cell):
+			continue
+		if _hugs(seed_cell, from, to):
+			continue
+		came[seed_cell] = seed_cell
+		queue.append(seed_cell)
 	var visited: int = 0
 	while not queue.is_empty():
 		var at: Vector2i = queue.pop_front()
@@ -360,7 +381,7 @@ func _route(edge: Vector2i, index: int) -> bool:
 			continue
 		for step: int in STEPS.size():
 			var next: Vector2i = at + STEPS[step]
-			if _cells.has(next):
+			if _cells.has(next) or _hugs(next, from, to):
 				continue
 			var land: Vector2i = next
 			var bridge: bool = false
@@ -504,15 +525,6 @@ func corridor_cells() -> int:
 	return _corridor.size()
 
 
-## Every corridor cell, sorted. `FloorBuilder` walks these to cut the tunnels.
-func corridor_at() -> Array[Vector2i]:
-	var cells: Array[Vector2i] = []
-	for cell: Vector2i in _corridor.keys():
-		cells.append(cell)
-	cells.sort()
-	return cells
-
-
 ## Every route index, in order.
 func routes() -> PackedInt32Array:
 	var found := PackedInt32Array()
@@ -538,13 +550,6 @@ func over_of(route: int) -> Array[Vector2i]:
 ## opens onto more floor stays open; everything else is rock.
 func holds(cell: Vector2i) -> bool:
 	return _cells.has(cell) or _corridor.has(cell)
-
-
-## Does more than one route cross this cell? A bridge, and the one place these
-## floors are vertical before ledges exist (`TEC-008` §2.7).
-func is_bridge(cell: Vector2i) -> bool:
-	var crossing: PackedInt32Array = _corridor.get(cell, PackedInt32Array())
-	return crossing.size() > 1
 
 
 ## The corridor cells that open into `node`, sorted.
