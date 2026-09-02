@@ -86,6 +86,14 @@ const THEME_WEIGHT: int = 4
 ## The headroom is here for the dense floor-2 graphs, not for the common case
 ## ⟨tune⟩.
 const MAX_ROLLS: int = 60
+## Cells of straight run a crossing needs on each side before it may be used.
+##
+## Geometry climbs to a bridge over a ramp, and a ramp needs somewhere to be.
+## A crossing one cell from a doorway leaves the threshold tilted or stepped —
+## and a step is a wall to anything that walks. Routing refuses those crossings
+## so the builder never has to paper over one ⟨tune⟩.
+const BRIDGE_CLEARANCE: int = 3
+
 ## Fine cells a single corridor may visit before routing calls it hopeless.
 ##
 ## **This constant was the whole problem, and it did not look like it.** With it
@@ -124,6 +132,14 @@ var _axis: Dictionary = {}
 ## Where a corridor opens into a room, as `Vector4i(cell.x, cell.y, node,
 ## route)`. Every other corridor cell is walled from whatever it runs past.
 var _doors: Array[Vector4i] = []
+## Route index → its cells in walking order, door to door. Kept because
+## geometry needs to know which way a corridor *runs*, not only which cells it
+## occupies: a crossing has to be ramped up to and down from, and a ramp is a
+## property of the path rather than of any one cell.
+var _paths: Dictionary = {}
+## Route index → the cells where it passes **over** another. The route that was
+## laid second is the one that goes up.
+var _over: Dictionary = {}
 var _rolls: int = 0
 var _exhausted: bool = false
 var _failure: String = ""
@@ -162,6 +178,8 @@ func _reset() -> void:
 	_cells = {}
 	_corridor = {}
 	_axis = {}
+	_paths = {}
+	_over = {}
 	_doors = []
 	_failure = ""
 	for i: int in _graph.size():
@@ -334,8 +352,12 @@ func _route(edge: Vector2i, index: int) -> bool:
 		if visited > MAX_ROUTE:
 			return false
 		if _touches(at, to):
-			_lay(at, came, over, index, from, to)
-			return true
+			# A crossing too near either doorway cannot be ramped, so this
+			# arrival is refused and the search carries on looking for another.
+			if _climbable(at, came, over):
+				_lay(at, came, over, index, from, to)
+				return true
+			continue
 		for step: int in STEPS.size():
 			var next: Vector2i = at + STEPS[step]
 			if _cells.has(next):
@@ -365,6 +387,29 @@ func _route(edge: Vector2i, index: int) -> bool:
 	return false
 
 
+## Could this route climb to every crossing it makes?
+##
+## Measured on the path rather than assumed: the ramp needs `BRIDGE_CLEARANCE`
+## cells between a crossing and each doorway, and a route that cannot give it
+## that is one the builder would have to fake.
+func _climbable(at: Vector2i, came: Dictionary, over: Dictionary) -> bool:
+	var path: Array[Vector2i] = []
+	var walk: Vector2i = at
+	while true:
+		path.append(walk)
+		if over.has(walk):
+			path.append(over[walk])
+		if came[walk] == walk:
+			break
+		walk = came[walk]
+	for i: int in path.size():
+		if not _corridor.has(path[i]):
+			continue
+		if i < BRIDGE_CLEARANCE or i > path.size() - 1 - BRIDGE_CLEARANCE:
+			return false
+	return true
+
+
 ## Write a found route into the grid, and record the door at each end.
 func _lay(at: Vector2i, came: Dictionary, over: Dictionary, index: int,
 		from: int, to: int) -> void:
@@ -378,13 +423,19 @@ func _lay(at: Vector2i, came: Dictionary, over: Dictionary, index: int,
 			break
 		walk = came[walk]
 	path.reverse()
+	_paths[index] = path
+	var crossed: Array[Vector2i] = []
+	for cell: Vector2i in path:
+		if _corridor.has(cell):
+			crossed.append(cell)
+	_over[index] = crossed
 	for i: int in path.size():
 		var cell: Vector2i = path[i]
-		var routes: PackedInt32Array = _corridor.get(cell, PackedInt32Array())
-		var fresh: bool = routes.is_empty()
-		if not routes.has(index):
-			routes.append(index)
-		_corridor[cell] = routes
+		var crossing: PackedInt32Array = _corridor.get(cell, PackedInt32Array())
+		var fresh: bool = crossing.is_empty()
+		if not crossing.has(index):
+			crossing.append(index)
+		_corridor[cell] = crossing
 		if fresh:
 			_axis[cell] = _straight_axis(path, i)
 	_doors.append(Vector4i(at.x, at.y, to, index))
@@ -462,6 +513,25 @@ func corridor_at() -> Array[Vector2i]:
 	return cells
 
 
+## Every route index, in order.
+func routes() -> PackedInt32Array:
+	var found := PackedInt32Array()
+	for index: int in _paths.keys():
+		found.append(index)
+	found.sort()
+	return found
+
+
+## One route's cells, door to door, in walking order.
+func path_of(route: int) -> Array[Vector2i]:
+	return _paths.get(route, [] as Array[Vector2i])
+
+
+## The cells of `route` that cross above another corridor.
+func over_of(route: int) -> Array[Vector2i]:
+	return _over.get(route, [] as Array[Vector2i])
+
+
 ## Is this cell walkable floor of any kind — room interior or corridor?
 ##
 ## `FloorBuilder` asks so it can decide where a tunnel needs a wall. A side that
@@ -473,8 +543,8 @@ func holds(cell: Vector2i) -> bool:
 ## Does more than one route cross this cell? A bridge, and the one place these
 ## floors are vertical before ledges exist (`TEC-008` §2.7).
 func is_bridge(cell: Vector2i) -> bool:
-	var routes: PackedInt32Array = _corridor.get(cell, PackedInt32Array())
-	return routes.size() > 1
+	var crossing: PackedInt32Array = _corridor.get(cell, PackedInt32Array())
+	return crossing.size() > 1
 
 
 ## The corridor cells that open into `node`, sorted.
@@ -588,11 +658,11 @@ func problems() -> PackedStringArray:
 
 	var stacked: int = 0
 	for cell: Vector2i in _corridor.keys():
-		var routes: PackedInt32Array = _corridor[cell]
-		if routes.size() > 2:
+		var crossing: PackedInt32Array = _corridor[cell]
+		if crossing.size() > 2:
 			stacked += 1
 	if stacked > 0:
-		found.append(("%d corridor cell(s) carry three or more routes — two is "
+		found.append(("%d corridor cell(s) carry three or more crossing — two is "
 			+ "a bridge and anything more is a junction nobody can build")
 			% stacked)
 
@@ -635,9 +705,9 @@ func digest() -> String:
 	var cells: Array = _corridor.keys()
 	cells.sort()
 	for cell: Vector2i in cells:
-		var routes: PackedInt32Array = _corridor[cell]
+		var crossing: PackedInt32Array = _corridor[cell]
 		var names := PackedStringArray()
-		for route: int in routes:
+		for route: int in crossing:
 			names.append(str(route))
 		parts.append("c%d,%d:%s" % [cell.x, cell.y, "+".join(names)])
 	return "%d|%s" % [parts.size(), "|".join(parts)]
