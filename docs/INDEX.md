@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-01 · 41 documents_
+_Regenerated 2026-09-02 · 41 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -48,7 +48,7 @@ _How it gets built._
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-01 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-17 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-01 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
-| `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-01 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
+| `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-02 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
 
 ## Process
 

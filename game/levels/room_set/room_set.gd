@@ -169,6 +169,16 @@ const NAV_AGENT_HEIGHT: float = 1.8
 ## nothing when the map is ready on the first pass, which is the normal case.
 const NAV_SYNC_FRAMES: int = 240
 
+## The floor `--build-probe` bakes a navmesh for.
+##
+## **Chosen for having crossings on it**, which is the whole point: a bridge
+## carried over another corridor is the only geometry on a floor that is not
+## flat, and the probe baked floor 0 of seed 31337 — which has none — for four
+## commits, so an inverted ramp survived every run (ADR-178). This floor is the
+## same nine rooms and carries four crossings and two great rooms, so both kinds
+## of ramp are under the assertion for the price of the cheaper floor.
+const BAKE_SEED: int = 31342
+
 ## How much of the planned floor's footprint the baked navmesh must span before
 ## the build probe will ask it anything. Measured, not guessed — see the row it
 ## prints. The mesh is inset by the agent radius and skips crawls, so it is
@@ -637,6 +647,8 @@ func _build_probe() -> void:
 	# ─ 1. a floor of every depth builds at all ─
 	var built: int = 0
 	var raised: Array[Node3D] = []
+	var alcoves: int = 0
+	var ledges: int = 0
 	for depth: int in 3:
 		var graph: MissionGraph = MissionGraph.build(31337, depth)
 		var lore := ExpeditionHistory.roll(31337, calamities, kinds)
@@ -650,6 +662,8 @@ func _build_probe() -> void:
 		raised.append(root)
 		var census: Dictionary = FloorBuilder.build(plan, graph, 31337, depth, root)
 		built += 1
+		alcoves += int(census["alcoves"])
+		ledges += int(census["ledges"])
 		print("[build] floor %d     %d room(s), %d corridor cell(s), %d slab(s), "
 			% [depth, census["rooms"], census["corridor"], census["slabs"]]
 			+ "roughness %.1f" % census["roughness"])
@@ -663,6 +677,29 @@ func _build_probe() -> void:
 	if built != 3:
 		_report(problems, "build")
 		return
+
+	# ─ 1a. the devices that buy Lynch's missing three ─
+	#
+	# `TEC-008` §2.2's finding was that the floors had **paths** and **nodes** and
+	# no **edges**, **districts** or **landmarks** — the three a player builds a
+	# mental map out of. The gradient below is the districts; alcoves are the
+	# edges; ledges are the landmarks and the vista rule's delivery mechanism.
+	#
+	# Counted, because each one is emitted only where the floor permits it — an
+	# alcove needs a pocket of rock, a ledge needs a great room with a door-free
+	# wall — and a condition that quietly stopped being met would leave every
+	# other row here passing about a floor that had gone back to boxes and
+	# corridors. That is `TEC-007` §1's population rule, and this row is what it
+	# looks like when it is applied before the fact rather than after.
+	print("[build] devices     %d alcove(s), %d ledge(s) across 3 floors"
+		% [alcoves, ledges])
+	if alcoves == 0:
+		problems.append("no room on any of three floors was given an alcove — "
+			+ "every large room is a rectangle again, which is the wall line "
+			+ "`TEC-008` §3.3.3 exists to break")
+	if ledges == 0:
+		problems.append("no great room on any of three floors was given a ledge "
+			+ "— `DES-015`'s vista rule has no delivery mechanism without one")
 
 	# ─ 2. the worked stone gives way to the seam ─
 	#
@@ -732,15 +769,29 @@ func _build_probe() -> void:
 	# left it passing. An assertion made from a convenient existing value
 	# measures that value, not the property; this is the fifth time in `M4-T01`.
 	var shell := Node3D.new()
+	# Stood well clear of everything else in the world, because the question
+	# below is asked of the *physics space* and this scene already holds three
+	# other generated floors built at the origin, on top of each other, plus
+	# the authored level. A query that cannot say which floor answered it is
+	# not a measurement.
+	shell.position = Vector3(5000.0, 0.0, 5000.0)
 	add_child(shell)
 	FloorBuilder.build(plan, graph, 31337, 0, shell)
-	var solids: Array[AABB] = []
-	for child: Node in shell.get_children():
-		var node3d := child as MeshInstance3D
-		var box := node3d.mesh as BoxMesh
-		if box == null or absf(node3d.rotation.y) > 0.01:
-			continue
-		solids.append(AABB(node3d.position - box.size * 0.5, box.size))
+
+	# **Asked of the collider, not of an axis-aligned box.** The first version
+	# built an AABB per slab from its position and skipped anything yawed — but
+	# a ledge ramp is *pitched*, its yaw is zero, and the box of a tilted plate
+	# is not its shape. It reported a doorway walled shut by a ramp that is at
+	# floor level where the doorway is, and 2.5 m away from it a few metres on.
+	# ADR-176 fixed exactly this in the join check and left it here.
+	#
+	# The collider is also what the player will actually walk into, so the row
+	# now measures the thing it has always claimed to.
+	await get_tree().physics_frame
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var point := PhysicsPointQueryParameters3D.new()
+	point.collision_mask = CollisionLayers.WORLD
+	point.collide_with_areas = false
 
 	var blocked: int = 0
 	var doors: int = 0
@@ -761,11 +812,9 @@ func _build_probe() -> void:
 				FloorBuilder.CELL * 0.5, 1.0, FloorBuilder.CELL * 0.5)
 			var b: Vector3 = FloorBuilder.at(inside) + Vector3(
 				FloorBuilder.CELL * 0.5, 1.0, FloorBuilder.CELL * 0.5)
-			var seam: Vector3 = (a + b) * 0.5
-			for solid: AABB in solids:
-				if solid.has_point(seam):
-					blocked += 1
-					break
+			point.position = (a + b) * 0.5 + shell.position
+			if not space.intersect_point(point, 1).is_empty():
+				blocked += 1
 	print("[build] doorways    %d door(s) across %d room(s), %d walled shut"
 		% [doors, graph.size(), blocked])
 	if sealed > 0:
@@ -881,9 +930,34 @@ func _build_probe() -> void:
 	# 1.8 m and a crawl is 1.4 m, so the Hunt cannot follow you in there — that
 	# is `DES-009`'s crouch verb given teeth, and asserting "every room is
 	# navigable" would quietly delete it.
+	#
+	# **The floor baked here is chosen for having a crossing on it**, and that
+	# is not a detail. Every row below ran against floor 0 for four commits, and
+	# floor 0 has no crossing — so the ramped bridge ADR-176 exists to build had
+	# never once been asked whether anything could walk up it. It could not: the
+	# tilt was inverted, every ramp in the file sloped the wrong way, and the
+	# check that would have said so was baking the one floor with no ramps on
+	# it. `BAKE_SEED` carries four; the row asserts that rather than trusting
+	# it, because a corpus change could quietly take them away again (ADR-178).
+	var bake: MissionGraph = MissionGraph.build(BAKE_SEED, 0)
+	var bake_lore := ExpeditionHistory.roll(BAKE_SEED, calamities, kinds)
+	var bake_plan: FloorPlan = FloorPlan.build(
+		bake, BAKE_SEED, 0, modules, bake_lore)
+	var crossings: int = 0
+	for route: int in bake_plan.routes():
+		crossings += bake_plan.over_of(route).size()
+	print("[build] bake floor  seed %d, %d room(s), %d crossing cell(s)"
+		% [BAKE_SEED, bake.size(), crossings])
+	if crossings == 0:
+		problems.append("the floor this bakes has no crossing on it, so every "
+			+ "row below is silent about the one piece of geometry on a floor "
+			+ "that is not flat — which is how an inverted ramp survived")
+		_report(problems, "build")
+		return
+
 	var navroot := Node3D.new()
 	add_child(navroot)
-	FloorBuilder.build(plan, graph, 31337, 0, navroot)
+	FloorBuilder.build(bake_plan, bake, BAKE_SEED, 0, navroot)
 	navroot.add_to_group(GENERATED_NAV_GROUP)
 
 	var navmesh := NavigationMesh.new()
@@ -933,15 +1007,15 @@ func _build_probe() -> void:
 	# and is then reported by the rows below, which is the right trade: four
 	# seconds on a floor that is already failing.
 	var map: RID = get_world_3d().navigation_map
-	var entrance: int = graph.node_with(MissionGraph.Role.ENTRANCE)
-	var start_at: Vector3 = _plan_centre(plan, entrance)
+	var entrance: int = bake.node_with(MissionGraph.Role.ENTRANCE)
+	var start_at: Vector3 = _plan_centre(bake_plan, entrance)
 
 	# A crawl is 1.4 m and the agent stands 1.8 m, so a crawl with no mesh is
 	# correct — and must not hold the poll open for the whole budget.
 	var standing: Array[int] = []
 	var crawls: int = 0
-	for node: int in graph.size():
-		var module: RoomModule = RoomCatalogue.by_id(plan.module_of(node))
+	for node: int in bake.size():
+		var module: RoomModule = RoomCatalogue.by_id(bake_plan.module_of(node))
 		if module != null and module.volume == RoomModule.Volume.CRAWL:
 			crawls += 1
 			continue
@@ -959,7 +1033,7 @@ func _build_probe() -> void:
 		if NavigationServer3D.map_get_iteration_id(map) > 0:
 			on_mesh = 0
 			for node: int in standing:
-				var centre: Vector3 = _plan_centre(plan, node)
+				var centre: Vector3 = _plan_centre(bake_plan, node)
 				if NavigationServer3D.map_get_closest_point(map, centre) \
 						.distance_to(centre) <= NAV_REACH:
 					on_mesh += 1
@@ -969,9 +1043,9 @@ func _build_probe() -> void:
 		await get_tree().physics_frame
 
 	var bounds: AABB = NavigationServer3D.region_get_bounds(region.get_rid())
-	var hull: Rect2i = plan.rect_of(0)
-	for node: int in graph.size():
-		hull = hull.merge(plan.rect_of(node))
+	var hull: Rect2i = bake_plan.rect_of(0)
+	for node: int in bake.size():
+		hull = hull.merge(bake_plan.rect_of(node))
 	var want: Vector2 = Vector2(hull.size) * FloorBuilder.CELL
 	print("[build] nav sync    %d/%d room(s) on a %.0f x %.0f m mesh of the "
 		% [on_mesh, standing.size(), bounds.size.x, bounds.size.z]
@@ -1006,7 +1080,7 @@ func _build_probe() -> void:
 	for node: int in standing:
 		if node == entrance:
 			continue
-		var centre: Vector3 = _plan_centre(plan, node)
+		var centre: Vector3 = _plan_centre(bake_plan, node)
 		var route: PackedVector3Array = NavigationServer3D.map_get_path(
 			map, start_at, centre, true)
 		if not route.is_empty() \
@@ -1016,7 +1090,7 @@ func _build_probe() -> void:
 		var why: String = "no mesh under it" \
 			if near.distance_to(centre) > NAV_REACH else "an island, walled in"
 		stranded.append("%d (%s, %s, route ends %.2f m short)"
-			% [node, plan.module_of(node), why,
+			% [node, bake_plan.module_of(node), why,
 				route[route.size() - 1].distance_to(centre)
 				if not route.is_empty() else -1.0])
 	print("[build] coverage    %d room(s) off the mesh, %d crawl(s) excluded "
@@ -1026,7 +1100,42 @@ func _build_probe() -> void:
 			+ "room the Hunt cannot enter is a safe room the design never "
 			+ "agreed to") % [stranded.size(), ", ".join(stranded)])
 
-	var to_at: Vector3 = _plan_centre(plan, graph.node_with(
+	# ─ 6d. a ledge is a vantage, not a safe room ─
+	#
+	# `TEC-008` §3.3.1 puts the ramp at 32° precisely so the navmesh will bake
+	# it and the Hunt can follow you up. If a deck ever ends up an island, the
+	# player has been handed somewhere to stand where nothing can reach them —
+	# and `DES-005`'s pressure is the whole product, so that is a design
+	# failure, not a cosmetic one. It is also exactly what a crawl *is allowed*
+	# to be, which is why the two are asserted in opposite directions.
+	var decks: Array[Node3D] = []
+	for child: Node in navroot.get_children():
+		if child.name.begins_with("ledge_floor"):
+			decks.append(child as Node3D)
+	var marooned: PackedStringArray = PackedStringArray()
+	for deck: Node3D in decks:
+		var stand: Vector3 = deck.position + Vector3(0.0, 0.4, 0.0)
+		var climb: PackedVector3Array = NavigationServer3D.map_get_path(
+			map, start_at, stand, true)
+		if not climb.is_empty() \
+				and climb[climb.size() - 1].distance_to(stand) <= NAV_REACH:
+			continue
+		# The deck's own size is reported, because the two ways this fails look
+		# identical from a route that did not arrive: a deck too small for
+		# Recast to keep as a region, and a deck the ramp never joined.
+		var box := (deck.mesh as BoxMesh).size
+		var near: Vector3 = NavigationServer3D.map_get_closest_point(map, stand)
+		marooned.append("%.1f x %.1f m deck, nearest mesh %.2f m away"
+			% [box.x, box.z, near.distance_to(stand)])
+	print("[build] ledges      %d of %d reachable from the entrance"
+		% [decks.size() - marooned.size(), decks.size()])
+	if not marooned.is_empty():
+		problems.append(("%d of %d ledge(s) cannot be walked to (%s) — a "
+			+ "vantage nothing can climb is a safe room, and the Delvings do "
+			+ "not have safe rooms")
+			% [marooned.size(), decks.size(), "; ".join(marooned)])
+
+	var to_at: Vector3 = _plan_centre(bake_plan, bake.node_with(
 		MissionGraph.Role.SHAFT))
 	var route: PackedVector3Array = NavigationServer3D.map_get_path(
 		map, start_at, to_at, true)

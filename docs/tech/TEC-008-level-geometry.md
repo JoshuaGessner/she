@@ -4,7 +4,7 @@ title: Level Geometry & Spatial Legibility
 status: accepted
 owner: tech
 tags: [levels, geometry, blockout, metrics, legibility, procgen, research]
-updated: 2026-09-01
+updated: 2026-09-02
 related: [DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001]
 ---
 
@@ -211,13 +211,26 @@ cannot swing. That is `DES-009`'s crouch verb given a room that demands it.
 ### 3.3 Four devices for the missing three elements
 
 Each is generated, none needs art, and each buys one thing the floor sheet says
-is missing.
+is missing. **Three of the four are built** (ADR-178): ledges, alcoves and the
+depth gradient. Corridor dog-legs are a routing decision rather than a geometric
+one and belong to `FloorPlan`.
 
 1. **Ledges over halls — prospect/refuge, and Lynch's landmarks.** A `GREAT`
-   room gets a walkable ledge at ~2.5 m on one or two sides, reachable from an
-   adjoining corridor at that height. You see the hall floor before you are in
-   it. This is the vista rule's delivery mechanism and ADR-014's *"verticality
-   lives inside rooms"* made concrete.
+   room gets a walkable ledge at 2.5 m along one door-free wall, reached by **a
+   ramp inside the room**. You see the hall floor before you are in it. This is
+   the vista rule's delivery mechanism and ADR-014's *"verticality lives inside
+   rooms"* made concrete.
+
+   > **Amended by ADR-178.** This originally said *"reachable from an adjoining
+   > corridor at that height"*, which makes a ledge conditional on a bridge
+   > happening to arrive at deck height beside a great room — rare enough that
+   > most great rooms would get none. An in-room ramp is unconditional.
+   >
+   > The ramp's foot must touch down a clear metre from the wall at the end of
+   > the strip. Recast erodes the walkable surface by the agent radius from
+   > every wall, so a foot that meets the floor *at* the wall leaves the deck an
+   > island: measured, mesh from 2.5 m down to 0.7 m and none below it, on three
+   > ledges of four.
 2. **Corridor dog-legs — mystery.** A corridor of three cells or more bends at
    least once rather than running straight. Costs one cell of routing slack and
    removes the see-the-whole-proposition-from-the-doorway problem entirely.

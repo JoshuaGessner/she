@@ -5445,5 +5445,49 @@ Two frees added here were removed again. They released the navmesh probe's floor
 
 ---
 
+## ADR-178 — Ledges and alcoves, and the ramp that had never been walked on
+
+**Date:** 2026-09-02 · **Status:** accepted · **Implements `TEC-008` §3.3** · **Corrects ADR-176's ramps** · **`M4-T01` in progress**
+
+**Context:** `TEC-008` §2.2 diagnosed the generated floors against Lynch's five elements: they had **paths** and **nodes**, and no **edges**, **districts** or **landmarks** — which is the list of things a player builds a mental map out of. ADR-175 bought the districts with the roughness gradient. This buys the other two, and in doing so found that the ramp ADR-176 added had never been walked on by anything.
+
+### Decision 1 — alcoves, and the test that keeps them from being doors
+
+Rooms of three cells or more take one or two one-cell recesses cut into a wall (Alexander's *Alcoves*): cover that breaks a sightline, somewhere to let a patrol pass, and a wall line that stops a large room reading as a box. 54 across three floors.
+
+The candidate test is doing more work than it looks like: **a cell may only become an alcove if every side of it but this room's is rock.** A recess touching a corridor or a second room would be a hole joining two spaces the graph never linked — ADR-172's hazard arriving dressed as decoration, and invisible to every topology check, because the plan does not know the recess exists.
+
+### Decision 2 — ledges, and the metre that makes them reachable
+
+A great room takes a walkable deck at 2.5 m along one door-free wall, reached by a ramp. It is the delivery mechanism for `DES-015`'s vista rule — *you see the Prize before you can reach it* — and Appleton's prospect and refuge in one piece of geometry: the deck is the view out, the wall behind it the cover. 20 across three floors.
+
+**The ramp's foot touches down a clear metre from the wall at the end of the strip, and that number is the whole device.** Recast erodes the walkable surface by the agent radius, 0.45 m, back from every wall. A ramp whose foot meets the floor *at* the wall has its entire touch-down inside that band, so deck and ramp bake as an island with no way onto them. Measured, by sampling the ramp's own surface: mesh from 2.5 m down to 0.7 m and **none at all below it**, on three of four ledges.
+
+Two earlier explanations were wrong and were measured wrong rather than argued away. The ramp's uphill lap putting a 0.48 m lip over the deck was real, fixed, and changed nothing. Recast eroding the deck's leading edge — which is real, and is why the deck must not overhang the ramp by any amount — also changed nothing on its own. Raising `agent_max_climb` to 0.9 m recovered one ledge of four, which said the junction was *a* cause and not *the* cause. Only sampling along the ramp found the foot.
+
+A ledge must stay reachable: `DES-013`'s Hunt has to be able to follow you up, or a vantage is a safe room, and `DES-005`'s pressure is the product. That is asserted, and it is the opposite of the crawl rule — a crawl with no navmesh is correct.
+
+### Decision 3 — the check was baking the one floor with no ramps on it
+
+`--build-probe` baked floor 0 of seed 31337 for four commits. **That floor has no crossing on it.** Neither does floor 1. So the ramped bridge ADR-176 exists to build — the fix for a 2.6 m unramped cliff — had never once been asked whether anything could walk up it.
+
+It could not. `Vector3.UP.cross(along)` is what reads naturally for the tilt axis and it slopes the plate the *other way*: measured, a 4.0 m run raised 2.5 m put the far end 1.06 m **below** the near one. Every ramp in `FloorBuilder` sloped downhill. The ledge was simply the first tilted slab the navmesh row ever saw.
+
+So the sign lives in one named function, `rise_toward`, and the probe now bakes a floor **chosen for having crossings** — seed 31342 at depth 0, four crossings and two great rooms for the price of the same nine rooms — and asserts that it has them, because a corpus change could quietly take them away again. Planted by restoring the inverted axis: six of nine rooms become islands and there is no route to the Shaft, where the same defect on the old floor ran green.
+
+### Decision 4 — the doorway row asks the collider
+
+It built an axis-aligned box per slab from its position and skipped anything yawed. A ledge ramp is *pitched*, its yaw is zero, and the box of a tilted plate is not its shape — so it reported a doorway walled shut by a ramp that is at floor level where the doorway is. ADR-176 fixed exactly this in the join check and left it here.
+
+It asks `intersect_point` of the physics space now, which is both exact under rotation and *the thing the player will walk into*. The floor it builds stands 5 km clear of everything else, because a point query cannot say which of four overlapping floors answered it.
+
+### Rejected
+
+- **Corridor dog-legs**, the fourth device (Kaplan & Kaplan's mystery). A routing decision rather than a geometric one; it belongs to `FloorPlan` and to its own change, next.
+- **A ramp per crossing corridor into the ledge**, as `TEC-008` §3.3.1 describes it. It makes a ledge conditional on a bridge happening to arrive at deck height beside a great room, which is rare; an in-room ramp is unconditional. `TEC-008` §3.3.1 is amended to say so.
+- **Shrinking the agent or the voxel** to make the foot fit against the wall. The third time this has been the wrong answer in `M4-T01` (ADR-176): it moves a threshold rather than fixing geometry, and the geometry would still have been wrong for everything else that reads it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

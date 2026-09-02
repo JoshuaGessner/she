@@ -37,10 +37,24 @@ extends RefCounted
 ## **districts** for the price of a lerp, and it is why three floors of an
 ## expedition are three places rather than three sizes.
 ##
+## ## The three elements the floors were missing
+##
+## Lynch's diagnosis is answered by four devices (`TEC-008` §3.3), three of which
+## are here:
+##
+## - **Ledges** over great rooms buy **prospect and refuge** (Appleton, 1975) and
+##   are the vista rule's delivery mechanism: you see the hall, and what is on
+##   it, before you are standing in it.
+## - **Alcoves** buy **refuge** and an **edge** — Alexander's *Alcoves*, and the
+##   reason a large room stops reading as a box.
+## - **Depth as district** is the roughness gradient above.
+##
+## The fourth, corridor dog-legs for **mystery** (Kaplan & Kaplan, 1989), is a
+## routing decision rather than a geometric one and belongs to `FloorPlan`.
+##
 ## **Floors stay flat.** Stepping them is in `TEC-008` and deliberately not here:
 ## a step over the 0.49 m jump apex is a wall, and shipping a floor that cannot
-## be crossed to find out is the wrong order. Ledges, alcoves and corridor
-## dog-legs are the same — named in `TEC-008` §3.3, built next.
+## be crossed to find out is the wrong order.
 
 
 ## Metres per plan cell. See the class note; changing it rescales every floor.
@@ -93,6 +107,51 @@ const BRIDGE_LIFT: float = CORRIDOR_CEILING + WALL_THICK + 0.4
 ## Two cells make it 4.0 m of run for 3.2 m of rise: 39°, and walkable.
 const RAMP_CELLS: int = FloorPlan.BRIDGE_CLEARANCE - 1
 
+## How high a ledge stands over the floor of a great room ⟨tune⟩.
+##
+## Clear of the 1.80 m standing body by enough that the hall reads as two
+## levels, and low enough that stepping off is a decision rather than a
+## punishment.
+const LEDGE_HEIGHT: float = 2.5
+## Cells of ramp climbing to a ledge ⟨tune⟩.
+##
+## **Three, and the third one is bought by `LEDGE_FOOT` rather than by taste.**
+## The ramp has to reach the floor a clear distance from the wall at the end of
+## the strip, which costs run; three cells spend it and still leave 26.6°,
+## comfortably inside the 45° the navmesh bakes — so the Hunt can follow you up
+## there, and a ledge is a vantage rather than a safe room (`DES-013`).
+const LEDGE_RAMP_CELLS: int = 3
+## How far from the wall the ramp's foot touches down, in metres.
+##
+## **The single most load-bearing number in this device.** Recast erodes the
+## walkable surface by the agent radius, 0.45 m, back from every wall. A ramp
+## whose foot meets the floor *at* the wall has its entire touch-down inside
+## that band, so the deck and its ramp bake as an island with no way on: three
+## of four ledges came out that way, with mesh running from 2.5 m down to 0.7 m
+## and none at all below it. One clear metre puts the touch-down half a metre
+## outside the band ⟨tune⟩.
+const LEDGE_FOOT: float = 1.0
+## Smallest room, in cells on its short side, that is given an alcove. Below
+## this the recess is most of the wall it is cut into.
+const ALCOVE_MIN_ROOM: int = 3
+## The clear opening an alcove leaves in the wall it is cut into ⟨tune⟩.
+##
+## Narrower than the cell, so the recess keeps a return on either side and reads
+## as a nook rather than as a missing wall.
+const ALCOVE_MOUTH: float = 1.5
+## An alcove is ducked into, not walked through ⟨tune⟩. Under the 4.0 m hall
+## ceiling it is Alexander's *Hierarchy of Open Space* at its cheapest.
+const ALCOVE_CEILING: float = 2.2
+## Most alcoves any one room may be given ⟨tune⟩.
+const ALCOVE_MAX: int = 2
+## How far a ledge ramp overshoots the deck it meets, in metres.
+##
+## Deliberately **under one navmesh voxel** (`cell_size` 0.15): enough that the
+## two solids genuinely overlap, so the join check has something to see, and too
+## little for Recast to rasterise as a step. The deck must not overhang the ramp
+## by any amount at all — see `_ledge`.
+const LEDGE_JOIN: float = 0.1
+
 ## Grey by depth: dressed stone, then stone going wrong, then rock. Real
 ## material direction is `ART-001`'s and this is blockout (ADR-046).
 const STONE: Array[Color] = [
@@ -106,6 +165,8 @@ var _into: Node3D = null
 var _slabs: int = 0
 var _roughness: float = 0.0
 var _depth: int = 0
+var _alcoves_cut: int = 0
+var _ledges_raised: int = 0
 
 
 ## Build `plan` under `into`. Returns a census the probe asserts against.
@@ -136,12 +197,30 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		"corridor": tunnels,
 		"slabs": builder._slabs,
 		"roughness": builder._roughness,
+		# Counted because a device that silently stopped being emitted would
+		# leave every other row here passing about a floor that had quietly gone
+		# back to being boxes and corridors (`TEC-007` §1).
+		"alcoves": builder._alcoves_cut,
+		"ledges": builder._ledges_raised,
 	}
 
 
 ## Where a cell's near corner sits in metres.
 static func at(cell: Vector2i) -> Vector3:
 	return Vector3(cell.x * CELL, 0.0, cell.y * CELL)
+
+
+## The basis that tilts a slab so it **rises** toward `along`.
+##
+## One function because the sign is not obvious and was wrong. `UP.cross(along)`
+## is what reads naturally and it slopes the plate the *other* way: measured, a
+## 4.0 m run raised 2.5 m put the far end 1.06 m **below** the near one. Every
+## ramp in this file was built that way, and nothing noticed for a simple
+## reason — the floor the navmesh row bakes has no crossing on it, so the only
+## ramps that existed were never asked whether anything could walk up them
+## (ADR-178).
+static func rise_toward(along: Vector3, rise: float, run: float) -> Basis:
+	return Basis(along.cross(Vector3.UP).normalized(), atan2(rise, run))
 
 
 func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
@@ -169,12 +248,16 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 		mid + Vector3(0.0, height + WALL_THICK * 0.5, 0.0), STONE[_depth],
 		0.0, "ceiling")
 
-	# One wall per side, cut where a corridor arrives and nowhere else.
+	# One wall per side, cut where a corridor arrives, where an alcove is
+	# recessed, and nowhere else.
 	var doors: Array[Vector2i] = plan.doors_of(node)
-	_wall_x(rect, doors, height, true)
-	_wall_x(rect, doors, height, false)
-	_wall_z(rect, doors, height, true)
-	_wall_z(rect, doors, height, false)
+	var alcoves: Array[Vector2i] = _alcoves(plan, rect, rng)
+	_wall_x(rect, doors, alcoves, height, true)
+	_wall_x(rect, doors, alcoves, height, false)
+	_wall_z(rect, doors, alcoves, height, true)
+	_wall_z(rect, doors, alcoves, height, false)
+	for cell: Vector2i in alcoves:
+		_alcove(rect, cell)
 
 	# Corners cut back as the working gives way to the seam. At roughness 0
 	# this emits nothing at all, which is what makes floor 1 read as built.
@@ -187,15 +270,208 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 			_slab(Vector3(cut, height, cut), spot, RUBBLE[_depth],
 				PI * 0.25, "chamfer")
 
+	# A great room gets somewhere to see it from before you are in it.
+	if module != null and module.volume == RoomModule.Volume.GREAT:
+		_ledge(rect, doors, rng)
+
+
+## Which cells beside `rect` become alcoves (`TEC-008` §3.3.3).
+##
+## Alexander's *Alcoves*: a large room needs usable edge and a rectangle has
+## none. Each recess is cover that breaks a sightline, somewhere to let a patrol
+## pass, and a wall line that stops the room reading as a box.
+##
+## **A candidate must be surrounded by rock on every side but this room's**, and
+## that test is doing more work than it looks like. A cell touching a corridor,
+## or a second room, would become a hole joining two spaces the graph never
+## linked — ADR-172's hazard arriving dressed as decoration, and invisible to
+## every topology check because the plan does not know the recess exists.
+func _alcoves(plan: FloorPlan, rect: Rect2i,
+		rng: RandomNumberGenerator) -> Array[Vector2i]:
+	if mini(rect.size.x, rect.size.y) < ALCOVE_MIN_ROOM:
+		return []
+	var beside: Array[Vector2i] = []
+	for x: int in range(rect.position.x, rect.end.x):
+		beside.append(Vector2i(x, rect.position.y - 1))
+		beside.append(Vector2i(x, rect.end.y))
+	for z: int in range(rect.position.y, rect.end.y):
+		beside.append(Vector2i(rect.position.x - 1, z))
+		beside.append(Vector2i(rect.end.x, z))
+	# Sorted before anything picks from it. The order the loops above happen to
+	# append in is exactly the kind of accident `TEC-007` §1 forbids a decision
+	# from depending on.
+	beside.sort()
+
+	var pocket: Array[Vector2i] = []
+	for cell: Vector2i in beside:
+		if plan.holds(cell):
+			continue
+		var sealed: bool = true
+		for step: Vector2i in FloorPlan.STEPS:
+			var side: Vector2i = cell + step
+			if not rect.has_point(side) and plan.holds(side):
+				sealed = false
+				break
+		if sealed:
+			pocket.append(cell)
+	if pocket.is_empty():
+		return []
+
+	var chosen: Array[Vector2i] = []
+	for i: int in mini(rng.randi_range(1, ALCOVE_MAX), pocket.size()):
+		var pick: int = rng.randi_range(0, pocket.size() - 1)
+		chosen.append(pocket[pick])
+		pocket.remove_at(pick)
+	chosen.sort()
+	_alcoves_cut += chosen.size()
+	return chosen
+
+
+## The recess itself: floor, a low ceiling, and rock on every side but the mouth.
+##
+## Walls stand *inside* the alcove cell for ADR-176's reason — built outward
+## they would occupy whatever is beyond, and the cell was chosen precisely
+## because nothing is.
+func _alcove(rect: Rect2i, cell: Vector2i) -> void:
+	var mid: Vector3 = at(cell) + Vector3(CELL * 0.5, 0.0, CELL * 0.5)
+	_slab(Vector3(CELL + FLOOR_LAP * 2.0, WALL_THICK, CELL + FLOOR_LAP * 2.0),
+		mid + Vector3(0.0, -WALL_THICK * 0.5, 0.0), STONE[_depth], 0.0, "floor")
+	_slab(Vector3(CELL, WALL_THICK, CELL),
+		mid + Vector3(0.0, ALCOVE_CEILING + WALL_THICK * 0.5, 0.0),
+		STONE[_depth], 0.0, "ceiling")
+	for step: Vector2i in FloorPlan.STEPS:
+		if rect.has_point(cell + step):
+			continue
+		var thick := Vector3(CELL, ALCOVE_CEILING, WALL_THICK)
+		if step.x != 0:
+			thick = Vector3(WALL_THICK, ALCOVE_CEILING, CELL)
+		var out := Vector3(step.x, 0.0, step.y) * (CELL * 0.5 - WALL_THICK * 0.5)
+		_slab(thick, mid + out + Vector3(0.0, ALCOVE_CEILING * 0.5, 0.0),
+			STONE[_depth], 0.0, "wall")
+
+
+## The cells of `rect` lying against one of its four walls, in order.
+func _strip(rect: Rect2i, side: int) -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	match side:
+		0:
+			for x: int in range(rect.position.x, rect.end.x):
+				cells.append(Vector2i(x, rect.position.y))
+		1:
+			for x: int in range(rect.position.x, rect.end.x):
+				cells.append(Vector2i(x, rect.end.y - 1))
+		2:
+			for z: int in range(rect.position.y, rect.end.y):
+				cells.append(Vector2i(rect.position.x, z))
+		_:
+			for z: int in range(rect.position.y, rect.end.y):
+				cells.append(Vector2i(rect.end.x - 1, z))
+	return cells
+
+
+## Which way is out through the wall `side` runs along.
+func _outward(side: int) -> Vector2i:
+	match side:
+		0: return Vector2i(0, -1)
+		1: return Vector2i(0, 1)
+		2: return Vector2i(-1, 0)
+		_: return Vector2i(1, 0)
+
+
+## A walkable ledge along one wall of a great room, and the ramp that reaches it
+## (`TEC-008` §3.3.1).
+##
+## This is the delivery mechanism for `DES-015`'s vista rule — *you see the Prize
+## before you can reach it* — and Appleton's prospect and refuge in one piece of
+## geometry: the ledge is the view out, the wall behind it is the cover. It is
+## also ADR-014's *"verticality lives inside rooms"* made concrete, without
+## reopening the planar-cell decision.
+##
+## The wall it runs along must carry **no doorway**, so a ledge can never be
+## raised over the threshold a corridor arrives at.
+func _ledge(rect: Rect2i, doors: Array[Vector2i],
+		rng: RandomNumberGenerator) -> void:
+	var sides: Array[int] = []
+	for side: int in 4:
+		var wall: Array[Vector2i] = _strip(rect, side)
+		if wall.size() < LEDGE_RAMP_CELLS + 1:
+			continue
+		var clear: bool = true
+		for cell: Vector2i in wall:
+			if doors.has(cell + _outward(side)):
+				clear = false
+				break
+		if clear:
+			sides.append(side)
+	if sides.is_empty():
+		return
+
+	var cells: Array[Vector2i] = _strip(rect,
+		sides[rng.randi_range(0, sides.size() - 1)])
+	# Which end you climb from is half of what makes two ledges read differently.
+	if rng.randi_range(0, 1) == 1:
+		cells.reverse()
+	var step: Vector2i = cells[1] - cells[0]
+	var along := Vector3(step.x, 0.0, step.y)
+	var flat: Vector3 = at(cells[0]) + Vector3(CELL * 0.5, 0.0, CELL * 0.5)
+
+	# The ramp: one tilted slab, lengthened by 1/cos so it still covers its
+	# cells, exactly as a crossing's approach is built.
+	#
+	# Distances below are along the strip, measured from the centre of its first
+	# cell: the wall at that end stands at −CELL/2, and the deck begins where
+	# the ramp reaches full height.
+	#
+	# **The ramp touches down `LEDGE_FOOT` clear of that wall**, which is the
+	# whole of why a ledge is reachable — see the constant. And **the deck must
+	# not overhang the ramp by any amount**: lapping it back over the ramp the
+	# way flat floors lap each other is self-defeating, because while the two
+	# are separate regions Recast treats the deck's leading edge as a border and
+	# erodes it by the agent radius, which pushes the deck's walkable area away
+	# from the ramp's and guarantees they never merge — which is what made the
+	# border. So the surfaces meet flush and the *ramp* overshoots by
+	# `LEDGE_JOIN`, under one voxel: the solids overlap for ADR-176's join
+	# check, and the protrusion is too small for Recast to read as a step.
+	# Downhill the ramp laps freely, because there it buries itself under the
+	# room's own floor.
+	var foot: float = LEDGE_FOOT - CELL * 0.5
+	var crest: float = LEDGE_RAMP_CELLS * CELL - CELL * 0.5
+	var run: float = crest - foot
+	var pitch: float = atan2(LEDGE_HEIGHT, run)
+	var span: float = (run + FLOOR_LAP + LEDGE_JOIN) / cos(pitch)
+	var ramp_size := Vector3(span, WALL_THICK, CELL) if absf(along.x) > 0.5 \
+		else Vector3(CELL, WALL_THICK, span)
+	var ramp_at: float = (foot - FLOOR_LAP + crest + LEDGE_JOIN) * 0.5
+	_slab(ramp_size,
+		flat + along * ramp_at
+			+ Vector3(0.0, LEDGE_HEIGHT * (ramp_at - foot) / run
+				- WALL_THICK * 0.5, 0.0),
+		RUBBLE[_depth], 0.0, "ledge_ramp",
+		rise_toward(along, LEDGE_HEIGHT, run))
+
+	# The deck begins exactly where the ramp reaches its height.
+	var deck: int = cells.size() - LEDGE_RAMP_CELLS
+	var reach: float = deck * CELL
+	var deck_size := Vector3(reach, WALL_THICK, CELL) if absf(along.x) > 0.5 \
+		else Vector3(CELL, WALL_THICK, reach)
+	_slab(deck_size,
+		flat + along * (crest + deck * CELL * 0.5)
+			+ Vector3(0.0, LEDGE_HEIGHT - WALL_THICK * 0.5, 0.0),
+		STONE[_depth], 0.0, "ledge_floor")
+	_ledges_raised += 1
+
 
 ## A wall running along X, on the near (`low`) or far side in Z.
-func _wall_x(rect: Rect2i, doors: Array[Vector2i], height: float,
-		low: bool) -> void:
+func _wall_x(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
+		height: float, low: bool) -> void:
 	var z: int = rect.position.y - 1 if low else rect.end.y
-	var gaps: Array[float] = []
+	var gaps: Array[Vector2] = []
 	for cell: Vector2i in doors:
 		if cell.y == z:
-			gaps.append(cell.x * CELL + CELL * 0.5)
+			gaps.append(Vector2(cell.x * CELL + CELL * 0.5, DOOR_WIDTH))
+	for cell: Vector2i in alcoves:
+		if cell.y == z:
+			gaps.append(Vector2(cell.x * CELL + CELL * 0.5, ALCOVE_MOUTH))
 	gaps.sort()
 	var edge: float = rect.position.y * CELL if low \
 		else rect.end.y * CELL
@@ -210,13 +486,16 @@ func _wall_x(rect: Rect2i, doors: Array[Vector2i], height: float,
 
 
 ## A wall running along Z, on the near (`low`) or far side in X.
-func _wall_z(rect: Rect2i, doors: Array[Vector2i], height: float,
-		low: bool) -> void:
+func _wall_z(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
+		height: float, low: bool) -> void:
 	var x: int = rect.position.x - 1 if low else rect.end.x
-	var gaps: Array[float] = []
+	var gaps: Array[Vector2] = []
 	for cell: Vector2i in doors:
 		if cell.x == x:
-			gaps.append(cell.y * CELL + CELL * 0.5)
+			gaps.append(Vector2(cell.y * CELL + CELL * 0.5, DOOR_WIDTH))
+	for cell: Vector2i in alcoves:
+		if cell.x == x:
+			gaps.append(Vector2(cell.y * CELL + CELL * 0.5, ALCOVE_MOUTH))
 	gaps.sort()
 	var edge: float = rect.position.x * CELL if low else rect.end.x * CELL
 	# Inside the rect, so the wall never stands in the corridor cell beyond it.
@@ -229,16 +508,17 @@ func _wall_z(rect: Rect2i, doors: Array[Vector2i], height: float,
 				STONE[_depth], 0.0, "wall"))
 
 
-## Emit wall segments from `start` to `stop`, leaving a `DOOR_WIDTH` hole at
-## each gap. A gap wider than the wall it sits in simply removes the wall.
-func _run(start: float, stop: float, gaps: Array[float], height: float,
+## Emit wall segments from `start` to `stop`, leaving a hole at each gap. Each
+## gap is (centre, width): a doorway is `DOOR_WIDTH`, an alcove mouth narrower.
+## A gap wider than the wall it sits in simply removes the wall.
+func _run(start: float, stop: float, gaps: Array[Vector2], height: float,
 		emit: Callable) -> void:
 	var at_pos: float = start
-	for gap: float in gaps:
-		var opening: float = gap - DOOR_WIDTH * 0.5
+	for gap: Vector2 in gaps:
+		var opening: float = gap.x - gap.y * 0.5
 		if opening > at_pos:
 			emit.call(at_pos, opening)
-		at_pos = maxf(at_pos, gap + DOOR_WIDTH * 0.5)
+		at_pos = maxf(at_pos, gap.x + gap.y * 0.5)
 	if stop > at_pos:
 		emit.call(at_pos, stop)
 
@@ -295,15 +575,12 @@ func _tunnel(plan: FloorPlan, cell: Vector2i, enters: float, leaves: float,
 		# by 1/cos so the sloped box still covers the whole cell.
 		var along := Vector3(travel.x, 0.0, travel.y).normalized()
 		var pitch: float = atan2(rise, CELL)
-		var axis: Vector3 = Vector3.UP.cross(along).normalized()
-		var ramp := MeshInstance3D.new()
 		var span: float = CELL / cos(pitch) + WALL_THICK + FLOOR_LAP * 2.0
 		var size := Vector3(span, WALL_THICK, CELL + FLOOR_LAP * 2.0) \
 			if absf(along.x) > 0.5 \
 			else Vector3(CELL + FLOOR_LAP * 2.0, WALL_THICK, span)
 		_slab(size, mid + Vector3(0.0, height - WALL_THICK * 0.5, 0.0),
-			RUBBLE[_depth], 0.0, "ramp", Basis(axis, pitch))
-		ramp.free()
+			RUBBLE[_depth], 0.0, "ramp", rise_toward(along, rise, CELL))
 	# A raised deck is open above — you are crossing a void, and being able to
 	# see down into it is the point (`DES-015`'s visual-only vertical space).
 	if not raised:
