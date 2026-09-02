@@ -1319,6 +1319,64 @@ func _plan_probe() -> void:
 		problems.append(("%d of %d planned floors failed `DES-015` step 8 — "
 			+ "first: %s") % [broken, trials * 3, first_fault])
 
+	# ─ 2a. the corridors bend out of sight ─
+	#
+	# `TEC-008` §3.3.2, for Kaplan & Kaplan's **mystery**: a passage bending out
+	# of sight promises more if you move deeper, and a straight tunnel between
+	# two rectangles shows the whole proposition from the doorway.
+	#
+	# Measured rather than asserted true, because before the dog-leg landed the
+	# numbers were far worse than `TEC-008` had assumed — **65% of routes ran
+	# dead straight end to end**, the median longest straight run was 9 cells
+	# (18 m), and the tail reached 75. A device that quietly stopped firing
+	# would put every one of those back and leave every other row here passing.
+	var routes: int = 0
+	var arrow: int = 0
+	var bends: int = 0
+	var sight: PackedInt32Array = PackedInt32Array()
+	for i: int in trials:
+		for depth: int in 3:
+			var seed_at: int = 60000 + i
+			var g2: MissionGraph = MissionGraph.build(seed_at, depth)
+			var p2: FloorPlan = FloorPlan.build(g2, seed_at, depth, modules,
+				ExpeditionHistory.roll(seed_at, calamities, kinds))
+			if not p2.problems().is_empty():
+				continue
+			for route: int in p2.routes():
+				var path: Array[Vector2i] = p2.path_of(route)
+				if path.size() < 2:
+					continue
+				routes += 1
+				var turns: int = 0
+				var run: int = 1
+				var best: int = 1
+				for k: int in range(1, path.size()):
+					var step: Vector2i = path[k] - path[k - 1]
+					if k >= 2 and step != path[k - 1] - path[k - 2]:
+						turns += 1
+						run = 1
+					else:
+						run += 1
+					best = maxi(best, run)
+				bends += turns
+				arrow += 1 if turns == 0 else 0
+				sight.append(best)
+	sight.sort()
+	var median: int = sight[sight.size() / 2] if not sight.is_empty() else 0
+	var dead: float = 100.0 * arrow / maxi(routes, 1)
+	print("[plan] sightlines  %d route(s), %.0f%% dead straight, %.1f bend(s) "
+		% [routes, dead, float(bends) / maxi(routes, 1)]
+		+ "each, median longest run %d cell(s) (%d m)" % [median, median * 2])
+	if dead > 30.0:
+		problems.append(("%.0f%% of corridors run dead straight end to end — "
+			+ "the dog-leg is not firing, and a straight tunnel between two "
+			+ "rectangles is the whole proposition seen from the doorway")
+			% dead)
+	if median > FloorPlan.DOGLEG_RUN + 2:
+		problems.append(("the median corridor holds a %d-cell (%d m) straight "
+			+ "run against a %d-cell limit — sightlines are back")
+			% [median, median * 2, FloorPlan.DOGLEG_RUN])
+
 	# ─ 3. same seed, same space; different seed, different space ─
 	#
 	# Both halves, for the reason ADR-169 gives: a placer that ignored its seed

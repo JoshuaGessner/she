@@ -112,6 +112,19 @@ const MAX_ROUTE: int = 24000
 ## that neighbour is taken, in lattice cells ⟨tune⟩.
 const LATTICE_REACH: int = 3
 
+## Longest straight run a corridor may hold before it is made to jog, in cells
+## ⟨tune⟩.
+##
+## `TEC-008` §3.3.2 asks for this for Kaplan & Kaplan's **mystery** — a passage
+## bending out of sight promises more if you move deeper, and a straight tunnel
+## between two rectangles shows you the entire proposition from the doorway.
+##
+## The measurement is worse than the document assumed. Across 4780 routes,
+## **65% ran dead straight end to end**, the median longest straight run was
+## **9 cells — 18 metres** — and the tail reached 75 cells. At four, no sightline
+## down a corridor is longer than 10 m.
+const DOGLEG_RUN: int = 4
+
 var _graph: MissionGraph = null
 var _history: ExpeditionHistory = null
 var _floor_index: int = 0
@@ -318,7 +331,7 @@ func _route_all(rng: RandomNumberGenerator) -> bool:
 		turn[j] = swap
 
 	for index: int in turn:
-		if not _route(edges[index], index):
+		if not _route(edges[index], index, rng):
 			_failure = "no corridor could reach %d from %d" % [
 				edges[index].y, edges[index].x]
 			return false
@@ -353,7 +366,7 @@ func _axis_of(step: int) -> int:
 ## if the crossing is square and the far side is clear — one corridor bridges
 ## over the other. It may never be *joined*, which is the difference between a
 ## crossing and a link the graph never authorised.
-func _route(edge: Vector2i, index: int) -> bool:
+func _route(edge: Vector2i, index: int, rng: RandomNumberGenerator) -> bool:
 	var from: int = edge.x
 	var to: int = edge.y
 	var came: Dictionary = {}
@@ -376,7 +389,7 @@ func _route(edge: Vector2i, index: int) -> bool:
 			# A crossing too near either doorway cannot be ramped, so this
 			# arrival is refused and the search carries on looking for another.
 			if _climbable(at, came, over):
-				_lay(at, came, over, index, from, to)
+				_lay(at, came, over, index, from, to, rng)
 				return true
 			continue
 		for step: int in STEPS.size():
@@ -431,9 +444,71 @@ func _climbable(at: Vector2i, came: Dictionary, over: Dictionary) -> bool:
 	return true
 
 
+## Break a corridor's straight runs so it bends out of sight (`TEC-008` §3.3.2).
+##
+## Kaplan & Kaplan's **mystery**: a passage that bends promises more if you move
+## deeper, and a straight tunnel between two rectangles shows you the whole
+## proposition from the doorway. Measured across 4780 routes, 65% ran dead
+## straight end to end and the median longest run was 18 metres.
+##
+## **A jog, not a re-route.** The router finds shortest paths, and between two
+## rooms whose doors line up the straight line is the *only* shortest path — so
+## no amount of tie-breaking inside the search can bend it, and constraining the
+## search to refuse straight runs risks failing to route at all, which is the
+## way `MAX_ROUTE` failed (ADR-172). This pays two cells instead: the corridor
+## steps aside, runs parallel, and steps back, keeping both doorways exactly
+## where the search put them. When there is no room to step aside it does
+## nothing, so it can never turn a routable floor into an unroutable one.
+##
+## Routes that cross another corridor are left alone. A chicane shifts every
+## later cell's index, and `_climbable` measured the crossing's ramp clearance
+## against the old ones.
+func _dogleg(path: Array[Vector2i], from: int, to: int,
+		rng: RandomNumberGenerator) -> Array[Vector2i]:
+	for cell: Vector2i in path:
+		if _corridor.has(cell):
+			return path
+	var out: Array[Vector2i] = [path[0]]
+	var taken: Dictionary = {path[0]: true}
+	var run: int = 0
+	var last := Vector2i.ZERO
+	for i: int in range(1, path.size()):
+		var step: Vector2i = path[i] - path[i - 1]
+		run = run + 1 if step == last else 1
+		last = step
+		if run > DOGLEG_RUN:
+			var side := Vector2i(step.y, -step.x)
+			var order: Array[Vector2i] = [side, -side]
+			if rng.randi_range(0, 1) == 1:
+				order.reverse()
+			for perp: Vector2i in order:
+				var a: Vector2i = path[i - 1] + perp
+				var b: Vector2i = path[i] + perp
+				if not _spare(a, from, to, taken) \
+						or not _spare(b, from, to, taken):
+					continue
+				out.append(a)
+				taken[a] = true
+				out.append(b)
+				taken[b] = true
+				run = 0
+				last = Vector2i.ZERO
+				break
+		out.append(path[i])
+		taken[path[i]] = true
+	return out
+
+
+## Is this cell free for a chicane to step into?
+func _spare(cell: Vector2i, from: int, to: int, taken: Dictionary) -> bool:
+	if _cells.has(cell) or _corridor.has(cell) or taken.has(cell):
+		return false
+	return not _hugs(cell, from, to)
+
+
 ## Write a found route into the grid, and record the door at each end.
 func _lay(at: Vector2i, came: Dictionary, over: Dictionary, index: int,
-		from: int, to: int) -> void:
+		from: int, to: int, rng: RandomNumberGenerator) -> void:
 	var path: Array[Vector2i] = []
 	var walk: Vector2i = at
 	while true:
@@ -444,6 +519,7 @@ func _lay(at: Vector2i, came: Dictionary, over: Dictionary, index: int,
 			break
 		walk = came[walk]
 	path.reverse()
+	path = _dogleg(path, from, to, rng)
 	_paths[index] = path
 	var crossed: Array[Vector2i] = []
 	for cell: Vector2i in path:

@@ -211,9 +211,10 @@ cannot swing. That is `DES-009`'s crouch verb given a room that demands it.
 ### 3.3 Four devices for the missing three elements
 
 Each is generated, none needs art, and each buys one thing the floor sheet says
-is missing. **Three of the four are built** (ADR-178): ledges, alcoves and the
-depth gradient. Corridor dog-legs are a routing decision rather than a geometric
-one and belong to `FloorPlan`.
+is missing. **All four are built** — ledges, alcoves and the depth gradient by
+ADR-178, corridor dog-legs by ADR-179. The dog-leg lives in `FloorPlan` rather
+than in `FloorBuilder`, because it is a routing decision rather than a geometric
+one.
 
 1. **Ledges over halls — prospect/refuge, and Lynch's landmarks.** A `GREAT`
    room gets a walkable ledge at 2.5 m along one door-free wall, reached by **a
@@ -231,9 +232,24 @@ one and belong to `FloorPlan`.
    > every wall, so a foot that meets the floor *at* the wall leaves the deck an
    > island: measured, mesh from 2.5 m down to 0.7 m and none below it, on three
    > ledges of four.
-2. **Corridor dog-legs — mystery.** A corridor of three cells or more bends at
-   least once rather than running straight. Costs one cell of routing slack and
-   removes the see-the-whole-proposition-from-the-doorway problem entirely.
+2. **Corridor dog-legs — mystery.** No corridor holds a straight run longer
+   than `DOGLEG_RUN` cells; where it would, it steps aside one cell, runs
+   parallel, and steps back. Removes the see-the-whole-proposition-from-the-
+   doorway problem.
+
+   > **Amended by ADR-179.** This originally asked for *"a corridor of three
+   > cells or more bends at least once"*. One bend in a 20-cell corridor still
+   > leaves two 10-cell sightlines, so the limit belongs on the **run**, not on
+   > the count — and the problem was much larger than this section assumed:
+   > measured over 4780 routes, **65% ran dead straight end to end**, the median
+   > longest run was 9 cells (18 m), and the tail reached 150 m. After: 13%,
+   > median 5 cells, for +19–28% corridor cells.
+   >
+   > It costs two cells per bend rather than one, and it is applied to the found
+   > path rather than to the search. Between two rooms whose doors line up the
+   > straight line is the *only* shortest path, so nothing inside a
+   > breadth-first search can bend it; constraining the search to refuse
+   > straight runs can fail to route at all, which is how `MAX_ROUTE` failed.
 3. **Alcoves — refuge, and edges.** Rooms of 3×3 cells or larger get one or two
    1-cell recesses in the wall. Cover to break line of sight, somewhere to wait
    out a patrol, and an irregular wall line so the room stops being a rectangle.

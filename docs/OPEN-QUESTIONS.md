@@ -46,6 +46,7 @@ Recorded so they are not mistaken for undesigned areas.
 | Shader | Do player characters get heavier outlines? (Q99) | `ART-005` |
 | Inventory | **Cell sizes and rummage speed.** Grid dimensions are settled at 6×5 by ADR-087 — measured, not guessed: it is where a bag of gear runs out of squares and a bag of glitter runs out of legs. Whether 44 px cells read at a glance, and whether `bag_open_time` ⟨tune⟩ 0.35 s feels vulnerable or merely slow, are questions only a playtest answers | `DES-019` |
 | Pressure | **Waystone drop rate** — the strongest single lever in the game | `DES-005` |
+| Levels | **How much of a floor should be corridor?** Median route is 9–10 cells (18–20 m) before the dog-leg and ~24% more after, with a tail past 100 cells. `LATTICE` (12) is the lever, and moving it changes room density, adjacency and the ADR-032 bypass distances at once — so it is a floor-composition decision, not a tuning pass, and it wants a floor somebody has walked | `TEC-008`, `DES-015`, ADR-179 |
 | Audio | Crossfade length between states | `ART-002`, ADR-043 |
 | Co-op | Per-capita extracted value at 1 / 2 / 4 players | `DES-012` |
 | Hunter | **Gold-bait cost curve; how long a bait buys.** Built at `M2-T02`: proportional to carried value (ADR-039) with an absolute floor (ADR-089), buying ⟨tune⟩ 4.5 s of Collecting. Whether that is a window worth spending a torc on is the playtest question | `DES-017` |

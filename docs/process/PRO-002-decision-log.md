@@ -5489,5 +5489,64 @@ It asks `intersect_point` of the physics space now, which is both exact under ro
 
 ---
 
+## ADR-179 — Corridors that bend, and the sightline nobody had measured
+
+**Date:** 2026-09-02 · **Status:** accepted · **Completes `TEC-008` §3.3** · **`M4-T01` in progress**
+
+**Context:** the fourth and last of `TEC-008` §3.3's devices, for Kaplan & Kaplan's **mystery** — a passage bending out of sight promises more if you move deeper. `TEC-008` asked for it in one sentence and assumed a modest problem: *"a corridor of three cells or more bends at least once rather than running straight."*
+
+### Decision 1 — measure the sightline before building anything for it
+
+The problem is much worse than the document assumed, and worth stating as numbers because everything else follows from them. Across **4780 routes** on 360 floors:
+
+| | Before |
+|---|---|
+| Routes running **dead straight end to end** | **65%** |
+| Bends per route | 0.71 |
+| Median longest straight run | **9 cells — 18 m** |
+| Routes with a straight run of 8 m or more | 96% |
+| Longest run in the corpus | 75 cells — **150 m** |
+
+An 18 m straight tunnel 2 m wide, between two rectangles, is the entire proposition visible from the doorway — and it was the *median*. This was measured first precisely because the alternative was building a device for a problem the floors might not have had; `CLAUDE.md` prefers subtraction, and the way to find out is to look.
+
+### Decision 2 — a jog, not a re-route
+
+The router is a breadth-first search, so it finds shortest paths — and **between two rooms whose doors line up, the straight line is the only shortest path.** No amount of tie-breaking inside the search can bend it: preferring perpendicular expansion changes which of several equal-length paths wins, and here there is only one. Bending has to be paid for.
+
+Two ways to pay, and the choice matters:
+
+- **Constrain the search** to refuse straight runs past a limit. Cheapest in cells, and it can fail to route at all — which is exactly how `MAX_ROUTE` failed in ADR-172, where a search budget too small failed like a constraint violation and was misdiagnosed twice as geometry.
+- **Jog the found path.** The corridor steps aside one cell, runs parallel, and steps back, keeping both doorways exactly where the search put them. Costs two cells per bend. **When there is no room to step aside it does nothing**, so it cannot turn a routable floor into an unroutable one.
+
+The second. A device that can strand a floor is not worth a sightline, and the corpus confirms it: 4780 routes before, 4780 after, 0 invalid floors of 360.
+
+| | Before | After |
+|---|---|---|
+| Dead straight end to end | 65% | **13%** |
+| Bends per route | 0.71 | **5.72** |
+| Median longest straight run | 9 cells (18 m) | **5 cells (10 m)** |
+
+It costs **+19% to +28% corridor cells** on the three probed floors. That is a real cost and it lands on a floor that is already corridor-heavy — see the open question below.
+
+Routes that cross another corridor are left alone: a chicane shifts every later cell's index, and `_climbable` measured the crossing's ramp clearance against the old ones.
+
+### Decision 3 — the row measures the distribution, not the mechanism
+
+`--plan-probe` reports the share of dead-straight routes, bends per route, and the median longest run, and fails on the first two exceeding bounds. Planted by disabling the jog: it reproduces 65%, 0.7 bends and 9 cells exactly, and both assertions fire.
+
+Asserting *"`_dogleg` was called"* would have been the cheaper row and the wrong one — it is a claim about the code rather than about the floor, and `TEC-007` §1 is a list of what that costs.
+
+### Open question — the floors are corridor-heavy, and this made it worse
+
+The route-length histogram has a median around 9–10 cells (18–20 m) **before** the jog, with a tail past 100 cells. Adding ~24% corridor is defensible for the sightline, but the underlying density is a separate question with its own lever — `LATTICE`, currently 12 — and it is a design decision about how much of a floor should be connective tissue rather than room. Not reopened here. Filed to `OPEN-QUESTIONS.md`.
+
+### Rejected
+
+- **Constraining the search** (Decision 2), on the ADR-172 precedent.
+- **A single bend per corridor**, as `TEC-008` §3.3.2 literally says. One bend in a 20-cell corridor still leaves two 10-cell sightlines; the limit has to be on the *run*, not on the count. `TEC-008` is amended to say so.
+- **Reducing `LATTICE` instead**, to shorten corridors rather than bend them. It would help, and it changes room density, adjacency and the bypass distances all at once — a floor-composition decision, not a sightline fix.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
