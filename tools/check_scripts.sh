@@ -405,6 +405,26 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **A party crosses a floor** (`M4-T01`, ADR-185, ADR-186).
+	#
+	# `--run-probe` above proves the run *file* can hold a floor index; this
+	# proves the **game** moves one. Claiming a Shaft above the bottom descends
+	# rather than extracts, the bag, the wound and the Hunt's age are written
+	# down, and arriving one floor lower puts all three back on the body —
+	# `DES-009` bans regeneration within a run, and ADR-015 makes a run three
+	# floors, so a descent that healed you would be the one thing combat forbids.
+	#
+	# The last row is the one that keeps the game finishable: take the exit off
+	# every Shaft and a run can be entered and never ended, which strands
+	# `run.active` open and blocks every future descent.
+	descent="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --descent-probe --seed=31346 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$descent" | grep -qE 'FAIL|SCRIPT ERROR'; then
+		echo "FAIL a party has to arrive on the floor below with what it left with" >&2
+		printf '%s\n' "$descent" | grep -E '\[descent\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **A dead player is still playing** (`M3-T14`, `DES-012`, ADR-130). The
 	# Vordr, and the readout `GATE M3 COOP` has named as a precondition since
 	# ADR-115 with no build ever having an answer for it.
@@ -785,8 +805,15 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# trapped.** A Sealing implemented as a lock satisfies every reading of
 	# `DES-005`'s table and breaks that guarantee outright — planting exactly
 	# that is what this refuses.
+	#
+	# **On the bottom floor, because that is where leaving happens** (ADR-186).
+	# The Shaft is the way *down* on floors 0 and 1 and the Deep Gate's mechanism
+	# at the bottom, so a probe about the way **out** has to say which floor it is
+	# standing on. The Sealing curve it measures is the same either way — it is
+	# `Shaft.channel_seconds()` in both roles — but the extraction row at the end
+	# only exists here.
 	exits="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
-		levels/room_set/room_set.tscn -- --exit-probe 2>&1)"
+		levels/room_set/room_set.tscn -- --exit-probe --floor=2 2>&1)"
 	if [[ $? -ne 0 ]] || printf '%s\n' "$exits" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
 		echo "FAIL the way out" >&2
 		printf '%s\n' "$exits" | grep -E '\[exit\]|ERROR' | sed 's/^/      /' >&2
@@ -799,8 +826,14 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# whether it is possible is this. The solo half runs here; the half that
 	# needs two people (a teammate's hand actually reaching across the wire) is
 	# asserted in the co-op smoke below.
+	#
+	# **`--floor=2` for the same reason as `--exit-probe`** (ADR-186): the whole
+	# scenario is an ember *reaching an extraction point*, and above the bottom
+	# floor the Shaft descends instead. Found by this row going red, which is the
+	# check doing its job — a rescue that silently took the party one floor deeper
+	# instead of saving a life is precisely the regression worth catching.
 	ember="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 12000 \
-		levels/room_set/room_set.tscn -- --ember-probe 2>&1)"
+		levels/room_set/room_set.tscn -- --ember-probe --floor=2 2>&1)"
 	if [[ $? -ne 0 ]] || printf '%s\n' "$ember" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
 		echo "FAIL bear my ember out" >&2
 		printf '%s\n' "$ember" | grep -E '\[ember\]|ERROR' | sed 's/^/      /' >&2
@@ -894,6 +927,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "what you hold decides the swing and the pack decides the bag,"
 	echo "the fallen can see what is happening to them and go on playing,"
 	echo "a run stays open until it resolves and quitting is not an escape,"
+	echo "a party arrives one floor down with its bag, its wounds and the Hunt,"
 	echo "she remembers three things and they come back Scarred,"
 	echo "a run ends on evidence and never interrupts itself to say so,"
 	echo "the Wing gets out quietly and every node it sells does something,"

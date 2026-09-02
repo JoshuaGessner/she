@@ -123,11 +123,24 @@ func tribute_worth() -> int:
 	return definition.tribute_value
 
 
+## **`cell` is a pair, not a `Vector2i`, so this really is a save form**
+## (`M4-T01`, ADR-185).
+##
+## The comment above has said *"the wire **and save** form"* since `M3-T07` and
+## only the first half was ever true: `JSON.stringify` turns a `Vector2i` into
+## the **string** `"(3, 2)"`, and `from_wire`'s `as Vector2i` on a string is an
+## invalid cast — which *throws* rather than yielding null, the same Godot
+## behaviour that cost ADR-132 a run file. Measured, not assumed.
+##
+## Nothing had ever written an item to disk, so nothing found out. A bag
+## crossing a floor is the first thing that does. A two-element array survives
+## JSON and RPC alike, so there is still one form rather than a save form beside
+## a wire form.
 func to_wire() -> Dictionary:
 	return {
 		"instance": instance_id,
 		"item": definition.id,
-		"cell": cell,
+		"cell": [cell.x, cell.y],
 		"rotated": rotated,
 		"bound": bound_to,
 		"scarred": scarred,
@@ -142,7 +155,11 @@ static func from_wire(row: Dictionary) -> ItemInstance:
 	if known == null:
 		return null
 	var made := ItemInstance.of(known, int(row["instance"]))
-	made.cell = row["cell"] as Vector2i
+	# **`int()` on both, because JSON has no integers.** A round trip through a
+	# run file returns every number as a float, so `Vector2i(pair[0], pair[1])`
+	# on raw variants would be building a grid cell out of 3.0 and 2.0.
+	var pair: Array = row["cell"] as Array
+	made.cell = Vector2i(int(pair[0]), int(pair[1]))
 	made.rotated = bool(row["rotated"])
 	made.bound_to = int(row["bound"])
 	# Absent in a save written before `M3-T05`, and false is right for every one

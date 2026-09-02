@@ -390,6 +390,13 @@ var _hunter: Gullsjukr = null
 var _shaft: Shaft = null
 var _navigation: NavigationRegion3D = null
 var _descent: int = 1
+## How deep into this expedition this floor is, 0 to `RunFile.LAST_FLOOR`
+## (`M4-T01`, ADR-184). Distinct from `_descent`, which counts *runs* a probe
+## has driven — two different numbers that a single name would have conflated.
+var _floor_index: int = 0
+## True once a descent has been committed, so a Shaft finishing its channel
+## twice in the frames before the scene changes takes the party down once.
+var _going_down: bool = false
 ## True while a probe is driving this level. Probes measure the floor and must
 ## not be dropped into the Lair halfway through a measurement.
 var _probing: bool = false
@@ -518,6 +525,7 @@ func _ready() -> void:
 			if arg.begins_with("--floor="):
 				depth = clampi(int(arg.split("=", true, 1)[1]),
 					0, RunFile.LAST_FLOOR)
+	_floor_index = depth
 	for arg: String in OS.get_cmdline_user_args():
 		if arg != "--delvings" and arg != "--delvings-probe":
 			continue
@@ -616,6 +624,8 @@ func _ready() -> void:
 			_wing_probe()
 		elif arg == "--run-probe":
 			_run_file_probe()
+		elif arg == "--descent-probe":
+			_descent_probe()
 		elif arg == "--vordr-probe":
 			_vordr_probe()
 		elif arg == "--stalker-probe":
@@ -4287,6 +4297,21 @@ func _build_hunt() -> void:
 		_hunter.age += _she_sent_it_early
 		_rank_in_the_hunt = _session.floor_rank()
 		_hunter.age += RankScaling.hunt_age(_rank_in_the_hunt)
+		# **And whatever it already was, one floor up** (`M4-T01`, ADR-185).
+		#
+		# ADR-037 closed Q9 with *"the Hunt persists across floors. Descending
+		# grants nothing — going quiet and shedding carried value can shake it,
+		# but a staircase cannot. Descent is a commitment."* Until floors
+		# existed there was nothing for that sentence to be true of, and
+		# `_reset_floor` says so in as many words.
+		#
+		# Added to the rank and Tithe head starts rather than replacing them:
+		# a rank-8 floor you owe her on, arriving on an already-old Hunt, is
+		# all three, and all three are time.
+		var carried_age: float = RunFile.hunt_age()
+		_hunter.age += carried_age
+		if carried_age > 0.0:
+			print("[hunt] it followed you down — %.0f s of it" % carried_age)
 		if _she_sent_it_early > 0.0:
 			print("[hunt] she sent it early — %.0f s of it" % _she_sent_it_early)
 		if _hunter.age > 0.0:
@@ -4310,7 +4335,7 @@ func _build_shaft() -> void:
 	# geometry rather than a spawn — so the paths match by construction.
 	_shaft.configure_replication()
 	_world.add_child(_shaft)
-	_shaft.claimed.connect(_on_extracted)
+	_shaft.claimed.connect(_on_shaft_claimed)
 	for player: Player in _session.players():
 		_watch(player)
 	_session.player_spawned.connect(_watch)
@@ -4729,6 +4754,77 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = []) -> void:
 	get_tree().change_scene_to_file(THRESHOLD_SCENE)
 
 
+## **The Shaft is the way down; the last floor's way out is the Deep Gate**
+## (`M4-T01`, ADR-186).
+##
+## `DES-005` gave the run three ways out — the Waystone, the Shaft and the Deep
+## Gate — and two of them did the same job. `MissionGraph.Role.SHAFT` has said
+## *"the way down, **and out**"* since the graph was written, and this is the
+## half that was never built: on floors 0 and 1 claiming the Shaft now takes the
+## party **deeper**, and only the bottom of the expedition lets you leave.
+##
+## So the redundant pair resolves the other way round from the obvious one. The
+## Waystone is not cut — it becomes the **only** early exit, which is what makes
+## `DES-019`'s binary readout (*do I still have my out?*) the sharpest question
+## on the HUD, and what keeps `DES-014`'s best payoff possible: you cannot give
+## a teammate a Shaft.
+##
+## **The party goes together**, on `Threshold._take_the_party_down`'s precedent
+## and for a harder reason than symmetry: peers cannot stand in different levels
+## (ADR-102), so one body descending alone is not a thing the architecture can
+## express. Extraction is a *state* for exactly that reason; a floor change is
+## not, and cannot be.
+func _on_shaft_claimed(player: Player) -> void:
+	if not multiplayer.is_server():
+		return
+	# The bottom of the expedition. Nothing is under it, so the Shaft here is
+	# the Deep Gate's mechanism and this is `DES-005`'s guaranteed way out.
+	if _floor_index >= RunFile.LAST_FLOOR:
+		_on_extracted(player)
+		return
+	if _going_down:
+		return
+	_going_down = true
+	print("[descent] %s took the party down from floor %d" % [
+		player.name, _floor_index])
+	_take_the_party_down.rpc()
+
+
+## Each peer records its own body and its own Hunt, then walks into the hole.
+##
+## `call_local` so the host runs it in the frame it commits, and so solo takes
+## the same path as a four-stack. **Each process writes its own run file** —
+## `RunFile` is per-process like `GameState`, your bag is yours, and the values
+## it reads are host-authoritative and replicated down (`Health:current` is
+## `ON_CHANGE` on the state sync; the bag is pushed to its owner by
+## `_push_bag`), so a peer recording its own body is copying the host rather
+## than inventing anything.
+@rpc("authority", "call_local", "reliable")
+func _take_the_party_down() -> void:
+	var body: Player = _session.local_player()
+	var bag: Array = []
+	var hurt: float = RunFile.UNHURT
+	if body != null:
+		bag = body.inventory.pack()
+		hurt = body.health.current
+	# **The Hunt comes with you** (ADR-037, `DES-017` Q9): *"descending grants
+	# nothing — going quiet and shedding carried value can shake it, but a
+	# staircase cannot."* Read off the Gullsjúkr rather than a clock, because
+	# `Shaft._escalation` reads the same `age` and the price of leaving and the
+	# pressure you feel have to come from one source.
+	var age: float = _hunter.age if _hunter != null else 0.0
+	RunFile.carry_down(bag, hurt, age)
+	var to: int = RunFile.descend()
+	print("[descent] floor %d → %d, carrying %d item(s) at %.0f hp, "
+		% [_floor_index, to, bag.size(), hurt]
+		+ "the Hunt %.0f s old" % age)
+	if _probing:
+		# The descent *happened*, which is what a probe reads. Changing scene
+		# would free the node holding the assertion (ADR-138).
+		return
+	get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
+
+
 ## Someone got out (`M2-T04`). **This is the Settle beat, and almost none of it
 ## is built** — `DES-019` wants punch, the hoard, the keep-or-give decision made
 ## physically, and deeds surfaced here and nowhere else. Those need the Lair
@@ -4739,6 +4835,11 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = []) -> void:
 ## the *loop closing*, which is the thing `M2-T04` owes and the thing that makes
 ## `--bag-probe`'s question answerable at all: you now find out whether the loot
 ## you agonised over actually left with you.
+##
+## **Reached from three places now** (`M4-T01`, ADR-186): a Waystone spent on any
+## floor, the Deep Gate at the bottom, and — on the bottom floor only — the
+## Shaft, which is the Gate's mechanism. On floors above the bottom the Shaft
+## goes *down* instead and never arrives here.
 func _on_extracted(player: Player) -> void:
 	if not multiplayer.is_server():
 		return
@@ -6136,7 +6237,7 @@ func _rank_probe() -> void:
 			+ "names as an anti-goal"))
 
 	# ── the highest rank present is the floor (ADR-010) ──────────────────
-	_session.declare_descent(1, "", PackedStringArray(), {})
+	_session.declare_descent(1, "", PackedStringArray(), {}, [], RunFile.UNHURT)
 	var alone: int = _session.floor_rank()
 	_session._ranks[9001] = 8
 	var with_veteran: int = _session.floor_rank()
@@ -6994,6 +7095,153 @@ func _find_readout(from: Node) -> FallenReadout:
 		if deeper != null:
 			return deeper
 	return null
+
+
+## **A party crosses a floor** (`M4-T01`, ADR-185, ADR-186).
+##
+## `--run-probe` proves the run *file* can hold a floor index. This proves the
+## **game** moves one: that claiming a Shaft above the bottom descends instead of
+## extracting, that the bag, the wound and the Hunt's age are written down, and
+## that arriving one floor lower puts all three back on the body.
+##
+## Both halves in one process, because the transition is a scene change and a
+## probe cannot survive its own: `_take_the_party_down` returns before the change
+## when `_probing`, so the *record* is assertable here; the *restore* is driven
+## by calling `declare_descent` with what was recorded, which is exactly what
+## `CoopSession._ready` does on the floor below. The functions under test are the
+## real ones on both sides — only the scene change is stood in for.
+func _descent_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# Its own run file, never the player's (ADR-145, ADR-152): this opens one.
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	if RunFile.PATH == "user://run.active":
+		printerr("[descent] FAIL this probe is pointed at the player's run file")
+		get_tree().quit(1)
+		return
+	RunFile.clear()
+	RunFile.begin(&"huskarl", 1, 31346)
+
+	var body: Player = _session.local_player()
+	if body == null:
+		problems.append("no body to take down — every row below is about "
+			+ "nothing")
+		_report(problems, "descent")
+		return
+
+	# ─ 1. a floor above the bottom goes down rather than out ─
+	#
+	# **Asserted by where it ends up, not by which function ran.** A row that
+	# checked `_going_down` would pass against a build that set the flag and
+	# extracted anyway.
+	_floor_index = 0
+	var pool: Array[ItemResource] = ItemCatalogue.all()
+	var put_in: int = 0
+	for definition: ItemResource in pool:
+		if body.inventory.add(definition) != null:
+			put_in += 1
+		if put_in >= 3:
+			break
+	body.health.current = body.health.maximum * 0.4
+	if _hunter != null:
+		_hunter.age = 90.0
+	var hurt_before: float = body.health.current
+	var scene_before: String = get_tree().current_scene.scene_file_path
+
+	_on_shaft_claimed(body)
+	await _hold(0.3)
+
+	var went: int = RunFile.floor_index()
+	print("[descent] took the party  floor 0 → %d, scene unchanged=%s "
+		% [went, get_tree().current_scene.scene_file_path == scene_before]
+		+ "(want 1, yes)")
+	if went != 1:
+		problems.append("claiming the Shaft on floor 0 did not descend — "
+			+ "`MissionGraph.Role.SHAFT` is *the way down, and out*, and the "
+			+ "way down is the half this task owes")
+	if GameState.carried.size() > 0:
+		problems.append("claiming the Shaft above the bottom brought a haul "
+			+ "home — that is extraction, and floors 0 and 1 have no way out "
+			+ "but a Waystone (ADR-186)")
+
+	# ─ 2. what the run wrote down ─
+	var rows: Array = RunFile.bag()
+	print("[descent] carried down    %d row(s) of %d, %.0f hp of %.0f, "
+		% [rows.size(), put_in, RunFile.wound(), hurt_before]
+		+ "hunt %.0f s" % RunFile.hunt_age())
+	if rows.size() != put_in:
+		problems.append(("the bag did not go down — %d item(s) went in and %d "
+			+ "were written, so a floor transition is a way to lose your haul")
+			% [put_in, rows.size()])
+	if absf(RunFile.wound() - hurt_before) > 0.01:
+		problems.append("the wound did not go down — `DES-009` bans "
+			+ "regeneration *within* a run and ADR-015 makes a run three "
+			+ "floors, so a descent that heals is the one thing combat forbids")
+	if RunFile.hunt_age() < 89.0:
+		problems.append("the Hunt did not follow — ADR-037 closed Q9 with "
+			+ "*descending grants nothing, a staircase cannot shake it*")
+
+	# ─ 3. **and the floor below puts it back** ─
+	#
+	# The row that stops all of the above being satisfied by writing a file
+	# nobody reads — ADR-098's question, asked of the thing that was just built.
+	# Driven through `declare_descent`, because that is the call
+	# `CoopSession._ready` makes on arrival and the host is what owns a bag.
+	body.inventory.clear()
+	body.health.current = body.health.maximum
+	_session.declare_descent(1, "huskarl", PackedStringArray(), {},
+		RunFile.bag(), RunFile.wound())
+	await _hold(0.2)
+	print("[descent] handed back     %d item(s), %.0f hp (want %d, %.0f)" % [
+		body.inventory.count(), body.health.current, put_in, hurt_before])
+	if body.inventory.count() != put_in:
+		problems.append(("the bag was written and never read back — %d item(s) "
+			+ "arrived of %d, which is a run file with a haul in it and a "
+			+ "player with an empty bag") % [body.inventory.count(), put_in])
+	if absf(body.health.current - hurt_before) > 0.01:
+		problems.append("the body arrived healed — descending is a commitment "
+			+ "(`DES-005`), and a free heal makes it a rest stop")
+
+	# ─ 4. the bottom of the expedition lets you out ─
+	#
+	# The complement of row 1, and the row that stops ADR-186 from removing the
+	# only way out of the game: if the Shaft never extracts anywhere, a run can
+	# be entered and never resolved.
+	_floor_index = RunFile.LAST_FLOOR
+	_going_down = false
+	var out_before: int = GameState.carried.size()
+	_on_shaft_claimed(body)
+	await _hold(0.3)
+	# **Asserted on the run being *resolved*, not on its floor index.**
+	#
+	# The first draft asked whether the index had stayed at 1 and failed a
+	# healthy build: extraction is an outcome, an outcome calls `RunFile.clear()`
+	# (ADR-050 — the run resolved), and a cleared run reads back as floor 0. The
+	# row was measuring the absence of a file and calling it a descent.
+	#
+	# Resolution is the better claim anyway. It is what ADR-186 most plausibly
+	# breaks: take the exit off every Shaft and a run can be entered and never
+	# ended, which strands `user://run.active` open forever and blocks every
+	# future descent (ADR-132).
+	var still_open: bool = RunFile.exists()
+	print("[descent] the bottom      got_out=%s, run still open=%s "
+		% [body.got_out, still_open] + "(want yes, no)")
+	if not body.got_out:
+		problems.append("the Shaft on the last floor did not let anybody out — "
+			+ "`DES-005`'s Deep Gate is the guaranteed exit and this is its "
+			+ "mechanism; without it a run has no ending but death")
+	if still_open:
+		problems.append("the bottom floor descended instead of resolving the "
+			+ "run — there is nothing under floor %d, and a run that cannot "
+			% RunFile.LAST_FLOOR
+			+ "end leaves `run.active` open and blocks every future descent")
+	if out_before > 0:
+		problems.append("this row could not fail: something had already been "
+			+ "brought home before it ran")
+
+	RunFile.clear()
+	_report(problems, "descent")
 
 
 ## **A run you cannot walk away from** (`M3-T15`, ADR-050, ADR-132).

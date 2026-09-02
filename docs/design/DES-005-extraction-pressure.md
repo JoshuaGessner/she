@@ -4,7 +4,7 @@ title: Extraction Pressure — The Hunt
 status: accepted
 owner: design
 tags: [pressure, pacing, extraction, tension, ai]
-updated: 2026-08-17
+updated: 2026-09-02
 related: [DES-002, DES-007, DES-008]
 ---
 
@@ -65,24 +65,34 @@ At ~⟨tune⟩ 12–15 minutes, or when the floor's Clamor threshold is crossed 
 > > **The Shaft never locks. It gets worse.**
 >
 > Escalation multiplies the channel time *and* the noise ⟨tune⟩ — measured at 4.0 s / 5.0 clamor early against **12.8 s / 16.0 late**. Leaving late means standing exposed in a known location, for longer, screaming, with the Gullsjúkr already coming. Floor-by-floor locking needs floors and arrives with them at `M4-T01`. `--exit-probe` fails if the Shaft ever becomes unusable, which is precisely what a lock-shaped Sealing would do.
+>
+> **And floor-by-floor locking is not what arrived (ADR-186).** The floors landed at `M4-T01` and the contradiction resolved the other way: the Shaft is the way **down** now, so "the Shafts seal, floor by floor" would seal the route to the Deep Gate and strand a party with no Waystone — the trapping ADR-015 forbids, reached by the opposite road. ADR-091's guarantee stands unchanged and is now load-bearing in a second way: **the Shaft never locks, it gets worse.** Sealing is entirely a cost curve on the descent, and `--exit-probe`'s refusal to let the Shaft become unusable is the check that keeps it one.
 
-A run is all three floors (ADR-015). Leaving before the bottom is possible on every floor, but it must be *earned* — there are three ways out, and they cost different things:
+A run is all three floors (ADR-015). Leaving before the bottom is possible on every floor, but it must be *earned*.
+
+> **REVISED (ADR-186) — two ways out, and the Shaft is not one of them.**
+>
+> The table below listed **three** exits and two of them did the same job. The Shaft and the Waystone were both *leave early*, differing only in whether you walk to the exit or carry it — and `MissionGraph.Role.SHAFT` had described the Shaft as *"the way down, **and out**"* since the graph was written, with only the second half ever built.
+>
+> **The Shaft is now the way down.** It is how you reach floor 2 and floor 3, and on the bottom floor it is the Deep Gate's mechanism. It never extracts you from anywhere else.
+>
+> **The Waystone is now the only early exit**, which is what stops it being redundant. This is the resolution the obvious reading gets backwards: cutting the Waystone and keeping the Shaft as an exit would have removed the only exit a player can **give away** — and `DES-014` calls that *"the single best payoff available in this design"* (*the person you saved saves you, because you gave away your own way out six hours ago*). `DES-016` already has a deed for a Waystone you never spent.
 
 | Means | Where | Cost |
 |---|---|---|
-| **Waystone** | Rare found item ⟨tune⟩ | Portable, instant, consumed. **Spending it is choosing to end the run now, with what you have.** |
-| **The Shaft** | One fixed mechanism per floor, location known | Reliable but dangerous and loud — a real place you must reach and survive |
-| **The Deep Gate** | Floor 3 only | Guaranteed. The destination. |
+| **Waystone** | Rare found item ⟨tune⟩ | Portable, instant, consumed. **Spending it is choosing to end the run now, with what you have.** The only way out above the bottom. |
+| **The Shaft** | One fixed mechanism per floor, location known | **The way down.** Reliable but dangerous and loud — a real place you must reach and survive, and taking it commits the whole party a floor deeper. |
+| **The Deep Gate** | Floor 3 only | Guaranteed. The destination, and the only exit that is *always* there. |
 
-**The Sealing now bites differently:** as the Hunt escalates, **the Shafts seal, floor by floor.** Staying doesn't strand you — it makes your *cheap* exit disappear and pushes you toward the Deep Gate at the bottom, deeper into the thing you were trying to leave.
+**The Sealing now bites differently:** as the Hunt escalates, using the Shaft gets slower and louder. Staying doesn't strand you — it makes going deeper more expensive and leaves you further from the Deep Gate at the bottom, deeper into the thing you were trying to leave.
 
 This is a strict improvement on the old model. It means:
 - **The means of escape is loot.** A Waystone in your bag is a decision you carry around, and it competes for a slot.
 - **"Can I leave?" becomes a resource question**, answerable at a glance, and it's a *different* question from "where is the exit?"
-- The player is never truly trapped — the Shaft is always reachable, just increasingly expensive.
+- The player is never truly trapped — the way **down** is always usable, just increasingly expensive, and down is a way out because the bottom holds the Gate.
 - **No hard "you die at 30:00" wall.** The player is never killed by a clock; they are killed by the consequences of one. (Principle 4.)
 
-**Waystone drop rate is a primary tuning lever** ⟨tune⟩: too common and the pressure evaporates; too rare and players are shoved to floor 3 every run whether they wanted it or not.
+**Waystone drop rate is a primary tuning lever** ⟨tune⟩: too common and the pressure evaporates; too rare and players are shoved to floor 3 every run whether they wanted it or not. **ADR-186 makes this more load-bearing, not less** — it is now the *only* dial controlling how often a run can end before the bottom, and it is the single biggest risk the change carries.
 
 ### Layer 3b — Gates open both ways (ADR-016)
 

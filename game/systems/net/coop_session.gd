@@ -184,7 +184,9 @@ func _ready() -> void:
 		# every peer says its rank again here. Walking through a doorway is the
 		# only way a real party ever reaches a floor, so a declaration made
 		# solely at connect would be a declaration the floor never sees.
-		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
+		declare_descent.rpc_id(HOST_PEER, _my_rank(),
+			String(GameState.class_id), _my_effects(), _my_worn(),
+			_my_bag(), _my_wound())
 		if multiplayer.is_server():
 			# **Re-applied on every session, because the peer outlives them and
 			# the flag does too.** A doorway is exactly where this has to be
@@ -211,7 +213,8 @@ func _ready() -> void:
 			# already reports us as server 1, so the host path below is simply
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
-			declare_descent(_my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
+			declare_descent(_my_rank(), String(GameState.class_id),
+				_my_effects(), _my_worn(), _my_bag(), _my_wound())
 			spawn_player(HOST_PEER)
 
 
@@ -393,7 +396,8 @@ func _start_host() -> void:
 	multiplayer.peer_connected.connect(_on_peer_connected)
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
-	declare_descent(_my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
+	declare_descent(_my_rank(), String(GameState.class_id),
+		_my_effects(), _my_worn(), _my_bag(), _my_wound())
 	spawn_player(HOST_PEER)
 
 
@@ -435,7 +439,9 @@ func _on_connected() -> void:
 	# Before anything else asks (`M3-T10`). A floor built while a rank-8 player
 	# was still announcing themselves is a rank-1 floor with a rank-8 player on
 	# it, which is the opposite of what ADR-010 is for.
-	declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id), _my_effects(), _my_worn())
+	declare_descent.rpc_id(HOST_PEER, _my_rank(),
+			String(GameState.class_id), _my_effects(), _my_worn(),
+			_my_bag(), _my_wound())
 	# **Connecting is not arriving** (`M3-T36`, ADR-157).
 	#
 	# This cleared the deadline, and that is a claim the client is in no
@@ -561,6 +567,20 @@ var _effects: Dictionary = {}
 ## Peer id → slot name → item id (`M3-T07`). Per scene, and it dies with the
 ## floor like everything else here.
 var _worn: Dictionary = {}
+## Peer id → the bag that peer brought down, in `Inventory.pack()` rows
+## (`M4-T01`, ADR-185). Per scene like everything above it.
+##
+## **Not on the spawn packet, unlike the class and the worn slots.** A spawn
+## packet reaches every peer, and a bag is not everybody's business — the host
+## sends each body's contents to its owner alone (`Player._push_bag`). Putting
+## bags on the packet would broadcast all four inventories to all four players
+## and change what the game shares, to save a dictionary.
+var _bags: Dictionary = {}
+## Peer id → the health that peer arrived carrying, or `RunFile.UNHURT`. Same
+## trip and the same reason as the bag: `DES-009` bans regeneration *within* a
+## run, ADR-015 makes a run three floors, and the host is the copy that decides
+## what a blow did.
+var _wounds: Dictionary = {}
 ## What this process says its own rank is. `0` means "ask the profile", which
 ## is every real launch; `--as-rank=N` is the sweep building a mixed party.
 var _declared_rank: int = 0
@@ -646,9 +666,17 @@ func everyone_declared() -> bool:
 ## stash or Tithe ledger — the host stores neither in a profile and writes
 ## nobody's but its own. They are the same kind of value as party size, which
 ## has always crossed, and they are discarded with the scene.
+## **And what it is carrying** (`M4-T01`, ADR-185). `bag` is `Inventory.pack()`
+## rows and `hurt` is `RunFile.UNHURT` or a health figure — both read off that
+## peer's own run file, both discarded with the floor like everything else here.
+##
+## Still not progression (`TEC-004`, ADR-119). A bag is run state: it does not
+## outlive the expedition, the host writes nobody's profile with it, and the
+## host already holds every body's inventory anyway — this is how it *gets* it
+## when the body is rebuilt one floor down.
 @rpc("any_peer", "call_local", "reliable")
 func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
-		worn: Dictionary) -> void:
+		worn: Dictionary, bag: Array, hurt: float) -> void:
 	if not multiplayer.is_server():
 		return
 	var who: int = multiplayer.get_remote_sender_id()
@@ -671,6 +699,8 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 	# **What that peer is wearing** (`M3-T07`). Same reason as the two above:
 	# the host dresses four bodies and only one of the wardrobes is its own.
 	_worn[id] = worn
+	_bags[id] = bag
+	_wounds[id] = hurt
 	# **Tell the body, if it is already here.** A declaration and a spawn packet
 	# are independent events and neither waits for the other (ADR-122), so both
 	# orders have to end in the same place: the payload covers *declared first*,
@@ -681,6 +711,7 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 		body.sworn = StringName(sworn)
 		body.effects = effects
 		body.wearing = worn
+		_hand_down(body, id)
 	_log("peer %d descends at rank %d as '%s' — the floor is rank %d" % [
 		id, rank, sworn if sworn != "" else "nobody", floor_rank()])
 	# **The floor has to hear this** (ADR-122). A client's declaration is an
@@ -882,6 +913,11 @@ func spawn_player(peer: int, at: Vector3 = NO_PLACE) -> Player:
 		"worn": _worn.get(peer, {}),
 	}) as Player
 	if player != null:
+		# **Before anyone hears about the body** (`M4-T01`, ADR-185). Levels
+		# listen to `player_spawned` to rescale a floor, and one of the things
+		# they scale on is what the party is carrying — a body that announced
+		# itself empty and filled a frame later would be measured empty.
+		_hand_down(player, peer)
 		player_spawned.emit(player)
 	return player
 
@@ -1129,14 +1165,53 @@ func _log(message: String) -> void:
 func redeclare() -> void:
 	if multiplayer.is_server():
 		declare_descent(_my_rank(), String(GameState.class_id),
-			_my_effects(), _my_worn())
+			_my_effects(), _my_worn(), _my_bag(), _my_wound())
 	else:
-		declare_descent.rpc_id(HOST_PEER, _my_rank(), String(GameState.class_id),
-			_my_effects(), _my_worn())
+		declare_descent.rpc_id(HOST_PEER, _my_rank(),
+			String(GameState.class_id), _my_effects(), _my_worn(),
+			_my_bag(), _my_wound())
+
+
+## **Put back what this peer carried down** (`M4-T01`, ADR-185).
+##
+## Host-only, because the host owns every body's inventory and health — a peer
+## restoring its own would be overwritten by the next `_push_bag` anyway, which
+## is the quiet kind of wrong.
+##
+## Called from **both** the declaration and the spawn, because either can arrive
+## first (ADR-122) and both orders have to end in the same place. Safe twice:
+## `unpack` replaces the bag rather than adding to it, so the second call is the
+## same bag, not a doubled one.
+func _hand_down(body: Player, peer: int) -> void:
+	if not multiplayer.is_server() or body == null:
+		return
+	var rows: Array = _bags.get(peer, []) as Array
+	if not rows.is_empty():
+		body.inventory.unpack(rows)
+	# **`DES-009` is why this is not optional.** `Health`'s own header calls
+	# non-regenerating health *"the most important single decision in this
+	# document after the thesis"* and says adding regeneration needs an ADR —
+	# and a floor transition that handed back a full pool is regeneration with a
+	# staircase in front of it. `UNHURT` is the fresh-run case, where the body's
+	# own maximum is right.
+	var hurt: float = float(_wounds.get(peer, RunFile.UNHURT))
+	if hurt > 0.0:
+		body.health.current = minf(hurt, body.health.maximum)
 
 
 func _my_worn() -> Dictionary:
 	return GameState.worn.duplicate()
+
+
+## What this process is bringing onto the floor it is arriving at, straight off
+## its own run file. Empty and `UNHURT` on floor 0, and in any process with no
+## run open at all — which is every probe.
+func _my_bag() -> Array:
+	return RunFile.bag()
+
+
+func _my_wound() -> float:
+	return RunFile.wound()
 
 
 func _my_effects() -> PackedStringArray:

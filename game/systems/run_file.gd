@@ -70,6 +70,13 @@ const VERSION: int = 2
 ## The generator takes a depth and does not care how many there are.
 const LAST_FLOOR: int = 2
 
+## No wound is being carried — the body arrives at its own maximum.
+##
+## Negative rather than zero, because zero is a *dead* body and a run file that
+## said so would resurrect nobody on resume. Same shape as `CoopSession.NO_PLACE`:
+## a named value outside the legal range, never a magic number at a call site.
+const UNHURT: float = -1.0
+
 ## **Only a process that came in through the menu may touch a run file**
 ## (ADR-138). `SaveFile` has had this rule since `M3-T06` — *nothing is written
 ## back to a file that was never read* — and this file did not, which is how a
@@ -190,6 +197,12 @@ static func begin(class_id: StringName, rank: int, seed: int) -> void:
 		"seed": seed,
 		"carried": [],
 		"hunt_age": 0.0,
+		# **`UNHURT` rather than a number** (`M4-T01`, ADR-185). A run opens on a
+		# body that does not exist yet, and every class has a different pool —
+		# writing a figure here would be this file deciding how much health a
+		# Húskarl has. It says *nothing is carried down* and the body uses its
+		# own maximum.
+		"health": UNHURT,
 		"stripped": false,
 	})
 
@@ -223,6 +236,40 @@ static func floor_index() -> int:
 ## seed, so callers ask `exists()` when they need to tell "seed 0" from "no run".
 static func seed_of() -> int:
 	return int(read().get("seed", 0))
+
+
+## **What this peer takes down with it** (`M4-T01`, ADR-185).
+##
+## Written on the floor above, immediately before the scene changes, and read by
+## `CoopSession` on the floor below — which then tells the **host**, because the
+## host owns every body's inventory and health and a peer restoring its own would
+## be writing state it does not own (`_push_bag` would overwrite it a frame
+## later anyway).
+##
+## Per process, like `GameState` and for the same reason: your bag is yours, and
+## four peers each hold one quarter of the party's answer.
+static func carry_down(rows: Array, hurt: float, age: float) -> void:
+	note({"carried": rows, "health": hurt, "hunt_age": age})
+
+
+## The bag this run is carrying, in `Inventory.pack()` rows. Empty on a fresh
+## run and in an unarmed process.
+static func bag() -> Array:
+	return read().get("carried", []) as Array
+
+
+## The wound this run is carrying, or `UNHURT`. **`DES-009` bans regeneration
+## *within* a run**, and ADR-015 makes a run three floors — so a floor
+## transition that healed you would be the one thing the combat design says
+## cannot happen, and quitting to the menu would become a bandage.
+static func wound() -> float:
+	return float(read().get("health", UNHURT))
+
+
+## How old the Hunt already is. ADR-037: *"the Hunt persists across floors.
+## Descending grants nothing — a staircase cannot shake it."*
+static func hunt_age() -> float:
+	return maxf(0.0, float(read().get("hunt_age", 0.0)))
 
 
 ## Update the open run. Merged rather than replaced, so a caller that knows one

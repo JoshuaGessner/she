@@ -17,7 +17,7 @@ _What the game is._
 | `DES-002` | [Core Loop](design/DES-002-core-loop.md) | ✔ accepted | 2026-08-14 | DES-001, DES-003, DES-005, DES-006 |
 | `DES-003` | [Persistence & Meta-Progression](design/DES-003-persistence.md) | ✔ accepted | 2026-08-14 | DES-002, DES-004, DES-008, TEC-003 |
 | `DES-004` | [Skill Tree — The Dragon's Aspects](design/DES-004-skill-tree.md) | ✔ accepted | 2026-08-14 | DES-003, DES-007, DES-008 |
-| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-08-17 | DES-002, DES-007, DES-008 |
+| `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-09-02 | DES-002, DES-007, DES-008 |
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
 | `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-08-14 | DES-002, DES-006, DES-008 |
 | `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
@@ -26,12 +26,12 @@ _What the game is._
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-08-25 | DES-004, DES-003, DES-012, DES-009 |
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
 | `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-08-16 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
-| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
-| `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-01 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
+| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-09-02 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
+| `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-02 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-01 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-01 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
-| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-08-17 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-09-02 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-08-16 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
 

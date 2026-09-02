@@ -5820,5 +5820,110 @@ Five new assertions on `--run-probe`, **every one planted and every one caught**
 
 ---
 
+## ADR-185 — A party crosses a floor, carrying what it earned and what it cost
+
+**Date:** 2026-09-02 · **Status:** accepted · **Builds on ADR-184** · **`M4-T01`: the run that goes down three floors**
+
+**Context:** ADR-184 gave a run a floor index and a seed. Nothing moved it. This is what a party takes with it when it does — and the answer had to be *everything*, because each thing left behind is a way the descent stops being a commitment.
+
+### Decision 1 — the bag, the wound and the Hunt all cross, and the wound is the one with a doc behind it
+
+| Crosses | Why it must |
+|---|---|
+| **The bag** | Obvious, and it was the easy one to get wrong: repacking by id would drop whatever no longer fits |
+| **The wound** | `DES-009` bans regeneration **within** a run; ADR-015 makes a run three floors |
+| **The Hunt's age** | ADR-037 closed Q9 with *"descending grants nothing — a staircase cannot shake it"* |
+
+The health row is not a nicety. `Health`'s own header calls non-regenerating hit points *"the most important single decision in this document after the thesis"* and says adding regeneration needs an ADR. A floor transition that handed back a full pool **is** regeneration, with a staircase standing in front of it — and it would have made quitting to the menu a bandage, which is the ADR-050 escape wearing its third face.
+
+### Decision 2 — the host is told, because the host owns the body
+
+The obvious build is for each peer to restore its own bag on arrival. It is wrong, and quietly: **the host owns every body's inventory** and pushes it to the owning client (`Player._push_bag`), so a client filling its own bag would be overwritten a frame later. Health is the same — `Health:current` replicates host→peers.
+
+So a peer writes its own run file on the way down and **declares** what it is carrying on the way in. `CoopSession.declare_descent` is already that channel: it has carried rank since ADR-119, class since ADR-121, and worn slots since `M3-T07`, on the standing argument that these are run state rather than progression — discarded with the floor, never written to anybody's profile. A bag is the same kind of value.
+
+It is **not** on the spawn packet, unlike the class and the slots. A spawn packet reaches every peer, and putting bags on it would broadcast four inventories to four players to save a dictionary.
+
+### Decision 3 — the wire form was never a save form, and nothing had found out
+
+`ItemInstance.to_wire()` has been documented as *"the wire **and save** form"* since `M3-T07`. Only the first half was true.
+
+Measured rather than assumed: `JSON.stringify` turns `Vector2i(3, 2)` into the **string** `"(3, 2)"`, and `from_wire`'s `row["cell"] as Vector2i` on a string is an invalid cast — which **throws** rather than yielding null. Exactly the Godot behaviour that cost ADR-132 a run file, in a second place, found before it cost anything. JSON also returns every number as a float, so `instance` and the cell pair need `int()`.
+
+Nothing had ever written an item to disk — `GameState` deliberately stores ids only, with a note saying a placed item's cell and rotation *"come with it, and that is `M3-T09`"* — so the fault was unreachable until a bag crossed a floor. `cell` is a two-element array now, which survives JSON and RPC alike, so there is still **one** form rather than a save form beside a wire form (ADR-064).
+
+### Decision 4 — the probe drives both sides of a transition it cannot survive
+
+A floor change is a scene change, and a probe cannot outlive its own. `--descent-probe` asserts the **record** directly (`_take_the_party_down` returns before the change under `_probing`, as ADR-138 requires) and drives the **restore** by calling `declare_descent` with what was recorded — which is the call `CoopSession._ready` makes on arrival. Both sides run the real functions; only the scene change is stood in for.
+
+**Seven plants, all caught**: the Shaft not descending, the bag not packed, the wound not recorded, the Hunt not carried, `_hand_down` not unpacking, `_hand_down` not applying health, and the bottom floor never extracting.
+
+**And one row was wrong before it was right.** It asserted the floor index was still 1 after the bottom-floor extraction, and failed a healthy build: extraction is an outcome, an outcome calls `RunFile.clear()`, and a cleared run reads back as floor 0 — so the row was measuring the *absence of a file* and calling it a descent. It asks whether the run **resolved** now, which is both correct and the better claim: it is what ADR-186 most plausibly breaks.
+
+### Found and fixed on the way
+
+`RunFile`'s `carried` and `hunt_age` were written once at `begin()` and **never read or updated** — dead fields inside a live file, invisible to `check_dead.py` because it checks names. The visible consequence: a resumed run gave back your class and rank but an **empty bag**, and a full health pool. Both are now live.
+
+### Rejected
+
+- **Each peer restoring its own body** (Decision 2) — correct-looking, overwritten a frame later.
+- **Bags on the spawn packet** — broadcasts every inventory to every player.
+- **Ids-only serialisation, repacked with `add()`** — packing order is not stable, so a full bag can fail to fit itself and silently drop items on descent.
+- **A separate `to_save()` beside `to_wire()`** — two serialisers for one object, which is the parallel path ADR-064 bans. One JSON-safe form serves both.
+
+---
+
+## ADR-186 — The Shaft is the way down; the Waystone is the way out
+
+**Date:** 2026-09-02 · **Status:** accepted · **Revises `DES-005`, `DES-015`, `DES-014`, `DES-019`; resolves ADR-091's contradiction** · **`M4-T01`**
+
+**Context:** `DES-005` gave a run **three** ways out and two of them did the same job. Raised as *"the Waystone looks redundant"*, and it was — but the redundancy resolves the opposite way from the obvious one.
+
+### Decision 1 — the Shaft descends, and only the bottom floor lets you leave
+
+`MissionGraph.Role.SHAFT` has read *"The way down, **and out**"* since the graph was written, and only the second half was ever built. Now the first half is: claiming a Shaft on floor 1 or 2 takes the party **deeper**. On floor 3 it is the Deep Gate's mechanism, which is `DES-005`'s guaranteed exit and the only one that is always there.
+
+**The party goes together**, on `Threshold._take_the_party_down`'s precedent and for a harder reason than symmetry: peers cannot stand in different levels (ADR-102). Extraction is a *state* precisely because of that; a floor change cannot be one.
+
+### Decision 2 — the Waystone stays, and that is the whole argument
+
+The cheap subtraction is to cut the Waystone: it is a rare found item with a ⟨tune⟩ drop rate that `DES-005` itself calls *"the strongest single lever in the game"*, and deleting it deletes the project's scariest untuned number.
+
+It is the wrong half to cut. The Waystone's real job is not *an exit* — it is **an exit you can give away.** `DES-014` calls that *"the single best payoff available in this design"*: the person you saved saves you, because you gave away your own way out six hours ago. `DES-016` already has a deed for a Waystone you never spent. You cannot hand a teammate a Shaft.
+
+So the Shaft gives up the exit role, and the Waystone stops being redundant by becoming **the only early exit**. `DES-019`'s binary readout — *do I still have my way out?* — stops meaning *my cheap way out* and starts meaning *a way out at all*.
+
+### Decision 3 — what was considered and refused: no early exit at all
+
+The proposal on the table was stronger: cut the Waystone, make the Shaft a late-join entrance only, and let the bottom floor be the sole exit. It is a coherent game and it is **a different genre**. The research says so plainly:
+
+- The genre is defined by loot runs with *mandatory exfiltration*; the retention decision **is** the product.
+- **Dwarf Delve** (2026), the nearest shipped competitor, is built entirely on the beat this deletes — *"a little voice whispering 'one more chest, one more room'; that voice is what kills you."*
+- **Dark and Darker** ships the two-verb idea as red portals (deeper) and blue portals (out), deliberately spawning close together. It kept both verbs.
+- **Tarkov's Scav runs** are the late-entry precedent, and a Scav still has to extract: the late arrival gets a cheaper way *in*, never a removed way *out*.
+
+Against our own documents it costs more than it looks: Principle 3's *"do I open this, take this, fight this, **leave now**?"*, `DES-008`'s greed gradient, `DES-022`'s *"growth pulls you toward danger"*, and Principle 4's one-sentence death all depend on depth being **chosen**. Carried loot stops being a decision and becomes an inventory state.
+
+**The late-join entrance is a good idea and is kept** — and it already has a task. `M4-T15` is join-in-progress as `TEC-004` specifies it, sequenced *after* `M4-T01` for reasons that now read as an argument for the Shaft: the world delta is bounded per floor, and a joiner arriving on floor 3 does not need floor 1's state. **The Shaft is the diegetic answer to where that joiner appears** — `DES-005` Layer 3b already says *"the same mechanism that takes you out lets someone in"*, and Tarkov's Scav runs are the shipped precedent for a late arrival dropping into a raid already in progress. Recorded there rather than built here, because it reopens ADR-157's deliberately shut door.
+
+### Decision 4 — ADR-091's guarantee survives, and gains a second reason
+
+`DES-005`'s table said *the Shafts seal, floor by floor*; its guarantee said *the Shaft is always reachable*. ADR-091 resolved that for a one-floor world by building the guarantee — **the Shaft never locks, it gets worse** — and parked floor-by-floor locking at `M4-T01`.
+
+The floors arrived and the contradiction resolves the other way. The Shaft is the way **down** now, so a lock-shaped Sealing would seal the route to the Deep Gate and strand a party with no Waystone — the trapping ADR-015 forbids, reached by the opposite road. Sealing stays entirely a cost curve, `--exit-probe` still refuses to let the Shaft become unusable, and that check is now load-bearing for descent rather than for exit.
+
+### The risk, named
+
+**Waystone drop rate is now the only dial** controlling how often a run ends before the bottom. `DES-005` already warns that too rare means players are *"shoved to floor 3 every run whether they wanted it or not"* — and that warning is sharper now, not softer. It is the single biggest thing this change can get wrong, it is a ⟨tune⟩ number, and only play answers it.
+
+### Rejected
+
+- **Cutting the Waystone** (Decision 2).
+- **No early exit at all** (Decision 3) — coherent, well-precedented as a *descent* game, and not the game in the pitch line.
+- **A separate Descent object beside the Shaft** — two placed mechanisms per floor, a new graph role, and generator validation that they are never the same node; ~a week against a generator that has only just stabilised. Worth revisiting once somebody has walked three floors and can say whether one object with two meanings reads.
+- **Floor-by-floor Shaft locking** (Decision 4).
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

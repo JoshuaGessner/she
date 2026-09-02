@@ -4,7 +4,7 @@ title: The Lair
 status: accepted
 owner: design
 tags: [hub, lair, retention, social, co-op, ui, progression, networking]
-updated: 2026-08-17
+updated: 2026-09-02
 related: [DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004]
 ---
 
@@ -194,7 +194,7 @@ After a while, a new Bound arrives and takes the empty plot. The camp cycles. It
 
 | Give | Cost |
 |---|---|
-| **Your Waystone** | You give away your own way out. The purest form of the thing (`DES-005`). |
+| **Your Waystone** | You give away your own way out. The purest form of the thing (`DES-005`) — and after ADR-186, literally your *only* one above the bottom floor, which is what argued the Waystone out of being cut. |
 | **Tribute value** to service their Tithe | Directly delays your own rank |
 | **A lie** — tell them the rich expedition was somewhere else | Costs nothing material; costs their trust, and the information they'd have brought you |
 | **Talking them down** | Requires actually knowing them — gated on having engaged over many runs, not on a resource |

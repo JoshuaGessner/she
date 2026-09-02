@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-08-17
+updated: 2026-09-02
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
@@ -95,6 +95,8 @@ Health, stamina, wounds. Health does not regenerate (`DES-009`), so it reads as 
 ### Layer 3 — Burden (bottom right)
 
 Weight, and the **Waystone indicator** — which is binary and must be answerable in a glance: *do I still have my way out?* (ADR-015, Q54's one-cap rule exists precisely so this can be a single lit or unlit mark.)
+
+> **ADR-186 makes this the sharpest mark on the HUD.** The Shaft is the way *down* now, so a Waystone is the **only** extraction above the bottom floor — the indicator has stopped meaning *do I have my cheap way out* and started meaning *do I have a way out at all*. Unlit is a real answer with a real consequence: you are going to the bottom.
 
 ### Layer 4 — Party (left edge, co-op only)
 

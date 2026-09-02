@@ -4,7 +4,7 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-09-01
+updated: 2026-09-02
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
@@ -185,6 +185,10 @@ That keeps navmesh, AI traversal, and the Clamor field tractable — but it crea
 ### Run structure — three floors, earned exits (ADR-015, closes Q49)
 
 A run is the full expedition. Extraction on floors 1–2 requires a **Waystone** (rare, found, consumed) or **the Shaft** (fixed, known, dangerous, seals as the Hunt escalates). Floor 3 holds the **Deep Gate**. Full treatment in `DES-005`.
+
+> **REVISED (ADR-186).** The Shaft is **the way down**, not a way out — on floors 1 and 2 it takes the whole party a floor deeper, and on floor 3 it is the Deep Gate's mechanism. **A Waystone is the only extraction above the bottom.** The two were doing one job; this is which of them kept it, and why the Waystone is the survivor: it is the only exit a player can hand to somebody else (`DES-014`).
+>
+> The generation consequence below is unchanged and gains a second reason. A Shaft at a *deliberately inconvenient* node was already right for an exit you must reach; it is more right for a descent that commits the party, because the walk to it is the last chance to turn back.
 
 **Generation consequence:** every floor needs exactly one Shaft placed at a *deliberately inconvenient* node in the cyclic graph — reachable, never near the entrance. Floor 3 must place the Deep Gate and the Cause in tension with each other: the way out and the reason you came should not be the same room, but they should be able to see each other.
 
