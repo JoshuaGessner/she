@@ -29,6 +29,20 @@ gdscript/warnings/untyped_declaration=2
 gdscript/warnings/inferred_declaration=1
 gdscript/warnings/unsafe_cast=1
 
+[navigation]
+
+; **The map has to rasterise at the size the meshes were baked at** (ADR-183).
+;
+; Every navigation mesh in this project bakes at 0.15 — the level's, and the
+; one `--build-probe` measures ramps and ledges with. Godot's default map is
+; 0.25, and the engine warns in as many words that the mismatch "can cause
+; rasterization errors with navigation mesh edges on the navigation map".
+;
+; It went unnoticed because the warning is a WARNING, and the sweep greps for
+; `^ERROR:`. Found by booting a generated floor and reading what scrolled past.
+3d/default_cell_size=0.15
+3d/default_cell_height=0.15
+
 [rendering]
 
 ; Required to export macOS for arm64 or universal — Godot refuses the preset

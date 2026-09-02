@@ -5706,5 +5706,55 @@ The sweep is the assertion. Every probe passes unchanged, including `--sight-pro
 
 ---
 
+## ADR-183 — The Delvings is a level
+
+**Date:** 2026-09-02 · **Status:** accepted · **Completes ADR-182's seam** · **`M4-T01`: a generated floor can be descended into**
+
+**Context:** ADR-182 put a `FloorSource` between `RoomSet` and the dozen constants it read, with `AuthoredFloor` answering for the Deep. This adds the other half — the geometry, the generated implementation, and the flag that descends into it — so a generated floor is something a player stands in rather than something a probe measures.
+
+### Decision 1 — geometry moves, because a floor has to be able to raise itself
+
+`_slab`, `_wall`, `_gaps`, `_build_room`, `_build_landmark`, `_pillar`, `_beam` and `_ring` are now `AuthoredFloor`'s. They were called from `_ready` and from each other and **from no probe at all**, so the move is a cut, a paste and two call sites. `FloorSource.build(into)` is the contract; `_ready` calls it and lights whatever comes back.
+
+`--sight-probe` is the evidence: **12 of 12 doorway lights, 6 of 6 rooms with a landmark, 6 of 6 rooms seeing the way out** — the same numbers as before the move, now produced by a class that does not know it is a level.
+
+### Decision 2 — loot is placed by rule and named by value
+
+The approved decision was *derive placement rules from the plan*. `FloorAnchors` tags every spot `prize`, `held` or `bypass` from the graph (ADR-181); `DelvingsFloor` fills them by sorting the item corpus on **`tribute_value`, which every item already carries**. The dearest thing goes on the Prize, the dearer half is dealt into held rooms, the cheaper half into the bypass.
+
+So ADR-032's finding — *the long safe branch pays badly, the short guarded one pays well* — holds on any floor, with no hand-placed coordinate and **no invented taxonomy**. `M4-T17` will give the items a real one and `DES-008` its loot tables; this is the one function that changes when they arrive.
+
+### Decision 3 — depth comes from a flag, and that is scoping rather than a shortcut
+
+The obvious source for the floor index is `GameState.descents`. It is wrong: `descents` counts every descent a lineage has ever made, and the index this wants is *how deep into this expedition* you are, 0 to 2. **A run that goes down three floors does not exist** — nothing carries a party from one to the next, and `RunFile` deliberately holds no floor.
+
+Reading `descents` would have looked right and quietly rolled floor 47 on somebody's forty-eighth run. `--floor=N` is honest about being for walking the three depths until the run that owns the number is built.
+
+### Decision 4 — the navigation map was rasterising at a size nothing baked
+
+Found by booting a generated floor and reading what scrolled past. Every navigation mesh in the project bakes at **0.15** — the level's and the one `--build-probe` measures ramps and ledges with — and Godot's default navigation map is **0.25**. The engine says so in as many words: *"this mismatch in cell size can cause rasterization errors with navigation mesh edges"*.
+
+It survived because it is a `WARNING` and the sweep greps for `^ERROR:`. Every navmesh number in ADR-178 through ADR-181 was measured against a map that disagreed with its own mesh. The findings stand — the mesh is what Recast bakes — but the game and its probes were not asking the same server the same question. `navigation/3d/default_cell_size` and `default_cell_height` are 0.15 now.
+
+### Decision 5 — the row that makes "playable" an assertion
+
+`--build-probe` proves the floor is right and the navmesh covers it. `--delvings-probe` proves the **level arrives**: the same `_ready` that raises the Deep, handed a `DelvingsFloor`, produces a way out, a Hunt, something to pick up, a light in every doorway, and a body standing on the floor rather than inside it.
+
+None of that is visible to a check that reads the plan — a floor can be perfectly generated, perfectly walkable, and arrive with no exit and nothing on it. Run at two depths, because the roughness gradient makes floor 0 and floor 2 different geometry.
+
+Measured on floor 1 of seed 31346: **764 nodes of geometry, 30 door lights, a Shaft, a Hunter, 5 items, 5 enemies, one body, none off the floor.** Planted twice — no door lights, and an empty item pool — and both rows fire.
+
+### What is still absent
+
+- **The descent still goes to the Deep.** `Threshold._descend` loads `room_set.tscn` without `--delvings`, so the Delvings is reachable by flag and not yet by playing. Switching it is one line and belongs with the multi-floor run that gives the floor index meaning, not before it.
+- **Enemies are one archetype and items are fourteen.** `M4-T02`, `M4-T16` and `M4-T17` own that, and nothing here pretends otherwise.
+
+### Rejected
+
+- **Reading the floor index from `GameState.descents`** (Decision 3).
+- **Setting the meshes to 0.25 rather than the map to 0.15.** The finer grid is what the ledge and bridge work was measured on; coarsening it would invalidate those findings to silence a warning.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

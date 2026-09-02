@@ -651,6 +651,29 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And the place is a level somebody could descend into** (`M4-T01`,
+	# ADR-183). Everything above measures the floor; this boots one as the game
+	# would — the same `_ready` that raises the Deep, handed a `DelvingsFloor` —
+	# and asserts the things a player notices missing in the first ten seconds:
+	# a way out, a Hunt, something to pick up, a light in the doorway, and a
+	# body standing on the floor rather than inside it. None of that is visible
+	# to a check that reads the plan.
+	#
+	# Two depths, because the roughness gradient means floor 0 and floor 2 are
+	# different geometry and only one of them was ever booted by hand.
+	for depth in 0 2; do
+		delved="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+			levels/room_set/room_set.tscn -- --delvings-probe --seed=31346 \
+			--floor=$depth 2>&1)"
+		if [[ $? -ne 0 ]] || printf '%s\n' "$delved" \
+				| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+			echo "FAIL the Delvings is a level (floor $depth)" >&2
+			printf '%s\n' "$delved" | grep -E '\[delvings\]|ERROR' \
+				| sed 's/^/      /' >&2
+			exit 1
+		fi
+	done
+
 	# **The floor** (`M4-T01`, `DES-015` step 4, ADR-170, ADR-172). The graph
 	# became a space, and the row no other check can make is that it is still
 	# the same space: connectivity is read back off the grid rather than taken

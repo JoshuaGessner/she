@@ -33,6 +33,13 @@ extends RefCounted
 ## settled — so nothing here names one.
 
 
+## Raise the floor's geometry under `into`.
+##
+## Walls, floors, ceilings and whatever else a body collides with. The level
+## supplies the node and lights it; what stands in it is the floor's business.
+@abstract func build(into: Node3D) -> void
+
+
 ## Where the party arrives. One point per player, far enough apart that two
 ## bodies are never spawned inside each other.
 @abstract func spawns() -> Array[Vector3]

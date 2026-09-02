@@ -473,11 +473,54 @@ func _ready() -> void:
 			# probe still have something to measure.
 			GameState.tithe_paid = 10
 			GameState.cycle_runs = Config.tuning.tithe_cycle_runs
+	# **Read the seed before acting on anything** (ADR-169). It used to be parsed
+	# in the same pass that dispatches the probes, which hashed the floor for seed
+	# 0 every time — and the flag below chooses a *floor* from it, so the same
+	# ordering fault would now put the party in a different Delvings than the one
+	# asked for.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--seed="):
+			_run_seed = int(arg.split("=", true, 1)[1])
+
+	# **Which floor is under this level** (`M4-T01`, ADR-183).
+	#
+	# `--delvings` and `--seed=N` hand it a generated one; without them it is
+	# the Deep, which is what every probe in this file measures and what
+	# `AuthoredFloor` exists to keep unchanged. One flag, read before anything
+	# is built, because the floor decides where the lights hang and where the
+	# party lands.
+	#
+	# A floor that would not plan is **refused rather than half-built**: the
+	# generator re-rolls up to `MAX_ROLLS` times and has never failed a corpus,
+	# so arriving here with problems means something is wrong that walking
+	# around in it would only obscure.
+	# **Depth comes from a flag, not from `GameState.descents`**, and that is a
+	# scoping fact rather than a shortcut. `descents` counts every descent a
+	# lineage has ever made; the floor index this wants is *how deep into this
+	# expedition* you are, 0 to 2 — and a run that goes down three floors does
+	# not exist yet, because nothing carries a party from one to the next.
+	# `RunFile` deliberately holds no floor (its own note says so).
+	#
+	# Reading `descents` here would have looked right and quietly rolled floor
+	# 47 on somebody's forty-eighth run. `--floor=N` is honest about being for
+	# walking the three depths until the run that owns the number is built.
+	var depth: int = 0
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--floor="):
+			depth = clampi(int(arg.split("=", true, 1)[1]), 0, 2)
+	for arg: String in OS.get_cmdline_user_args():
+		if arg != "--delvings" and arg != "--delvings-probe":
+			continue
+		var rolled := DelvingsFloor.of(_run_seed, depth)
+		if not rolled.problems().is_empty():
+			push_error("the Delvings would not plan: %s"
+				% " · ".join(rolled.problems()))
+			return
+		_floor = rolled
+		print("[delvings] seed %d, floor %d" % [_run_seed, depth])
 	AudioDirector.enter("deep")
 	_build_lighting()
-	for name: String in ROOMS:
-		_build_room(name)
-		_build_landmark(name)
+	_floor.build(_world)
 	_spawn_actors()
 	# What you emit and what they perceive, on the floor (ADR-078). This set has
 	# corners and doorways, which is the only place occlusion has anything to
@@ -516,15 +559,6 @@ func _ready() -> void:
 	# and assert what it does.
 	if not _probing:
 		_carry_the_stash_down()
-	# **Read the seed before acting on anything.** `check_determinism.py` passes
-	# `--hash --seed=N` in that order, so parsing the seed in the same pass that
-	# dispatches the switch would hash the floor for seed 0 every time — which
-	# is exactly the shape of the bug ADR-169 found here, where the seed was
-	# passed and nothing read it at all.
-	for arg: String in OS.get_cmdline_user_args():
-		if arg.begins_with("--seed="):
-			_run_seed = int(arg.split("=", true, 1)[1])
-
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
@@ -594,6 +628,8 @@ func _ready() -> void:
 			_plan_probe()
 		elif arg == "--build-probe":
 			_build_probe()
+		elif arg == "--delvings-probe":
+			_delvings_probe()
 		elif arg.begins_with("--coop-probe="):
 			_coop_probe(arg.split("=", true, 1)[1])
 
@@ -1249,6 +1285,76 @@ func _build_probe() -> void:
 			+ "Shaft on the generated floor")
 
 	_report(problems, "build")
+
+
+## **A generated floor, stood up as a level somebody could descend into**
+## (`M4-T01`, ADR-183).
+##
+## `--build-probe` proves the geometry is right and the navmesh covers it. This
+## proves the *level* arrives: that the same `_ready` which raises the Deep
+## raises the Delvings, and that everything a run needs is standing in it.
+##
+## Every row here is something a player would notice missing in the first ten
+## seconds, and none of it is visible to any check that reads the plan — a floor
+## can be perfectly generated, perfectly walkable, and arrive with no way out,
+## no light and nothing on it.
+func _delvings_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	# The level has spawned its actors by now; give the deferred work a frame.
+	for i: int in 8:
+		await get_tree().physics_frame
+
+	if not (_floor is DelvingsFloor):
+		problems.append("the level is standing on the Deep — `--delvings-probe` "
+			+ "measured the authored floor and would have passed on it")
+		_report(problems, "delvings")
+		return
+
+	var lights: int = get_tree().get_nodes_in_group(DOOR_LIGHT_GROUP).size()
+	var raised: int = _world.get_child_count()
+	print("[delvings] built      %d node(s) of geometry, %d door light(s)"
+		% [raised, lights])
+	if raised < 100:
+		problems.append("the floor raised %d nodes — a generated floor is "
+			% raised + "hundreds of slabs, so this one is barely there")
+	if lights == 0:
+		problems.append("no door light on a generated floor — `ART-005`'s pale "
+			+ "light is how a room shows its own exits, and without it the "
+			+ "floor is `M2-T13`'s six identically lit boxes again")
+
+	# The way out, the Hunt, and something to carry: the three things that make
+	# a floor a run rather than a diorama.
+	var out_at: Vector3 = _floor.shaft()
+	print("[delvings] fittings   shaft %s, hunter %s, %d item(s), %d enemy/ies"
+		% ["yes" if _shaft != null else "MISSING",
+			"yes" if _hunter != null else "MISSING",
+			_loot_on_the_floor(),
+			get_tree().get_nodes_in_group("enemies").size()])
+	if _shaft == null or _shaft.position.distance_to(out_at) > 0.01:
+		problems.append("the Shaft is not where the floor put it — `DES-005` "
+			+ "says the way out's location is known, and a run with no exit is "
+			+ "not a run")
+	if _hunter == null:
+		problems.append("no Hunter on the floor — `DES-017`'s pressure is the "
+			+ "product, and a generated floor without it is a walk")
+	if _loot_on_the_floor() == 0:
+		problems.append("nothing to pick up — `DES-008`'s tug-of-war needs "
+			+ "something on the floor to be greedy about")
+
+	# And the party is standing on the floor rather than inside it.
+	var adrift: int = 0
+	for body: Player in _session.players():
+		if absf(body.global_position.y) > 4.0:
+			adrift += 1
+	print("[delvings] the party  %d body/ies, %d off the floor"
+		% [_session.players().size(), adrift])
+	if _session.players().is_empty():
+		problems.append("nobody spawned on the generated floor")
+	if adrift > 0:
+		problems.append(("%d body/ies are not on the floor — a spawn point "
+			+ "inside masonry drops what it spawns out of the world") % adrift)
+
+	_report(problems, "delvings")
 
 
 ## The middle of a room, in metres, on the floor.
@@ -3886,173 +3992,6 @@ func _walk_speed(player: Player) -> float:
 	for i: int in range(20):
 		await get_tree().physics_frame
 	return speed
-
-
-# ── geometry ──────────────────────────────────────────────────────────────
-
-
-func _slab(size: Vector3, centre: Vector3, colour: Color, yaw: float = 0.0) -> void:
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.roughness = 1.0
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	node.position = centre
-	node.rotation.y = yaw
-	node.material_override = material
-	var body := StaticBody3D.new()
-	body.collision_layer = CollisionLayers.WORLD
-	body.collision_mask = 0
-	var shape := CollisionShape3D.new()
-	var box := BoxShape3D.new()
-	box.size = size
-	shape.shape = box
-	body.add_child(shape)
-	node.add_child(body)
-	_world.add_child(node)
-
-
-## Doorway centres on one side of one room, so a wall can be built around them.
-func _gaps(room: String, side: String) -> Array[float]:
-	var found: Array[float] = []
-	for door: Array in DOORS:
-		if door[0] == room and door[1] == side:
-			found.append(float(door[2]))
-	return found
-
-
-## One wall run, split around its doorways. Returns nothing; builds in place.
-##
-## `along` is the axis the wall runs on (x for n/s walls, z for e/w walls), so
-## the gap arithmetic is the same for both and only the final vector differs.
-func _wall(room: String, side: String, fixed: float, from: float, to: float,
-		horizontal: bool) -> void:
-	var gaps: Array[float] = _gaps(room, side)
-	gaps.sort()
-	var cursor: float = from
-	var segments: Array = []
-	for gap: float in gaps:
-		var opening_from: float = gap - DOOR_WIDTH * 0.5
-		var opening_to: float = gap + DOOR_WIDTH * 0.5
-		if opening_from > cursor:
-			segments.append([cursor, opening_from])
-		cursor = maxf(cursor, opening_to)
-	if cursor < to:
-		segments.append([cursor, to])
-
-	for segment: Array in segments:
-		var length: float = float(segment[1]) - float(segment[0])
-		if length <= 0.01:
-			continue
-		var middle: float = (float(segment[0]) + float(segment[1])) * 0.5
-		var size: Vector3 = (Vector3(length, WALL_HEIGHT, WALL_THICK) if horizontal
-			else Vector3(WALL_THICK, WALL_HEIGHT, length))
-		var centre: Vector3 = (Vector3(middle, WALL_HEIGHT * 0.5, fixed) if horizontal
-			else Vector3(fixed, WALL_HEIGHT * 0.5, middle))
-		_slab(size, centre, WALL_COLOUR)
-
-
-## One thing per room that is not a box, so the rooms can be told apart and
-## talked about. Blockout shapes only (ADR-046) — a named production phase with
-## a scheduled replacement at `M4-T05`, not a placeholder standing in for a
-## system that does not exist.
-##
-## They are built with `_slab`, so they are **solid**, and that is deliberate
-## rather than incidental: a barricade you can walk through is worse than no
-## barricade, because it teaches the player that this level's furniture is
-## scenery — and then the one piece of cover that does matter reads as scenery
-## too. Solid also means they occlude, which is what makes them landmarks at
-## all rather than decals.
-func _build_landmark(room: String) -> void:
-	if not LANDMARKS.has(room):
-		return
-	var row: Array = LANDMARKS[room]
-	var kind: String = row[0]
-	var at: Vector3 = row[1] as Vector3
-	var marker := Node3D.new()
-	marker.name = "landmark_%s" % room
-	marker.position = at
-	marker.add_to_group(LANDMARK_GROUP)
-	_world.add_child(marker)
-	match kind:
-		"arch":
-			# Behind the spawn, framing the way you came in. It exists so the
-			# entrance is recognisable from inside the loop — this level is a
-			# cycle, and the whole hazard of a cycle is arriving somewhere you
-			# have already been without noticing (`DES-015` Layer 1).
-			_pillar(at + Vector3(-2.2, 0.0, 0.0), 3.2, 0.5)
-			_pillar(at + Vector3(2.2, 0.0, 0.0), 3.2, 0.5)
-			_beam(at + Vector3(0.0, 3.2, 0.0), 4.9, 0.5)
-		"barricade":
-			# `DES-015`'s Retreat, at blockout scale: *"barricades facing the
-			# wrong way"*. The safe corridor is the one where somebody already
-			# tried to hold a line and failed, which is the cheapest possible
-			# way to say something about this place without writing any lore.
-			_beam(at + Vector3(0.0, 0.5, 0.0), 3.4, 0.42)
-			_beam(at + Vector3(0.3, 1.1, 0.6), 3.0, 0.34)
-		"pillar":
-			_pillar(at, 3.6, 0.62)
-		"well":
-			# The junction is the room every route crosses, so it is the room
-			# most worth being able to name.
-			_ring(at, 1.5, 0.7)
-		"altar":
-			_slab(Vector3(2.4, 0.9, 2.4), at + Vector3(0.0, 0.45, 0.0), WALL_COLOUR)
-		"gate":
-			# The way out, framed. Taller and thinner than the entrance arch and
-			# with no beam across the top, so the two read as a pair without
-			# reading as the same thing — and so nothing crosses the Shaft's
-			# light column, which is the one sightline in the level that has to
-			# survive from the far side of the floor.
-			_pillar(at + Vector3(-2.4, 0.0, 0.0), 3.8, 0.45)
-			_pillar(at + Vector3(2.4, 0.0, 0.0), 3.8, 0.45)
-
-
-func _pillar(at: Vector3, height: float, thick: float) -> void:
-	_slab(Vector3(thick, height, thick), at + Vector3(0.0, height * 0.5, 0.0),
-		WALL_COLOUR)
-
-
-func _beam(at: Vector3, length: float, thick: float) -> void:
-	_slab(Vector3(length, thick, thick), at + Vector3(0.0, thick * 0.5, 0.0),
-		WALL_COLOUR)
-
-
-## A low circular kerb, approximated with eight segments — round enough to read
-## as a well from across the room, cheap enough to be blockout.
-##
-## Each segment is turned to lie **along** the circle. The first version left
-## them axis-aligned, which puts a long box at the +X point of a circle whose
-## tangent there runs along Z — so the eight segments pointed outward and the
-## well was an eight-spoked asterisk. Only visible by looking at it: nothing
-## about the arithmetic is wrong, the shapes were simply facing the wrong way.
-func _ring(at: Vector3, radius: float, height: float) -> void:
-	var segments: int = 8
-	for index: int in range(segments):
-		var angle: float = TAU * float(index) / float(segments)
-		var offset := Vector3(cos(angle) * radius, height * 0.5, sin(angle) * radius)
-		# A little longer than the chord, so neighbours overlap at the corners
-		# instead of leaving eight gaps you can see the floor through.
-		var chord: float = TAU * radius / float(segments) * 1.25
-		_slab(Vector3(chord, height, 0.34), at + offset, WALL_COLOUR, -angle)
-
-
-func _build_room(name: String) -> void:
-	var rect: Array = ROOMS[name]
-	var min_x: float = float(rect[0])
-	var max_x: float = float(rect[1])
-	var min_z: float = float(rect[2])
-	var max_z: float = float(rect[3])
-
-	_slab(Vector3(max_x - min_x, 0.5, max_z - min_z),
-		Vector3((min_x + max_x) * 0.5, -0.25, (min_z + max_z) * 0.5), FLOOR_COLOUR)
-
-	_wall(name, "n", min_z, min_x, max_x, true)
-	_wall(name, "s", max_z, min_x, max_x, true)
-	_wall(name, "w", min_x, min_z, max_z, false)
-	_wall(name, "e", max_x, min_z, max_z, false)
 
 
 ## The authored loot, asked for rather than built (`M2-T01`).
