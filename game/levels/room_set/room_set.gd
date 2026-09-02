@@ -539,6 +539,8 @@ func _ready() -> void:
 			_graph_probe()
 		elif arg == "--plan-probe":
 			_plan_probe()
+		elif arg == "--build-probe":
+			_build_probe()
 		elif arg.begins_with("--coop-probe="):
 			_coop_probe(arg.split("=", true, 1)[1])
 
@@ -585,6 +587,179 @@ func _prize_kinds(modules: Array[RoomModule]) -> PackedStringArray:
 			kinds.append(String(module.prize_kind))
 	kinds.sort()
 	return kinds
+
+
+## `TEC-008` — the plan became a place, and it is still the plan.
+##
+## `--plan-probe` proves the floor is the mission as *integers*. This proves the
+## metres agree with the integers: a room the builder never raised, a wall it
+## sealed where a corridor arrives, or a ceiling under the standing body would
+## all leave every earlier row passing about a floor nobody can walk.
+##
+## Geometry is asserted by measurement, not by counting nodes. A builder that
+## emitted the right number of boxes in the wrong places would pass a census.
+func _build_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
+	var kinds: PackedStringArray = _prize_kinds(modules)
+
+	# ─ 1. a floor of every depth builds at all ─
+	var built: int = 0
+	var raised: Array[Node3D] = []
+	for depth: int in 3:
+		var graph: MissionGraph = MissionGraph.build(31337, depth)
+		var lore := ExpeditionHistory.roll(31337, calamities, kinds)
+		var plan: FloorPlan = FloorPlan.build(graph, 31337, depth, modules, lore)
+		if not plan.problems().is_empty():
+			problems.append("floor %d did not plan, so geometry has nothing to "
+				% depth + "build from")
+			continue
+		var root := Node3D.new()
+		add_child(root)
+		raised.append(root)
+		var census: Dictionary = FloorBuilder.build(plan, graph, 31337, depth, root)
+		built += 1
+		print("[build] floor %d     %d room(s), %d corridor cell(s), %d slab(s), "
+			% [depth, census["rooms"], census["corridor"], census["slabs"]]
+			+ "roughness %.1f" % census["roughness"])
+		if int(census["rooms"]) != graph.size():
+			problems.append("floor %d raised %d of %d rooms"
+				% [depth, census["rooms"], graph.size()])
+		if int(census["slabs"]) < graph.size() * 4:
+			problems.append(("floor %d emitted %d slabs for %d rooms — a room "
+				+ "needs a floor, a ceiling and walls before it is a room")
+				% [depth, census["slabs"], graph.size()])
+	if built != 3:
+		_report(problems, "build")
+		return
+
+	# ─ 2. the worked stone gives way to the seam ─
+	#
+	# Floor 1 is orthogonal Dvergar working and floor 3 is what they dug into,
+	# and one number drives it (`TEC-008` §3.1). If the gradient ever flattens,
+	# three floors go back to being three sizes — which is the exact failure the
+	# floor sheet exposed and ADR-175 exists to fix.
+	var chamfers: PackedInt32Array = PackedInt32Array()
+	for root: Node3D in raised:
+		var cut: int = 0
+		for child: Node in root.get_children():
+			if absf((child as Node3D).rotation.y) > 0.01:
+				cut += 1
+		chamfers.append(cut)
+	print("[build] gradient    cut corners by depth: %d, %d, %d"
+		% [chamfers[0], chamfers[1], chamfers[2]])
+	if chamfers[0] != 0:
+		problems.append(("floor 1 cut %d corners — the top of the Delvings is "
+			+ "Dvergar working and should read as built") % chamfers[0])
+	if chamfers[2] <= chamfers[1] or chamfers[1] == 0:
+		problems.append(("corners cut per depth run %d, %d, %d — the gradient "
+			+ "from worked stone to raw cave is what makes three floors three "
+			+ "places rather than three sizes")
+			% [chamfers[0], chamfers[1], chamfers[2]])
+
+	# ─ 3. nothing the player must stand in refuses the standing body ─
+	#
+	# Measured off the raised geometry rather than the module table, because the
+	# ceiling a room ends up with is nominal height plus a drift the builder
+	# rolled, and it is the sum that a head hits.
+	var squashed: int = 0
+	var lowest: float = 999.0
+	for root: Node3D in raised:
+		for child: Node in root.get_children():
+			var node := child as MeshInstance3D
+			var box := node.mesh as BoxMesh
+			if box == null or absf(node.rotation.y) > 0.01:
+				continue
+			# A ceiling slab: thin, wide, and sitting above the floor.
+			if box.size.y > FloorBuilder.WALL_THICK + 0.01 or node.position.y < 0.5:
+				continue
+			var clear: float = node.position.y - FloorBuilder.WALL_THICK * 0.5
+			lowest = minf(lowest, clear)
+			if clear < FloorBuilder.CEILINGS[0] - 0.01:
+				squashed += 1
+	print("[build] headroom    lowest ceiling %.2f m, %d below the crawl floor"
+		% [lowest, squashed])
+	if squashed > 0:
+		problems.append(("%d ceiling(s) sit under %.2f m — below the crawl "
+			+ "height nothing can pass at all, and a room the player cannot "
+			+ "enter is a soft-lock geometry made")
+			% [squashed, FloorBuilder.CEILINGS[0]])
+
+	# ─ 4. every door the plan authorised is a hole, and no other ─
+	#
+	# The row no other check can make. `--plan-probe` proves connectivity as
+	# integers; this proves the walls agree. A sealed doorway is a soft-lock the
+	# topology cannot see, and a hole with no door behind it is a route ADR-032
+	# never authorised, arriving as geometry instead of as a corridor.
+	var graph: MissionGraph = MissionGraph.build(31337, 0)
+	var lore2 := ExpeditionHistory.roll(31337, calamities, kinds)
+	var plan: FloorPlan = FloorPlan.build(graph, 31337, 0, modules, lore2)
+	# **Measured through the wall, not read off the plan.** The first version of
+	# this row counted `doors_of()` and compared it to the edge list — the plan
+	# against itself. Building every wall solid, with no doorway cut at all,
+	# left it passing. An assertion made from a convenient existing value
+	# measures that value, not the property; this is the fifth time in `M4-T01`.
+	var shell := Node3D.new()
+	add_child(shell)
+	FloorBuilder.build(plan, graph, 31337, 0, shell)
+	var solids: Array[AABB] = []
+	for child: Node in shell.get_children():
+		var node3d := child as MeshInstance3D
+		var box := node3d.mesh as BoxMesh
+		if box == null or absf(node3d.rotation.y) > 0.01:
+			continue
+		solids.append(AABB(node3d.position - box.size * 0.5, box.size))
+
+	var blocked: int = 0
+	var doors: int = 0
+	var sealed: int = 0
+	for node: int in graph.size():
+		var want: Array[Vector2i] = plan.doors_of(node)
+		if want.is_empty():
+			sealed += 1
+		var rect: Rect2i = plan.rect_of(node)
+		for cell: Vector2i in want:
+			doors += 1
+			# The wall plane sits halfway between the corridor cell and the
+			# room cell it opens into, so that midpoint is exactly what a
+			# solid wall would occupy and a doorway would not.
+			var inside := Vector2i(clampi(cell.x, rect.position.x, rect.end.x - 1),
+				clampi(cell.y, rect.position.y, rect.end.y - 1))
+			var a: Vector3 = FloorBuilder.at(cell) + Vector3(
+				FloorBuilder.CELL * 0.5, 1.0, FloorBuilder.CELL * 0.5)
+			var b: Vector3 = FloorBuilder.at(inside) + Vector3(
+				FloorBuilder.CELL * 0.5, 1.0, FloorBuilder.CELL * 0.5)
+			var seam: Vector3 = (a + b) * 0.5
+			for solid: AABB in solids:
+				if solid.has_point(seam):
+					blocked += 1
+					break
+	print("[build] doorways    %d door(s) across %d room(s), %d walled shut"
+		% [doors, graph.size(), blocked])
+	if sealed > 0:
+		problems.append("%d room(s) have no doorway at all" % sealed)
+	if doors != graph._edges.size() * 2:
+		problems.append(("%d doorways for %d corridors — every corridor opens at "
+			+ "both ends or one of its rooms is sealed")
+			% [doors, graph._edges.size()])
+	if blocked > 0:
+		problems.append(("%d of %d doorways are walled shut — the plan opened "
+			+ "them and the geometry did not, which is a soft-lock no topology "
+			+ "check can see") % [blocked, doors])
+
+	# ─ 5. same seed, same metres ─
+	var again := Node3D.new()
+	add_child(again)
+	var twice: Dictionary = FloorBuilder.build(plan, graph, 31337, 0, again)
+	var first: Dictionary = FloorBuilder.build(plan, graph, 31337, 0, Node3D.new())
+	print("[build] same seed   %s" % ("identical"
+		if twice["slabs"] == first["slabs"] else "DIVERGED"))
+	if twice["slabs"] != first["slabs"]:
+		problems.append("one plan raised two different floors — `TEC-004` needs "
+			+ "geometry bit-exact or two players disagree about a wall")
+
+	_report(problems, "build")
 
 
 func _plan_probe() -> void:

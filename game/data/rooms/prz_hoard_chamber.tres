@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"prz_hoard_chamber"
 footprint = Vector2i(5, 5)
+volume = 3
 roles = PackedInt32Array(2)
 held_capable = true
 max_links = 8

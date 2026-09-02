@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"key_overseers_room"
 footprint = Vector2i(3, 3)
+volume = 2
 roles = PackedInt32Array(4)
 held_capable = false
 max_links = 8

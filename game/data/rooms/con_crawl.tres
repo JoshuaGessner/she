@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"con_crawl"
 footprint = Vector2i(1, 2)
+volume = 0
 roles = PackedInt32Array()
 held_capable = false
 max_links = 2

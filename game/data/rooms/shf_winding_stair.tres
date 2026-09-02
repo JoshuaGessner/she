@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"shf_winding_stair"
 footprint = Vector2i(3, 3)
+volume = 2
 roles = PackedInt32Array(3)
 held_capable = false
 max_links = 2

@@ -636,6 +636,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The place** (`M4-T01`, `TEC-008`, ADR-175). The plan became metres, and
+	# the row no other check can make is that the walls agree with the plan:
+	# every doorway the plan opened is measured *through the wall*, because a
+	# doorway the geometry sealed is a soft-lock no topology check can see.
+	#
+	# Also holds the worked-stone-to-cave gradient, which is what stops three
+	# floors of an expedition being three sizes rather than three places.
+	built="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --build-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$built" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the plan is a place" >&2
+		printf '%s\n' "$built" | grep -E '\[build\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The floor** (`M4-T01`, `DES-015` step 4, ADR-170, ADR-172). The graph
 	# became a space, and the row no other check can make is that it is still
 	# the same space: connectivity is read back off the grid rather than taken
@@ -862,6 +877,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a build can be reconsidered and a keystone cannot,"
 	echo "every floor the generator can emit poses a question and reads its seed,"
 	echo "and the space built from it is still that floor,"
+	echo "and the walls of that floor are where the plan put them,"
 echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"

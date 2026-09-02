@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"con_cistern"
 footprint = Vector2i(4, 4)
+volume = 2
 roles = PackedInt32Array()
 held_capable = false
 max_links = 3

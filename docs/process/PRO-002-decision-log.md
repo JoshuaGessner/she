@@ -5275,5 +5275,70 @@ Four assertions planted: a roll that ignores its seed, a Calamity that never rea
 
 ---
 
+## ADR-175 — Worked stone to raw cave, and the three elements the floors were missing
+
+**Date:** 2026-09-01 · **Status:** accepted · **Adopts `TEC-008`** · **Implements `DES-015` step 4's geometry half** · **`M4-T01` in progress**
+
+**Context:** `M4-T01` generates a floor as data and nothing builds it. Before writing a `FloorBuilder`, ten generated floors were drawn as plans and looked at. They are legible as diagrams and **indistinguishable as places** — ten scatters of rectangles joined by identical one-cell corridors. The cycle type differs, the modules differ, the Calamity weighting differs, and none of that is visible from inside.
+
+That is not a generator fault. Topology cannot produce spatial character, and `DES-015` already warns that *"2D grid" must never read as "boxes and corridors."* Geometry is where the promise is kept, so it was worth researching before building rather than after.
+
+### The finding, from Lynch
+
+Kevin Lynch's *The Image of the City* (1960) names the five things people build mental maps from: paths, edges, districts, nodes, landmarks. Held against the floor sheet, the diagnosis is exact.
+
+**Our floors have paths and nodes. They have no edges, no districts and no landmarks.** The generator's weakness was never variety — 372 distinct digests and five topology classes is plenty. It is that a player standing in one has nothing to build a mental map *out of*. Every decision below adds one of the missing three, cheaply and generatively.
+
+### Decision 1 — the cell is 2.0 metres, derived rather than picked
+
+`FloorPlan` was unitless. One cell is 2.0 m because it is the only value that reconciles three independent constraints: a one-cell corridor becomes 2.9 body-widths, so two players pass and a player plus a Draugr is a squeeze; the authored corpus lands on the hand-built scale (`prz_sealed_vault` at 8×8 m against the built guardian room's 10×10 m); and the largest module is a 10×10 m great hall rather than a plaza. Halving it makes corridors impassable, doubling it makes the smallest module a 20 m square.
+
+Generated space also inherits the shipped conventions — 4.0 m walls, 0.6 m thickness, 2.4 m doors — because generated and hand-built rooms sharing a level and not sharing a scale is the fastest way to make both look wrong.
+
+### Decision 2 — depth is a gradient from worked stone to raw cave
+
+`DES-015` reads the disaster backward as you descend, and ADR-018 says the Delvings' Calamity is *"the Dvergar mined the seam her hoard grew from. Then they kept mining."* That is a geometry instruction and it was free to take.
+
+One parameter — *roughness*, 0 on floor 1 and 1 on floor 3 — drives corner chamfer, ceiling variance and floor stepping. Floor 1 is orthogonal Dvergar working; floor 3 is the thing they dug into. The player descends and the architecture stops being architecture.
+
+This is Lynch's **districts**, and it is the direct fix for what the sheet exposed: three floors of an expedition become three *places* rather than three sizes, from one number.
+
+### Decision 3 — three cross-sections, and `RoomModule.volume` finally has a reader
+
+Real cave passages come in recognisable morphologies — phreatic (rounded, water-cut), vadose (tall, narrow, directional), breakdown (angular, collapsed, wide). Three shapes. A cave using all three reads as a cave; one using a single shape reads as a tunnel with the width randomised, which is what "make it irregular" produces if taken literally.
+
+`RoomModule` gains `volume` — `CRAWL` 1.4 m, `LOW` 2.4 m, `HALL` 4.0 m, `GREAT` 7.0 m. It was deliberately withheld from ADR-172 because nothing read it and a `.tres` mentioning a field is a dead name `check_dead.py` cannot see. Geometry is its reader, so it arrives now.
+
+`CRAWL` at 1.4 m is set against the body, not chosen for looks: it clears the 1.15 m crouch and refuses the 1.80 m stand. It is a mechanical space — you crouch, you slow to 1.6 m s⁻¹, your Clamor drops and you cannot swing. `DES-009`'s crouch verb gets a room that demands it.
+
+### Decision 4 — four generated devices for prospect, refuge and mystery
+
+Appleton's prospect–refuge (1975) explains why ledges over halls and alcoves read as good places; the Kaplans' **mystery** (1989) — the promise of more if you move deeper — is the one a straight corridor between two rectangles has *none* of. You can see the whole proposition from the doorway.
+
+1. **Ledges over `GREAT` rooms** at ~2.5 m: prospect, and Lynch's landmarks. This is the vista rule's delivery mechanism and ADR-014's *"verticality lives inside rooms"* made concrete.
+2. **Corridor dog-legs** — a corridor of three cells or more bends at least once. One cell of routing slack buys mystery outright.
+3. **Alcoves** in rooms 3×3 and larger: refuge, cover, and an irregular wall line so the room stops being a rectangle. Lynch's edges.
+4. **Depth as district** — Decision 2, doing double duty.
+
+### Decision 5 — blockout builds structure, not surface
+
+`DES-009` adopts Swink's ordering: blockout must feel good unjuiced. In scope now are volumes, ceilings, floors, walls, doorways, ledges, alcoves, chamfers, the gradient and collision — all structural, all generated. Out of scope are textures, props, decals and decorative meshes.
+
+The asymmetry is the reason: a floor that reads as a cave in grey boxes will read as one when textured, and the reverse is not true. Detailing a floor that does not read is the expensive mistake, and it is expensive exactly once the art exists.
+
+### Rejected
+
+- **Marching-cubes / SDF cave meshing.** Genuinely cave-shaped, and it discards the authored-module decision `TEC-001` made on readability and art-cost grounds, makes collision and navmesh far dearer, and has to come out bit-exact for `TEC-004`.
+- **Cellular-automata cave carving instead of rooms and corridors.** Produces caves and destroys the mission graph — the held arm, the bypass and the Prize's position all stop being controllable, which is every guarantee `MissionGraph` exists to make.
+- **Hand-authored 3D prefabs per module.** The right answer later, and it costs 24 modules × 3 depth phases of modelling before one floor can be walked. The gradient gets most of it from one parameter.
+- **Randomised wall jitter as "irregularity".** Noise, not morphology — the argument for three named sections is that random offsets read as a bug.
+- **Full vertical topology.** ADR-014 settled it; reopening changes navmesh, AI traversal and the Clamor field at once.
+
+### What this obliges
+
+`FloorBuilder` implements `TEC-008`. Step 8's navmesh half follows and is a **build-time assertion**, never a runtime re-roll (ADR-172 Decision 3). Three things are ⟨tune⟩ and cannot be settled until a floor is walked: whether 2.0 m reads as tight or generous, whether floor 3 reads as natural or broken, and whether ledges break the Clamor field — the last belonging to `M4-T16`, checked there rather than assumed here.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

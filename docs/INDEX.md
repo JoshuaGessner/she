@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-01 · 40 documents_
+_Regenerated 2026-09-01 · 41 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -48,6 +48,7 @@ _How it gets built._
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-01 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-17 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-01 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
+| `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-01 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
 
 ## Process
 
@@ -87,6 +88,7 @@ _Visual and audio direction._
 - **balance** — DES-003, DES-004, DES-008, DES-022, PRO-005
 - **biomes** — DES-006
 - **blender** — ART-004
+- **blockout** — TEC-008
 - **brief** — ART-003
 - **budget** — ART-001, ART-002
 - **builds** — DES-004, DES-011
@@ -122,6 +124,7 @@ _Visual and audio direction._
 - **gameplay** — DES-009
 - **gear** — DES-008, DES-020, DES-022
 - **generation** — DES-015, TEC-007
+- **geometry** — TEC-008
 - **glossary** — PRO-003
 - **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006, TEC-007
 - **greed** — DES-008
@@ -139,13 +142,14 @@ _Visual and audio direction._
 - **items** — DES-008
 - **lair** — DES-014
 - **legal** — PRO-004
-- **legibility** — ART-005, DES-018, DES-019
-- **levels** — DES-015, TEC-007
+- **legibility** — ART-005, DES-018, DES-019, TEC-008
+- **levels** — DES-015, TEC-007, TEC-008
 - **lineage** — DES-016
 - **loot** — DES-008
 - **lore** — DES-006
 - **map** — DES-019
 - **meta** — DES-003, DES-004
+- **metrics** — TEC-008
 - **middleware** — TEC-005
 - **migration** — TEC-003
 - **milestones** — PRO-001
@@ -168,7 +172,7 @@ _Visual and audio direction._
 - **premortem** — PRO-007
 - **pressure** — DES-005, DES-017
 - **process** — PRO-002
-- **procgen** — DES-015, TEC-007
+- **procgen** — DES-015, TEC-007, TEC-008
 - **production** — ART-004, PRO-001, PRO-007
 - **progression** — DES-004, DES-011, DES-014, DES-016, DES-022
 - **psychology** — PRO-005
@@ -177,7 +181,7 @@ _Visual and audio direction._
 - **readability** — ART-001
 - **rendering** — ART-005
 - **replayability** — DES-007
-- **research** — PRO-005, TEC-007
+- **research** — PRO-005, TEC-007, TEC-008
 - **resources** — TEC-006
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
 - **risk** — PRO-004, PRO-007, TEC-004, TEC-005

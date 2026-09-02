@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"shf_ore_lift"
 footprint = Vector2i(4, 3)
+volume = 3
 roles = PackedInt32Array(3)
 held_capable = false
 max_links = 3

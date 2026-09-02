@@ -453,6 +453,48 @@ func corridor_cells() -> int:
 	return _corridor.size()
 
 
+## Every corridor cell, sorted. `FloorBuilder` walks these to cut the tunnels.
+func corridor_at() -> Array[Vector2i]:
+	var cells: Array[Vector2i] = []
+	for cell: Vector2i in _corridor.keys():
+		cells.append(cell)
+	cells.sort()
+	return cells
+
+
+## Is this cell walkable floor of any kind — room interior or corridor?
+##
+## `FloorBuilder` asks so it can decide where a tunnel needs a wall. A side that
+## opens onto more floor stays open; everything else is rock.
+func holds(cell: Vector2i) -> bool:
+	return _cells.has(cell) or _corridor.has(cell)
+
+
+## Does more than one route cross this cell? A bridge, and the one place these
+## floors are vertical before ledges exist (`TEC-008` §2.7).
+func is_bridge(cell: Vector2i) -> bool:
+	var routes: PackedInt32Array = _corridor.get(cell, PackedInt32Array())
+	return routes.size() > 1
+
+
+## The corridor cells that open into `node`, sorted.
+##
+## A wall has to be cut where a corridor arrives and nowhere else — a room whose
+## walls ignored its doors would be sealed, and one that opened on every side a
+## corridor merely runs past would hand the player routes the graph never
+## authorised (ADR-172 Decision 1).
+func doors_of(node: int) -> Array[Vector2i]:
+	var found: Array[Vector2i] = []
+	for door: Vector4i in _doors:
+		if door.z != node:
+			continue
+		var cell := Vector2i(door.x, door.y)
+		if not found.has(cell):
+			found.append(cell)
+	found.sort()
+	return found
+
+
 ## Which rooms each corridor actually joins, **read back off the grid** rather
 ## than taken from the graph that asked for it. That independence is the point:
 ## a corridor that wandered into a third room shows up here and nowhere else.

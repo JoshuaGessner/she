@@ -27,11 +27,29 @@ extends Resource
 ## records `"hall_pillared"`, never a resource path.
 @export var id: StringName = &""
 
+## How tall a room stands, which is the only axis ADR-014 lets vary: cells are
+## planar and **verticality lives inside rooms**. Ceiling heights per value are
+## `FloorBuilder`'s to set — this says which kind of space the module is.
+##
+## The order is the wire order, and it is in every `.tres`. Append, never insert.
+enum Volume {
+	CRAWL,  ## Crouch-only. Refuses the standing body on purpose (`TEC-008`).
+	LOW,    ## Standing, oppressive. A worked passage.
+	HALL,   ## The shipped default, matching the hand-authored rooms.
+	GREAT,  ## Seen from elsewhere. Vista target and fight space.
+}
+
 @export_group("Shape")
 ## Footprint in grid cells. `DES-015`'s anti-boxiness list wants 2×3 and 4×4
 ## galleries as well as single cells — *"the grid is a generation substrate,
 ## never a visible constraint."*
 @export var footprint: Vector2i = Vector2i.ONE
+## Which cross-section this room is cut as (`TEC-008` §3.2, ADR-175).
+##
+## Withheld from ADR-172 deliberately: nothing read it then, and a `.tres`
+## mentioning a field is a dead name `check_dead.py` cannot see. `FloorBuilder`
+## is its reader, so it arrives now.
+@export var volume: Volume = Volume.HALL
 
 @export_group("Fit")
 ## Which `MissionGraph.Role` values this module may serve. **Empty means

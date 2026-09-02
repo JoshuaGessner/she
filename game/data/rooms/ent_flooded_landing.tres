@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"ent_flooded_landing"
 footprint = Vector2i(4, 4)
+volume = 2
 roles = PackedInt32Array(1)
 held_capable = false
 max_links = 8

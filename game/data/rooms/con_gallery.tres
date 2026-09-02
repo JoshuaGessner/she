@@ -6,6 +6,7 @@
 script = ExtResource("1_room")
 id = &"con_gallery"
 footprint = Vector2i(5, 3)
+volume = 3
 roles = PackedInt32Array()
 held_capable = false
 max_links = 3
