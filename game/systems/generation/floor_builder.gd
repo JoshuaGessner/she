@@ -115,11 +115,15 @@ const RAMP_CELLS: int = FloorPlan.BRIDGE_CLEARANCE - 1
 const LEDGE_HEIGHT: float = 2.5
 ## Cells of ramp climbing to a ledge ⟨tune⟩.
 ##
-## **Three, and the third one is bought by `LEDGE_FOOT` rather than by taste.**
-## The ramp has to reach the floor a clear distance from the wall at the end of
-## the strip, which costs run; three cells spend it and still leave 26.6°,
-## comfortably inside the 45° the navmesh bakes — so the Hunt can follow you up
-## there, and a ledge is a vantage rather than a safe room (`DES-013`).
+## **Three**, giving 5.0 m of run for 2.5 m of rise — 26.6°, comfortably inside
+## the 45° the navmesh bakes, so the Hunt can follow you up there and a ledge is
+## a vantage rather than a safe room (`DES-013`).
+##
+## Two was tried, to buy a cell of deck back on the shortest walls. 3.0 m of run
+## is 39.8°, still under the stated limit and **it does not bake**: five of seven
+## ledges went unreachable and five rooms with them, because a ramp Recast
+## rejects is not a ramp, it is a slab across a third of the room. The limit
+## that matters is the one measured, not the one documented ⟨tune⟩.
 const LEDGE_RAMP_CELLS: int = 3
 ## How far from the wall the ramp's foot touches down, in metres.
 ##
@@ -394,7 +398,8 @@ func _ledge(rect: Rect2i, doors: Array[Vector2i],
 	var sides: Array[int] = []
 	for side: int in 4:
 		var wall: Array[Vector2i] = _strip(rect, side)
-		if wall.size() < LEDGE_RAMP_CELLS + 1:
+		# Two cells of deck, not one: see `LEDGE_RAMP_CELLS`.
+		if wall.size() < LEDGE_RAMP_CELLS + 2:
 			continue
 		var clear: bool = true
 		for cell: Vector2i in wall:
@@ -537,7 +542,17 @@ func _route(plan: FloorPlan, route: int) -> int:
 	var lift := PackedFloat32Array()
 	lift.resize(path.size())
 	for i: int in path.size():
-		var nearest: int = path.size()
+		# **Seeded with the ramp's own reach, not with the path's length.**
+		# This is "no crossing is near enough to matter", and writing it as
+		# `path.size()` was true only while every corridor was longer than a
+		# ramp. A two-cell corridor with no bridge anywhere then measured its
+		# nearest crossing as 2 and lifted *both its doorways* a third of the
+		# way to bridge height — a 1.10 m step against a 0.49 m jump, at the
+		# threshold, on 61 of 4780 routes. It survived because the doorway row
+		# baked one floor that happened to have no two-cell corridor on it, and
+		# it surfaced the moment `LATTICE` tightened and short corridors became
+		# common (ADR-180).
+		var nearest: int = RAMP_CELLS + 1
 		for j: int in path.size():
 			if over.has(path[j]):
 				nearest = mini(nearest, absi(i - j))

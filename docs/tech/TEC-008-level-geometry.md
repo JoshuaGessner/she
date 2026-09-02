@@ -49,6 +49,12 @@ are what `game/data/tuning/default_tuning.tres` already says the player is.
 | Jump apex | **0.49 m** | `jump_velocity² ÷ 2·gravity` = 4.2² ÷ 36 |
 | Sprint jump gap | **≈2.9 m** air distance | `2·v_jump ÷ gravity × sprint` |
 | Field of view | 75° | `field_of_view` |
+| **Steepest ramp that bakes** | **~30°** | measured, ADR-180 |
+
+> **The navmesh's `agent_max_slope` is 45° and that number is not usable.**
+> Two ramps at 39.5° — a ledge approach and every corridor bridge — produced
+> mesh Recast would not walk on. Both working ramps in the generator are under
+> 30°. Design ramps to the measured limit, not the configured one.
 
 And the shipped conventions the hand-authored rooms already use, which
 generated space must match or the two read as different games:

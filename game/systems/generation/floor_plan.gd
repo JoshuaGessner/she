@@ -63,9 +63,27 @@ const STEPS: Array[Vector2i] = [
 ]
 ## Fine cells per lattice cell. Must exceed the largest authored footprint by
 ## enough that the gutters can carry several disjoint corridors past each
-## other — at `MAX_FOOTPRINT` this leaves a four-cell channel between any two
+## other — at `MAX_FOOTPRINT` this leaves a three-cell channel between any two
 ## neighbouring rooms ⟨tune⟩.
-const LATTICE: int = 12
+##
+## **This is how much of a floor is corridor**, and it was 12 until it was
+## measured (ADR-180). Swept over 180 floors per value:
+##
+## | `LATTICE` | valid | corridor share | median corridor | re-rolls |
+## |---|---|---|---|---|
+## | 6 | **7/180** | 33% | 4 m | 78 |
+## | 7 | 180/180 | 35% | 8 m | 104 |
+## | **8** | 180/180 | **41%** | **10 m** | **57** |
+## | 10 | 180/180 | 50% | 18 m | 80 |
+## | 12 | 180/180 | 56% | 24 m | 87 |
+##
+## At 12 **more than half the walkable floor was connective tissue**. Eight is
+## chosen over seven for margin rather than for its numbers: seven plans every
+## floor too, but its re-roll count nearly doubles, which is the placer straining
+## next to a cliff — six collapses to seven valid floors in a hundred and eighty.
+## Eight has the lowest re-roll count of any value swept, and generates twice as
+## fast as twelve.
+const LATTICE: int = 8
 ## Largest footprint a module may declare. Asserted, so an over-large `.tres`
 ## fails the build instead of silently overlapping its neighbour.
 const MAX_FOOTPRINT: int = 5
@@ -92,7 +110,15 @@ const MAX_ROLLS: int = 60
 ## A crossing one cell from a doorway leaves the threshold tilted or stepped —
 ## and a step is a wall to anything that walks. Routing refuses those crossings
 ## so the builder never has to paper over one ⟨tune⟩.
-const BRIDGE_CLEARANCE: int = 3
+##
+## **Four, because three made the ramp too steep to bake** (ADR-180).
+## `FloorBuilder.RAMP_CELLS` is this minus one, so three gave 4.0 m of run for
+## `BRIDGE_LIFT`'s 3.3 m — 39.5°, under the navmesh's stated 45° and *over* what
+## it will actually accept. Every bridge on a floor was an unwalkable hump, and
+## nothing said so, because a crossing sits on a cycle by construction and the
+## route simply went the other way round. Four cells give 6.0 m of run and
+## 28.8°, which bakes.
+const BRIDGE_CLEARANCE: int = 4
 
 ## Fine cells a single corridor may visit before routing calls it hopeless.
 ##
@@ -274,6 +300,7 @@ func _assign_slots(rng: RandomNumberGenerator, order: PackedInt32Array) -> bool:
 ## rectangle off its own cell's border.
 func _seat_rooms(rng: RandomNumberGenerator, order: PackedInt32Array,
 		modules: Array[RoomModule]) -> bool:
+	var crawls: Dictionary = {}
 	for node: int in order:
 		var role: int = _graph._role[node]
 		var links: int = _graph.neighbours(node).size()
@@ -289,6 +316,10 @@ func _seat_rooms(rng: RandomNumberGenerator, order: PackedInt32Array,
 				continue
 			if wanted != &"" and module.prize_kind != wanted:
 				continue
+			# **A crawl may never be the only way in.** See `_may_crawl`.
+			if module.volume == RoomModule.Volume.CRAWL \
+					and not _may_crawl(crawls, node):
+				continue
 			options.append(module)
 			if _history != null and _history.favours(module):
 				for extra: int in THEME_WEIGHT - 1:
@@ -299,6 +330,8 @@ func _seat_rooms(rng: RandomNumberGenerator, order: PackedInt32Array,
 					", %s" % wanted if wanted != &"" else ""])
 			return false
 		var module: RoomModule = options[rng.randi_range(0, options.size() - 1)]
+		if module.volume == RoomModule.Volume.CRAWL:
+			crawls[node] = true
 		var span: Vector2i = module.footprint
 		var free: Vector2i = Vector2i(LATTICE - span.x - 2, LATTICE - span.y - 2)
 		var corner: Vector2i = _slot[node] * LATTICE + Vector2i.ONE \
@@ -310,6 +343,56 @@ func _seat_rooms(rng: RandomNumberGenerator, order: PackedInt32Array,
 			for y: int in span.y:
 				_cells[corner + Vector2i(x, y)] = node
 	return true
+
+
+## May this node become a crawl, given the ones already seated as crawls?
+##
+## A crawl is 1.4 m and the agent stands 1.8 m, so **the Hunt cannot follow you
+## through one** — that is `DES-009`'s crouch verb given teeth, and the navmesh
+## row asserts the absence of mesh there rather than its presence. But a
+## standing room whose *every* approach is a crawl is a room nothing can ever
+## reach: a safe room produced by topology rather than by geometry, and
+## `DES-005` says the Delvings do not have those. Measured before the rule
+## existed: **482 such rooms across 360 floors** (ADR-180).
+##
+## **The crawls are one set, and the test is against the set as it grows.** Two
+## weaker rules were tried and measured:
+##
+## - *"is this node a cut vertex?"* — the obvious rule, and it left 6 rooms of
+##   the 482 stranded. Two crawls on two different approaches to the same room
+##   strand it between them while neither is a cut vertex alone.
+## - *"admit a maximal set up front, then let the seater pick any subset."* This
+##   assumes removing **fewer** nodes cannot strand more, which is false: with
+##   `entrance—A—B`, removing both leaves nothing stranded, and removing only A
+##   strands B. One floor in 360 still had a safe room.
+##
+## Testing each crawl against the crawls already placed gives the invariant for
+## the final set directly, because every later addition is tested against the
+## larger set.
+##
+## The rule leaves the crawl meaning what `DES-009` wants it to mean. A node on
+## a cycle always passes, so crawls seat themselves on the ways *round* — a
+## shortcut you can take and the Hunt cannot, which is the whole idea, rather
+## than a door it cannot open.
+func _may_crawl(crawls: Dictionary, node: int) -> bool:
+	var would: Dictionary = crawls.duplicate()
+	would[node] = true
+	return _reaches_all_but(would,
+		_graph.node_with(MissionGraph.Role.ENTRANCE))
+
+
+## Can every node outside `removed` still be walked to from `entrance`?
+func _reaches_all_but(removed: Dictionary, entrance: int) -> bool:
+	var seen: Dictionary = {entrance: true}
+	var queue: Array[int] = [entrance]
+	while not queue.is_empty():
+		var at: int = queue.pop_front()
+		for next: int in _graph.neighbours(at):
+			if removed.has(next) or seen.has(next):
+				continue
+			seen[next] = true
+			queue.append(next)
+	return seen.size() == _graph.size() - removed.size()
 
 
 ## Every graph edge becomes a corridor. Corridors may cross, and may not merge.

@@ -174,10 +174,15 @@ const NAV_SYNC_FRAMES: int = 240
 ## **Chosen for having crossings on it**, which is the whole point: a bridge
 ## carried over another corridor is the only geometry on a floor that is not
 ## flat, and the probe baked floor 0 of seed 31337 — which has none — for four
-## commits, so an inverted ramp survived every run (ADR-178). This floor is the
-## same nine rooms and carries four crossings and two great rooms, so both kinds
-## of ramp are under the assertion for the price of the cheaper floor.
-const BAKE_SEED: int = 31342
+## commits, so an inverted ramp survived every run (ADR-178). This floor carries
+## **five crossings and seven great rooms**, so both kinds of ramp — the bridge
+## and the ledge — are under every assertion below it.
+##
+## Re-picked when `LATTICE` tightened (ADR-180): the previous seed was chosen
+## for its crossings at the old lattice and had none at the new one. The row
+## asserts the count rather than trusting this comment, which is how that was
+## noticed within one run instead of four commits later.
+const BAKE_SEED: int = 31346
 
 ## How much of the planned floor's footprint the baked navmesh must span before
 ## the build probe will ask it anything. Measured, not guessed — see the row it
@@ -796,6 +801,7 @@ func _build_probe() -> void:
 	var blocked: int = 0
 	var doors: int = 0
 	var sealed: int = 0
+	var culprits: PackedStringArray = PackedStringArray()
 	for node: int in graph.size():
 		var want: Array[Vector2i] = plan.doors_of(node)
 		if want.is_empty():
@@ -813,8 +819,18 @@ func _build_probe() -> void:
 			var b: Vector3 = FloorBuilder.at(inside) + Vector3(
 				FloorBuilder.CELL * 0.5, 1.0, FloorBuilder.CELL * 0.5)
 			point.position = (a + b) * 0.5 + shell.position
-			if not space.intersect_point(point, 1).is_empty():
+			var hit: Array[Dictionary] = space.intersect_point(point, 1)
+			if not hit.is_empty():
 				blocked += 1
+				# Name the slab standing in the doorway. "A doorway is sealed"
+				# sends you looking at the wall builder; "a ledge ramp is
+				# sealing it" sends you to the right file in one step.
+				var by: Node3D = (hit[0]["collider"] as Node).get_parent() as Node3D
+				var what: String = "%s at %s over door %s of room %d (%s)" % [
+					by.name, by.position.round(), cell, node,
+					plan.module_of(node)]
+				if not culprits.has(what):
+					culprits.append(what)
 	print("[build] doorways    %d door(s) across %d room(s), %d walled shut"
 		% [doors, graph.size(), blocked])
 	if sealed > 0:
@@ -824,9 +840,10 @@ func _build_probe() -> void:
 			+ "both ends or one of its rooms is sealed")
 			% [doors, graph._edges.size()])
 	if blocked > 0:
-		problems.append(("%d of %d doorways are walled shut — the plan opened "
-			+ "them and the geometry did not, which is a soft-lock no topology "
-			+ "check can see") % [blocked, doors])
+		problems.append(("%d of %d doorways are walled shut by %s — the plan "
+			+ "opened them and the geometry did not, which is a soft-lock no "
+			+ "topology check can see")
+			% [blocked, doors, ", ".join(culprits)])
 
 	# ─ 5. same seed, same metres ─
 	var again := Node3D.new()
@@ -1325,15 +1342,31 @@ func _plan_probe() -> void:
 	# of sight promises more if you move deeper, and a straight tunnel between
 	# two rectangles shows the whole proposition from the doorway.
 	#
-	# Measured rather than asserted true, because before the dog-leg landed the
-	# numbers were far worse than `TEC-008` had assumed — **65% of routes ran
-	# dead straight end to end**, the median longest straight run was 9 cells
-	# (18 m), and the tail reached 75. A device that quietly stopped firing
-	# would put every one of those back and leave every other row here passing.
+	# **Bounded on the tail, not on the median, and not on whether a corridor
+	# bends at all.** Both of the obvious statistics are useless here, and
+	# finding that out is what ADR-180 cost:
+	#
+	# - *"runs dead straight end to end"* was the first bound. It reads as the
+	#   right question and it is a function of corridor **length**: once the
+	#   lattice tightened, corridors got short, the share went 13% → 61%, and a
+	#   4-cell dead-straight corridor is 8 m and entirely fine. The row would
+	#   have failed a floor that had just got better.
+	# - the **median** longest run has no power at all at this lattice: 5 cells
+	#   with the dog-leg and 5 without it.
+	#
+	# What separates them is the upper tail. The device jogs when a run passes
+	# `DOGLEG_RUN`, so the longest run it permits is `DOGLEG_RUN + 1` cells;
+	# anything past that is a corridor the chicane had no room to bend. Measured
+	# over 4780 routes: **8% over the limit with the dog-leg, 34% without**, and
+	# p95 of 9 cells against 16.
 	var routes: int = 0
 	var arrow: int = 0
 	var bends: int = 0
+	var over: int = 0
+	var limit: int = FloorPlan.DOGLEG_RUN + 1
 	var sight: PackedInt32Array = PackedInt32Array()
+	var behind_a_crawl: int = 0
+	var crawl_rooms: int = 0
 	for i: int in trials:
 		for depth: int in 3:
 			var seed_at: int = 60000 + i
@@ -1342,6 +1375,33 @@ func _plan_probe() -> void:
 				ExpeditionHistory.roll(seed_at, calamities, kinds))
 			if not p2.problems().is_empty():
 				continue
+
+			# **No room may sit behind the crawls.** A crawl is 1.4 m and the
+			# agent stands 1.8 m, so the Hunt cannot follow you through one —
+			# and a standing room whose every approach is a crawl is therefore a
+			# room nothing can ever reach. `DES-005` does not allow a safe room,
+			# and this is the one way to build one without any geometry being
+			# wrong, which is why no other row can see it.
+			var crawl: Dictionary = {}
+			for node: int in g2.size():
+				var m2: RoomModule = RoomCatalogue.by_id(p2.module_of(node))
+				if m2 != null and m2.volume == RoomModule.Volume.CRAWL:
+					crawl[node] = true
+			crawl_rooms += crawl.size()
+			var start2: int = g2.node_with(MissionGraph.Role.ENTRANCE)
+			var seen2: Dictionary = {start2: true}
+			var queue2: Array[int] = [start2]
+			while not queue2.is_empty():
+				var at2: int = queue2.pop_front()
+				for next2: int in g2.neighbours(at2):
+					if seen2.has(next2) or crawl.has(next2):
+						continue
+					seen2[next2] = true
+					queue2.append(next2)
+			for node: int in g2.size():
+				if not crawl.has(node) and not seen2.has(node):
+					behind_a_crawl += 1
+
 			for route: int in p2.routes():
 				var path: Array[Vector2i] = p2.path_of(route)
 				if path.size() < 2:
@@ -1360,22 +1420,37 @@ func _plan_probe() -> void:
 					best = maxi(best, run)
 				bends += turns
 				arrow += 1 if turns == 0 else 0
+				over += 1 if best > limit else 0
 				sight.append(best)
 	sight.sort()
-	var median: int = sight[sight.size() / 2] if not sight.is_empty() else 0
-	var dead: float = 100.0 * arrow / maxi(routes, 1)
-	print("[plan] sightlines  %d route(s), %.0f%% dead straight, %.1f bend(s) "
-		% [routes, dead, float(bends) / maxi(routes, 1)]
-		+ "each, median longest run %d cell(s) (%d m)" % [median, median * 2])
-	if dead > 30.0:
-		problems.append(("%.0f%% of corridors run dead straight end to end — "
-			+ "the dog-leg is not firing, and a straight tunnel between two "
-			+ "rectangles is the whole proposition seen from the doorway")
-			% dead)
-	if median > FloorPlan.DOGLEG_RUN + 2:
-		problems.append(("the median corridor holds a %d-cell (%d m) straight "
-			+ "run against a %d-cell limit — sightlines are back")
-			% [median, median * 2, FloorPlan.DOGLEG_RUN])
+	var p95: int = sight[int(sight.size() * 0.95)] if not sight.is_empty() else 0
+	var past: float = 100.0 * over / maxi(routes, 1)
+	print("[plan] sightlines  %d route(s), %.0f%% over %d cells, p95 %d cell(s) "
+		% [routes, past, limit, p95]
+		+ "(%d m), worst %d — %.0f%% straight, %.1f bend(s) each"
+		% [p95 * 2, sight[sight.size() - 1] if not sight.is_empty() else 0,
+			100.0 * arrow / maxi(routes, 1), float(bends) / maxi(routes, 1)])
+	if past > 15.0:
+		problems.append(("%.0f%% of corridors hold a straight run past %d cells "
+			+ "(%d m) — the dog-leg is not firing, and a tunnel you can see the "
+			+ "whole of from the doorway is the proposition given away")
+			% [past, limit, limit * 2])
+	if p95 > FloorPlan.DOGLEG_RUN * 3:
+		problems.append(("one corridor in twenty shows %d cells (%d m) at once "
+			+ "against a %d-cell limit — the tail is back, which is where the "
+			+ "sightline problem always lived") % [p95, p95 * 2, limit])
+
+	print("[plan] crawls      %d crawl(s) placed, %d standing room(s) behind "
+		% [crawl_rooms, behind_a_crawl] + "them")
+	if behind_a_crawl > 0:
+		problems.append(("%d standing room(s) can only be reached through a "
+			+ "crawl — the Hunt stands 1.8 m and a crawl is 1.4 m, so those are "
+			+ "safe rooms, and `DES-005` does not have safe rooms")
+			% behind_a_crawl)
+	if crawl_rooms == 0:
+		problems.append("no floor placed a crawl at all — the rule that keeps "
+			+ "a crawl off the only way in has swallowed the mechanic instead "
+			+ "of shaping it, and `DES-009`'s crouch verb has nowhere to matter")
 
 	# ─ 3. same seed, same space; different seed, different space ─
 	#

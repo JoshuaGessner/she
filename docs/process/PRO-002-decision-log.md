@@ -5548,5 +5548,74 @@ The route-length histogram has a median around 9–10 cells (18–20 m) **before
 
 ---
 
+## ADR-180 — Half the floor was corridor, and three things were hiding behind that
+
+**Date:** 2026-09-02 · **Status:** accepted · **Retunes `TEC-008`, corrects ADR-176 and ADR-178** · **`M4-T01` in progress**
+
+**Context:** ADR-179 left an open question — *how much of a floor should be corridor?* — because adding the dog-leg made an already corridor-heavy floor about a quarter heavier. Answering it meant sweeping `LATTICE`, and tightening it exposed three separate faults that had been invisible while corridors were long. **Every one of them was a safe room or an impassable step that no check could see.**
+
+### Decision 1 — `LATTICE` is 8
+
+Swept over 180 floors per value, with the dog-leg live:
+
+| `LATTICE` | valid | corridor share of walkable floor | median corridor | re-rolls |
+|---|---|---|---|---|
+| 6 | **7/180** | 33% | 4 m | 78 |
+| 7 | 180/180 | 35% | 8 m | 104 |
+| **8** | 180/180 | **41%** | **10 m** | **57** |
+| 9 | 180/180 | 46% | 16 m | 57 |
+| 10 | 180/180 | 50% | 18 m | 80 |
+| 11 | 180/180 | 54% | 20 m | 83 |
+| 12 (was) | 180/180 | **56%** | 24 m | 87 |
+
+At 12, **more than half of every walkable floor was connective tissue**. Eight is chosen over seven for margin rather than for its numbers: seven plans every floor too, and its re-roll count nearly doubles, which is a placer straining next to a cliff — six collapses to 7 valid floors in 180. Eight has the lowest re-roll count of any value swept and generates twice as fast as twelve.
+
+### Decision 2 — the sightline row is bounded on the tail
+
+Both obvious statistics are useless, and that is worth recording because both look right:
+
+- *"runs dead straight end to end"*, the bound ADR-179 shipped, is a function of corridor **length**. Corridors got shorter, the share went 13% → 61%, and **a 4-cell dead-straight corridor is 8 m and entirely fine**. The row would have failed a floor that had just improved.
+- the **median** longest run has no power at this lattice at all: 5 cells with the dog-leg and 5 without.
+
+The tail separates them. The device permits `DOGLEG_RUN + 1` cells, and past that is a corridor the chicane had no room to bend: **8% over the limit with the dog-leg, 34% without**, p95 of 9 cells against 16. Bounded on those two, planted, both fire.
+
+### Decision 3 — a corridor with no bridge was lifting its own doorways
+
+`FloorBuilder` seeds "how far is the nearest crossing" with `path.size()`, meaning *far enough not to matter*. That is true only while every corridor is longer than a ramp. **A two-cell corridor with no bridge anywhere measured its nearest crossing as 2** and lifted both its doorways a third of the way to bridge height: a 1.10 m step against a 0.49 m jump, at the threshold.
+
+It was not new. The corpus held **61 two-cell routes at the old lattice** and every one of them was like this. It survived because the doorway row bakes one floor, and that floor happened to have no two-cell corridor on it. Seeded with the ramp's own reach now.
+
+### Decision 4 — a crawl may never be the only way in
+
+A crawl is 1.4 m and the agent stands 1.8 m, so the Hunt cannot follow you through one — `DES-009`'s crouch verb given teeth, and the navmesh row asserts the *absence* of mesh there. But a standing room whose every approach is a crawl is a room nothing can ever reach: a safe room built out of topology, with no geometry wrong anywhere. **482 of them across 360 floors.**
+
+Two weaker rules were tried and measured, and both are the kind that would have shipped:
+
+- *"is this node a cut vertex?"* left **6** of the 482. Two crawls on two different approaches strand a room between them while neither is a cut vertex alone.
+- *"admit a maximal set up front, then let the seater pick any subset"* left **1**. It assumes removing fewer nodes cannot strand more, which is false: in `entrance—A—B`, removing both strands nothing and removing only A strands B.
+
+Testing each crawl against the crawls already placed gives the invariant directly. **0 across 360 floors**, with 171 crawls still placed — and the rule leaves the crawl meaning what `DES-009` wants, because a node on a cycle always passes, so crawls seat themselves on the ways *round*: a shortcut you can take and the Hunt cannot, rather than a door it cannot open.
+
+### Decision 5 — 40° does not bake, whatever the setting says
+
+`agent_max_slope` is 45°. Two ramps at ~39.5° do not produce walkable navmesh:
+
+- **The ledge ramp**, when `LEDGE_RAMP_CELLS` was cut to 2 to buy back a cell of deck. Five of seven ledges went unreachable and five rooms with them — a ramp Recast rejects is not a ramp, it is a slab across a third of the room.
+- **Every corridor bridge, since ADR-176.** `BRIDGE_LIFT` of 3.3 m over `RAMP_CELLS` of 2 is 4.0 m of run: 39.5°. Sampling routability cell by cell showed the mesh breaking and resuming at each of a route's four crossings. It was invisible for the same reason the sign error in ADR-178 was — **a crossing sits on a cycle by construction, so the route simply goes the other way round**, and no room is stranded until the lattice tightens and the alternatives get shorter.
+
+`BRIDGE_CLEARANCE` is 4, giving 6.0 m of run and 28.8°, and ledges keep their 3-cell ramp at 26.6°. The two working ramps in this generator are both under 30°; the two broken ones were both near 40°. **The limit that matters is the one measured, not the one documented.**
+
+### Cost, and what it bought
+
+Ledges fall from about 20 per three floors to 7, because a ledge now needs a five-cell wall to leave two cells of deck. Crossings are rarer, and re-rolls rise from 127 to 234 across 360 floors — still no invalid floor. Against that: corridor share 56% → 41%, median corridor 24 m → 10 m, generation twice as fast, and **every bridge, every ledge and every doorway on a generated floor is now walkable**, which none of them reliably were.
+
+### Rejected
+
+- **`LATTICE` 7**, for margin (Decision 1).
+- **Keeping the 2-cell ledge ramp and accepting one-cell decks.** A 2.0 × 2.0 m deck erodes to about 1.1 × 0.8 m of walkable surface; Recast keeps it and nothing can reach it.
+- **Widening `agent_max_slope` past 45°** so the 39.5° ramps bake. It is not the slope setting that is wrong, it is the ramp; and a steeper limit would have hidden Decision 5 rather than fixed it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
