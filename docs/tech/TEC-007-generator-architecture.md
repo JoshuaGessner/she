@@ -84,6 +84,14 @@ The rule that actually holds:
 > an explicit total order — node id, grid coordinate, module id — immediately
 > before any loop whose iteration order can change an outcome.
 
+And a second rule, earned the same way (ADR-176):
+
+> **Assert the size of the population you are measuring, not only the property.**
+> A check that reports a count nobody compares against an expected magnitude is
+> not a check. A geometry probe once announced *"8 floor slabs across 8 floors"*
+> — for floors carrying about 1500 — and was green, because Godot had silently
+> renamed every slab past the first and the filter matched one of them.
+
 `RandomNumberGenerator` is PCG32 and integer-based; identical seeds give identical
 integer sequences, which the same probe confirms over 10 000 draws. The danger is
 never the RNG. It is what you do with the numbers afterwards.

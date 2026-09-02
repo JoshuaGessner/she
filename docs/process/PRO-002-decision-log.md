@@ -5340,5 +5340,67 @@ The asymmetry is the reason: a floor that reads as a cave in grey boxes will rea
 
 ---
 
+## ADR-176 — A seam you cannot see, and a check that was reading one slab
+
+**Date:** 2026-09-01 · **Status:** accepted · **Fixes ADR-175's builder** · **Sharpens `TEC-007` §1** · **`M4-T01` in progress**
+
+**Context:** ADR-175 landed `FloorBuilder` and the geometry it raises. Wiring `DES-015` step 8's navmesh half then found a room the AI could not reach, and chasing it turned up two defects in the geometry and — worse — a defect in how every geometry check had been measuring.
+
+### Decision 1 — floors overlap; they do not butt
+
+A room's floor slab ended exactly where a corridor's began. Recast voxelizes at 0.15 m, and those shared edges do not land on voxel boundaries, so a butt joint between two coplanar slabs can rasterise into a hairline gap. The room's mesh is then cut off from the corridor serving it, and a route *enters the room and stops inside it* — 2.63 m short of the centre, against 0.30 m for every healthy room.
+
+**It is intermittent by construction**, because whether it bites depends on where a particular room's edge falls against the voxel grid. One room on one floor was affected and eight others were not.
+
+Floors now grow `FLOOR_LAP` past their own footprint and overlap their neighbours. The joint is removed rather than hoped about.
+
+### Decision 2 — the corridor cell keeps its full width
+
+Room walls were built *outside* the room's rect, which put them inside the corridor cell next door and took 0.6 m off its 2.0 m. Walls now stand inside the rect, at 0.3 m rather than 0.6 m — the rect becomes the room's outer bound, so every wall costs interior, and at 0.6 m the narrowest module (1 cell, 2.0 m) would be left 0.8 m across: narrower than the 0.9 m navmesh agent, so a room nothing could enter.
+
+Routing also refuses to run a corridor flush along a room it does not open into.
+
+**Neither of these was the bug**, and the code says so. Both were tried as fixes, measured, and kept because they are right on their own merits: a corridor should not be pinched by its neighbour's masonry, and one running the length of a room's wall is poor level design whatever the navmesh makes of it. Recording that they were not the cause matters more than recording that they were kept.
+
+### Decision 3 — a crossing is a property of the path, and it needs a ramp
+
+ADR-175 shipped bridge cells that lifted the corridor floor 2.6 m with no ramp: a 58° step, past the 45° the navmesh bakes and far past the 0.49 m the player can jump. Two rooms unreachable, on a commit whose sweep was green — because the row that would have caught it was asking the wrong question (Decision 4).
+
+`FloorPlan` already computed each corridor's ordered path and which cells crossed over another, and discarded both; it keeps them now, and `FloorBuilder` cuts corridors **per route rather than per cell**. Routing refuses a crossing within `BRIDGE_CLEARANCE` of a doorway so thresholds stay flat.
+
+The first ramp was still a staircase with 1.07 m risers, because each cell was laid as a flat box at its own height — the same defect one iteration smaller. A cell whose entry and exit heights differ is now a tilted slab, lengthened by 1/cos so it still covers its cell.
+
+### Decision 4 — the rule `TEC-007` §1 was missing
+
+Every one of these was found by planting, and each plant failed against a check that looked healthy:
+
+- `map_get_closest_point` was asked "does this room have navmesh". It finds the nearest mesh **anywhere**, so a corridor a metre outside a sealed room answered for the room, and dropping every ceiling below agent height still reported full coverage. It asks for a *route* now.
+- The doorway row counted `doors_of()` and compared it to the edge list — the plan against itself. Building every wall solid left it passing. It measures **through the wall** now.
+- The headroom row called any thin slab above half a metre a ceiling. True until corridors ramped, at which point a raised floor answered as a 0.6 m ceiling.
+
+And the one that generalises furthest. Slabs were named by role so probes could tell a ceiling from a floor. **Godot does not rename a colliding child to `floor2`; it discards the requested name and calls it `@MeshInstance3D@37`.** So every probe filtering by role was reading exactly *one slab per floor* and reporting it as the whole population. The join check announced "8 floor slabs across 8 floors" — for floors carrying about 1500 — and was green.
+
+Once slabs carried unique names, that same check immediately found **54 genuinely isolated slabs** the miscount had hidden: ramps were not lapping their neighbours, and the probe was computing tilted slabs' bounds without their rotation.
+
+So `TEC-007` §1 gains a second rule beside "never let a decision depend on the order a collection was built in":
+
+> **Assert the size of the population you are measuring, not only the property.** A check that reports a count nobody compares against an expected magnitude is not a check. "8 slabs across 8 floors" was absurd on its face and shipped green.
+
+### Decision 5 — the cheap check over a corpus beats the expensive one over a sample
+
+Baking a navmesh per floor across a corpus was attempted three ways — freeing regions between iterations, a private navigation map per floor, floors baked side by side at world offsets — and each fought Godot's navigation lifecycle differently. It was abandoned.
+
+The **joint** is what breaks, and it is checkable without baking anything: every floor slab must overlap another. That runs over eight floors in milliseconds, where one bake takes seconds and was the sample that nearly missed the bug. One floor still bakes as the integration check.
+
+The general shape: when an expensive check can only afford a small sample, look for the *cause* it is a proxy for and assert that cheaply over a large one.
+
+### Rejected
+
+- **Shrinking the navmesh agent or the voxel to make the room reachable.** Both "fixed" it and neither addressed a seam; the geometry would still have been wrong for anything else that read it.
+- **Keeping the multi-floor bake by working around the navigation lifecycle.** Three attempts, none clean, and the cheap check covers more floors.
+- **Leaving `corridor_at()` and `is_bridge()` behind for a later caller.** ADR-098: delete it or call it.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

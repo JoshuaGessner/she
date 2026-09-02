@@ -45,8 +45,17 @@ extends RefCounted
 
 ## Metres per plan cell. See the class note; changing it rescales every floor.
 const CELL: float = 2.0
-## The shipped conventions from `room_set.gd`, matched on purpose.
-const WALL_THICK: float = 0.6
+## Wall thickness. **Thinner than `room_set.gd`'s 0.6 m, and deliberately.**
+##
+## Generated walls are built *inside* the room's rect so they cannot stand in
+## the corridor cell next door. That makes the rect the room's outer bound, so
+## every wall costs interior — and at 0.6 m the narrowest module (1 cell, 2.0 m)
+## would be left 0.8 m across: narrower than the 0.9 m navmesh agent, so a room
+## nothing can enter. At 0.3 m it keeps 1.4 m.
+##
+## Door width and room scale still match the hand-built rooms, which is where
+## the eye reads scale; wall thickness is not something a player sees ⟨tune⟩.
+const WALL_THICK: float = 0.3
 const DOOR_WIDTH: float = 2.4
 ## Corridors are cut low so a hall reads as a hall when you step into one.
 ## `TEC-008` §2.5's hierarchy of open space, at its cheapest ⟨tune⟩.
@@ -63,6 +72,26 @@ const STAGE: int = 9
 const CHAMFER: float = 1.6
 ## How far a ceiling may drift from its nominal height at full roughness ⟨tune⟩.
 const CEILING_DRIFT: float = 1.0
+## How far every floor slab is grown past its own footprint.
+##
+## Floors are coplanar and meet edge to edge, and Recast voxelizes at 0.15 m —
+## a butt joint whose seam does not land on a voxel boundary can rasterise into
+## a hairline gap, splitting a room's mesh from the corridor that serves it. The
+## symptom is a room the route enters and stops inside, and it is intermittent
+## because it depends where each edge falls against the grid. Overlapping the
+## slabs removes the joint rather than hoping it aligns.
+const FLOOR_LAP: float = 0.4
+## How high a crossing corridor rides over the one beneath. Clears the lower
+## tunnel's ceiling and its slab, so the two decks never intersect.
+const BRIDGE_LIFT: float = CORRIDOR_CEILING + WALL_THICK + 0.4
+## Cells of ramp on each approach to a crossing ⟨tune⟩.
+##
+## **Two, because one is a wall.** `BRIDGE_LIFT` over a single 2.0 m cell is a
+## 58° climb, past the 45° the navmesh will bake and far past the 0.49 m the
+## player can jump — the first version lifted the crossing cell with no ramp at
+## all and left two rooms unreachable, which is what `--build-probe` caught.
+## Two cells make it 4.0 m of run for 3.2 m of rise: 39°, and walkable.
+const RAMP_CELLS: int = FloorPlan.BRIDGE_CLEARANCE - 1
 
 ## Grey by depth: dressed stone, then stone going wrong, then rock. Real
 ## material direction is `ART-001`'s and this is blockout (ADR-046).
@@ -95,10 +124,12 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 	for node: int in graph.size():
 		builder._room(plan, node, rng)
 		rooms += 1
+	# Corridors are cut per route rather than per cell, because a crossing is
+	# a property of the *path*: it has to be ramped up to and down from, and a
+	# single cell cannot know that.
 	var tunnels: int = 0
-	for cell: Vector2i in plan.corridor_at():
-		builder._corridor(plan, cell)
-		tunnels += 1
+	for route: int in plan.routes():
+		tunnels += builder._route(plan, route)
 
 	return {
 		"rooms": rooms,
@@ -132,10 +163,11 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 	var span := Vector3(rect.size.x * CELL, 0.0, rect.size.y * CELL)
 	var mid := origin + Vector3(span.x * 0.5, 0.0, span.z * 0.5)
 
+	_slab(Vector3(span.x + FLOOR_LAP * 2.0, WALL_THICK, span.z + FLOOR_LAP * 2.0),
+		mid + Vector3(0.0, -WALL_THICK * 0.5, 0.0), STONE[_depth], 0.0, "floor")
 	_slab(Vector3(span.x, WALL_THICK, span.z),
-		mid + Vector3(0.0, -WALL_THICK * 0.5, 0.0), STONE[_depth])
-	_slab(Vector3(span.x, WALL_THICK, span.z),
-		mid + Vector3(0.0, height + WALL_THICK * 0.5, 0.0), STONE[_depth])
+		mid + Vector3(0.0, height + WALL_THICK * 0.5, 0.0), STONE[_depth],
+		0.0, "ceiling")
 
 	# One wall per side, cut where a corridor arrives and nowhere else.
 	var doors: Array[Vector2i] = plan.doors_of(node)
@@ -153,7 +185,7 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 			var spot := origin + Vector3(corner.x * span.x, height * 0.5,
 				corner.y * span.z)
 			_slab(Vector3(cut, height, cut), spot, RUBBLE[_depth],
-				PI * 0.25)
+				PI * 0.25, "chamfer")
 
 
 ## A wall running along X, on the near (`low`) or far side in Z.
@@ -167,13 +199,14 @@ func _wall_x(rect: Rect2i, doors: Array[Vector2i], height: float,
 	gaps.sort()
 	var edge: float = rect.position.y * CELL if low \
 		else rect.end.y * CELL
-	var centre: float = edge - WALL_THICK * 0.5 if low \
-		else edge + WALL_THICK * 0.5
+	# Inside the rect, so the wall never stands in the corridor cell beyond it.
+	var centre: float = edge + WALL_THICK * 0.5 if low \
+		else edge - WALL_THICK * 0.5
 	_run(rect.position.x * CELL, rect.end.x * CELL, gaps, height,
 		func(from: float, to: float) -> void:
 			_slab(Vector3(to - from, height, WALL_THICK),
 				Vector3((from + to) * 0.5, height * 0.5, centre),
-				STONE[_depth]))
+				STONE[_depth], 0.0, "wall"))
 
 
 ## A wall running along Z, on the near (`low`) or far side in X.
@@ -186,13 +219,14 @@ func _wall_z(rect: Rect2i, doors: Array[Vector2i], height: float,
 			gaps.append(cell.y * CELL + CELL * 0.5)
 	gaps.sort()
 	var edge: float = rect.position.x * CELL if low else rect.end.x * CELL
-	var centre: float = edge - WALL_THICK * 0.5 if low \
-		else edge + WALL_THICK * 0.5
+	# Inside the rect, so the wall never stands in the corridor cell beyond it.
+	var centre: float = edge + WALL_THICK * 0.5 if low \
+		else edge - WALL_THICK * 0.5
 	_run(rect.position.y * CELL, rect.end.y * CELL, gaps, height,
 		func(from: float, to: float) -> void:
 			_slab(Vector3(WALL_THICK, height, to - from),
 				Vector3(centre, height * 0.5, (from + to) * 0.5),
-				STONE[_depth]))
+				STONE[_depth], 0.0, "wall"))
 
 
 ## Emit wall segments from `start` to `stop`, leaving a `DOOR_WIDTH` hole at
@@ -209,37 +243,93 @@ func _run(start: float, stop: float, gaps: Array[float], height: float,
 		emit.call(at_pos, stop)
 
 
-func _corridor(plan: FloorPlan, cell: Vector2i) -> void:
-	var origin: Vector3 = at(cell)
-	var mid: Vector3 = origin + Vector3(CELL * 0.5, 0.0, CELL * 0.5)
-	# A bridge carries two routes at different heights, so the crossing one
-	# runs above. It is the only vertical the floor has until ledges land.
-	var lift: float = CORRIDOR_CEILING if plan.is_bridge(cell) else 0.0
-	_slab(Vector3(CELL, WALL_THICK, CELL),
-		mid + Vector3(0.0, lift - WALL_THICK * 0.5, 0.0), RUBBLE[_depth])
-	_slab(Vector3(CELL, WALL_THICK, CELL),
-		mid + Vector3(0.0, lift + CORRIDOR_CEILING + WALL_THICK * 0.5, 0.0),
-		RUBBLE[_depth])
+## Cut one corridor end to end, riding over anything it crosses.
+##
+## Returns how many cells it laid, so the census counts tunnel and not route.
+func _route(plan: FloorPlan, route: int) -> int:
+	var path: Array[Vector2i] = plan.path_of(route)
+	if path.is_empty():
+		return 0
+	var over: Array[Vector2i] = plan.over_of(route)
+
+	# Height per cell: full lift where this route crosses another, sloping away
+	# over `RAMP_CELLS` on each side so the climb is walkable rather than a step.
+	var lift := PackedFloat32Array()
+	lift.resize(path.size())
+	for i: int in path.size():
+		var nearest: int = path.size()
+		for j: int in path.size():
+			if over.has(path[j]):
+				nearest = mini(nearest, absi(i - j))
+		lift[i] = BRIDGE_LIFT * maxf(0.0,
+			float(RAMP_CELLS + 1 - nearest) / float(RAMP_CELLS + 1))
+
+	# A cell whose entry and exit heights differ is a **slope**, not a step.
+	# Laying each cell as a flat box at its own height built a staircase with
+	# 1.07 m risers — a wall to anything that walks, which is the same defect
+	# the unramped crossing had, one iteration smaller.
+	for i: int in path.size():
+		var before: float = lift[maxi(i - 1, 0)]
+		var after: float = lift[mini(i + 1, path.size() - 1)]
+		var enters: float = (before + lift[i]) * 0.5
+		var leaves: float = (lift[i] + after) * 0.5
+		var travel: Vector2i = path[mini(i + 1, path.size() - 1)] \
+			- path[maxi(i - 1, 0)]
+		_tunnel(plan, path[i], enters, leaves, travel)
+	return path.size()
+
+
+## One cell of corridor, its floor running from `enters` to `leaves`.
+func _tunnel(plan: FloorPlan, cell: Vector2i, enters: float, leaves: float,
+		travel: Vector2i) -> void:
+	var mid: Vector3 = at(cell) + Vector3(CELL * 0.5, 0.0, CELL * 0.5)
+	var height: float = (enters + leaves) * 0.5
+	var raised: bool = height > 0.01
+	var rise: float = leaves - enters
+	if absf(rise) < 0.01 or travel == Vector2i.ZERO:
+		_slab(Vector3(CELL + FLOOR_LAP * 2.0, WALL_THICK, CELL + FLOOR_LAP * 2.0),
+			mid + Vector3(0.0, height - WALL_THICK * 0.5, 0.0), RUBBLE[_depth],
+			0.0, "floor")
+	else:
+		# Tilted about the axis across the direction of travel, and lengthened
+		# by 1/cos so the sloped box still covers the whole cell.
+		var along := Vector3(travel.x, 0.0, travel.y).normalized()
+		var pitch: float = atan2(rise, CELL)
+		var axis: Vector3 = Vector3.UP.cross(along).normalized()
+		var ramp := MeshInstance3D.new()
+		var span: float = CELL / cos(pitch) + WALL_THICK + FLOOR_LAP * 2.0
+		var size := Vector3(span, WALL_THICK, CELL + FLOOR_LAP * 2.0) \
+			if absf(along.x) > 0.5 \
+			else Vector3(CELL + FLOOR_LAP * 2.0, WALL_THICK, span)
+		_slab(size, mid + Vector3(0.0, height - WALL_THICK * 0.5, 0.0),
+			RUBBLE[_depth], 0.0, "ramp", Basis(axis, pitch))
+		ramp.free()
+	# A raised deck is open above — you are crossing a void, and being able to
+	# see down into it is the point (`DES-015`'s visual-only vertical space).
+	if not raised:
+		_slab(Vector3(CELL, WALL_THICK, CELL),
+			mid + Vector3(0.0, CORRIDOR_CEILING + WALL_THICK * 0.5, 0.0),
+			RUBBLE[_depth], 0.0, "ceiling")
 
 	# A side is open where the tunnel continues or a room takes over; walled
 	# otherwise. The room's own wall carries the doorway, so a corridor never
 	# opens a hole a door did not authorise.
 	for step: Vector2i in FloorPlan.STEPS:
-		var next: Vector2i = cell + step
-		if plan.holds(next):
+		if plan.holds(cell + step):
 			continue
 		var thick := Vector3(CELL, CORRIDOR_CEILING, WALL_THICK)
 		if step.x != 0:
 			thick = Vector3(WALL_THICK, CORRIDOR_CEILING, CELL)
 		var out := Vector3(step.x, 0.0, step.y) * (CELL * 0.5 + WALL_THICK * 0.5)
-		_slab(thick, mid + out + Vector3(0.0, lift + CORRIDOR_CEILING * 0.5, 0.0),
-			RUBBLE[_depth])
+		_slab(thick, mid + out + Vector3(0.0, height + CORRIDOR_CEILING * 0.5, 0.0),
+			RUBBLE[_depth], 0.0, "wall")
 
 
 ## One box of world, with collision, in `room_set.gd`'s shape so generated and
 ## hand-built geometry sit on the same layer and take the same light.
 func _slab(size: Vector3, centre: Vector3, colour: Color,
-		yaw: float = 0.0) -> void:
+		yaw: float = 0.0, role: String = "slab",
+		tilt: Basis = Basis()) -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var material := StandardMaterial3D.new()
@@ -248,7 +338,20 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	var node := MeshInstance3D.new()
 	node.mesh = mesh
 	node.position = centre
-	node.rotation.y = yaw
+	# Named by what it is, because a probe measuring headroom has to tell a
+	# ceiling from a floor — and once corridors ramp, a raised floor sits
+	# exactly where the old "thin slab, up high" heuristic looked for ceilings.
+	#
+	# **Numbered, because Godot throws the name away on a collision.** A second
+	# child called `floor` is not renamed to `floor2`; it is renamed to
+	# `@MeshInstance3D@37`, losing the role entirely. Every probe filtering by
+	# role was therefore reading exactly one slab per floor and reporting it as
+	# the whole population.
+	node.name = "%s_%d" % [role, _slabs]
+	if tilt != Basis():
+		node.basis = tilt
+	else:
+		node.rotation.y = yaw
 	node.material_override = material
 	var body := StaticBody3D.new()
 	body.collision_layer = CollisionLayers.WORLD

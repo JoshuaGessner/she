@@ -143,6 +143,13 @@ const EYE_HEIGHT: float = 1.6
 ## Navigation bake settings (`M2-T14`). The radius matches `Enemy.NAV_RADIUS`:
 ## baking a mesh narrower than the agents that walk it produces paths they
 ## cannot follow, which looks exactly like no pathfinding at all.
+## Where `FloorBuilder`'s output is parsed from when the generated
+## floor bakes its own navmesh, kept apart from the hand-built level's
+## source group so the two never bake each other.
+const GENERATED_NAV_GROUP: StringName = &"generated_nav_source"
+## How far a room centre may sit from the mesh before the room counts as
+## off it. One body-width plus slack ⟨tune⟩.
+const NAV_REACH: float = 1.5
 const NAV_AGENT_RADIUS: float = 0.45
 const NAV_AGENT_HEIGHT: float = 1.8
 const NAV_SOURCE_GROUP: StringName = &"navigation_source"
@@ -669,10 +676,11 @@ func _build_probe() -> void:
 		for child: Node in root.get_children():
 			var node := child as MeshInstance3D
 			var box := node.mesh as BoxMesh
-			if box == null or absf(node.rotation.y) > 0.01:
-				continue
-			# A ceiling slab: thin, wide, and sitting above the floor.
-			if box.size.y > FloorBuilder.WALL_THICK + 0.01 or node.position.y < 0.5:
+			# **Asked by name, not by shape.** The first version called any thin
+			# slab above half a metre a ceiling, which was true until corridors
+			# began to ramp — and then a *raised floor* answered as a ceiling
+			# 0.6 m off the ground and the row failed on healthy geometry.
+			if box == null or not String(node.name).contains("ceiling"):
 				continue
 			var clear: float = node.position.y - FloorBuilder.WALL_THICK * 0.5
 			lowest = minf(lowest, clear)
@@ -759,7 +767,174 @@ func _build_probe() -> void:
 		problems.append("one plan raised two different floors — `TEC-004` needs "
 			+ "geometry bit-exact or two players disagree about a wall")
 
+	# ─ 6. the floor bakes a navmesh, and the AI can use most of it ─
+	#
+	# `DES-015` step 8 asks for "navmesh sane". ADR-172 split that off as a
+	# **build-time assertion** rather than a runtime re-roll, because Recast is
+	# threaded and platform-dependent and a bake-triggered re-roll on one
+	# machine and not another is the desync the determinism clause forbids. So
+	# it fails the build here and never runs as a gameplay decision.
+	#
+	# **A crawl with no navmesh is correct, not broken.** The agent stands
+	# 1.8 m and a crawl is 1.4 m, so the Hunt cannot follow you in there. That
+	# is `DES-009`'s crouch verb given teeth — the player ducks through and
+	# what is chasing them has to go round — and asserting "every room is
+	# navigable" would have quietly deleted it.
+	# ─ 6a. no floor slab meets another edge to edge ─
+	#
+	# **The cheap check for the expensive bug.** A room's floor ended exactly
+	# where a corridor's began; Recast voxelizes at 0.15 m, those seams do not
+	# land on voxel boundaries, and a butt joint can rasterise into a hairline
+	# gap that splits a room's mesh from the corridor serving it. The symptom
+	# was a room a route entered and stopped inside — and it was *intermittent*,
+	# because it depends where each edge falls against the grid.
+	#
+	# Baking a corpus to catch that is slow and fragile. The joint itself is
+	# neither: every floor slab must overlap something, and that is checkable
+	# over many floors in milliseconds.
+	var corpus: Array[Vector2i] = [
+		Vector2i(31337, 0), Vector2i(31337, 1), Vector2i(31337, 2),
+		Vector2i(8801, 1), Vector2i(4242, 0), Vector2i(909, 2),
+		Vector2i(1000, 0), Vector2i(1005, 2),
+	]
+	var butted: int = 0
+	var checked: int = 0
+	for pick: Vector2i in corpus:
+		var g: MissionGraph = MissionGraph.build(pick.x, pick.y)
+		var lore: ExpeditionHistory = ExpeditionHistory.roll(
+			pick.x, calamities, kinds)
+		var p: FloorPlan = FloorPlan.build(g, pick.x, pick.y, modules, lore)
+		if not p.problems().is_empty():
+			continue
+		var shelf := Node3D.new()
+		add_child(shelf)
+		FloorBuilder.build(p, g, pick.x, pick.y, shelf)
+		var floors: Array[AABB] = []
+		for child: Node in shelf.get_children():
+			var n := child as MeshInstance3D
+			var b := n.mesh as BoxMesh
+			var role: String = String(n.name)
+			if b == null or not (role.contains("floor") or role.contains("ramp")):
+				continue
+			# Through the node's transform: a ramp is tilted, and its
+			# axis-aligned bounds are not its box.
+			floors.append(n.transform * AABB(-b.size * 0.5, b.size))
+		for i: int in floors.size():
+			checked += 1
+			var laps: bool = false
+			for j: int in floors.size():
+				if i != j and floors[i].intersects(floors[j]):
+					laps = true
+					break
+			if not laps and floors.size() > 1:
+				butted += 1
+		shelf.free()
+	print("[build] joins       %d floor slab(s) across %d floors, %d isolated"
+		% [checked, corpus.size(), butted])
+	if butted > 0:
+		problems.append(("%d floor slab(s) touch nothing they overlap — a butt "
+			+ "joint between coplanar slabs can voxelize into a seam and cut a "
+			+ "room off the navmesh") % butted)
+
+	# ─ 6b. one floor, baked, walked end to end ─
+	#
+	# `DES-015` step 8's "navmesh sane", as a build-time assertion rather than a
+	# runtime re-roll (ADR-172): Recast is threaded and platform-dependent, so a
+	# bake-triggered re-roll on one machine and not another is the desync the
+	# determinism clause forbids. It fails the build and never runs in play.
+	#
+	# **A crawl with no navmesh is correct, not broken.** The agent stands
+	# 1.8 m and a crawl is 1.4 m, so the Hunt cannot follow you in there — that
+	# is `DES-009`'s crouch verb given teeth, and asserting "every room is
+	# navigable" would quietly delete it.
+	var navroot := Node3D.new()
+	add_child(navroot)
+	FloorBuilder.build(plan, graph, 31337, 0, navroot)
+	navroot.add_to_group(GENERATED_NAV_GROUP)
+
+	var navmesh := NavigationMesh.new()
+	navmesh.agent_radius = NAV_AGENT_RADIUS
+	navmesh.agent_height = NAV_AGENT_HEIGHT
+	navmesh.agent_max_climb = 0.3
+	navmesh.agent_max_slope = 45.0
+	navmesh.cell_size = 0.15
+	navmesh.cell_height = 0.15
+	navmesh.geometry_parsed_geometry_type = \
+		NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
+	navmesh.geometry_source_geometry_mode = \
+		NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	navmesh.geometry_source_group_name = GENERATED_NAV_GROUP
+	var region := NavigationRegion3D.new()
+	region.navigation_mesh = navmesh
+	add_child(region)
+	region.bake_navigation_mesh(false)
+	for i: int in range(6):
+		await get_tree().physics_frame
+
+	var vertices: int = navmesh.get_vertices().size()
+	print("[build] navmesh     %d vertices baked" % vertices)
+	if vertices == 0:
+		problems.append("the generated floor baked no navmesh at all — "
+			+ "nothing that hunts the player can move on it")
+		_report(problems, "build")
+		return
+
+	var map: RID = get_world_3d().navigation_map
+	# Baking queues work the server applies on its own tick, and a query made
+	# before that lands answers about a map that is not there yet.
+	NavigationServer3D.map_force_update(map)
+	var entrance: int = graph.node_with(MissionGraph.Role.ENTRANCE)
+	var start_at: Vector3 = _plan_centre(plan, entrance)
+	var stranded: PackedStringArray = PackedStringArray()
+	var crawls: int = 0
+	for node: int in graph.size():
+		if node == entrance:
+			continue
+		var module: RoomModule = RoomCatalogue.by_id(plan.module_of(node))
+		if module != null and module.volume == RoomModule.Volume.CRAWL:
+			crawls += 1
+			continue
+		var centre: Vector3 = _plan_centre(plan, node)
+		var route: PackedVector3Array = NavigationServer3D.map_get_path(
+			map, start_at, centre, true)
+		if not route.is_empty() \
+				and route[route.size() - 1].distance_to(centre) <= NAV_REACH:
+			continue
+		var near: Vector3 = NavigationServer3D.map_get_closest_point(map, centre)
+		var why: String = "no mesh under it" \
+			if near.distance_to(centre) > NAV_REACH else "an island, walled in"
+		stranded.append("%d (%s, %s, route ends %.2f m short)"
+			% [node, plan.module_of(node), why,
+				route[route.size() - 1].distance_to(centre)
+				if not route.is_empty() else -1.0])
+	print("[build] coverage    %d room(s) off the mesh, %d crawl(s) excluded "
+		% [stranded.size(), crawls] + "on purpose")
+	if not stranded.is_empty():
+		problems.append(("%d standing room(s) have no navmesh route: %s — a "
+			+ "room the Hunt cannot enter is a safe room the design never "
+			+ "agreed to") % [stranded.size(), ", ".join(stranded)])
+
+	var to_at: Vector3 = _plan_centre(plan, graph.node_with(
+		MissionGraph.Role.SHAFT))
+	var route: PackedVector3Array = NavigationServer3D.map_get_path(
+		map, start_at, to_at, true)
+	var arrives: bool = route.size() > 0 \
+		and route[route.size() - 1].distance_to(to_at) < NAV_REACH
+	print("[build] the walk    entrance to Shaft: %s"
+		% ("%d hop(s)" % route.size() if arrives else "NO ROUTE"))
+	if not arrives:
+		problems.append("nothing that walks can get from the entrance to the "
+			+ "Shaft on the generated floor")
+
 	_report(problems, "build")
+
+
+## The middle of a room, in metres, on the floor.
+func _plan_centre(plan: FloorPlan, node: int) -> Vector3:
+	var rect: Rect2i = plan.rect_of(node)
+	return FloorBuilder.at(rect.position) + Vector3(
+		rect.size.x * FloorBuilder.CELL * 0.5, 0.0,
+		rect.size.y * FloorBuilder.CELL * 0.5)
 
 
 func _plan_probe() -> void:
