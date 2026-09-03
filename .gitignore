@@ -34,3 +34,13 @@ __pycache__/
 # Local scratch
 scratch/
 *.local
+
+# Agent working files — local only.
+#
+# Session briefs, slash commands and hook wiring: notes to whoever is holding
+# the keyboard, not part of the game or its build. `settings.json` in particular
+# carries an absolute path to one machine's checkout, so it was never portable.
+#
+# `CLAUDE.md` at the repo root is deliberately **not** covered by this. It is the
+# working agreement and it is checked in on purpose.
+.claude/
