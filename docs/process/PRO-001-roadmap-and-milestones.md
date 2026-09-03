@@ -4,7 +4,7 @@ title: Roadmap & Milestones
 status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-09-01
+updated: 2026-09-03
 related: [DES-001, TEC-001, TEC-003]
 ---
 
@@ -210,7 +210,7 @@ The most common way a project like this dies is building the meta-progression fi
 
 - [ ] `M4-T04` Contracts tier 1–3, one faction (`DES-007`) — *the board hangs in the Threshold, which `M2-T06` built as a fire and a doorway* → DES-007, DES-014
 
-- [ ] `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* → ART-001, ART-005, DES-008
+- [x] `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower.* **Built (ADR-188):** `tol_horn_lantern` in the off hand, a shutter on its own binding, and **`Exposure`** — the visual twin of `ClamorSource` rather than of `ClamorField`, because a field is a memory of events and light has no past tense. `Enemy._can_see` now scales 6.7 m → 16.0 m ⟨tune⟩ on the light falling on you. No fuel: `DES-022` charges risk, not time. **The ambient did drop, 0.34 → 0.12, and measurement showed it was never the number doing the work** — the doorway lamps were, so an unlit crossing means moving between them → ART-001, ART-005, DES-008
 
 - [ ] `M4-T14` **The Scar** — *`DES-012` §3 charges a rescued life a Scar alongside losing the run and the carried loot, and `M3-T33` implemented the other two-thirds of that sentence because there is no Scar system to implement. Absent rather than stubbed (ADR-064, ADR-154): a state with no rules, no display and no consequence would be present only so a doc reads as done. Needs a decision first — what a Scar **costs**, whether it stacks, and whether it is visible to the party, since `DES-012` makes rescue a social act and a hidden penalty is one the rescuer cannot weigh* → DES-012, PRO-005
 

@@ -431,13 +431,48 @@ extends Resource
 ## refusal that fires every frame is a rattle nobody can read as a refusal.
 @export var empty_hand_gap: float = 0.4
 
+@export_group("Light")
+## How much light the floor gives you for free ⟨tune⟩ (`M4-T13`, `ART-001`).
+##
+## **Moved here from `RoomSet.AMBIENT_ENERGY`**, where it sat since `M2-T13`
+## under a comment promising it would *"drop when the lantern lands."* It is a
+## ⟨tune⟩ number, and ⟨tune⟩ numbers live in the profile — but the sharper
+## reason is the field directly below it: the two are one fact seen two ways,
+## and they were in different files with nothing tying them together. A floor
+## made darker while `exposure_ambient` stood still would look black and still
+## get you spotted at the same distance, which is the *worst* possible outcome
+## and would have read as the lantern not working.
+@export var floor_ambient_energy: float = 0.12
+## The exposure a body has with no lamp anywhere near it ⟨tune⟩ (`M4-T13`).
+##
+## **Not zero, and the reason is `DES-018` rather than taste.** The floor keeps
+## a little ambient light so an unlit player is navigable-but-furtive rather
+## than blind, and this is that light expressed as visibility: at 0.15 you are
+## seen from about a third of the lit distance. Zero would mean a body that
+## nothing can ever see, which is not stealth, it is invisibility — and
+## `DES-005` requires *hide and let it pass* to be a risk, not a switch.
+@export var exposure_ambient: float = 0.15
+
 @export_group("Enemy")
 @export var enemy_health: float = 60.0
 @export var enemy_attack_damage: float = 34.0
 @export var enemy_walk_speed: float = 2.0
 @export var enemy_run_speed: float = 3.6
 @export var enemy_turn_rate: float = 0.12
+## How far a **fully lit** body is seen from. Unchanged since `M1`: this is the
+## number every existing measurement was taken against, and `M4-T13` made it
+## the top of a range rather than the whole story.
 @export var enemy_vision_range: float = 16.0
+## And how far a body in the dark is seen from ⟨tune⟩ (`M4-T13`, `ART-001`).
+##
+## `Exposure.seen_from()` interpolates between the two. **The gap is the whole
+## mechanic** — set these equal and the lantern becomes a graphics setting, and
+## `ART-001`'s *"darkness is a mechanic, not an effect"* becomes a sentence the
+## build contradicts.
+##
+## Below `enemy_attack_range` would mean a thing could hit you without ever
+## having seen you, so `_validate()` refuses it.
+@export var enemy_vision_dark: float = 5.0
 @export var enemy_vision_half_angle: float = 60.0
 ## Seconds of pursuit after losing sight, before dropping to SUSPICIOUS and
 ## then back to UNAWARE. Short enough that breaking line of sight is a real
@@ -525,6 +560,38 @@ func validate() -> PackedStringArray:
 	if enemy_telegraph < TELEGRAPH_FLOOR:
 		problems.append("enemy_telegraph is %.3f s, below the %.2f s floor (DES-009 §3)"
 			% [enemy_telegraph, TELEGRAPH_FLOOR])
+	# **The gap between lit and dark is the lantern** (`M4-T13`, ADR-188). Both
+	# rows below describe a build in which darkness has stopped being a
+	# mechanic, and neither would raise an error anywhere else: the game would
+	# run, and the lamp would just be a light.
+	if enemy_vision_dark >= enemy_vision_range:
+		problems.append(("a body in the dark is seen from %.1f m and a lit one "
+			+ "from %.1f m — with no gap the lantern costs nothing and "
+			+ "`ART-001`'s darkness is an effect again")
+			% [enemy_vision_dark, enemy_vision_range])
+	if enemy_vision_dark <= enemy_attack_range:
+		problems.append(("enemy_vision_dark %.1f m is inside enemy_attack_range "
+			+ "%.1f m — something could hit you having never seen you, which is "
+			+ "the death principle 4 forbids") % [enemy_vision_dark, enemy_attack_range])
+	if exposure_ambient < 0.0 or exposure_ambient > 1.0:
+		problems.append("exposure_ambient %.2f is outside 0–1" % exposure_ambient)
+	if floor_ambient_energy <= 0.0:
+		problems.append(("floor_ambient_energy %.2f leaves a floor with no "
+			+ "light at all — `DES-018` rules out a build the player cannot "
+			+ "see, and `M2-T13` already learned that a dark level with no "
+			+ "light source is a bug rather than a mechanic")
+			% floor_ambient_energy)
+	# **The two halves of one fact, checked against each other.** They live in
+	# different units and cannot be derived from one another, so what is
+	# enforceable is that they were not tuned in opposite directions: a floor
+	# lit brightly enough to walk without a lamp, whose bodies are as invisible
+	# as if it were pitch dark, is a build where the lantern is decoration.
+	if floor_ambient_energy >= 0.30 and exposure_ambient <= 0.20:
+		problems.append(("a floor at %.2f ambient is bright enough to cross "
+			+ "unlit, and %.2f exposure says a body standing in it is nearly "
+			+ "invisible — `M4-T13` moved these into one place precisely so "
+			+ "they could not drift apart like this")
+			% [floor_ambient_energy, exposure_ambient])
 	if carry_capacity <= 0.0:
 		problems.append("carry_capacity must be positive or encumbrance is undefined")
 	if stamina_max <= 0.0:

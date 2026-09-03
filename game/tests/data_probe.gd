@@ -39,6 +39,7 @@ var _frame: int = 0
 var _loaded: int = 0
 var _items: Array[ItemResource] = []
 var _nodes: Array[AspectNode] = []
+var _classes: Array[ClassResource] = []
 ## Taken from the walk rather than from `Config`. This runs as `--script`,
 ## which builds a bare `SceneTree` with **no autoloads registered** — so
 ## `Config.tuning` is not merely empty here, it does not compile. The profile
@@ -63,6 +64,7 @@ func _run() -> void:
 	_check_unique_ids()
 	_check_catalogue_agrees()
 	_check_items_fit_the_grid()
+	_check_kits_can_be_worn()
 	_check_the_tree_hangs_together()
 
 	# A validator that validated nothing must never report success. This is
@@ -76,6 +78,9 @@ func _run() -> void:
 	# is a build where `M3`'s whole goal is unreachable.
 	if _nodes.is_empty():
 		_fail("no aspect nodes found — nothing a run earns can be spent")
+	# And for the classes, whose rule below is conditional on there being any.
+	if _classes.is_empty():
+		_fail("no classes found — every kit rule checked nothing")
 
 	print("[data] %d resource(s), %d item(s), %d node(s)" % [
 		_loaded, _items.size(), _nodes.size()])
@@ -118,6 +123,10 @@ func _check(path: String) -> void:
 	var tuning := resource as TuningProfile
 	if tuning != null:
 		_tuning = tuning
+
+	var sworn := resource as ClassResource
+	if sworn != null:
+		_classes.append(sworn)
 
 	var node := resource as AspectNode
 	if node != null:
@@ -215,6 +224,68 @@ func _check_items_fit_the_grid() -> void:
 		if not upright and not turned:
 			_fail("'%s' is %s and the bag is %s — it can never be picked up, "
 				% [item.id, size, grid] + "in either orientation")
+
+
+## **A class has to be able to hold its own kit** (`M4-T13`, `DES-020`).
+##
+## `ClassResource.kit` has always been documented as *"real definitions from the
+## catalogue — an id nothing knows fails `validate()` rather than silently
+## arming somebody with nothing."* **Nothing checked it.** The comment described
+## a guard that was never built, which is ADR-098's question asked of a promise
+## instead of a function, and it went unnoticed because the two authored kits
+## happened to be correct.
+##
+## `M4-T13` walked straight into the gap. `_dress_the_body` equips a kit in
+## array order and `Equipment.equip` *displaces* whatever conflicts, discarding
+## it — so adding a lantern to the Veiðimaðr, whose bow is two-handed, would
+## have spawned a bow-less archer holding a lamp. No error, no warning, and a
+## class that reads as broken rather than as misconfigured.
+##
+## Here rather than in `ClassResource.validate()` because every rule needs the
+## *item* corpus, and a resource may only answer for its own fields.
+func _check_kits_can_be_worn() -> void:
+	var by_id: Dictionary = {}
+	for item: ItemResource in _items:
+		by_id[String(item.id)] = item
+
+	for sworn: ClassResource in _classes:
+		var filled: Dictionary = {}
+		var two_handed: String = ""
+		var off_hand: String = ""
+		for id: StringName in sworn.kit:
+			# 1. **The id resolves.** The rule the header promised.
+			var item := by_id.get(String(id)) as ItemResource
+			if item == null:
+				_fail(("%s descends with '%s', which no item in the corpus "
+					+ "owns — that is a class armed with nothing, silently")
+					% [sworn.id, id])
+				continue
+			if item.slot == Enums.Slot.NONE:
+				_fail("%s descends with '%s', which occupies no slot and so is "
+					% [sworn.id, id] + "dropped on the floor of `_dress_the_body`")
+				continue
+			# 2. **One item per slot.** Two body pieces in a kit means the
+			# second silently replaces the first, and which one survives is
+			# array order — the ordering dependency `TEC-007` §1 rules out.
+			var slot: String = Enums.Slot.keys()[item.slot]
+			if filled.has(slot):
+				_fail(("%s descends with both '%s' and '%s' in %s — one of them "
+					+ "is discarded, and which depends on kit order")
+					% [sworn.id, filled[slot], id, slot])
+			filled[slot] = String(id)
+			if item.slot == Enums.Slot.MAIN_HAND and item.two_handed:
+				two_handed = String(id)
+			elif item.slot == Enums.Slot.OFF_HAND:
+				off_hand = String(id)
+		# 3. **A two-hander leaves no off hand** (`DES-020`: *"no lantern, no
+		# shield, no map without stowing"*). The rule is already enforced at
+		# runtime by `Equipment.equip`; what is missing is anyone noticing that
+		# a *kit* asking for both means one of them never arrives.
+		if two_handed != "" and off_hand != "":
+			_fail(("%s descends with two-handed '%s' and off-hand '%s' — "
+				+ "`Equipment` gives the off hand to the two-hander, so "
+				+ "whichever is equipped second disarms the first")
+				% [sworn.id, two_handed, off_hand])
 
 
 ## **The tree has to be walkable** (`M3-T01`, `TEC-006`).

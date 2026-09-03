@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-02 · 41 documents_
+_Regenerated 2026-09-03 · 41 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -20,8 +20,8 @@ _What the game is._
 | `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-09-02 | DES-002, DES-007, DES-008 |
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
 | `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-08-14 | DES-002, DES-006, DES-008 |
-| `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
-| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-08-25 | DES-005, DES-007, DES-008, PRO-001 |
+| `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-09-03 | DES-003, DES-004, DES-005 |
+| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-09-03 | DES-005, DES-007, DES-008, PRO-001 |
 | `DES-010` | [Retention, Session Hooks & Churn Points](design/DES-010-retention-and-session-hooks.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-007, PRO-001 |
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-08-25 | DES-004, DES-003, DES-012, DES-009 |
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
@@ -30,9 +30,9 @@ _What the game is._
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-02 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-01 | DES-005, DES-013, DES-008, DES-014, DES-018 |
-| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-01 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
-| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-09-02 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
-| `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-08-16 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
+| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-03 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-09-03 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
+| `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-09-03 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
 
 ## Technical
@@ -46,7 +46,7 @@ _How it gets built._
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-09-02 | DES-003, DES-015, TEC-001, TEC-002, TEC-004 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-08-28 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-01 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
-| `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-08-17 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
+| `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-03 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-01 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
 | `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-02 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
 
@@ -56,8 +56,8 @@ _How we work, what we decided, what we must not do._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-01 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-01 | DES-001, DES-003, PRO-001 |
+| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-03 | DES-001, TEC-001, TEC-003 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-03 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
@@ -70,7 +70,7 @@ _Visual and audio direction._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✔ accepted | 2026-08-14 | DES-001, DES-005, DES-006 |
+| `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✔ accepted | 2026-09-03 | DES-001, DES-005, DES-006 |
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-09-01 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-09-01 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 | `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-08-26 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |

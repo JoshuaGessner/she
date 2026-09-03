@@ -273,11 +273,20 @@ func _redraw_cone(enemy: Enemy, mesh: ImmediateMesh) -> void:
 	var floor_y: float = enemy.global_position.y + 0.04
 	var space: PhysicsDirectSpaceState3D = enemy.get_world_3d().direct_space_state
 
+	# **The cone is as long as *you* are visible** (`M4-T13`). Drawn from the
+	# same `Exposure.seen_from()` the enemy resolves sight with, so shuttering
+	# the lantern visibly pulls every cone in the room back — which is the one
+	# picture that teaches the mechanic. A cone frozen at `enemy_vision_range`
+	# would be a debug view contradicting the sight that killed you, and this
+	# file's own ring already refuses to do that.
+	var seen_at: float = (_player.exposure.seen_from() if _player != null
+		else tuning.enemy_vision_range)
+
 	var points: Array[Vector3] = []
 	for i: int in range(VISION_SEGMENTS + 1):
 		var angle: float = -half + 2.0 * half * float(i) / float(VISION_SEGMENTS)
 		var direction: Vector3 = forward.rotated(Vector3.UP, angle)
-		var reach: float = tuning.enemy_vision_range
+		var reach: float = seen_at
 		var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * reach)
 		query.collision_mask = CollisionLayers.WORLD
 		var hit: Dictionary = space.intersect_ray(query)

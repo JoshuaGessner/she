@@ -2,13 +2,13 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-09-02_
+<!-- generated-stamp --> _Regenerated 2026-09-03_
 
 **Current milestone: M4 — Vertical Slice**
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`74/98` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`75/98` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>1/19"]:::current
+  M4["M4 Vertical Slice<br/>2/19"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█▒░░░░░░░░░░░░░░░░░░` | 1/19 | `COOP` pending<br>`EXIT` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `██▒░░░░░░░░░░░░░░░░░` | 2/19 | `COOP` pending<br>`EXIT` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -51,6 +51,7 @@ _None. Sequencing is clean._
 | Check | Note |
 |---|---|
 | `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33, M3-T37, M3-T38, M3-T42) but still has 6 ⟨tune⟩ marker(s) |
+| `untuned` | DES-020 is fully implemented (M1-T10, M3-T07) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
 
 ## Tasks
@@ -144,7 +145,7 @@ _None. Sequencing is clean._
 - · `M4-T16` **Enemy behaviour, before enemy variety** — *`M4-T02` is "~6 enemy archetypes, 2 hazard types", and **nothing on this roadmap, in any milestone, is about how an enemy behaves.** Raised from play — *"the gameplay feels a little stale still and AI will have to be greatly worked on"* — and the ordering is the point: six archetypes built on one behaviour is six ways to meet the same fight, which is content rather than systems (principle 5) and fails ADR-058's test outright, since a new silhouette on the same behaviour is a bigger number wearing a face. Principle 3 is the specification: **a fight has to be a decision**, and today it is a swing timed against a telegraph. What is absent and load-bearing: enemies that commit to an attack and can be punished for it, that use the floor's geometry rather than walking through it, that react to clamor as a *group* rather than each alone (`DES-013`'s Ear is a systemic input nothing reads socially), and that give the player a reason to disengage — `DES-002` wants "do I take this fight" to be live, and it cannot be while every fight is winnable by standing still. **Before `M4-T02`**, so the six archetypes are variations on something worth varying* `DES-013` `DES-002` `DES-009`
 - · `M4-T02` ~6 enemy archetypes, 2 hazard types `DES-013`
 - · `M4-T04` Contracts tier 1–3, one faction (`DES-007`) — *the board hangs in the Threshold, which `M2-T06` built as a fire and a doorway* `DES-007` `DES-014`
-- · `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower* `ART-001` `ART-005` `DES-008`
+- ✔ `M4-T13` **The lantern, and darkness as a mechanic** — *`ART-001` is explicit that light is a resource the player manages and that lighting design is gameplay design, and `DES-008` spends a weapon slot on it. No task built it, in any milestone. `M2-T13` lit the floor as far as it can be lit without one: the ambient floor there stays navigable rather than truly dark, because a dark level with no light source is not a mechanic, it is a bug. That ⟨tune⟩ number is the one this task exists to lower.* **Built (ADR-188):** `tol_horn_lantern` in the off hand, a shutter on its own binding, and **`Exposure`** — the visual twin of `ClamorSource` rather than of `ClamorField`, because a field is a memory of events and light has no past tense. `Enemy._can_see` now scales 6.7 m → 16.0 m ⟨tune⟩ on the light falling on you. No fuel: `DES-022` charges risk, not time. **The ambient did drop, 0.34 → 0.12, and measurement showed it was never the number doing the work** — the doorway lamps were, so an unlit crossing means moving between them `ART-001` `ART-005` `DES-008`
 - · `M4-T14` **The Scar** — *`DES-012` §3 charges a rescued life a Scar alongside losing the run and the carried loot, and `M3-T33` implemented the other two-thirds of that sentence because there is no Scar system to implement. Absent rather than stubbed (ADR-064, ADR-154): a state with no rules, no display and no consequence would be present only so a doc reads as done. Needs a decision first — what a Scar **costs**, whether it stacks, and whether it is visible to the party, since `DES-012` makes rescue a social act and a hidden penalty is one the rescuer cannot weigh* `DES-012` `PRO-005`
 - · `M4-T17` **The item and weapon taxonomy** — *`DES-008` has the philosophy and `DES-009` has the feel, and **nothing has the list**. Carried in `OPEN-QUESTIONS.md` as an unnumbered row since the design lock, which is where it was quietly wrong: it is not a question anybody can answer in a sentence, it is a document somebody has to write, and a question with no answer-shape blocks a milestone without ever being addressable (ADR-167). Needed by `M4-T02` and `M4-T03` — six archetypes and two polished classes both want a table of what exists to swing, wear and carry, and `M3`'s fourteen items are the vertical slice's placeholder rather than its answer* `DES-008` `DES-009`
 - · `M4-T03` **Two classes**, fully polished — Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061).* `DES-011`
@@ -170,6 +171,6 @@ _None. Sequencing is clean._
 
 ---
 
-_41 docs (41 accepted) · 187 ADRs · 0 open questions · 129 ⟨tune⟩ markers._
+_41 docs (41 accepted) · 188 ADRs · 0 open questions · 137 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

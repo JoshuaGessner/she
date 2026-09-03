@@ -78,7 +78,6 @@ const GOLD_MARGIN: float = 0.08
 
 const PALE: Color = Color(0.82, 0.85, 0.90)
 const AMBIENT: Color = Color(0.30, 0.31, 0.36)
-const AMBIENT_ENERGY: float = 0.34  # ⟨tune⟩ — drops when the lantern lands
 const PAPER: Color = Color(0.04, 0.04, 0.05)
 
 ## Doorways carry the pale light, so a room shows you its exits from inside it.
@@ -400,6 +399,9 @@ var _field: ClamorField = null
 var _hunter: Gullsjukr = null
 var _shaft: Shaft = null
 var _navigation: NavigationRegion3D = null
+## The floor's own `Environment`, kept so `--light-shot` can sweep the ambient
+## energy without rebuilding the level between exposures (`M4-T13`).
+var _environment: Environment = null
 var _descent: int = 1
 ## How deep into this expedition this floor is, 0 to `RunFile.LAST_FLOOR`
 ## (`M4-T01`, ADR-184). Distinct from `_descent`, which counts *runs* a probe
@@ -643,6 +645,10 @@ func _ready() -> void:
 			_ear_probe()
 		elif arg.begins_with("--delvings-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--light-shot="):
+			_light_shot(arg.split("=", true, 1)[1])
+		elif arg == "--lantern-probe":
+			_lantern_probe()
 		elif arg.begins_with("--ear-shot="):
 			_ear_shot(arg.split("=", true, 1)[1])
 		elif arg == "--exit-probe":
@@ -2628,6 +2634,95 @@ func _stand_on_floor(index: int) -> void:
 		_shaft.leads_out = _floor_index >= RunFile.LAST_FLOOR
 
 
+## **How dark is dark** (`M4-T13`, `ART-001`, `DES-018`) — the one question in
+## this task a number cannot answer.
+##
+## The ambient energy sat at 0.34 since `M2-T13` with a comment promising it
+## *"drops when the lantern lands"*, and `PRO-001` names lowering it as the
+## point of the task. But `DES-018` gets a vote and *"the player cannot see"* is
+## the one accessibility failure a lighting task can ship, so the floor under it
+## is not zero and no argument settles where it is.
+##
+## So: **the same view, at four ambient values, with the shutter open and shut.**
+## Eight images of one real floor, which is a decision somebody can make by
+## looking. Standing at the Prize — a room the generator chose, and the place a
+## player has the most reason to be looking around in the dark.
+func _light_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	# Ink off, on `--sight-shot`'s reasoning: `ART-005` is a treatment over the
+	# lighting, and what is being judged here is the lighting.
+	player.show_ink(false)
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	if lamp == null:
+		printerr("[light] FAIL no lantern in the catalogue to photograph")
+		get_tree().quit(1)
+		return
+	player.equipment.equip(ItemInstance.of(lamp, 0))
+
+	# **Standing where the lamps do not reach, looking at one.** The first draft
+	# stood at the Prize, which the generator tends to put near a doorway: the
+	# lamp then dominated `Exposure` and the printed distance came out
+	# *non-monotonic* across a sweep of the ambient — 9.7, 12.8, 12.8, 8.9 —
+	# because it was reporting how close the body was to a lamp rather than how
+	# dark the floor is. The number and the picture have to be about the same
+	# thing or neither can be trusted.
+	#
+	# The composition is also the one the decision actually needs: unlit stone
+	# in the foreground, a lit doorway in the distance. That is the frame that
+	# answers *can I cross this floor with the shutter shut* — which is what
+	# `DES-018` gets a vote on.
+	var anchor: Vector3 = _away_from_the_lamps()
+	var at: Vector3 = anchor + Vector3(0.0, 0.1, 0.0)
+	var look: Vector3 = _nearest_door_light(anchor)
+	var d: Vector3 = look - at
+	d.y = 0.0
+	var yaw: float = atan2(-d.x, -d.z) if d.length() > 0.01 else 0.0
+
+	# **Both baselines captured before anything moves.** The loop mutates
+	# `exposure_ambient`, and the first version derived each step from the
+	# *current* value rather than from the starting one — so the sweep
+	# compounded, 0.15 became 0.43 became 0.71, and every row after the first
+	# reported a floor brighter than the one it had just photographed. The
+	# numbers looked plausible and were wrong, which is `TEC-007` §1's rule
+	# about assertions built from convenient existing values, arriving in a
+	# measurement instead of an assertion.
+	var base_energy: float = Config.tuning.floor_ambient_energy
+	var base_exposure: float = Config.tuning.exposure_ambient
+
+	# 0.34 first, deliberately: the top row is what the floor looked like
+	# before this task, so every image below is read against the build it
+	# replaces rather than against memory.
+	for ambient: float in [0.34, 0.20, 0.12, 0.06]:
+		_environment.ambient_light_energy = ambient
+		# **And the exposure floor moves with it.** They are one fact seen two
+		# ways — what your eye gets and what an enemy gets — and sweeping the
+		# first while the second stood still would photograph a floor going
+		# dark beside a number saying it had not.
+		Config.tuning.exposure_ambient = clampf(
+			base_exposure * ambient / base_energy, 0.0, 1.0)
+		for burning: bool in [false, true]:
+			# **Teleported for every single frame.** The first draft placed the
+			# body once and let the loop run: it drifted toward a doorway lamp
+			# between exposures, so the 0.12 image came out *brighter* than the
+			# 0.34 one and the sweep measured where the body wandered rather
+			# than how dark the floor is. `M3-T22`'s rule again — a new probe's
+			# first finding is usually about the probe.
+			player.teleport(at, yaw)
+			player.lit = burning
+			await _hold(0.3)
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			var shot: String = "%s_%03d_%s.png" % [path.trim_suffix(".png"),
+				roundi(ambient * 100.0), "lit" if burning else "shut"]
+			get_viewport().get_texture().get_image().save_png(shot)
+			print("[light] ambient %.2f  %-4s → %s  (seen from %.1f m)" % [
+				ambient, "lit" if burning else "shut", shot.get_file(),
+				player.exposure.seen_from()])
+	Config.tuning.floor_ambient_energy = base_energy
+	Config.tuning.exposure_ambient = base_exposure
+	get_tree().quit()
+
+
 ## The doorway nearest a point, for `--delvings-shot` to aim at. Falls back to
 ## the Shaft, so a floor with no door lights still photographs something rather
 ## than aiming at the origin.
@@ -4091,6 +4186,38 @@ func _probe_capsule_heights() -> Dictionary:
 	return out
 
 
+## Take every enemy off the floor, host-side (`M4-T13`, ADR-188).
+##
+## **For scenarios whose subject is not combat.** `run_doorway.py`'s extraction
+## scenario needs three bodies to each stand still for a 1.1 s Waystone channel,
+## and `DES-005` makes that channel *"a moment you can be interrupted in"* —
+## being downed mid-channel silently zeroes it (`_go_down`). So the check was
+## asserting three consecutive uninterrupted channels on a floor with live
+## enemies on it, which the design explicitly refuses to guarantee.
+##
+## It passed for a year on luck. `M4-T13` changed how far a body is seen from
+## and the luck ran out — an enemy reached the first client every single run.
+## **The lantern did not break extraction; it perturbed a check that had a
+## hidden dependency on enemy pathing**, and a check that can fail for reasons
+## unrelated to its own claim is worse than no check, because the next person to
+## see it red will spend a day where I spent one.
+##
+## Freed on the host only; the spawner takes them off every client.
+func _clear_the_floor() -> void:
+	if not multiplayer.is_server():
+		return
+	var taken: int = 0
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+		taken += 1
+	if _hunter != null:
+		_hunter.queue_free()
+		_hunter = null
+		taken += 1
+	print("[extract] cleared %d threat(s) — this scenario is about the "
+		% taken + "doorway, not about surviving")
+
+
 func _probe_enemy_health() -> Dictionary:
 	var out: Dictionary = {}
 	for node: Node in get_tree().get_nodes_in_group("enemies"):
@@ -5149,11 +5276,17 @@ func _reset_floor() -> void:
 func _build_lighting() -> void:
 	var env := WorldEnvironment.new()
 	var environment := Environment.new()
+	# Kept, so `--light-shot` can photograph the same floor at four ambient
+	# values in one run. `floor_ambient_energy` is the number `M4-T13` exists
+	# to lower and `DES-018` is the reason it cannot go to zero — that is a
+	# decision to be made from images of a real floor, not from a constant that
+	# looked reasonable in a diff.
+	_environment = environment
 	environment.background_mode = Environment.BG_COLOR
 	environment.background_color = PAPER
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = AMBIENT
-	environment.ambient_light_energy = AMBIENT_ENERGY
+	environment.ambient_light_energy = Config.tuning.floor_ambient_energy
 	env.environment = environment
 	_world.add_child(env)
 
@@ -5171,6 +5304,15 @@ func _door_light(at: Vector3) -> void:
 	light.omni_range = DOOR_LIGHT_RANGE
 	light.position = at
 	light.add_to_group(DOOR_LIGHT_GROUP)
+	# **And a doorway lamp is something you can be seen by** (`M4-T13`,
+	# ADR-188). Two groups, two questions: `DOOR_LIGHT_GROUP` is *"did this
+	# floor get lit"*, which `--sight-probe` asks of the level, and
+	# `LIGHT_GROUP` is *"what can give a body away"*, which `Exposure` asks of
+	# the world. Joining the second is what turns these from decoration into
+	# terrain — a lit doorway is now somewhere you are visible standing, so
+	# moving between the lamps rather than along them is a real way to cross a
+	# floor with the shutter closed.
+	light.add_to_group(Lantern.LIGHT_GROUP)
 	_world.add_child(light)
 
 
@@ -6023,6 +6165,12 @@ func _extraction() -> void:
 	# Driven host-side for every body rather than from each peer, because the
 	# bag is the host's to grant (`M2-T19`) and a client adding to its own would
 	# be writing a bag it does not own.
+	# **Nothing on this floor is allowed to interrupt the measurement.** See
+	# `_clear_the_floor`: the subject here is a scene change across three peers,
+	# and a Waystone channel is interruptible by design.
+	_clear_the_floor()
+	await _hold(0.5)
+
 	var bodies: Array[Player] = _session.players()
 	var first: bool = true
 	for body: Player in bodies:
@@ -7268,6 +7416,288 @@ func _find_readout(from: Node) -> FallenReadout:
 ## by calling `declare_descent` with what was recorded, which is exactly what
 ## `CoopSession._ready` does on the floor below. The functions under test are the
 ## real ones on both sides — only the scene change is stood in for.
+## **The lantern is a decision, and something reads it** (`M4-T13`, ADR-188).
+##
+## `ART-001` says darkness is a mechanic; `tools/check_dead.py` cannot tell a
+## mechanic from a light that emits photons nobody consults, because it checks
+## **names, not reachability** (ADR-098). So every row below is about the game
+## reaching this code rather than about the code existing — row 2 in particular
+## drives a real `Enemy` through `_can_see` at a real distance, because *"a
+## lantern that emits light nothing reads"* is the exact shape of that bug.
+func _lantern_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var body: Player = _session.local_player()
+	if body == null:
+		problems.append("no body to hand a lantern to — every row below is "
+			+ "about nothing")
+		_report(problems, "lantern")
+		return
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	if lamp == null:
+		problems.append("no `tol_horn_lantern` in the catalogue")
+		_report(problems, "lantern")
+		return
+	var tuning: TuningProfile = Config.tuning
+	body.equipment.equip(ItemInstance.of(lamp, 0))
+
+	# ─ 1. the shutter changes how far away you are seen from ─
+	#
+	# Measured somewhere the floor's own doorway lamps cannot reach, or the row
+	# would be about the room rather than about the lantern.
+	var dark_spot: Vector3 = _away_from_the_lamps()
+	body.teleport(dark_spot, 0.0)
+	body.lit = false
+	await _hold(0.3)
+	var shut_at: float = body.exposure.seen_from()
+	body.lit = true
+	await _hold(0.3)
+	var lit_at: float = body.exposure.seen_from()
+	print("[lantern] seen from      %.1f m shut, %.1f m lit (dark %.1f, lit %.1f)"
+		% [shut_at, lit_at, tuning.enemy_vision_dark, tuning.enemy_vision_range])
+	if lit_at <= shut_at + 0.5:
+		problems.append(("an open lantern is seen from %.1f m and a shut one "
+			+ "from %.1f m — `ART-001` makes light a resource you manage, and "
+			+ "a light that costs nothing is an effect") % [lit_at, shut_at])
+	if lit_at < tuning.enemy_vision_range - 0.1:
+		problems.append(("a lit lantern reaches only %.1f m of the %.1f m an "
+			+ "enemy can see — `LightTrait.glare` is 1.0, so an open shutter "
+			+ "is meant to be total exposure")
+			% [lit_at, tuning.enemy_vision_range])
+	if shut_at > tuning.enemy_vision_dark + 2.0:
+		problems.append(("a shuttered lantern away from every lamp still reads "
+			+ "%.1f m against a %.1f m floor — the darkness is not dark")
+			% [shut_at, tuning.enemy_vision_dark])
+
+	# ─ 1b. **and `glare` is the number that decides it** ─
+	#
+	# Turned down on the held instance, so the row measures the dial rather
+	# than the lamp beside it. Without `Lantern.owns` the body's own light is
+	# counted twice — once at its glare and once at a 0.35 m falloff worth
+	# ~0.97 — and the falloff wins, so a dim light would be as damning as a
+	# bright one and `LightTrait.glare` would be unturndownable.
+	var held: ItemInstance = body.equipment.in_slot(Enums.Slot.OFF_HAND)
+	var dial := held.definition.first_trait(LightTrait) as LightTrait
+	var was_glare: float = dial.glare
+	dial.glare = 0.3
+	await _hold(0.3)
+	var dimmed_at: float = body.exposure.seen_from()
+	dial.glare = was_glare
+	print("[lantern] glare 0.3      seen from %.1f m, full glare was %.1f"
+		% [dimmed_at, lit_at])
+	if dimmed_at >= lit_at - 0.5:
+		problems.append(("turning `glare` down to 0.3 changed nothing (%.1f m "
+			+ "against %.1f) — the bearer's own falloff is overruling the dial, "
+			+ "so what a light costs to carry cannot be authored")
+			% [dimmed_at, lit_at])
+
+	# ─ 2. **and an enemy actually acts on it** ─
+	#
+	# The row that stops all of the above being satisfied by a number nothing
+	# consults. Stood at a distance that is inside the lit range and outside
+	# the dark one, so the *only* thing that can change the answer is light.
+	var between: float = (tuning.enemy_vision_dark + tuning.enemy_vision_range) * 0.5
+	var watcher: Enemy = _an_enemy(body)
+	var post: Vector3 = _a_clear_spot(body, between)
+	if watcher == null or post == Vector3.INF:
+		problems.append(("could not stand an enemy %.1f m from the body with a "
+			+ "clear line of sight — the row that proves anything *reads* the "
+			+ "light did not run, so it must not report a pass") % between)
+	else:
+		# **The exposure settles first, and the enemy is placed second.**
+		#
+		# The first version placed the enemy once and then read it twice with
+		# 0.4 s between. An enemy that has seen you is ALERTED and *walks*, so
+		# by the second read it had left its mark — and the row failed on a
+		# healthy build, blaming the lantern for the pathfinding. Wait for the
+		# thing being measured, then measure it, is `TEC-007` §1's rule; this
+		# is the same fault as timing a telegraph off the wrong event.
+		var saw: Array[bool] = []
+		for burning: bool in [false, true]:
+			body.lit = burning
+			await _hold(0.3)
+			watcher.global_position = post
+			watcher.look_at(Vector3(body.global_position.x, post.y,
+				body.global_position.z), Vector3.UP)
+			await get_tree().physics_frame
+			await get_tree().physics_frame
+			saw.append(watcher.sees_player())
+		var saw_shut: bool = saw[0]
+		var saw_lit: bool = saw[1]
+		print("[lantern] at %.1f m       enemy sees: shut=%s lit=%s (want no, yes)"
+			% [between, saw_shut, saw_lit])
+		if saw_shut:
+			problems.append(("an enemy saw a shuttered body at %.1f m, past the "
+				+ "%.1f m it can see in the dark — nothing is reading exposure")
+				% [between, tuning.enemy_vision_dark])
+		if not saw_lit:
+			problems.append(("an enemy did not see a lit body at %.1f m, inside "
+				+ "the %.1f m it can see a lit one from — the lantern lights "
+				+ "pixels and gives nothing away")
+				% [between, tuning.enemy_vision_range])
+
+	# ─ 3. the shutter cannot be strobed ─
+	body.teleport(dark_spot, 0.0)
+	var first: bool = body.try_shutter()
+	var second: bool = body.try_shutter()
+	print("[lantern] shutter twice  %s then %s (want yes, no)" % [first, second])
+	if not first:
+		problems.append("the shutter refused to move at all")
+	if second:
+		problems.append(("the shutter worked twice in one frame — a player can "
+			+ "strobe the lamp for vision at no exposure, which deletes the "
+			+ "trade the whole item is"))
+
+	# ─ 4. a lantern that leaves the hand goes out ─
+	body.lit = true
+	body.equipment.unequip(Enums.Slot.OFF_HAND)
+	await _hold(0.3)
+	print("[lantern] hand emptied   lit=%s, seen from %.1f m (want false, %.1f)"
+		% [body.lit, body.exposure.seen_from(), tuning.enemy_vision_dark])
+	if body.lit:
+		problems.append("the flag survived the lantern leaving the hand, so "
+			+ "the next light picked up arrives already burning")
+	if body.exposure.seen_from() > tuning.enemy_vision_dark + 2.0:
+		problems.append(("a body with an empty off hand is still lit at %.1f m "
+			+ "— the lamp outlived the item") % body.exposure.seen_from())
+
+	# ─ 5. **a light you are not carrying still gives you away** ─
+	#
+	# This is the co-op rule and the doorway rule at once (`DES-012`,
+	# `M2-T13`): a teammate's lantern and a door lamp are the same thing to
+	# `Exposure`, which is what makes four lanterns a floodlight with no co-op
+	# branch anywhere.
+	var borrowed := OmniLight3D.new()
+	borrowed.omni_range = 8.0
+	borrowed.light_energy = 1.5
+	borrowed.add_to_group(Lantern.LIGHT_GROUP)
+	_world.add_child(borrowed)
+	borrowed.global_position = body.global_position + Vector3(1.5, 1.1, 0.0)
+	await _hold(0.3)
+	var borrowed_at: float = body.exposure.seen_from()
+	print("[lantern] a lamp nearby  seen from %.1f m, was %.1f"
+		% [borrowed_at, shut_at])
+	if borrowed_at <= shut_at + 0.5:
+		problems.append(("standing beside a lamp somebody else is holding "
+			+ "changed nothing (%.1f m) — `DES-012`'s four lanterns are not a "
+			+ "floodlight, and a lit doorway is not terrain") % borrowed_at)
+
+	# ─ 6. and light does not pass through rock ─
+	var behind: Vector3 = _through_the_nearest_wall(body.global_position)
+	if behind == Vector3.INF:
+		problems.append("found no wall to put a lamp behind — the row that "
+			+ "proves light is blocked did not run")
+	else:
+		borrowed.global_position = behind
+		await _hold(0.3)
+		var walled_at: float = body.exposure.seen_from()
+		print("[lantern] lamp in rock   seen from %.1f m (want %.1f)"
+			% [walled_at, shut_at])
+		if walled_at > shut_at + 0.5:
+			problems.append(("a lamp on the far side of a wall lit the body to "
+				+ "%.1f m — light does not round a corner the way noise does, "
+				+ "and a body lit through rock is the game visibly cheating")
+				% walled_at)
+	borrowed.queue_free()
+
+	_report(problems, "lantern")
+
+
+## The darkest place on this floor a body can actually stand.
+##
+## **Searched over real floor space, not over the generator's anchors.** The
+## first version picked the furthest of `spawns + prize + shaft`, and every one
+## of those is a room the generator chose — which is to say a room with a
+## doorway lamp in it. It returned the Prize at every ambient value, the lamp
+## beside it dominated `Exposure`, and the sweep's printed distance came out
+## non-monotonic while claiming to measure the dark.
+##
+## The clamor field's grid is reused because it is already laid over exactly
+## this floor's footprint at exactly the resolution this needs, and building a
+## second grid to answer a question the first one is already shaped for is the
+## parallel path ADR-064 rules out.
+func _away_from_the_lamps() -> Vector3:
+	var lamps: Array[Node] = get_tree().get_nodes_in_group(DOOR_LIGHT_GROUP)
+	var best: Vector3 = _floor.prize()
+	var furthest: float = -INF
+	if _field == null:
+		return best
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for y: int in range(_field.height()):
+		for x: int in range(_field.width()):
+			var centre: Vector3 = _field.cell_centre(x, y)
+			# Standable: floor beneath, and open at chest height. Without the
+			# second test this happily returns a point inside solid rock, which
+			# is the darkest place on any floor and no use to anybody.
+			var down := PhysicsRayQueryParameters3D.create(
+				centre + Vector3.UP * 2.0, centre - Vector3.UP * 2.0)
+			down.collision_mask = CollisionLayers.WORLD
+			var ground: Dictionary = space.intersect_ray(down)
+			if ground.is_empty():
+				continue
+			var stand: Vector3 = ground["position"] as Vector3
+			var chest := PhysicsRayQueryParameters3D.create(
+				stand + Vector3.UP * 0.3, stand + Vector3.UP * 1.6)
+			chest.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(chest).is_empty():
+				continue
+			var nearest: float = INF
+			for node: Node in lamps:
+				nearest = minf(nearest,
+					stand.distance_to((node as Node3D).global_position))
+			if nearest > furthest:
+				furthest = nearest
+				best = stand + Vector3.UP * 0.1
+	print("[light] darkest stand  %.1f m from the nearest of %d lamp(s)"
+		% [furthest, lamps.size()])
+	return best
+
+
+## Any enemy on the floor, or null.
+func _an_enemy(_body: Player) -> Enemy:
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var found := node as Enemy
+		if found != null:
+			return found
+	return null
+
+
+## Somewhere `metres` from `body` with a clear line of sight to it, or
+## `Vector3.INF`. **INF rather than a best effort**: a row measuring sight
+## through a wall would report the lantern failing when the geometry is what
+## failed, and that is a finding-shaped wrong answer.
+func _a_clear_spot(body: Player, metres: float) -> Vector3:
+	var eye: Vector3 = body.global_position + Vector3.UP * 0.9
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for step: int in range(24):
+		var angle: float = TAU * float(step) / 24.0
+		var at: Vector3 = body.global_position + Vector3(
+			cos(angle) * metres, 0.0, sin(angle) * metres)
+		var query := PhysicsRayQueryParameters3D.create(eye, at + Vector3.UP * 1.4)
+		query.collision_mask = CollisionLayers.WORLD
+		if not space.intersect_ray(query).is_empty():
+			continue
+		return at
+	return Vector3.INF
+
+
+## A point a metre inside the nearest wall, or `Vector3.INF` if this body is
+## standing somewhere with no wall within 12 m.
+func _through_the_nearest_wall(from: Vector3) -> Vector3:
+	var eye: Vector3 = from + Vector3.UP * 1.1
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for step: int in range(16):
+		var angle: float = TAU * float(step) / 16.0
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var query := PhysicsRayQueryParameters3D.create(
+			eye, eye + direction * 12.0)
+		query.collision_mask = CollisionLayers.WORLD
+		var hit: Dictionary = space.intersect_ray(query)
+		if hit.is_empty():
+			continue
+		return (hit["position"] as Vector3) + direction * 1.0
+	return Vector3.INF
+
+
 func _descent_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 

@@ -138,6 +138,12 @@ const MOTION_PROPERTIES: Dictionary = {
 	".:grounded": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# Idles the same way: a guard is up or it is not (`M3-T02`).
 	".:blocking": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **The shutter** (`M4-T13`, ADR-188). Owner-driven for `blocking`'s exact
+	# reason: the player at the keyboard decides to work it, and the *host*
+	# decides what its enemies can see — so a shutter that never reached the
+	# host would darken the room on one screen and give nothing away on the one
+	# where sight is resolved. It idles hard; a lantern is open or it is not.
+	".:lit": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# `ALWAYS`, unlike the two above: it moves continuously while it matters,
 	# and what it drives is a collision layer every other peer's enemies have
 	# to agree about. ADR-068 measured `ON_CHANGE` costing *more* for a value
@@ -152,6 +158,12 @@ const STATE_PROPERTIES: Dictionary = {
 	"Health:current": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	"CarriedWeight:kilograms": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	"ClamorSource:level": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **How lit you are** (`M4-T13`), directly beside how loud you are, because
+	# they are the same kind of fact: a host-computed consequence of where you
+	# are standing and what you are carrying, which something else is about to
+	# read to decide whether it has noticed you. `Exposure`'s header argues why
+	# this is `ClamorSource`'s twin rather than `ClamorField`'s.
+	"Exposure:level": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# The bleed-out window and the revive (`M2-T05`). `ALWAYS` for both: they
 	# move continuously the whole time they matter, and they are what a teammate
 	# deciding whether to come for you is reading. ADR-068 measured `ON_CHANGE`
@@ -285,6 +297,28 @@ var planted: float = 0.0
 ## teammate who watched you block and then watched you take it in full is the
 ## unexplainable death `PRO-005` §5 forbids, arriving over the wire.
 var blocking: bool = false
+
+## **Is the shutter open** (`M4-T13`, `ART-001`, ADR-188).
+##
+## The one input in the game whose whole content is *see, or be unseen.* False
+## on every fresh body and false again the moment the lantern leaves the off
+## hand, so a light can never burn on a body that is not holding one.
+##
+## Replicated, and the setter runs on every peer — which is what puts a
+## teammate's lamp on your screen and, more importantly, puts it in front of
+## the host's enemies. `Exposure` reads the lamp, never this flag: one owner
+## for the derivation, so the light somebody sees and the light that gives them
+## away cannot disagree (ADR-187).
+var lit: bool = false:
+	set(value):
+		lit = value
+		if is_node_ready():
+			lantern.show_flame(lit)
+
+## Seconds until the shutter can be worked again. Local to the owning peer and
+## deliberately not replicated: it gates an input, and inputs are only ever
+## produced on the machine holding the keyboard.
+var _shutter_cooling: float = 0.0
 
 var _yaw: float = 0.0
 var _pitch: float = 0.0
@@ -425,6 +459,13 @@ var _crumb_due: float = 0.0
 ## decision you only get to make once.
 var _recall_spent: bool = false
 @onready var clamor: ClamorSource = $ClamorSource
+## The light in the off hand, or an empty holder (`M4-T13`). In the scene rather
+## than built in code, unlike `equipment`: `Exposure:level` is a replicated
+## property path, and a node that arrives after `configure_replication` is a
+## path the synchroniser resolves to nothing.
+@onready var lantern: Lantern = $Lantern
+## How lit this body is, host-computed. `Enemy._can_see` reads it.
+@onready var exposure: Exposure = $Exposure
 @onready var _hurtbox: Hurtbox = $Hurtbox
 @onready var _ink: InkPass = $Head/Camera3D/InkPass
 
@@ -529,6 +570,10 @@ func _ready() -> void:
 	health.died.connect(_on_health_emptied)
 	weapon.swing_started.connect(_on_swing_started)
 	weapon.connected.connect(_on_swing_connected)
+	# Before `_redress()`, which equips the class kit and therefore lights the
+	# lamp: a body that learned about its own lantern afterwards would measure
+	# its first exposure against a light it did not know it was holding.
+	exposure.watch(lantern)
 	equipment = Equipment.new()
 	equipment.name = "Equipment"
 	add_child(equipment)
@@ -691,6 +736,17 @@ func _unhandled_input(event: InputEvent) -> void:
 			ask_to_self_recover()
 		else:
 			ask_to_spend_waystone()
+	elif event.is_action_pressed("shutter") and _driving and not is_incapacitated():
+		# **See, or be unseen** (`M4-T13`, ADR-188) — the verb that makes a
+		# lantern a decision instead of a brightness setting.
+		#
+		# The cooldown is the whole reason this is not free. Without it the
+		# optimal play is to strobe the lamp — a frame of light to read the
+		# room, dark again before anything resolves sight — which would buy
+		# vision at no exposure and quietly delete the trade. It is short
+		# enough to be a reflex and long enough that flicking it is a
+		# commitment you can regret, which is principle 3.
+		try_shutter()
 	elif (event.is_action_pressed("interact") and _driving and _bag <= 0.0
 			and not is_incapacitated()):
 		_tell_host_reviving(true)
@@ -1536,6 +1592,22 @@ func _handling_clamor(definition: ItemResource) -> float:
 	return Config.tuning.clamor_rummage + definition.clamor
 
 
+## Work the shutter, if there is one and it is not still cooling. Returns
+## whether it actually moved.
+##
+## A named function rather than three lines inside `_unhandled_input`, because
+## the refusal is the interesting half and an `InputEvent` is a miserable thing
+## to construct in a probe — `--lantern-probe` asserts that the *second* call
+## in a row is refused, which is the only thing standing between the design and
+## a player strobing the lamp for free vision.
+func try_shutter() -> bool:
+	if not lantern.held() or _shutter_cooling > 0.0:
+		return false
+	_shutter_cooling = lantern.shutter_seconds()
+	lit = not lit
+	return true
+
+
 ## True while the bag is open at all — the weapon and the sprint both refuse.
 func bag_is_open() -> bool:
 	return _bag > 0.0
@@ -1725,6 +1797,7 @@ func _physics_process(delta: float) -> void:
 		ranged.advance(delta)
 
 	if _is_local:
+		_shutter_cooling = maxf(0.0, _shutter_cooling - delta)
 		_update_bag(delta)
 		_update_reach()
 		_drive(delta, tuning)
@@ -2184,6 +2257,21 @@ func _on_equipment_changed() -> void:
 			ranged.cancel()
 		ranged.equip(drawn)
 		ranged.visible = drawn != null
+	# **The off hand, which is the contested one** (`M4-T13`, `DES-020`). A
+	# two-hander clears `OFF_HAND` inside `Equipment.equip`, so drawing the bow
+	# puts the lantern in the bag and this line puts it out — which is `DES-020`
+	# working as written (*"no lantern, no shield, no map without stowing"*)
+	# rather than a case anything here has to special-case.
+	var carried_light := equipment.trait_in(
+		Enums.Slot.OFF_HAND, LightTrait) as LightTrait
+	lantern.carry(carried_light)
+	# Never a flame with nothing to hold it. Without this the flag survives the
+	# lantern leaving the hand, and the next light picked up arrives already
+	# burning — a lamp the player never opened, giving them away.
+	if carried_light == null:
+		lit = false
+	else:
+		lantern.show_flame(lit)
 	# **The bag is a piece of gear** (`DES-020`). A wider frame is more room and
 	# more weight and more Clamor, which is Pillar P1 expressed as equipment —
 	# and it is why the grid is asked for here rather than read once at spawn.

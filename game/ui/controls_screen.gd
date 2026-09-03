@@ -87,6 +87,16 @@ const GROUPS: Array = [
 		["Turn an item in the bag", "turn", ["rotate_item"]],
 		["Throw — bait the Hunter", "throw", ["throw"]],
 	]],
+	# **A group of its own, and that is the point** (`M4-T13`, `ART-001`).
+	#
+	# The shutter could have been filed under CARRYING — a lantern is a thing
+	# you carry — and it would have read as bag management. Darkness is a
+	# mechanic here, and a player scanning this list for what the game is about
+	# should find *seeing* named as one of its verbs rather than buried among
+	# the ways to move an item between squares.
+	["SEEING", [
+		["Open or shutter the lantern", "shutter", ["shutter"]],
+	]],
 	["LEAVING", [
 		["Spend a Waystone", "waystone", ["use_waystone"]],
 	]],

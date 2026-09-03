@@ -4,7 +4,7 @@ title: Data Schemas
 status: accepted
 owner: tech
 tags: [data, resources, godot, tres, schema, tooling]
-updated: 2026-08-17
+updated: 2026-09-03
 related: [TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007]
 ---
 
@@ -60,7 +60,7 @@ class_name ItemResource extends Resource
 |---|---|
 | `WieldableTrait` | damage type, arc, wind-up/active/recovery timings, stamina cost, Clamor per swing |
 | `WearableTrait` | slot, armour class (unarmoured / mailed / plated), encumbrance |
-| `LightTrait` | radius, colour, fuel, whether it can be dropped lit |
+| `LightTrait` | radius, energy, colour, **glare**, shutter cooldown. **Built at `M4-T13`** (ADR-188), third of the seven. `radius` is what you get and `glare` is what it costs, and the design lives in the gap: the lamp advertises you further than it lets you see. **`fuel` and `drop lit` are not built** — absent, not stubbed: `DES-022` charges risk rather than time, and a lantern left burning is a decoy that is only interesting once something navigates light, which nothing does |
 | `ConsumableTrait` | effect tag, use time, whether usable in combat |
 | `CursedTrait` | curse tag, what triggers it, whether it can be dropped |
 | `ExtractionTrait` | Waystone behaviour — cap of one, not tributable (ADR-015). **Built at `M2-T04`**, second of the seven, and for the same reason `WieldableTrait` was: its system now exists. `Inventory` enforces the cap rather than trusting loot never to offer a second — `M4-T01`'s tables are generated, and generated things offer seconds |
@@ -166,7 +166,9 @@ The greed gradient (`DES-008`) is a `Curve`, so it is tunable in the editor with
 game/data/items/…   enemies/…   skills/…   contracts/…   loot/…   biomes/…
 ```
 
-**ID prefixes:** `wpn_` `arm_` `con_` `glt_` `rlc_` `mat_` · `enm_` `mod_` · `skl_` `rit_` · `ctr_` `cmp_` · `lut_`
+**ID prefixes:** `wpn_` `arm_` `con_` `glt_` `rlc_` `mat_` `tol_` · `enm_` `mod_` · `skl_` `rit_` · `ctr_` `cmp_` · `lut_`
+
+> `tol_` (tools) joined at `M4-T13` for the lantern (ADR-188). `DES-008`'s gear category reads *"weapons, armour, **tools**"* and the first two already had a prefix; a lantern under `con_` would claim it is spent by using it, and under `arm_` that it is worn. Enforced by `ItemResource.PREFIXES`.
 
 **Enums live in one autoload-free `Enums.gd`** with `class_name`, so resources and systems share definitions without a dependency tangle.
 

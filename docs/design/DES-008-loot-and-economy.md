@@ -4,7 +4,7 @@ title: Loot, Gear & Economy
 status: accepted
 owner: design
 tags: [loot, economy, items, balance, greed, gear]
-updated: 2026-08-14
+updated: 2026-09-03
 related: [DES-003, DES-004, DES-005]
 ---
 
@@ -55,6 +55,8 @@ Instead, gear is **sidegrades with pronounced identity** (Barony and *Noita* bot
 - A spear outranges everything and is useless in a corridor.
 - A hammer breaks shields, doors, and walls, and is slow enough to get you killed.
 - A lantern is a weapon slot you gave up to see.
+
+> **BUILT (ADR-188, `M4-T13`):** `tol_horn_lantern`, off hand, and the sidegrade is sharper than the line above suggests — **it is a slot you gave up in exchange for being seen.** Open, you are visible at the full 16 m an enemy can see; shuttered and away from any lamp, 6.7 m ⟨tune⟩. You see about 11 m either way, so **a lit player is seen five metres before they can see.** No fuel: `DES-022` charges risk, not time, and the shutter is what stops *"always on"* being the only correct play.
 
 Better gear = **more options and better condition**, not bigger numbers. A veteran is dangerous because they know a hammer opens that wall, not because their sword does 340 damage.
 

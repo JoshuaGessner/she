@@ -357,7 +357,10 @@ func _nearest_visible_player(tuning: TuningProfile) -> Node3D:
 	var best: Node3D = null
 	var nearest: float = INF
 	for node: Node in get_tree().get_nodes_in_group("player"):
-		var candidate := node as Node3D
+		# `Player` rather than `Node3D` since `M4-T13`: sight now reads the
+		# body's own `Exposure`, so the type the loop already relies on
+		# `_worth_fighting` to guarantee is stated where it is established.
+		var candidate := node as Player
 		if candidate == null or not _worth_fighting(candidate):
 			continue
 		if not _can_see(candidate, tuning):
@@ -400,10 +403,23 @@ func _listen(delta: float, tuning: TuningProfile) -> void:
 		_state = State.SUSPICIOUS
 
 
-func _can_see(player: Node3D, tuning: TuningProfile) -> bool:
+## **Typed `Player`, not `Node3D`** (`M4-T13`). Its only caller has already run
+## `_worth_fighting`, which is a cast to `Player` — so a null check here would
+## be a branch that cannot run, quietly holding a copy of the pre-lantern sight
+## rule for the day it did. The signature is the assertion.
+func _can_see(player: Player, tuning: TuningProfile) -> bool:
 	var eye: Vector3 = _eyes.global_position
 	var to_player: Vector3 = player.global_position + Vector3.UP * 0.9 - eye
-	if to_player.length() > tuning.enemy_vision_range:
+	# **How far you are seen from is how lit you are** (`M4-T13`, `ART-001`,
+	# ADR-188). Not a constant since the lantern landed: `Exposure.seen_from()`
+	# interpolates `enemy_vision_dark`→`enemy_vision_range` on the light
+	# actually falling on that body, so an open shutter is a decision with a
+	# price and darkness is somewhere to hide rather than a colour grade.
+	#
+	# Asked of the body, not of this enemy: exposure is a property of the thing
+	# being looked at, computed once per body per tick, rather than a term every
+	# one of 150 agents recomputes about everybody else.
+	if to_player.length() > player.exposure.seen_from():
 		return false
 	var flat: Vector3 = Vector3(to_player.x, 0.0, to_player.z).normalized()
 	if flat.dot(facing()) < cos(deg_to_rad(tuning.enemy_vision_half_angle)):

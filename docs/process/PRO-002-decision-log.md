@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-01
+updated: 2026-09-03
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -5969,6 +5969,126 @@ Measured on two consecutive real descents, seeds 2661306861 and 2130218600, both
 
 - **Moving every probe to the Delvings** — the honest option, and a couple of days: four probes are about six rooms and twelve doors and would need rethinking rather than editing. Revisit when the Deep's checks start disagreeing with the game.
 - **Keeping `--delvings` as the switch** — unreachable by playing, which is the whole defect.
+
+---
+
+## ADR-188 — The lantern, and darkness as something you spend
+
+**Date:** 2026-09-03 · **Status:** accepted · **`M4-T13`** · **Amends `DES-009`, `DES-008`, `DES-018`, `DES-020`, `ART-001`, `TEC-006`**
+
+**Context:** `ART-001` has said since the design lock that **darkness is a mechanic, not an effect**, `DES-008` spends a weapon slot on a lantern, and `ART-005` builds an entire visual direction on the sentence *"your lantern does not illuminate, it draws."* **No task built one, in any milestone.** `M2-T13` lit the floor as far as it can be lit without a light source, and the ambient energy stood at 0.34 under a comment promising it would drop *"when the lantern lands."* Meanwhile `Enemy._can_see` was range, cone and line of sight — **no light term anywhere** — so *"carrying a lantern makes you visible"* was a design document describing a build that did not do it.
+
+### Decision 1 — light is `ClamorSource`'s twin, not `ClamorField`'s
+
+`DES-009` says light should be *"built on the same Clamor field the Hunt uses — one system, two consumers, which is the right kind of economy."* **The economy is right and the layer is wrong**, and the codebase already draws the distinction that settles it (ADR-073):
+
+| | Answers |
+|---|---|
+| `ClamorSource.audible_at()` | *can that enemy hear me **right now*** |
+| `ClamorField` | *where in the level was noise, and **how long ago*** |
+
+**The field is a memory of events.** Its entire justification is that the Hunter does not know where you are — it knows where noise *was*, which is what makes shaking it real rather than performative. **Light has no past tense.** A lantern is a state attached to a moving body: it either reaches you from where it is now, or it does not.
+
+Put light in the field and you get a luminous trail the player left five seconds ago that enemies still walk toward. Decay it fast enough to fix that, and you have built a diffusing grid whose values only ever describe the current frame — a per-body query wearing a field's costume, paying a blur over the whole floor for the privilege.
+
+So light enters at `ClamorSource`'s layer instead, as a new **`Exposure`** component. Both are per-body, instantaneous, occlusion-tested, host-authored and replicated `ON_CHANGE`; one is read by ears and one by eyes. `DES-018`'s rule that *every audio channel has a visual twin* turns out to be true of the **systems** and not only of the feedback.
+
+**Where they genuinely differ is the one line that had to be written twice.** `ClamorSource.reach()` spends an occluder budget so sound rounds a corner and dies through a wall; `Exposure._reaches()` is a single ray, because a lamp behind a wall contributes exactly nothing. That is the physics that made one structure for both dishonest, stated as two functions of four lines each.
+
+`DES-009` §Stealth is amended accordingly.
+
+### Decision 2 — no fuel
+
+Nothing in any document says the lantern burns down, and it stays that way.
+
+- `DES-022` requires power to cost **risk, not time**, and a burn-down clock is time.
+- `DES-005` deliberately refuses a hard timer; the Hunt is the pressure, and `DES-019` reserves exactly one HUD element for urgency. A second clock competes with the first for the channel that carries it.
+- Principle 4 — *"I ran out of oil"* is a worse sentence than *"I was lit up and it found me."*
+
+**Reference:** Darkest Dungeon's torch is the canonical case *for* fuel and it works because that game **is** its light meter — an explicit gauge driving encounter tables, in a party-management resource game. Amnesia's tinderbox works because darkness costs sanity, a second resource. We have the Hunt doing that job and no second resource. What stops *"lantern always on"* is Decision 3, not an oil economy.
+
+### Decision 3 — the verb is turning it **off**, and the cooldown is what makes it honest
+
+A shutter is a decision every few seconds — *see, or be unseen* — in one input, with no economy behind it. Principle 3 in a keypress.
+
+**It is not a free swap by another name.** ADR-057 made off-hand swapping slow and interruptible precisely so a shield and a light cannot both be carried and flicked between. The shutter does not change **which** thing is in your hand; it changes what that thing is **doing**, and it buys darkness rather than a shield. The off hand stays spent either way.
+
+**What the off hand is contested by today is a two-hander, not a shield.** There is no shield item in the corpus, so `DES-020`'s *"a player with a shield is blind in the dark"* still describes a trade nothing can make; the real contest is the Veiðimaðr's yew bow against a lamp. `DES-020` is amended to say so rather than to claim a measurement it did not get, and the shield arrives with `M4-T17`'s taxonomy.
+
+**The cooldown is load-bearing and was not in the first draft.** Without it the optimal play is to strobe the lamp — a frame of light to read the room, dark again before anything resolves sight — which buys vision at no exposure and deletes the trade the whole item is. `shutter_seconds` ⟨tune⟩ is therefore how long before you can work it *again*, not an animation length.
+
+### Decision 4 — what light buys you, measured
+
+| | Seen from | You see |
+|---|---|---|
+| **Shutter open** | **16.0 m** — the full `enemy_vision_range` | ~11 m of drawn room |
+| **Shutter shut, away from every lamp** | **6.7 m** | almost nothing |
+
+**A lit player is seen five metres before they can see.** That asymmetry is the cost, and it is deliberate: the lantern advertises you further than it lets you look.
+
+`ART-001` asks for enemy silhouettes at 20 m, and **the lantern does not deliver that, correctly.** `ART-005` already owns the answer — *"enemies and loot always outline, at full weight, regardless of distance ⟨tune⟩; if the shader ever makes a threat harder to see, the shader is wrong."* Threat legibility belongs to the ink pass at `M4-T08`, not to the reach of a lamp. Making the lantern reach 20 m would light you up further than the thing hunting you can see, which is the opposite of the mechanic.
+
+### Decision 5 — how dark is dark: **0.12**, and the number was never doing the job it was blamed for
+
+`PRO-001` names lowering the ambient as the point of this task. `--light-shot` was built to answer it — the same view, four ambient values, shutter open and shut, eight images of a real generated floor — and the finding corrects the brief:
+
+**The ambient energy was never what made the floor navigable. The doorway lamps were.** At the darkest standable point on seed 31346 floor 1 — 20.3 m from the nearest of thirty lamps — the floor is near-black at **0.34** and at **0.06** alike; the ambient term barely registers on dark stone at that distance. Near a doorway lamp, geometry stays fully readable at 0.12.
+
+So the drop from 0.34 to 0.12 changes what a player can *see* very little, and changes what an enemy can see a great deal — the exposure floor falls from 9.7 m to 6.7 m. That is the correct trade and it is the opposite of what the task expected to find.
+
+`DES-018` keeps its veto and keeps it satisfied: **you can cross a floor with the shutter shut by moving between the lamps**, which makes `M2-T13`'s doorway lights terrain rather than decoration, and gives an unlit crossing a real shape — slower, blinder, and much harder to see.
+
+### Decision 6 — the two halves of one fact now live in one place
+
+The ambient energy moved from `RoomSet.AMBIENT_ENERGY` into `TuningProfile.floor_ambient_energy`, **directly beside `exposure_ambient`**. They are one fact seen two ways — what your eye gets, and what an enemy gets — and they were in different files with nothing tying them together. A floor darkened without its partner would look black and still get you spotted at the same distance: the worst possible outcome, and one that would have read as the lantern not working. They cannot be derived from one another, so what `validate()` enforces is that they were not tuned in opposite directions.
+
+The first `--light-shot` demonstrated the hazard immediately, by sweeping one and holding the other still.
+
+### Decision 7 — co-op is free, because a teammate's lamp and a doorway lamp are the same thing
+
+`Exposure` takes the **maximum** over every light that can reach you, and door lights join the same group a carried lantern does. So four players with four open shutters are a floodlight, one player carrying the light for the party is a formation, and a lit doorway is somewhere you are visible standing — all with **no co-op branch anywhere**. `DES-012` gets its answer out of the data structure rather than out of a rule.
+
+A maximum, not a sum: two lamps do not make you twice as visible, and summing would let a corridor of dim lamps quietly exceed a lantern held to your face.
+
+### Rejected
+
+- **Light in the Clamor field**, as `DES-009` specified — Decision 1. One structure serving two different physics, for tidiness.
+- **Fuel** — Decision 2. A second clock beside the Hunt.
+- **Putting exposure on the Ear** — the Ear's contract is that it renders *the same `HuntMix` object* the score is driven by, and `--ear-probe` fails if a mix channel exists that nothing draws. Light is not in the audio mix, so this would mean inventing a mix channel to justify a HUD element, and it would break the Ear's *cause inside / effect outside* split. **The lamp is its own readout** — `DES-019` rule 6, diegetic where free — and the verb is taught in `ControlsScreen` like every other binding.
+- **A `LightTrait.fuel` and `drop_lit` field, per `TEC-006`'s row** — absent rather than stubbed (ADR-064). A lantern left burning in a doorway is a decoy, and a decoy is only interesting once something navigates light. Nothing does; the Gullsjúkr reads clamor. It becomes buildable when it becomes a decision.
+- **Giving the Veiðimaðr a lantern** — the yew bow is two-handed, so `DES-020`'s own rule (*"no lantern, no shield, no map without stowing"*) makes the kit impossible. Left as it is, and it is the better design: the Húskarl walks lit and loud, the archer descends dark and chooses bow **or** lamp. Two classes, opposite relationships to light, out of a rule already accepted.
+
+### What this found on the way
+
+**`ClassResource.kit` had no validator, and its own comment said it did** — *"an id nothing knows fails `validate()` rather than silently arming somebody with nothing."* Nothing checked it. `_dress_the_body` equips a kit in array order and `Equipment.equip` **discards** what conflicts, so a lantern added to the Veiðimaðr would have spawned a bow-less archer holding a lamp, with no error. Four rules now live in `data_probe.gd`, all four planted: the id resolves, it occupies a slot, one item per slot, and no two-hander beside an off-hand item. ADR-098's question asked of a promise instead of a function.
+
+**The controls-coverage probe caught the new binding before a person did.** `shutter` was in the input map and taught nowhere, and `_controls_probe` failed on it unprompted — the check working exactly as ADR-139 intended.
+
+**The pad had no free button**, so `shutter` took `DPAD_LEFT` and `debug_reset` moved to `START`. That is ADR-137's argument applied a second time rather than a new one: *a debug toggle does not get to hold prime real estate while a gameplay verb goes unbound.* The full layout pass is still `M4-T06`.
+
+**And `--light-shot`'s first two findings were about `--light-shot`** — the fourth and fifth time this milestone. It let the body drift toward a lamp between exposures, so the 0.12 image came out *brighter* than the 0.34 one; and it derived each step's exposure from the previous step's mutated value rather than the baseline, so the sweep compounded 0.15 → 0.43 → 0.71 while reporting a floor going dark. Both produced plausible numbers. `TEC-007` §1's rule about assertions built from convenient existing values, arriving in a measurement instead of an assertion.
+
+**`glare` was almost a field that could not be turned down.** The bearer's lamp has to sit in the shared light group so *teammates* are lit by it — and that meant it was counted twice for its own carrier, once at `glare` and once at a 0.35 m falloff worth ~0.97. At `glare = 1.0` the two agree and nothing shows. A designer authoring a dim candle at 0.3 would have got 0.97 anyway, with no way to find out why. `Lantern.owns()` excludes it from the walk, and the row that catches it turns the dial down mid-probe rather than trusting the shipped value — because a row written against `glare = 1.0` would have passed against the broken build.
+
+**And the sight row failed on a healthy build before it worked.** It placed the enemy once and read it twice with 0.4 s between; an enemy that has seen you is ALERTED and *walks*, so by the second read it had left its mark and the row blamed the lantern for the pathfinding. It now settles the exposure first and places the enemy second. Wait for the thing you are about to measure, not something that arrives near it.
+
+**The lantern was gold, and `--sight-probe` refused it.** `ART-005` spends the game's only saturated hue on *"treasure, your ember, her fire"*, and a lantern filed itself under **fire** — warm amber, `Color(1.0, 0.78, 0.42)`. The check caught it on the first full sweep, and it is right for a reason larger than the letter of the rule: **a lantern lights the whole room.** A warm sconce tints one corner; a warm lantern tints everything you can see, everywhere you go, for the entire run. Gold means *this will get you killed*, and a gold lamp says it about every wall in the Delvings.
+
+`ART-005` had already answered it, in the sentence the whole item exists to serve: the Deep is *"pale bone-white ink, appearing only in lantern reach."* **The lamp is the thing doing the drawing, so it is the colour of the ink** — `Color(0.91, 0.90, 0.89)`, kept clear of `GOLD_MARGIN` rather than tuned up against it, and still warmer than the cold `PALE` of a doorway lamp so a carried light reads as a different kind of thing.
+
+Worth recording because it is the one time today the check was right and the code was wrong, against a day of the reverse — and because the failure mode it prevented is invisible: nothing about a nice-looking amber light announces that it has spent the palette's entire budget.
+
+**And changing how far a body is seen from broke a co-op check that had nothing to do with light.**
+
+`run_doorway.py`'s extraction scenario stands three bodies still for a 1.1 s Waystone channel each. `DES-005` makes that channel *"a moment you can be interrupted in"*, and being downed silently zeroes it (`_go_down` cancels whatever you were doing, correctly). So the check has always asserted **three consecutive uninterrupted channels on a floor with live enemies on it** — something the design explicitly refuses to guarantee. It passed on luck.
+
+`M4-T13` changed enemy sight and the luck ran out: four runs in a row, an enemy reached the first client mid-channel and the scenario stranded the party. It cost most of a day, and almost all of that was spent looking for a networking fault, because the symptom — `ERR_UNAUTHORIZED`, *"the camp cannot find the body"*, a haul arriving as zero — reads exactly like broken replication. **The lantern did not break extraction.** It perturbed a check whose subject is a scene change across three peers and whose outcome depended on enemy pathing.
+
+`_clear_the_floor()` takes the threats off before the measurement, and says why in its header. A check that can go red for a reason unrelated to its own claim is worse than no check, because the next person to see it red spends the day I spent.
+
+Two lessons worth keeping, both already in `TEC-007` §1 and both re-learned at full price: **the check can be wrong instead of the code, and it usually looks right when it is** — and a green suite is only evidence about the thing each check actually controls for.
+
+Seven probe rows in `--lantern-probe`, each planted against a deliberately broken build and each caught; four more in `data_probe.gd`, likewise.
 
 ---
 

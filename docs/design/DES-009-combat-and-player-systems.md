@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-08-25
+updated: 2026-09-03
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -223,6 +223,12 @@ Grounded and physical. Walk / sprint / crouch, mantling, ledge-hanging, real fal
 Not a stealth game, but avoidance must be genuinely viable or the thesis is a lie.
 
 Built on **the same Clamor field the Hunt uses** (`TEC-001`) — one system, two consumers, which is the right kind of economy. Light matters as much as sound: carrying a lantern makes you visible, and darkness is a resource you spend by lighting it.
+
+> **AMENDED (ADR-188): the economy was right and the layer was wrong.** Light is `ClamorSource`'s twin, **not** `ClamorField`'s. The field is a *memory of events* — its whole justification is that the Hunter knows where noise **was**, not where you are — and **light has no past tense.** A lantern is a state attached to a moving body, and putting it in the field produces a luminous trail the player left five seconds ago that enemies still walk toward.
+>
+> So light lives at the per-body layer as **`Exposure`**: instantaneous, occlusion-tested, host-authored, replicated `ON_CHANGE` — everything `ClamorSource` already is. One is read by ears, one by eyes, and `DES-018`'s *every audio channel has a visual twin* turns out to describe the systems as well as the feedback. The rest of the paragraph above stands exactly as written and is now true of the build.
+>
+> `Enemy._can_see` scales its range from `enemy_vision_dark` to `enemy_vision_range` on that value: **16.0 m lit, 6.7 m shuttered in the dark** ⟨tune⟩. Carrying a light is measured, not asserted.
 
 **No stealth meter, no cones on a minimap.** Diegetic feedback only: enemies visibly pause, turn, investigate, call out. The player learns the system by watching it behave.
 

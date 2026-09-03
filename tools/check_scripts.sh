@@ -425,6 +425,27 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Darkness is a mechanic** (`M4-T13`, ADR-188, `ART-001`).
+	#
+	# Six rows, and the second is the one that matters: an enemy standing at a
+	# distance *between* the lit and dark sight ranges must see a lit body and
+	# not a shuttered one. Everything else here could be satisfied by a lamp
+	# emitting photons nothing reads — which is precisely the shape ADR-098
+	# keeps finding, and `check_dead.py` cannot see it because the names are
+	# all alive.
+	#
+	# Run on a generated floor rather than the Deep: the rows need a floor with
+	# doorway lamps on it and somewhere genuinely dark to stand, and the Deep
+	# is six hand-placed rooms.
+	lantern="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --lantern-probe --delvings \
+		--seed=31346 --floor=1 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$lantern" | grep -qE 'FAIL|SCRIPT ERROR'; then
+		echo "FAIL carrying a light has to be a decision, and something has to read it" >&2
+		printf '%s\n' "$lantern" | grep -E '\[lantern\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **A dead player is still playing** (`M3-T14`, `DES-012`, ADR-130). The
 	# Vordr, and the readout `GATE M3 COOP` has named as a precondition since
 	# ADR-115 with no build ever having an answer for it.
@@ -948,6 +969,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a run stays open until it resolves and quitting is not an escape,"
 	echo "a party arrives one floor down with its bag, its wounds and the Hunt,"
 	echo "and walking into the hole opens onto a floor nobody drew by hand,"
+	echo "carrying a light is a decision and something reads it,"
 	echo "she remembers three things and they come back Scarred,"
 	echo "a run ends on evidence and never interrupts itself to say so,"
 	echo "the Wing gets out quietly and every node it sells does something,"

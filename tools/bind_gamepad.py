@@ -75,7 +75,19 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # away from the face buttons and the triggers: it ends the run, and the one
     # input you must never press by accident should not sit under your thumb.
     "use_waystone": [(BUTTON, DPAD_UP, 0.0)],
-    "debug_reset": [(BUTTON, DPAD_LEFT, 0.0)],
+    # **Working the shutter** (`M4-T13`, ADR-188) — see, or be unseen. Pressed
+    # constantly and reflexively while crossing a floor, so it belongs on the
+    # d-pad beside the other two things you do with a full hand under pressure
+    # rather than on a face button your thumb has left to reach it.
+    #
+    # It took `DPAD_LEFT` from `debug_reset`, which moved to `START`, and that
+    # is ADR-137's argument applied a second time rather than a new one: *a
+    # debug toggle does not get to hold prime real estate while a gameplay verb
+    # goes unbound.* `START` is where a rarely-pressed developer key belongs,
+    # and the pad has no other free input — the layout pass that fixes that
+    # properly is still `M4-T06`.
+    "shutter": [(BUTTON, DPAD_LEFT, 0.0)],
+    "debug_reset": [(BUTTON, START, 0.0)],
     # Off the face buttons and onto `BACK` (ADR-137), which nothing was using.
     # A debug toggle does not get to hold prime real estate while a class verb
     # goes unbound — and `GUIDE` stays empty deliberately, because it is the

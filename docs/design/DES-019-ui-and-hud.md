@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-09-02
+updated: 2026-09-03
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
@@ -122,7 +122,7 @@ Interaction prompts, contract updates, the ping wheel (`DES-012`), a reticle **o
 
 Three tools that give you information, each of which **costs you something to carry** — a slot, weight, and often a hand. That's a coherent little economy, and it means orientation is a thing you equipped rather than a thing the HUD gave you.
 
-- **Lantern** — you gave up a weapon slot to see (`DES-008`)
+- **Lantern** — you gave up a weapon slot to see (`DES-008`). **Built at `M4-T13`** (ADR-188), and it is the first of the three that exists. It gets **no HUD element**: the lamp is its own readout, which is rule 6 above, and the shutter is taught in `ControlsScreen` like every other binding rather than by a prompt sitting on screen for the whole run
 - **Map** — drawn as you go, Lineage annotates (ADR-017)
 - **Compass** — bearing, which is what makes cartography annotations mean anything ("north-east of the flooded hall" is only useful if you can find north-east)
 

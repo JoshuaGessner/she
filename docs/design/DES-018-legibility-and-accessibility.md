@@ -4,7 +4,7 @@ title: Legibility & Accessibility
 status: accepted
 owner: design
 tags: [accessibility, ui, hud, audio, legibility, clamor]
-updated: 2026-09-01
+updated: 2026-09-03
 related: [DES-005, DES-013, DES-017, ART-001, PRO-005]
 ---
 
@@ -68,6 +68,18 @@ A persistent, quiet on-screen cue reporting exactly what the mix reports.
 - **Quiet by default.** It competes with weight, health, map, and party state — cognitive load is our most expensive category (`PRO-005 §8`).
 - **Continuous, not thresholded.** It should show gradations, matching the mix.
 - **Scalable and repositionable**, including a high-contrast mode.
+
+> **The lantern does not get a fifth row here (ADR-188, `M4-T13`).** The Ear's contract is that it renders *the same `HuntMix` object* the score is driven by — `--ear-probe` fails if a mix channel exists that nothing draws — so putting exposure on it would mean inventing an audio channel to justify a HUD element, and would break its *cause inside / effect outside* split. **The lamp is its own readout**, which is `DES-019` rule 6 (diegetic where free), and the verb is taught in `ControlsScreen` like every other binding. The contrast it has to carry is the largest in the game: a black screen against a lit corridor.
+
+## Darkness, and the line it must not cross
+
+`ART-001` makes darkness a mechanic and `M4-T13` built it. **This document holds the veto**, and *"the player cannot see"* is the one accessibility failure a lighting task can ship — `M2-T13` learned the cheap version already: a dark level with no light source is a bug, not a mechanic.
+
+What keeps it satisfied is **not** the ambient light, which measurement showed was never doing the work (ADR-188). It is the doorway lamps:
+
+> **A floor must be crossable with the shutter shut, by moving between the lamps.**
+
+Slower, blinder and much harder to be seen — a real playstyle rather than a concession, and the same shape as `DES-020`'s *no pack* option. A generated floor that left any part of itself unreachable in the dark would be failing this rule, not expressing the mechanic.
 
 ## The standing test
 

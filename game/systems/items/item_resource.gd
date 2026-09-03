@@ -46,7 +46,13 @@ extends Resource
 ## how a reader tells a weapon from a relic in a save file or a log line.
 ## A typed `Array`, not a `PackedStringArray`: the packed form is built by a
 ## constructor call, and GDScript will not accept a call as a constant.
-const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_"]
+##
+## `tol_` joined the set at `M4-T13` (ADR-188) for the lantern. `DES-008`'s gear
+## category reads *"weapons, armour, **tools**"* and the first two already had a
+## prefix — a lantern filed under `con_` would say it is spent by using it, and
+## under `arm_` that it is worn. It is the one you gave a hand up for.
+const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_",
+	"tol_"]
 
 ## Stable, unique, permanent. Saves reference this string and never a resource
 ## path, so moving or renaming a file can never break a save (`TEC-003`,

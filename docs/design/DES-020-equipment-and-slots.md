@@ -4,7 +4,7 @@ title: Equipment & Gear Slots
 status: accepted
 owner: design
 tags: [equipment, gear, slots, inventory, visual, first-person]
-updated: 2026-08-16
+updated: 2026-09-03
 related: [DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006]
 ---
 
@@ -64,6 +64,12 @@ The economy `DES-019` already designed lives here: **shield, lantern, map, and c
 - **Two-handed weapons occupy both slots** — no lantern, no shield, no map without stowing.
 - Everything not equipped lives in the bag; **raising a tool takes time and leaves you vulnerable** (`DES-019` — no pause).
 - A player with a lantern in the off hand is lit, visible, and one-handed. A player with a shield is blind in the dark.
+
+> **HALF BUILT (ADR-188, `M4-T13`).** The lantern half is measured rather than asserted — 16.0 m lit against 6.7 m shuttered ⟨tune⟩ — and it gained a third state the paragraph did not anticipate: **shuttered.** That is *not* a free swap.
+>
+> **The shield half is still a sentence.** There is no shield item in the corpus, so *"a player with a shield is blind in the dark"* describes a trade nothing can currently make; `blocking` guards with whatever is in hand. The contest the off hand is named for is therefore **lantern versus two-hander** today — real, and measured — and becomes lantern versus shield when `M4-T17` writes the list of what exists to wear and carry. ADR-057 made off-hand swapping slow and interruptible so a shield and a light cannot both be carried; the shutter changes what the held thing is **doing**, not which thing is held, and it buys darkness rather than a shield. The off hand stays spent. A cooldown ⟨tune⟩ stops it being strobed for vision at no exposure.
+>
+> **The two-hander rule turns out to give the classes opposite relationships to light, for free.** The Veiðimaðr's yew bow is two-handed, so *"no lantern, no shield, no map without stowing"* makes a lantern in that kit impossible — the archer descends dark and chooses bow **or** lamp, while the Húskarl's one-handed seax leaves a hand for the light and they walk lit and loud. Nothing was designed for this; it falls out of the rule above.
 
 ---
 
