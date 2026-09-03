@@ -560,6 +560,25 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And what it descends *into*** (`M4-T01`, ADR-187).
+	#
+	# This scenario is the only check that walks the real route — front door,
+	# class, camp, hole — so it is the only one that can say what a **player**
+	# lands on. `--delvings-probe` proves a generated floor can be built; this
+	# proves the game builds one, which is ADR-098's second question and the
+	# whole point of the task.
+	#
+	# It would revert silently: the descent chooses the Delvings on `RunFile`
+	# having a run open, and every probe in this file runs unarmed and so gets
+	# the Deep. Nothing else here would notice the game going back to six grey
+	# rooms.
+	if ! printf '%s\n' "$again" | grep -q '^\[delvings\]'; then
+		echo "FAIL the descent opens onto the Deep, not the Delvings" >&2
+		printf '%s\n' "$again" | grep -E '\[again\]|\[descent\]|\[delvings\]' \
+			| sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Do both kinds of doorway hold (ADR-101, ADR-102)? `run_coop.py` never
 	# changes scene and no single-process probe has a second peer to lose, so
 	# every check in this file passed while walking from the Threshold into the
@@ -928,6 +947,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the fallen can see what is happening to them and go on playing,"
 	echo "a run stays open until it resolves and quitting is not an escape,"
 	echo "a party arrives one floor down with its bag, its wounds and the Hunt,"
+	echo "and walking into the hole opens onto a floor nobody drew by hand,"
 	echo "she remembers three things and they come back Scarred,"
 	echo "a run ends on evidence and never interrupts itself to say so,"
 	echo "the Wing gets out quietly and every node it sells does something,"

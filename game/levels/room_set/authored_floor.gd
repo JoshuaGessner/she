@@ -32,6 +32,10 @@ func shaft() -> Vector3:
 	return RoomSet.SHAFT_AT
 
 
+func prize() -> Vector3:
+	return RoomSet.PRIZE_AT
+
+
 func hunter() -> Vector3:
 	return RoomSet.HUNTER_POST
 

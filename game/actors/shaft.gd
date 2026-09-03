@@ -110,6 +110,22 @@ var _material: StandardMaterial3D = null
 var _claimant: Player = null
 var _progress: float = 0.0
 
+## **Does this one leave the expedition, or go deeper?** (`M4-T01`, ADR-186)
+##
+## True only on the bottom floor, where the Shaft is the Deep Gate's mechanism.
+## Above it, claiming this takes the party one floor down — the Waystone is the
+## only way out up there.
+##
+## The Shaft knows, rather than each caller working it out from a floor index.
+## `Reticle` needs it to name the verb, `RoomSet` needs it to choose what
+## claiming does, and two places deriving the same fact is how the prompt and
+## the behaviour drift apart — which is precisely the bug a screenshot caught
+## here: the pad said *climb out* on floor 0 while the code took you down.
+##
+## Not replicated: every peer builds its own Shaft from its own run file, and
+## `_descend` is `call_local`, so all of them hold the same floor index.
+var leads_out: bool = true
+
 
 ## **The channel's progress has to reach the other peers, and never did.**
 ##

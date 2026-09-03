@@ -81,6 +81,10 @@ func shaft() -> Vector3:
 	return _anchors.shaft()
 
 
+func prize() -> Vector3:
+	return _anchors.prize()
+
+
 func hunter() -> Vector3:
 	return _anchors.hunter()
 

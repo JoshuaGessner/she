@@ -5925,5 +5925,52 @@ The floors arrived and the contradiction resolves the other way. The Shaft is th
 
 ---
 
+## ADR-187 — Walking into the hole opens onto the Delvings
+
+**Date:** 2026-09-02 · **Status:** accepted · **Completes the descent chain begun in ADR-184** · **`M4-T01`**
+
+**Context:** ADR-183 left the Delvings *"reachable by flag and not by playing"*, and called switching it **one line**. It is not one line, and the reason matters: `room_set` chose its floor by reading `--delvings` out of `OS.get_cmdline_user_args()`, and **a played game has no command line.** The flag was unreachable by playing, so every descent opened onto the Deep regardless of what the run file said.
+
+### Decision 1 — an open run is what says a person is playing
+
+The floor source now comes from `RunFile.exists()`. A run is open exactly when somebody walked in through the front door (ADR-143 put `begin()` on the descent, which every route into the Deep passes through), so it is the honest signal. The flags still work and are still how a measurement asks for a particular floor.
+
+**The Deep survives as the test stage, and that is not the fallback ADR-064 bans.** An unarmed process is a probe (ADR-138); `AuthoredFloor` is the fixed, deterministic floor thirty of them measure, and four — `--sight-probe`, `--route-probe`, `--nav-probe`, `--walk-probe` — are *written around* six rooms and twelve doors. The generated floor has its own checks in `--build-probe`, `--plan-probe` and `--delvings-probe`. Two floors, one played and one measured against, rather than two paths a player could be on.
+
+### Decision 2 — `--seed=` still wins, because otherwise the printed seed is a lie
+
+`TEC-001` requires a run seed to be loggable and replayable off a bug report, and `Threshold._descend` prints one at every descent. A real run always has a run file, so without an explicit override the file's seed would always win and *"launch with the seed from the report"* would silently build a different floor. The named flag beats the file.
+
+### Decision 3 — three things were reading the Deep's coordinates from the game path
+
+Not probes. Game code, which would have been wrong on every generated floor and silent about it:
+
+- **`_the_prize_is_still_here`** — a `DES-016` deed measuring 3 m from `PRIZE_AT`, a constant in the authored level. On a generated floor it would have answered *no* forever, and **a deed that never fires is indistinguishable from a deed nobody earned.** `FloorSource` gained `prize()`.
+- **`_reset_floor`** — placed bodies at `SPAWNS` and the Hunter at `HUNTER_POST`, which on a generated floor is a body standing inside whatever the generator built there. `M3-T22` spent a whole probe learning to recognise that symptom.
+- **`ArrivalBrief`** — said **"THE DEEP"**.
+
+### Decision 4 — the screenshots found what the probes could not
+
+The first look at a generated floor was taken with a new `--delvings-shot`, and it found two things no check in this project can see.
+
+**The Shaft's prompt said *"hold e/X — climb out"* on floor 0**, where ADR-186 takes you down. The player reads one verb and the game does another, which is the legibility failure `DES-018` is written against — and nothing asserts prompt text against behaviour. Fixed by giving `Shaft` a `leads_out` flag that **both** the prompt and `_on_shaft_claimed` read, because two derivations of one fact is how words and behaviour drift apart in the first place.
+
+**The arrival brief named the wrong place**, and now names the right one out of `DES-015` Layer 2's own structure: *"THE DELVINGS · THE AFTERMATH / THE RETREAT / THE CAUSE."* Naming the depth is the cheapest half of the rule that the Calamity be readable within thirty seconds.
+
+**And the shot tool's own first finding was about the shot tool.** It stood at straight-line midpoints between anchors and photographed solid rock three times out of four, because a cyclic layout with dog-legs has no straight line between any two of its anchors. It looked exactly like a broken floor. Every view now stands on an anchor the generator chose and aims at a door light — `M3-T22`'s lesson arriving for the fourth time in this milestone.
+
+### The row that keeps it from reverting
+
+`--again` is the only check that walks the real route — front door, class, camp, hole — so it is the only one that can say what a **player** lands on. It now fails unless the descent logs `[delvings]`. Without it the switch would revert in silence: every probe in the sweep runs unarmed and therefore gets the Deep, so nothing else would notice the game going back to six grey rooms.
+
+Measured on two consecutive real descents, seeds 2661306861 and 2130218600, both built and both walked into.
+
+### Rejected
+
+- **Moving every probe to the Delvings** — the honest option, and a couple of days: four probes are about six rooms and twelve doors and would need rethinking rather than editing. Revisit when the Deep's checks start disagreeing with the game.
+- **Keeping `--delvings` as the switch** — unreachable by playing, which is the whole defect.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

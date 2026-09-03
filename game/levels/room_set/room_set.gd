@@ -378,6 +378,17 @@ const FIELD_TO: Vector3 = Vector3(26.0, 0.0, 14.0)
 ## fixed point in a hand-built level is as known as it gets.
 const SHAFT_AT: Vector3 = Vector3(0.0, 0.05, -29.0)
 
+## What each floor of an expedition is, in `DES-015` Layer 2's own words:
+## *"moving inward is reading the disaster backward."* Floor 0 is what was left,
+## floor 1 is where they fought and lost, floor 2 is the thing itself.
+##
+## Shown on arrival, because a floor the player cannot name is a floor they
+## cannot tell from the last one — and three depths that read the same is the
+## sameness `DES-015` was written against.
+const FLOOR_NAMES: Array[String] = [
+	"THE AFTERMATH", "THE RETREAT", "THE CAUSE",
+]
+
 ## How far apart the heaviest and lightest kilograms-per-cell on this floor
 ## must be before `--bag-probe` accepts that space and weight are two different
 ## constraints (`DES-019`). Not a tuned value — a floor under "these are not
@@ -516,19 +527,49 @@ func _ready() -> void:
 	# no run at all, deliberately — so there is no second *game* path here to
 	# drift: the run is the only source when there is one, and `--floor=`/
 	# `--seed=` are how a measurement asks for a floor to look at.
+	var asked_for: PackedStringArray = OS.get_cmdline_user_args()
+	var seed_was_named: bool = false
+	for arg: String in asked_for:
+		if arg.begins_with("--seed="):
+			seed_was_named = true
 	var depth: int = 0
 	if RunFile.exists():
 		depth = RunFile.floor_index()
-		_run_seed = RunFile.seed_of()
+		# **`--seed=` still wins, and that is the replay path** (ADR-187).
+		#
+		# `TEC-001` requires a run seed to be loggable and replayable off a bug
+		# report, and `Threshold._descend` prints one at every descent. Without
+		# this the printed number would be unusable the moment the descent
+		# started opening onto the Delvings: a real run always has a run file,
+		# so the file's seed would always win and *"launch with the seed from
+		# the report"* would silently build a different floor.
+		if not seed_was_named:
+			_run_seed = RunFile.seed_of()
 	else:
-		for arg: String in OS.get_cmdline_user_args():
+		for arg: String in asked_for:
 			if arg.begins_with("--floor="):
 				depth = clampi(int(arg.split("=", true, 1)[1]),
 					0, RunFile.LAST_FLOOR)
 	_floor_index = depth
+	# **A run is played in the Delvings** (`M4-T01`, ADR-187).
+	#
+	# This used to be *"the Delvings if somebody typed `--delvings`"* — and a
+	# played game has no command line, so the flag was unreachable by playing
+	# and the descent always opened onto the Deep. `M4-T01` says the Delvings
+	# replaces it, and an open run is what says a person is playing.
+	#
+	# **The Deep is not a fallback, it is the test stage.** An unarmed process
+	# is a probe (ADR-138), and `AuthoredFloor` is the fixed, deterministic
+	# floor thirty of them measure — six rooms and twelve doors that
+	# `--sight-probe` and `--route-probe` are written around. `--build-probe`,
+	# `--plan-probe` and `--delvings-probe` are what measure the generated one.
+	# Two floors, one played and one measured against, rather than two paths a
+	# player could be on (ADR-064).
+	var generated: bool = RunFile.exists()
 	for arg: String in OS.get_cmdline_user_args():
-		if arg != "--delvings" and arg != "--delvings-probe":
-			continue
+		if arg == "--delvings" or arg == "--delvings-probe":
+			generated = true
+	if generated:
 		var rolled := DelvingsFloor.of(_run_seed, depth)
 		if not rolled.problems().is_empty():
 			push_error("the Delvings would not plan: %s"
@@ -600,6 +641,8 @@ func _ready() -> void:
 			_hunt_probe()
 		elif arg == "--ear-probe":
 			_ear_probe()
+		elif arg.begins_with("--delvings-shot="):
+			_delvings_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--ear-shot="):
 			_ear_shot(arg.split("=", true, 1)[1])
 		elif arg == "--exit-probe":
@@ -2512,6 +2555,93 @@ func _sight_shot(path: String) -> void:
 	get_tree().quit()
 
 
+## **What a generated floor actually looks like from eye height** (`M4-T01`,
+## ADR-187).
+##
+## `--sight-shot` photographs the Deep from four hand-picked coordinates, which
+## is exactly right for a floor somebody drew and useless for one nobody did.
+## This asks the floor where to stand instead.
+##
+## The views are chosen against `TEC-008`'s own open question — *does a 2 m
+## corridor read as tight?* — because tightness is what makes the Hunt work, and
+## every geometry number in the generator is still ⟨tune⟩ and unfelt. Standing
+## at the entrance looking in, and standing midway looking on, is the smallest
+## pair that can answer it.
+func _delvings_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	# Ink off, on `--sight-shot`'s reasoning: `ART-005` is a treatment on top of
+	# the lighting, and what is being judged here is the space.
+	player.show_ink(false)
+	# **Stand only where the floor put something** (ADR-187).
+	#
+	# The first draft stood at straight-line lerps between anchors — the midpoint
+	# of spawn→Shaft, a step back from the Prize — and photographed **solid rock
+	# three times out of four**, because a cyclic layout with dog-legs has no
+	# straight line between any two of its anchors. That looked exactly like a
+	# broken floor and was a broken measurement: `M3-T22`'s lesson, that a new
+	# probe's first finding is usually about the probe.
+	#
+	# Every position below is an anchor the generator chose, so the camera is in
+	# open space by construction, and every view aims at a **door light** —
+	# which is `M2-T13`'s lighting language, and the thing worth photographing:
+	# a room showing its own way out.
+	var from: Vector3 = _floor.spawns()[0]
+	var views: Array = [
+		["entrance", from, _floor.shaft()],
+		["spawn_door", from, _nearest_door_light(from)],
+		["shaft", _floor.shaft(), _nearest_door_light(_floor.shaft())],
+		["prize", _floor.prize(), _nearest_door_light(_floor.prize())],
+	]
+	for view: Array in views:
+		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
+		var look: Vector3 = view[2] as Vector3
+		var d: Vector3 = (look - at)
+		d.y = 0.0
+		# Godot yaws about +Y and a body's forward is -Z, so a rotation of θ
+		# points at (-sin θ, 0, -cos θ). Facing `d` is therefore
+		# `atan2(-d.x, -d.z)` — worth writing down, because guessing the sign
+		# here photographs the wall behind you and looks like a broken floor.
+		var yaw: float = atan2(-d.x, -d.z) if d.length() > 0.01 else 0.0
+		player.teleport(at, yaw)
+		await _hold(0.35)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var shot: String = "%s_%s.png" % [path.trim_suffix(".png"), view[0]]
+		get_viewport().get_texture().get_image().save_png(shot)
+		print("[delvings] %-9s → %s" % [view[0], shot.get_file()])
+	get_tree().quit()
+
+
+## **How deep this level thinks it is, and what that makes the Shaft**
+## (`M4-T01`, ADR-187).
+##
+## One owner for the derivation, because ADR-186 is about the Shaft's verb and
+## its behaviour never disagreeing — and the first version of this had two
+## owners and immediately proved why. `_build_shaft` set `leads_out` once, and
+## `--descent-probe` moves the level to the bottom floor mid-run to measure the
+## way out: it changed `_floor_index`, the Shaft did not hear about it, and the
+## bottom floor went on descending. The sweep caught it; a second derivation
+## inside the probe would have hidden it instead.
+func _stand_on_floor(index: int) -> void:
+	_floor_index = clampi(index, 0, RunFile.LAST_FLOOR)
+	if _shaft != null:
+		_shaft.leads_out = _floor_index >= RunFile.LAST_FLOOR
+
+
+## The doorway nearest a point, for `--delvings-shot` to aim at. Falls back to
+## the Shaft, so a floor with no door lights still photographs something rather
+## than aiming at the origin.
+func _nearest_door_light(from: Vector3) -> Vector3:
+	var best: Vector3 = _floor.shaft()
+	var closest: float = INF
+	for at: Vector3 in _floor.door_lights():
+		var d: float = from.distance_to(at)
+		if d > 1.0 and d < closest:
+			closest = d
+			best = at
+	return best
+
+
 func _ear_shot(path: String) -> void:
 	var player: Player = _session.local_player()
 	var samples: Array = [
@@ -3491,6 +3621,17 @@ func _build_hud() -> void:
 		# lines are built, and a fourth one added afterwards would arrive under
 		# a label that has already been laid out.
 		brief.sent_early = _she_sent_it_early
+		# **Say where this is and what the light does** (`M4-T01`, ADR-187).
+		#
+		# The stages are `DES-015` Layer 2's, not invented here: *moving inward
+		# is reading the disaster backward* — the Aftermath, the Retreat, the
+		# Cause. Naming the floor is the cheapest half of the rule that the
+		# Calamity be readable within thirty seconds, and this is the screen
+		# that has thirty seconds.
+		if _floor is DelvingsFloor:
+			brief.place = "THE DELVINGS · %s" % FLOOR_NAMES[
+				clampi(_floor_index, 0, FLOOR_NAMES.size() - 1)]
+		brief.way_out = _shaft == null or _shaft.leads_out
 		layer.add_child(brief)
 
 ## How much floor has already been laid, so an arriving player tops it up
@@ -4330,6 +4471,8 @@ func _build_shaft() -> void:
 	_shaft = Shaft.new()
 	_shaft.name = "Shaft"
 	_shaft.position = _floor.shaft()
+	# **What this Shaft is for** (ADR-186), derived in exactly one place.
+	_stand_on_floor(_floor_index)
 	# Before it enters the tree, so the synchronizer exists at the same node
 	# path on every peer. Both sides build this identically — it is authored
 	# geometry rather than a spawn — so the paths match by construction.
@@ -4779,7 +4922,11 @@ func _on_shaft_claimed(player: Player) -> void:
 		return
 	# The bottom of the expedition. Nothing is under it, so the Shaft here is
 	# the Deep Gate's mechanism and this is `DES-005`'s guaranteed way out.
-	if _floor_index >= RunFile.LAST_FLOOR:
+	#
+	# **Read off the Shaft, not recomputed.** The prompt the player reads comes
+	# from `Shaft.leads_out`, and a second derivation here is how the pad's words
+	# and the pad's behaviour drift apart.
+	if _shaft != null and _shaft.leads_out:
 		_on_extracted(player)
 		return
 	if _going_down:
@@ -4942,7 +5089,12 @@ func _the_prize_is_still_here() -> bool:
 		var item := node as WorldItem
 		if item == null or not is_instance_valid(item):
 			continue
-		if item.global_position.distance_to(PRIZE_AT) < 3.0:
+		# **Asked of the floor, not of a constant** (ADR-187). This read
+		# `PRIZE_AT` — a coordinate in the hand-authored Deep — so on a generated
+		# floor it measured 3 m from a place with nothing near it and answered
+		# *no* every time. A deed that never fires is indistinguishable from a
+		# deed nobody earned, which is why nothing would ever have reported it.
+		if item.global_position.distance_to(_floor.prize()) < 3.0:
 			return true
 	return false
 
@@ -4970,10 +5122,16 @@ func _reset_floor() -> void:
 		# rather than approximated, and what happens here is simply the next run
 		# starting.
 		player.restore_for_descent()
-		player.teleport(SPAWNS[index % SPAWNS.size()], 0.0)
+		# **Off the floor, not off the Deep's constants** (ADR-187). These read
+		# `SPAWNS` and `HUNTER_POST` directly, which is a body placed inside
+		# whatever the generator built at those coordinates — and a body that
+		# starts inside geometry does not move, which `M3-T22` spent a probe
+		# learning to recognise.
+		var marks: Array[Vector3] = _floor.spawns()
+		player.teleport(marks[index % marks.size()], 0.0)
 		index += 1
 	if _hunter != null:
-		_hunter.global_position = HUNTER_POST
+		_hunter.global_position = _floor.hunter()
 		# A fresh floor is a fresh Hunt. Cross-floor persistence (ADR-037) is
 		# about descending *within* a run and needs the floors `M4-T01` builds;
 		# this is a new descent, which is the one case where resetting is right.
@@ -7135,7 +7293,7 @@ func _descent_probe() -> void:
 	# **Asserted by where it ends up, not by which function ran.** A row that
 	# checked `_going_down` would pass against a build that set the flag and
 	# extracted anyway.
-	_floor_index = 0
+	_stand_on_floor(0)
 	var pool: Array[ItemResource] = ItemCatalogue.all()
 	var put_in: int = 0
 	for definition: ItemResource in pool:
@@ -7208,7 +7366,7 @@ func _descent_probe() -> void:
 	# The complement of row 1, and the row that stops ADR-186 from removing the
 	# only way out of the game: if the Shaft never extracts anywhere, a run can
 	# be entered and never resolved.
-	_floor_index = RunFile.LAST_FLOOR
+	_stand_on_floor(RunFile.LAST_FLOOR)
 	_going_down = false
 	var out_before: int = GameState.carried.size()
 	_on_shaft_claimed(body)

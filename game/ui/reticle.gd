@@ -133,8 +133,16 @@ func _process(delta: float) -> void:
 		# `check_project.py` catches the `kb/pad` form, which is the shape that
 		# actually proliferated, and prose naming a letter slips under it. Two
 		# of these existed; both are gone, and the seam is what stops a third.
-		_name.text = ("climbing out — hold still" if _shaft.is_channelling()
-			else "hold %s — climb out" % ControlsScreen.glyphs_for("interact"))
+		# **The verb comes off the Shaft** (ADR-186). Above the bottom floor it
+		# takes the party *down*, and a prompt still saying "climb out" is a
+		# legibility failure of exactly the kind `DES-018` forbids — the player
+		# reads one thing and the game does another. Caught in a screenshot,
+		# not by a probe: no check in this project reads prompt text against
+		# what the verb actually does.
+		var verb: String = "out" if _shaft.leads_out else "down"
+		_name.text = ("climbing %s — hold still" % verb if _shaft.is_channelling()
+			else "hold %s — climb %s"
+				% [ControlsScreen.glyphs_for("interact"), verb])
 	elif _offer != "":
 		# **After the Shaft, before an item.** The way out still speaks first;
 		# an offer is a fixture of the room and a loose coin is not, so a room

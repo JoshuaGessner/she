@@ -32,6 +32,17 @@ var _elapsed: float = 0.0
 ## Seconds of Hunt a missed Tithe bought her, handed down by the level. Set
 ## before this enters the tree, because `_ready` is where the lines are built.
 var sent_early: float = 0.0
+## What to call this place, and what the light at the end of it does (`M4-T01`,
+## ADR-187). Set by the level before this enters the tree, like `sent_early`.
+##
+## Both were hardcoded to the Deep — *"THE DEEP"* and *"climb out at the
+## light"* — which stopped being true twice over the moment the descent opened
+## onto the Delvings: the place has a name and a depth now, and above the
+## bottom floor that light is the way **down**. `DES-015` wants the floor
+## readable within thirty seconds, and this is the line that has thirty seconds
+## to do it.
+var place: String = "THE DEEP"
+var way_out: bool = true
 
 
 func _ready() -> void:
@@ -48,10 +59,10 @@ func _ready() -> void:
 	# them. "Climb out at the light" is doing the most work here: it names the
 	# beacon as the exit, so the tall pale column stops being scenery the moment
 	# the player first sees one.
-	_line("THE DEEP", 21, MenuStyle.WARM)
+	_line(place, 21, MenuStyle.WARM)
 	_line("take what you can carry", 15, MenuStyle.TEXT)
-	_line("climb out at the light — it is loud, and it is watched", 15,
-		MenuStyle.TEXT)
+	_line("climb %s at the light — it is loud, and it is watched"
+		% ("out" if way_out else "down"), 15, MenuStyle.TEXT)
 	# **Where the controls went** (ADR-139). This brief holds for 4.5 seconds and
 	# then frees itself, so anything it does not point at is gone with it. The
 	# Deep's control list used to live inside the diagnostic overlay, which is

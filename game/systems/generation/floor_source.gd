@@ -58,8 +58,23 @@ extends RefCounted
 @abstract func guardian() -> Vector3
 
 
-## The way down, and out (`DES-005`).
+## The way down (`DES-005`, ADR-186) — and, on the bottom floor, the Deep Gate's
+## mechanism, which is where an expedition ends.
 @abstract func shaft() -> Vector3
+
+
+## Where the best thing on this floor is (`DES-015` Layer 3, ADR-187).
+##
+## Added because a **game-path** deed was reading `RoomSet.PRIZE_AT` directly:
+## `_the_prize_is_still_here` asks whether the best thing down here is still
+## down here, by measuring 3 m from a hand-authored coordinate. On a generated
+## floor the Prize is wherever the mission graph put it, so the check would have
+## answered *no* on every run — silently, with no error, because a deed that
+## never fires looks exactly like a deed nobody earned.
+##
+## `DES-016`'s instrumentation rule is *ask the world, it already knows*. This
+## is what the world is asked through.
+@abstract func prize() -> Vector3
 
 
 ## Where the Hunt begins (`DES-017`) — deep, so the first meeting happens on the
