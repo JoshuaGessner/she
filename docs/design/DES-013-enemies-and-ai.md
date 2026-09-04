@@ -4,7 +4,7 @@ title: Enemies & AI
 status: accepted
 owner: design
 tags: [enemies, ai, combat, clamor, systems, co-op]
-updated: 2026-08-16
+updated: 2026-09-04
 related: [DES-005, DES-007, DES-009, TEC-001, TEC-004]
 ---
 
@@ -38,6 +38,16 @@ UNAWARE ──heard something──► SUSPICIOUS ──confirmed──► ALERT
 - **Suspicious** — investigates the *last heard position*, not your actual position. Critical for fairness (`PRO-005 §5`): the player can always understand why they were found, and can bait it.
 - **Alerted** — actively hunting you. Generates Clamor itself.
 - **Swarm** — calls others. **This is the failure state**, and it must be loudly telegraphed a beat before it happens so the player gets one chance to prevent it.
+
+> **`SWARM` is still unbuilt** (ADR-064, restated by ADR-194). `UNAWARE →
+> SUSPICIOUS → ALERTED` runs; the fourth state does not, and the propagation
+> arrow in the diagram above has never had anything behind it. The mechanism is
+> in the build and unused: an enemy carries a `ClamorSensor` and **no
+> `ClamorSource`**, so enemies hear the player and are silent to each other.
+> An `ALERTED` enemy that made noise would give this ladder its fourth rung
+> using the system `M2-T02` already paid for. It is the third of `M4-T16`'s
+> four absent things, and `DES-018` binds it to the Ear: a fourth state the
+> player cannot see is a state that fails the muted-playable rule.
 
 **Rule:** every transition is unmissable in **both** channels. A player must be able to know what state a room is in with their eyes closed — *and* with the sound off.
 

@@ -105,6 +105,12 @@ func _dress() -> void:
 		_hitbox.disarm()
 		return
 	_hitbox.damage = _held.damage * (Config.tuning.scarred_power if _scarred else 1.0)
+	# Unscaled by `scarred_power` on purpose: a Scar is `DES-003`'s tax on
+	# damage, and letting it also erode stagger would quietly change which
+	# weapons can interrupt a telegraph — a scarred hammer would stop being a
+	# hammer, which is a change to `DES-009`'s light/heavy rule rather than to
+	# a number, and ADR-058 puts that behind an ADR.
+	_hitbox.stagger = _held.stagger
 	var shape := _hitbox.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape != null:
 		var box := shape.shape as BoxShape3D

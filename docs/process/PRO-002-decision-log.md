@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-03
+updated: 2026-09-04
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -6384,6 +6384,64 @@ One plant, and it is the bug itself: `WITHHELD = 0.0` restores the flat pool, an
 The row is deliberately measured on **what the floor lays**, not on what the pool contains. A pool cut by depth that nothing read would satisfy a pool-shaped assertion and change no run, which is ADR-098's shape and the reason `--machine-probe` row 7 exists.
 
 **`M4-T01` is done.** `TEC-007` §11's list is complete through step 7; extended step 8 with §6's split remains as `TEC-007`'s own open item, not as this task's.
+
+---
+
+## ADR-194 — A hit staggers when it is heavy, or when it is earned
+
+**Date:** 2026-09-04 · **Status:** accepted · **Implements the first quarter of `M4-T16`** · **Adds `--fight-probe`** · **Builds `DES-009` line 47**
+
+**Context:** `M4-T16` was raised from play — *"the gameplay feels a little stale still and AI will have to be greatly worked on"* — and the roadmap's diagnosis was that a fight *"is a swing timed against a telegraph."* Measured, it was not that. It was not timed at all.
+
+### The fight, in numbers
+
+`Enemy._on_hurt` staggered on **every** hit, for a flat `enemy_stagger`, with a comment explaining that this was *"the whole reward for reading a telegraph correctly."* A stagger costs the enemy `enemy_stagger` (350 ms) + `enemy_telegraph` (500 ms) before its hitbox can arm again — **850 ms**. Against the roster:
+
+| Weapon | Swing cycle | Locked out by |
+|---|---|---|
+| Seax | 390 ms | **460 ms** |
+| Regin blade | 520 ms | **330 ms** |
+| Ash spear | 630 ms | **220 ms** |
+| Dvergar hammer | 900 ms | — (it is 50 ms too slow) |
+
+Four of five weapons re-stagger the enemy before it can finish standing up. **The lightest weapon in the game was the one that locked an enemy out permanently, and the heavy one — the weapon `DES-009` line 47 says is the one that staggers — was the only weapon that could be hit back.** The rule was not merely unbuilt; it ran backwards.
+
+`--fight-probe` measured it against the pre-poise build: a player holding attack with a seax took **24 swings and zero hits in ten seconds**, and the enemy never started a swing. At the real stamina rate the enemy recovered enough to swing four times in ten seconds — but the fight it is in lasts **1.6 seconds**, because four seax hits kill it. So the honest statement is not *"combat is free"* but *"combat is free for as long as it takes to win it,"* which is the same thing from inside the fight.
+
+**Reading the telegraph was strictly dominated by ignoring it.** Interrupting a windup cancels the attack outright; waiting to dodge only avoids it. Principle 3 says a fight has to be a decision, and there is no decision when one option is never worse.
+
+### Poise, and the two ways through it
+
+`enemy_poise` is a pool a hit spends; a stagger happens when it breaks. `WieldableTrait.stagger` is what each weapon spends — **the field `DES-009` line 47 has implied since the design lock and nothing carried**, because `TuningProfile.enemy_stagger` was one number for a knife and a war hammer.
+
+Two ways to stagger, and a light weapon only has the second:
+
+1. **Break its poise.** The hammer's 100 breaks a full pool in one hit. `DES-009`'s *"heavy staggers"*, now literally that. The seax's 22 cannot: four hits kill this enemy and four hits are 88.
+2. **Punish the recovery.** A swing already thrown cannot be taken back, so hitting into `Attack.RECOVERY` always staggers, whatever the pool holds.
+
+Rule 2 is what makes an attack a *commitment* rather than a timer, and it is what `DES-002` needs for *"do I take this fight"* to have an answer other than yes. It is also why this is not simply *"knives no longer stagger"* — that would be a subtraction, not a design.
+
+**Reference: Dark Souls' poise, and it is not a straight copy.** Poise there exists to stop light-weapon spam from trivialising a duel, which is our problem exactly. What differs is the context: `DES-013`'s thesis is that enemies are a *noise system*, not a challenge system, and fights are meant to be **avoidable and expensive**. So our poise is tuned to a stronger requirement than From's — *no melee weapon may solo-lock an enemy* — rather than to a duel's balance.
+
+### What was not done, and why
+
+- **No poise on the player.** `DES-009` gives the player stamina and positional defence, and ADR-114's argument against invulnerability applies unchanged. `Hitbox.stagger` defaults to `0.0`, so the enemy's own hitbox cannot stagger anybody.
+- **Poise is not replicated.** Its only output is `_state`, which already is (`TEC-004` costs relevance per enemy per tick).
+- **`scarred_power` does not scale stagger.** A Scar is `DES-003`'s tax on damage; letting it erode stagger would mean a scarred hammer stops being a hammer, which is a change to `DES-009`'s light/heavy rule rather than to a number — ADR-058 puts that behind an ADR.
+
+### Two faults found in the checks rather than the code
+
+**`_combat_probe` places the player facing away from the enemy.** It teleports to `-Z` — correctly, so the player is inside the vision cone — and passes yaw `0.0`, which is Godot's forward. The player therefore stands in front of the enemy looking away from it. That probe only ever asks whether the enemy *telegraphs*, which it does regardless, so the error was invisible there and fatal to any probe that asks whether a blow lands.
+
+**GDScript lambdas capture by value.** `--fight-probe`'s first version counted hits into a captured `int`, which increments a copy and reads back zero forever — so it reported that the *fixed* build landed no hits either, and the first reading of this whole investigation was wrong in the player's favour. The counters are a `Dictionary` now. Recorded because it is the third *"true but beside the point"* measurement class this project has hit, and the first where the probe was wrong rather than merely narrow.
+
+### `--fight-probe`, five rows, every one planted
+
+Both passes must see the enemy land a blow; the recovery punish must stagger a **full-poise** enemy (so it is proven to stand on its own rather than on an empty pool); the hammer must break poise in one hit; the seax must not break it inside the four swings that kill. Planted by restoring the old unconditional stagger, by neutering the punish, by lowering the hammer to 40, and by raising the seax to 26. All caught.
+
+### This is a quarter of `M4-T16`
+
+The task names four absent things. This is the first: *enemies that commit to an attack and can be punished for it.* **`M4-T16` stays open.** Still absent: enemies that use the floor's geometry, that react to clamor as a group — `SWARM` is still unbuilt, and `DES-013`'s ladder has had four states since the design lock — and that give a player a reason to disengage. Named here so the tick, when it comes, is about the whole task.
 
 ---
 

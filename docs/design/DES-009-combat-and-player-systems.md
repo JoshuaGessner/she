@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-09-03
+updated: 2026-09-04
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -45,6 +45,24 @@ That single position resolves a dozen downstream questions. It's why avoidance m
 **Attacking**
 - Wind-up → swing → recovery. Attacks **commit**; you cannot cancel out of a heavy.
 - Light (fast, low stagger, quiet-ish) vs. heavy (slow, staggers, loud).
+
+> **BUILT (ADR-194), and it ran backwards until it was.** This line implies
+> stagger is a *weapon* property, and it was one number on `TuningProfile`
+> applied to every hit — so a knife and a war hammer staggered identically, and
+> because a stagger costs the enemy 850 ms while a seax cycles in 390 ms, **the
+> lightest weapon was the one that locked an enemy out permanently.** The heavy
+> weapon, the one this line says staggers, was the only one slow enough to be
+> hit back. `--fight-probe` measured 24 swings and zero damage taken.
+>
+> **Enemies carry poise; weapons carry `stagger`.** A stagger happens when the
+> pool breaks — one hammer blow does it, four seax blows do not. And a swing in
+> its **recovery** always staggers whatever the pool holds, because a swing
+> already thrown cannot be taken back. That second rule is what a light weapon
+> has instead, and it is what makes an attack a commitment rather than a timer.
+>
+> **Reading a telegraph was strictly dominated by ignoring it** — interrupting
+> a windup cancels the attack, dodging only avoids it — and Principle 3 has no
+> decision to offer when one option is never worse.
 - Weapon arcs are real and hit the world — swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat.
 - **Every swing has a Clamor value.** Blunt weapons are loudest. This is the main combat↔pressure coupling.
 

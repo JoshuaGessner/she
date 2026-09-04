@@ -116,6 +116,12 @@ var _attack: Attack = Attack.NONE:
 
 var _attack_timer: float = 0.0
 var _stagger_timer: float = 0.0
+
+## Poise remaining (`M4-T16`). **Host-only and deliberately not replicated:**
+## its only output is `_state`, which already is, so putting poise on the wire
+## would be sending a client a number it can do nothing with — and `TEC-004`
+## costs relevance per enemy per tick.
+var _poise: float = 0.0
 var _patience: float = 0.0
 var _last_seen: Vector3 = Vector3.ZERO
 var _home: Vector3 = Vector3.ZERO
@@ -202,6 +208,10 @@ func _ready() -> void:
 	var tuning: TuningProfile = Config.tuning
 	health.maximum = tuning.enemy_health
 	health.restore()
+	# Full at spawn. Left at the declared 0.0 this would stagger to the first
+	# touch of anything — the failure the pool exists to prevent, arriving as
+	# an initialisation bug rather than as a design one.
+	_poise = tuning.enemy_poise
 	_hitbox.damage = tuning.enemy_attack_damage
 	_hurtbox.hit.connect(_on_hurt)
 	health.died.connect(_on_died)
@@ -228,6 +238,20 @@ func _build_lamp(offset: Vector3) -> StandardMaterial3D:
 	lamp.position = offset
 	add_child(lamp)
 	return material
+
+
+## Poise remaining, 0–1. For probes and for `M4-T02`'s archetypes, which will
+## want to differ by how much of this they carry.
+func poise() -> float:
+	return _poise / maxf(Config.tuning.enemy_poise, 0.001)
+
+
+func _break_poise() -> void:
+	_hitbox.disarm()
+	_attack = Attack.NONE
+	_poise = 0.0
+	_stagger_timer = Config.tuning.enemy_stagger
+	_state = State.STAGGERED
 
 
 func state() -> State:
@@ -260,6 +284,26 @@ func hears_player() -> bool:
 ## True during the Anticipation phase — the window DES-009 puts a 250 ms floor
 ## under. Exposed so the combat probe can time it in wall-clock rather than
 ## trusting the resource value.
+## Which phase of its swing, for a probe that has to hit a specific one.
+## `is_telegraphing()` and `is_swinging()` answer the two a player can see;
+## RECOVERY is the one only the rules can name.
+func attack_phase() -> Attack:
+	return _attack
+
+
+## Refill the pool without staggering. Used by `--fight-probe` to prove the
+## recovery punish stands on its own rather than on an empty pool.
+func refill_poise() -> void:
+	_poise = Config.tuning.enemy_poise
+
+
+## The dangerous window, as `is_telegraphing()` is the readable one. Added for
+## `--fight-probe`: measuring whether an enemy *lands* a hit conflates the
+## brain with the geometry, and the two failed separately.
+func is_swinging() -> bool:
+	return _attack == Attack.ACTIVE
+
+
 func is_telegraphing() -> bool:
 	return _attack == Attack.TELEGRAPH
 
@@ -298,6 +342,12 @@ func _physics_process(delta: float) -> void:
 	# contact; what the state machine does with them is gated below.
 	_listen(delta, tuning)
 	_look(tuning)
+
+	# Poise returns whenever the body is not already broken. Outside a fight
+	# this is a no-op against the cap; inside one it is what stops a series of
+	# light hits banking indefinitely toward a stagger that was never earned.
+	if _state != State.STAGGERED:
+		_poise = minf(tuning.enemy_poise, _poise + tuning.enemy_poise_regen * delta)
 
 	if _state == State.STAGGERED:
 		_tick_stagger(delta, tuning)
@@ -599,13 +649,33 @@ func _on_hurt(amount: float, from: Node) -> void:
 	health.apply_damage(amount, from)
 	if health.is_dead():
 		return
-	# Being hit interrupts the swing. This is the whole reward for reading a
-	# telegraph correctly — without it, trading blows is always as good as
-	# timing them, and DES-009's "recovery is the reward for reading" is a lie.
-	_hitbox.disarm()
-	_attack = Attack.NONE
-	_stagger_timer = Config.tuning.enemy_stagger
-	_state = State.STAGGERED
+	# **A hit staggers when it is heavy, or when it is earned** (`M4-T16`,
+	# ADR-194). This used to stagger on every hit, for the comment's stated
+	# reason — *"the whole reward for reading a telegraph"*. Measured, it was
+	# the opposite: interrupting a windup is strictly better than reading it,
+	# so the reward for reading correctly was that you could have skipped it.
+	# `--fight-probe` took zero damage across ten seconds of seax spam.
+	#
+	# Two ways through, and a light weapon only has the second:
+	#
+	# 1. **Break its poise.** A weapon heavy enough removes more than the pool
+	#    holds — `DES-009`'s *"heavy staggers"*, now literally that.
+	# 2. **Punish the recovery.** A swing that has already gone by cannot be
+	#    taken back, so hitting into it always staggers. This is what makes an
+	#    attack a *commitment* rather than a timer, and it is the window
+	#    `DES-002` needs in order for "do I take this fight" to have an answer
+	#    other than yes.
+	#
+	# Hits landing while already staggered do damage and nothing else — poise
+	# is zero down there, so without this a second hit would re-break it and
+	# rebuild the lock this whole change exists to remove.
+	if _state != State.STAGGERED:
+		var blow: Hitbox = from as Hitbox
+		var punished: bool = _attack == Attack.RECOVERY
+		if not punished:
+			_poise -= blow.stagger if blow != null else 0.0
+		if punished or _poise <= 0.0:
+			_break_poise()
 	# A hit is also information: it tells the enemy where *the attacker* is.
 	# `M1-T05`: this used to look up the first player in the group, which with
 	# a party sent a struck enemy after whoever happened to be first rather
@@ -623,6 +693,11 @@ func _tick_stagger(delta: float, tuning: TuningProfile) -> void:
 	_stagger_timer -= delta
 	if _stagger_timer <= 0.0:
 		_patience = tuning.enemy_patience
+		# Back to full rather than to whatever regenerated while it was down:
+		# a stagger is the pool's price having been paid, so charging for it
+		# twice would mean the second stagger is always cheaper than the first
+		# and every fight ends in a lock again by a slower route.
+		_poise = tuning.enemy_poise
 		_state = State.ALERTED
 
 

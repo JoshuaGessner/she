@@ -21,11 +21,11 @@ _What the game is._
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
 | `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-08-14 | DES-002, DES-006, DES-008 |
 | `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-09-03 | DES-003, DES-004, DES-005 |
-| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-09-03 | DES-005, DES-007, DES-008, PRO-001 |
+| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-09-04 | DES-005, DES-007, DES-008, PRO-001 |
 | `DES-010` | [Retention, Session Hooks & Churn Points](design/DES-010-retention-and-session-hooks.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-007, PRO-001 |
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-08-25 | DES-004, DES-003, DES-012, DES-009 |
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
-| `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-08-16 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
+| `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-09-04 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
 | `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-09-02 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-02 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
@@ -57,8 +57,8 @@ _How we work, what we decided, what we must not do._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-03 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-03 | DES-001, DES-003, PRO-001 |
+| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-04 | DES-001, TEC-001, TEC-003 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-04 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |

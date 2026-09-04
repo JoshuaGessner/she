@@ -485,6 +485,17 @@ extends Resource
 @export var enemy_attack_recovery: float = 0.45
 ## How long a hit interrupts an attack. The reward for reading a telegraph.
 @export var enemy_stagger: float = 0.35
+
+## Poise an enemy absorbs before it staggers (`M4-T16`, ADR-194).
+##
+## Sized against the roster rather than picked: the hammer's 100 breaks it in
+## one hit, so `DES-009`'s *"heavy staggers"* is literally true, and the seax's
+## 22 cannot break it inside the four swings that kill this enemy — so a light
+## weapon has to earn its stagger in the recovery window. Regeneration is what
+## stops poise carrying between fights, and it is deliberately slower than the
+## fastest weapon's damage rate so sustained pressure still wins eventually.
+@export var enemy_poise: float = 100.0  # ⟨tune⟩
+@export var enemy_poise_regen: float = 18.0  # ⟨tune⟩
 ## Seconds of hearing something before UNAWARE becomes SUSPICIOUS. A short
 ## delay stops a single footstep at the edge of earshot from flipping a whole
 ## room, which would make crouching pointless.

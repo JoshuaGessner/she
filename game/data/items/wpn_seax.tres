@@ -12,6 +12,7 @@ damage = 15.0
 damage_type = 0
 reach = 0.9
 stamina_cost = 9.0
+stagger = 22.0
 clamor_swing = 0.5
 clamor_hit = 2.2
 

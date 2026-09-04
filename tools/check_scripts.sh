@@ -515,7 +515,12 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# probe nobody runs eventually looks like. `check_dead.py` cannot see this
 	# class — the functions are referenced by their own dispatch, so the names
 	# are alive and only the *running* of them is absent (ADR-098's own caveat).
-	for gym_probe in clamor combat; do
+	# `fight` measures what `combat` does not (`M4-T16`, ADR-194): `combat`
+	# reports both fighters' anatomy and lethality, all of it correct, and
+	# never asks whether the enemy lands a blow. It did not, for four of the
+	# five weapons in the table, and every number `combat` printed stayed true
+	# throughout.
+	for gym_probe in clamor combat fight; do
 		gym="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 			levels/dev/movement_gym.tscn -- "--$gym_probe-probe" 2>&1)"
 		if [[ $? -ne 0 ]] || printf '%s\n' "$gym" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then

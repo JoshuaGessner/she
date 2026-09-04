@@ -17,6 +17,13 @@ signal struck(hurtbox: Hurtbox)
 
 @export var damage: float = 10.0
 
+## Poise removed on connecting (`M4-T16`). Beside `damage` because it travels
+## with it: whoever arms this box knows what swung, and `Enemy._on_hurt` reads
+## it back off `from`. Zero by default, so anything that has not been taught
+## about poise cannot stagger — including the enemy's own hitbox, since the
+## player has no poise pool and `DES-009` gives them stamina instead.
+@export var stagger: float = 0.0
+
 var _armed: bool = false
 var _already_hit: Array[Hurtbox] = []
 

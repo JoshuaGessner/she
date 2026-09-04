@@ -66,6 +66,8 @@ func _ready() -> void:
 			_combat_probe(player)
 		elif arg == "--clamor-probe":
 			_clamor_probe(player)
+		elif arg == "--fight-probe":
+			_fight_probe(player)
 		elif arg.begins_with("--capture-top="):
 			_capture_top(player, arg.split("=", true, 1)[1])
 		elif arg == "--lifecycle-probe":
@@ -624,3 +626,159 @@ func _build() -> void:
 	environment.ambient_light_energy = 1.0
 	env.environment = environment
 	_world.add_child(env)
+
+
+## Does the enemy ever get to swing? (`M4-T16`, ADR-194)
+##
+## `_combat_probe` measures the *anatomy* of a fight — telegraph length, swing
+## phases, how many hits each side needs — and every number it prints is
+## correct. **It never measures the fight.** Its step 4 asserts *"hit interrupts
+## windup"* and calls that the reward for reading a telegraph, which is the
+## assumption under test rather than a result: if a hit interrupts a windup at
+## any point in the cycle, reading the telegraph is not the reward, it is the
+## strictly worse alternative to swinging first.
+##
+## Measured against the player's own health, because that is what a player
+## experiences. Both fighters are held alive so the *window* is the variable
+## rather than the lethality, which `_combat_probe` already owns.
+##
+## Two passes, because the first claim has an obvious objection:
+##
+## 1. **Stamina refilled** — isolates the stagger loop from the stamina economy.
+## 2. **Stamina as played** — asks whether the economy already prices the loop,
+##    which would make the first pass a fact about a build nobody can play.
+##
+## Both passes must see the enemy land a blow. Before poise neither did:
+## 24 swings, zero damage taken, ten seconds.
+func _fight_probe(player: Player) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var tuning: TuningProfile = Config.tuning
+	var enemy: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	var edge: WieldableTrait = player.weapon.held()
+	var failures: int = 0
+
+	var cycle: float = edge.windup + edge.active + edge.recovery
+	var guard: float = tuning.enemy_stagger + tuning.enemy_telegraph
+	print("[fight] weapon cycle              %4d ms  (%s)" % [
+		int(cycle * 1000.0),
+		player.equipment.in_slot(Enums.Slot.MAIN_HAND).definition.id])
+	print("[fight] stagger + telegraph       %4d ms   the gap a stagger buys" % [
+		int(guard * 1000.0)])
+	print("[fight] swings to break poise     %4.1f   (%.0f poise / %.0f per hit)" % [
+		tuning.enemy_poise / maxf(edge.stagger, 0.001),
+		tuning.enemy_poise, edge.stagger])
+
+	for pass_index: int in range(2):
+		var refill: bool = pass_index == 0
+		# **Facing the enemy.** `_combat_probe` puts the player at -Z and passes
+		# yaw 0.0 — Godot's forward — so its player stands in front of the enemy
+		# looking away from it. That probe only asks whether the enemy
+		# telegraphs, which it does regardless, so the error is invisible there.
+		player.teleport(enemy.global_position + Vector3(0, 0.1, -1.4), PI)
+		player.health.restore()
+		player.stamina.refill()
+		enemy.health.restore()
+
+		# **A Dictionary, not an int.** GDScript lambdas capture by value, so a
+		# captured integer counter increments a copy and reads back zero
+		# forever — which is exactly how this probe first reported that a
+		# healthy build landed no hits either.
+		var tally: Dictionary = {"taken": 0, "landed": 0}
+		var on_hurt: Callable = func(_a: float, _r: float, _f: Node) -> void:
+			tally["taken"] = int(tally["taken"]) + 1
+		var on_land: Callable = func(_h: Hurtbox) -> void:
+			tally["landed"] = int(tally["landed"]) + 1
+		player.health.damaged.connect(on_hurt)
+		player.weapon.connected.connect(on_land)
+
+		var swings: int = 0
+		var enemy_swings: int = 0
+		var was_active: bool = false
+		# Ten seconds is far longer than the fight it stands in for — four seax
+		# swings kill this enemy. The length is what makes a zero mean
+		# something: a 1.6 s fight could take no damage by luck.
+		for i: int in range(600):
+			enemy.health.restore()
+			player.health.restore()
+			if refill:
+				player.stamina.refill()
+			if not player.weapon.is_busy() \
+					and player.weapon.request_swing(player.stamina):
+				swings += 1
+			var active: bool = enemy.is_swinging()
+			if active and not was_active:
+				enemy_swings += 1
+			was_active = active
+			await get_tree().physics_frame
+
+		player.health.damaged.disconnect(on_hurt)
+		player.weapon.connected.disconnect(on_land)
+		var label: String = "stamina refilled" if refill else "stamina as played"
+		print("[fight] %-20s %3d swings / %d land | enemy %d swings / %d land" % [
+			label, swings, int(tally["landed"]), enemy_swings, int(tally["taken"])])
+		if int(tally["landed"]) == 0:
+			print("[fight] FAIL %s: the player never connected — the probe is "
+				% label + "measuring nothing")
+			failures += 1
+		# **The assertion this probe exists for.** A player holding the attack
+		# button must not be safe. `DES-002` needs "do I take this fight" to
+		# have an answer other than yes, and it cannot while the answer is free.
+		if int(tally["taken"]) == 0:
+			print("[fight] FAIL %s: %d enemy swings landed nothing in 10 s — "
+				% [label, enemy_swings]
+				+ "spamming a light weapon is a stagger-lock (DES-009 line 47)")
+			failures += 1
+
+	# ── the punish window ────────────────────────────────────────────────
+	# **A swing that has gone by cannot be taken back.** This is the half a
+	# light weapon has, and without it poise would simply mean knives no
+	# longer stagger — a subtraction, not a design. Asserted separately
+	# because the pass above stays green with this deleted: spam happens to
+	# land in a recovery window often enough to look like it still works.
+	player.teleport(enemy.global_position + Vector3(0, 0.1, -1.4), PI)
+	enemy.health.restore()
+	var punished: bool = false
+	for i: int in range(900):
+		await get_tree().physics_frame
+		if enemy.attack_phase() != Enemy.Attack.RECOVERY:
+			continue
+		# Full poise on purpose: if this staggers, it staggered because the
+		# swing was punished and not because the pool happened to be empty.
+		enemy.refill_poise()
+		enemy.take_test_hit(1.0)
+		await get_tree().physics_frame
+		punished = enemy.state() == Enemy.State.STAGGERED
+		break
+	print("[fight] recovery is punishable    %s" % ("yes" if punished else "NO"))
+	if not punished:
+		print("[fight] FAIL a hit into a full-poise enemy's recovery did not "
+			+ "stagger it — DES-002's reason to read a fight is gone")
+		failures += 1
+
+	# ── DES-009 line 47, the half that was never built ───────────────────
+	# *"Light (fast, low stagger) vs. heavy (slow, staggers, loud)."* One
+	# hammer blow must break a full pool; four seax blows must not.
+	var hammer: WieldableTrait = null
+	var knife: WieldableTrait = null
+	for trait_of: ItemTrait in ItemCatalogue.by_id(&"wpn_dvergar_hammer").traits:
+		hammer = trait_of as WieldableTrait
+	for trait_of: ItemTrait in ItemCatalogue.by_id(&"wpn_seax").traits:
+		knife = trait_of as WieldableTrait
+	print("[fight] hammer breaks poise in    %4.1f hits   (want 1.0)" % [
+		tuning.enemy_poise / maxf(hammer.stagger, 0.001)])
+	var kills: int = int(ceil(tuning.enemy_health / knife.damage))
+	print("[fight] seax breaks poise in      %4.1f hits   (want > %d, the swings that kill it)" % [
+		tuning.enemy_poise / maxf(knife.stagger, 0.001), kills])
+	if hammer.stagger < tuning.enemy_poise:
+		print("[fight] FAIL the hammer does not stagger in one hit — "
+			+ "DES-009 line 47 says heavy staggers")
+		failures += 1
+	if knife.stagger * float(kills) >= tuning.enemy_poise:
+		print("[fight] FAIL the seax breaks poise inside the fight it wins — "
+			+ "the light weapon is a stagger-lock again")
+		failures += 1
+
+	if failures > 0:
+		print("[fight] FAIL %d assertion(s)" % failures)
+	else:
+		print("[fight] a fight costs something, and heavy is what staggers")

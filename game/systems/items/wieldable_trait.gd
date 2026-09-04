@@ -37,6 +37,26 @@ extends ItemTrait
 @export var reach: float = 1.1
 @export var stamina_cost: float = 18.0
 
+## Poise this swing removes from what it hits. **`DES-009` line 47 has said
+## since the design lock that stagger is a weapon property** — *"light (fast,
+## low stagger, quiet-ish) vs. heavy (slow, staggers, loud)"* — and it was
+## never built: `Enemy._on_hurt` staggered on every hit for a flat
+## `TuningProfile.enemy_stagger`, identical for a knife and a war hammer.
+##
+## Measured, that inverted the rule it was meant to serve. A stagger costs the
+## enemy `enemy_stagger` + `enemy_telegraph` = 850 ms before it can swing
+## again, and only the hammer's 900 ms cycle is slower than that. So the
+## *lightest* weapon in the game was the one that locked an enemy out
+## permanently, and the heavy one — the weapon `DES-009` says is the one that
+## staggers — was the only weapon that could be hit back. `--fight-probe`
+## measured zero damage taken in ten seconds of seax spam, stamina included.
+##
+## Against `TuningProfile.enemy_poise`, so a light weapon cannot break poise
+## inside an enemy's lifetime and must earn its stagger in the recovery window
+## instead. That is the trade, and it is why this is not simply a damage
+## number wearing another name (ADR-058).
+@export var stagger: float = 30.0  # ⟨tune⟩
+
 ## Deposited on starting a swing, and again on connecting — DES-009 makes
 ## connecting the loud part, so a whiff is cheap and a fight is not. Units are
 ## `TuningProfile`'s clamor scale.
@@ -64,6 +84,10 @@ func validate() -> PackedStringArray:
 		problems.append("reach must be positive")
 	if stamina_cost < 0.0:
 		problems.append("stamina_cost cannot be negative")
+	# Zero is meaningful (a weapon that never staggers); negative is not.
+	if stagger < 0.0:
+		problems.append("stagger cannot be negative — a weapon that never "
+			+ "staggers is `0.0`, not less")
 	if clamor_swing < 0.0 or clamor_hit < 0.0:
 		problems.append("clamor cannot be negative — a silent swing is `0.0`, not less")
 	return problems
