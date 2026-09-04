@@ -3910,6 +3910,52 @@ func _machine_probe() -> void:
 			+ "stage that ignores its own seed lays the same situations on "
 			+ "every floor whose layout happens to match") % seen.size())
 
+	# ─ 9a. **value climbs with depth** (`M4-T01` step 7, `DES-015` Layer 4) ─
+	#
+	# The load-bearing half of population, and it was flat: `_by_worth()` ignored
+	# `_depth`, so the Prize on floor 0 was **the same object** as the Prize on
+	# floor 2 and the only thing that worsened with descent was the Hunt.
+	#
+	# Measured as *what the floor actually lays*, not as what the pool contains.
+	# A cut pool that nothing reads would pass a pool-shaped assertion and change
+	# no run — the ADR-098 shape this probe's row 7 already exists for.
+	var worth_at := PackedInt32Array()
+	for depth: int in RunFile.LAST_FLOOR + 1:
+		var best: int = 0
+		var total: int = 0
+		var floors_seen: int = 0
+		for seed_at: int in range(8000, 8040):
+			var made: DelvingsFloor = DelvingsFloor.of(seed_at, depth)
+			if not made.problems().is_empty():
+				continue
+			floors_seen += 1
+			for row: Array in made.fixtures() + made.filler():
+				var item: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
+				if item == null:
+					continue
+				total += item.tribute_value
+				best = maxi(best, item.tribute_value)
+		worth_at.append(best)
+		print("[machine] depth %d     best %d tribute, %d laid across %d floor(s)"
+			% [depth, best, total, floors_seen])
+	# **Strictly climbing, and by a lot.** `DES-015` says *steeply*, so equal
+	# adjacent floors is a failure and not a rounding artefact: two floors that
+	# pay the same are two floors with the same decision on them.
+	for depth: int in worth_at.size() - 1:
+		if worth_at[depth + 1] <= worth_at[depth]:
+			problems.append(("floor %d's best is %d tribute and floor %d's is "
+				+ "%d — `DES-015` Layer 4 wants value climbing steeply with "
+				+ "depth, and nothing pulls a player down a floor that pays the "
+				+ "same") % [depth, worth_at[depth], depth + 1, worth_at[depth + 1]])
+	# And the climb is worth descending for. Two floors apart differing by a
+	# few tribute is a curve nobody changes a decision over.
+	if worth_at.size() >= 2 and worth_at[0] > 0 \
+			and float(worth_at[worth_at.size() - 1]) / float(worth_at[0]) < 3.0:
+		problems.append(("the bottom pays %.1fx the top — `DES-015` asks for "
+			+ "*steeply*, and a gentle curve is one the Tithe can be paid "
+			+ "against without ever going deep (`DES-003`)")
+			% (float(worth_at[worth_at.size() - 1]) / float(worth_at[0])))
+
 	# ─ 10. **every Calamity is named, and the name is a name** (ADR-192) ─
 	#
 	# The finding this task was opened by, and it was worse than it looked.

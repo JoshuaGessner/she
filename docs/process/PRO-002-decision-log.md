@@ -6335,5 +6335,57 @@ The dead function is deleted rather than kept and called, on ADR-064: absent bea
 
 ---
 
+## ADR-193 — The Prize on floor 0 was the Prize on floor 2
+
+**Date:** 2026-09-04 · **Status:** accepted · **Completes `M4-T01`** · **Implements `DES-015` step 7**
+
+**Context:** the last thing `M4-T01` owed. `TEC-007` §11 step 7 is *"population against the greed gradient"*, and ADR-192 measured what was actually missing: the *within-floor* half has worked since ADR-032's held-versus-bypass rule generalised, and the **across-floor** half did not exist at all.
+
+`DelvingsFloor._by_worth()` ignored `_depth`. Every floor of an expedition drew one identical pool, so **the Prize on floor 0 was the same object as the Prize on floor 2** and the only thing that got worse as you descended was the Hunt.
+
+### Why that is worse than a flat number
+
+`DES-015` Layer 4 does not treat the depth curve as tuning. It calls it the load-bearing part: *"value must climb steeply with depth, and the player must be able to see that from floor 1. The Prize being visible-but-distant from early in the expedition is what pulls people down."*
+
+And it reaches further than loot. `DES-003` couples the Tithe to what you carry home, so **a Tithe payable out of the shallowest floor is a Tithe nobody has to descend for** — the pull the whole persistence design hangs off, quietly disconnected. It is also, precisely, the flat middle `DES-015` opens by diagnosing in other games, sitting inside our own generator: *the randomness is in the stuff, not the space*, one level further down again.
+
+### The fix is one function, because everything already reads it
+
+`_by_worth()` returns the pool cut by depth. The Prize, the machine gear and the filler all read that one list, so cutting the list cuts all three and **nothing above the line changes** — which is the promise `delvings_floor.gd` already made about `M4-T17` and is now the second time it has paid.
+
+**One cut, not three tiers.** Floor `d` withholds the dearest `WITHHELD` share, closing linearly to nothing at `RunFile.LAST_FLOOR`, so the floors overlap. Three separate loot tables would make a floor identifiable by its drops, which is the sameness `DES-015` was written against.
+
+Measured across 40 seeds per depth, against the fifteen authored items:
+
+| | Best single item | Total laid, 40 floors |
+|---|---|---|
+| **Floor 0 — the Aftermath** | 6 | 480 |
+| **Floor 1 — the Retreat** | 55 | 5 039 |
+| **Floor 2 — the Cause** | 140 | 20 923 |
+
+Twenty-three-fold on the best item, forty-four-fold on what a floor holds.
+
+### The numbers are `⟨tune⟩` and one of them is deliberately uncomfortable
+
+`WITHHELD = 0.45` puts the Aftermath's best find at 6 tribute against a 40-tribute Tithe cycle (ADR-029). **A floor-0 run cannot pay a cycle**, and that is the intended reading of *"power must cost risk"* — but it is a balance claim made against no playtest and it is marked as one.
+
+`GATE M4 GREED` — *a playtester voluntarily abandons loot to survive* — is the measurement that settles it, and it is worth noting that **that gate could not have been run against a flat curve at all**: abandoning loot is only a decision when some of it is worth more than the rest, and until now every floor's best item was the same object. `LEAVE_AT_LEAST = 6` is the floor under the floor: a first act with nothing in it is one `DES-002`'s loop cannot survive.
+
+`M4-T17`'s loot tables replace the slice with authored depth bands, and nothing above `_by_worth()` changes then either.
+
+### The half that is not built, stated plainly
+
+`DES-015` Layer 4 is two clauses and this implements one. **"The player must be able to see that from floor 1"** is not done: nothing on floor 0 tells you the Cause is richer. That is the *visible-but-distant Prize* — sightlines, lighting and the Shaft's framing — which is `TEC-008` and `M2-T13`'s language rather than the generator's, and it is named here rather than left to read as finished.
+
+### Verification
+
+One plant, and it is the bug itself: `WITHHELD = 0.0` restores the flat pool, and all three floors report a best item of 140. Three rows fire — the two strict-climb comparisons and the steepness ratio — so the check fails against exactly the state the code was in this morning.
+
+The row is deliberately measured on **what the floor lays**, not on what the pool contains. A pool cut by depth that nothing read would satisfy a pool-shaped assertion and change no run, which is ADR-098's shape and the reason `--machine-probe` row 7 exists.
+
+**`M4-T01` is done.** `TEC-007` §11's list is complete through step 7; extended step 8 with §6's split remains as `TEC-007`'s own open item, not as this task's.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

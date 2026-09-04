@@ -28,6 +28,29 @@ extends FloorSource
 ## the question it exists to ask.
 const WAYSTONE: StringName = &"con_waystone"
 
+## What share of the corpus's dearest end the **shallowest** floor may not
+## produce ⟨tune⟩ (`M4-T01` step 7, `DES-015` Layer 4, ADR-193).
+##
+## `DES-015` asks for value that *"climbs steeply with depth"*, and steep is the
+## word doing the work: a gentle curve is one nobody changes a decision over, and
+## the decision is the product. At 0.45 against the fifteen authored items the
+## best thing on floor 0 is worth 8 tribute and the best on floor 2 is worth 140
+## — seventeen-fold, which is steep by any reading and is deliberately at the
+## uncomfortable end of the range until a playtest says otherwise.
+##
+## **This is a balance number and it is not settled.** `GATE M4 GREED` is the
+## measurement, and `DES-003`'s Tithe is what it lands on: a cycle payable out of
+## the Aftermath is a cycle nobody descends for.
+const WITHHELD: float = 0.45
+
+## How many items the shallowest floor keeps whatever `WITHHELD` says ⟨tune⟩.
+##
+## A floor with nothing worth picking up has no decision on it, which is the one
+## thing `DES-002`'s loop cannot survive in its first act. Also the guard that
+## keeps a small corpus from cutting itself to nothing: fifteen items today,
+## and `M4-T17` has not written the taxonomy yet.
+const LEAVE_AT_LEAST: int = 6
+
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
 var _anchors: FloorAnchors = null
@@ -251,6 +274,39 @@ func filler() -> Array:
 ## Sorted by `tribute_value` and then by id, because two items worth the same
 ## must not be dealt in whatever order the catalogue happened to load them in
 ## (`TEC-007` §1).
+##
+## ## **The pool is cut by depth** (`M4-T01` step 7, `DES-015` Layer 4, ADR-193)
+##
+## `DES-015` Layer 4 names the depth curve as the load-bearing part of
+## population: *"value must climb steeply with depth, and the player must be
+## able to see that from floor 1."* This function ignored `_depth` entirely, so
+## every floor of an expedition drew one identical pool — **the Prize on floor 0
+## was the same object as the Prize on floor 2**, and the only thing that got
+## worse as you descended was the Hunt.
+##
+## That is the flat middle `DES-015` opens by diagnosing in other games, sitting
+## inside our own generator, and it undercuts more than it looks like: `DES-003`
+## couples the Tithe to what you carry home, and a Tithe payable from the
+## shallowest floor is one nobody has to go deep for. **Depth has to be where
+## the money is or nothing pulls anybody down.**
+##
+## **Every caller inherits it for free**, which is why the fix is here and not in
+## three places: the Prize, the machine gear and the filler all read this one
+## list, so cutting the list cuts all of them and nothing above changes.
+##
+## ## One cut, not three tiers
+##
+## Floor `d` withholds the dearest `WITHHELD` share of the corpus, closing
+## linearly to nothing at `RunFile.LAST_FLOOR`. So the deepest floor can produce
+## anything and the shallowest cannot produce the best of it, with the floors
+## between overlapping — a gradient rather than three separate loot tables,
+## which is what keeps a floor from being identifiable by its drops.
+##
+## **The numbers are `⟨tune⟩` and the shape is not.** `GATE M4 GREED` — *a
+## playtester voluntarily abandons loot to survive* — is the measurement that
+## settles how steep this should be, and it cannot be run against a flat curve
+## at all. `M4-T17`'s loot tables replace the cut with authored depth bands and
+## nothing above this line changes then either.
 func _by_worth() -> Array[ItemResource]:
 	var pool: Array[ItemResource] = []
 	for item: ItemResource in ItemCatalogue.all():
@@ -261,4 +317,22 @@ func _by_worth() -> Array[ItemResource]:
 		if a.tribute_value != b.tribute_value:
 			return a.tribute_value > b.tribute_value
 		return String(a.id) < String(b.id))
-	return pool
+	return pool.slice(_withheld(pool.size()))
+
+
+## How many of the dearest items this floor may not produce.
+##
+## Zero at the bottom, `WITHHELD` of the corpus at the top, linear between.
+##
+## **Never the whole pool.** A floor with nothing to find is a floor with no
+## decision on it, and `LEAVE_AT_LEAST` is the floor under that — the shallowest
+## expedition still has to be worth walking through, or `DES-002`'s loop has a
+## dead first act.
+func _withheld(size: int) -> int:
+	if size <= LEAVE_AT_LEAST or RunFile.LAST_FLOOR <= 0:
+		return 0
+	var deepest: float = float(RunFile.LAST_FLOOR)
+	var shallowness: float = clampf(
+		(deepest - float(_depth)) / deepest, 0.0, 1.0)
+	var cut: int = int(round(float(size) * WITHHELD * shallowness))
+	return clampi(cut, 0, size - LEAVE_AT_LEAST)
