@@ -4,7 +4,7 @@ title: Pre-Mortem — How This Fails
 status: accepted
 owner: process
 tags: [risk, premortem, scope, production, honesty]
-updated: 2026-08-15
+updated: 2026-09-04
 related: [PRO-001, DES-009, ART-005, TEC-004, DES-001]
 ---
 
@@ -20,6 +20,8 @@ Ordered by how likely each is to be the actual cause.
 
 ## 1. M1 never ended ⚠ most likely
 
+> **RE-RUN AT THE `M3` GATE (ADR-191): the milestone changed, the mechanism did not.** `M1` ended. **`M4` is where this risk now lives**, and it is a better host for it: `M1` had five tasks, `M4` has seventeen open rows across two halves and every one of them is defensible. A milestone large enough to always contain something worth doing is a milestone you never have to leave.
+
 Solo, no deadline, and combat feel is a bottomless pit. The controller got tuned, then re-tuned. The swing arc was never quite right. Eighteen months in there was an excellent first-person controller and no game.
 
 **Why it's the top risk:** ADR-034 removed deadlines deliberately and correctly — but deadlines were also the thing that ended iteration. Nothing replaced them.
@@ -28,6 +30,8 @@ Solo, no deadline, and combat feel is a bottomless pit. The controller got tuned
 - **"Decent unjuiced" is a *bar*, not an aspiration.** Two people who aren't you, ten minutes, want to keep playing. When that passes, **stop**, even if it could be better.
 - **Timebox iterations, not the milestone.** Two weeks per pass; at the end, ship it forward or cut the feature.
 - Return to combat feel **once**, at M4, with real assets. Not continuously.
+
+> **The timebox has never been applied, and that is the finding.** It is written above and nothing measures against it. `M4·A` now carries an explicit order (ADR-190) precisely so the two-week rule has something to be late against: **`M4-T01` → `M4-T16` → the stranger session → `M4-T20` → the rest.** A pass that overruns two weeks ships forward or gets cut; that is the sentence, and it applies to `M4-T01`'s remaining two steps first.
 
 ## 2. The ink shader ate four months
 
@@ -57,6 +61,14 @@ Every system reads beautifully on paper. Clamor, the Tithe, the ember, the Gulls
 
 **Mitigation:** the M1 and M2 gates test exactly this and nothing else. **Take a failure seriously rather than explaining it away.** If a playtester never voluntarily abandons loot, the pressure system is wrong — and no amount of the rest of this corpus compensates.
 
+> **RE-RUN AT THE `M3` GATE (ADR-191): this is now the risk being actively realised, not the one being guarded against.**
+>
+> Two independent play sessions have reported a version of it — *"there is still not enough gameplay mechanic or level depth to test any of our gates or real flow"* (ADR-165) and *"the gameplay feels a little stale still"* (`M4-T16`). **Both were answered with a resequencing and a decision record.** ADR-165 reordered `M4`; ADR-189 reordered an argument about the interface. Neither answer was more game, and there was no playtest between them.
+>
+> A resequence is not an explaining-away. **Two in a row with nothing played in between is the same thing arriving by instalments**, and the mitigation above is one sentence long for a reason.
+>
+> **What changes:** the stranger session is run as soon as `M4-T16` lands rather than at the end of `M4` (ADR-190). Its four clauses need two depth tasks and zero interface work, which makes it the cheapest evidence available about whether any of this is fun — and the count that matters is that **every gate testing fun is still `pending` while the corpus is 42 documents and 191 ADRs.**
+
 ## 5. Co-op solo-developed was 2× and it was the 2× that killed it
 
 ADR-013 accepted the cost with eyes open. But QA on four-player emergent systems, alone, is genuinely brutal — the Gullsjúkr targeting the richest player, ember rescue, late-join world deltas, host migration, four lanterns of Clamor.
@@ -73,11 +85,19 @@ Premium price, crowded genre (Dark and Darker, Tarkov, DMZ, Hunt), solo develope
 
 **Mitigation:** the ink shader is the marketing asset. It is *screenshot-legible*, which is rare and valuable. **Start posting development shots the moment it works.** A devlog costs an hour a week and is the only distribution a solo premium title realistically gets.
 
+> **RE-RUN AT THE `M3` GATE (ADR-191): the precondition was met at `M1` and nothing has been posted.** *"The moment it works"* had an answer — `M1-T09`'s go/no-go, measured GO at ADR-070 with outlines and boil at ~0.15–0.23 ms. That was weeks ago. `M4-T18` exists and is untouched, and *"the moment it works"* turns out to be a trigger nobody can be late for because it names no observable.
+>
+> **It has one now:** the devlog starts when the Delvings are photogenic — realistically the `M4-T01` ⟨tune⟩ pass, which is the first floor worth a screenshot. Not urgent, and no longer implicit.
+
 ## 7. Documentation became the project
 
 38 documents, 60 ADRs, zero lines of engine code. The corpus kept improving and the game never started.
 
 **Mitigation:** already flagged repeatedly. **The design is locked. Further planning now requires an ADR justifying why it could not wait until after M1.**
+
+> **RE-RUN AT THE `M3` GATE (ADR-191): the count is now 42 documents and 191 ADRs against roughly two play sessions on a build.** The session that wrote this re-run added one document and three ADRs to that ledger, which is worth stating rather than leaving for a later reader to notice.
+>
+> **The corpus is load-bearing and the rule stands** — it has stopped this design drifting back into a stat ladder three separate times, and `TEC-007` and `TEC-009` each found a real fault before a month was spent on it. What has changed is the exchange rate: **the marginal ADR is now worth less than the marginal playtest, and six weeks ago it was not.** The corrective is not to write fewer records, it is to have something played between them (§4).
 
 ## 8. Burnout
 
@@ -104,5 +124,9 @@ Three concrete actions, taken now:
 ## Re-run this
 
 A pre-mortem is not a one-time ritual. **Re-run it at each milestone gate** — the failure modes change as the project does, and the ones that matter at M3 are not the ones on this page.
+
+> **This instruction was skipped once already, and now has a task** (`M4-T21`, ADR-191). `M3` cleared and this document sat untouched for three weeks; the re-run above is late, and it found `§1` living in a different milestone, `§4` being actively realised, and `§6`'s trigger met since `M1`. **A sentence at the bottom of a document is not a process** — that is ADR-098's finding applied to ourselves, and the fix is the same one: give it a name something calls.
+>
+> **The `M3` re-run confirms the page's own prediction.** *"The ones that matter at M3 are not the ones on this page"* — the top risk is no longer combat feel iterating forever, it is a seventeen-row milestone with no timebox and no playtest in it.
 
 **Sources:** [Klein, *Performing a Project Premortem* (HBR 2007)](https://nesslabs.com/pre-mortem-anticipate-failure-with-prospective-hindsight) · [Vertical slice definitions and solo-dev scope](https://ltpf.ramiismail.com/prototypes-and-vertical-slice/)

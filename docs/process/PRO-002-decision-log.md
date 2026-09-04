@@ -6145,5 +6145,110 @@ No game code changed, so there is nothing to plant. The measurements are reprodu
 
 ---
 
+## ADR-190 — `M4-T05` splits, and the split is a third of what was asked for
+
+**Date:** 2026-09-04 · **Status:** accepted · **Answers `TEC-009` §8** · **Splits `M4-T05`** · **Orders `M4·A`** · **Accepts `TEC-009`**
+
+**Context:** ADR-189 put a sequencing question to a person and it has been answered: split `M4-T05`, but not the way `TEC-009` §8 asked for. **The proposal was ≈2–3 weeks of interface structure into `M4·A`. This takes about a week of it and leaves the rest where ADR-165 put it.**
+
+### The argument that shrank it is the stranger session
+
+`TEC-009` §8 justified the move on two gates: `GATE M4 COOP` needs Layer 4, `GATE M4 GREED` needs weight and the Waystone. Both true, and both are `M4·B`-adjacent gates that arrive late.
+
+**The gate that arrives first needs none of it.** The stranger session — three testers, three runs, moved to `M4` by ADR-165 — has four clauses, and every one of them is answerable on interface that already exists:
+
+| Clause | What answers it | State |
+|---|---|---|
+| reaches an exit having entered ≤4 rooms | wayfinding | needs `M4-T01` |
+| answers *"how much noise are you making?"* roughly right | the Ear | **built** (`M2-T03`) |
+| explains a death in one sentence | combat readability | needs `M4-T16` |
+| discovers they can drop loot untold | `ControlsScreen`, the bag | **built** (`M3-T16`, `M2-T01`) |
+
+So the cheapest, earliest and most informative gate on the board is blocked by **two depth tasks and zero interface work**. Front-loading three weeks of layout ahead of it is `PRO-007` §1's mechanism exactly — iterating on the legible thing while the core question stays unasked — and `PRO-007` §1 is the risk this project was told is its most likely.
+
+**`TEC-009` §8 was written by the party that benefits from the change, and it over-claimed.** Recording that plainly is the point of ADR-189 having left it to a person.
+
+### What moves, and why each row cannot wait
+
+`M4-T20` takes the gate-blocking quarter of `TEC-009` §5 and nothing else:
+
+- **`HudFrame`, the region grammar** (§5.1). Not for tidiness. The two readouts below are two more corner literals without it — the fault `TEC-009` §1.3 measured — and it is what makes the overlap check writable at all.
+- **Layer 3's Waystone mark** (§5.4). ADR-186 made it the only extraction above the bottom floor; today the answer costs a rummage, and `GATE M4 GREED` is a decision about exactly this.
+- **Layer 4's party frames** (§5.4). `GATE M4 COOP` asks a repeatedly-downed newcomer whether they still want to go again, and `FallenReadout` binds to `local_player`.
+- **The overlap check** (§5.6). Second report of the same bug (ADR-140).
+
+### What stays in `M4-T05`, deliberately
+
+The Lair layout, the `MenuStyle` vocabulary, Layer 2, and the doors. All four are right; none is gate-blocking; all four are better done beside the art they are sockets for. **This is not a deferral dressed as a decision** — they have a task ID and a milestone, which is ADR-064's test.
+
+**Two exceptions pulled forward into `M4-T20` on cost asymmetry alone**, not on scope:
+
+- **The two-ground palette rule** — *ink is the opposite of the ground, and the ground flips at the Descent.* `MenuStyle`'s colours are absolute and `ART-005` makes the Lair white-ground, so `M4-T08` turns every hub screen into the Deep's interface worn in the hub. One constant today; seventeen screens after.
+- **`MenuStyle` as a Godot `Theme`.** `M4-T11` is a global swap of a font, a size and a palette, against seventeen files of `add_theme_font_size_override`. Also what `CLAUDE.md` §4's *data over code* asks for.
+
+Both are ⟨a weekend⟩ now and ⟨a month⟩ later. Neither is art.
+
+### And the order inside `M4·A` is now written down
+
+`M4·A` listed nine tasks and no sequence. It has one:
+
+> **`M4-T01` → `M4-T16` → the stranger session → `M4-T20` → the rest.**
+
+`M4-T01` first because it is `[~]` and owes exactly two things — `TEC-007` §11 steps 6 and 7, **machines stamped into sockets** and **population against the greed gradient**. Those are not housekeeping: a machine is what makes a floor ask a question rather than be rooms, and greed-gradient population is what makes the loot decision spatial. **They are the literal content of the complaint that produced ADR-165**, and half of the task is already built. A half-finished task held open while new ones start is the most expensive object on a roadmap.
+
+`M4-T16` before `M4-T02` for the reason `M4-T16` already gives, and before the stranger session because *explains a death in one sentence* is a question about behaviour.
+
+**Nothing new until the stranger session runs.** `M4-T02`, `M4-T03` and `M4-T04` are each defensible alone and together they are `PRO-007` §3.
+
+### `TEC-009` goes `accepted`
+
+`M4-T20` implements it, which is the condition ADR-189 set and the same one `TEC-007` cleared at ADR-172. Its §8 is now historical: the recommendation stands, the sequencing claim in it was too broad, and this ADR is the correction rather than a second opinion.
+
+---
+
+## ADR-191 — The pre-mortem re-run at the `M3` gate, three weeks late
+
+**Date:** 2026-09-04 · **Status:** accepted · **Updates `PRO-007`** · **Adds `M4-T21`**
+
+**Context:** `PRO-007`'s last section instructs, in its own words: *"A pre-mortem is not a one-time ritual. **Re-run it at each milestone gate** — the failure modes change as the project does, and the ones that matter at M3 are not the ones on this page."*
+
+`M3` cleared. It was not re-run. `PRO-007` is `updated: 2026-08-15` and has not been touched through the whole of `M3` or the start of `M4` — **a mitigation the project wrote for itself and then did not take**, which is the same shape as every ADR-098 finding: it reads as alive and nothing calls it.
+
+Re-running it found that two of the nine risks have changed materially, one is being actively realised, and one mitigation has had its precondition met for weeks with nothing done.
+
+### §1 has mutated: *"M1 never ended"* is now *"M4 never ends"*
+
+The mechanism is unchanged and the milestone is not. `M4` holds **seventeen open tasks**, and `PRO-007`'s own mitigation — *"timebox iterations, not the milestone. Two weeks per pass; at the end, ship it forward or cut the feature"* — is applied nowhere. ADR-034 removed deadlines correctly; nothing replaced what deadlines were doing, and `M4` is where that bill arrives because it is the first milestone big enough to hide in.
+
+ADR-190's ordering is half the answer. The other half is that the two-week rule needs somewhere to live, and it now does: `PRO-007` §1 names `M4` explicitly.
+
+### §4 is being realised, and it has been answered with documents twice
+
+*"It was elegant and it wasn't fun."* Two independent play sessions have now reported a version of it — ADR-165's *"not enough gameplay mechanic or level depth to test any of our gates"* and `M4-T16`'s *"the gameplay feels a little stale still"* — and **both were answered with a resequencing and a decision record.** ADR-165 reordered `M4`; ADR-189 reordered an argument about the interface.
+
+Neither answer was more game, and `PRO-007` §4's mitigation is one sentence: *"take a failure seriously rather than explaining it away."* A resequence is not an explaining-away, but two of them in a row, with no playtest between, is the same thing arriving by instalments. **Recorded here rather than softened**, because the document exists to hold exactly this.
+
+### §6's precondition has been met since `M1` and nothing has been posted
+
+*"The ink shader is the marketing asset… start posting development shots the moment it works."* `M1-T09` passed its go/no-go at ADR-070 — outlines and boil, measured, GO. That was the condition. `M4-T18` exists and is untouched.
+
+**Not escalated to urgent, and not left implicit either.** `M4-T18` gains the trigger it never had: the devlog starts when the Delvings are photogenic — realistically the `M4-T01` ⟨tune⟩ pass — rather than at an unnamed later point.
+
+### §7, and this session's own contribution to it
+
+*"Documentation became the project."* The corpus is 42 documents and 191 ADRs against roughly two play sessions on a build. This session added a document and three ADRs to that ledger.
+
+The corpus is genuinely load-bearing — it has stopped this design drifting back into a stat ladder three times, and `TEC-007` and `TEC-009` each found a real fault before a month was spent on it. **But the marginal ADR is now worth less than the marginal playtest, and that was not true six weeks ago.** `PRO-007` §7's mitigation is already the standing rule; what changes is the bar, and `M4-T21` carries it: re-running the pre-mortem is itself a gate ritual, not a document that gets improved.
+
+### What this changes
+
+- `PRO-007` §1, §4, §6 and §7 rewritten against the `M3`-cleared state; the re-run instruction gains a task so it cannot be skipped again.
+- **`M4-T21`** — re-run the pre-mortem at `GATE M4 EXIT`, and at every gate after.
+- The two-week timebox is now written where `M4` can be measured against it.
+
+**No risk was removed and none was added.** A pre-mortem that comes back with a shorter list every time is a pre-mortem nobody is running honestly.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

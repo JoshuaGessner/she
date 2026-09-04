@@ -1,7 +1,7 @@
 ---
 id: TEC-009
 title: Interface Architecture
-status: proposed
+status: accepted
 owner: tech
 tags: [ui, hud, layout, legibility, accessibility, godot, research]
 updated: 2026-09-04
@@ -10,12 +10,21 @@ related: [DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005
 
 # Interface Architecture
 
-> **Adopted as the review by ADR-189, and still `proposed`.** That ADR takes
-> the findings in §1 and the framing in §2; it explicitly does **not** take §8,
-> because splitting `M4-T05` changes a sequencing a person decided. This
-> document goes `accepted` when a task implements it, the way `TEC-007` did.
+> **Accepted 2026-09-04 by ADR-190.** Changing anything here now requires a
+> further ADR. The rejected alternatives in §7 are rejected *with reasons*; if
+> one is reopened, the reason is what has to be argued with.
 >
-> **Nothing in §5 is built until §8 is answered.**
+> **§8 was answered, and answered smaller than it asked.** ADR-190 splits
+> `M4-T05` and moves **about a week** of §5 into `M4·A` as `M4-T20` — the region
+> grammar, the Waystone mark, the party frames, the overlap check, plus the
+> two-ground palette and the `Theme` on cost asymmetry. The Lair layout, the
+> rest of the vocabulary, Layer 2 and the doors stay in `M4-T05`.
+>
+> **The correction is worth reading before §8 is:** §8 argued from two late
+> gates and missed that the *earliest* gate — the stranger session — needs two
+> depth tasks and **zero interface work**. It was written by the party that
+> benefits from the change, and it over-claimed by roughly three to one. §8 is
+> kept unedited as the argument that was made; ADR-190 is what was decided.
 
 ## 0. Why this document exists
 
