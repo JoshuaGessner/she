@@ -6092,5 +6092,58 @@ Seven probe rows in `--lantern-probe`, each planted against a deliberately broke
 
 ---
 
+## ADR-189 — The interface has no regions, and three `DES-019` layers do not exist
+
+**Date:** 2026-09-04 · **Status:** accepted · **Adopts `TEC-009`** · **Puts a `M4-T05` split to a person** · **Reported from play**
+
+**Context:** four sentences from play — *"everything but the Ear is just plain text"*, *"overlapping text in the threshold/hoard areas"*, *"more apparent how users get into skill and character menus"*, *"the inventory/character menu is basic."* `DES-019` is `accepted` and has been since the design lock. `TEC-009` is the review of what was actually built against it, in the same relationship `TEC-007` has to `DES-015`: a design document that decided the thing and stopped short of how it is built or checked.
+
+The review's job was to find out whether this is a styling problem. **It is not**, and the four findings below stand whatever is decided about sequencing.
+
+### Finding 1 — three of the six layers were never built
+
+`room_set.gd:3693` builds the entire in-run HUD and it is five children. **Layer 2 (Body), Layer 3 (Burden) and Layer 4 (Party) do not exist.** That is scheduled rather than forgotten — `wound_vignette.gd:26` says so in as many words, and refusing to build a provisional Burden layer was the right ADR-064 call at the time. Two consequences were not visible when it was made:
+
+- **The Waystone.** `DES-019` calls the indicator binary and *"answerable in a glance"*; ADR-186 raised it to the sharpest mark on the HUD, because the Shaft leads *down* now and a Waystone is the only extraction above the bottom floor. The only way to answer *do I have a way out* today is to open the bag — and `DES-019` designs the bag so that opening it is a vulnerable act. **The game charges the player safety to answer a question the design says is free.** One `DES-019` rule failing against another, and the fix is one mark on screen.
+- **The party.** `FallenReadout` binds to `local_player` (`fallen_readout.gd:66`), so in company you cannot see whether a teammate is up, down or a Vörðr unless you can see their body.
+
+### Finding 2 — nothing owns a region, so "overlapping text" is not an ordering bug
+
+Measured, windowed, at 1152×648: the Chamber's readout is one `Label` at `(18, 18)` occupying **50% of the screen's width and 71% of its height**, and the Threshold's is 57% × 62%. Two of the Threshold's lines are `+=` appended (`:955`, `:1048`), so the block's height is a function of game state and nothing bounds it.
+
+Underneath that, every screen sets its own inset as a literal at its own call site — **18, 22, 40, 48, 64, and centred** — and `CanvasLayer.layer` likewise: **0, 5, 6, 7, 8, 30**, six literals at six sites with no register. The two hub readouts are on layer 0, beneath everything.
+
+So the reported collision is not a z-order to nudge. **Nothing owns a region of the screen**, and the only thing standing between a player and a collision is that nobody has yet written a string long enough. `TEC-009` §5.1's answer is to make `DES-019`'s own regions code — `Ear` is already the working prototype of it, and generalising its three habits is the whole proposal.
+
+### Finding 3 — the check does not exist, and this is the second report
+
+ADR-140, three days into `M3`: *"the UI is showing some text on top of others in the inventory."* The blurb's third wrapped line drew through the footer prompt. Every existing row was green, because `overflowing()` measured **widths** and *"never asked whether a block fits its height."*
+
+That was fixed inside one screen, band by band, after the report. `BagScreen.overflowing()` is called by `--bagui-probe`, is correct, and is **the only place in the project that asks a layout question at all** — so the fault is not a dead name (ADR-098) but a live check with a scope of one screen. **The general question was never asked**, and nothing in the ten UI probes asserts that two pieces of interface do not land on the same pixels. `TEC-009` §5.6 is `overflowing()` given a home, which is what the region grammar buys.
+
+**And the screenshot harness does not run headless**, which is not written down anywhere and cost this session ten minutes: `_draw` never executes in a headless process — the whole reason `--ear-shot` exists (ADR-090) — so `--headless --chamber-shot` hangs on `RenderingServer.frame_post_draw` rather than failing. `TEC-009` §5.6 records the windowed form.
+
+### Finding 4 — the vocabulary's colours are absolute, and `ART-005` inverts the ground
+
+`MenuStyle.INK` is `Color(0.07, 0.065, 0.06)` — near black — with bone text. `ART-005` specifies the Threshold and Chamber as **white ground, hard black ink, fully drawn**, against the Deep's inverse. When `M4-T08` lands, **every Lair screen becomes a black panel on a white world**: the hub wearing the Deep's interface, at maximum contrast in the wrong direction.
+
+The rule that fixes it is one line — *ink is the opposite of the ground, and the ground flips at the Descent* — and it is nearly free now and a seventeen-screen migration later. The same is true of `M4-T11`: colour-blind support, UI scaling, a dyslexia font and high contrast are each a global swap of a font, a size or a palette, and font sizes are currently `add_theme_font_size_override` calls scattered across seventeen files. **The constraint that says do not build something that makes `M4-T11` impossible is currently being built.**
+
+### What is adopted here, and what is not
+
+**Adopted:** `TEC-009` as the review, the four findings above, and its framing — the four reported sentences are two structure faults, one missing door, and one correctly-scheduled art gap. It stays `status: proposed` until a task implements it, exactly as `TEC-007` did between this ADR's equivalent and `M4-T01`.
+
+**Not adopted, and deliberately left to a person:** `TEC-009` §8 proposes splitting `M4-T05` — *"Real art pass, real audio, real UI, ping system"* — into an asset half that stays in `M4·B` and a structure half (`M4-T20`, ≈2–3 weeks) that moves to `M4·A`. The argument for it is ADR-165's own test applied again — **a gate that cannot be asked on the build it gates belongs somewhere else** — and it indicts the current order twice: `GATE M4 COOP` is an `M4·A` gate that depends on Layer 4, and `GATE M4 GREED` is a decision made against weight and the Waystone, none of which are on screen.
+
+That argument may well be right. **It is still a change to a sequencing a person decided, made by the party that benefits from the change**, which is ADR-165's own reason for leaving two convenient check adjustments alone: *adjusting a check because it is inconvenient — while actively trying to get past it — is how a check stops meaning anything.* The same suspicion applies to a roadmap. It is recorded so the decision is taken on its own merits, and **no interface code is written until it is.**
+
+If the answer is no, the work waits — and `GATE M4 COOP` should then be annotated with what it cannot currently ask, so nobody runs it and writes the result down against the ember rescue.
+
+### Verification
+
+No game code changed, so there is nothing to plant. The measurements are reproducible: `TEC-009` §0 carries the two windowed screenshot commands and the luminance threshold the bounding boxes were taken at. The sweep, `check_project.py`, `check_dead.py` and `status.py --check` all pass on this commit.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

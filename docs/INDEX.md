@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-03 · 41 documents_
+_Regenerated 2026-09-04 · 42 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -49,6 +49,7 @@ _How it gets built._
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-03 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-01 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
 | `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-02 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
+| `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ◆ proposed | 2026-09-04 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
 
 ## Process
 
@@ -78,7 +79,7 @@ _Visual and audio direction._
 
 ## By Tag
 
-- **accessibility** — DES-018
+- **accessibility** — DES-018, TEC-009
 - **adr** — PRO-002
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
@@ -126,14 +127,14 @@ _Visual and audio direction._
 - **generation** — DES-015, TEC-007
 - **geometry** — TEC-008
 - **glossary** — PRO-003
-- **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006, TEC-007
+- **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006, TEC-007, TEC-009
 - **greed** — DES-008
 - **handoff** — ART-003
 - **history** — PRO-002
 - **honesty** — PRO-007
 - **hooks** — DES-010
 - **hub** — DES-014
-- **hud** — DES-018, DES-019
+- **hud** — DES-018, DES-019, TEC-009
 - **hunter** — DES-017
 - **identity** — DES-011
 - **inventory** — DES-009, DES-019, DES-020
@@ -141,8 +142,9 @@ _Visual and audio direction._
 - **ip-safety** — DES-006
 - **items** — DES-008
 - **lair** — DES-014
+- **layout** — TEC-009
 - **legal** — PRO-004
-- **legibility** — ART-005, DES-018, DES-019, TEC-008
+- **legibility** — ART-005, DES-018, DES-019, TEC-008, TEC-009
 - **levels** — DES-015, TEC-007, TEC-008
 - **lineage** — DES-016
 - **loot** — DES-008
@@ -181,7 +183,7 @@ _Visual and audio direction._
 - **readability** — ART-001
 - **rendering** — ART-005
 - **replayability** — DES-007
-- **research** — PRO-005, TEC-007, TEC-008
+- **research** — PRO-005, TEC-007, TEC-008, TEC-009
 - **resources** — TEC-006
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
 - **risk** — PRO-004, PRO-007, TEC-004, TEC-005
@@ -213,7 +215,7 @@ _Visual and audio direction._
 - **tooling** — TEC-002, TEC-006
 - **tres** — TEC-006
 - **trophies** — DES-016
-- **ui** — DES-014, DES-018, DES-019
+- **ui** — DES-014, DES-018, DES-019, TEC-009
 - **vision** — DES-001
 - **visual** — DES-020
 - **vitals** — DES-009

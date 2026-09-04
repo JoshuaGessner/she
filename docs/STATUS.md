@@ -2,7 +2,7 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-09-03_
+<!-- generated-stamp --> _Regenerated 2026-09-04_
 
 **Current milestone: M4 — Vertical Slice**
 
@@ -171,6 +171,6 @@ _None. Sequencing is clean._
 
 ---
 
-_41 docs (41 accepted) · 188 ADRs · 0 open questions · 137 ⟨tune⟩ markers._
+_42 docs (41 accepted) · 189 ADRs · 0 open questions · 137 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).
