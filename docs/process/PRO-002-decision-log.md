@@ -6250,5 +6250,90 @@ The corpus is genuinely load-bearing — it has stopped this design drifting bac
 
 ---
 
+## ADR-192 — The rooms ask something now, and a Calamity nobody could read
+
+**Date:** 2026-09-04 · **Status:** accepted · **Implements `M4-T01` step 6** · **Adds `--machine-probe`, `--machine-shot`** · **Fixes `CalamityResource`**
+
+**Context:** ADR-190 put `M4-T01` first in `M4·A` and named what it owes: `TEC-007` §11 steps 6 and 7. This is step 6. `DES-015` Layer 3 adopts Brogue's machines — *"pre-authored situations, not geometry, stamped procedurally into generated space"* — under one rule: **every machine poses a question the player answers with an action.** *"A room with loot in it"* is not a machine.
+
+Before this, every room on a generated floor was space with loot dealt into it by `tribute_value`. Correct, deterministic, reproducible, and **asking nothing** — which is the state the play report behind ADR-165 was describing when it said there was not enough depth to test a gate.
+
+### The rule is the schema, because otherwise this is a second loot table
+
+`MachineResource.question` is **required** and `validate()` refuses a machine without one. That is the only mechanical difference between this system and another way to place items, and it is stated in the resource a designer edits rather than in a document they might not read.
+
+`--machine-probe` **prints** every question. A field only a validator reads is exactly the trap the rest of this ADR is about.
+
+### What was built, and what it deliberately does not know
+
+`MachineResource` (`.tres` under `data/machines/`, `CLAUDE.md` §4's data-over-code), `MachineCatalogue` on `RoomCatalogue`'s idiom including its `.remap` extension list, and `FloorMachines` as pipeline **stage 6** with its own seeded stream.
+
+It keeps the split every stage before it keeps: **which room, never what is in it.** No file in this system names an item. `gear` is a *count* drawn from the same worth-sorted pool everything else is dealt from, because a machine naming `wep_seax` would be the invented taxonomy `delvings_floor.gd` refuses in as many words, and `M4-T17` is what earns the right to name one.
+
+**Two machines, complete, rather than six partial** (ADR-064):
+
+| | The question it asks | Where it goes |
+|---|---|---|
+| **The Witness** | You have found out what happened here, and there is nothing in this room worth anything. Do you keep going down? | **Unheld only** — it gives ADR-032's safe branch something to be about, since by design it pays badly |
+| **The Bad Room** | A crew died here, their gear is on the floor, and the thing that killed them has not moved. Do you go in? | **Held only** — threat belongs where danger already is |
+
+The two constraints were chosen independently and fall out well: a floor carrying both tells you what happened on the safe branch and shows you what it costs on the guarded one.
+
+### Three rooms the mission owns
+
+The entrance, the Prize and the Shaft. A situation on the entrance is one the player walks into before the floor has begun; the Prize already carries the Guardian, which `FloorSource` calls a machine in as many words; the Shaft is the moment `DES-005` has already spent.
+
+**Enforced at the point of use, not trusted to the corpus** — and the plant proved that necessary in a way the first attempt did not. Removing the guard changed nothing, because `fits()` already refuses a machine with empty `roles` for any non-connective role. The plant that reaches the guard is a machine authored `roles = [SHAFT]`: with the guard removed it lands on the Shaft on every floor, with it restored it is never placed. **A guard is only proven by a plant that can reach it.**
+
+### The arrangement, and why nothing in it collides
+
+A machine's `fallen` are laid as marks — long, low, bone, and pointed. `facing` is the verb: *toward the door* is a crew that was trying to leave, *away* is one that was facing something already in the room with them.
+
+**They have no collision, and that is the design rather than an economy.** A 0.24 m box on `CollisionLayers.WORLD` is an obstacle Recast bakes around, and seven in one room is a room full of unwalkable islands. ADR-144 spent a day on a body a probe had dropped inside a barricade; `_mark()` is a separate function from `_slab()` rather than a flag on it, because *architecture the navmesh must see* and *evidence it must not* are different claims and a boolean lets the wrong one be passed by accident.
+
+### The finding: a Calamity that was never told to anybody
+
+`CalamityResource.name_key` had a validator **requiring** it, five `.tres` files supplying one, and **no reader anywhere in the project.** Every other resource carrying that field has a `display()` beside it — `ItemResource`, `DeedResource`, `AspectNode`, `ClassResource`. This one did not.
+
+So a Calamity was rolled per expedition, weighted every room the floor seated through `ExpeditionHistory.favours`, and was **named to the player in no channel at all**, while `DES-015`'s thesis is a place *"where something specific happened, that you can read as you move through it."* The reading had no text and no object.
+
+**And it was worse underneath.** None of the five keys existed in `en.csv`. `tr()` returns its argument when a key is missing, so the failure mode is not a crash or a blank — it is the literal locale key rendered on screen as though it were English. An unread field and an unauthored string hid each other perfectly, and **nothing in the project checks that a `name_key` points at a string.**
+
+`check_dead.py` could not see either half: the field is mentioned by a `.tres`, which is the trap `room_module.gd` writes down and then avoids by refusing to declare a field before something consumes it. `calamity_resource.gd` did not.
+
+Fixed as narrowly as the design allows. `display()` exists, the arrival brief carries it, the five names are authored, and `--machine-probe` fails on any Calamity that renders as its own id or as its own key. **The name only** — `DES-015` Layer 2's discipline is that the pattern is discoverable and never stated, so this says what the disaster was called and never what it was. What happened is read off the architecture and off `mac_witness`.
+
+**One name is not the id's.** `cal_the_sealing` displays as **The Walling**, because `PRO-003` already defines *the Sealing* as the player-facing extraction-pressure mechanic, and *"THE DELVINGS · WORKED SEAM · THE SEALING"* on arrival would read as that mechanic having fired. The id is stable and unchanged (`TEC-006` principle 3); only the display avoids the collision.
+
+### Verification, and three checks that were wrong before the code was
+
+Eight rows planted. Five caught their plant immediately. **Three did not, and each was a fault in the check:**
+
+- **The density row could not fail.** Written as `share > FloorMachines.SHARE`, it compares the measurement against the constant that produced it — so raising `SHARE`, the one edit the row exists to catch, raises the threshold with it. Planting `SHARE = 0.95` passed. It now asserts the *claim* against a fixed half: **most of a floor is quiet, or a situation is not one.**
+- **The seed-sensitivity row asserted the wrong thing.** Rolling eighty whole floors and counting distinct stampings returns fifty-plus even with this stage's RNG pinned to a constant, because the *plan* varies by seed. It measured "the floor varies", which `--plan-probe` already covers, and passed against a stamper that ignored its seed entirely. It now stamps **one pinned plan** with eighty seeds, so the only thing that can vary is this stage's stream.
+- **The mission-rooms guard was unreachable by its first plant**, as above.
+
+Three true-but-beside-the-point assertions in one probe, all found by planting rather than by reading. `TEC-007` §1's rule earning itself again: **the check can be wrong instead of the code, and it usually looks right when it is.**
+
+**And the screenshot found what no probe could.** `--machine-shot` stands where a player walks in and photographs each stamped room. At the first colour — `0.19`, darker than the stone — the arrangement read as bodies in a lit room and as **nothing at all** in an unlit one. `ART-005` answers which way to move it: the Deep is *pale ink on black*, so a body is something the light draws rather than a hole in the floor. Bone at `0.62`, above `STONE`'s `0.46` so it reads against any wall and below the pale `M2-T13` spends on doorways, because a room full of exit-coloured objects lies about where the exit is. **Fourth time a screenshot has caught what a headless check could not** (ADR-093's rule).
+
+**Wired into the sweep in the same commit as the probe.** `M4-T19` exists because `--graph-probe` was written, correct, and run by nothing for weeks; shipping a second stage the same way would be the same ADR-098 finding with the lesson already written down.
+
+### And `check_dead.py` has a hole, found by falling into it
+
+`FloorMachines` shipped a `questions()` that **nothing called** — written for a run log, never wired — and `check_dead.py` passed. In the same session as an ADR about dead names.
+
+The tool is not broken: a canary named `zzz_canary_for_check_dead` is caught immediately. The hole is in what counts as the corpus. `scenes_and_data()` deliberately includes `tools/*.py`, on the good reasoning that *"the build tooling counts as a reader"* — `CollisionLayers` is read only by `check_project.py` and is doing its job. But `body_text()` strips only `#` comments, and **Python docstrings are not `#` comments.** So `status.py`'s *"Open questions grouped by the milestone their section names"* counted as a use of a GDScript function called `questions`.
+
+**Any GDScript name that is also an ordinary English word appearing in a tool's docstring is invisible to this checker.** That is a wide hole and it has been open since the tool was written; how many names are currently hiding in it is unknown, which is exactly why it gets a task (`M4-T22`) rather than a fix squeezed into this commit — the fix will surface findings that each need judging on their own.
+
+The dead function is deleted rather than kept and called, on ADR-064: absent beats present-and-unused.
+
+### What step 7 still owes
+
+**The greed gradient does not climb with depth.** `DelvingsFloor._by_worth()` ignores `_depth` entirely, so floor 0 and floor 2 draw from an identical pool — and `DES-015` Layer 4 calls the depth curve the load-bearing part: *"value must climb steeply with depth, and the player must be able to see that from floor 1."* The within-floor half is built and has been since ADR-032's rule generalised; the across-floor half is not. Named here rather than left for a later reader, and it is the rest of `M4-T01`.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

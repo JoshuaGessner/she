@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MachineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/generation/machine_resource.gd" id="1_machine"]
+
+[resource]
+script = ExtResource("1_machine")
+id = &"mac_bad_room"
+question = "A crew died in here and their gear is still on the floor. So is the thing that killed them, and it has not moved. Do you go in for it?"
+roles = PackedInt32Array()
+min_volume = 2
+held = 1
+min_floor = 0
+max_floor = 2
+fallen = 4
+facing = 1
+bodies = 2
+gear = 3

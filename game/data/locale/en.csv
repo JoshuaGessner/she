@@ -117,3 +117,8 @@ node.wng_swift_seal.name,Swift Seal
 node.wng_swift_seal.desc,"A Shaft opens for you faster than it opens for anyone. It is still closing while you work."
 node.wng_still_hands.name,Still Hands
 node.wng_still_hands.desc,"You can get a friend up without telling the floor you are doing it."
+calamity.cal_the_deepening.name,The Deepening
+calamity.cal_the_drowning.name,The Drowning
+calamity.cal_the_sealing.name,The Walling
+calamity.cal_the_turning.name,The Turning
+calamity.cal_the_waking.name,The Waking

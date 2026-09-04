@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="MachineResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/generation/machine_resource.gd" id="1_machine"]
+
+[resource]
+script = ExtResource("1_machine")
+id = &"mac_witness"
+question = "You have found out what happened here. Nothing in this room will hurt you and nothing in it is worth anything. Do you keep going down?"
+roles = PackedInt32Array()
+min_volume = 1
+held = 2
+min_floor = 0
+max_floor = 2
+fallen = 7
+facing = 0
+bodies = 0
+gear = 0

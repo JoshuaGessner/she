@@ -311,7 +311,7 @@ Mapped onto `DES-015`'s eight steps:
 | **3** | **Cycle-type catalogue applied by seeded graph rewriting** | Exists as a single hardcoded cycle; needs the catalogue (§4) |
 | **4** | **Integer-grid module placement, seeded backtracking over a sorted candidate list, socket-compatibility driven** | To build. Needs `RoomModule` |
 | 5 | History bias — Calamity-weighted room tables | Done (ADR-174). Props await steps 6–7 |
-| 6 | Machines stamped into sockets (Brogue) | To build |
+| 6 | Machines stamped into sockets (Brogue) | **Built** (ADR-192) — `FloorMachines`, two machines authored of `DES-015`'s six |
 | 7 | Population against the greed gradient | To build |
 | **8** | Construct-so-it-cannot-fail, then assert. **Bounded sub-graph re-roll, then loud failure** | Graph half exists; needs placement and navmesh halves |
 
@@ -506,7 +506,9 @@ In order, and each is a commit. **1–3 are done** (ADR-171):
 5. ~~`WorldHash` wired to the generated floor, so `check_determinism.py`
    becomes a cross-process guarantee rather than a check on six literal
    `AABB`s.~~ Done (ADR-173), and it asserts both directions.
-6. Steps 2 and 5 done (ADR-174) — the history rolls and reaches the architecture. **Steps 6 and 7 remain**: machines stamped into sockets, and population against the greed gradient. Then extended step 8 with §6's split.
+6. Steps 2 and 5 done (ADR-174) — the history rolls and reaches the architecture.
+7. ~~Step 6 — machines stamped into sockets.~~ Done (ADR-192): `MachineResource` as `.tres`, `FloorMachines` as stage 6 with its own stream, two complete machines, and `--machine-probe` in the sweep from the same commit. **The corpus is the ongoing cost** — `DES-015` lists six machines at ⟨~a day each⟩ and two exist, which is authoring rather than architecture and needs no further change here.
+8. **Step 7 remains, and it is narrower than it looked.** The *within-floor* greed gradient has been built since ADR-032's held-versus-bypass rule generalised; what is missing is the **across-floor** half. `DelvingsFloor._by_worth()` ignores `_depth`, so every floor of a run draws one identical pool — and `DES-015` Layer 4 calls the depth curve the load-bearing part: *"value must climb steeply with depth, and the player must be able to see that from floor 1."* Buildable now against the fifteen authored items by slicing the pool by depth; `M4-T17`'s loot tables replace the slice without touching anything above it. Then extended step 8 with §6's split.
 
 ---
 

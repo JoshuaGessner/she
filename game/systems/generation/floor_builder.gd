@@ -165,17 +165,61 @@ const RUBBLE: Array[Color] = [
 	Color(0.38, 0.37, 0.36), Color(0.33, 0.31, 0.29), Color(0.27, 0.25, 0.22),
 ]
 
+## A body on the floor, at blockout (ADR-046, `M4-T01` step 6).
+##
+## Deliberately **not** in `STONE` or `RUBBLE`: the whole point of an
+## arrangement is that you can tell it from the architecture at a glance, and
+## `ART-005` reserves saturated colour for treasure — so this reads by *value*,
+## and never by hue (`DES-018`).
+##
+## **Lighter than the stone, and the first draft had it darker.** At 0.19 the
+## marks were a dark mass on a dark floor: `--machine-shot` photographed a lit
+## room where they read as bodies and an unlit one where they read as nothing at
+## all, which is the failure `ART-005` names — *"if the shader ever makes a
+## threat harder to see, the shader is wrong"* — arriving in a prop instead.
+## Nothing headless could have seen it, and it is the fourth time a screenshot
+## has caught what a probe could not (ADR-093).
+##
+## `ART-005` also answers which way to move it: **the Deep is pale ink on
+## black**, so a body is something the light draws rather than a hole in the
+## floor. Bone, at 0.62 — clearly above `STONE`'s 0.46 so it reads against any
+## wall, and clearly below the pale of a doorway light, because `M2-T13` spends
+## *that* value on the way out and a room full of exit-coloured objects is a
+## room lying about where the exit is ⟨tune⟩.
+const FALLEN_COLOUR: Color = Color(0.62, 0.60, 0.56)
+## How big one is. Long, narrow and low, so it reads as lying down from a
+## standing eye height and never as a crate ⟨tune⟩.
+const FALLEN_SIZE: Vector3 = Vector3(1.7, 0.24, 0.55)
+## Metres of scatter around the arrangement's middle ⟨tune⟩.
+##
+## Wide enough that seven of them do not read as a stack, tight enough that they
+## read as **one** event rather than as seven separate deaths.
+const FALLEN_SPREAD: float = 2.1
+## How far a mark is kept inside the room's walls, matching `FloorAnchors.INSET`
+## so nothing is ever laid half inside masonry (ADR-144's lesson).
+const FALLEN_INSET: float = 0.9
+## How much a body's own yaw wanders off the arrangement's ⟨tune⟩.
+##
+## Not zero. Seven bodies pointing at exactly the same angle is a formation, and
+## a formation is the one thing a room full of dead people must not read as.
+const FALLEN_WANDER: float = 0.55
+
 var _into: Node3D = null
 var _slabs: int = 0
 var _roughness: float = 0.0
 var _depth: int = 0
 var _alcoves_cut: int = 0
 var _ledges_raised: int = 0
+var _fallen_laid: int = 0
 
 
 ## Build `plan` under `into`. Returns a census the probe asserts against.
+##
+## `machines` is optional because `AuthoredFloor` has none and a probe pinning a
+## plan should not have to build a stamping to look at geometry.
 static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
-		floor_index: int, into: Node3D) -> Dictionary:
+		floor_index: int, into: Node3D,
+		machines: FloorMachines = null) -> Dictionary:
 	var builder := FloorBuilder.new()
 	builder._into = into
 	builder._depth = clampi(floor_index, 0, STONE.size() - 1)
@@ -196,6 +240,15 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 	for route: int in plan.routes():
 		tunnels += builder._route(plan, route)
 
+	# **After the architecture, and from its own stream** (`M4-T01` step 6).
+	# Laid last so a mark can never be walled over, and seeded per node rather
+	# than from `rng` so that stamping a machine cannot shift a single slab of
+	# the geometry — the two have to be independently reproducible or a
+	# determinism failure in one reads as a failure in the other.
+	if machines != null:
+		for node: int in machines.nodes():
+			builder._fallen(plan, node, machines.at(node), run_seed, floor_index)
+
 	return {
 		"rooms": rooms,
 		"corridor": tunnels,
@@ -206,6 +259,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		# back to being boxes and corridors (`TEC-007` §1).
 		"alcoves": builder._alcoves_cut,
 		"ledges": builder._ledges_raised,
+		"fallen": builder._fallen_laid,
 	}
 
 
@@ -615,6 +669,105 @@ func _tunnel(plan: FloorPlan, cell: Vector2i, enters: float, leaves: float,
 		var out := Vector3(step.x, 0.0, step.y) * (CELL * 0.5 + WALL_THICK * 0.5)
 		_slab(thick, mid + out + Vector3(0.0, height + CORRIDOR_CEILING * 0.5, 0.0),
 			RUBBLE[_depth], 0.0, "wall")
+
+
+## **The arrangement** (`M4-T01` step 6, `DES-015` Layer 3).
+##
+## A machine's fallen, laid in the room it was stamped into. This is the half a
+## player actually reads: how many, and which way they were pointing when it
+## happened.
+##
+## ## Nothing here collides, and that is the whole design
+##
+## A corpse with `CollisionLayers.WORLD` on it is a 0.24 m obstacle the navmesh
+## bakes around, and seven of them in one room is a room Recast fills with
+## unwalkable islands. ADR-144 spent a day on a body the probe had dropped
+## inside a barricade and concluded *"was it ever standing on the mesh"* is the
+## first question to ask and the last anyone thinks of. So these are marks, not
+## masonry: you walk over them, the bake does not see them, and `--nav-probe`
+## and `--walk-probe` measure the same floor they measured before.
+##
+## ## Determinism
+##
+## Its own stream per node, so laying an arrangement cannot shift a slab of the
+## architecture and vice versa. `FloorMachines` already decided *which* machine
+## and *which* room; this only decides where inside the room each mark lies.
+func _fallen(plan: FloorPlan, node: int, machine: MachineResource,
+		run_seed: int, floor_index: int) -> void:
+	if machine == null or machine.fallen <= 0:
+		return
+	var rect: Rect2i = plan.rect_of(node)
+	var corner: Vector3 = at(rect.position)
+	var span := Vector2(
+		rect.size.x * CELL - FALLEN_INSET * 2.0,
+		rect.size.y * CELL - FALLEN_INSET * 2.0)
+	if span.x <= 0.0 or span.y <= 0.0:
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = MissionGraph._mix(
+		MissionGraph.stage_seed(run_seed, floor_index)
+		+ FloorMachines.STAGE + node * 977)
+
+	# **They point at, or away from, the way out.** The door is what makes the
+	# arrangement a sentence rather than seven boxes: *toward* is a crew that
+	# was trying to leave, *away* is one that was facing something already in
+	# the room with them.
+	var middle: Vector3 = corner + Vector3(
+		FALLEN_INSET + span.x * 0.5, 0.0, FALLEN_INSET + span.y * 0.5)
+	var doors: Array[Vector2i] = plan.doors_of(node)
+	var heading: float = rng.randf() * TAU
+	if machine.facing != MachineResource.Facing.SCATTERED and not doors.is_empty():
+		var door: Vector3 = at(doors[0]) + Vector3(CELL * 0.5, 0.0, CELL * 0.5)
+		var toward: Vector3 = door - middle
+		if toward.length() > 0.01:
+			heading = atan2(toward.x, toward.z)
+			if machine.facing == MachineResource.Facing.AWAY_FROM_DOOR:
+				heading += PI
+
+	for i: int in machine.fallen:
+		# Clamped into the room rather than wrapped, so a tight room stacks its
+		# marks against the walls instead of laying one outside itself.
+		var at_x: float = clampf(
+			middle.x + rng.randfn(0.0, FALLEN_SPREAD),
+			corner.x + FALLEN_INSET, corner.x + FALLEN_INSET + span.x)
+		var at_z: float = clampf(
+			middle.z + rng.randfn(0.0, FALLEN_SPREAD),
+			corner.z + FALLEN_INSET, corner.z + FALLEN_INSET + span.y)
+		var yaw: float = heading
+		if machine.facing == MachineResource.Facing.SCATTERED:
+			yaw = rng.randf() * TAU
+		else:
+			yaw += rng.randfn(0.0, FALLEN_WANDER)
+		_mark(FALLEN_SIZE,
+			Vector3(at_x, FALLEN_SIZE.y * 0.5, at_z), FALLEN_COLOUR, yaw)
+
+
+## A box of world with **no collision** — something you look at and walk over.
+##
+## Separate from `_slab` rather than a flag on it, because the two are different
+## claims: a slab is architecture and the navmesh must see it, a mark is
+## evidence and the navmesh must not. A boolean would let the wrong one be
+## passed by accident, and the failure would be a floor that bakes with holes in
+## it for a reason nothing on screen explains.
+func _mark(size: Vector3, centre: Vector3, colour: Color, yaw: float) -> void:
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	var material := StandardMaterial3D.new()
+	material.albedo_color = colour
+	material.roughness = 1.0
+	var node := MeshInstance3D.new()
+	node.mesh = mesh
+	node.position = centre
+	node.rotation.y = yaw
+	node.material_override = material
+	# Numbered for the same reason every slab is: Godot throws the name away on
+	# a collision and a probe filtering by role would read exactly one. Counted
+	# **here**, per mark, rather than per machine — a count bumped by the caller
+	# after its loop gives every mark in one arrangement the same name, which is
+	# the collision this numbering exists to avoid.
+	node.name = "fallen_%d" % _fallen_laid
+	_fallen_laid += 1
+	_into.add_child(node)
 
 
 ## One box of world, with collision, in `room_set.gd`'s shape so generated and

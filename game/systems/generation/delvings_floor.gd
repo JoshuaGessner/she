@@ -31,6 +31,8 @@ const WAYSTONE: StringName = &"con_waystone"
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
 var _anchors: FloorAnchors = null
+var _machines: FloorMachines = null
+var _history: ExpeditionHistory = null
 var _seed: int = 0
 var _depth: int = 0
 
@@ -48,21 +50,78 @@ static func of(run_seed: int, floor_index: int) -> DelvingsFloor:
 		if module.prize_kind != &"" and not kinds.has(String(module.prize_kind)):
 			kinds.append(String(module.prize_kind))
 	kinds.sort()
+	# **Kept, not just passed.** It was rolled here and handed to the plan, and
+	# nothing else could reach it afterwards — which is half of why the Calamity
+	# was never named to a player (ADR-192). A floor knows what happened on it.
+	floor_at._history = ExpeditionHistory.roll(
+		run_seed, CalamityCatalogue.all(), kinds)
 	floor_at._plan = FloorPlan.build(floor_at._graph, run_seed, floor_index,
-		modules, ExpeditionHistory.roll(run_seed, CalamityCatalogue.all(), kinds))
+		modules, floor_at._history)
 	floor_at._anchors = FloorAnchors.of(
+		floor_at._plan, floor_at._graph, run_seed, floor_index)
+	# Step 6, after the space exists and before anything is placed in it: a
+	# situation is stamped into a room, and what the room already is decides
+	# which situations could be (`DES-015` Layer 3, ADR-192).
+	floor_at._machines = FloorMachines.of(
 		floor_at._plan, floor_at._graph, run_seed, floor_index)
 	return floor_at
 
 
+## What situations this floor is carrying. Public because `--machine-probe`
+## asks, and because the run log is where a bug report about a room that read
+## wrong has to be able to name it.
+func machines() -> FloorMachines:
+	return _machines
+
+
+## What happened here (`DES-015` Layer 2). The name only — see
+## `CalamityResource.display`.
+func calamity() -> CalamityResource:
+	return _history.calamity() if _history != null else null
+
+
+## Somewhere to stand in each stamped room, and what to look at from there.
+##
+## For `--machine-shot`. An arrangement is a claim about **seeing** — seven
+## marks pointing at a door is either a sentence or seven boxes, and no headless
+## check can tell which. ADR-093 made the rule explicit after `--ember-shot`:
+## *anything whose correctness is a claim about seeing gets photographed.*
+##
+## Stands at the room's edge and looks at its middle, because that is the view a
+## player walking in actually gets — photographing from the centre outward would
+## judge a room nobody enters that way.
+func machine_views() -> Array:
+	var out: Array = []
+	for node: int in _machines.nodes():
+		var room: AABB = _anchors.inside_of(node)
+		var middle: Vector3 = _anchors.centre_of(node)
+		# The long axis, so the camera has the most room to see across.
+		var edge: Vector3 = middle
+		if room.size.x >= room.size.z:
+			edge.x = room.position.x
+		else:
+			edge.z = room.position.z
+		out.append({
+			"id": _machines.at(node).id, "node": node,
+			"at": edge, "look": middle,
+		})
+	return out
+
+
 ## Whatever stopped this floor being buildable, or an empty list. A caller that
 ## gets rows here has a floor it must not descend into.
+##
+## **The stamping is asked too.** A machine on the Shaft is not a floor you can
+## fix by walking round it, and a problem that only `--machine-probe` can see is
+## one a player meets first.
 func problems() -> PackedStringArray:
-	return _plan.problems()
+	var out: PackedStringArray = _plan.problems()
+	out.append_array(_machines.problems())
+	return out
 
 
 func build(into: Node3D) -> void:
-	FloorBuilder.build(_plan, _graph, _seed, _depth, into)
+	FloorBuilder.build(_plan, _graph, _seed, _depth, into, _machines)
 
 
 func spawns() -> Array[Vector3]:
@@ -115,6 +174,41 @@ func fixtures() -> Array:
 		if spot["tag"] == &"held":
 			out.append([WAYSTONE, spot["at"] as Vector3])
 			break
+	# **A machine's gear is a fixture, not filler** (`DES-015` Layer 3,
+	# ADR-192). *"Their gear is still on the floor. So is what killed them"* is
+	# a question the player answers with an action, and ADR-110's rule is that a
+	# thing which is a decision must not be deterministically absent at party
+	# size 1 — a lever nobody can pull is not a lever.
+	#
+	# Dealt from the **top** of the pool below the Prize's item, because a
+	# situation is a room somebody had to decide about: gear cheap enough to
+	# walk past would make the decision for them.
+	var offer: int = 1
+	for node: int in _machines.nodes():
+		var machine: MachineResource = _machines.at(node)
+		if machine.gear <= 0:
+			continue
+		var spots: Array[Vector3] = _anchors.spots_in(node, machine.gear)
+		for at: Vector3 in spots:
+			if offer >= dearest.size():
+				break
+			out.append([dearest[offer].id, at])
+			offer += 1
+	return out
+
+
+## The threat a situation owns, placed once whatever the party size.
+##
+## `RoomSet` spawns these beside the Guardian and on the same rule, because they
+## are the same kind of thing: part of what a room *is*, rather than how much of
+## the floor there is to fight.
+func machine_posts() -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	for node: int in _machines.nodes():
+		var machine: MachineResource = _machines.at(node)
+		if machine.bodies <= 0:
+			continue
+		out.append_array(_anchors.spots_in(node, machine.bodies))
 	return out
 
 

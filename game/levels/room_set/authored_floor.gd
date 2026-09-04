@@ -28,6 +28,14 @@ func guardian() -> Vector3:
 	return RoomSet.GUARDIAN_POST
 
 
+## **None, and that is an answer rather than a gap.** The Deep's situations are
+## hand-placed — the Guardian on the Prize, the barricade in the west — so there
+## is nothing for a stamper to have put here. `DES-015` step 6 is about floors
+## the generator laid out, and this is the one it did not.
+func machine_posts() -> Array[Vector3]:
+	return []
+
+
 func shaft() -> Vector3:
 	return RoomSet.SHAFT_AT
 

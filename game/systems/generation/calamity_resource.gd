@@ -25,7 +25,7 @@ extends Resource
 
 ## Stable string id, the `ItemResource` idiom (`TEC-006` principle 3).
 @export var id: StringName = &""
-## Locale key for the name shown on the death screen and in the run log.
+## Locale key for the name shown on arrival and in the run log.
 @export var name_key: StringName = &""
 
 @export_group("Expression")
@@ -54,3 +54,26 @@ func validate() -> PackedStringArray:
 			+ "architecture is the set dressing `DES-015` opens by "
 			+ "diagnosing") % id)
 	return problems
+
+
+## What this Calamity is called, for the arrival brief and the run log.
+##
+## **Added at ADR-192, after finding that nothing read `name_key`.** Every other
+## resource in the project that carries one has a `display()` beside it —
+## `ItemResource`, `DeedResource`, `AspectNode`, `ClassResource` — and this had
+## the field, the validator that required it, and no reader. So a Calamity was
+## rolled per expedition, weighted every room on the floor through
+## `ExpeditionHistory.favours`, and **was never named to a player in any
+## channel**, while `DES-015`'s thesis is a place *"where something specific
+## happened, that you can read as you move through it."*
+##
+## `check_dead.py` could not see it: the field is mentioned by a `.tres`, which
+## is the exact trap `room_module.gd` writes down and then avoids by refusing to
+## declare a field before something consumes it.
+##
+## **The name is all it says.** `DES-015` Layer 2's discipline is that the
+## pattern is discoverable and never stated — no NPC explains it, no codex
+## spells it out — so this names the disaster and never accounts for it. What
+## happened is read off the architecture and off `mac_witness`.
+func display() -> String:
+	return tr(String(name_key)) if name_key != &"" else String(id)

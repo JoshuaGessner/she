@@ -245,6 +245,43 @@ func loot() -> Array[Dictionary]:
 	return out
 
 
+## `count` points inside one room, for a machine's contents (`DES-015` step 6).
+##
+## Positions, never contents — the rule this whole file keeps. `FloorMachines`
+## decided a situation stands in this room and `MachineResource` said how much
+## of it there is; this only answers *where in the room*, which is the one
+## question neither of them can.
+##
+## Spread on a **ring** rather than drawn independently, for `RoomSet`'s reason
+## and the same failure: two things drawn at random land on top of each other
+## often enough to matter, and two bodies spawned inside each other shove apart
+## host-side, which reads on a client as two peers disagreeing about where
+## something is. A ring separates by construction.
+func spots_in(node: int, count: int) -> Array[Vector3]:
+	var out: Array[Vector3] = []
+	if count <= 0:
+		return out
+	var room: AABB = inside_of(node)
+	var middle: Vector3 = room.position + Vector3(
+		room.size.x * 0.5, 0.0, room.size.z * 0.5)
+	# Inside the room whatever its shape, and never against a wall: half the
+	# smaller span, less the inset the room is already carrying.
+	var reach: float = maxf(0.0,
+		minf(room.size.x, room.size.z) * 0.5 - SPREAD * 0.5)
+	# **One point, not `count` of them, when there is no room for a ring.** A
+	# ring of radius zero is `count` things in the same place, which is the
+	# exact failure the ring exists to prevent — so a room too small to separate
+	# them gets one spot and the caller places less, rather than placing all of
+	# it on one square metre.
+	if reach <= 0.0 or count == 1:
+		out.append(middle)
+		return out
+	for index: int in count:
+		var angle: float = TAU * float(index) / float(count)
+		out.append(middle + Vector3(cos(angle), 0.0, sin(angle)) * reach)
+	return out
+
+
 ## A drawn point inside a room, on its floor.
 func _within(node: int) -> Vector3:
 	var room: AABB = inside_of(node)

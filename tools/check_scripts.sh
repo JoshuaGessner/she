@@ -774,6 +774,27 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Do the rooms ask anything** (`M4-T01` step 6, `DES-015` Layer 3,
+	# ADR-192)? Every check above is about a floor's *shape* and passes cleanly
+	# against one whose rooms are space with loot dealt into it by worth — which
+	# is what the generator produced until machines existed.
+	#
+	# Wired in the same commit as the probe, deliberately. `M4-T19` is the task
+	# that existed because `--graph-probe` was written, correct, and run by
+	# nothing for weeks, and a second stage shipping the same way would be the
+	# same ADR-098 finding with the lesson already written down.
+	#
+	# The row nothing else can make is *what a machine asks for reaches the
+	# floor*: the stamper can decide beautifully and place nothing, and every
+	# other assertion here would still pass.
+	machine="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --machine-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$machine" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the rooms pose questions" >&2
+		printf '%s\n' "$machine" | grep -E '\[machine\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Can a player *find* their way (`M2-T13`)? `--route-probe` has always
 	# asserted a clean route exists and has always passed — it cannot see that
 	# nobody could find it, which is exactly what six identically-lit box rooms

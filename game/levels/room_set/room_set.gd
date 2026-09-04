@@ -699,6 +699,10 @@ func _ready() -> void:
 			_build_probe()
 		elif arg == "--delvings-probe":
 			_delvings_probe()
+		elif arg == "--machine-probe":
+			_machine_probe()
+		elif arg.begins_with("--machine-shot="):
+			_machine_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--coop-probe="):
 			_coop_probe(arg.split("=", true, 1)[1])
 
@@ -3622,6 +3626,329 @@ func _seax_damage() -> float:
 	return edge.damage if edge != null else 0.0
 
 
+## **Photograph the arrangement** (`M4-T01` step 6, ADR-093's rule).
+##
+## `--machine-probe` proves a situation was stamped, that its contents reach the
+## floor, and that two peers agree about it. **It cannot see whether the room
+## reads.** Seven marks pointing at a door is either a sentence or it is seven
+## boxes, and the difference is entirely visual — which is the gap `--bag-shot`,
+## `--ear-shot` and `--ember-shot` were each built to close after a headless
+## check passed over something nobody could see.
+##
+## Stands where a player walks in and looks across the room, on
+## `--delvings-shot`'s reasoning: every position is one the generator chose, so
+## the camera is in open space by construction rather than by luck.
+func _machine_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	# Ink off, like every other shot judging space rather than treatment.
+	player.show_ink(false)
+	var made := _floor as DelvingsFloor
+	if made == null:
+		print("[machine] no generated floor to photograph")
+		get_tree().quit(1)
+		return
+	var views: Array = made.machine_views()
+	if views.is_empty():
+		# **Not a silent pass.** A shot that photographs nothing and exits zero is
+		# how a stamping that stopped happening stays invisible.
+		print("[machine] this floor stamped nothing — nothing to photograph")
+		get_tree().quit(1)
+		return
+	for view: Dictionary in views:
+		var at: Vector3 = (view["at"] as Vector3) + Vector3(0.0, 0.1, 0.0)
+		var d: Vector3 = (view["look"] as Vector3) - at
+		d.y = 0.0
+		# `atan2(-d.x, -d.z)`, for `_delvings_shot`'s stated reason: Godot yaws
+		# about +Y and forward is -Z, so guessing the sign photographs the wall
+		# behind you and looks like an empty room.
+		var yaw: float = atan2(-d.x, -d.z) if d.length() > 0.01 else 0.0
+		player.teleport(at, yaw)
+		await _hold(0.35)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var shot: String = "%s_%s_%d.png" % [
+			path.trim_suffix(".png"), view["id"], view["node"]]
+		get_viewport().get_texture().get_image().save_png(shot)
+		print("[machine] %-14s room %d → %s" % [
+			view["id"], view["node"], shot.get_file()])
+	get_tree().quit()
+
+
+## **Situations, stamped into rooms** (`M4-T01` step 6, `DES-015` Layer 3,
+## ADR-192).
+##
+## Nine claims. The first three are about the corpus, the next four about the
+## stamping, and the last two about the two things that go wrong silently:
+## a stamping that is not reproducible, and a machine whose contents never
+## reach the floor.
+##
+## **The row that matters most is 7.** Everything before it can pass against a
+## generator that decides beautifully and places nothing — which is exactly the
+## state `DES-015` step 6 was in before today, and exactly the shape of ADR-098:
+## a system that works, is correct, and is joined to nothing.
+func _machine_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var corpus: Array[MachineResource] = MachineCatalogue.all()
+
+	# ─ 1. there is a corpus, and every machine in it is authored correctly ─
+	print("[machine] corpus     %d machine(s)" % corpus.size())
+	if corpus.is_empty():
+		problems.append("no machines authored — every row below is conditional "
+			+ "on there being a corpus, which is the guard the item probe has "
+			+ "and the reason an empty export is invisible without it")
+		_report(problems, "machine")
+		return
+	var ids: Dictionary = {}
+	for machine: MachineResource in corpus:
+		for problem: String in machine.validate():
+			problems.append(problem)
+		if ids.has(String(machine.id)):
+			problems.append("`%s` is authored twice" % machine.id)
+		ids[String(machine.id)] = true
+
+	# ─ 2. **every machine states its question** (`DES-015` Layer 3) ─
+	#
+	# The rule that separates this system from a second loot table, and the one
+	# thing about it a validator can actually hold. Asserted here as well as in
+	# `validate()` because the probe is what prints them, and a question nobody
+	# ever reads is the `name_key` trap this whole task was found through.
+	for machine: MachineResource in corpus:
+		print("[machine] asks       %s: %s" % [
+			machine.id, machine.question.strip_edges()])
+		if machine.question.strip_edges() == "":
+			problems.append("`%s` asks nothing, so it is a room with loot in it"
+				% machine.id)
+
+	# ─ 3. the corpus can serve the floors it claims ─
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
+	var kinds: PackedStringArray = _prize_kinds(modules)
+
+	# ─ 4. a floor of every depth stamps something ─
+	#
+	# **Not "stamps correctly" — stamps at all.** A `SHARE` that rounded to zero,
+	# a `fits` that never matched, or an eligible list that excluded everything
+	# would each leave a generator that runs step 6 and produces nothing, and
+	# every other row here would still pass.
+	var stamped_any: int = 0
+	var floors: int = 0
+	for depth: int in 3:
+		var graph: MissionGraph = MissionGraph.build(4242, depth)
+		var lore := ExpeditionHistory.roll(4242, calamities, kinds)
+		var plan: FloorPlan = FloorPlan.build(graph, 4242, depth, modules, lore)
+		if not plan.problems().is_empty():
+			continue
+		floors += 1
+		var stamping: FloorMachines = FloorMachines.of(
+			plan, graph, 4242, depth, corpus)
+		for problem: String in stamping.problems():
+			problems.append("floor %d: %s" % [depth, problem])
+		stamped_any += stamping.count()
+		print("[machine] floor %d    %d of %d room(s) carry a situation%s"
+			% [depth, stamping.count(), graph.size(),
+				" — " + stamping.digest() if stamping.count() > 0 else ""])
+	if floors == 3 and stamped_any == 0:
+		problems.append("three floors were stamped and not one room carries a "
+			+ "situation — step 6 runs and produces nothing, which is the state "
+			+ "it was in before it existed")
+
+	# ─ 5. **the mission's own rooms are never taken** ─
+	#
+	# The entrance, the Prize and the Shaft. Swept rather than spot-checked,
+	# because the failure is one room on one seed in a hundred and a single
+	# floor would not see it.
+	var swept: int = 0
+	var carried: int = 0
+	var quiet: int = 0
+	for seed_at: int in range(9000, 9120):
+		var graph: MissionGraph = MissionGraph.build(seed_at, 0)
+		var lore := ExpeditionHistory.roll(seed_at, calamities, kinds)
+		var plan: FloorPlan = FloorPlan.build(graph, seed_at, 0, modules, lore)
+		if not plan.problems().is_empty():
+			continue
+		swept += 1
+		var stamping: FloorMachines = FloorMachines.of(
+			plan, graph, seed_at, 0, corpus)
+		for problem: String in stamping.problems():
+			problems.append("seed %d: %s" % [seed_at, problem])
+		if stamping.count() > 0:
+			carried += 1
+		else:
+			quiet += 1
+		# A crawl is 1.15 m of crouch with no swing. A situation in one is one
+		# nobody can stand up and read.
+		for node: int in stamping.nodes():
+			var module: RoomModule = RoomCatalogue.by_id(plan.module_of(node))
+			if module != null and module.volume == RoomModule.Volume.CRAWL:
+				problems.append("seed %d stamped `%s` into a crawl"
+					% [seed_at, stamping.at(node).id])
+	print("[machine] sweep      %d floor(s): %d carry a situation, %d quiet"
+		% [swept, carried, quiet])
+	if swept > 0 and carried == 0:
+		problems.append("no floor in %d carried a situation" % swept)
+
+	# ─ 6. **quiet rooms outnumber loud ones** ─
+	#
+	# `FloorMachines.SHARE`'s whole argument: a floor where every room is a
+	# machine has no machines, and the reading only works against quiet. This is
+	# the row that fails if somebody raises `SHARE` to see more of their work.
+	var loud: int = 0
+	var rooms: int = 0
+	for seed_at: int in range(9000, 9060):
+		var graph: MissionGraph = MissionGraph.build(seed_at, 1)
+		var lore := ExpeditionHistory.roll(seed_at, calamities, kinds)
+		var plan: FloorPlan = FloorPlan.build(graph, seed_at, 1, modules, lore)
+		if not plan.problems().is_empty():
+			continue
+		var stamping: FloorMachines = FloorMachines.of(
+			plan, graph, seed_at, 1, corpus)
+		loud += stamping.count()
+		rooms += graph.size()
+	var share: float = float(loud) / maxf(1.0, float(rooms))
+	print("[machine] density    %d situation(s) in %d room(s) — %.0f%%"
+		% [loud, rooms, share * 100.0])
+	# **Against a half, not against `SHARE`.** Written the obvious way first —
+	# `share > FloorMachines.SHARE` — and that is a row that **cannot fail**:
+	# raising the constant raises the threshold with it, so the one edit the
+	# check exists to catch is the one edit it waves through. Caught by planting
+	# `SHARE = 0.95` and watching the probe pass.
+	#
+	# So the number here is the *claim*, stated independently: **most of a floor
+	# is quiet.** A generator that ever crosses a half has stopped making
+	# situations legible whatever its constant says.
+	if share > 0.5:
+		problems.append(("%.0f%% of rooms carry a situation — most of a floor "
+			+ "has to be quiet or a situation is not one, and `SHARE` is %.0f%%")
+			% [share * 100.0, FloorMachines.SHARE * 100.0])
+
+	# ─ 7. **what a machine asks for reaches the floor** ─
+	#
+	# The join, and the row every other one here is conditional on. `--bag-probe`
+	# and ADR-098 both taught the same thing: a system can be entirely correct
+	# and reachable by nothing. So this asks the floor, not the stamper — the
+	# gear a machine wants must appear in `fixtures()` and its threat in
+	# `machine_posts()`, or step 6 decided something that nothing built.
+	var joined: int = 0
+	var checked: int = 0
+	for seed_at: int in range(7000, 7080):
+		var made: DelvingsFloor = DelvingsFloor.of(seed_at, 1)
+		if not made.problems().is_empty():
+			continue
+		var stamping: FloorMachines = made.machines()
+		var wants_gear: int = 0
+		var wants_bodies: int = 0
+		for node: int in stamping.nodes():
+			wants_gear += stamping.at(node).gear
+			wants_bodies += stamping.at(node).bodies
+		if wants_gear == 0 and wants_bodies == 0:
+			continue
+		checked += 1
+		var posts: int = made.machine_posts().size()
+		if wants_bodies > 0 and posts == 0:
+			problems.append(("seed %d wants %d machine body/ies and the floor "
+				+ "posts none — the stamping decided an encounter nothing "
+				+ "spawns") % [seed_at, wants_bodies])
+			continue
+		# Fixtures are the Prize, the Waystone and machine gear. The floor has
+		# to carry more of them than the two it carries without any machine.
+		if wants_gear > 0 and made.fixtures().size() <= 2:
+			problems.append(("seed %d wants %d piece(s) of machine gear and the "
+				+ "floor lays only the Prize and the Waystone — the gear was "
+				+ "decided and never placed") % [seed_at, wants_gear])
+			continue
+		joined += 1
+	print("[machine] reaches    %d of %d floor(s) placed what they stamped"
+		% [joined, checked])
+	if checked > 0 and joined == 0:
+		problems.append("no floor placed anything a machine asked for")
+
+	# ─ 8. **same seed, same situations** ─
+	#
+	# `TEC-004`: two peers handed one seed build one floor. A stamping that
+	# agreed about geometry and disagreed about what stands in it is two floors
+	# wearing one layout, and nothing in `--build-probe` would notice.
+	var once: DelvingsFloor = DelvingsFloor.of(555, 1)
+	var twice: DelvingsFloor = DelvingsFloor.of(555, 1)
+	var same: bool = once.machines().digest() == twice.machines().digest()
+	print("[machine] same seed  %s (%s)" % [
+		"identical" if same else "DIFFERENT", once.machines().digest()])
+	if not same:
+		problems.append(("one seed stamped two different floors: `%s` then `%s`"
+			+ " — a situation on a client that is not on the host is a room two "
+			+ "players cannot talk about") % [
+				once.machines().digest(), twice.machines().digest()])
+
+	# ─ 9. **and the seed matters to _this stage_** ─
+	#
+	# The other half of row 8, and it has to hold the plan still to mean
+	# anything.
+	#
+	# **Written the obvious way first, and it asserted the wrong thing.** Rolling
+	# eighty whole floors and counting distinct stampings gives fifty-plus even
+	# with this stage's RNG pinned to a constant — because the *plan* varies by
+	# seed, so different graphs and different eligible rooms produce different
+	# stampings from an identical stream. The row measured "the floor varies",
+	# which row 8's sibling in `--plan-probe` already covers, and it passed
+	# against a stamper that ignored its seed entirely. Planted and not caught.
+	#
+	# So: **one plan, many seeds.** Now the only thing that can vary is the
+	# stream this stage draws from, which is the claim.
+	var pinned_graph: MissionGraph = MissionGraph.build(6000, 1)
+	var pinned_lore := ExpeditionHistory.roll(6000, calamities, kinds)
+	var pinned: FloorPlan = FloorPlan.build(
+		pinned_graph, 6000, 1, modules, pinned_lore)
+	var seen: Dictionary = {}
+	if pinned.problems().is_empty():
+		for seed_at: int in range(6000, 6080):
+			var stamping: FloorMachines = FloorMachines.of(
+				pinned, pinned_graph, seed_at, 1, corpus)
+			seen[stamping.digest()] = true
+	print("[machine] seed matters %d distinct stamping(s) of one plan from 80 seeds"
+		% seen.size())
+	if seen.size() < 4:
+		problems.append(("80 seeds stamped one plan %d distinct way(s) — a "
+			+ "stage that ignores its own seed lays the same situations on "
+			+ "every floor whose layout happens to match") % seen.size())
+
+	# ─ 10. **every Calamity is named, and the name is a name** (ADR-192) ─
+	#
+	# The finding this task was opened by, and it was worse than it looked.
+	# `CalamityResource.name_key` had a validator *requiring* it, five `.tres`
+	# files supplying one, and no reader anywhere — so a Calamity weighted every
+	# room on the floor and was told to the player in no channel at all.
+	#
+	# **And the keys resolved to nothing.** None of the five was in `en.csv`,
+	# because nothing in the project checks that a `name_key` points at a
+	# string. `tr()` returns its argument when a key is missing, so the failure
+	# mode is not a crash or a blank — it is the literal key rendered on screen
+	# as though it were English, which is why an unread field and an unauthored
+	# string hid each other perfectly.
+	#
+	# The whole corpus, not one sample: five rolls of one seed would have caught
+	# the drowning and missed the other four.
+	var named: DelvingsFloor = DelvingsFloor.of(31337, 0)
+	var what: CalamityResource = named.calamity()
+	print("[machine] calamity   this floor: %s" % (
+		what.display() if what != null else "NONE"))
+	if what == null:
+		problems.append("a generated floor has no Calamity, so `DES-015` "
+			+ "Layer 2 rolled nothing")
+	for disaster: CalamityResource in CalamityCatalogue.all():
+		var shown: String = disaster.display()
+		print("[machine] named      %s → %s" % [disaster.id, shown])
+		if shown == "" or shown == String(disaster.id):
+			problems.append("`%s` renders as its own id" % disaster.id)
+		# **A rendered locale key is the failure this row exists for.** It
+		# reaches a player looking like text, so no crash, no blank, and nothing
+		# but a reader notices.
+		elif shown == String(disaster.name_key) or shown.begins_with("calamity."):
+			problems.append(("`%s` renders as `%s` — the locale key itself, so "
+				+ "`name_key` points at a string nobody authored and a player "
+				+ "reads the key") % [disaster.id, shown])
+
+	_report(problems, "machine")
+
+
 func _report(problems: PackedStringArray, tag: String) -> void:
 	for problem: String in problems:
 		printerr("[%s] FAIL %s" % [tag, problem])
@@ -3726,6 +4053,20 @@ func _build_hud() -> void:
 		if _floor is DelvingsFloor:
 			brief.place = "THE DELVINGS · %s" % FLOOR_NAMES[
 				clampi(_floor_index, 0, FLOOR_NAMES.size() - 1)]
+			# **And what happened here** (ADR-192). The Calamity has been rolled
+			# per expedition since ADR-174, it weights every room the floor
+			# seats, and until now it was named to the player in **no channel at
+			# all** — `CalamityResource.name_key` had a validator requiring it
+			# and no reader anywhere.
+			#
+			# The name only. `DES-015` Layer 2's discipline is that the pattern
+			# is discoverable and never stated, so this says what the disaster
+			# was called and never what it was; the room full of dead is
+			# `mac_witness`'s job, and reading the two together is the whole of
+			# Layer 2's payoff.
+			var what: CalamityResource = (_floor as DelvingsFloor).calamity()
+			if what != null:
+				brief.place += " · %s" % what.display().to_upper()
 		brief.way_out = _shaft == null or _shaft.leads_out
 		layer.add_child(brief)
 
@@ -4344,6 +4685,15 @@ func _spawn_enemies() -> void:
 	if _enemies_placed == 0:
 		# The Guardian faces its prize's doorway and never leaves the room.
 		_session.spawn_enemy(_floor.guardian())
+		# **And whatever a machine brought with it** (`DES-015` Layer 3,
+		# ADR-192), on the Guardian's rule and in the same branch, because it is
+		# the same kind of claim: a situation's threat is part of what the room
+		# *is*. Scaling it with the party would turn *"the thing that killed
+		# them has not moved"* into a different encounter for a four-stack, and
+		# `_spawn_enemies` is topped up on every arrival — so anything spawned
+		# outside this guard is spawned once per player.
+		for post: Vector3 in _floor.machine_posts():
+			_session.spawn_enemy(post)
 	_enemies_placed = maxi(_enemies_placed, wanted)
 
 

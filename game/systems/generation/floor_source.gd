@@ -58,6 +58,20 @@ extends RefCounted
 @abstract func guardian() -> Vector3
 
 
+## Where the threat belonging to a **machine** stands (`DES-015` Layer 3,
+## ADR-192).
+##
+## The Guardian's rule, generalised: spawned once, whatever the party size.
+## Deliberately not `enemy_posts()` — those are the floor's danger *shape* and
+## scaling stacks bodies around them, which is right for standing danger and
+## wrong for a situation. *"A crew died in here and the thing that killed them
+## has not moved"* is one encounter; four of it because four people came down
+## is a different room.
+##
+## Empty on the authored Deep, which places its own situations by hand.
+@abstract func machine_posts() -> Array[Vector3]
+
+
 ## The way down (`DES-005`, ADR-186) — and, on the bottom floor, the Deep Gate's
 ## mechanism, which is where an expedition ends.
 @abstract func shaft() -> Vector3
