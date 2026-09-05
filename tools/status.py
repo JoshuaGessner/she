@@ -68,7 +68,21 @@ TASK_RE = re.compile(
 MILESTONE_RE = re.compile(
     r"^<!-- milestone id=(M\d+)(?:\s+depends=(M\d+))?(?:\s+size=(\S+))?\s*-->$"
 )
-GATE_RE = re.compile(r"^> \*\*GATE (M\d+) (EXIT|COOP)\*\* `([^`]+)` — (.+)$")
+# **Any gate name, not a fixed pair.** This read `(EXIT|COOP)` and so silently
+# ignored `GATE M4 GREED`, which has sat in the roadmap since ADR-109 — and
+# because `Milestone.cleared` requires *every* declared gate to have passed, an
+# unparsed gate is not a cosmetic omission: it is a gate that cannot block.
+# M4 could have been declared cleared with its greed gate never asked.
+GATE_RE = re.compile(r"^> \*\*GATE (M\d+) ([A-Z]+)\*\* `([^`]+)` — (.+)$")
+
+# A hold: tasks that may not start until a named gate in the same milestone has
+# passed. `status.py`'s job is to refuse work that skips a step (ADR-063), and
+# until now it could only see steps *between* milestones — so ADR-190's order
+# inside `M4·A` was prose, and the dashboard went on recommending the three
+# tasks that ADR named as `PRO-007` §3.
+HOLD_RE = re.compile(
+    r"^<!-- hold (M\d+-T\d+(?:[, ]+M\d+-T\d+)*) until=([A-Z]+) by=(ADR-\d+) -->$"
+)
 HEADING_RE = re.compile(r"^## (M\d+) — (.+)$")
 ADR_HEAD_RE = re.compile(r"^## ADR-(\d{3}) — (.+)$", re.MULTILINE)
 GATE_STATE_RE = re.compile(r"^(pending|passed|failed)(?: (\d{4}-\d{2}-\d{2}))?(?: — (.*))?$")
@@ -132,6 +146,16 @@ class Task(NamedTuple):
     text: str
     docs: list[str]
     line: int
+    # (gate kind, ADR) when a `<!-- hold … -->` line names this task, else None.
+    # Defaulted so the parser can build a task before it knows about the hold.
+    held_by: tuple[str, str] | None = None
+
+    def held(self, gates: list["Gate"]) -> bool:
+        """Held while the gate it waits on has not passed."""
+        if self.held_by is None:
+            return False
+        kind = self.held_by[0]
+        return not any(g.kind == kind and g.passed for g in gates)
 
 
 class Gate(NamedTuple):
@@ -224,6 +248,7 @@ def load_roadmap() -> tuple[list[Milestone], list[Issue]]:
     meta: dict[str, tuple[str, str | None]] = {}
     tasks: dict[str, list[Task]] = {}
     gates: dict[str, list[Gate]] = {}
+    holds: dict[str, tuple[str, str, int]] = {}   # task id -> (gate kind, ADR, line)
     current = ""
 
     for n, line in enumerate(lines, 1):
@@ -234,6 +259,12 @@ def load_roadmap() -> tuple[list[Milestone], list[Issue]]:
             heads[current] = n
             tasks.setdefault(current, [])
             gates.setdefault(current, [])
+            continue
+
+        if m := HOLD_RE.match(line):
+            ids, kind, adr = m.group(1), m.group(2), m.group(3)
+            for tid in re.split(r"[, ]+", ids.strip()):
+                holds[tid] = (kind, adr, n)
             continue
 
         if m := MILESTONE_RE.match(line):
@@ -309,10 +340,31 @@ def load_roadmap() -> tuple[list[Milestone], list[Issue]]:
                     f"{mid} has unreadable size `{raw_size}`",
                     "use a number (relative weight) or `unknown`",
                 ))
+        held = [
+            t._replace(held_by=(holds[t.id][0], holds[t.id][1])) if t.id in holds else t
+            for t in tasks.get(mid, [])
+        ]
         milestones.append(Milestone(
             id=mid, title=titles[mid], depends=depends, size=size,
-            tasks=tasks.get(mid, []), gates=gates.get(mid, []), line=heads[mid],
+            tasks=held, gates=gates.get(mid, []), line=heads[mid],
         ))
+    every_task = {t.id for m in milestones for t in m.tasks}
+    for tid, (kind, adr, n) in sorted(holds.items()):
+        if tid not in every_task:
+            issues.append(Issue(
+                "error", "hold-unknown", f"{rel(ROADMAP)}:{n}",
+                f"{adr} holds {tid}, which is not a task on this roadmap",
+                "fix the id — a hold on a task that does not exist holds nothing",
+            ))
+            continue
+        mid = tid.split("-")[0]
+        ms = next((m for m in milestones if m.id == mid), None)
+        if ms and not any(g.kind == kind for g in ms.gates):
+            issues.append(Issue(
+                "error", "hold-unknown", f"{rel(ROADMAP)}:{n}",
+                f"{adr} holds {tid} until {mid} {kind}, and there is no such gate",
+                f"add `> **GATE {mid} {kind}** `pending` — …` or correct the name",
+            ))
     return milestones, issues
 
 
@@ -518,6 +570,20 @@ def check_milestones(milestones: list[Milestone], docs: dict[str, Doc],
                 f"add a GATE {ms.id} EXIT line — without one the milestone can never be "
                 "cleared, and nothing may depend on it",
             ))
+
+        # **Inside a milestone, not only between them.** ADR-190 ordered `M4·A`
+        # and wrote "nothing new until the stranger session runs"; nothing read
+        # it, so the dashboard went on offering exactly the tasks it named.
+        for task in ms.tasks:
+            if task.state in (DOING, DONE) and task.held(ms.gates):
+                kind, adr = task.held_by
+                issues.append(Issue(
+                    "error", "held-task", f"{rel(ROADMAP)}:{task.line}",
+                    f"{task.id} is underway but {adr} holds it until "
+                    f"{ms.id} {kind} passes",
+                    f"run {ms.id} {kind} first, or drop the hold in an ADR that "
+                    "says why the order changed",
+                ))
 
         started = [t for t in ms.tasks if t.state in (DOING, DONE)]
         dep = by_id.get(ms.depends)
@@ -897,12 +963,27 @@ def render_terminal(milestones: list[Milestone], docs: dict[str, Doc],
     out.append("")
 
     if cur:
-        nxt = [t for t in cur.tasks if t.state == TODO][:3]
+        # **What is already underway comes first.** A half-finished task held
+        # open while new ones start is the most expensive object on a roadmap
+        # (ADR-190), and this list used to omit `[~]` entirely — so the one
+        # task actually in flight was the one thing the dashboard never named.
+        doing = [t for t in cur.tasks if t.state == DOING]
+        free = [t for t in cur.tasks if t.state == TODO and not t.held(cur.gates)]
+        nxt = doing + free[: max(0, 3 - len(doing))]
         if nxt:
             out.append(paint(" NEXT UP", "bold"))
             for task in nxt:
-                text = f"{clip(plain(task.text), 44):<44}"
-                out.append(f"   {task.id}  {text}  {paint(' '.join(task.docs), 'dim')}")
+                mark = paint(" ~", "gold") if task.state == DOING else "  "
+                text = f"{clip(plain(task.text), 42):<42}"
+                out.append(f"  {mark}{task.id}  {text}  {paint(' '.join(task.docs), 'dim')}")
+            out.append("")
+
+        blocked_now = [t for t in cur.tasks
+                       if t.state == TODO and t.held(cur.gates)]
+        if blocked_now:
+            kind, adr = blocked_now[0].held_by
+            out.append(paint(f" HELD until {cur.id} {kind} ({adr})", "bold"))
+            out.append(paint("   " + ", ".join(t.id for t in blocked_now), "dim"))
             out.append("")
 
     errors = [i for i in issues if i.level == "error"]

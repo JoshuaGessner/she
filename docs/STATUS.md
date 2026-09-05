@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `███▒░░░░░░░░░░░░░░░░` | 3/23 | `COOP` pending<br>`EXIT` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `███▒░░░░░░░░░░░░░░░░` | 3/23 | `COOP` pending<br>`STRANGER` pending<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -178,6 +178,6 @@ _None. Sequencing is clean._
 
 ---
 
-_42 docs (42 accepted) · 194 ADRs · 0 open questions · 142 ⟨tune⟩ markers._
+_42 docs (42 accepted) · 195 ADRs · 0 open questions · 142 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

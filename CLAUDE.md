@@ -269,7 +269,13 @@ Run `--check` before committing; run `--write` whenever a task or gate changes.
 
 ## 8. Where the Design Actually Lives
 
-Design is **locked**. All 38 documents are `status: accepted`, and 60 ADRs record the reasoning and the rejected alternatives.
+Design is **locked**. Every document is `status: accepted`, and the decision
+log records the reasoning and the rejected alternatives.
+
+> **No count is written here on purpose.** This line read *"38 documents and 60
+> ADRs"* while the build had 42 and 195 — a hand-maintained number in the file
+> every session reads first, wrong by a third and believed. `python3
+> tools/status.py` prints both, generated, and the dashboard counts them.
 
 **Changing an accepted document requires an ADR in `PRO-002`.** That is not ceremony — it is the mechanism that stopped this design drifting back into a stat ladder three separate times.
 

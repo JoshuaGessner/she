@@ -4,7 +4,7 @@ title: Generator Architecture
 status: accepted
 owner: tech
 tags: [procgen, generation, determinism, godot, research, levels, cyclic]
-updated: 2026-09-01
+updated: 2026-09-04
 related: [DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001]
 ---
 

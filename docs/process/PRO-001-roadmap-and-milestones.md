@@ -206,15 +206,24 @@ The most common way a project like this dies is building the meta-progression fi
 >
 > > **`M4-T01` → `M4-T16` → the stranger session → `M4-T20` → the rest.**
 >
-> `M4-T01` first because it is `[~]` and owes exactly two things — `TEC-007`
-> §11 steps 6 and 7 — and because a half-finished task held open while new ones
-> start is the most expensive object on a roadmap. **The stranger session is
+> `M4-T01` came first because it was `[~]` and owed exactly two things —
+> `TEC-007` §11 steps 6 and 7 — and because a half-finished task held open
+> while new ones start is the most expensive object on a roadmap. **It is `[x]`
+> as of ADR-193**, and `M4-T16` is `[~]` and next. **The stranger session is
 > run as soon as `M4-T16` lands**, not at the end: its four clauses need two
 > depth tasks and *zero* interface work, so it is the cheapest and earliest
 > evidence available about whether the loop is fun (`PRO-007` §4).
 >
 > **Nothing new until it runs.** `M4-T02`, `M4-T03` and `M4-T04` are each
 > defensible alone and together they are `PRO-007` §3.
+>
+> **And the dashboard enforces it now** (ADR-195). The line below is read by
+> `status.py`: those three are withheld from `NEXT UP`, and starting one is a
+> blocking error until `GATE M4 STRANGER` passes. Prose since ADR-190, the rule
+> was contradicted by the dashboard on the very next run — `NEXT UP` offered
+> `M4-T02` and `M4-T04` and omitted `M4-T16`, the one task actually underway.
+
+<!-- hold M4-T02, M4-T03, M4-T04 until=STRANGER by=ADR-190 -->
 
 - [x] `M4-T01` The Delvings: full generation from room modules, 3 floors — *first point at which the Hunt can vary by floor and persist across one (`DES-017`, ADR-037), and at which **the Sealing can lock a Shaft** rather than only make it worse (`DES-005`, ADR-091) — both need a floor beneath the one you are on.* ***The multi-floor run is built** (ADR-184, ADR-185, ADR-186): a run's floor index and seed live in `RunFile`, the host rolls the seed and the descent RPC carries it so a party builds one floor rather than four, and a party crosses carrying its bag, its wounds and the Hunt's age — `DES-009` bans regeneration within a run, so a descent that healed you would be the one thing combat forbids. **The Hunt persisting across a floor is done.** **The Sealing locking a Shaft is refused, not deferred** (ADR-186): the Shaft is the way *down* now, so locking it would seal the route to the Deep Gate and strand a party with no Waystone — ADR-091's "it never locks, it gets worse" stands and is load-bearing in a second way. **And walking into the hole opens onto the Delvings** (ADR-187) — which was *not* the one line ADR-183 called it: `room_set` read `--delvings` off the command line, and a played game has no command line, so the flag was unreachable by playing. An open run is the signal now. The Deep stays as the **test stage** — thirty probes measure it and four are written around its six rooms and twelve doors — while `--build-probe`, `--plan-probe` and `--delvings-probe` measure the generated floor. `--again` fails unless a real descent logs `[delvings]`, because every probe runs unarmed and so gets the Deep: without that row the switch would revert in silence. **Three pieces of game code were still reading the Deep's coordinates** — the Prize deed (which would have answered *no* forever), `_reset_floor`, and the arrival brief, which said "THE DEEP". **The first screenshots found what no probe could**: the Shaft's prompt read *"climb out"* on floor 0 where it now takes you down. **Step 6 is built** (ADR-192): `DES-015` Layer 3's machines — pre-authored *situations*, stamped into rooms by `FloorMachines` as pipeline stage 6, under the rule that every one poses a question the player answers with an action. Two complete rather than six partial (ADR-064): **The Witness** on the unheld branch, which gives ADR-032's deliberately-badly-paying safe route something to be about, and **The Bad Room** on the held one. The arrangement is the sentence — how many fell and which way they point — and none of it collides, because a 0.24 m box on the world layer is an obstacle Recast bakes around and ADR-144 already paid for that lesson. **The Calamity was named to nobody**: `name_key` had a validator requiring it, five `.tres` supplying one, no reader anywhere, and none of the five keys in `en.csv` — so `tr()` would have rendered the key itself as though it were English. Eight probe rows planted; **three caught faults in the checks rather than the code**, including a density row that could not fail because it compared its measurement against the constant that produced it. **Step 7 is built, and it was the greed gradient across depth** (ADR-193): `_by_worth()` ignored `_depth`, so **the Prize on floor 0 was the same object as the Prize on floor 2** and the only thing that worsened with descent was the Hunt — which disconnects `DES-003` as much as `DES-015`, because a Tithe payable out of the Aftermath is one nobody descends for. One function, because the Prize, the machine gear and the filler all read it: measured across 40 seeds a depth, the best find climbs **6 → 55 → 140** and what a floor holds climbs 44-fold. The plant is the bug itself — `WITHHELD = 0.0` returns every floor to a best of 140. `WITHHELD` is ⟨tune⟩ and deliberately uncomfortable: a floor-0 run cannot pay a 40-tribute cycle, and `GATE M4 GREED` is what settles it. **`DES-015` Layer 4's second clause is not built** — *"the player must be able to see that from floor 1"* — and it is `M4-T23`. The remaining ⟨tune⟩ pass still wants somebody to walk a floor* → DES-015, TEC-007, TEC-008, DES-006, DES-017, DES-005, TEC-003, DES-016, DES-018
 
@@ -251,11 +260,18 @@ The most common way a project like this dies is building the meta-progression fi
 
 > **The rank comparison, moved from `GATE M3 EXIT` by ADR-165** — a rank-8 player and a rank-1 player both die at similar rates **for different reasons**. Verify against the `DES-003` balance guardrails. Solo-runnable, and worth running the day `M4-T02` lands rather than waiting for `GATE M4 EXIT`: it is the check that says whether `DES-022`'s power model survives contact, and everything in `M4·B` is painted on top of that answer.
 
-> **The stranger session, moved from `GATE M3 EXIT` by ADR-165** — three testers × three runs, no coaching beyond the in-game control list, diagnostic overlay off. Asked here because `M4-T01` is the first level worth spending a stranger on:
+> **GATE M4 STRANGER** `pending` — three testers × three runs, no coaching beyond the in-game control list, diagnostic overlay off. Asked here because `M4-T01` is the first level worth spending a stranger on:
 > - a first-time tester reaches an exit having entered **≤4 of the rooms on a floor**. Fails ⇒ wayfinding, not pressure.
 > - asked mid-run *"how much noise are you making?"*, they answer roughly right. Fails ⇒ the Ear, or clamor legibility.
 > - asked after a death, they explain it in **one sentence** (principle 4). Fails ⇒ combat readability or damage feedback.
 > - they discover they can drop loot **without being told**. Fails ⇒ the control list, or the bag.
+>
+> **Restored to a `GATE` header by ADR-195**, having been gate content in
+> `GATE M3 EXIT` until ADR-165 moved it — the move dropped the header, and
+> `status.py` only ever matched lines beginning `> **GATE …**`. So from
+> ADR-165 until now the cheapest and earliest evidence this project has
+> about whether the loop is fun was invisible to the tool that sequences
+> the work, and `M4` could have cleared without anyone asking for it.
 
 ### M4·B — Polish  ·  *the slice becomes a product*
 

@@ -4,7 +4,7 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-09-02
+updated: 2026-09-04
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
@@ -115,11 +115,26 @@ Borrowed from **Brogue**, whose "machines" are pre-authored *situations* — not
 
 Machines are the authored content budget — ⟨~a day each⟩ — and unlike hand-built maps they compose with the generator instead of replacing it.
 
+> **BUILT (ADR-192), two of the six.** `FloorMachines` is pipeline stage 6, and
+> `MachineResource.question` is a **required** field its validator refuses to
+> leave empty — the rule above is the schema, because otherwise this is a second
+> loot table. **The Witness** and **The Bad Room** are complete; the other four
+> are absent rather than stubbed (ADR-064), and they are `M4-T02`'s and `M5`'s
+> to add. The Witness goes on the unheld branch, which is what finally gives
+> ADR-032's deliberately-badly-paying safe route something to be *about*.
+
 ## Layer 4 — Population
 
 Loot and enemies placed against the rules already established: greed gradient (`DES-008`), avoidable encounters (`DES-013`, Q40), Clamor topology, and extraction-point placement (`DES-005`).
 
-**The greed gradient is the load-bearing part:** value must climb steeply with depth, and the player must be able to *see* that from floor 1. The Prize being visible-but-distant from early in the expedition is what pulls people down (`PRO-005 §1`).
+**The greed gradient is the load-bearing part:** value must climb steeply with depth, and the player must be able to *see* that from floor 1.
+
+> **BUILT (ADR-193), one clause of the two.** Value climbs — 6 → 55 → 140 in
+> tribute across three floors — because `_by_worth()` now reads `_depth`, which
+> it ignored until then, so floor 0 and floor 2 drew an identical pool and the
+> *"steeply with depth"* half was a sentence nothing implemented. **The second
+> clause is not built**: the player cannot yet *see* it from floor 1, and that
+> is `M4-T23`, filed rather than left implied. The Prize being visible-but-distant from early in the expedition is what pulls people down (`PRO-005 §1`).
 
 ---
 

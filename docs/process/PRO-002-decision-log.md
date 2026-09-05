@@ -6445,5 +6445,51 @@ The task names four absent things. This is the first: *enemies that commit to an
 
 ---
 
+## ADR-195 — The slice audit: three decisions the dashboard could not see
+
+**Date:** 2026-09-04 · **Status:** accepted · **Amends `status.py`** · **Restores `GATE M4 STRANGER`** · **Corrects `DES-015`, `TEC-007`, `CLAUDE.md`, `PRO-001`**
+
+**Context:** `M4·A` has landed three tasks in three days — `M4-T13` (ADR-188), `M4-T01` (ADR-192, ADR-193) and the first quarter of `M4-T16` (ADR-194) — by two sessions working in parallel. This is the sweep across all of it, asking the only question that matters about documentation: **where has a document stopped agreeing with the build?**
+
+Six drifts. Three are ordinary staleness. Three are the same failure this project keeps rediscovering — **a decision that reads as alive with nothing calling it** (ADR-098) — and this time the thing not calling them was the dashboard.
+
+### `GATE M4 GREED` has never once been counted
+
+`GATE_RE` matched `(EXIT|COOP)`. ADR-109 moved `GATE M4 GREED` here from `M2` and nobody widened the pattern, so for the whole of `M3` and `M4` the line sat in the roadmap being read by people and by nothing else.
+
+That is not cosmetic. `Milestone.cleared` requires **every declared gate** to have passed, so an unparsed gate is a gate that *cannot block*: `M4` could have been declared cleared with *"a playtester voluntarily abandons loot to survive"* — the sentence `PRO-001` calls **the whole game in one moment** — never asked. Now `([A-Z]+)`, and `M4` went from two tracked gates to four.
+
+### The stranger session stopped being a gate when it moved
+
+ADR-165 moved it out of `GATE M3 EXIT`. The move kept the four clauses and dropped the `> **GATE …**` header, and since that header is the only thing `status.py` matches, the **cheapest and earliest evidence this project has about whether the loop is fun** became invisible to the tool that sequences the work. ADR-190 then made it step three of four in `M4·A`'s order, still as prose.
+
+It is `GATE M4 STRANGER` again. Restored, not invented — it was a gate, and the move lost the header rather than the intent.
+
+### The dashboard recommended exactly what ADR-190 forbade
+
+ADR-190 wrote the order down — **`M4-T01` → `M4-T16` → the stranger session → `M4-T20` → the rest** — and ended *"Nothing new until it runs. `M4-T02`, `M4-T03` and `M4-T04` are each defensible alone and together they are `PRO-007` §3."*
+
+`NEXT UP` was `nxt = [t for t in cur.tasks if t.state == TODO][:3]` — document order, `[ ]` only. On the next run after that ADR it offered **`M4-T02` and `M4-T04`**, two of the three named tasks, and omitted `M4-T16` entirely because a task in progress is not `TODO`. **The one task actually underway was the one thing the dashboard never named**, which is precisely ADR-190's *"a half-finished task held open while new ones start is the most expensive object on a roadmap."*
+
+Three changes, and the first is the one that matters:
+
+- **A `<!-- hold … until=GATE by=ADR -->` line**, read by `status.py`. Held tasks are withheld from `NEXT UP` and listed under `HELD`, and **starting one is a blocking error**. ADR-063 gave this tool the job of refusing work that skips a step; it could only ever see steps *between* milestones, and `M4` is the first milestone big enough for the order *inside* one to matter.
+- **`NEXT UP` shows `[~]` first**, marked.
+- **A hold naming an unknown task or an unknown gate is an error**, because a hold with a typo in it holds nothing and would fail silently — the exact class of bug this ADR is about.
+
+Four plants, all caught: starting a held task, a hold on `M4-T99`, a hold on a gate that does not exist, and a gate passing while tasks remain.
+
+### And three ordinary drifts
+
+- **`TEC-007` was edited in both ADR-192 and ADR-193 and its `updated:` was never bumped**, so the doc index dated it three days early. `CLAUDE.md` §3 names bumping as step two of four and nothing enforces it — **no check is proposed here**, because "was this file edited without its date changing" is a question about a diff, and the sweep runs on clean checkouts where that has no meaning. It is caught by review or not at all, and saying so is better than inventing a check that would pass.
+- **`DES-015` Layers 3 and 4 were implemented and never annotated.** Layer 3 has two of its six machines (ADR-192); Layer 4 has one of its two clauses — value climbs with depth, and the player still cannot *see* it from floor 1, which is `M4-T23`. A design doc that describes built systems as though they were still proposals is how `DES-009` line 47 stayed backwards for three milestones (ADR-194).
+- **`CLAUDE.md` said "all 38 documents … and 60 ADRs"** while the build had 42 and 195 — a hand-maintained count in the file every session reads first, wrong by a third. Both counts are now deleted rather than corrected: `status.py` prints them, generated, and a number maintained by hand in a file about not trusting stale views was the wrong shape to begin with. `OPEN-QUESTIONS.md` carried the same rot and got the same treatment.
+
+### What this does not claim
+
+`M4-T16` is still `[~]` and three of its four parts are unbuilt. `GATE M4 STRANGER` is now visible and still `pending`, which is the honest state: **the sequencing is fixed, the evidence is not gathered.** The point of making it a gate is that it can no longer be quietly skipped, not that anything has been learned.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

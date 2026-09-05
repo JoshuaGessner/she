@@ -13,7 +13,7 @@ Live queue of unresolved decisions. Resolved items move to `process/PRO-002-deci
 
 ## ✅ Development is unblocked
 
-**Nothing on this page blocks M1 or M2.** Design is locked — all 39 documents are `status: accepted`, and changing one now requires an ADR.
+**Nothing on this page blocks M1 or M2.** Design is locked — every document is `status: accepted`, and changing one now requires an ADR. (The count that used to sit in this sentence was wrong by three; `status.py` prints it.)
 
 Every question below is one of three kinds:
 
@@ -51,6 +51,8 @@ Recorded so they are not mistaken for undesigned areas.
 | Light | **Does the shutter make a noise?** ADR-188 gave the lantern a cost you can see and none you can hear, and a metal shutter closing is exactly the kind of diegetic tell `DES-005` builds its counter-play from — going dark would stop being free at the moment it matters most. It cuts the other way too: a clamor spike every time you work it makes the verb something you flinch from using, and Principle 3 wants it reflexive. Only play answers which. `LightTrait` has no clamor field yet, deliberately — adding one before the question is asked would be guessing | `DES-005`, `DES-018`, ADR-188 |
 | Light | **The six lantern ⟨tune⟩ numbers.** Radius 11 m, glare 1.0, shutter cooldown 0.25 s, `enemy_vision_dark` 5.0, `exposure_ambient` 0.15, `floor_ambient_energy` 0.12 — all measured against screenshots and probes, none against a person. The one most likely wrong is the cooldown: too short and the lamp can be flickered, too long and the shutter stops being a reflex | `ART-001`, ADR-188 |
 | Audio | Crossfade length between states | `ART-002`, ADR-043 |
+| Combat | **The six poise numbers.** `enemy_poise` 100, regen 18/s, and the four weapon `stagger` values (seax 22, blade 40, spear 34, hammer 100). Measured against each other and against the probe, none against a person. The thin one is the seax: 4 hits kill this enemy and 4 × 22 = 88 against a pool of 100, so a single miss turns a knife into a stagger-lock. That margin is 12 points wide and it is the whole difference between "light weapons must earn it" and "light weapons are back to free" | `DES-009`, ADR-194 |
+| Combat | **Should a player be able to see poise?** A stagger is visible the instant it happens — the blockout tints — but *how close* an enemy is to one is invisible, so "keep hitting or back off" is currently a guess rather than a decision, which is Principle 3's exact complaint. It cuts hard the other way: `DES-019` rule 2 forbids numbers during a run and ADR-105 tore out a readout for showing enemy internals, so a poise bar is very likely the wrong answer even if the need is real. The honest candidate is that the **recovery punish** is already the legible route and poise is meant to stay felt rather than read. Only play says whether that lands | `DES-019`, `DES-013`, ADR-105, ADR-194 |
 | Co-op | Per-capita extracted value at 1 / 2 / 4 players | `DES-012` |
 | Hunter | **Gold-bait cost curve; how long a bait buys.** Built at `M2-T02`: proportional to carried value (ADR-039) with an absolute floor (ADR-089), buying ⟨tune⟩ 4.5 s of Collecting. Whether that is a window worth spending a torc on is the playtest question | `DES-017` |
 | Art | First-person arms — universal or per-class? (Q96 answered; **proportions** are a feel question) | `ART-004` |
