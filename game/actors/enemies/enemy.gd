@@ -25,13 +25,22 @@ extends CharacterBody3D
 
 signal died
 
-enum State { UNAWARE, SUSPICIOUS, ALERTED, STAGGERED, DEAD }
+## **The ladder, all four rungs of it** (`M4-T16`, ADR-196). `CALLING` is not
+## a fifth rung — it is the *beat* `DES-013` demands before the failure state,
+## made a state rather than a timer so it replicates and tints for free. A
+## client has to see the wind-up too, or "one chance to prevent it" is a chance
+## only the host gets.
+enum State { UNAWARE, SUSPICIOUS, ALERTED, CALLING, SWARM, STAGGERED, DEAD }
 enum Attack { NONE, TELEGRAPH, ACTIVE, RECOVERY }
 
 const TINTS: Dictionary = {
 	State.UNAWARE: Color(0.34, 0.34, 0.36),
 	State.SUSPICIOUS: Color(0.52, 0.52, 0.54),
 	State.ALERTED: Color(0.20, 0.20, 0.22),
+	# The call reads as the brightest thing on the body — brighter than a
+	# telegraphed swing, because it is worse news than a swing.
+	State.CALLING: Color(0.98, 0.98, 0.98),
+	State.SWARM: Color(0.80, 0.80, 0.82),
 	State.STAGGERED: Color(0.66, 0.66, 0.68),
 	State.DEAD: Color(0.12, 0.12, 0.13),
 }
@@ -122,6 +131,19 @@ var _stagger_timer: float = 0.0
 ## would be sending a client a number it can do nothing with — and `TEC-004`
 ## costs relevance per enemy per tick.
 var _poise: float = 0.0
+
+## How long this body has held a target without losing it. Reset the moment it
+## drops back to SUSPICIOUS, so a player who breaks contact genuinely resets the
+## clock rather than merely pausing it — which is what makes disengaging a real
+## answer rather than a delay (`DES-002`).
+var _alerted_for: float = 0.0
+
+## Counts the beat down. Host-only: the *state* is what clients read.
+var _call_timer: float = 0.0
+
+## One call per body per acquisition. Without this a SWARM enemy re-shouts every
+## frame it stays alerted, and the floor never stops being called.
+var _called: bool = false
 var _patience: float = 0.0
 var _last_seen: Vector3 = Vector3.ZERO
 var _home: Vector3 = Vector3.ZERO
@@ -154,6 +176,13 @@ var _hears: bool = false
 @onready var _mesh: MeshInstance3D = $Mesh
 @onready var _eyes: Node3D = $Eyes
 @onready var _ears: ClamorSensor = $Ears
+## **What makes an enemy audible to other enemies.** `DES-013`'s ladder diagram
+## has always had a *"(Clamor spike propagates to nearby actors)"* arrow and
+## nothing behind it: every enemy carried a `ClamorSensor` and no source, so
+## they heard the player and were **silent to each other**. This is the whole
+## mechanism — the propagation is `M2-T02`'s hearing, already built and paid
+## for, pointed at a noise an enemy makes.
+@onready var clamor: ClamorSource = $Clamor
 
 
 ## Build this enemy's synchroniser, before it enters the tree (`M1-T05`).
@@ -249,9 +278,26 @@ func poise() -> float:
 func _break_poise() -> void:
 	_hitbox.disarm()
 	_attack = Attack.NONE
+	# **This is "one chance to prevent it"** (`DES-013`). Staggering a body
+	# mid-call throws the call away — leaving CALLING is what does it, since
+	# `_tick_call` runs on no other state — and `_called` stays false, so it
+	# will try again. The player bought time, not immunity.
+	#
+	# A `_call_timer = 0.0` sat here until `--swarm-probe`'s plant walked
+	# straight through it: the timer is unreadable from any state this line can
+	# be reached from, so it was the mechanism in appearance only (ADR-098).
 	_poise = 0.0
 	_stagger_timer = Config.tuning.enemy_stagger
 	_state = State.STAGGERED
+
+
+## **Has this body got you?** ALERTED, CALLING and SWARM are three answers to
+## one question, and every existing caller asking `state() == ALERTED` meant
+## this one. Two probes compared against ALERTED directly and would have gone
+## wrong in opposite directions once the ladder grew — one failing a healthy
+## build, the other passing a broken one.
+func is_hunting() -> bool:
+	return _state in [State.ALERTED, State.CALLING, State.SWARM]
 
 
 func state() -> State:
@@ -291,6 +337,18 @@ func attack_phase() -> Attack:
 	return _attack
 
 
+## Put the swarm clock back to zero, without touching what the body knows.
+##
+## For probes that measure movement across a window: a body that has held the
+## player for `enemy_swarm_after` stops dead to call the floor, and a window
+## that lands on the call reads as a body going nowhere. `--stalker-probe`
+## measures exactly that, about a snare, and its own vacuity guard caught the
+## confound the day `SWARM` landed (ADR-196).
+func reset_alert_clock() -> void:
+	_alerted_for = 0.0
+	_called = false
+
+
 ## Refill the pool without staggering. Used by `--fight-probe` to prove the
 ## recovery punish stands on its own rather than on an empty pool.
 func refill_poise() -> void:
@@ -310,8 +368,8 @@ func is_telegraphing() -> bool:
 
 ## Dev-only, for the combat probe: apply damage without needing a real hitbox
 ## overlap, so interruption can be tested at an exact moment.
-func take_test_hit(amount: float) -> void:
-	_on_hurt(amount, null)
+func take_test_hit(amount: float, from: Node = null) -> void:
+	_on_hurt(amount, from)
 
 
 ## The sense lamps, every frame, on every peer.
@@ -349,8 +407,18 @@ func _physics_process(delta: float) -> void:
 	if _state != State.STAGGERED:
 		_poise = minf(tuning.enemy_poise, _poise + tuning.enemy_poise_regen * delta)
 
+	# **Runs while it swings, not only between swings.** `_act` is skipped for
+	# the whole of an attack cycle, and a body inside its attack range spends
+	# roughly nine tenths of its time there — so a clock kept in `_act` would
+	# advance about one frame per second and the call would never come during
+	# the fight it is supposed to be about.
+	if is_hunting():
+		_alerted_for += delta
+
 	if _state == State.STAGGERED:
 		_tick_stagger(delta, tuning)
+	elif _state == State.CALLING:
+		_tick_call(delta, tuning)
 	elif _attack != Attack.NONE:
 		_tick_attack(delta, tuning)
 	else:
@@ -372,7 +440,7 @@ func _look(tuning: TuningProfile) -> void:
 	_target = player
 	_last_seen = player.global_position
 	_patience = tuning.enemy_patience
-	if _state != State.ALERTED and _state != State.STAGGERED:
+	if _state not in [State.ALERTED, State.CALLING, State.SWARM, State.STAGGERED]:
 		_state = State.ALERTED
 
 
@@ -441,7 +509,7 @@ func _listen(delta: float, tuning: TuningProfile) -> void:
 	if not hearing:
 		_heard_for = maxf(0.0, _heard_for - delta)
 		return
-	if _state == State.ALERTED or _state == State.STAGGERED:
+	if _state in [State.ALERTED, State.CALLING, State.SWARM, State.STAGGERED]:
 		return
 	_heard_for += delta
 	if _heard_for < tuning.enemy_hearing_patience:
@@ -504,7 +572,10 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				_state = State.UNAWARE
 			else:
 				_steer_toward(_last_seen, tuning.enemy_walk_speed, tuning)
-		State.ALERTED:
+		State.ALERTED, State.SWARM:
+			# **SWARM behaves as ALERTED and reads as worse.** The difference is
+			# not what this body does, it is that the floor now knows — which is
+			# the only thing `DES-013` claims the state means.
 			_patience -= delta
 			# `is_instance_valid`, not `!= null`: a player who disconnects is
 			# freed out from under whichever enemy was chasing them, and a
@@ -521,12 +592,70 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				# so the enemy searches the spot a rescuer has to walk into.
 				_state = State.SUSPICIOUS
 				_patience = tuning.enemy_patience
+				_alerted_for = 0.0
+				_called = false
 			else:
+				# **The clock that makes leaving an answer** (`M4-T16`, ADR-196).
+				# Nothing on this ladder used to escalate: an enemy that had you
+				# for one second and one that had you for thirty were the same
+				# enemy, so "do I take this fight" had no term that got worse.
+				if not _called and _alerted_for >= tuning.enemy_swarm_after:
+					_begin_call(tuning)
+					return
 				var range_to: float = global_position.distance_to(_target.global_position)
 				if range_to <= tuning.enemy_attack_range:
 					_begin_attack(tuning)
 				else:
 					_steer_toward(_last_seen, tuning.enemy_run_speed, tuning)
+
+
+## **The beat before the failure state** (`DES-013`).
+##
+## It stops to do this, which is the whole counter-play: a body standing still
+## and shouting is a body you can reach, and `_break_poise` cancels it. So the
+## hammer that breaks poise in one hit and the recovery-punish a knife earns
+## (ADR-194) are both answers to this — the two halves of `M4-T16` built a week
+## apart turn out to be the same decision seen twice.
+func _begin_call(tuning: TuningProfile) -> void:
+	velocity.x = 0.0
+	velocity.z = 0.0
+	_hitbox.disarm()
+	_attack = Attack.NONE
+	_call_timer = tuning.enemy_swarm_telegraph
+	_state = State.CALLING
+
+
+func _tick_call(delta: float, tuning: TuningProfile) -> void:
+	velocity.x = 0.0
+	velocity.z = 0.0
+	# **Losing you cancels it.** `PRO-005` §5 wants counters a player can name,
+	# and staggering alone would give the hammer an answer the seax does not
+	# have: 0.9 s is two knife swings, 30 damage against 60 hit points, so a
+	# light build could neither stop the call nor kill through it. Sight is the
+	# counter every build shares, and it is not cheap — `_alerted_for` keeps
+	# running, so ducking behind a pillar for a beat re-calls the moment you
+	# lean out. Only genuinely losing it (`_patience`, back to SUSPICIOUS)
+	# clears the clock, which is what makes disengaging the real answer.
+	if not _sees:
+		_call_timer = 0.0
+		_state = State.ALERTED
+		return
+	# Still facing you while it shouts — it has not lost you, it is telling
+	# everyone where you are.
+	if is_instance_valid(_target):
+		var to_target: Vector3 = _target.global_position - global_position
+		to_target.y = 0.0
+		if to_target.length() > 0.01:
+			_face(to_target.normalized(), tuning)
+	_call_timer -= delta
+	if _call_timer > 0.0:
+		return
+	# One shout, loud, decaying. Every `ClamorSensor` on the floor is already
+	# listening for exactly this — including the player's own ears, since the
+	# noise is real and not a message.
+	clamor.add(tuning.enemy_swarm_clamor)
+	_called = true
+	_state = State.SWARM
 
 
 func _settle(tuning: TuningProfile) -> void:

@@ -68,6 +68,8 @@ func _ready() -> void:
 			_clamor_probe(player)
 		elif arg == "--fight-probe":
 			_fight_probe(player)
+		elif arg == "--swarm-probe":
+			_swarm_probe(player)
 		elif arg.begins_with("--capture-top="):
 			_capture_top(player, arg.split("=", true, 1)[1])
 		elif arg == "--lifecycle-probe":
@@ -782,3 +784,176 @@ func _fight_probe(player: Player) -> void:
 		print("[fight] FAIL %d assertion(s)" % failures)
 	else:
 		print("[fight] a fight costs something, and heavy is what staggers")
+
+
+## `DES-013`'s fourth rung (`M4-T16`, ADR-196).
+##
+## The ladder has read UNAWARE → SUSPICIOUS → ALERTED → SWARM since the design
+## lock and built three of the four, with the diagram's *"(Clamor spike
+## propagates to nearby actors)"* arrow having nothing behind it — every enemy
+## carried a `ClamorSensor` and no `ClamorSource`, so enemies heard the player
+## and were silent to each other.
+##
+## Five questions, and the last two are the ones that matter: a call nobody can
+## prevent is a punishment rather than a decision, and a call that does not
+## reach anybody is a tint change.
+func _swarm_probe(player: Player) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var tuning: TuningProfile = Config.tuning
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	var caller: Enemy = enemies[0] as Enemy
+	var others: Array[Enemy] = []
+	for node: Node in enemies:
+		var e := node as Enemy
+		if e != null and e != caller:
+			others.append(e)
+	var failures: int = 0
+
+	print("[swarm] enemies on the floor      %d (1 caller, %d listeners)"
+		% [enemies.size(), others.size()])
+	print("[swarm] call after / beat / shout %.1f s / %.2f s / %.1f (%.1f m)" % [
+		tuning.enemy_swarm_after, tuning.enemy_swarm_telegraph,
+		tuning.enemy_swarm_clamor,
+		tuning.enemy_swarm_clamor * tuning.clamor_metres_per_unit])
+
+	# ── 1. it escalates at all ───────────────────────────────────────────
+	# Stand in front of it and do nothing. Before this, an enemy that had you
+	# for one second and one that had you for thirty were the same enemy.
+	player.teleport(caller.global_position + Vector3(0, 0.1, -1.8), PI)
+	player.health.restore()
+	# **How long the beat lasted, not whether it happened.** The first version
+	# asked only whether CALLING was ever observed — and a beat of zero seconds
+	# is still CALLING for one frame, so a build that shouted with no warning
+	# at all walked straight through the row. What `DES-013` asks for is a beat
+	# a person can act inside, which is a duration.
+	var beat_began: int = 0
+	var beat_ms: int = 0
+	var swarmed_at: float = -1.0
+	var began: int = Time.get_ticks_msec()
+	for i: int in range(int(90.0 * (tuning.enemy_swarm_after + 4.0))):
+		player.health.restore()
+		if caller.state() == Enemy.State.CALLING and beat_began == 0:
+			beat_began = Time.get_ticks_msec()
+		if caller.state() == Enemy.State.SWARM:
+			swarmed_at = (Time.get_ticks_msec() - began) / 1000.0
+			if beat_began != 0:
+				beat_ms = Time.get_ticks_msec() - beat_began
+			break
+		await get_tree().physics_frame
+	var floor_ms: int = int(TuningProfile.TELEGRAPH_FLOOR * 1000.0)
+	print("[swarm] the beat lasted           %4d ms   floor %d, tuned %d" % [
+		beat_ms, floor_ms, int(tuning.enemy_swarm_telegraph * 1000.0)])
+	var saw_calling: bool = beat_ms >= floor_ms
+	print("[swarm] called the floor after    %.1f s (want ~%.1f)"
+		% [swarmed_at, tuning.enemy_swarm_after + tuning.enemy_swarm_telegraph])
+	if not saw_calling:
+		print("[swarm] FAIL the beat was %d ms against a %d ms floor — DES-013 "
+			% [beat_ms, floor_ms]
+			+ "asks for one chance to prevent it, and a frame is not a chance")
+		failures += 1
+	if swarmed_at < 0.0:
+		print("[swarm] FAIL an enemy held the player and never escalated — the "
+			+ "ladder's fourth rung is decoration")
+		failures += 1
+	# **A bound, not just a yes.** The first version of this clock lived inside
+	# `_act`, which is skipped for the whole of an attack cycle — so against a
+	# body standing in melee range it advanced roughly one frame per second and
+	# the call came minutes late. "It escalated eventually" would have passed
+	# that build. Generous, because acquisition and the walk-in are real time
+	# the enemy spends before the clock starts.
+	var due: float = tuning.enemy_swarm_after + tuning.enemy_swarm_telegraph
+	if swarmed_at >= 0.0 and swarmed_at > due * 2.0:
+		print("[swarm] FAIL the call took %.1f s against %.1f s of tuning — the "
+			% [swarmed_at, due]
+			+ "clock is running far slower than the clock says it does")
+		failures += 1
+
+	# ── 2. it reaches other enemies ──────────────────────────────────────
+	# The whole point: `DES-013`'s propagation arrow, using `M2-T02`'s hearing.
+	var roused: int = 0
+	for i: int in range(120):
+		await get_tree().physics_frame
+	for other: Enemy in others:
+		if other.state() != Enemy.State.UNAWARE:
+			roused += 1
+	# **Not all of them, and that is correct.** `ClamorSource.audible_at` muffles
+	# through walls, so a call crosses a room and dies through enough of them —
+	# `DES-013` wants a shout, not a floor-wide alarm. The assertion is that it
+	# reaches *somebody*; how many is a level-geometry question and a ⟨tune⟩ one.
+	print("[swarm] listeners roused          %d of %d" % [roused, others.size()])
+	if others.size() > 0 and roused == 0:
+		print("[swarm] FAIL nobody heard the call — an enemy with no ClamorSource "
+			+ "is a shout with no sound, which is what this task found")
+		failures += 1
+
+	# ── 3. it does not hear itself ───────────────────────────────────────
+	# A body whose own call is the loudest thing it can hear would investigate
+	# the spot it is already standing in, forever.
+	# **Tested where the guard is reachable.** Checking the caller's state right
+	# after its own call proves nothing: `_listen` returns early on ALERTED,
+	# CALLING, SWARM and STAGGERED, so the state machine protects it there
+	# whether or not the sensor skips itself. The case that bites is a *quiet*
+	# body whose own clamor is still decaying — it would investigate the spot
+	# it is standing in, permanently.
+	_reset()
+	await get_tree().physics_frame
+	var loner: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	player.teleport(Vector3(0, 0.1, 40), 0.0)
+	for i: int in range(60):
+		await get_tree().physics_frame
+	var quiet: int = loner.state()
+	loner.clamor.add(tuning.enemy_swarm_clamor)
+	for i: int in range(int(90.0 * (tuning.enemy_hearing_patience + 1.0))):
+		await get_tree().physics_frame
+	print("[swarm] a body hearing itself     %s -> %s (want no change)" % [
+		Enemy.State.keys()[quiet].to_lower(),
+		Enemy.State.keys()[loner.state()].to_lower()])
+	if loner.state() != quiet:
+		print("[swarm] FAIL a body heard its own shout and went to look for "
+			+ "itself — every caller would investigate where it is standing")
+		failures += 1
+
+	# ── 4. staggering it throws the call away ────────────────────────────
+	# `_break_poise` is the counter a heavy weapon buys, and ADR-194's poise
+	# and this task's swarm turn out to be the same decision seen twice.
+	_reset()
+	await get_tree().physics_frame
+	var victim: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	player.teleport(victim.global_position + Vector3(0, 0.1, -1.8), PI)
+	var stopped: bool = false
+	for i: int in range(int(90.0 * (tuning.enemy_swarm_after + 4.0))):
+		player.health.restore()
+		if victim.state() == Enemy.State.CALLING:
+			# A hammer's worth of stagger, through the real path.
+			victim.refill_poise()
+			var blow := Hitbox.new()
+			blow.stagger = tuning.enemy_poise
+			victim.take_test_hit(1.0, blow)
+			await get_tree().physics_frame
+			stopped = victim.state() != Enemy.State.SWARM
+			blow.free()
+			break
+		await get_tree().physics_frame
+	print("[swarm] staggering stops the call %s" % ("yes" if stopped else "NO"))
+	if not stopped:
+		print("[swarm] FAIL a call could not be interrupted — DES-013 requires "
+			+ "one chance to prevent the failure state")
+		failures += 1
+
+	# ── 5. a fight you win quickly never calls ───────────────────────────
+	# The clock has to be longer than the fight, or every encounter is a swarm
+	# and "do I take this fight" has one answer again.
+	var kills: float = ceil(tuning.enemy_health / player.weapon.held().damage)
+	var edge: WieldableTrait = player.weapon.held()
+	var fight: float = kills * (edge.windup + edge.active + edge.recovery)
+	print("[swarm] a won fight takes         %.1f s vs %.1f s of patience"
+		% [fight, tuning.enemy_swarm_after])
+	if fight >= tuning.enemy_swarm_after:
+		print("[swarm] FAIL killing one enemy takes longer than the call — every "
+			+ "fight would summon the floor, which is a tax rather than a choice")
+		failures += 1
+
+	if failures > 0:
+		print("[swarm] FAIL %d assertion(s)" % failures)
+	else:
+		print("[swarm] the floor can be called, and the call can be stopped")

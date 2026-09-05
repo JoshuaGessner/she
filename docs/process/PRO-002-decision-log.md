@@ -6491,5 +6491,86 @@ Four plants, all caught: starting a held task, a hold on `M4-T99`, a hold on a g
 
 ---
 
+## ADR-196 — The floor can be called, and the call can be stopped
+
+**Date:** 2026-09-04 · **Status:** accepted · **Implements `M4-T16` parts 2 and 3** · **Adds `--swarm-probe`** · **Builds `DES-013`'s fourth rung**
+
+**Context:** `DES-013`'s awareness ladder has read **UNAWARE → SUSPICIOUS → ALERTED → SWARM** since the design lock, and the document calls the ladder *"the single most important system in this document."* Three rungs were built. The fourth was deferred at ADR-064 on the grounds that calling others needs clamor to propagate between actors, and the Clamor field was `M2`.
+
+`M2` shipped. The deferral was never revisited, and the reason it stayed unbuilt turns out to be one missing node.
+
+### The propagation arrow had nothing behind it
+
+`DES-013`'s diagram carries an arrow labelled *"(Clamor spike propagates to nearby actors)"*. Every enemy has carried a `ClamorSensor` since `M1-T04`. **None has ever carried a `ClamorSource`** — so enemies could hear the player and were **silent to each other**, and the arrow described a mechanism that had no emitter at either end of it.
+
+That is the whole of the missing system. `M2-T02` already paid for hearing: `ClamorSensor` scans the `clamor_sources` group, skips anything at zero level, and muffles through occluders. An `ALERTED` enemy that makes a noise gets propagation for free, with no new sense, no new grid, and no new per-agent cost — the sensor's loop already early-outs on a silent source, so an enemy that is not shouting costs one null check.
+
+### `CALLING` is the beat, not a fifth rung
+
+`DES-013` is specific: the failure state *"must be loudly telegraphed a beat before it happens so the player gets one chance to prevent it."*
+
+That beat is a **state** rather than a timer, and deliberately: `_state` is already replicated and already drives `_apply_state`'s tint, so a client sees the wind-up for free. A host-only float would have made *"one chance to prevent it"* a chance only the host gets, which fails `DES-018`'s parity guarantee on a co-op mechanic.
+
+The ladder still has four rungs. `CALLING` is the telegraph of the transition into the fourth.
+
+### Three counters, and one of them had to be added
+
+A call is prevented by **staggering it**, by **breaking line of sight**, or by having **finished the fight inside five seconds**.
+
+The first falls out of ADR-194 a week early: `_break_poise` throws a call away, so the hammer that breaks poise in one hit and the recovery-punish a knife earns are both answers here. **The two halves of `M4-T16` turn out to be the same decision seen twice.**
+
+The second was added after checking the first was enough, and it was not. The beat is 0.9 s; a seax swings in 0.39 s and deals 15, so a light build inside the telegraph can land two hits for 30 against 60 hit points — **it could neither stop the call nor kill through it.** A counter only the heavy weapon owns is not a counter, it is a weapon tax, and `PRO-005` §5 wants counters a player can name. Losing sight cancels the call; `_alerted_for` keeps running, so ducking behind a pillar re-calls the moment you lean out, and only genuinely losing the body clears the clock. **That is what makes disengaging the answer rather than a delay**, which is `M4-T16`'s fourth item and why this ADR closes two of them.
+
+### The Ear needed no new channel, and that was already designed
+
+`DES-019` Layer 1 lists room state as *unaware / suspicious / alerted / swarm*, `DES-018` requires a visual twin for every audio channel, and `--ear-probe` fails any mix channel nothing draws. A fourth state looked like it needed a fourth readout — and it does not, because `HuntMix.alert` is documented in its own comment as *"`DES-013`'s ladder, flattened to a scalar so it can be shown continuously."*
+
+What was wrong is that **`ALERTED` returned 1.0**, so the ladder's top rung had nowhere above it to go. Rescaled to four levels — SUSPICIOUS 0.35, ALERTED 0.70, CALLING 0.85, SWARM 1.0 — which also means **the Ear grows during the beat**, making `DES-013`'s *"loudly telegraphed"* true in the visual channel without a single new element. `DES-019` rule 5 permits exactly one element to carry urgency; adding a `swarm` channel would have broken that rule to say something the existing one already says.
+
+### Two faults this found
+
+- **The clock did not run during the fight it is about.** `_alerted_for` was incremented inside `_act`, which `_physics_process` skips entirely while `_attack != NONE` — and a body inside its attack range is in an attack cycle roughly nine tenths of the time. It advanced about one frame per second, so the call arrived minutes late. Moved beside poise regeneration, which is already where *"things true of this body regardless of what it is doing this frame"* live. `--swarm-probe` bounds the timing now rather than only asking whether it escalated at all, because *"it escalated eventually"* passes that build.
+- **Two probes compared `state() == ALERTED` and would have broken in opposite directions.** `--fallen-probe` asserts an enemy *did* notice and would have started failing a healthy build; the Vörðr row asserts one did *not* and would have **passed a broken one**, which is worse. Both meant *"has it got you"*, so `Enemy.is_hunting()` says that once.
+
+### A third fault, found by a probe about snares
+
+`--stalker-probe` went red on the first full sweep, and it was right to. It
+measures a snared body's movement over a window, then measures the **same
+window with nothing holding it** — a control it added after an earlier draft
+compared against a body that had already arrived and stopped, so *"it did not
+move"* was true for the wrong reason. That control has a vacuity guard: if the
+released body also covers nothing, the row says so and fails.
+
+It fired. By that point in the probe the body has held the player for far
+longer than `enemy_swarm_after`, so the first thing it does on being released
+is **stand still and shout** for most of the window.
+
+The first fix — wait out the call, then measure — traded this confound for the
+one the probe already knew about: the extra second let the body close the last
+of the distance and start swinging, and the control read 0.10 m instead of
+0.00. It now resets the clock (`Enemy.reset_alert_clock()`), which leaves the
+measurement at the instant of release and removes only the variable this probe
+is not about.
+
+**The behaviour itself is not a bug and was not changed.** A snared enemy
+calling for help is the system working; `PRO-005` §5 would be poorer without
+it. What was wrong was a probe measuring one thing and reading another.
+
+### What `M4-T16` still owes
+
+**One of four**: enemies that use the floor's geometry rather than walking through it. Pathing exists (`M2-T14`); what is absent is tactical use of it — flanking, holding a doorway, breaking line of sight of their own accord. It is the vaguest of the four and the only one with no measurement behind it yet, which is why it is named here rather than guessed at.
+
+### Three of the five rows proved nothing, and one of them found dead code
+
+The first plant pass caught **two of five**. The three that walked through are worth recording, because all three were rows that *looked* like assertions:
+
+- **The beat row polled for `CALLING` once per frame.** A beat of zero seconds is still `CALLING` for one frame, so a build that shouted with no warning at all passed. It measures the **duration** now and holds it to `TELEGRAPH_FLOOR` — a frame is not a chance.
+- **The self-skip row checked the caller straight after its own call**, where `_listen` returns early on ALERTED, CALLING, SWARM and STAGGERED. The state machine protects the caller there whether or not the sensor skips itself, so the guard was never reached. The case that actually bites is a *quiet* body whose own clamor is still decaying, and the row tests that now: spike an UNAWARE body's own source and it must stay UNAWARE.
+- **The stagger row could not fail, because the line it was testing does nothing.** `_break_poise` sets `_state = STAGGERED`, and `_tick_call` runs on no other state — so leaving CALLING is what cancels the call, and the `_call_timer = 0.0` sitting beside it was unobservable from any state that line can be reached from. **Deleted rather than kept**: it read as the mechanism and was not, which is ADR-098's question asked of code written an hour earlier. The row now plants a regression that could really happen — `_on_hurt` skipping poise while a body is *"busy shouting"* — and catches it.
+
+Five rows, all five planted and caught after that.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

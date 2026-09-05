@@ -39,15 +39,26 @@ UNAWARE ──heard something──► SUSPICIOUS ──confirmed──► ALERT
 - **Alerted** — actively hunting you. Generates Clamor itself.
 - **Swarm** — calls others. **This is the failure state**, and it must be loudly telegraphed a beat before it happens so the player gets one chance to prevent it.
 
-> **`SWARM` is still unbuilt** (ADR-064, restated by ADR-194). `UNAWARE →
-> SUSPICIOUS → ALERTED` runs; the fourth state does not, and the propagation
-> arrow in the diagram above has never had anything behind it. The mechanism is
-> in the build and unused: an enemy carries a `ClamorSensor` and **no
-> `ClamorSource`**, so enemies hear the player and are silent to each other.
-> An `ALERTED` enemy that made noise would give this ladder its fourth rung
-> using the system `M2-T02` already paid for. It is the third of `M4-T16`'s
-> four absent things, and `DES-018` binds it to the Ear: a fourth state the
-> player cannot see is a state that fails the muted-playable rule.
+> **BUILT (ADR-196), and the reason it waited was one missing node.** The
+> propagation arrow above had nothing behind it: every enemy carried a
+> `ClamorSensor` and **no `ClamorSource`**, so enemies heard the player and were
+> silent to each other. ADR-064 deferred `SWARM` until clamor could propagate
+> between actors; `M2` shipped that and the deferral was never revisited.
+>
+> An `ALERTED` body that holds you for `enemy_swarm_after` **stops and shouts**,
+> and the shout is real noise on the same system the player's own footsteps use.
+> The beat before it is a state (`CALLING`) rather than a timer, so a client
+> sees the wind-up too — *"one chance to prevent it"* cannot be a chance only
+> the host gets.
+>
+> **Three counters**: stagger it (ADR-194's poise, arriving a week early),
+> break its line of sight, or finish the fight inside five seconds. The second
+> exists because the first alone is a counter only a heavy weapon owns — 0.9 s
+> is two seax swings against 60 hit points.
+>
+> **No new Ear channel.** `HuntMix.alert` is already this ladder flattened to a
+> scalar; `ALERTED` simply returned 1.0, leaving the top rung nowhere to go. The
+> four rungs are 0.35 / 0.70 / 0.85 / 1.0, so the Ear *grows during the beat*.
 
 **Rule:** every transition is unmissable in **both** channels. A player must be able to know what state a room is in with their eyes closed — *and* with the sound off.
 

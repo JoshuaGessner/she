@@ -6786,7 +6786,7 @@ func _fallen_probe() -> void:
 	var noticed: int = watcher.state()
 	print("[fallen] the enemy    %s before, saw the player=%s" % [
 		Enemy.State.keys()[noticed].to_lower(), saw_alive])
-	if noticed != Enemy.State.ALERTED or not saw_alive:
+	if not watcher.is_hunting() or not saw_alive:
 		problems.append("the enemy never noticed a standing player, so its "
 			+ "losing interest afterwards proves nothing")
 
@@ -7252,6 +7252,20 @@ func _stalker_probe() -> void:
 			+ "does not end is a stun-lock, which is the no-counter-play answer "
 			+ "`PRO-005` §5 rules out") % [tuning.snare_hold_seconds * 2.0,
 			tuning.snare_hold_seconds])
+	# **The control window must not land on a swarm call** (`M4-T16`, ADR-196).
+	# By this point the body has held the player far longer than
+	# `enemy_swarm_after`, so the first thing it does on release is stand still
+	# and shout for `enemy_swarm_telegraph` — most of `window`. The control then
+	# reads 0.00 m for a reason that has nothing to do with the snare, and the
+	# vacuity guard below fires on a healthy build. It did, which is that guard
+	# working exactly as written.
+	#
+	# Reset rather than waited out: waiting swapped this confound for the older
+	# one recorded above, since the extra second let the body close the last of
+	# the distance and start swinging. Zeroing the clock leaves the measurement
+	# where it was designed — the instant of release — and only removes the one
+	# variable this probe is not about.
+	chaser.reset_alert_clock()
 	var free_from: Vector3 = chaser.global_position
 	await _hold(window)
 	var free_moved: float = free_from.distance_to(chaser.global_position)
@@ -7778,7 +7792,7 @@ func _vordr_probe() -> void:
 	else:
 		print("[vordr] an enemy nearby    state %s (want not alerted)"
 			% Enemy.State.keys()[watcher.state()].to_lower())
-		if watcher.state() == Enemy.State.ALERTED:
+		if watcher.is_hunting():
 			problems.append("an enemy alerted onto a Vörðr — ADR-114 made the "
 				+ "fallen stop being a target, and being loose is more fallen "
 				+ "rather than less")

@@ -126,6 +126,13 @@ func _read_world() -> void:
 	# Ear reports *attention*, never positions — so what is gathered here is
 	# how alert the loudest-alerted actor is and the coarse direction it is in,
 	# never how many there are or what they are.
+	# **Four rungs, four levels** (`M4-T16`, ADR-196). ALERTED used to return
+	# 1.0 and so sat at the top of a scale `DES-013` says has a rung above it —
+	# which meant the failure state had nowhere to show. Rescaling here rather
+	# than adding a channel is deliberate: `HuntMix.alert` is documented as the
+	# ladder *flattened to a scalar*, `DES-019` rule 5 allows exactly one
+	# element to carry urgency, and `--ear-probe` fails any channel without a
+	# visual twin. The Ear was already built for this.
 	mix.alert = 0.0
 	mix.bearing = NAN
 	if player != null:
@@ -162,10 +169,14 @@ func _read_world() -> void:
 ## threshold signals and a readout that stepped in thirds would be one.
 func _alert_weight(enemy: Enemy) -> float:
 	match enemy.state():
-		Enemy.State.ALERTED:
+		Enemy.State.SWARM:
 			return 1.0
+		Enemy.State.CALLING:
+			return 0.85
+		Enemy.State.ALERTED:
+			return 0.70
 		Enemy.State.SUSPICIOUS:
-			return 0.45
+			return 0.35
 		_:
 			return 0.0
 

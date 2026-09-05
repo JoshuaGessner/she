@@ -28,6 +28,14 @@ func _physics_process(_delta: float) -> void:
 		var source := node as ClamorSource
 		if source == null or source.level <= 0.0:
 			continue
+		# **Not your own shout** (`M4-T16`). Enemies became clamor sources so
+		# they could call each other, and a body whose own call is the loudest
+		# thing it can hear investigates itself forever — it would stand in the
+		# spot it is already standing in, permanently SUSPICIOUS of itself.
+		# `owner` is the actor for both nodes, since both are children of the
+		# same scene.
+		if owner != null and source.owner == owner:
+			continue
 		# Occlusion lives in ClamorSource so that this test and the gym's debug
 		# ring cannot disagree about what is audible.
 		if not source.audible_at(global_position):

@@ -496,6 +496,27 @@ extends Resource
 ## fastest weapon's damage rate so sustained pressure still wins eventually.
 @export var enemy_poise: float = 100.0  # ⟨tune⟩
 @export var enemy_poise_regen: float = 18.0  # ⟨tune⟩
+
+## Seconds an enemy must hold you before it calls the floor (`M4-T16`, ADR-196).
+##
+## `DES-013` has had four rungs since the design lock and built three; SWARM is
+## the fourth and it is named **the failure state**. Sized so an ordinary fight
+## never reaches it — four seax swings kill in 1.6 s — and a fight that goes
+## badly does. That is the whole of `DES-002`'s *"do I take this fight"*: not a
+## warning, a clock.
+@export var enemy_swarm_after: float = 5.0  # ⟨tune⟩
+
+## The beat before the call lands. `DES-013`: *"it must be loudly telegraphed a
+## beat before it happens so the player gets one chance to prevent it."*
+## Deliberately far above `TELEGRAPH_FLOOR` — this is not a swing to dodge, it
+## is a decision to make, and 250 ms is a reflex window rather than a choice.
+@export var enemy_swarm_telegraph: float = 0.9  # ⟨tune⟩
+
+## How loud the call is, on the `ClamorSource` scale — 12 × `metres_per_unit`
+## 1.6 is a **19 m** shout, which crosses a room set and most of a generated
+## floor's arm. Decays at `clamor_decay`, so it is a spike other ears can miss
+## if they are far enough, not a permanent siren.
+@export var enemy_swarm_clamor: float = 12.0  # ⟨tune⟩
 ## Seconds of hearing something before UNAWARE becomes SUSPICIOUS. A short
 ## delay stops a single footstep at the edge of earshot from flipping a whole
 ## room, which would make crouching pointless.
@@ -568,6 +589,22 @@ func node_cost(tier: AspectNode.Tier) -> int:
 
 func validate() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
+	# A call nobody can react to is not a telegraph, and `DES-013` asks for a
+	# *beat* rather than a frame — so this is held to the same human floor as a
+	# swing, and then some.
+	if enemy_swarm_telegraph < TELEGRAPH_FLOOR:
+		problems.append("enemy_swarm_telegraph is %.3f s, below the %.2f s floor "
+			% [enemy_swarm_telegraph, TELEGRAPH_FLOOR]
+			+ "— DES-013 wants one chance to prevent the call, not a coin flip")
+	# The call has to be preventable by fighting, which means it has to take
+	# longer than the fight takes to start. A call that lands before an enemy
+	# has swung once would make every encounter a swarm.
+	if enemy_swarm_after <= enemy_telegraph:
+		problems.append("enemy_swarm_after %.1f s is inside the first swing "
+			% enemy_swarm_after
+			+ "(%.2f s telegraph) — every fight would call the floor" % enemy_telegraph)
+	if enemy_swarm_clamor <= 0.0:
+		problems.append("a call at %.1f clamor is a silent shout" % enemy_swarm_clamor)
 	if enemy_telegraph < TELEGRAPH_FLOOR:
 		problems.append("enemy_telegraph is %.3f s, below the %.2f s floor (DES-009 §3)"
 			% [enemy_telegraph, TELEGRAPH_FLOOR])
