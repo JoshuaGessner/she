@@ -79,8 +79,14 @@ const NAV_HEIGHT: float = 1.8
 ## here genuinely idles: an enemy holds a state for seconds at a time, and an
 ## idle agent should cost nothing, which is the case `ON_CHANGE` exists for.
 const REPLICATED_PROPERTIES: Dictionary = {
-	".:position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
-	".:rotation:y": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# **Shadows, not the transform itself** (ADR-102, applied here by ADR-199).
+	# The player has carried these since `M2-T16` for a measured reason — a
+	# remote body written straight from the wire holds still for three rendered
+	# frames and then jumps, twenty times a second. Enemies were left on the
+	# raw transform, so every body a client fought stepped rather than moved.
+	# `_ease_toward_the_wire` carries them, exactly as `Player` does.
+	".:net_position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:net_yaw": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:_state": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_attack": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_sees": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
@@ -130,6 +136,12 @@ var _stagger_timer: float = 0.0
 ## its only output is `_state`, which already is, so putting poise on the wire
 ## would be sending a client a number it can do nothing with — and `TEC-004`
 ## costs relevance per enemy per tick.
+## Where the host says this body is. A client eases toward these rather than
+## being teleported onto them (ADR-102); the host writes them from its own
+## transform once it has moved.
+var net_position: Vector3 = Vector3.ZERO
+var net_yaw: float = 0.0
+
 var _poise: float = 0.0
 
 ## How long this body has held a target without losing it. Reset the moment it
@@ -216,6 +228,12 @@ func _ready() -> void:
 	add_to_group("enemies")
 	_ears.heard.connect(_on_heard)
 	_home = global_position
+	# Seeded from the spawn transform. Left at zero, a client's first ease
+	# would drag every enemy across the level from the origin before the first
+	# packet arrived — the spawn packet carries the position, the shadows do
+	# not exist yet when it lands.
+	net_position = position
+	net_yaw = rotation.y
 	rooted = Rooted.new()
 	rooted.name = "Rooted"
 	add_child(rooted)
@@ -378,8 +396,26 @@ func take_test_hit(amount: float, from: Node = null) -> void:
 ## the host, and DES-013 requires every transition to be legible — a lamp that
 ## only lit on the host's screen would make the awareness ladder unreadable for
 ## exactly the player who is not hosting.
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	_update_sense_markers()
+	# **Only where the wire is the authority.** The host moves this body with
+	# `move_and_slide`; a host that also eased would be two things arguing
+	# about one transform. `DEAD` is excluded because `_fall_over` owns the
+	# corpse's transform through a tween, and easing would fight it.
+	if not multiplayer.is_server() and _state != State.DEAD:
+		_ease_toward_the_wire(delta)
+
+
+## Carry the body to where the host says it is, rather than putting it there.
+##
+## The same rate as `Player._ease_toward_the_wire`, and the same argument: at
+## `REPLICATION_HZ` the lerp lands almost exactly on each arriving value, so
+## this smooths the gap between packets without adding a lag the player can
+## feel. A body being fought has to read honestly.
+func _ease_toward_the_wire(delta: float) -> void:
+	var rate: float = clampf(delta * REPLICATION_HZ, 0.0, 1.0)
+	position = position.lerp(net_position, rate)
+	rotation.y = lerp_angle(rotation.y, net_yaw, rate)
 
 
 func _physics_process(delta: float) -> void:
@@ -425,6 +461,10 @@ func _physics_process(delta: float) -> void:
 		_act(delta, tuning)
 
 	move_and_slide()
+	# Published after the move, so what a client eases toward is where this
+	# body actually ended the frame rather than where it intended to go.
+	net_position = position
+	net_yaw = rotation.y
 
 
 # ── senses ────────────────────────────────────────────────────────────────

@@ -151,17 +151,31 @@ func to_wire() -> Dictionary:
 ## catalogue knows, which is what a save from a build that had an item this one
 ## does not looks like — a migration question (`TEC-003`), not a crash.
 static func from_wire(row: Dictionary) -> ItemInstance:
-	var known: ItemResource = ItemCatalogue.by_id(row["item"] as StringName)
+	# **Every field defaulted, because this reads two untrusted things**
+	# (ADR-199): a save file that may have been written by an older build or
+	# truncated mid-write, and a bag a *client* declared over the wire. Bare
+	# `row["cell"]` on a row without one is a runtime error, and both callers
+	# take it somewhere it does damage — on the host it fires inside an RPC
+	# handler and abandons the rest of that peer's inventory; on load it aborts
+	# a read `RunFile` expects to be able to reject cleanly.
+	#
+	# An unknown id is still the one hard no: an item the catalogue does not
+	# have cannot be built at all, and dropping the row is what `unpack` and
+	# `RunFile` are both already written to expect.
+	var known: ItemResource = ItemCatalogue.by_id(row.get("item", &"") as StringName)
 	if known == null:
 		return null
-	var made := ItemInstance.of(known, int(row["instance"]))
+	var made := ItemInstance.of(known, int(row.get("instance", 0)))
 	# **`int()` on both, because JSON has no integers.** A round trip through a
 	# run file returns every number as a float, so `Vector2i(pair[0], pair[1])`
 	# on raw variants would be building a grid cell out of 3.0 and 2.0.
-	var pair: Array = row["cell"] as Array
-	made.cell = Vector2i(int(pair[0]), int(pair[1]))
-	made.rotated = bool(row["rotated"])
-	made.bound_to = int(row["bound"])
+	var pair: Array = row.get("cell", []) as Array
+	# A cell needs both halves; anything shorter is a row that lost its shape,
+	# and 0,0 is where an unplaced item already sits.
+	made.cell = (Vector2i(int(pair[0]), int(pair[1])) if pair.size() >= 2
+		else Vector2i.ZERO)
+	made.rotated = bool(row.get("rotated", false))
+	made.bound_to = int(row.get("bound", 0))
 	# Absent in a save written before `M3-T05`, and false is right for every one
 	# of them: nothing was Scarred before there were Legacy slots to scar it.
 	made.scarred = bool(row.get("scarred", false))

@@ -43,6 +43,11 @@ const HOST_PEER: int = 1
 
 ## `DES-012` / `TEC-004`: 1–4 players, so the host accepts three others.
 const MAX_CLIENTS: int = 3
+
+## The deepest rank `DES-022` describes. A declaration is a client's own
+## number and the host builds a floor out of it, so it is clamped where it
+## arrives rather than trusted and clamped later by whatever reads it.
+const MAX_RANK: int = 9
 ## From `NetPlan`, which owns the number. Two copies is how they diverge.
 const DEFAULT_PORT: int = NetPlan.DEFAULT_PORT
 ## Where a failed or lost connection lands. Never a quit — see `_give_up`.
@@ -683,7 +688,21 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 	# `0` is what a local call reports rather than a peer id.
 	var id: int = who if who != 0 else multiplayer.get_unique_id()
 	var was: int = floor_rank()
-	_ranks[id] = maxi(1, rank)
+	# **Both ends, not just the floor** (ADR-199). This clamped upward from 1
+	# and let anything through above — so one client sending a wrong number,
+	# from a version skew or a bug, built a floor `DES-022` has no rank for.
+	# `GameState`'s own tables clamp to their length; this is the same ceiling
+	# stated where the value enters the host.
+	_ranks[id] = clampi(rank, 1, MAX_RANK)
+	# **A class the game has.** `sworn` reaches `spawn_player` as the body to
+	# build and `ClassCatalogue.by_id` returns null for anything else — which
+	# is a body with no kit, and `--stalker-probe` has already recorded what an
+	# unarmed class looks like from the inside. An unknown name is dropped to
+	# nobody, which is the state a body that has not chosen is already in.
+	if sworn != "" and ClassCatalogue.by_id(StringName(sworn)) == null:
+		_log("peer %d declared class '%s', which does not exist — treated as "
+			% [id, sworn] + "unsworn rather than built")
+		sworn = ""
 	_sworn[id] = sworn
 	# **The tree comes with the body** (`M3-T01`). `GameState` knows only this
 	# machine's nodes, and the host builds four bodies of which three belong to
@@ -759,6 +778,7 @@ func _on_peer_disconnected(peer: int) -> void:
 	# The seat is theirs until they are actually gone. A door does not free it;
 	# leaving does, so the next arrival is a new person rather than an heir.
 	_seats.erase(peer)
+	_forget(peer)
 	# **And the level has to be told** (`M3-T35`, ADR-156). This freed a body
 	# and said nothing, so a run whose last standing member *left* was never
 	# re-examined: run resolution is reachable from a death and from an
@@ -775,6 +795,46 @@ func _on_peer_disconnected(peer: int) -> void:
 ## packet arrives — with the *same* payload, so both sides derive the same node
 ## name and the same authority without either being told. Names have to match
 ## across peers or every RPC and every synchroniser addresses a different node.
+## **Everything that peer was, dropped when the peer is** (`M4-T24`, ADR-199).
+##
+## `_seats` was erased here and the other six were not, so a departed player
+## went on being part of the party in every way that mattered to the floor.
+## `floor_rank()` reads `_ranks.values()` — the dictionary, not the live peer
+## list — and it is consulted at **every floor build** for enemy density
+## (`RankScaling.denser`) and for how old the Hunt starts (`RankScaling
+## .hunt_age`). So a rank-8 player who joined, descended and left on floor 0
+## kept floors 1 and 2 built at rank 8 for a party of rank-1s, which is
+## ADR-010's *"the highest rank **present**"* being wrong about present.
+##
+## `_bags` was the other half: a full inventory per departed peer, held for the
+## life of the level.
+##
+## **Only on a real disconnect.** `despawn_player` is a different event —
+## ADR-102 makes peers unable to stand in different levels, so leaving the
+## world is a *state* and a body can come back through `_rejoin_the_world`.
+## That peer must keep its bag, so nothing here runs on that path.
+##
+## **And `floor_rank_changed` is deliberately not emitted.** Its handler
+## respawns the floor's enemies, so firing it mid-run would resurrect
+## everything the party had already killed and reset the rest — a worse bug
+## than the one being fixed. The floor you are standing on was built for the
+## party that entered it; only the *next* one reads the corrected rank. Losing
+## a teammate makes the rest of this floor harder, and that is the run being
+## the product rather than a fault.
+func _forget(peer: int) -> void:
+	var was: int = floor_rank()
+	_ranks.erase(peer)
+	_sworn.erase(peer)
+	_effects.erase(peer)
+	_worn.erase(peer)
+	_bags.erase(peer)
+	_wounds.erase(peer)
+	var now: int = floor_rank()
+	if now != was:
+		_log("peer %d took rank %d with them — the next floor is rank %d, and "
+			% [peer, was, now] + "this one stays as it was built")
+
+
 func _spawn_actor(data: Variant) -> Node:
 	var payload: Dictionary = data as Dictionary
 	match String(payload["kind"]):

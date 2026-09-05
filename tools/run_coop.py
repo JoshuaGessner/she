@@ -266,6 +266,36 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         min(on_host, on_client) >= MIN_WALK_METRES,
         f"host {on_host:.2f} m, client {on_client:.2f} m"))
 
+    # **A replicated body moves; it does not step** (ADR-199, ADR-102).
+    #
+    # ADR-102 measured this fault for players and fixed it there: a transform
+    # written straight from the wire holds a remote body still for three
+    # rendered frames and then jumps, twenty times a second. Enemies were left
+    # on the raw transform until ADR-199, and this row is what says so.
+    #
+    # **Only the client's number carries the finding**, and not for the reason
+    # it first looked like. The host does not score near 1.0 — it scores 0.43,
+    # in both the healthy build and the planted one, because a body moves in
+    # `_physics_process` at 60 Hz while this samples every *rendered* frame and
+    # headless runs the main loop faster than physics. That ratio is a fact
+    # about the sampling rate and says nothing about the wire, which is exactly
+    # what makes it the wrong number to assert on.
+    #
+    # The client's is the wire. Easing happens in `_process`, so a fixed build
+    # moves on every rendered frame; a raw-transform build moves only when a
+    # packet lands, at `REPLICATION_HZ` against that same faster loop.
+    #
+    # Measured, both ways: **0.99 fixed, 0.13 planted**, host 0.43 either way.
+    # 0.80 sits far from both rather than splitting them finely.
+    motion = client.get("wire_motion", {})
+    fraction = float(motion.get("fraction", 0.0))
+    rows.append(check(
+        "a replicated body moves rather than stepping",
+        fraction >= 0.80,
+        f"client {motion.get('moved', 0)}/{motion.get('frames', 0)} "
+        f"rendered frames moved ({fraction:.2f}); "
+        f"host {float(host.get('wire_motion', {}).get('fraction', 0.0)):.2f}"))
+
     # One body crouched. On each peer the two capsules must now differ — which
     # needs the stance to have replicated *and* the scene's capsule to be
     # per-instance. A shared sub-resource gives both bodies one number.

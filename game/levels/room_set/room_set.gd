@@ -4242,6 +4242,8 @@ var _probe_walked: Dictionary = {}
 var _probe_heights: Dictionary = {}
 var _probe_bags: Dictionary = {}
 var _probe_downed: Dictionary = {}
+## What `_probe_wire_motion` saw (ADR-199).
+var _probe_motion: Dictionary = {}
 var _probe_speeds: Dictionary = {}
 var _probe_revived: Dictionary = {}
 var _probe_connect_seconds: float = 0.0
@@ -4484,6 +4486,11 @@ func _coop_probe(out: String) -> void:
 		Input.action_release("interact")
 	_probe_revived = _probe_down_state()
 
+	# **Last, and only now** (ADR-199). Everything above wants an empty floor,
+	# so this is the one phase that puts a body back — and it does it after the
+	# rest have finished rather than fighting them for the same enemies.
+	_probe_motion = await _probe_wire_motion()
+
 	if host:
 		await _await_probe_end()
 		_probe_write(out, _probe_report(true))
@@ -4551,6 +4558,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"enemies_seen": _probe_enemies_seen,
 		"floor": _probe_floor,
 		"stillness": _probe_stillness,
+		"wire_motion": _probe_motion,
 		"positions": _probe_positions(),
 		"walked": _probe_walked,
 		"capsule_heights": _probe_heights,
@@ -4706,6 +4714,50 @@ func _clear_the_floor() -> void:
 		taken += 1
 	print("[extract] cleared %d threat(s) — this scenario is about the "
 		% taken + "doorway, not about surviving")
+
+
+## **Does a replicated body move, or does it step?** (ADR-199, ADR-102.)
+##
+## ADR-102 measured this for players: a transform written straight from the
+## wire leaves a remote body still for three rendered frames and then jumps it,
+## twenty times a second. Enemies were left on the raw transform until now, so
+## every body a client fought stuttered — and `M4-T16` then asked players to
+## read a 900 ms call beat and a 500 ms swing telegraph off those bodies.
+##
+## Sampled per *rendered* frame, not per physics frame, because stepping is a
+## thing you see rather than a thing the simulation does. The host is expected
+## to score near 1.0 whatever happens — it is integrating a velocity — so the
+## row that carries the finding is the client's.
+func _probe_wire_motion() -> Dictionary:
+	if multiplayer.is_server():
+		_session.spawn_enemy(PROBE_STRIKE_AT + Vector3(0.0, 0.0, 6.0), 0.0)
+	await _hold(0.8)
+	var walker: Enemy = _first_live_enemy()
+	if walker == null:
+		return {"frames": 0, "moved": 0, "fraction": 0.0}
+	if multiplayer.is_server():
+		# **It walks itself home.** `_settle` carries an UNAWARE body back to
+		# where it spawned, so moving it away is all the motive this needs —
+		# no new seam, and the body is doing an ordinary thing rather than one
+		# invented for a probe.
+		walker.global_position = walker.global_position + Vector3(7.0, 0.0, 0.0)
+	var frames: int = 0
+	var moved: int = 0
+	var was: Vector3 = walker.global_position
+	for i: int in range(150):
+		await get_tree().process_frame
+		if not is_instance_valid(walker):
+			break
+		var here: Vector3 = walker.global_position
+		# A millimetre, so float noise is not counted as motion.
+		if was.distance_to(here) > 0.001:
+			moved += 1
+		frames += 1
+		was = here
+	var fraction: float = float(moved) / maxf(float(frames), 1.0)
+	print("[coop-probe] wire motion %d/%d rendered frames moved (%.2f)"
+		% [moved, frames, fraction])
+	return {"frames": frames, "moved": moved, "fraction": fraction}
 
 
 func _probe_enemy_health() -> Dictionary:

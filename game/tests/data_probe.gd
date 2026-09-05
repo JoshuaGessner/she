@@ -65,6 +65,7 @@ func _run() -> void:
 	_check_catalogue_agrees()
 	_check_items_fit_the_grid()
 	_check_kits_can_be_worn()
+	_check_a_bad_row_is_refused()
 	_check_the_tree_hangs_together()
 
 	# A validator that validated nothing must never report success. This is
@@ -292,6 +293,53 @@ func _check_kits_can_be_worn() -> void:
 ##
 ## Three questions no single node can answer about itself, and each is a way a
 ## tree can be authored into something a player can see and never reach.
+## **A row that lost its shape is dropped, not thrown on** (ADR-199).
+##
+## `ItemInstance.from_wire` reads two untrusted things: a save file that may
+## have been written by an older build or truncated mid-write, and a bag a
+## *client* declares over the wire in `declare_descent`. It validated the item
+## id and then read `row["cell"]`, `row["instance"]`, `row["rotated"]` and
+## `row["bound"]` bare — and a missing key there is a runtime error, not a
+## null. On the host that fires inside an RPC handler and abandons the rest of
+## that peer's inventory; on load it aborts a read `RunFile` is written to be
+## able to reject cleanly.
+##
+## Four rows, each a different way to be malformed. None of them may throw, and
+## the two with a real id must come back with a usable item.
+func _check_a_bad_row_is_refused() -> void:
+	var real: StringName = &"wpn_seax"
+	if ItemCatalogue.by_id(real) == null:
+		_fail("'%s' is gone, so this check is about nothing" % real)
+		return
+
+	# Empty. No id at all, which is the shape a truncated write leaves.
+	if ItemInstance.from_wire({}) != null:
+		_fail("an empty row produced an item — `from_wire` is supposed "
+			+ "to refuse anything the catalogue cannot name")
+
+	# An id nobody has. The one hard no, and it was always right.
+	if ItemInstance.from_wire({"item": &"nothing_by_this_name"}) != null:
+		_fail("an unknown item id produced an item")
+
+	# A real id and nothing else. This is the row that used to throw.
+	var bare: ItemInstance = ItemInstance.from_wire({"item": real})
+	if bare == null:
+		_fail("a row naming a real item was refused for having no "
+			+ "other fields — the defaults are what stop a partial row taking "
+			+ "the host's RPC handler with it")
+	elif bare.cell != Vector2i.ZERO:
+		_fail("a row with no cell landed at %s rather than 0,0"
+			% str(bare.cell))
+
+	# A cell with one half. `pair[1]` on a one-element array is the same throw
+	# by a different door.
+	var half: ItemInstance = ItemInstance.from_wire({"item": real, "cell": [3]})
+	if half == null:
+		_fail("a row with half a cell was refused rather than defaulted")
+	elif half.cell != Vector2i.ZERO:
+		_fail("half a cell became %s rather than 0,0" % str(half.cell))
+
+
 func _check_the_tree_hangs_together() -> void:
 	var by_id: Dictionary = {}
 	for node: AspectNode in _nodes:

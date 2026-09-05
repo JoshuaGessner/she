@@ -90,6 +90,17 @@ LEFT_BEHIND_CEILING = 45
 # and got back to the fire.
 HOME_AGAIN = "[extract] host at the fire, run still open"
 
+# **The rank a departed peer took with it** (`M4-T24`, ADR-199). `_forget`
+# prints this when a disconnect changes what the next floor would be built as;
+# before it existed the line could not appear, because nothing recomputed.
+RANK_GONE = "took rank"
+# What the host says when a declaration lands. The client declares **99** and
+# the host must say 9: `DES-022` has no rank above it, and `declare_descent`
+# clamped only the floor until ADR-199. So this one needle carries both halves
+# — the ceiling held, and the floor rose far enough for its fall to mean
+# something.
+RANK_ROSE = "the floor is rank 9"
+
 
 class Launched:
     """One process, with its output drained *while it runs* (`M3-T41`).
@@ -230,6 +241,44 @@ def run_left_behind(port: int) -> dict[str, str]:
     host.kill()
     if waited < 0.0:
         print(f"  (left behind: gave up after {LEFT_BEHIND_CEILING:.0f}s)")
+    return {"host": host.text(), "client0": left}
+
+
+def run_rank_left(port: int) -> dict[str, str]:
+    """**A rank-8 player leaves, and the floors after them stop being rank 8**
+    (`M4-T24`, ADR-199).
+
+    `CoopSession` erased `_seats` on a disconnect and none of the other six
+    per-peer dictionaries. `floor_rank()` reads `_ranks.values()` — the
+    dictionary, not the live peer list — and every floor build consults it for
+    enemy density (`RankScaling.denser`) and for how old the Hunt starts
+    (`RankScaling.hunt_age`). So a veteran who joined, descended and left on
+    floor 0 kept floors 1 and 2 built at their rank for a party who no longer
+    had them, which is ADR-010's *"the highest rank **present**"* being wrong
+    about present.
+
+    Killed rather than asked to leave, like `run_left_behind`: the disconnect
+    is the subject, and ENet noticing a peer that stopped answering is the
+    event under test.
+    """
+    host = launch(["--host", f"--port={port}", "--abandoned"], DEEP, "host")
+    time.sleep(3.0)
+    # **99, deliberately.** A number no rank table has, so the row below is
+    # about the host clamping rather than about the client being sensible.
+    client = launch(["--join=127.0.0.1", f"--port={port}", "--abandoned",
+                     "--as-rank=99", SWORN], DEEP, "client0")
+    # The floor has to have risen before its falling means anything (ADR-122:
+    # a body arriving and a declaration arriving are independent events).
+    rose = wait_for(host, RANK_ROSE, LEFT_BEHIND_CEILING)
+    if rose < 0.0:
+        print("  (rank left: the floor never reached rank 9 to fall from)")
+    time.sleep(LEFT_BEHIND_KILL)
+    client.kill()
+    left = client.text()
+    waited = wait_for(host, RANK_GONE, LEFT_BEHIND_CEILING)
+    host.kill()
+    if waited < 0.0:
+        print(f"  (rank left: gave up after {LEFT_BEHIND_CEILING:.0f}s)")
     return {"host": host.text(), "client0": left}
 
 
@@ -460,6 +509,37 @@ def main() -> int:
                      said is not None and said.group(2) == "false",
                      "TO THE MENU" if said and said.group(2) == "false"
                      else ("ABANDON THE RUN" if said else "never reported")))
+
+    # ── somebody leaves, and takes their rank with them ───────────────────
+    rank_left = run_rank_left(PORT + 7)
+
+    # The precondition. ADR-122: a body arriving and a declaration arriving are
+    # independent, so a floor that never rose to 8 cannot be shown to fall from
+    # it, and a row asserting the fall alone would pass against a build where
+    # the declaration never landed at all.
+    # **The ceiling, and the precondition, in one row.** The client declared 99
+    # and `DES-022` stops at 9; `declare_descent` clamped upward from 1 and left
+    # the top open until ADR-199, so a floor reading 99 here is a floor built to
+    # a rank the design has no table for. It is also what makes the fall below
+    # meaningful (ADR-122: a body arriving and a declaration arriving are
+    # independent, so a floor that never rose cannot be shown to fall).
+    rose = "the floor is rank 9" in rank_left["host"]
+    over = "the floor is rank 99" in rank_left["host"]
+    rows.append(("a declaration of 99 is clamped to the deepest rank there is",
+                 rose and not over,
+                 "rank 9" if rose and not over
+                 else ("UNCLAMPED — the floor is rank 99" if over
+                       else "the floor never rose — nothing to lose")))
+
+    # The fault. `_ranks` was never erased, so `floor_rank()` kept answering 8
+    # for somebody who had gone, and every floor after this one was built for
+    # a party that no longer existed.
+    dropped = re.search(r"took rank (\d+) with them — the next floor is rank (\d+)",
+                        rank_left["host"])
+    rows.append(("and the floor after them is not",
+                 dropped is not None and dropped.group(2) == "1",
+                 f"rank {dropped.group(2)} next" if dropped
+                 else "STILL RANK 8 — a departed peer is still scaling floors"))
 
     # ── somebody leaves, and the run ends ─────────────────────────────────
     behind = run_left_behind(PORT + 3)

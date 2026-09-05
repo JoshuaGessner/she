@@ -6790,5 +6790,54 @@ a `Theme`**, which is what `M4-T11` needs. Those stay on the task.
 
 ---
 
+## ADR-199 — Three faults in the co-op layer: one gameplay, one feel, one trust
+
+**Date:** 2026-09-05 · **Status:** accepted · **Adds `run_rank_left`, `wire_motion`** · **Applies ADR-102 to enemies** · **Names the co-op trust model**
+
+**Context:** a deliberate pass over the multiplayer layer while `GATE M4 STRANGER` waits on people. Five axes: the RPC authority surface, per-peer state lifetime, node lifetime across a disconnect, replication configuration, and spawned-object cleanup.
+
+**Two of the five came back clean, and that is worth recording.** All thirty `@rpc` handlers are guarded — every `any_peer` one checks `get_remote_sender_id()` and/or `is_server()`, and the five `authority` ones rely on Godot's own enforcement. Node lifetime is consistent: `players()`, `player_for()` and `actor_names()` all filter `is_queued_for_deletion()`, which is ADR-156's lesson applied everywhere rather than at the site that found it. Arrows and snares clean themselves up.
+
+The three faults below are all in the other three axes.
+
+### A peer that has gone keeps scaling the floor
+
+`_on_peer_disconnected` erased `_seats` and nothing else. The other six per-peer dictionaries — `_ranks`, `_sworn`, `_effects`, `_worn`, `_bags`, `_wounds` — had **no `erase` or `clear` anywhere in the file.**
+
+`floor_rank()` reads `_ranks.values()`, the dictionary rather than the live peer list, and it is consulted at **every floor build**: enemy density through `RankScaling.denser`, and how old the Hunt starts through `RankScaling.hunt_age`. So a rank-8 player who joined, descended and left on floor 0 kept floors 1 and 2 built at rank 8 for a party who no longer had them — **ADR-010's *"the highest rank present"* being wrong about the word *present*.** `_bags` was the quieter half: a full inventory per departed peer, held for the life of the level.
+
+`_forget(peer)` drops all six. Two things it deliberately does not do:
+
+- **It does not run on `despawn_player`.** ADR-102 makes peers unable to stand in different levels, so leaving the world is a *state*, and a body can come back through `_rejoin_the_world`. That peer must keep its bag.
+- **It does not emit `floor_rank_changed`.** That signal's handler calls `_spawn_enemies()`, so firing it mid-run would resurrect everything the party had already killed and reset the rest — a worse bug than the one being fixed. The floor you are standing on was built for the party that entered it; only the *next* one reads the corrected rank. Losing a teammate makes the rest of this floor harder, and that is the run being the product rather than a fault.
+
+### Enemies stepped on every screen that was not the host's
+
+ADR-102 measured this fault for players and fixed it there, in its own words: writing a replicated transform straight to `position` *"meant a remote body held still for three rendered frames and then jumped, twenty times a second — which is exactly what 'a little jittery' looks like."*
+
+**Enemies were never given the same treatment.** `REPLICATED_PROPERTIES` carried `.:position` and `.:rotation:y` as `ALWAYS`, and `enemy.gd` contained no shadow properties and no easing. So in co-op every enemy a client fought stuttered — and `M4-T16` had just asked players to read a 900 ms call beat and a 500 ms swing telegraph off those bodies.
+
+Now `net_position` / `net_yaw`, published by the host after `move_and_slide` so a client eases toward where the body actually ended the frame rather than where it meant to go, and `_ease_toward_the_wire` on non-authority peers at the same rate `Player` uses. `DEAD` is excluded because `_fall_over` owns the corpse's transform through a tween and the two would fight.
+
+**Measured, and only on the client — for a reason that was not the first one written down.** The host does not score near 1.0. It scores **0.43, in the healthy build and the planted one alike**, because a body moves in `_physics_process` at 60 Hz while the probe samples every *rendered* frame and headless runs the main loop faster than physics. That ratio is a fact about the sampling rate and says nothing whatever about the wire, which is exactly what makes it the wrong number to assert on — the first draft of this ADR and of the harness comment both claimed the opposite, and the plant is what corrected them.
+
+The client's number *is* the wire: easing runs in `_process`, so a fixed build moves on every rendered frame, and a raw-transform build moves only when a packet lands. **0.99 fixed, 0.13 planted**, against a line at 0.80 that sits far from both rather than splitting them finely.
+
+### The host took a client's word for the shape of things
+
+`declare_descent` is `any_peer` and correctly checks its sender — but what the sender *says* went in unexamined:
+
+- `_ranks[id] = maxi(1, rank)` clamped the floor and left the ceiling open, so one wrong number built a floor `DES-022` has no rank for. Now `clampi(rank, 1, MAX_RANK)`.
+- `sworn` was not checked against `ClassCatalogue`. An unknown name reaches `spawn_player` as the body to build, and `by_id` returns null for it — a body with no kit, which `--stalker-probe` has already recorded the shape of from the inside. An unknown class is now dropped to unsworn, which is a state the game already has.
+- `ItemInstance.from_wire` correctly rejected unknown item ids and then read `row["cell"]`, `row["instance"]`, `row["rotated"]` and `row["bound"]` bare. A row missing a key is a **runtime error inside an RPC handler on the host**, abandoning the rest of that peer's inventory — and the same function is the save-load path, where `RunFile` expects to be able to reject a bad file cleanly rather than throw partway through one. Every field is defaulted now; an unknown id is still the one hard no.
+
+**The trust model itself is not changed, and this is where it gets written down.** A client still declares its own rank, class, worn slots and bag, and the host still believes them. `TEC-004` makes that deliberate — progression is never networked, and the host stores none of it past the floor, so a client that lies affects one session of a game played with friends. What was wrong was that this read as an oversight rather than a decision. It is a decision. What is *not* acceptable is a malformed message taking the host down with it, and that is what the hardening above is for.
+
+### `M4-T24`
+
+Filed rather than folded into an existing task: this was a sweep with no task of its own, and three faults with three probes is not housekeeping.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 
