@@ -643,6 +643,8 @@ func _ready() -> void:
 			_hunt_probe()
 		elif arg == "--ear-probe":
 			_ear_probe()
+		elif arg == "--ground-probe":
+			_ground_probe()
 		elif arg.begins_with("--delvings-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--light-shot="):
@@ -8673,3 +8675,131 @@ func _tag_is_read(tag: StringName) -> bool:
 		if text.contains('&"%s"' % tag):
 			return true
 	return false
+
+
+## Bodies move on the floor, and they do not know where you went (`M4-T16`).
+##
+## `M4-T16`'s fourth item asks for enemies that *"use the floor's geometry
+## rather than walking through it"*, raised from the same play session as
+## *"the ai needs to path better"*. **That was already answered** — `M2-T14`
+## gave every body a `NavigationAgent3D` and a baked region after finding there
+## was no pathfinding at all. Three separate measurements went looking for a
+## defect here and found correct behaviour each time (ADR-197). What was
+## missing was not the system, it was anything that proves the system.
+##
+## Two claims, and the second is the one nothing has ever tested:
+##
+## 1. **The floor is what bodies move on.** A route the enemies' own navigation
+##    map returns between two rooms with a wall between them is meaningfully
+##    longer than the straight line — it goes round, because there is no
+##    through.
+## 2. **An enemy goes where it last *saw* you, not where you are.** `DES-013`
+##    and `PRO-005` §5 make that a fairness requirement rather than a flourish:
+##    the player must always be able to explain how they were found, and be
+##    able to bait it. A body that closed on a player it could not see would
+##    break stealth silently, and every probe in this repository would stay
+##    green while it did.
+func _ground_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+
+	# Entrance (east side) and the west corridor. A wall divides them and the
+	# only way through is a doorway 4 m off the direct line, which is what
+	# makes both halves below mean something.
+	var from_room: Vector3 = Vector3(4.0, 0.1, 2.0)
+	var to_room: Vector3 = Vector3(-9.0, 0.1, -5.0)
+
+
+	# ── 2. it goes to where it saw you, not to where you are ─────────────
+	var post: Vector3 = Vector3(4.0, 0.1, 2.0)
+	var bait: Vector3 = Vector3(4.0, 0.1, -0.5)
+	_session.clear_enemies()
+	await _hold(0.4)
+	player.restore_for_descent()
+	player.teleport(bait, 0.0)
+	# Yaw 0 is -Z, which is where `bait` sits; `PI` faced it away and the row
+	# below reported a body that had not noticed somebody 2.5 m in front of it.
+	_session.spawn_enemy(post, 0.0)
+	await _hold(1.2)
+	var chaser: Enemy = _first_live_enemy()
+	if chaser == null:
+		problems.append("no enemy spawned, so nothing here is about pathing")
+		_report(problems, "ground")
+		return
+
+	var acquired: bool = false
+	for i: int in range(240):
+		await get_tree().physics_frame
+		if chaser.is_hunting():
+			acquired = true
+			break
+	print("[ground] saw the player            %s" % ("yes" if acquired else "NO"))
+	if not acquired:
+		problems.append("the enemy never noticed a player standing 2.5 m in "
+			+ "front of it, so what it does next is not about geometry")
+		_report(problems, "ground")
+		return
+
+	# Round the corner and out of sight. It cannot see through the wall, so
+	# what it does next is the whole of the fairness rule.
+	player.teleport(to_room, 0.0)
+	var nearest_bait: float = INF
+	var nearest_player: float = INF
+	for i: int in range(600):
+		await get_tree().physics_frame
+		nearest_bait = minf(nearest_bait, chaser.global_position.distance_to(bait))
+		nearest_player = minf(
+			nearest_player, chaser.global_position.distance_to(player.global_position))
+	print("[ground] reached where it saw you  %5.1f m away" % nearest_bait)
+	print("[ground] closest to where you are  %5.1f m (want it kept away)"
+		% nearest_player)
+	if nearest_bait > 2.0:
+		problems.append(("it never reached the spot it last saw the player — "
+			+ "closest %.1f m. `DES-013` has SUSPICIOUS investigate the last "
+			+ "known position, and a body that does not go there cannot be "
+			+ "baited, which is counter-play `DES-005` sells") % nearest_bait)
+	# **The cheat check.** Nothing else in this repository asks it.
+	if nearest_player < 6.0:
+		problems.append(("it closed to %.1f m of a player it had never seen "
+			+ "there — an enemy that tracks a position it was not given is "
+			+ "stealth broken silently, and `PRO-005` §5 makes explaining how "
+			+ "you were found a requirement") % nearest_player)
+	# ── the floor is what bodies move on ─────────────────────────────────
+	#
+	# **Asked last, deliberately.** `_build_navigation`'s own comment records
+	# that the bake completes on a worker thread some frames after
+	# `bake_navigation_mesh()` returns, so a query issued on this probe's first
+	# frame comes back empty from a map that is perfectly healthy — which reads
+	# exactly like the failure it is not.
+	var map: RID = get_world_3d().get_navigation_map()
+	var route: PackedVector3Array = NavigationServer3D.map_get_path(
+		map, from_room, to_room, true)
+	var walked: float = 0.0
+	for i: int in range(1, route.size()):
+		walked += route[i - 1].distance_to(route[i])
+	var straight: float = from_room.distance_to(to_room)
+	# Where the route crosses the dividing wall, against the only opening in it.
+	var door: Vector3 = Vector3(-7.0, 0.1, -2.0)
+	var by_the_door: float = INF
+	for corner: Vector3 in route:
+		by_the_door = minf(by_the_door, Vector2(corner.x - door.x, corner.z - door.z).length())
+	print("[ground] route corners             %d" % route.size())
+	print("[ground] straight %5.1f m   by the floor %5.1f m   (%.2f x)" % [
+		straight, walked, walked / maxf(straight, 0.001)])
+	print("[ground] route passes the doorway  %5.1f m (straight line: 3.6 m)"
+		% by_the_door)
+	if route.size() < 2 or walked <= 0.0:
+		problems.append("the navigation map returned no route between two "
+			+ "rooms a player can walk between — bodies would fall back to "
+			+ "straight lines and press into the dividing wall")
+	# **Where it goes, not how far.** A ratio cannot tell this apart — the door
+	# sits nearly on the direct line, so routing correctly costs 0.5 m on 14.8.
+	# What separates a real route from a line through solid ground is that it
+	# passes the opening: the straight line crosses the wall at about x -3.4,
+	# which is 3.6 m from the door.
+	elif by_the_door > 1.5:
+		problems.append(("the floor route misses the doorway by %.1f m, so it "
+			+ "is crossing the dividing wall rather than going through the only "
+			+ "opening in it") % by_the_door)
+
+	_report(problems, "ground")

@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-04
+updated: 2026-09-05
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -6569,6 +6569,49 @@ The first plant pass caught **two of five**. The three that walked through are w
 - **The stagger row could not fail, because the line it was testing does nothing.** `_break_poise` sets `_state = STAGGERED`, and `_tick_call` runs on no other state — so leaving CALLING is what cancels the call, and the `_call_timer = 0.0` sitting beside it was unobservable from any state that line can be reached from. **Deleted rather than kept**: it read as the mechanism and was not, which is ADR-098's question asked of code written an hour earlier. The row now plants a regression that could really happen — `_on_hurt` skipping poise while a body is *"busy shouting"* — and catches it.
 
 Five rows, all five planted and caught after that.
+
+---
+
+## ADR-197 — The pathing was already there; the proof was not
+
+**Date:** 2026-09-05 · **Status:** accepted · **Completes `M4-T16`** · **Adds `--ground-probe`** · **Corrects `--combat-probe`**
+
+**Context:** `M4-T16`'s fourth and last item asks for enemies that *"use the floor's geometry rather than walking through it"*, raised from the play session that also produced *"the ai needs to path better"*. Three of the task's four items turned out to be real gaps — an unconditional stagger (ADR-194), an unbuilt fourth rung (ADR-196), and no reason to disengage. This one is different, and saying so is the decision.
+
+### Three measurements went looking for a defect and found correct behaviour
+
+1. **A body crossing the floor to reach someone it has never seen.** It does not, and it must not: acquisition needs sight, sight is 16 m lit and 6.7 m dark (ADR-188), and `enemy_patience` gives a suspicious body four seconds. `DES-013` wants Thief's guards — local and avoidable — so this was measuring for a design the project rejected.
+2. **A body rounding a corner after a player who stepped out of sight.** It walked 2.5 m to where it had last *seen* the player, arrived, and stopped 13.8 m from where the player actually was. That is `PRO-005` §5 working: the enemy genuinely does not know where you went.
+3. **The navigation map itself.** Valid, baked, thirteen corners on a route between two rooms — `M2-T14` built this and it works.
+
+Two of those three "failures" were faults in the probe, not the build. **The item was answered by `M2-T14` and the task text outlived it.**
+
+### So what was missing was the proof, and one assertion nobody had written
+
+`--ground-probe` makes two claims:
+
+- **The floor is what bodies move on.** A route between the entrance and the west corridor passes within **0.2 m of the doorway**, where the straight line crosses the dividing wall 3.6 m away from it. Asserted on *where the route goes*, not on how long it is — the door sits nearly on the direct line, so routing correctly costs 0.5 m on 14.8 and a ratio cannot tell the two apart.
+- **An enemy goes where it last saw you, not where you are.** Nothing in this repository has ever tested that. It is the guarantee the whole stealth design rests on: `DES-013` has SUSPICIOUS investigate the last known position, `PRO-005` §5 makes *"the player can always explain how they were found"* a fairness requirement, and `DES-005` sells baiting as counter-play. **An enemy that quietly tracked a position it was never given would break all three while every check stayed green.**
+
+The second is the one worth having. Planted by steering a suspicious body at the live player — the exact shape an innocent-looking optimisation would take — and caught.
+
+### And a row that had silently flipped
+
+`--combat-probe` step 4 asserted *"hits interrupt a windup — the reward for reading the telegraph"*. ADR-194 overturned that rule a day earlier, and the row has been printing **NO** ever since — green, because it was a bare `print` with no assertion behind it. Restated as a live check of the current rule: a hit carrying no stagger must **not** stop a swing. `--fight-probe` owns the whole rule; this keeps the one line this probe is placed to see.
+
+Related, and the reason the first two ground measurements read as failures: **`take_test_hit(1.0)` no longer alerts anything.** It spends no poise, so it no longer staggers, so a struck body takes the damage and stays UNAWARE. It takes an optional `Hitbox` now, as `--swarm-probe` already needed.
+
+### What is deliberately not built
+
+**Tactical use of geometry — flanking, holding a doorway, breaking line of sight on purpose — is not here.** That is not a shared behaviour layer; `DES-013` already assigns it to a role: *"**Blocker** — owns a corridor or door; makes a route expensive."* Building it here would be building one archetype's behaviour into every enemy, which is the exact inversion `M4-T16` exists to prevent — it is ordered before `M4-T02` so that six archetypes are variations on something worth varying, not so that the shared layer absorbs them.
+
+Named rather than deferred silently, with the task that owns it (ADR-064's test).
+
+### `M4-T16` is done
+
+Four items, four answers: enemies commit and can be punished (ADR-194), they react to clamor as a group (ADR-196), they give a reason to disengage (ADR-196, the same system), and they use the floor — which they already did, now proven and guarded.
+
+**The next thing is `GATE M4 STRANGER`,** which ADR-190 put third in the order and said runs *as soon as `M4-T16` lands*.
 
 ---
 

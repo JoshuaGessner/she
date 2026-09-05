@@ -301,6 +301,7 @@ func _combat_probe(player: Player) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var tuning: TuningProfile = Config.tuning
 	var enemy: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	var failures: int = 0
 
 	# 1. Unaware is reachable and stable — combat must be avoidable (DES-013).
 	for i: int in range(30):
@@ -349,7 +350,18 @@ func _combat_probe(player: Player) -> void:
 	print("[combat] enemy telegraph          %4d ms   floor  250, expected %4d"
 		% [telegraph_ms, int(tuning.enemy_telegraph * 1000.0)])
 
-	# 4. Hits interrupt a windup — the reward for reading the telegraph.
+	# 4. A **light** hit does not interrupt a windup (ADR-194).
+	#
+	# This row asserted the opposite until poise landed, and called it *"the
+	# reward for reading the telegraph"* — which measured out backwards: if a
+	# hit interrupts at any point in the cycle, reading the telegraph is the
+	# strictly worse alternative to swinging first. It then sat here printing
+	# **NO** and asserting nothing, green, for as long as it took somebody to
+	# read it. A bare print is not a check.
+	#
+	# `--fight-probe` owns the whole rule and plants every half of it. What is
+	# kept here is the one line this probe is placed to see: a hit carrying no
+	# stagger, landing mid-windup, must **not** stop the swing.
 	var interrupted: bool = false
 	for i: int in range(600):
 		await get_tree().physics_frame
@@ -358,7 +370,13 @@ func _combat_probe(player: Player) -> void:
 			await get_tree().physics_frame
 			interrupted = enemy.state() == Enemy.State.STAGGERED
 			break
-	print("[combat] hit interrupts windup    %s" % ("yes" if interrupted else "NO"))
+	print("[combat] light hit interrupts     %s (want no — ADR-194)"
+		% ("YES" if interrupted else "no"))
+	if interrupted:
+		print("[combat] FAIL a stagger-free hit stopped a windup — that is the "
+			+ "unconditional stagger ADR-194 removed, and it makes spamming a "
+			+ "light weapon strictly better than reading the telegraph")
+		failures += 1
 
 	# 5. Lethality, in hits. DES-009's open M1 question is whether 2-3 hits from
 	#    a common enemy kill a fresh player.

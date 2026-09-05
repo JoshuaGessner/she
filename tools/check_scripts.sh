@@ -554,6 +554,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# with no visual twin, and that is checkable. Parity is asserted in both
 	# directions, and the mix is made to move so a director reporting zeroes
 	# forever cannot pass by being silent.
+	# **Bodies move on the floor, and they do not know where you went**
+	# (`M4-T16`, ADR-197). The second half is the one nothing else asks: an
+	# enemy that quietly tracked a position it was never given would break
+	# `PRO-005` §5's fairness rule while every other check stayed green.
+	ground="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --ground-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$ground" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL an enemy that cannot use the floor, or knows too much" >&2
+		printf '%s\n' "$ground" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	ear="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --ear-probe 2>&1)"
 	if [[ $? -ne 0 ]] || printf '%s\n' "$ear" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
