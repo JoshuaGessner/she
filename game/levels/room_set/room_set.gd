@@ -146,6 +146,19 @@ const EYE_HEIGHT: float = 1.6
 ## floor bakes its own navmesh, kept apart from the hand-built level's
 ## source group so the two never bake each other.
 const GENERATED_NAV_GROUP: StringName = &"generated_nav_source"
+## The run seeds `--reach-probe` walks, one full expedition each (`M4-T25`).
+##
+## **Arbitrary on purpose, and fixed on purpose.** Nothing chose these for being
+## interesting — they are the first eight the sweep that found ADR-200 happened
+## to try, and 78901 is kept because it is the one that sealed a party inside
+## the entrance room. A panel picked for passing is a panel that proves nothing;
+## a panel that moves is one whose green means something different each run.
+##
+## Eight is what the check costs, not what it needs. Widen it at a gate rather
+## than in the sweep, where the whole point is that it runs on every commit.
+const REACH_PANEL: Array[int] = [
+	31346, 11111, 40404, 57721, 66666, 78901, 13579, 24680,
+]
 ## How far a room centre may sit from the mesh before the room counts as
 ## off it. One body-width plus slack ⟨tune⟩.
 const NAV_REACH: float = 1.5
@@ -699,6 +712,8 @@ func _ready() -> void:
 			_plan_probe()
 		elif arg == "--build-probe":
 			_build_probe()
+		elif arg == "--reach-probe":
+			_reach_probe()
 		elif arg == "--delvings-probe":
 			_delvings_probe()
 		elif arg == "--machine-probe":
@@ -1098,17 +1113,10 @@ func _build_probe() -> void:
 	FloorBuilder.build(bake_plan, bake, BAKE_SEED, 0, navroot)
 	navroot.add_to_group(GENERATED_NAV_GROUP)
 
-	var navmesh := NavigationMesh.new()
-	navmesh.agent_radius = NAV_AGENT_RADIUS
-	navmesh.agent_height = NAV_AGENT_HEIGHT
-	navmesh.agent_max_climb = 0.3
-	navmesh.agent_max_slope = 45.0
-	navmesh.cell_size = 0.15
-	navmesh.cell_height = 0.15
-	navmesh.geometry_parsed_geometry_type = \
-		NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	navmesh.geometry_source_geometry_mode = \
-		NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
+	# `nav_settings` rather than a second list of the same assignments, so this
+	# measures the mesh the game bakes rather than one that merely resembles it
+	# (ADR-200).
+	var navmesh := nav_settings(NavigationMesh.new())
 	navmesh.geometry_source_group_name = GENERATED_NAV_GROUP
 	var region := NavigationRegion3D.new()
 	region.navigation_mesh = navmesh
@@ -1440,6 +1448,131 @@ func _plan_centre(plan: FloorPlan, node: int) -> Vector3:
 	return FloorBuilder.at(rect.position) + Vector3(
 		rect.size.x * FloorBuilder.CELL * 0.5, 0.0,
 		rect.size.y * FloorBuilder.CELL * 0.5)
+
+
+## **Can a party cross every floor of a run?** (`M4-T25`, ADR-200)
+##
+## `--build-probe` bakes one floor: `BAKE_SEED`, depth 0. ADR-178 pinned that
+## seed *because* it carries a crossing, after a floor with no ramps on it hid
+## an inverted ramp for four commits — a good fix that quietly narrowed the
+## claim from "the generator builds walkable floors" to "seed 31346 depth 0 is
+## a walkable floor", and nothing said so. Depth 0 is also the one depth with
+## `roughness` 0, so the chamfer and the ceiling drift were never baked at all.
+##
+## What that hid, measured before the fix: **one floor-0 layout in sixteen
+## sealed the party inside the entrance room, and six of seven floor-2 layouts
+## had no route from the entrance to the Shaft.** The deepest floor is the one
+## `M4-T01` step 7 made the richest, and it was the one that did not work.
+##
+## So this asks the narrow question — is there a route, and is anything walled
+## off — across a panel rather than a point. It is deliberately *not* a second
+## `--build-probe`: every other row there is about how one floor is built, and
+## those want the detail a single reference floor gives them.
+func _reach_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
+	var kinds: PackedStringArray = _prize_kinds(modules)
+	var walked: int = 0
+
+	for run_seed: int in REACH_PANEL:
+		# `RunFile.LAST_FLOOR`, because that is the file that clamps a descent
+		# and `--build-probe` writing `in 3` inline is the second place saying
+		# how long an expedition is.
+		for depth: int in RunFile.LAST_FLOOR + 1:
+			var graph: MissionGraph = MissionGraph.build(run_seed, depth)
+			var lore := ExpeditionHistory.roll(run_seed, calamities, kinds)
+			var plan: FloorPlan = FloorPlan.build(
+				graph, run_seed, depth, modules, lore)
+			if not plan.problems().is_empty():
+				problems.append("seed %d floor %d did not plan: %s"
+					% [run_seed, depth, ", ".join(plan.problems())])
+				continue
+
+			var navroot := Node3D.new()
+			add_child(navroot)
+			FloorBuilder.build(plan, graph, run_seed, depth, navroot)
+			navroot.add_to_group(GENERATED_NAV_GROUP)
+			var mesh := nav_settings(NavigationMesh.new())
+			mesh.geometry_source_group_name = GENERATED_NAV_GROUP
+			var region := NavigationRegion3D.new()
+			region.navigation_mesh = mesh
+			add_child(region)
+			region.bake_navigation_mesh(false)
+
+			# A crawl is 1.4 m under an agent that stands 1.8 m, so a crawl with
+			# no mesh is the crouch verb working rather than a fault — the same
+			# exclusion `--build-probe` makes, for the same reason.
+			var standing: Array[int] = []
+			for node: int in graph.size():
+				var module: RoomModule = RoomCatalogue.by_id(
+					plan.module_of(node))
+				if module != null \
+						and module.volume == RoomModule.Volume.CRAWL:
+					continue
+				standing.append(node)
+
+			var map: RID = get_world_3d().navigation_map
+			var entrance: int = graph.node_with(MissionGraph.Role.ENTRANCE)
+			var shaft: int = graph.node_with(MissionGraph.Role.SHAFT)
+			var start_at: Vector3 = _plan_centre(plan, entrance)
+			# Poll for the population about to be measured, never for a fixed
+			# frame count — ADR-106's lesson, and the reason `--build-probe`
+			# stopped being red on CI and green here.
+			var on_mesh: int = 0
+			for frame: int in NAV_SYNC_FRAMES:
+				NavigationServer3D.map_force_update(map)
+				if NavigationServer3D.map_get_iteration_id(map) > 0:
+					on_mesh = 0
+					for node: int in standing:
+						var centre: Vector3 = _plan_centre(plan, node)
+						if NavigationServer3D.map_get_closest_point(map, centre) \
+								.distance_to(centre) <= NAV_REACH:
+							on_mesh += 1
+					if on_mesh == standing.size():
+						break
+				await get_tree().physics_frame
+
+			var stranded: int = 0
+			for node: int in standing:
+				if node == entrance:
+					continue
+				var centre: Vector3 = _plan_centre(plan, node)
+				var route: PackedVector3Array = NavigationServer3D.map_get_path(
+					map, start_at, centre, true)
+				if route.is_empty() \
+						or route[route.size() - 1].distance_to(centre) \
+							> NAV_REACH:
+					stranded += 1
+			var down: Vector3 = _plan_centre(plan, shaft)
+			var out: PackedVector3Array = NavigationServer3D.map_get_path(
+				map, start_at, down, true)
+			var arrives: bool = not out.is_empty() \
+				and out[out.size() - 1].distance_to(down) <= NAV_REACH
+
+			if not arrives:
+				problems.append(("seed %d floor %d: nothing that walks can get "
+					+ "from the entrance to the Shaft — a run that spawns here "
+					+ "is over before it starts")
+					% [run_seed, depth])
+			elif stranded > 0:
+				problems.append(("seed %d floor %d: %d of %d standing room(s) "
+					+ "cannot be reached from the entrance — a room the Hunt "
+					+ "cannot enter is a safe room the design never agreed to")
+					% [run_seed, depth, stranded, standing.size()])
+			else:
+				walked += 1
+
+			region.queue_free()
+			navroot.remove_from_group(GENERATED_NAV_GROUP)
+			navroot.queue_free()
+			await get_tree().process_frame
+
+	print("[reach] panel      %d floor(s) walked end to end, %d refused, "
+		% [walked, problems.size()]
+		+ "across %d seed(s) x %d depth(s)"
+		% [REACH_PANEL.size(), RunFile.LAST_FLOOR + 1])
+	_report(problems, "reach")
 
 
 func _plan_probe() -> void:
@@ -5029,7 +5162,34 @@ func _solo_loot() -> int:
 ## `_build_hunt` is: the alternative is a networking branch inside the level,
 ## and `TEC-004`'s boundary is supposed to be invisible from here.
 func _build_navigation() -> void:
-	var mesh := NavigationMesh.new()
+	var mesh := nav_settings(NavigationMesh.new())
+	# By group rather than by children: the geometry hangs off `_world` as a
+	# flat list of slabs, and re-parenting all of it under the region purely to
+	# be baked would change every node path in the level for no gain.
+	mesh.geometry_source_group_name = NAV_SOURCE_GROUP
+	_world.add_to_group(NAV_SOURCE_GROUP)
+
+	_navigation = NavigationRegion3D.new()
+	_navigation.name = "Navigation"
+	_navigation.navigation_mesh = mesh
+	add_child(_navigation)
+	var region: NavigationRegion3D = _navigation
+	# Synchronous, so the map exists before the first enemy asks. Baking this
+	# floor is a few milliseconds; a threaded bake would mean the first seconds
+	# of every run had no navigation, which is precisely the window in which
+	# the player is deciding whether the game works.
+	region.bake_navigation_mesh(false)
+
+
+## What the navmesh is baked *for*, in one place.
+##
+## **Both bakes read this.** `_build_navigation` bakes the floor the game plays
+## on and `--build-probe` bakes one to measure it, and while those were two
+## lists of the same six assignments the probe could have been measuring a mesh
+## the game never builds. ADR-200 had to change `cell_size` in both — the
+## duplication arriving as a chore before it arrived as a bug, which is the only
+## warning this kind gives.
+static func nav_settings(mesh: NavigationMesh) -> NavigationMesh:
 	mesh.agent_radius = NAV_AGENT_RADIUS
 	mesh.agent_height = NAV_AGENT_HEIGHT
 	# Nothing here is climbable. The well kerb and the barricade are meant to
@@ -5052,28 +5212,24 @@ func _build_navigation() -> void:
 	# they steer; at a 0.15 cell the erosion matches the radius it is supposed
 	# to represent and the full 0.45 m — wider than the 0.35 m body — connects
 	# the whole floor.
-	mesh.cell_size = 0.15
-	mesh.cell_height = 0.15
+	#
+	# **0.10, because 0.15 divided 0.45 exactly and that is a knife-edge**
+	# (ADR-200). `ceil(0.45 / 0.15)` is 3.0 with nothing to spare, so whether a
+	# doorway survived voxelisation came down to where its walls happened to
+	# fall against the grid — which varies by seed. Measured: seed 78901 baked
+	# floor 0 as two components with the party sealed in the entrance room, and
+	# no change to radius, height, climb or slope touched it. A 0.10 cell erodes
+	# by `ceil(0.45 / 0.10)` = 0.50 m, five centimetres *more* than the agent
+	# asks for, and connects all sixteen seeds measured. The mesh costs about a
+	# fifth more vertices — 712 to 838 on the reference floor — and bakes in the
+	# same second. Conservatism at 5 cm is cheaper than a floor with no route.
+	mesh.cell_size = 0.10
+	mesh.cell_height = 0.10
 	mesh.geometry_parsed_geometry_type = \
 		NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
-	# By group rather than by children: the geometry hangs off `_world` as a
-	# flat list of slabs, and re-parenting all of it under the region purely to
-	# be baked would change every node path in the level for no gain.
 	mesh.geometry_source_geometry_mode = \
 		NavigationMesh.SOURCE_GEOMETRY_GROUPS_WITH_CHILDREN
-	mesh.geometry_source_group_name = NAV_SOURCE_GROUP
-	_world.add_to_group(NAV_SOURCE_GROUP)
-
-	_navigation = NavigationRegion3D.new()
-	_navigation.name = "Navigation"
-	_navigation.navigation_mesh = mesh
-	add_child(_navigation)
-	var region: NavigationRegion3D = _navigation
-	# Synchronous, so the map exists before the first enemy asks. Baking this
-	# floor is a few milliseconds; a threaded bake would mean the first seconds
-	# of every run had no navigation, which is precisely the window in which
-	# the player is deciding whether the game works.
-	region.bake_navigation_mesh(false)
+	return mesh
 
 
 ## The Hunt (`M2-T02`): the field, then the thing that navigates it.

@@ -6839,5 +6839,67 @@ Filed rather than folded into an existing task: this was a sweep with no task of
 
 ---
 
+## ADR-200 — The floor the checks measured was not the floor the players got
+
+**Date:** 2026-09-05 · **Status:** accepted · **Opens `M4-T25`** · **Adds `--reach-probe`** · **Changes `FloorBuilder._room`, the navmesh bake** · **Raised from play**
+
+**Context:** the first `GATE M4 STRANGER` session. The report was good and the gate is not the point of this entry: *"for the most part everything works and the gameplay is fun"*, and *"we all love the generator and how the floors feel"* — which is the loudest signal `M4-T01` was ever going to get. Two complaints came with it, **unreachable areas** and **the void around the level**, and both were offered as things the art pass would fix.
+
+The second one is. **The first one is a run-ending generator fault, and there were two of them.**
+
+### A generated floor could seal the party in the entrance room
+
+Measured on seed 78901, floor 0: the navmesh baked as **two components**, one of them the entrance room by itself, and `entrance to Shaft: NO ROUTE`. Deterministic. The geometry was not the problem — `joins` reported 1193 slabs with none isolated and `doorways` reported twenty doors with none walled shut. Only the navmesh disagreed, and it is the navmesh a party walks on.
+
+**It is the voxel, and the file already knew this shape.** `_build_navigation`'s own comment records the last round: at `cell_size` 0.2, Recast's erosion of `ceil(agent_radius / cell_size)` cells rounded 0.45 m up to 0.6 m a side, closed every doorway in the authored level, and produced *"six navigable islands and no route between them"*. The fix was 0.15, where `0.45 / 0.15` is **exactly 3.0** — the erosion finally matching the radius it represents, and **no margin at all**. Whether a doorway survives voxelisation then comes down to where its walls happen to fall against the grid, which varies by seed.
+
+Confirmed by exclusion rather than by argument. Holding the floor fixed and moving one bake setting at a time: `agent_radius` 0.45 → 0.30, `agent_height` 1.8 → 1.5, `agent_max_climb` 0.3 → 0.6, `agent_max_slope` 45° → 60° — **all four changed nothing**. `cell_size` 0.15 → 0.10 cleared it outright, and cleared all sixteen seeds measured. It costs about a fifth more vertices (712 → 838 on the reference floor) and bakes in the same second.
+
+### And at full roughness, the corner chamfer closed doorways outright
+
+The larger fault by far, and the one that explains the report. `_room` cuts each of a room's four corners with a `CHAMFER` box rotated 45°. A square rotated 45° reaches half its diagonal from its centre, so at `_roughness` 1.0 that is **1.13 m along both walls meeting the corner** — and the shortest module wall is two cells. Two corners then leave **1.74 m of a 4.0 m wall** for a **2.4 m** `DOOR_WIDTH`.
+
+Measured at depth 2, four seeds, one variable at a time:
+
+| | rooms off the mesh | entrance → Shaft |
+|---|---|---|
+| baseline | 11 / 16 / 17 / 13 | **NO ROUTE** ×4 |
+| ceiling drift off | 11 / 16 / 17 / 13 | **NO ROUTE** ×4 |
+| chamfer off | 0 / 0 / 0 / 0 | walks |
+| `CHAMFER` 1.6 → 0.8 | 0 / 0 / 0 / 0 | walks |
+
+**Six of seven measurable floor-2 layouts had no route from the entrance to the Shaft.** The deepest floor is the one `M4-T01` step 7 made the richest — best find climbing 6 → 55 → 140 across three floors — and it was the floor that did not work.
+
+**Bounded per corner, not by lowering the constant.** Halving `CHAMFER` also cleared every seed measured, and would have put the same knife-edge one turn further away. `CHAMFER` is ⟨tune⟩; a tuned number that must stay under a threshold nobody wrote down is exactly how this returns. So the chamfer now asks the wall what is already cut into it and stops short, and a corner with a door hard against it keeps its right angle — an opening you can walk through beats a corner that reads as worked stone. The count fell from 48 and 68 corners at depths 1 and 2 to 23 and 37, and `CHAMFER` stays at 1.6 where there is room for it.
+
+The cut corner and the wall opening were two things written into the same metre of wall by different code, and only the wall knew where the doors were. `_gaps_along` is now the one reader both use.
+
+### Why nothing said so
+
+`--build-probe` bakes **one floor**: `BAKE_SEED`, depth 0. ADR-178 pinned that seed *because* it carries a crossing, after a floor with no ramps on it hid an inverted ramp for four commits. That was a good fix and it quietly narrowed the claim from *"the generator builds walkable floors"* to *"seed 31346 depth 0 is a walkable floor"* — and **depth 0 is the only depth with `roughness` 0**, so the chamfer this entry is about had never been baked by anything, ever.
+
+That is ADR-178's own lesson arriving one level up: the floor the check measures was chosen for a property, and everything the property does not cover went dark. `--plan-probe` sweeps 360 floors and is clean on all of them, because connectivity as integers was never the thing that broke.
+
+**`--reach-probe`** asks the narrow question across a panel instead of a point: eight run seeds × three depths, is there a route from the entrance to the Shaft and is any standing room walled off. Twenty-four floors in **4.7 seconds**, in the sweep on every commit. Both fixes planted against it and both caught — reverting the chamfer bound refuses 9 of 24, reverting `cell_size` refuses 2. The second plant found more than the manual sweep had: seed 78901 was broken on **two** of its three floors, and `--build-probe` cannot see floor 1 there at all because it bails on its own no-crossing guard.
+
+Deliberately not a second `--build-probe`. Every other row there is about how one floor is built, and those want the detail a single reference floor gives them.
+
+**And the sweep requires the `[reach] panel` line, not merely the absence of `FAIL`.** Measured: `room_set` handed an unknown flag boots the level, runs nothing, and exits **0 with no output at all** — so the obvious form of the check, *"non-zero exit or a `FAIL` in the output"*, passes for a probe that never ran. That is `M4-T19` reproduced inside the check written to fix it, and it was one keystroke away from shipping.
+
+### Two hypotheses the measurement killed
+
+Worth recording, because both were plausible enough to have been fixed on argument.
+
+1. **The crossing ramp meeting a doorway at a height.** `RAMP_CELLS` lets a bridge lift decay to zero over four cells, and a crossing closer than that to a room would leave a step at the threshold — ADR-180 fixed the *no crossing at all* case and this looked like its sibling. Instrumented every corridor's lift at both ends: **not one non-zero**. Every corridor meets its doorways flat.
+2. **A ceiling under the agent.** `headroom` reports a lowest ceiling of **1.76 m** against a 1.8 m `agent_height`, and asserts only against the 1.4 m crawl floor — which reads as a real gap until you check what the 1.76 is. Rooms clamp at 2.2 m; the 1.76 is a crawl, which is meant to be sub-standing and is excluded from coverage on purpose. **No fault.** The row is fine as it stands.
+
+### What this costs the gate
+
+`GATE M4 STRANGER`'s first criterion is *"a first-time tester reaches an exit having entered ≤4 of the rooms on a floor — fails ⇒ wayfinding"*. **A floor with a walled-off branch cannot be measured against that**, because a low room count then measures the fault rather than the wayfinding. The session is recorded as evidence and the verdict is held for a re-test on fixed floors — a short session, not a fresh recruit round. Recording a pass on a measurement taken against a broken floor is ADR-195's failure wearing a friendlier face.
+
+### What is still unasserted, and named
+
+**Nothing walks the player.** Every reachability claim in this project is asked of the navmesh — a 0.45 m agent that climbs 0.30 m — or of the room graph. The player is a 0.35 m capsule driven by `move_and_slide` with no step-up at all, so a rise the mesh crosses is a wall to the body a person is actually holding. No fault is known to follow from it today; the point is that none could be seen. `M4-T25` owns it.
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -84,6 +84,12 @@ const CEILINGS: Array[float] = [1.4, 2.4, 4.0, 7.0]
 const STAGE: int = 9
 ## How far a corner is cut back at full roughness, in metres ⟨tune⟩.
 const CHAMFER: float = 1.6
+## A square rotated 45° reaches half its diagonal from its centre, so a chamfer
+## of `CHAMFER` eats this much of each wall that meets the corner it sits on.
+## The number is geometry, not taste, and it is the one the doorway cares about.
+const CHAMFER_REACH: float = 0.70710678
+## Below this a corner cut is not a chamfer, it is a chip ⟨tune⟩.
+const CHAMFER_MIN: float = 0.4
 ## How far a ceiling may drift from its nominal height at full roughness ⟨tune⟩.
 const CEILING_DRIFT: float = 1.0
 ## How far every floor slab is grown past its own footprint.
@@ -319,13 +325,43 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 
 	# Corners cut back as the working gives way to the seam. At roughness 0
 	# this emits nothing at all, which is what makes floor 1 read as built.
+	#
+	# **Never into a doorway** (ADR-200). A `CHAMFER` box rotated 45° on a corner
+	# reaches `CHAMFER * CHAMFER_REACH` — 1.13 m at full roughness — along both
+	# walls meeting there, and the shortest module wall is two cells. Two corners
+	# then leave 1.74 m of a 4.0 m wall for a 2.4 m opening, so at `_roughness`
+	# 1.0 the corner cut closed doorways outright: measured, **six of seven
+	# floor-2 layouts had no route from the entrance to the Shaft**, with every
+	# check green, because the only floor anything ever baked was floor 0 — and
+	# floor 0 is the one depth with no chamfer on it at all.
+	#
+	# Bounded per corner rather than by lowering `CHAMFER`. Halving it to 0.8
+	# also cleared all four seeds measured, and would have put the same
+	# knife-edge one turn further away: this is the fourth time a ⟨tune⟩ constant
+	# in this file has been the only thing between the generator and an
+	# unwalkable floor, and the first three were all fixed by moving the number.
 	if _roughness > 0.0:
 		var cut: float = CHAMFER * _roughness
 		for corner: Vector2 in [Vector2(0, 0), Vector2(1, 0), Vector2(0, 1),
 				Vector2(1, 1)]:
+			var low_x: bool = corner.x < 0.5
+			var low_z: bool = corner.y < 0.5
+			var z_line: int = rect.position.y - 1 if low_z else rect.end.y
+			var x_line: int = rect.position.x - 1 if low_x else rect.end.x
+			var clear: float = minf(
+				_clear_run(_gaps_along(doors, alcoves, z_line, true),
+					origin.x + corner.x * span.x, low_x),
+				_clear_run(_gaps_along(doors, alcoves, x_line, false),
+					origin.z + corner.y * span.z, low_z))
+			var here: float = minf(cut, maxf(clear, 0.0) / CHAMFER_REACH)
+			# A corner with a door hard against it keeps its right angle. That
+			# is the trade this makes on purpose: an opening you can walk
+			# through beats a corner that reads as worked stone.
+			if here < CHAMFER_MIN:
+				continue
 			var spot := origin + Vector3(corner.x * span.x, height * 0.5,
 				corner.y * span.z)
-			_slab(Vector3(cut, height, cut), spot, RUBBLE[_depth],
+			_slab(Vector3(here, height, here), spot, RUBBLE[_depth],
 				PI * 0.25, "chamfer")
 
 	# A great room gets somewhere to see it from before you are in it.
@@ -520,18 +556,54 @@ func _ledge(rect: Rect2i, doors: Array[Vector2i],
 	_ledges_raised += 1
 
 
+## Every opening in one wall line, as (centre, width) along the wall's own axis:
+## a doorway is `DOOR_WIDTH`, an alcove mouth is narrower.
+##
+## **Shared with the corner chamfer on purpose.** The cut corner and the wall
+## opening are two things written into the same metre of wall by different code,
+## and while only the wall knew where the doors were, the chamfer closed them —
+## see `_room` and ADR-200. One reader, one answer.
+static func _gaps_along(doors: Array[Vector2i], alcoves: Array[Vector2i],
+		line: int, along_x: bool) -> Array[Vector2]:
+	var gaps: Array[Vector2] = []
+	for cell: Vector2i in doors:
+		var on: int = cell.y if along_x else cell.x
+		if on == line:
+			var at_cell: int = cell.x if along_x else cell.y
+			gaps.append(Vector2(at_cell * CELL + CELL * 0.5, DOOR_WIDTH))
+	for cell: Vector2i in alcoves:
+		var on: int = cell.y if along_x else cell.x
+		if on == line:
+			var at_cell: int = cell.x if along_x else cell.y
+			gaps.append(Vector2(at_cell * CELL + CELL * 0.5, ALCOVE_MOUTH))
+	gaps.sort()
+	return gaps
+
+
+## How far a corner may be cut back along one wall before it starts closing an
+## opening in it.
+##
+## `from` is the corner's coordinate on that wall's axis and `ahead` says which
+## way the wall runs away from it. The answer is the clear run to the nearest
+## gap edge, and it is **allowed to come back negative** — a doorway one cell
+## from a corner reaches past the corner itself, and a caller that clamped here
+## instead of at the far end would not be able to tell that apart from a corner
+## with no room to spare.
+static func _clear_run(gaps: Array[Vector2], from: float, ahead: bool) -> float:
+	var room: float = CHAMFER
+	for gap: Vector2 in gaps:
+		var near: float = (gap.x - gap.y * 0.5) - from
+		if not ahead:
+			near = from - (gap.x + gap.y * 0.5)
+		room = minf(room, near)
+	return room
+
+
 ## A wall running along X, on the near (`low`) or far side in Z.
 func _wall_x(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
 		height: float, low: bool) -> void:
 	var z: int = rect.position.y - 1 if low else rect.end.y
-	var gaps: Array[Vector2] = []
-	for cell: Vector2i in doors:
-		if cell.y == z:
-			gaps.append(Vector2(cell.x * CELL + CELL * 0.5, DOOR_WIDTH))
-	for cell: Vector2i in alcoves:
-		if cell.y == z:
-			gaps.append(Vector2(cell.x * CELL + CELL * 0.5, ALCOVE_MOUTH))
-	gaps.sort()
+	var gaps: Array[Vector2] = _gaps_along(doors, alcoves, z, true)
 	var edge: float = rect.position.y * CELL if low \
 		else rect.end.y * CELL
 	# Inside the rect, so the wall never stands in the corridor cell beyond it.
@@ -548,14 +620,7 @@ func _wall_x(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
 func _wall_z(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
 		height: float, low: bool) -> void:
 	var x: int = rect.position.x - 1 if low else rect.end.x
-	var gaps: Array[Vector2] = []
-	for cell: Vector2i in doors:
-		if cell.x == x:
-			gaps.append(Vector2(cell.y * CELL + CELL * 0.5, DOOR_WIDTH))
-	for cell: Vector2i in alcoves:
-		if cell.x == x:
-			gaps.append(Vector2(cell.y * CELL + CELL * 0.5, ALCOVE_MOUTH))
-	gaps.sort()
+	var gaps: Array[Vector2] = _gaps_along(doors, alcoves, x, false)
 	var edge: float = rect.position.x * CELL if low else rect.end.x * CELL
 	# Inside the rect, so the wall never stands in the corridor cell beyond it.
 	var centre: float = edge + WALL_THICK * 0.5 if low \

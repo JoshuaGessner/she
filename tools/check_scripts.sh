@@ -728,6 +728,32 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And every floor of a run, not just the reference one** (`M4-T25`,
+	# ADR-200). `--build-probe` above bakes exactly one floor — `BAKE_SEED`,
+	# depth 0 — because ADR-178 pinned a seed carrying a crossing after a floor
+	# with no ramps hid an inverted one. Good fix, and it quietly narrowed the
+	# claim to a single layout: depth 0 is also the only depth with `roughness`
+	# 0, so the corner chamfer had never once been baked.
+	#
+	# It was closing doorways. Measured before the fix: **six of seven floor-2
+	# layouts had no route from the entrance to the Shaft**, and one floor-0
+	# layout in sixteen sealed the party inside the entrance room. Eight seeds,
+	# three depths, four seconds — the cheapest twenty-four floors this project
+	# will ever buy.
+	#
+	# **The `[reach] panel` line is required, not merely read.** An unknown flag
+	# is not an error to `room_set` — it boots the level, runs nothing, and
+	# quits 0 — so a check that only greps for `FAIL` would pass for a probe
+	# that never ran. That is `M4-T19` exactly, in the check written to fix it.
+	reach="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --reach-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! printf '%s\n' "$reach" | grep -q '^\[reach\] panel' \
+			|| printf '%s\n' "$reach" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL a party can cross every floor of a run" >&2
+		printf '%s\n' "$reach" | grep -E '\[reach\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And the place is a level somebody could descend into** (`M4-T01`,
 	# ADR-183). Everything above measures the floor; this boots one as the game
 	# would — the same `_ready` that raises the Deep, handed a `DelvingsFloor` —
@@ -1043,6 +1069,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "no two pieces of interface are allowed to sit in the same place,"
 	echo "and the space built from it is still that floor,"
 	echo "and the walls of that floor are where the plan put them,"
+	echo "and a party can cross every floor of a run, not just the one we bake,"
 echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"

@@ -44,3 +44,4 @@ scratch/
 # `CLAUDE.md` at the repo root is deliberately **not** covered by this. It is the
 # working agreement and it is checked in on purpose.
 .claude/
+.sweep.log
