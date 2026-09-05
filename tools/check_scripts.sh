@@ -812,6 +812,33 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Is anything drawn on top of anything else** (`M4-T20`, ADR-198)?
+	#
+	# The one question ten existing UI probes never asked, and the reported bug
+	# twice — ADR-140 inside the bag, and "overlapping text in the
+	# threshold/hoard areas". Both times every row was green, because a probe
+	# reads a label's `text` and proves the string exists, never that a human
+	# can see it.
+	#
+	# Headless is fine here and **only** here: this asserts the region grammar,
+	# which is arithmetic over a viewport size with no text in it.
+	#
+	# The rows that measure a *live* screen cannot run here at all. Godot's
+	# headless text server reports different metrics from a real one — the same
+	# Chamber measures `PLACE` at 323×160 windowed and 323×353 headless, from
+	# identical strings at an identical declared width — so a layout assertion
+	# run headless measures the dummy renderer and reports fiction. That is
+	# ADR-090's wall and ADR-093's rule, so those rows live in `--chamber-shot`
+	# and `--threshold-shot`, which run windowed and which the interface brief
+	# requires for any screen that changes.
+	hud="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --hud-probe 2>&1)"
+	if [[ $? -ne 0 ]] || printf '%s\n' "$hud" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL nothing overlaps anything" >&2
+		printf '%s\n' "$hud" | grep -E '\[hud\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Can a player *find* their way (`M2-T13`)? `--route-probe` has always
 	# asserted a clean route exists and has always passed — it cannot see that
 	# nobody could find it, which is exactly what six identically-lit box rooms
@@ -1013,6 +1040,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "the Wing gets out quietly and every node it sells does something,"
 	echo "a build can be reconsidered and a keystone cannot,"
 	echo "every floor the generator can emit poses a question and reads its seed,"
+	echo "no two pieces of interface are allowed to sit in the same place,"
 	echo "and the space built from it is still that floor,"
 	echo "and the walls of that floor are where the plan put them,"
 echo "every verb the game has is named on a screen a tester can find,"

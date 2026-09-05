@@ -33,6 +33,27 @@ const ROW_WIDTH: float = 620.0
 
 var _column: VBoxContainer = null
 
+## **Open to be read, not to be spent** (`M4-T05`, TEC-009 §5.3, ADR-198).
+##
+## The tree had exactly one way in: stand within `PLACE_REACH` of the hoard and
+## press `interact`. No panel, no button, no menu — and ADR-164 already recorded
+## a playtester's words for it, *"no UI pop up or cue for talking with the
+## dragon"*. A prompt was added to the reticle; **the tree still had no door.**
+##
+## The door is the pause menu, because that is where a player looks for *who am
+## I* and it costs nothing on screen during play (`DES-019` rule 1).
+##
+## But a door into the Deep cannot be a shop. `DES-003` couples the Aspects to
+## the Tithe by making you buy them **where you give** — the gesture at the pile
+## is what pays for them — so a mid-run purchase would decouple the two and turn
+## a pact into a skill menu. Hence read-only: the same screen, the same data,
+## every button refusing with the reason.
+##
+## Not a stub (ADR-064). It shows real state and answers the real question —
+## *what have I taken, and what is left* — which is the whole thing a player
+## could not find out during a run.
+var viewing: bool = false
+
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -80,6 +101,13 @@ func _redraw() -> void:
 	# the power would be teaching the opposite of the game.
 	_column.add_child(MenuStyle.line(
 		"Everything you take raises what she expects of you.", 14, MenuStyle.DIM))
+	if viewing:
+		# Said once, at the top, rather than repeated under every disabled row.
+		# `DES-003`'s coupling is the reason and it is worth stating as one.
+		_column.add_child(MenuStyle.line(
+			"You are reading this in the Deep. The Aspects are bought at the "
+			+ "pile, where you give — come back to her with tribute.",
+			15, MenuStyle.WARM))
 
 	var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
 	if body == null:
@@ -127,7 +155,10 @@ func _row(node: AspectNode) -> Control:
 
 	var take: Button = MenuStyle.button(label)
 	take.custom_minimum_size = Vector2(ROW_WIDTH, 38.0)
-	take.disabled = owned or refused != ""
+	# Read-only in the Deep: the row still says what the node is and what it
+	# costs — that is the information the door was opened for — and refuses the
+	# purchase, because `DES-003` buys these where you give.
+	take.disabled = owned or refused != "" or viewing
 	take.pressed.connect(func() -> void: _take(node))
 	row.add_child(take)
 
@@ -143,7 +174,7 @@ func _row(node: AspectNode) -> Control:
 		var refund: int = int(floor(price * Config.tuning.respec_refund))
 		var give: Button = MenuStyle.button("give it back — %d boon" % refund)
 		give.custom_minimum_size = Vector2(ROW_WIDTH, 30.0)
-		give.disabled = back != ""
+		give.disabled = back != "" or viewing
 		give.pressed.connect(func() -> void: _give_back(node))
 		row.add_child(give)
 		if back != "":

@@ -703,6 +703,8 @@ func _ready() -> void:
 			_delvings_probe()
 		elif arg == "--machine-probe":
 			_machine_probe()
+		elif arg == "--hud-probe":
+			_hud_probe()
 		elif arg.begins_with("--machine-shot="):
 			_machine_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--coop-probe="):
@@ -3995,6 +3997,105 @@ func _machine_probe() -> void:
 				+ "reads the key") % [disaster.id, shown])
 
 	_report(problems, "machine")
+
+
+## **Nothing on screen is drawn on top of anything else** (`M4-T20`, TEC-009 §5.6).
+##
+## The one question ten existing UI probes do not ask. It is the reported bug —
+## twice: ADR-140 inside the bag, and *"overlapping text in the threshold/hoard
+## areas"* — and both times every row was green, because a probe that reads a
+## label's `text` proves the string exists and never that a human can see it.
+##
+## Asked of the **grammar** rather than of one screen. `BagScreen.overflowing()`
+## was the right idea hardcoded to a single layout, band by band, written after
+## the collision; this asks the same question of every region at once, before.
+func _hud_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ 1. the grammar is sound at every shape a window can be ─
+	#
+	# Several sizes, not one. The regions are fractions, so a layout that is
+	# clean at 16:9 and folds at 4:3 is exactly the fault a single-resolution
+	# check cannot see — and `M4-T11`'s UI scaling will move all of these.
+	var shapes: Array[Vector2] = [
+		Vector2(1152.0, 648.0),   # the screenshot harness
+		Vector2(1920.0, 1080.0),  # 16:9
+		Vector2(1280.0, 960.0),   # 4:3
+		Vector2(2560.0, 1080.0),  # ultrawide
+		Vector2(1024.0, 768.0),   # the smallest window worth supporting
+	]
+	# **Each world's set, separately.** The Deep has a body and party frames;
+	# the camp has a control card and her voice, and neither is ever on screen
+	# with the other's. Checking all eight regions at once would report
+	# collisions between elements that can never coexist — and, worse, would
+	# push the layout into a shape that satisfies an impossible constraint.
+	var worlds: Array = [HudFrame.World.DEEP, HudFrame.World.LAIR]
+	for screen: Vector2 in shapes:
+		for world: int in worlds:
+			var label: String = HudFrame.World.keys()[world]
+			var rects: Dictionary = HudFrame.all_rects(
+				screen, world as HudFrame.World)
+			var faults: PackedStringArray = HudFrame.collisions(rects, screen)
+			print("[hud] grammar    %d×%d %-4s — %d region(s), %d fault(s)" % [
+				int(screen.x), int(screen.y), label, rects.size(),
+				faults.size()])
+			for fault: String in faults:
+				problems.append("at %d×%d in the %s: %s"
+					% [int(screen.x), int(screen.y), label, fault])
+			# ─ 2. and every region is actually on the screen ─
+			for region_name: String in rects.keys():
+				var box: Rect2 = rects[region_name]
+				if box.position.x < 0.0 or box.position.y < 0.0 \
+						or box.end.x > screen.x or box.end.y > screen.y:
+					problems.append("at %d×%d: `%s` falls off the screen"
+						% [int(screen.x), int(screen.y), region_name])
+				if box.size.x <= 0.0 or box.size.y <= 0.0:
+					problems.append("at %d×%d: `%s` has no area, so nothing "
+						% [int(screen.x), int(screen.y), region_name]
+						+ "placed in it can be seen")
+
+	# ─ 3. **the check can fail** ─
+	#
+	# The plant, kept rather than performed once. `CLAUDE.md`: a row that has
+	# never failed has never been tested — and this project has shipped a probe
+	# that compared a measurement against the constant that produced it and so
+	# could not go red. Two rects that certainly overlap, and one that certainly
+	# sits in the middle of the screen, are fed in deliberately.
+	var screen := Vector2(1152.0, 648.0)
+	var planted: Dictionary = {
+		"PLANT_A": Rect2(100.0, 100.0, 200.0, 200.0),
+		"PLANT_B": Rect2(200.0, 200.0, 200.0, 200.0),
+	}
+	var caught: PackedStringArray = HudFrame.collisions(planted, screen)
+	print("[hud] plant      overlapping pair → %d fault(s)" % caught.size())
+	if caught.size() < 1:
+		problems.append("`collisions()` passed two rects that overlap by "
+			+ "100×100 px, so every green row above means nothing")
+	var centred: Dictionary = {
+		"PLANT_C": HudFrame.keepout(screen),
+	}
+	var centre_caught: PackedStringArray = HudFrame.collisions(centred, screen)
+	print("[hud] plant      element in the centre → %d fault(s)"
+		% centre_caught.size())
+	if centre_caught.size() < 1:
+		problems.append("`collisions()` passed an element occupying the exact "
+			+ "centre keepout, so `DES-019` rule 1 is not enforced")
+
+	# ─ 4. an absent element cannot collide ─
+	#
+	# The regions nothing draws in are not checked, on purpose: the question is
+	# about what a person can see. A zero-area rect standing for an absent
+	# element must not be reported, or every screen fails for the layers it
+	# legitimately does not carry.
+	var empty: Dictionary = {
+		"PLANT_D": Rect2(100.0, 100.0, 0.0, 0.0),
+		"PLANT_E": Rect2(100.0, 100.0, 200.0, 200.0),
+	}
+	if HudFrame.collisions(empty, screen).size() > 0:
+		problems.append("an absent element reported a collision, so a screen "
+			+ "is failed for the layers it does not carry")
+
+	_report(problems, "hud")
 
 
 func _report(problems: PackedStringArray, tag: String) -> void:

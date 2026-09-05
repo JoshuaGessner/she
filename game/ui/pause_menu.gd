@@ -48,6 +48,8 @@ var _root: Control
 var _column: VBoxContainer
 var _settings: SettingsScreen
 var _controls: ControlsScreen
+## The tree, when it is being read rather than bought from (`M4-T20`).
+var _pact: PactScreen = null
 var _open: bool = false
 ## True while the second press is being asked for. Cleared on close, so a menu
 ## reopened later never comes back mid-question.
@@ -92,6 +94,25 @@ func _rebuild() -> void:
 	var resume: Button = MenuStyle.button("BACK TO IT")
 	resume.pressed.connect(close)
 	_column.add_child(resume)
+
+	# **The tree's door** (`M4-T05`, TEC-009 §5.3, ADR-198).
+	#
+	# The Aspects had exactly one way in — stand at the hoard and press
+	# `interact` — so during a run there was no way to find out what you had
+	# taken, and on a first life no way to learn the tree existed at all.
+	# ADR-164 reported it in a playtester's words and answered it with a reticle
+	# prompt at the pile, which helps only someone already standing there.
+	#
+	# Here because this is where a player looks for *who am I*, and because a
+	# menu entry costs **nothing on screen during play** — `DES-019` rule 1 is
+	# the reason this is not a HUD element or a fourth key.
+	#
+	# Read-only, and that is not a limitation to apologise for: `DES-003` buys
+	# the Aspects **where you give**, so a purchase from in here would decouple
+	# power from the Tithe and make a pact into a shop.
+	var pact: Button = MenuStyle.button("YOUR PACT")
+	pact.pressed.connect(_show_pact)
+	_column.add_child(pact)
 
 	# Reachable mid-run as well as from the menu (ADR-137). A player who forgets
 	# which key drops loot forgets it while holding loot, and the Deep does not
@@ -251,6 +272,12 @@ func close() -> void:
 	if _controls != null:
 		_controls.queue_free()
 		_controls = null
+	# Same rule as the two above, and for the same reason: the tree left
+	# standing behind a hidden menu would still be there on the next open, and
+	# `_show_pact` would refuse to build another for the rest of the level.
+	if _pact != null:
+		_pact.queue_free()
+		_pact = null
 	var body: Player = _local_body()
 	if body != null:
 		# **Only our own claim** (ADR-146). This said `set_driving(true)`, which
@@ -267,6 +294,18 @@ func _show_settings() -> void:
 		_settings.queue_free()
 		_settings = null)
 	_root.add_child(_settings)
+
+
+## The tree, over the menu, read-only. Freed on close the same way the settings
+## and controls panels are — a screen left standing behind a hidden menu is
+## still there when the menu reopens, which is the fault `close()` documents.
+func _show_pact() -> void:
+	if _pact != null:
+		return
+	_pact = PactScreen.new()
+	_pact.viewing = true
+	_pact.tree_exited.connect(func() -> void: _pact = null)
+	_root.add_child(_pact)
 
 
 func _show_controls() -> void:

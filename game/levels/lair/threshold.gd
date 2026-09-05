@@ -75,6 +75,20 @@ const SPAWNS: Array[Vector3] = [
 
 var _session: CoopSession = null
 var _readout: Label = null
+## The regions the camp's one column became (`M4-T20`).
+var _place: PanelContainer = null
+var _controls: PanelContainer = null
+## The generated control table, in its own panel. The ADR-139 probe reads this
+## rather than `_readout` — the same assertion, one container along.
+var _control_lines: Label = null
+var _speech: Label = null
+## Seconds left on whatever the camp last said. The Chamber holds its refusals
+## the same way (`REFUSAL_SECONDS`), and for the same reason: a message with no
+## expiry is a message that is still on screen long after it stopped being true.
+var _said_left: float = 0.0
+
+## How long the camp holds a refusal before it goes. ⟨tune⟩
+const SAID_SECONDS: float = 5.0
 ## Set by any `--…probe` or `--…shot` argument. Its one job is to stop
 ## `_descend` changing scene, so a check about the descent can survive it.
 var _probing: bool = false
@@ -445,10 +459,15 @@ func _sworn_to_nothing() -> PackedStringArray:
 	# The wording is the deliverable here: a hole that silently does nothing
 	# reads as a broken trigger, which is the bug report this would otherwise
 	# generate instead of the one it is preventing.
-	var before_line: String = _readout.text if _readout != null else ""
+	# **Reads the speech region** (`M4-T20`). The message moved out of the
+	# readout, which it used to be appended to; the assertion is the same one —
+	# the hole explains itself — and it now also proves the region is *visible*,
+	# which the old text-only check could not have told you.
+	var before_line: String = _speech.text if _speech != null else ""
 	_still_at_the_fire(1)
-	var said: bool = _readout != null and _readout.text != before_line \
-		and _readout.text.contains("still at the fire")
+	var said: bool = _speech != null and _speech.visible \
+		and _speech.text != before_line \
+		and _speech.text.contains("still at the fire")
 	print("[edges] and it says  the hole explains itself=%s" % said)
 	if not said:
 		problems.append(("the hole refused and said nothing — a trigger that "
@@ -770,12 +789,20 @@ func _threshold_probe() -> void:
 	# consistent, and the only way to ask whether it is *complete* is to compare
 	# it against the table the screen renders.
 	await get_tree().process_frame
-	var taught: PackedStringArray = ControlsScreen.compact_lines(4)
+	# At the density the panel actually renders. The assertion is *"the fire
+	# shows every line the table produces"*, so both halves have to be asking
+	# about the same rendering — comparing 4-wide lines against a 2-wide panel
+	# would fail for a formatting reason and teach nothing about completeness.
+	var taught: PackedStringArray = ControlsScreen.compact_lines(2)
 	var missing := PackedStringArray()
+	# **Reads the control panel, not the readout** (`M4-T20`). The table moved
+	# into a frame of its own; the assertion is unchanged — does the fire render
+	# every line `ControlsScreen` knows about — and it is still the only thing
+	# that can catch a second list going stale.
 	for line: String in taught:
-		if not _readout.text.contains(line):
+		if not _control_lines.text.contains(line):
 			missing.append(line)
-	var names_the_verb: bool = _readout.text.contains(
+	var names_the_verb: bool = _control_lines.text.contains(
 		ControlsScreen.glyphs_for("verb"))
 	print("[camp] the controls %d line(s), %d missing, names the verb=%s" % [
 		taught.size(), missing.size(), names_the_verb])
@@ -791,6 +818,15 @@ func _threshold_probe() -> void:
 		problems.append(("the readout never names the class verb — it did not "
 			+ "for the whole of `M3`, so `F` was a built verb with no way of "
 			+ "being discovered, which is maintenance paid for nothing"))
+
+	# ─ **and nothing at the fire is drawn on top of anything else** ─
+	#
+	# `M4-T20`, TEC-009 §5.6. The Chamber's twin, and the reported bug was
+	# reported about *both* rooms. Her voice is put up first, because the region
+	# is hidden until the camp says something and a check that only ever sees it
+	# absent is a check with nothing in it.
+	for fault: String in await layout_faults():
+		problems.append(fault)
 
 	for problem: String in problems:
 		printerr("[camp] FAIL %s" % problem)
@@ -894,12 +930,10 @@ func _process(delta: float) -> void:
 	_said_it_lost_the_body = false
 	if _readout != null:
 		_readout.text = "\n".join([
-			"THE THRESHOLD    descent %d" % GameState.descents,
-			"",
+			"descent    %d" % GameState.descents,
 			"stash      %d item(s), %d tribute" % [
 				GameState.stash.size(), GameState.stash_value()],
 			"the hoard  %d" % GameState.hoard_value,
-			"",
 			# Who is actually here. The host presses OPEN THE THRESHOLD and then
 			# has no way to tell whether anybody arrived — and descending alone
 			# by accident is a wasted run and a confusing bug report.
@@ -911,25 +945,44 @@ func _process(delta: float) -> void:
 			"the fire behind you is the Lodge's",
 			"walk into the dark ahead to descend",
 			"walk back onto the pale slab for your Chamber",
-			"",
-			# The Deep lists these and the camp did not, so the first time a
-			# tester needed them was the first time they were under pressure.
-			# `M2-T13`: attack, throw and the waystone were on no list anywhere
-			# in the game. A verb a tester cannot discover is worse than one
-			# that does not exist — it is maintenance paid for nothing, and it
-			# makes every report about the run describe a smaller game than the
-			# one that was built. The throw is the Hunt's counter-play and the
-			# waystone is half of `DES-005`'s way out.
-			#
-			# **Generated now, not typed** (ADR-139). These three lines were
-			# hand-written, keyboard-only, and omitted **block** and **the class
-			# verb** — two combat verbs a player at this fire could not learn
-			# existed. `ControlsScreen` is the one table; this is one rendering
-			# of it, and a verb added there appears here without anybody
-			# remembering to come back.
-		] + Array(ControlsScreen.compact_lines(4)) + [
-			"esc menu, and the full list of controls with it",
 		])
+		# **The table renders into its own panel now** (`M4-T20`), and it is
+		# still generated rather than typed.
+		#
+		# The Deep lists these and the camp did not, so the first time a tester
+		# needed them was the first time they were under pressure. `M2-T13`:
+		# attack, throw and the waystone were on no list anywhere in the game. A
+		# verb a tester cannot discover is worse than one that does not exist —
+		# it is maintenance paid for nothing, and it makes every report about the
+		# run describe a smaller game than the one that was built.
+		#
+		# **Generated, not typed** (ADR-139). The three lines this replaced were
+		# hand-written, keyboard-only, and omitted **block** and **the class
+		# verb** — two combat verbs a player at this fire could not learn
+		# existed. `ControlsScreen` is the one table; this is one rendering of
+		# it, and a verb added there appears here without anybody remembering to
+		# come back.
+		#
+		# Two verbs to a line rather than four: the panel is bottom-left and a
+		# fraction of the screen wide, and a reference that runs the width of
+		# the window is one you read instead of the room.
+		_control_lines.text = "\n".join(
+			Array(ControlsScreen.compact_lines(2)) + [
+				"esc menu, and the full list with it",
+			])
+		# **Back into their corners** (`M4-T20`). The control table's height
+		# depends on how many verbs are bound, and the party line gains a
+		# parenthetical when nobody has joined — both change what fits.
+		var screen: Vector2 = get_viewport().get_visible_rect().size
+		HudFrame.settle(_controls, HudFrame.Region.REFERENCE, screen)
+		HudFrame.settle(_speech, HudFrame.Region.SPEECH, screen)
+		# Whatever the camp last said goes on its own, rather than sitting under
+		# a condition that stopped being true several seconds ago.
+		if _said_left > 0.0:
+			_said_left = maxf(0.0, _said_left - get_process_delta_time())
+			if _said_left <= 0.0 and _speech != null:
+				_speech.visible = false
+				_speech.text = ""
 	# **Nobody descends as nobody** (ADR-138). The last gate before the floor,
 	# and the only one standing in the room where the mistake becomes visible:
 	# a classless life has no kit, so it arrives with an empty bag and an empty
@@ -951,9 +1004,10 @@ func _process(delta: float) -> void:
 			if not _said_it_cannot_go:
 				_said_it_cannot_go = true
 				print("[camp] the hole refuses — this life has sworn to nothing")
-			if _readout != null:
-				_readout.text += ("\n\nyou have sworn to nothing — there is "
-					+ "no one here to go down")
+			# **Her region, not appended to the readout** (`M4-T20`). This was
+			# `_readout.text +=`, which grew the top-left panel by two lines
+			# every time it fired and had no way to shrink back.
+			_say("you have sworn to nothing — there is no one here to go down")
 	elif (_chamber_armed
 			and player.global_position.distance_to(CHAMBER_AT) <= 1.8):
 		_open_the_chamber()
@@ -1043,11 +1097,27 @@ func _take_the_party_down(asked_by: int) -> void:
 @rpc("authority", "reliable")
 func _still_at_the_fire(waiting: int) -> void:
 	_descending = false
-	if _readout == null:
+	# **Her region, not appended to the readout** (`M4-T20`), the twin of the
+	# refusal above. Between them these two `+=` calls were the growth TEC-009
+	# §5.6 named as the thing nothing bounded.
+	_say(("%d of the party %s still at the fire — the Deep takes you "
+		+ "together, or not at all") % [
+			waiting, "is" if waiting == 1 else "are"])
+
+
+## **Say one thing, in the region that owns saying things** (`M4-T20`).
+##
+## Replaces two `_readout.text +=` calls that grew the top-left panel by a
+## paragraph each and had no way to shrink it back. Held for `SAID_SECONDS` and
+## then gone, and **absent rather than blank** — the Chamber's readout used to
+## hold an empty line so nothing below it moved, which is a layout workaround
+## for having no layout. With a region of its own there is nothing below it.
+func _say(what: String) -> void:
+	if _speech == null:
 		return
-	_readout.text += ("\n\n%d of the party %s still at the fire — the Deep "
-		+ "takes you together, or not at all") % [
-			waiting, "is" if waiting == 1 else "are"]
+	_speech.text = what
+	_speech.visible = true
+	_said_left = SAID_SECONDS
 
 
 ## Down. Whatever is in the stash is what you take, because `DES-014` puts
@@ -1217,13 +1287,165 @@ func _build_doors() -> void:
 		CHAMBER_DOOR)
 
 
+## **Two framed panels and a voice, where there was one column** (`M4-T20`,
+## TEC-009 §5.2, ADR-198).
+##
+## The camp printed its state and six generated lines of keybindings into a
+## single `Label` at `(18, 18)`, in one weight and one colour, over a third of
+## the screen — and then **appended to it** from two other places, which is the
+## growth nothing bounded.
+##
+## ## The controls stay, against TEC-009's recommendation
+##
+## TEC-009 §5.2 proposed moving them behind the pause menu's `CONTROLS` screen,
+## which already exists and is already one key away (ADR-137). **Declined**, and
+## the reason is ADR-139: they are at the fire because a playtest found that
+## *"the first time a tester needed them was the first time they were under
+## pressure"*, and the camp is the one place in the game with no pressure at all.
+## Removing them would trade a real, evidenced discoverability win for a tidier
+## screenshot.
+##
+## What was actually wrong was never that they are shown — it is that they were
+## in the same column, weight and colour as the Tithe and the party count, so
+## nothing on the screen was grouped as anything. Gestalt common region fixes
+## that without deleting anything: **two panels, each with one job.**
+##
+## The ADR-139 probe follows them into `_controls` rather than being dropped.
+## Same assertion, same table, one container along — *"a probe rewritten to
+## match the new code asserts nothing"*, and this one still asks whether the
+## fire renders every line `ControlsScreen` knows about.
 func _build_readout() -> void:
 	var layer := CanvasLayer.new()
+	layer.name = "CampReadout"
 	add_child(layer)
+	MenuStyle.ground = MenuStyle.Ground.LAIR
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+
+	# ─ PLACE — the camp, and what is yours ─
+	_place = MenuStyle.frame()
+	var body := VBoxContainer.new()
+	body.add_theme_constant_override("separation", 5)
+	body.add_child(MenuStyle.heading("The Threshold"))
 	_readout = Label.new()
-	_readout.position = Vector2(18.0, 18.0)
-	_readout.add_theme_color_override("font_color", Color(0.88, 0.86, 0.80))
-	layer.add_child(_readout)
+	_readout.add_theme_font_size_override("font_size", 13)
+	_readout.add_theme_color_override("font_color", MenuStyle.ink())
+	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	body.add_child(_readout)
+	_place.add_child(body)
+	layer.add_child(_place)
+	HudFrame.place(_place, HudFrame.Region.PLACE, screen)
+
+	# ─ BODY — the quick reference, in a panel of its own ─
+	#
+	# Bottom-left and narrow: two verbs to a line rather than four, because the
+	# region is a fraction of the width and a reference you have to read across
+	# the screen is one you read instead of the room.
+	_controls = MenuStyle.frame()
+	var keys := VBoxContainer.new()
+	keys.add_theme_constant_override("separation", 3)
+	keys.add_child(MenuStyle.heading("Controls"))
+	_control_lines = Label.new()
+	_control_lines.add_theme_font_size_override("font_size", 12)
+	_control_lines.add_theme_color_override("font_color", MenuStyle.dim())
+	# **Wrapped, so it cannot outgrow its region.** The first render was ten
+	# pixels wider than `BODY` — harmless on its own, and exactly how a
+	# collision starts once anything else is drawn nearby. A region is a promise
+	# about width and this is what makes the promise true for generated text
+	# whose length depends on how many verbs happen to be bound.
+	_control_lines.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	keys.add_child(_control_lines)
+	_controls.add_child(keys)
+	layer.add_child(_controls)
+	HudFrame.place(_controls, HudFrame.Region.REFERENCE, screen)
+
+	# ─ SPEECH — the refusals, which used to be appended to the readout ─
+	#
+	# `threshold.gd:955` and `:1048` both did `_readout.text +=`, so a camp that
+	# refused a descent *and* was waiting on the party grew two paragraphs into
+	# a corner sized for none. With a region of its own it is transient, which
+	# is what both of those messages always were.
+	_speech = Label.new()
+	_speech.add_theme_font_size_override("font_size", 15)
+	_speech.add_theme_color_override("font_color", MenuStyle.WARM)
+	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_speech.visible = false
+	layer.add_child(_speech)
+	HudFrame.place(_speech, HudFrame.Region.SPEECH, screen)
+
+
+## **What this room is actually drawing, measured** (`M4-T20`, TEC-009 §5.6).
+## The Chamber's twin — see `Chamber.hud_claims`.
+
+
+## **Is anything at the fire drawn on top of anything else?** The Chamber's
+## twin — see `Chamber.layout_faults` for why this returns nothing headless.
+func layout_faults() -> PackedStringArray:
+	var out := PackedStringArray()
+	if DisplayServer.get_name() == "headless":
+		print("[camp] layout     skipped — no display, and a headless text "
+			+ "server measures a renderer rather than a layout (ADR-093). "
+			+ "`--threshold-shot` asserts this windowed; `--hud-probe` asserts "
+			+ "the grammar headless.")
+		return out
+	# Made to speak here rather than in the caller — see `Chamber.layout_faults`
+	# for the 0×0 that taught this.
+	_say("the check makes the camp refuse at length, so this region is measured "
+		+ "at the longest it is ever asked to hold")
+	var screen: Vector2 = HudFrame.REFERENCE
+	await relayout(screen)
+	var claims: Dictionary = hud_claims()
+	var drawn: Dictionary = {}
+	for element: String in claims:
+		drawn[element] = (claims[element] as Array)[1]
+	var overlaps: PackedStringArray = HudFrame.collisions(drawn, screen)
+	var outside: PackedStringArray = HudFrame.escapes(claims, screen)
+	print("[camp] layout     %d region(s) drawn, %d overlap(s), %d escape(s)" % [
+		drawn.size(), overlaps.size(), outside.size()])
+	for element: String in claims:
+		var box: Rect2 = drawn[element]
+		print("[camp]            %-9s %4d×%-4d at (%d, %d)" % [
+			element, int(box.size.x), int(box.size.y),
+			int(box.position.x), int(box.position.y)])
+	for fault: String in overlaps:
+		out.append(fault)
+	for fault: String in outside:
+		out.append(fault)
+	if drawn["SPEECH"].size.y <= 0.0:
+		out.append("the camp spoke and the speech region drew nothing, so the "
+			+ "two rows above only ever saw it empty")
+	return out
+
+
+## **Lay the regions out at a declared size** — the Chamber's twin. See
+## `Chamber.relayout` for why a probe may not ask the viewport how big it is.
+func relayout(screen: Vector2) -> void:
+	set_process(false)
+	HudFrame.place(_place, HudFrame.Region.PLACE, screen)
+	HudFrame.place(_controls, HudFrame.Region.REFERENCE, screen)
+	HudFrame.place(_speech, HudFrame.Region.SPEECH, screen)
+	# **Three frames, not one.** A wrapped `Label`'s height is a function of its
+	# width, and a `PanelContainer` gets its width from the child it is sizing
+	# to — so the first frame after a resize computes a height against the
+	# *previous* width. Measured after one frame the camp's panels read 616 and
+	# 747 px tall inside 342 and 105 px regions, which is the layout system
+	# mid-flight rather than a real overflow.
+	for _i: int in range(3):
+		await get_tree().process_frame
+	HudFrame.settle(_controls, HudFrame.Region.REFERENCE, screen)
+	HudFrame.settle(_speech, HudFrame.Region.SPEECH, screen)
+	await get_tree().process_frame
+
+
+func hud_claims() -> Dictionary:
+	return {
+		"PLACE": [HudFrame.Region.PLACE, HudFrame.occupied_by(_place)],
+		"CONTROLS": [HudFrame.Region.REFERENCE,
+			HudFrame.occupied_by(_controls)],
+		"SPEECH": [HudFrame.Region.SPEECH, HudFrame.occupied_by(_speech)],
+	}
+
+
+
 
 
 func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
@@ -1254,7 +1476,12 @@ func _threshold_shot(path: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(path)
 	print("[lair] threshold — %s" % path.get_file())
-	get_tree().quit()
+	# **The shot is where the layout is actually checked** — the Chamber's twin,
+	# and the same ADR-093 reason.
+	var faults: PackedStringArray = await layout_faults()
+	for fault: String in faults:
+		printerr("[camp] FAIL %s" % fault)
+	get_tree().quit(1 if faults.size() > 0 else 0)
 
 
 ## Send the **client** into its own Chamber and back (`run_doorway.py`).
@@ -1415,6 +1642,12 @@ func _take_down_the_chamber() -> void:
 ## A level cleans up what a level created, on the way out, whichever way out it
 ## was.
 func _exit_tree() -> void:
+	# **The palette goes back with the room** (`M4-T20`, `M2-T15`'s lesson).
+	# `MenuStyle.ground` is a `static var`, so it outlives this scene — leaving
+	# it on `LAIR` would draw the first floor's interface in the hub's colours,
+	# the same shape of fault as the Chamber that survived onto the main menu
+	# with its private `MultiplayerAPI` still registered.
+	MenuStyle.ground = MenuStyle.Ground.DEEP
 	if _chamber == null:
 		return
 	_take_down_the_chamber()

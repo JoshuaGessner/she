@@ -6615,5 +6615,180 @@ Four items, four answers: enemies commit and can be punished (ADR-194), they rea
 
 ---
 
+## ADR-198 — The interface gets a grammar, and the tree gets a door
+
+**Status:** accepted · **Date:** 2026-09-05 · **Tasks:** `M4-T20` (partial), `M4-T05` (partial)
+**Supersedes nothing. Reopens ADR-139 and declines to change it.**
+
+### The ask
+
+Reported in the user's words: *"we need the game to feel more gamified even in
+this blockout state so it's readable by the player. It's not apparent how to see
+your skills in game and the inventory and gear system could be visually improved
+as well."*
+
+Three complaints, and `TEC-009` had already measured all three. This is the
+build, not the research — §5.1, §5.2, §5.3, §5.5 and §5.6 of a document that was
+accepted at ADR-189.
+
+### What was actually on screen, photographed
+
+`--chamber-shot`, `--threshold-shot` and `--bag-shot`, before anything changed:
+
+| | |
+|---|---|
+| The Chamber | Fifteen unframed lines at `(18, 18)`, one weight, one colour. **The aspects line drew straight across the hoard** — the reported overlap, visible in the first screenshot. |
+| | `*above*` rendered as **literal asterisks**: markdown emphasis in a `Label`, in a string nobody had opened the game to look at. |
+| The Threshold | Its state and **six generated lines of keybindings** in one column, and then `+=` appended to from two other places. |
+| The bag | Structurally sound (15/30 cells checks out). Six equipment slots as **empty outlines with a word under them**, which read as six disabled buttons. |
+
+### The decisions
+
+**1. Regions, not positions (`HudFrame`).** `DES-019` names five layers and gives
+each a corner, and forbids the middle. That was prose; it is now code. An element
+declares which region it lives in. **This is not tidiness** — it is what makes
+the check below writable once instead of re-derived per screen after each report.
+
+**2. The regions are per-world, not universal.** The camp's control card is ten
+lines and does not fit `BODY`, and should not have to: `BODY` is where health
+goes and the camp has no health bar. `World.DEEP` and `World.LAIR` declare what
+is on screen together, and the grammar is checked per world. Squeezing the card
+into a Deep region would have been this file's own failure mode dressed as
+tidiness.
+
+**3. The check that did not exist.** Ten UI probes ran and **not one asked
+whether two pieces of interface are drawn on top of each other** — the reported
+bug, twice (ADR-140 was the same fault inside the bag), invisible to every green
+row because a probe reads a label's `text` and proves the string exists, never
+that a human can see it.
+
+The check is in **two halves, and they run in different places** — which is not
+tidiness, it is the only arrangement that is honest:
+
+| | |
+|---|---|
+| **The grammar** — do the regions themselves collide, at five aspect ratios in both worlds | `--hud-probe`, **headless, in the sweep, every commit.** Arithmetic over a viewport size with no text in it. |
+| **The measurement** — is what is actually drawn inside its region and clear of everything else | `--chamber-shot` and `--threshold-shot`, **windowed.** |
+
+`--hud-probe` **carries its own plants**: two rects that certainly overlap and
+one that certainly sits in the centre, fed in on every run.
+
+> **Why the measurement cannot run headless.** It was written that way first and
+> the numbers were fiction. Godot's headless text server reports different
+> metrics from a real one — the same Chamber measures `PLACE` at **323×160
+> windowed and 323×353 headless**, from identical strings at an identical
+> declared width. Every region "escaped" and the probe failed for a reason with
+> nothing to do with the layout. That is ADR-090's wall again (`--ear-shot`
+> exists because `_draw` never runs headless) and ADR-093 had already written
+> the rule: **anything whose correctness is a claim about seeing gets
+> photographed.** So the measured rows live in the shots, which the interface
+> brief requires for any screen that changes, and which now **exit non-zero**
+> rather than only saving a PNG.
+
+**Both halves were planted.** Widening `PLACE` to overlap its neighbours turned
+the grammar rows red (4 faults per Lair set) and left the measured rows green —
+correctly, since nothing was actually on top of anything. Shrinking `PLACE` to
+0.10 h did the reverse. A plant that reddens both halves at once would have
+proved neither.
+
+> **It found three faults before any plant**, all already shipped into the
+> screenshots above: `PLACE` drew 360 px wide inside a 323 px region because
+> `MenuStyle.line()` carries a 340 px minimum built for centred menu columns;
+> `SPEECH` stood 4 px proud of its own box; and the Chamber's speech region
+> measured **0×0 and passed**, because a free `Control` is never grown to its
+> minimum size by anybody and the height `place()` zeroed simply stayed zero.
+> The first two overlapped nothing yet — exactly the state ADR-140 sat in for
+> two milestones. The third is worse and is the more useful finding: **a check
+> that measures an empty rect passes for the same reason a correct layout
+> does**, so `layout_faults()` now refuses a speech region with no height, and
+> puts the words up itself rather than trusting a caller to have done it.
+
+**4. Subtraction before framing.** The hoard's value is deleted — `DES-014`
+renders the pile as a monument and a number for a thing you can see teaches the
+player not to look at it. The carrying line is deleted; it duplicated the bag.
+The three drag-and-drop instruction lines moved to the reticle, which already
+appears-then-leaves: a permanent tutorial is the `PRO-005` §8 cost paid every run
+forever, and the instruction is only true in two places two metres across.
+
+Fifteen lines became two framed panels and a prompt. The Tithe took a corner of
+its own, because ADR-029 requires cycle position be **unmissable** and it was
+line seven of fifteen — placed on the Burden layer, which is where ADR-050
+already put a Tithe readout: *"it is fundamentally a greed readout."*
+
+**5. The tree gets a door.** The Aspects had exactly one way in — stand at the
+hoard and press `interact`. ADR-164 recorded this from play in a player's own
+words and answered it with a reticle prompt, which helps only someone already
+standing there. During a run there was **no way to find out what you had
+taken**, and on a first life no way to learn the tree existed.
+
+The door is a pause-menu entry, because that is where a player looks for *who am
+I* and it costs nothing on screen during play (`DES-019` rule 1). **Read-only**,
+and that is not an apology: `DES-003` buys the Aspects **where you give**, so a
+purchase from inside a run would decouple power from the Tithe and make a pact
+into a shop. No new screen was invented — `PactScreen` gained a `viewing` flag.
+
+**6. Empty slots say what goes in them.** Nielsen #6, recognition over recall.
+Six primitive marks — a haft, a round shield, a dome — carried by **shape**, so
+they survive monochrome (`DES-018`) and a glance. `M4-T05` replaces them with
+real icons behind one function.
+
+**7. The two grounds, defined now.** *Ink is the opposite of the ground, and the
+ground flips at the Descent.* `ART-005` makes the Lair white-ground, so `M4-T08`
+would otherwise turn every hub screen into the Deep's interface worn in the hub.
+**What is expensive is the indirection, not the palette**: seventeen screens
+reference `TEXT` as a constant, and routing them through `ink()` is what makes
+the flip four constants instead of seventeen files. The `LAIR` values are correct
+for the room **as it is drawn today** — writing the inverted palette now would
+put a black panel on a black wall and call it forward-looking.
+
+### Where TEC-009 was overruled
+
+**TEC-009 §5.2 proposed moving the camp's control list behind the pause menu.
+Declined.** ADR-139 put it at the fire because a playtest found *"the first time
+a tester needed them was the first time they were under pressure"*, and the camp
+is the one place in the game with no pressure at all. What was wrong was never
+that they are shown — it is that they sat in the same column, weight and colour
+as the Tithe and the party count, so nothing on screen was grouped as anything.
+Gestalt common region fixes that without deleting a playtest-driven win.
+
+The ADR-139 probe **followed them** into their own panel rather than being
+dropped, and now compares at the density the panel renders — *"a probe rewritten
+to match the new code asserts nothing"*, and this one still asks the same
+question about completeness.
+
+### Sequencing
+
+ADR-190 ordered `M4·A` as `M4-T01 → M4-T16 → stranger session → M4-T20`. **This
+work was pulled ahead of that gate deliberately, and the order is wrong.** The
+stranger session tests whether a stranger can *operate the game*; ADR-106 and
+ADR-164 both burned playtesters on interface confusion that was already known and
+already written down. A stranger is a scarce resource — one first impression
+each — and running that session against fifteen lines of debug text spends it on
+UI faults instead of on whether the loop is fun.
+
+`M4-T02`, `M4-T03` and `M4-T04` remain held until `GATE M4 STRANGER` (ADR-195);
+nothing here touches them.
+
+### Not done, and named
+
+`M4-T20` is **not** complete. Two of its four rows remain: **Layer 3's Waystone
+mark** and **Layer 4's party frames**, each of which blocks a gate (`GATE M4
+GREED` and `GATE M4 COOP`). `MenuStyle` gained five constructors but is **not yet
+a `Theme`**, which is what `M4-T11` needs. Those stay on the task.
+
+### Rejected
+
+- **A character-sheet screen composing class, pact and deeds.** More surface than
+  the complaint asked for, and `PactScreen` already holds what a player wanted to
+  see. `DES-019`'s thesis is *show the fewest things*.
+- **Deleting the camp's controls.** See above.
+- **`HudFrame` as an autoload.** The budget is six and all six are spoken for
+  (`CLAUDE.md` §4). It owns no state, so there is nothing for a singleton to hold.
+- **Checking all eight regions at once.** Reports collisions between elements
+  that can never coexist, and pushes the layout into satisfying an impossible
+  constraint.
+
+---
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -448,6 +448,58 @@ func _slot_at(point: Vector2) -> Enums.Slot:
 	return Enums.Slot.NONE
 
 
+## **An empty slot says what goes in it** (`M4-T20`, TEC-009 §5.5).
+##
+## The six slots were empty outlines with a word underneath, which reads as six
+## disabled buttons rather than as six places gear goes — and the word is only
+## legible if you are already looking at it, which is the wrong way round for a
+## screen you open under time pressure.
+##
+## Nielsen #6, **recognition over recall**: a ghosted mark of the kind of thing
+## that belongs there answers *where does this go* before you have read
+## anything. `DES-018` requires it be carried by **shape**, not hue, so these
+## are primitives — a haft, a round shield, a dome — and they survive both
+## monochrome and a glance.
+##
+## Drawn, not authored. `M4-T05` replaces these with real icons; that is an
+## asset swap behind one function, which is the point of putting them here.
+func _slot_mark(box: Rect2, slot: Enums.Slot, tint: Color) -> void:
+	var middle: Vector2 = box.position + box.size * 0.5
+	var reach: float = minf(box.size.x, box.size.y) * 0.30
+	var weight: float = 2.0
+	match slot:
+		Enums.Slot.MAIN_HAND:
+			# A haft, on the diagonal a swing follows.
+			draw_line(middle + Vector2(-reach, reach),
+				middle + Vector2(reach, -reach), tint, weight)
+			draw_line(middle + Vector2(reach * 0.2, -reach),
+				middle + Vector2(reach, -reach * 0.2), tint, weight)
+		Enums.Slot.OFF_HAND:
+			# A round shield: the one mark that is a closed curve.
+			draw_arc(middle, reach, 0.0, TAU, 20, tint, weight)
+		Enums.Slot.ARMS:
+			draw_line(middle + Vector2(-reach, -reach * 0.5),
+				middle + Vector2(-reach * 0.2, reach), tint, weight)
+			draw_line(middle + Vector2(reach, -reach * 0.5),
+				middle + Vector2(reach * 0.2, reach), tint, weight)
+		Enums.Slot.HEAD:
+			# A dome with a brow line under it.
+			draw_arc(middle + Vector2(0.0, reach * 0.3), reach, PI, TAU,
+				16, tint, weight)
+			draw_line(middle + Vector2(-reach, reach * 0.4),
+				middle + Vector2(reach, reach * 0.4), tint, weight)
+		Enums.Slot.BODY:
+			draw_rect(Rect2(middle - Vector2(reach * 0.7, reach),
+				Vector2(reach * 1.4, reach * 2.0)), tint, false, weight)
+		Enums.Slot.PACK:
+			draw_rect(Rect2(middle - Vector2(reach * 0.8, reach * 0.6),
+				Vector2(reach * 1.6, reach * 1.6)), tint, false, weight)
+			draw_arc(middle + Vector2(0.0, -reach * 0.6), reach * 0.5,
+				PI, TAU, 12, tint, weight)
+		_:
+			pass
+
+
 func _draw_slots() -> void:
 	var worn: Equipment = _player.equipment
 	for slot: Enums.Slot in SLOT_ROW:
@@ -462,6 +514,16 @@ func _draw_slots() -> void:
 		draw_rect(box, MenuStyle.WARM if wanted else GRID_LINE, false, 2.0)
 		if item != null:
 			draw_rect(box.grow(-6.0), WorldItem.colour_for(item.definition))
+			# The mark stays over a worn item, dark against it. The slot keeps
+			# saying what it is even when it is full, so the row still scans as
+			# a body rather than as six coloured squares.
+			_slot_mark(box, slot, Color(0.10, 0.09, 0.08, 0.75))
+		else:
+			# Brighter while it is the slot you are dragging toward — the same
+			# signal the border gives, said twice, because `DES-018` will not
+			# let the border's colour carry it alone.
+			_slot_mark(box, slot,
+				MenuStyle.WARM if wanted else Color(MenuStyle.DIM, 0.55))
 		var font: Font = ThemeDB.fallback_font
 		draw_string(font, box.position + Vector2(4.0, box.size.y + 12.0),
 			String(SLOT_LABEL[slot]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11,
@@ -511,6 +573,16 @@ func _held_footprint() -> Vector2i:
 
 func _draw() -> void:
 	var panel: Rect2 = _panel_rect()
+	# **The world goes quiet behind it** (`M4-T20`).
+	#
+	# The panel floated over a lit room at full contrast, so the first thing the
+	# eye found on opening the bag was whatever happened to be behind it. A wash
+	# rather than a blackout — `DES-019` makes the bag **real-time** *"because
+	# rummaging is a vulnerable act"*, and a screen that hid the room would hand
+	# back exactly the safety the inventory is designed to deny. You can still
+	# see something coming.
+	draw_rect(Rect2(Vector2.ZERO, get_viewport_rect().size),
+		Color(0.04, 0.04, 0.05, 0.45))
 	draw_rect(panel, PANEL_COLOUR)
 	draw_rect(panel, GRID_LINE, false, 2.0)
 	_draw_header(panel)
@@ -609,6 +681,19 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	colour.a = alpha
 	draw_rect(rect, colour * Color(0.55, 0.55, 0.55, 1.0))
 	draw_rect(rect, colour, false, 2.0)
+	# **Wearable things carry their slot's mark** (`M4-T20`). Which of these is
+	# gear and which is loot was carried by nothing but the name, and the name
+	# truncates in a one-cell footprint — so *"can I wear this"* was a question
+	# you answered by dragging it at the slots and seeing which lit up.
+	#
+	# Bottom-right, small, and only where there is room for it: a 1×1 cell is
+	# already carrying a clipped name and a weight, and a third thing in it
+	# would be the ADR-140 fault committed on purpose.
+	if item.definition.slot != Enums.Slot.NONE \
+			and item.footprint().x >= 2 and item.footprint().y >= 2:
+		var badge := Rect2(rect.end - Vector2(26.0, 26.0), Vector2(20.0, 20.0))
+		_slot_mark(badge, item.definition.slot,
+			Color(0.10, 0.09, 0.08, 0.7 * alpha))
 	# Name and weight, clipped to the footprint. A one-cell gemstone gets a
 	# truncated name and its weight; a three-by-three plate gets both in full.
 	var text_colour := Color(TEXT_COLOUR, alpha)

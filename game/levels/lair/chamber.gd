@@ -84,7 +84,16 @@ var _player: Player = null
 ## The Settle beat's banner, while it is up (`M3-T08`).
 var _deeds_banner: DeedsBanner = null
 var _hoard_root: Node3D = null
-var _readout: Label = null
+## The three regions the readout was split into (`M4-T20`). Held rather than
+## rebuilt each frame: only the values change, and a container rebuilt every
+## frame is one that cannot hold focus or animate.
+var _place: PanelContainer = null
+var _tithe: PanelContainer = null
+var _speech: Label = null
+var _way_back: Label = null
+## Row key → the `HBoxContainer` `MenuStyle.row()` built. `_set_row` writes the
+## value half.
+var _rows: Dictionary = {}
 ## The reticle this room built, so the pile can speak through it (`M3-T42`).
 ## Held rather than looked up: this room makes it, so this room knows it.
 var _mark: Reticle = null
@@ -432,50 +441,76 @@ func _build_door() -> void:
 ## the Lair UI"* — so the last run of a cycle says so in as many words rather
 ## than leaving the player to count. It reads as a debt because it is one: she
 ## is a creditor, not a shopkeeper (`DES-003`).
-func _the_tithe() -> String:
+## Write the value half of a built row. The key half never changes, so it is
+## built once and only this side is touched.
+func _set_row(key: String, value: String,
+		tone: Color = Color(0, 0, 0, 0)) -> void:
+	var line: HBoxContainer = _rows.get(key, null)
+	if line == null:
+		return
+	var read := line.get_child(1) as Label
+	if read == null:
+		return
+	read.text = value
+	read.add_theme_color_override("font_color",
+		tone if tone.a > 0.0 else MenuStyle.ink())
+
+
+## **The Tithe, as three facts rather than one sentence** (ADR-029, `M4-T20`).
+##
+## It was a single 70-character line reading *"the tithe rank 1, 0 of 40 paid —
+## 40 short · 3 runs left"*, seventh of fifteen, in the same weight and colour as
+## the drag-and-drop instructions above it. ADR-029 requires cycle position be
+## **unmissable**; a sentence you have to parse to find the number in is the
+## opposite of that.
+##
+## Three rows in a corner of their own scan without being read, which is the
+## Gestalt argument for the whole split.
+func _fill_the_tithe() -> void:
 	var owed: int = GameState.tithe_due()
 	var short: int = maxi(0, owed - GameState.tithe_paid)
 	var remaining: int = GameState.runs_left()
-	var when: String = "she settles at your next descent" if remaining == 0 \
-		else ("last run of this cycle" if remaining == 1 else "%d runs left" % remaining)
+	var when: String = "settles at your next descent" if remaining == 0 \
+		else ("last run of this cycle" if remaining == 1
+			else "%d runs left" % remaining)
+	_set_row("rank", str(GameState.pact_rank))
 	if short == 0:
-		return "the tithe   rank %d, %d of %d paid — settled · %s" % [
-			GameState.pact_rank, GameState.tithe_paid, owed, when]
-	return "the tithe   rank %d, %d of %d paid — %d short · %s" % [
-		GameState.pact_rank, GameState.tithe_paid, owed, short, when]
+		_set_row("paid", "%d of %d — settled" % [GameState.tithe_paid, owed])
+	else:
+		# **The one alarming colour in the game**, and it never carries the
+		# meaning alone — the word "short" is right there beside it, because
+		# `DES-018` forbids hue-only information.
+		_set_row("paid", "%d of %d — %d short" % [
+			GameState.tithe_paid, owed, short], MenuStyle.DEBT)
+	# The last run of a cycle is the one that matters, so it is the one that
+	# changes colour. Everything else is stated quietly.
+	_set_row("cycle", when,
+		MenuStyle.DEBT if remaining <= 1 else Color(0, 0, 0, 0))
 
 
 func _process(delta: float) -> void:
-	if _player == null or _readout == null:
+	if _player == null or _place == null:
 		return
 	if _refusal_left > 0.0:
 		_refusal_left = maxf(0.0, _refusal_left - delta)
 		if _refusal_left <= 0.0:
 			_refusal = ""
-	_readout.text = "\n".join([
-		"THE CHAMBER    descent %d" % GameState.descents,
-		"",
-		"carrying   %d item(s), %d tribute" % [
-			_player.inventory.count(), _player.inventory.total_tribute()],
-		"stash      %d item(s), %d tribute" % [
-			GameState.stash.size(), GameState.stash_value()],
-		"the hoard  %d  (never wiped)" % GameState.hoard_value,
-		"",
-		_the_tithe(),
-		"",
-		"open the bag and drag an item out:",
-		"  at the pile ahead   she keeps it, and it is hers for good",
-		"  at the chest left   you keep it, until you die",
-		"  anywhere else       it goes back in the bag",
-		"",
-		# Held for `REFUSAL_SECONDS` and then gone. Blank rather than absent, so
-		# nothing below it moves when she speaks.
-		_refusal,
-		"",
-		_the_offer(),
-		"",
-		"walk onto the pale slab behind you to reach the Threshold",
-	])
+	_set_row("descent", str(GameState.descents))
+	_set_row("stash", "%d item(s) · %d tribute" % [
+		GameState.stash.size(), GameState.stash_value()])
+	_set_row("aspects", _the_offer())
+	_fill_the_tithe()
+	# **Absent, not blank** (`M4-T20`). It was held as an empty line so nothing
+	# below it moved; with a region of its own there is nothing below it.
+	_speech.visible = _refusal != ""
+	_speech.text = _refusal
+	# **Back into their corners, every frame** (`M4-T20`). The panels size
+	# themselves from their content, and the content changes: the aspects line
+	# wraps at three digits and the Tithe gains a word on the last run of a
+	# cycle. A placement made once is correct until the first time it is not.
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+	HudFrame.settle(_tithe, HudFrame.Region.BURDEN, screen)
+	HudFrame.settle(_speech, HudFrame.Region.SPEECH, screen)
 	# **Buy where you give** (`M3-T01`). The Aspects open at the pile, because
 	# that is the gesture `DES-003` couples them to: what you hand over is what
 	# pays for them, and putting the tree behind a different door would make it
@@ -489,7 +524,9 @@ func _process(delta: float) -> void:
 	# from play as *"no UI pop up or cue for talking with the dragon"*.
 	var at_the_pile: bool = _player.global_position.distance_to(
 		global_position + HOARD_AT) <= PLACE_REACH
-	_tell_the_reticle(at_the_pile)
+	var at_the_chest: bool = _player.global_position.distance_to(
+		global_position + STASH_AT) <= PLACE_REACH
+	_tell_the_reticle(at_the_pile, at_the_chest)
 	if _pact == null and at_the_pile \
 			and Input.is_action_just_pressed("interact"):
 		_open_the_pact()
@@ -514,17 +551,32 @@ func _process(delta: float) -> void:
 ##
 ## Cleared on the frame you step away, because a standing offer that is never
 ## withdrawn is a prompt for something you have walked away from.
-func _tell_the_reticle(at_the_pile: bool) -> void:
+## **And it now carries the tribute gesture too** (`M4-T20`, TEC-009 §5.2).
+##
+## Three lines of the old readout were a permanent tutorial — *"open the bag and
+## drag an item out: at the pile ahead… at the chest left… anywhere else…"* —
+## printed every frame of every visit for the life of the game. `PRO-005` §8 is
+## explicit that the cost of showing a thing is paid on every run forever, and
+## the instruction is only true in two places, each about two metres across.
+##
+## So it is said **where it applies and nowhere else**, which is what Layer 5 is
+## for and what the readout could never do.
+func _tell_the_reticle(at_the_pile: bool, at_the_chest: bool) -> void:
 	if _mark == null or not is_instance_valid(_mark):
+		return
+	if at_the_chest:
+		# The chest has no verb of its own — it is a drop target, not an
+		# interaction — so the prompt names the gesture rather than a key.
+		_mark.offer("drag from the bag — yours, until you die")
 		return
 	if not at_the_pile:
 		_mark.offer("")
 		return
 	if GameState.boon > 0:
-		_mark.offer("hold %s — her aspects (%d unspent)"
+		_mark.offer("hold %s — her aspects (%d unspent) · drag from the bag to give"
 			% [ControlsScreen.glyphs_for("interact"), GameState.boon])
 		return
-	_mark.offer("hold %s — the hoard, and what she is owed"
+	_mark.offer("hold %s — the hoard, and what she is owed · drag from the bag to give"
 		% ControlsScreen.glyphs_for("interact"))
 
 
@@ -534,9 +586,12 @@ func _the_offer() -> String:
 	if GameState.boon <= 0:
 		var per: int = Config.tuning.boon_per_tribute
 		var short: int = per - GameState.boon_progress
-		return ("her aspects   nothing yet — %d more tribute *above* the tithe "
-			+ "buys the first") % short
-	return "her aspects   %d boon unspent — hold %s at the pile" % [
+		# **No asterisks.** This read `*above* the tithe` and a `Label` is not a
+		# `RichTextLabel`, so it drew the literal punctuation — markdown emphasis
+		# in a string nobody had ever looked at on screen. The emphasis is
+		# carried by word order now, which survives any renderer.
+		return "none yet — %d more tribute over the tithe buys the first" % short
+	return "%d unspent — hold %s at the pile" % [
 		GameState.boon, ControlsScreen.glyphs_for("interact")]
 
 
@@ -578,13 +633,222 @@ func _leave() -> void:
 	left.emit()
 
 
+## **Three regions and a prompt, where there were fifteen lines** (`M4-T20`,
+## TEC-009 §5.2, ADR-198).
+##
+## This was one `Label` at `(18, 18)` holding a fifteen-line joined string: the
+## descent number, what you carry, the stash, the hoard, the Tithe, three lines
+## of drag-and-drop instructions, her refusal, the offer, and how to leave.
+## Four unrelated jobs in one corner, with nothing owning the corner — and the
+## offer drew straight across the hoard, which is the reported overlap.
+##
+## The first move was **subtraction, not framing**:
+##
+## - `the hoard 2400 (never wiped)` — **gone.** `DES-014` makes the pile a
+##   physical monument and it is rendered as one, three metres ahead of you. A
+##   number for a thing you can see teaches the player not to look at it.
+## - `carrying 0 item(s), 0 tribute` — **gone.** It duplicates the bag, which is
+##   one key away and is where `DES-019` rule 2 puts the arithmetic.
+## - the three drag-and-drop lines — **moved to the reticle**, which already
+##   names both devices (ADR-075) and already appears-then-leaves. A permanent
+##   tutorial is the `PRO-005` §8 cost paid every run forever.
+##
+## What is left is genuine state, and it is grouped by **what you would look at
+## it for** rather than by what happened to be a string: where you are and what
+## you own, what she is owed, and what she is currently saying.
 func _build_readout() -> void:
 	var layer := CanvasLayer.new()
+	layer.name = "LairReadout"
 	add_child(layer)
-	_readout = Label.new()
-	_readout.position = Vector2(18.0, 18.0)
-	_readout.add_theme_color_override("font_color", Color(0.88, 0.86, 0.80))
-	layer.add_child(_readout)
+	# The hub's palette. Restored to `DEEP` in `_exit_tree`, because a `static
+	# var` outlives the scene that set it.
+	MenuStyle.ground = MenuStyle.Ground.LAIR
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+
+	# ─ PLACE — where you are, and what is yours ─
+	_place = MenuStyle.frame()
+	var place_body := VBoxContainer.new()
+	place_body.add_theme_constant_override("separation", 5)
+	place_body.add_child(MenuStyle.heading("The Chamber"))
+	_rows["descent"] = MenuStyle.row("descent", "")
+	place_body.add_child(_rows["descent"])
+	_rows["stash"] = MenuStyle.row("stash", "")
+	place_body.add_child(_rows["stash"])
+	place_body.add_child(MenuStyle.rule())
+	# **The door to the tree, named where you can see it** (ADR-164, TEC-009
+	# §5.3). It was line thirteen of fifteen and it is the only thing on screen
+	# that says the Aspects exist at all.
+	_rows["aspects"] = MenuStyle.row("aspects", "")
+	place_body.add_child(_rows["aspects"])
+	_place.add_child(place_body)
+	layer.add_child(_place)
+	HudFrame.place(_place, HudFrame.Region.PLACE, screen)
+
+	# ─ BURDEN — what she is owed ─
+	#
+	# Its own corner, because ADR-029 requires cycle position be **unmissable**
+	# and it was line seven of fifteen. Bottom-right rather than beside the
+	# stash because ADR-050 already settled where a Tithe readout belongs:
+	# *"quietly, on the Burden layer — it is fundamentally a greed readout."*
+	_tithe = MenuStyle.frame()
+	var tithe_body := VBoxContainer.new()
+	tithe_body.add_theme_constant_override("separation", 5)
+	tithe_body.add_child(MenuStyle.heading("The Tithe"))
+	_rows["rank"] = MenuStyle.row("rank", "")
+	tithe_body.add_child(_rows["rank"])
+	_rows["paid"] = MenuStyle.row("paid", "")
+	tithe_body.add_child(_rows["paid"])
+	_rows["cycle"] = MenuStyle.row("cycle", "")
+	tithe_body.add_child(_rows["cycle"])
+	_tithe.add_child(tithe_body)
+	layer.add_child(_tithe)
+	HudFrame.place(_tithe, HudFrame.Region.BURDEN, screen)
+
+	# ─ SPEECH — her voice, and nothing else ─
+	#
+	# It used to be held as a blank line so nothing below it moved
+	# (`chamber.gd:471`) — a layout workaround for having no layout. With a
+	# region of its own it can simply be absent when she is not speaking.
+	_speech = Label.new()
+	_speech.add_theme_font_size_override("font_size", 16)
+	_speech.add_theme_color_override("font_color", MenuStyle.WARM)
+	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_speech.visible = false
+	layer.add_child(_speech)
+	HudFrame.place(_speech, HudFrame.Region.SPEECH, screen)
+
+	# ─ and the way out, quiet ─
+	#
+	# Kept, small and dim, rather than deleted with the rest. `M2-T14` is an
+	# entire task about a stranger being unable to find the exit, and the pale
+	# slab is a lighting cue this line is the `DES-018` twin of.
+	# A plain `Label`, **not** `MenuStyle.line()`: that one carries a 340 px
+	# minimum width built for centred menu columns, which made this panel 360 px
+	# wide inside a 323 px region. Caught by `HudFrame.escapes` on its first run,
+	# which is the entire argument for having written it.
+	_way_back = Label.new()
+	_way_back.text = "the pale slab behind you returns to the Threshold"
+	_way_back.add_theme_font_size_override("font_size", 12)
+	_way_back.add_theme_color_override("font_color", MenuStyle.dim())
+	_way_back.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	place_body.add_child(MenuStyle.rule())
+	place_body.add_child(_way_back)
+
+
+## **What this room is actually drawing, measured** (`M4-T20`, TEC-009 §5.6).
+##
+## For `--lair-probe`, which now asks the one question ten UI probes never did:
+## is any of this on top of any of the rest of it. Measured from the live
+## controls rather than from the region table, because the reported bug is a
+## *consequence* of content — a panel that fits its region until its text grows
+## — and a check that reads the table would agree with itself forever.
+##
+## (`hud_claims` is below `relayout`, which is what a probe calls first.)
+
+
+## **Is anything in this room drawn on top of anything else?** (`M4-T20`,
+## TEC-009 §5.6, ADR-198)
+##
+## The reported bug, asked of the live screen — and **it only means anything
+## with a display attached.**
+##
+## Headless Godot's text server reports different metrics from a real one: the
+## same Chamber measures `PLACE` at 323×160 windowed and 323×353 headless, from
+## identical strings and an identical declared width. A layout assertion run
+## headless is therefore measuring the dummy renderer, not the interface, and
+## every number it reports is fiction.
+##
+## That is ADR-090's wall again — `--ear-shot` exists because `_draw` never runs
+## headless — and ADR-093 already wrote the rule: **anything whose correctness
+## is a claim about seeing gets photographed.** So this returns nothing when
+## there is no display, says so, and is asserted by `--chamber-shot`, which runs
+## windowed and which the brief requires for any screen that changes.
+##
+## The **grammar** half needs none of this and runs headless in the sweep every
+## commit: `--hud-probe` is arithmetic over a viewport size with no text in it.
+func layout_faults() -> PackedStringArray:
+	var out := PackedStringArray()
+	if DisplayServer.get_name() == "headless":
+		print("[lair] layout     skipped — no display, and a headless text "
+			+ "server measures a renderer rather than a layout (ADR-093). "
+			+ "`--chamber-shot` asserts this windowed; `--hud-probe` asserts "
+			+ "the grammar headless.")
+		return out
+	# **Make her speak here, not in the caller.**
+	#
+	# `SPEECH` is hidden until she says something, and a region measured only
+	# while hidden is a region nothing checked. Written straight onto the label
+	# rather than through `_refusal`, because `_process` is what copies that
+	# across and it returns early when there is no player — which is exactly the
+	# case in `--chamber-shot`. Done in the caller it measured 0×0 and passed.
+	_speech.text = ("the check asks her something and she declines at length, "
+		+ "which is the longest this region is ever asked to hold")
+	_speech.visible = true
+	var screen: Vector2 = HudFrame.REFERENCE
+	await relayout(screen)
+	var claims: Dictionary = hud_claims()
+	var drawn: Dictionary = {}
+	for element: String in claims:
+		drawn[element] = (claims[element] as Array)[1]
+	var overlaps: PackedStringArray = HudFrame.collisions(drawn, screen)
+	var outside: PackedStringArray = HudFrame.escapes(claims, screen)
+	print("[lair] layout     %d region(s) drawn, %d overlap(s), %d escape(s)" % [
+		drawn.size(), overlaps.size(), outside.size()])
+	for element: String in claims:
+		var box: Rect2 = drawn[element]
+		print("[lair]            %-7s %4d×%-4d at (%d, %d)" % [
+			element, int(box.size.x), int(box.size.y),
+			int(box.position.x), int(box.position.y)])
+	for fault: String in overlaps:
+		out.append(fault)
+	for fault: String in outside:
+		out.append(fault)
+	if drawn["SPEECH"].size.y <= 0.0:
+		out.append("she spoke and the speech region drew nothing, so the two "
+			+ "rows above only ever saw it empty")
+	return out
+
+
+## **Lay the regions out at a declared size** (`M4-T20`, ADR-198).
+##
+## For the probe, which runs headless where the viewport is 73 px wide — every
+## region rounds to nothing and every panel reads as escaping. Stops `_process`
+## first, because that re-settles against the live viewport every frame and
+## would undo this on the next one.
+##
+## The content is untouched: real strings, real fonts, real wrapping. Only the
+## width they are given is declared.
+func relayout(screen: Vector2) -> void:
+	set_process(false)
+	HudFrame.place(_place, HudFrame.Region.PLACE, screen)
+	HudFrame.place(_tithe, HudFrame.Region.BURDEN, screen)
+	HudFrame.place(_speech, HudFrame.Region.SPEECH, screen)
+	# **Three frames, not one** — see `Threshold.relayout`. A wrapped `Label`'s
+	# height is a function of its width, so the first frame after a resize
+	# computes a height against the previous width.
+	for _i: int in range(3):
+		await get_tree().process_frame
+	HudFrame.settle(_tithe, HudFrame.Region.BURDEN, screen)
+	HudFrame.settle(_speech, HudFrame.Region.SPEECH, screen)
+	await get_tree().process_frame
+
+
+func hud_claims() -> Dictionary:
+	return {
+		"PLACE": [HudFrame.Region.PLACE, HudFrame.occupied_by(_place)],
+		"TITHE": [HudFrame.Region.BURDEN, HudFrame.occupied_by(_tithe)],
+		"SPEECH": [HudFrame.Region.SPEECH, HudFrame.occupied_by(_speech)],
+	}
+
+
+## **Both halves of the palette switch** (`M2-T15`'s lesson).
+##
+## `MenuStyle.ground` is a `static var`, so it outlives this scene. Leaving it
+## set to `LAIR` would draw the next floor's interface in the hub's palette —
+## the same shape of fault as the Chamber that survived onto the main menu with
+## its private `MultiplayerAPI` still registered.
+func _exit_tree() -> void:
+	MenuStyle.ground = MenuStyle.Ground.DEEP
 
 
 func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
@@ -728,6 +992,18 @@ func _lair_probe() -> void:
 		problems.append("death touched the hoard — DES-014 makes it LINEAGE tier "
 			+ "and the monument to every life you have already lost")
 
+	# ─ **and nothing in this room is drawn on top of anything else** ─
+	#
+	# `M4-T20`, TEC-009 §5.6. The reported bug, asked of the live screen rather
+	# than of the region table: these are measured from the controls after a
+	# frame of layout, so a panel that fits its region until its text grows is
+	# caught by the same row that proves it fits today.
+	#
+	# Her refusal is put up first, because `SPEECH` is hidden until she speaks
+	# and a check that only ever sees it absent is a check with nothing in it.
+	for fault: String in await layout_faults():
+		problems.append(fault)
+
 	for problem: String in problems:
 		printerr("[lair] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
@@ -740,7 +1016,15 @@ func _chamber_shot(path: String) -> void:
 	get_viewport().get_texture().get_image().save_png(path)
 	print("[lair] hoard %d, %d lump(s) — %s" % [
 		GameState.hoard_value, _hoard_root.get_child_count(), path.get_file()])
-	get_tree().quit()
+	# **The shot is where the layout is actually checked** (`M4-T20`, ADR-198).
+	#
+	# This runs windowed, which is the only place a text measurement means
+	# anything (ADR-093), so the overlap assertion lives here rather than in the
+	# headless probe that would have to invent its numbers.
+	var faults: PackedStringArray = await layout_faults()
+	for fault: String in faults:
+		printerr("[lair] FAIL %s" % fault)
+	get_tree().quit(1 if faults.size() > 0 else 0)
 
 
 func _hold(seconds: float) -> void:
