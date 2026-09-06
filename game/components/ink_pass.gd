@@ -25,6 +25,21 @@ const BOIL_FPS: float = 10.0
 const WOBBLE_AMOUNT: float = 1.1
 const WEIGHT_VARIATION: float = 0.55
 
+## **Where the linework stops, in metres** (`ART-005` §"The readability risk").
+##
+## Promoted out of the shader's uniform defaults at `M4-T26` (ADR-203), and the
+## reason is `floor_fog_end`. Depth fog dissolves the *fill*; this falloff
+## dissolves the *lines*; they are two halves of one distance and the failure
+## mode is them disagreeing — fog that finishes first leaves outlines drawn over
+## ground that is no longer there, which is a scribble hanging in the dark and
+## looks exactly like a broken shader.
+##
+## A number that only exists as a shader default is a number no check can read.
+## These are set on the material below rather than left implicit, so the shader
+## and `TuningProfile._validate()` are looking at the same two values ⟨tune⟩.
+const FALLOFF_START: float = 14.0
+const FALLOFF_END: float = 34.0
+
 var material: ShaderMaterial
 
 
@@ -48,6 +63,8 @@ func _ready() -> void:
 	material = ShaderMaterial.new()
 	material.shader = load(SHADER_PATH) as Shader
 	material.set_shader_parameter("noise_tex", noise_texture)
+	material.set_shader_parameter("falloff_start", FALLOFF_START)
+	material.set_shader_parameter("falloff_end", FALLOFF_END)
 	# Drawn after everything else, since it reads the finished colour buffer.
 	material.render_priority = 100
 	material_override = material

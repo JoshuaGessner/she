@@ -86,6 +86,21 @@ const PAPER: Color = Color(0.04, 0.04, 0.05)
 const DOOR_LIGHT_ENERGY: float = 1.5  # ⟨tune⟩
 const DOOR_LIGHT_RANGE: float = 7.0   # ⟨tune⟩
 const DOOR_LIGHT_HEIGHT: float = 2.6
+## How the fog fills in between `floor_fog_begin` and `floor_fog_end` ⟨tune⟩.
+##
+## **A straight ramp, chosen off the sweep rather than reasoned to.** The first
+## draft held the near half back at 1.6, on the theory that the room you are
+## standing in should be untouched — and `--fog-shot` shows that 1.6 leaves the
+## far skyline still legible as a ghost, because holding the middle distance
+## back is precisely holding back the part that reads the layout. `floor_fog_begin`
+## already protects the near field; the curve does not need to protect it twice.
+## 0.6 also clears the skyline and moves half again as many pixels to do it, so
+## 1.0 is the least that works (`M4-T26`, ADR-203).
+const FOG_CURVE: float = 1.0
+## How far `--fog-shot` looks for the boundary before calling a ray open, in
+## metres. Past `floor_fog_end` by a wide margin on purpose: a ray that stops at
+## the envelope cannot tell a wall at 40 m from open space.
+const VOID_REACH: float = 120.0
 
 ## One silhouette per room, so "the room with the well" is a sentence a player
 ## can say to a teammate. `DES-015`'s legibility rule — *readable within 30
@@ -662,6 +677,10 @@ func _ready() -> void:
 			_delvings_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--light-shot="):
 			_light_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--fog-shot="):
+			_fog_shot(arg.split("=", true, 1)[1])
+		elif arg == "--fog-probe":
+			_fog_probe()
 		elif arg == "--lantern-probe":
 			_lantern_probe()
 		elif arg.begins_with("--ear-shot="):
@@ -2861,6 +2880,417 @@ func _light_shot(path: String) -> void:
 				player.exposure.seen_from()])
 	Config.tuning.floor_ambient_energy = base_energy
 	Config.tuning.exposure_ambient = base_exposure
+	get_tree().quit()
+
+
+## **Every standable cell the sky is open above** (`M4-T26`, ADR-203).
+##
+## Asked of the physics world rather than of the generator, deliberately: a
+## raised crossing deck is open above because `FloorBuilder._tunnel` chooses not
+## to roof it, a ledge is open because the room above it is 7 m tall, and a
+## future device would be open for a third reason. What the fog has to answer is
+## *"can the player see out of the level from here"*, and that is a ray, not a
+## list of features. The same walk `_away_from_the_lamps` makes, with one more
+## cast on the end.
+func _open_to_the_sky() -> Array[Vector3]:
+	var found: Array[Vector3] = []
+	if _field == null:
+		return found
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for y: int in range(_field.height()):
+		for x: int in range(_field.width()):
+			var centre: Vector3 = _field.cell_centre(x, y)
+			# Standable, on `_away_from_the_lamps`'s two tests — floor beneath,
+			# and clear at chest height. Started 12 m up rather than 2 m,
+			# because the cells that matter here are decks and ledges standing
+			# well above the plan's own y.
+			var down := PhysicsRayQueryParameters3D.create(
+				centre + Vector3.UP * 12.0, centre - Vector3.UP * 6.0)
+			down.collision_mask = CollisionLayers.WORLD
+			var ground: Dictionary = space.intersect_ray(down)
+			if ground.is_empty():
+				continue
+			var stand: Vector3 = ground["position"] as Vector3
+			var chest := PhysicsRayQueryParameters3D.create(
+				stand + Vector3.UP * 0.3, stand + Vector3.UP * 1.7)
+			chest.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(chest).is_empty():
+				continue
+			var up := PhysicsRayQueryParameters3D.create(
+				stand + Vector3.UP * 1.7, stand + Vector3.UP * 60.0)
+			up.collision_mask = CollisionLayers.WORLD
+			if space.intersect_ray(up).is_empty():
+				found.append(stand)
+	return found
+
+
+## **Where the boundary is worst, and which way to face** (`M4-T26`, ADR-203).
+##
+## The `void` frame has to point at the outside of the level, and on a generated
+## floor nobody knows in advance where that is — a hardcoded stand and yaw
+## photographs a wall on the next seed, which is `--delvings-shot`'s lesson
+## about standing at a straight-line lerp and getting solid rock three times out
+## of four.
+##
+## **The first version maximised open sky and it was the wrong question.** It
+## scored a direction by how far its rays travelled without hitting anything, so
+## it chose the one view with nothing in it at all: 120 m of empty in every ray,
+## and a photograph of the dark. What reads the layout is not emptiness, it is
+## *distant structure* — rooftops standing past the point the floor is entitled
+## to show you. So a ray scores only if it comes back, and only if it comes back
+## from beyond `floor_fog_begin`.
+func _worst_boundary(open: Array[Vector3]) -> Dictionary:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var near: float = Config.tuning.floor_fog_begin
+	var best: Dictionary = {"stand": open[0], "yaw": 0.0, "score": -1.0}
+	for stand: Vector3 in open:
+		var eye: Vector3 = stand + Vector3(0.0, 1.6, 0.0)
+		for step: int in range(16):
+			var yaw: float = TAU * float(step) / 16.0
+			var score: float = 0.0
+			for spread: float in [-0.30, -0.15, 0.0, 0.15, 0.30]:
+				# **Across the horizon, not up it.** The first version fanned
+				# every ray upward at the frame's own pitch and scored 32 m off
+				# the whole floor, because a deck's rooftops lie *below* eye
+				# level and the fan flew straight over them into open dark. It
+				# then chose a stand whose view was almost entirely inside 10 m
+				# — a frame the fog could not change, photographed four times.
+				for climb: float in [-0.18, 0.0, 0.18]:
+					var angle: float = yaw + spread
+					var out := Vector3(-sin(angle), climb, -cos(angle)).normalized()
+					var ray := PhysicsRayQueryParameters3D.create(
+						eye, eye + out * VOID_REACH)
+					ray.collision_mask = CollisionLayers.WORLD
+					var hit: Dictionary = space.intersect_ray(ray)
+					if hit.is_empty():
+						continue
+					var reach: float = eye.distance_to(hit["position"] as Vector3)
+					if reach > near:
+						score += reach
+			if score > float(best["score"]):
+				best = {"stand": stand, "yaw": yaw, "score": score}
+	return best
+
+
+
+## **The floor has an outside, and the fog is what closes it** (`M4-T26`,
+## ADR-203).
+##
+## `--fog-shot` is how the density was chosen and it needs a person to look at
+## it. This is the part a person should never have to look at twice: four claims
+## that would each turn the fog back off in silence.
+##
+## Every row prints its own line and the sweep requires the closing one, because
+## an unknown flag boots this level, runs nothing and exits 0 (ADR-200, ADR-202).
+func _fog_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var tuning: TuningProfile = Config.tuning
+
+	# ─ 1. the floor's `Environment` carries depth fog, at the ground colour ─
+	#
+	# **`fog_sky_affect` is in this row and it is the one that matters.** At 0.0
+	# the background renders black instead of `PAPER` — measured, 1,1,1 against
+	# 10,10,13 — and unlit stone sits at 4,4,4, so the boundary comes back with
+	# the silhouette *inverted*: the rooms read lighter than the nothing behind
+	# them. Nothing about that failure announces itself; the fog is still on,
+	# still the right colour, still the right distance.
+	print("[fog] environment  enabled=%s mode=%d colour=%s sky=%.2f density=%.2f"
+		% [_environment.fog_enabled, _environment.fog_mode,
+			_environment.fog_light_color, _environment.fog_sky_affect,
+			_environment.fog_density])
+	if not _environment.fog_enabled:
+		problems.append("the floor's Environment has no fog, so past the last "
+			+ "wall there is flat PAPER again and the outside faces of every "
+			+ "room stand in it")
+	if _environment.fog_mode != Environment.FOG_MODE_DEPTH:
+		problems.append("the fog is not in depth mode — exponential fog has no "
+			+ "envelope, so it cannot be pinned to the two distances this "
+			+ "change is an argument about")
+	if not _environment.fog_light_color.is_equal_approx(PAPER):
+		problems.append(("the fog is %s and the ground is %s — a fog of any "
+			+ "other colour draws a horizon where it should be dissolving into "
+			+ "the page") % [_environment.fog_light_color, PAPER])
+	if _environment.fog_sky_affect < 0.99:
+		problems.append(("fog_sky_affect is %.2f — below 1.0 the background "
+			+ "renders black rather than PAPER, and unlit stone is *lighter* "
+			+ "than black, so the boundary returns with every room reading as "
+			+ "a pale shape against the dark") % _environment.fog_sky_affect)
+
+	# ─ 2. the envelope is the profile's, and it outlasts the linework ─
+	print("[fog] envelope     %.1f–%.1f m against a %.1f m ink falloff"
+		% [_environment.fog_depth_begin, _environment.fog_depth_end,
+			InkPass.FALLOFF_END])
+	if not is_equal_approx(_environment.fog_depth_begin, tuning.floor_fog_begin) \
+			or not is_equal_approx(_environment.fog_depth_end,
+				tuning.floor_fog_end):
+		problems.append(("the level is fogging %.1f–%.1f m and the profile says "
+			+ "%.1f–%.1f m — a ⟨tune⟩ number nothing reads is a number nobody "
+			+ "can tune") % [_environment.fog_depth_begin,
+				_environment.fog_depth_end, tuning.floor_fog_begin,
+				tuning.floor_fog_end])
+
+	# ─ 3. the corridor sightline the dog-leg guarantees is not eaten ─
+	#
+	# `FloorPlan.DOGLEG_RUN` bends a corridor so no sightline down one runs past
+	# `DOGLEG_RUN + 1` cells, *"because a tunnel you can see the whole of from
+	# the doorway is the proposition given away"*. That is the floor's own
+	# statement of how far a player is entitled to see, so it is the floor's own
+	# statement of how near the fog may start.
+	var sightline: float = float(FloorPlan.DOGLEG_RUN + 1) * FloorBuilder.CELL
+	print("[fog] sightline    fog begins at %.1f m against a %.1f m dog-leg run"
+		% [tuning.floor_fog_begin, sightline])
+	if tuning.floor_fog_begin < sightline:
+		problems.append(("fog begins at %.1f m and the dog-leg guarantees %.1f m "
+			+ "of corridor — fog nearer than that dissolves layout the floor is "
+			+ "entitled to show, which is `DES-018`'s veto rather than this "
+			+ "task's goal") % [tuning.floor_fog_begin, sightline])
+
+	# ─ 4. and the fault it exists for is still there ─
+	#
+	# A raised crossing deck is open above by choice (`FloorBuilder._tunnel`,
+	# `DES-015`'s visual-only vertical space) and that is where the boundary is
+	# visible. If a change ever roofs them all, this fog stops being a fix and
+	# becomes an unexplained setting — which is exactly the state ADR-064 calls
+	# worse than absent. Asked of the physics world rather than the generator,
+	# so a third way of opening the sky is caught by the same row.
+	#
+	# **Generated floors only.** The Deep is authored, enclosed, and the stage
+	# thirty other probes measure; it has no outside to have.
+	if _floor is DelvingsFloor:
+		var open: Array[Vector3] = _open_to_the_sky()
+		print("[fog] boundary     %d standable cell(s) open to the sky"
+			% open.size())
+		if open.is_empty():
+			problems.append("no standable cell on this floor is open to the "
+				+ "sky, so nothing here can see out of the level and the fog "
+				+ "is a setting with nothing to do")
+	else:
+		print("[fog] boundary     the Deep is authored and roofed — not asked")
+
+	print("[fog] fog closes the floor's outside")
+	_report(problems, "fog")
+
+
+## The floor directly under a point, or `Vector3.INF` if there is none within
+## reach. `--fog-shot` stands a camera and a body under doorway lamps, and a
+## lamp hangs at `DOOR_LIGHT_HEIGHT` rather than on the ground.
+func _standing_at(under: Vector3) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var down := PhysicsRayQueryParameters3D.create(
+		under + Vector3.UP * 0.5, under - Vector3.UP * 8.0)
+	down.collision_mask = CollisionLayers.WORLD
+	var ground: Dictionary = space.intersect_ray(down)
+	if ground.is_empty():
+		return Vector3.INF
+	return ground["position"] as Vector3
+
+
+## **How far is far enough** (`M4-T26`, `ART-001`, `DES-018`) — the one question
+## in this task a number cannot answer, on `--light-shot`'s precedent (ADR-093).
+##
+## Three frames, four envelopes, and the ink pass left **on**.
+##
+## - **`void`** stands on a cell the sky is open above — a raised crossing deck —
+##   facing the direction that shows the most distant stone. This is the fault
+##   the stranger session reported, and the only frame that can show it closing.
+## - **`lamps`** is `--light-shot`'s composition exactly: unlit stone in the
+##   foreground, a lit doorway in the distance. `DES-018` holds the veto — *a
+##   floor must be crossable with the shutter shut, by moving between the lamps*
+##   — and fog is the one change that could take that away. If the lamp you are
+##   walking toward dissolves, the fog is wrong however good the first frame is.
+## - **`threat`** stands one body as near `enemy_vision_range` as the floor
+##   allows — the distance at which a lit player is seen — well inside the fog.
+##   `ART-005` promises enemies outline at full weight regardless of distance,
+##   and this is the frame that has to show that surviving the fog rather than
+##   asserting it. The distance it actually got is printed.
+##
+## **Ink on, against every other shot in this file.** The others turn it off
+## because `ART-005` is a treatment over the thing being judged; here the
+## treatment is half the question, because the pass reads the depth and normal
+## buffers and composites over the *finished* colour — so it draws at full
+## weight over ground the fog has already taken. The `ink_off` pair is the
+## control that says which layer you are looking at.
+##
+## The sweep moves the **curve** and holds the ends, because neither end is a
+## free choice: `floor_fog_begin` is the 10 m the dog-leg already guarantees,
+## and `floor_fog_end` cannot come in shorter than `InkPass.FALLOFF_END` without
+## leaving outlines over ground that has gone.
+func _fog_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	if lamp == null:
+		printerr("[fog] FAIL no lantern in the catalogue to photograph")
+		get_tree().quit(1)
+		return
+	player.equipment.equip(ItemInstance.of(lamp, 0))
+
+	var open: Array[Vector3] = _open_to_the_sky()
+	if open.is_empty():
+		# **Not a silent pass** (ADR-200). A shot that photographs nothing and
+		# exits zero is how a fault that stopped being reproducible stays
+		# invisible — and this frame is the whole reason the task exists.
+		printerr("[fog] FAIL no standable cell on this floor is open to the "
+			+ "sky, so the frame that shows the fault cannot be taken")
+		get_tree().quit(1)
+		return
+	var worst: Dictionary = _worst_boundary(open)
+	var deck: Vector3 = worst["stand"] as Vector3
+	var yaw: float = worst["yaw"] as float
+	print("[fog] %d standable cell(s) open to the sky; the worst boundary is "
+		% open.size() + "%.1f m up, showing %.0f m of distant stone across "
+		% [deck.y, float(worst["score"])] + "fifteen rays")
+
+	var dark: Vector3 = _away_from_the_lamps()
+	var lit: Vector3 = _nearest_door_light(dark)
+	var toward: Vector3 = lit - dark
+	toward.y = 0.0
+	print("[fog] the lamp frame stands %.1f m from the nearest doorway light"
+		% dark.distance_to(lit))
+
+	# **One body, at the distance the promise is about.** The floor's own
+	# enemies are wherever the generator put them, which is no use to a frame
+	# whose whole claim is a distance — so the floor is cleared and a single
+	# body placed, on `--extraction`'s precedent and for its stated reason: a
+	# check that can go wrong for a reason unrelated to its own subject is worse
+	# than no check.
+	_clear_the_floor()
+	var lamp_yaw: float = (atan2(-toward.x, -toward.z)
+		if toward.length() > 0.01 else 0.0)
+	# **A lit body in a doorway, seen from another doorway.** Four drafts died
+	# getting here and every one of them for the same reason — a position
+	# reasoned to instead of chosen — so the sequence is worth keeping:
+	#
+	# 1. On the `lamps` line at 16 m: **inside rock.** The dog-leg means there
+	#    is no straight 16 m of corridor to stand a body in, which is
+	#    `--delvings-shot`'s lesson arriving in a different shot.
+	# 2. On the deck's own clear line: **in mid-air**, falling out of frame at
+	#    9 m/s while the log recorded it standing. That line is clear for tens
+	#    of metres by having nothing in it — which is what scored it.
+	# 3. On an `enemy_posts()` entry, camera still on the deck: **no post in
+	#    frame at all**, for the same reason.
+	# 4. Between two posts: standing, in frame, at 14.4 m — and **invisible**,
+	#    because the post was in an unlit stretch and `ART-005`'s promise that
+	#    a threat outlines at full weight is `M4-T08` and not built. A body you
+	#    cannot see without the fog cannot show you anything about the fog.
+	#
+	# So both ends are **doorway lamps**. A doorway has floor under it by
+	# construction, and `enemy_vision_range` is the distance a **lit** body is
+	# seen from (ADR-188) — so a lit body is the only one whose visibility the
+	# number is about. The pair whose separation is nearest that range, with a
+	# clear line between them, wins.
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var doors: Array[Vector3] = _floor.door_lights()
+	var mark: Vector3 = Vector3.INF
+	var stand: Vector3 = Vector3.INF
+	var closest: float = INF
+	for from: Vector3 in doors:
+		for door: Vector3 in doors:
+			var span: float = from.distance_to(door)
+			if span < Config.tuning.floor_fog_begin:
+				continue
+			var off_by: float = absf(span - Config.tuning.enemy_vision_range)
+			if off_by >= closest:
+				continue
+			var eye: Vector3 = _standing_at(from)
+			var body: Vector3 = _standing_at(door)
+			if eye == Vector3.INF or body == Vector3.INF:
+				continue
+			var sight := PhysicsRayQueryParameters3D.create(
+				eye + Vector3(0.0, 1.6, 0.0), body + Vector3(0.0, 1.0, 0.0))
+			sight.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(sight).is_empty():
+				continue
+			closest = off_by
+			stand = eye
+			mark = body
+	if mark == Vector3.INF:
+		# **Not a silent pass** (ADR-200). Every claim about a threat surviving
+		# the fog rests on this frame, and a floor with no two lit doorways in
+		# sight of each other past `floor_fog_begin` cannot make it.
+		printerr("[fog] FAIL no two doorway lamps on this floor are in sight "
+			+ "of each other past %.1f m, so the frame that has to show a lit "
+			% Config.tuning.floor_fog_begin + "body surviving the fog cannot "
+			+ "be taken")
+		get_tree().quit(1)
+		return
+	var facing: Vector3 = stand - mark
+	facing.y = 0.0
+	_session.spawn_enemy(mark, atan2(-facing.x, -facing.z))
+	await _hold(0.4)
+	var threat: Node3D = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		threat = node as Node3D
+	if threat == null:
+		printerr("[fog] FAIL nothing spawned to stand in for a threat, so the "
+			+ "frame that has to show the outline surviving cannot be taken")
+		get_tree().quit(1)
+		return
+	var span: float = stand.distance_to(mark)
+	print("[fog] one body stands %.1f m out, against a %.1f m lit sight range "
+		% [span, Config.tuning.enemy_vision_range]
+		+ "and fog running %.1f–%.1f m"
+		% [Config.tuning.floor_fog_begin, Config.tuning.floor_fog_end])
+	var to_mark: Vector3 = mark - stand
+	to_mark.y = 0.0
+	var watch: float = (atan2(-to_mark.x, -to_mark.z)
+		if to_mark.length() > 0.01 else 0.0)
+
+	# Level, all three. A raised deck's rooftops lie *below* eye height — the
+	# first sweep pitched up 18° for them and photographed the dark over their
+	# tops, which is the same mistake `_worst_boundary` made with its rays.
+	var frames: Array = [
+		["void", deck + Vector3(0.0, 0.1, 0.0), yaw],
+		["lamps", dark + Vector3(0.0, 0.1, 0.0), lamp_yaw],
+		["threat", stand + Vector3(0.0, 0.1, 0.0), watch],
+	]
+
+	var base_begin: float = Config.tuning.floor_fog_begin
+	var base_end: float = Config.tuning.floor_fog_end
+	# `off` first, deliberately, on `--light-shot`'s reasoning: the top row is
+	# what the floor looked like before this task, so every image below it is
+	# read against the build it replaces rather than against memory.
+	var envelopes: Array = [
+		["off", 0.0], ["gentle", 1.6], ["straight", 1.0], ["early", 0.6],
+	]
+	for envelope: Array in envelopes:
+		var label: String = envelope[0] as String
+		var curve: float = envelope[1] as float
+		_environment.fog_enabled = curve > 0.0
+		_environment.fog_depth_begin = base_begin
+		_environment.fog_depth_end = maxf(base_end, InkPass.FALLOFF_END)
+		_environment.fog_depth_curve = curve
+		for frame: Array in frames:
+			for ink: bool in [true, false]:
+				# The control belongs at one envelope, not at all four: an
+				# `ink_off` row everywhere quadruples the sheet and says the
+				# same thing four times.
+				if not ink and label != "straight":
+					continue
+				player.show_ink(ink)
+				# Teleported for every single frame, on ADR-188's finding: the
+				# first `--light-shot` placed the body once and let it drift
+				# toward a lamp between exposures, so the sweep photographed
+				# where the body wandered rather than what was being swept.
+				player.teleport(frame[1] as Vector3, frame[2] as float)
+				if is_instance_valid(threat):
+					threat.global_position = mark
+					# Hidden everywhere but its own frame, so `void` is a
+					# photograph of the boundary and `lamps` is `--light-shot`'s
+					# composition, neither with a body wandering through it.
+					threat.visible = frame[0] == "threat"
+				await _hold(0.3)
+				await RenderingServer.frame_post_draw
+				await RenderingServer.frame_post_draw
+				var shot: String = "%s_%s_%s%s.png" % [path.trim_suffix(".png"),
+					frame[0], label, "" if ink else "_ink_off"]
+				get_viewport().get_texture().get_image().save_png(shot)
+				print("[fog] %-6s %-8s ink %-3s → %s" % [frame[0], label,
+					"on" if ink else "off", shot.get_file()])
+	_environment.fog_enabled = true
+	_environment.fog_depth_begin = base_begin
+	_environment.fog_depth_end = base_end
+	_environment.fog_depth_curve = FOG_CURVE
+	player.show_ink(true)
 	get_tree().quit()
 
 
@@ -5994,6 +6424,62 @@ func _build_lighting() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	environment.ambient_light_color = AMBIENT
 	environment.ambient_light_energy = Config.tuning.floor_ambient_energy
+
+	# **The floor has an outside, and this is what closes it** (`M4-T26`,
+	# ADR-203).
+	#
+	# Until now this `Environment` set a background colour and nothing else, so
+	# past the last wall there was flat `PAPER` and the outside faces of every
+	# room stood in it. That is not only cosmetic: `--plan-probe` bounds how much
+	# corridor a player may see at once, because *"a tunnel you can see the whole
+	# of from the doorway is the proposition given away"* — and an open boundary
+	# hands the whole layout back over the top of the wall. A raised crossing
+	# deck is **deliberately** open above (`FloorBuilder._tunnel`, `DES-015`'s
+	# visual-only vertical space), so standing on one shows you the floor's
+	# rooftops laid out to the horizon. Roofing them would delete the vertical
+	# drama that openness exists for; dissolving the distance keeps it.
+	#
+	# **Depth fog, at exactly the ground colour, and that is the trick.** Unlit
+	# stone at 0.12 ambient sits *darker* than `PAPER`, so the void does not read
+	# as brightness — it reads as silhouettes cut out of a slightly paler page.
+	# Fogging toward the background colour removes the contrast in both
+	# directions at once: what is far enough away simply becomes the page again,
+	# which is `ART-005`'s *"walking into an unlit room is walking onto paper
+	# nobody has drawn on yet"* extended to the parts of the floor nobody was
+	# ever meant to be looking at.
+	#
+	# **It is the lantern's visual twin, and it does not touch a threat.** The
+	# ink pass reads the depth and normal buffers and composites over the
+	# finished colour, so fog cannot dim an outline: `ART-005`'s promise that
+	# enemies and loot outline at full weight regardless of distance is paid by
+	# the pass, not by the fill, and `--fog-shot` photographs the pair rather
+	# than assuming it. The envelope is bracketed by two numbers that already
+	# existed — the 10 m corridor sightline the dog-leg guarantees, and
+	# `InkPass.FALLOFF_END`, where the linework has already gone.
+	environment.fog_enabled = true
+	environment.fog_mode = Environment.FOG_MODE_DEPTH
+	environment.fog_light_color = PAPER
+	environment.fog_light_energy = 1.0
+	environment.fog_density = 1.0
+	environment.fog_depth_begin = Config.tuning.floor_fog_begin
+	environment.fog_depth_end = Config.tuning.floor_fog_end
+	environment.fog_depth_curve = FOG_CURVE
+	# **`fog_sky_affect` is 1.0, and zero is the trap** (`M4-T26`, measured).
+	#
+	# It reads like the setting that does not apply here — there is no sky, only
+	# a `BG_COLOR` clear — and at 0.0 the background renders **black** instead
+	# of `PAPER`: 1,1,1 against 10,10,13. That is worse than no fog at all,
+	# because unlit stone sits at 4,4,4 and a black ground puts the boundary
+	# back with the silhouette *inverted* — the rooms now read lighter than the
+	# nothing behind them. At 1.0 the ground stays the page, which is the only
+	# way the fill can converge onto it. Found by reading pixels out of the
+	# sweep, not from the property name.
+	environment.fog_sky_affect = 1.0
+	# No sun, and nothing to scatter off. Both left explicit, so a directional
+	# light added later cannot quietly tint the fog off `PAPER`.
+	environment.fog_sun_scatter = 0.0
+	environment.fog_aerial_perspective = 0.0
+
 	env.environment = environment
 	_world.add_child(env)
 

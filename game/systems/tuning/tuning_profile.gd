@@ -452,6 +452,30 @@ extends Resource
 ## nothing can ever see, which is not stealth, it is invisibility — and
 ## `DES-005` requires *hide and let it pass* to be a risk, not a switch.
 @export var exposure_ambient: float = 0.15
+## Where the floor starts dissolving into the ground, in metres ⟨tune⟩
+## (`M4-T26`, ADR-203).
+##
+## **The floor has an outside, and this is what stops you reading it.** Past the
+## last wall there is only `RoomSet.PAPER`, so every outside face of every room
+## stands in it as a silhouette — and a raised crossing deck is *deliberately*
+## open above (`FloorBuilder._tunnel`, `DES-015`'s visual-only vertical space),
+## so from one you can see the whole floor's rooftops at once.
+##
+## The lower bound is the generator's own contract rather than taste:
+## `FloorPlan.DOGLEG_RUN` bends a corridor so no sightline down one runs past
+## **10 m**, because *"a tunnel you can see the whole of from the doorway is the
+## proposition given away"*. Fog that began nearer than that would be dissolving
+## layout the level is entitled to show you, which is the `DES-018` failure a
+## lighting change can ship.
+@export var floor_fog_begin: float = 10.0
+## And where it has finished dissolving, in metres ⟨tune⟩ (`M4-T26`, ADR-203).
+##
+## **Paired with `InkPass.FALLOFF_END`, and the pairing is the whole risk.** Fog
+## dissolves the fill; `ART-005`'s mandatory distance falloff dissolves the
+## lines. Set this shorter than the falloff and the outlines outlive the ground
+## they describe — linework hanging in empty dark, which is the one way fog and
+## the ink pass genuinely fight. `_validate()` refuses it.
+@export var floor_fog_end: float = 34.0
 
 @export_group("Enemy")
 @export var enemy_health: float = 60.0
@@ -640,6 +664,28 @@ func validate() -> PackedStringArray:
 			+ "invisible — `M4-T13` moved these into one place precisely so "
 			+ "they could not drift apart like this")
 			% [floor_ambient_energy, exposure_ambient])
+	# **The fill and the lines are one distance seen twice** (`M4-T26`,
+	# ADR-203). Depth fog dissolves the ground; `InkPass.FALLOFF_END` dissolves
+	# the outlines drawn on it. Fog that finishes first leaves linework hanging
+	# over nothing — and today that is nearly invisible, because the Deep's ink
+	# sits at 0.05 against a 0.04 page, so it would ship unnoticed and then
+	# arrive all at once the moment `M4-T08` inverts the two worlds and makes
+	# the Deep's ink pale bone-white. A fault that is invisible until a later
+	# task is exactly the kind worth a validator rather than an eye.
+	if floor_fog_end <= floor_fog_begin:
+		problems.append(("fog runs from %.1f m to %.1f m, which is not an "
+			+ "envelope — nothing between them to dissolve into")
+			% [floor_fog_begin, floor_fog_end])
+	if floor_fog_begin <= 0.0:
+		problems.append(("floor_fog_begin is %.1f m, so the fog starts at the "
+			+ "camera — that is a wash over the whole screen rather than "
+			+ "distance, and `DES-018` rules out a build the player cannot see")
+			% floor_fog_begin)
+	if floor_fog_end < InkPass.FALLOFF_END:
+		problems.append(("the fill finishes dissolving at %.1f m and the ink "
+			+ "pass draws lines out to %.1f m — the outlines would outlive the "
+			+ "ground they describe, which is the one way fog and `ART-005` "
+			+ "genuinely fight") % [floor_fog_end, InkPass.FALLOFF_END])
 	if carry_capacity <= 0.0:
 		problems.append("carry_capacity must be positive or encumbrance is undefined")
 	if stamina_max <= 0.0:

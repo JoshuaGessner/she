@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-05
+updated: 2026-09-06
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -6943,6 +6943,81 @@ All four pass today, and all four passed the day they were written. **Neither of
 **Each row requires its own closing line**, not merely the absence of `FAIL`. ADR-200 measured why: `room_set` and the gym both boot, run nothing and exit **0 with no output** when handed an unknown flag, so a check that greps only for failure passes for a probe that never ran. Four flags, four markers, planted mistyped and all four blocked.
 
 **Not fixed here: the checker cannot ask this question.** `check_dead.py` answers *is this name referenced* and there is no tool that answers *is this probe reached by CI*. The audit that found these four was a shell one-liner run by a person. `M4-T22` already owns `check_dead.py`'s accuracy; a flag-coverage check is named in `M4-T27` rather than built now, because the four probes being unguarded is the urgent half and a tool to notice the fifth is the patient half.
+
+## ADR-203 — The floor has an outside, and depth fog is what closes it
+
+**Date:** 2026-09-06 · **Status:** accepted · **`M4-T26`** · **Amends `ART-005`, `DES-018`**
+
+**Context:** the first `GATE M4 STRANGER` session reported two faults. The first was two run-ending generator faults (ADR-200). The second was *"the void around the level"*, with a wish for the cave and dungeon spaces to read as caverns — and it was offered as something the art pass would fix.
+
+**There was no fog anywhere in this project.** All four `Environment`s set `BG_COLOR` and nothing else, so past the last wall there was flat `PAPER` — `Color(0.04, 0.04, 0.05)` — and the outside faces of every room stood in it.
+
+**And it is not only cosmetic.** `--plan-probe` bounds how much corridor a player may see at once, because *"a tunnel you can see the whole of from the doorway is the proposition given away"*; `FloorPlan.DOGLEG_RUN` bends corridors so no sightline down one runs past **10 m**. An open boundary hands all of that back over the top of the wall — and it is not hypothetical, because a raised crossing deck is **deliberately** open above (`FloorBuilder._tunnel`: *"you are crossing a void, and being able to see down into it is the point"*, `DES-015`'s visual-only vertical space). Measured on seed 31346 floor 1: **318 standable cells have open sky**, and from the worst of them fifteen rays return **343 m** of stone standing past the 10 m the floor is entitled to show.
+
+### Decision 1 — depth fog, at exactly the ground colour, rather than geometry
+
+The obvious alternative is to roof the crossings. It is refused: the openness is a design decision with a comment defending it, and roofing them would delete the vertical space `DES-015` asks for in order to hide a consequence of it. Dissolving the distance keeps the drama and removes the reading.
+
+**The mechanism is worth stating, because it is the opposite of what "hiding the void" sounds like.** Unlit stone at 0.12 ambient renders at **4,4,4**; `PAPER` renders at **10,10,13**. The void is not too bright — it is *brighter than the rooms*, so the boundary reads as silhouettes cut out of a slightly paler page. Fog toward the background colour removes the contrast in both directions at once: far enough away, geometry simply becomes the page again. That is `ART-005`'s *"walking into an unlit room is walking onto paper nobody has drawn on yet"* extended to the parts of the floor nobody was meant to be looking at, and it makes the fog the visual twin of the lantern the way `Exposure` is of `ClamorSource` (ADR-188).
+
+### Decision 2 — the envelope is not chosen, it is bracketed by two numbers that already existed
+
+| | | |
+|---|---|---|
+| `floor_fog_begin` | **10.0 m** | the corridor sightline `FloorPlan.DOGLEG_RUN` already guarantees |
+| `floor_fog_end` | **34.0 m** | `InkPass.FALLOFF_END`, where `ART-005`'s linework has already gone |
+
+Neither end is taste. Fog beginning nearer than the dog-leg's run would dissolve layout the floor is *entitled* to show, which is `DES-018`'s veto rather than this task's goal. Fog finishing before the falloff would leave outlines drawn over ground that is no longer there — the one way fog and the ink pass genuinely fight. Both are `_validate()` rules and probe rows rather than comments.
+
+**`ART-005`'s distance falloff turns out to be the line layer's half of this same decision**, written for a different reason: *"distant geometry loses its outlines rather than becoming a scribble."* Fog dissolves the fill; the falloff dissolves the lines; they are one distance seen twice. That is why the two cooperate rather than fight, and it is the answer to the constraint the task raised.
+
+### Decision 3 — the ink pass does not need protecting, and the frame proves it rather than asserting it
+
+`ART-005` promises enemies and loot outline at full weight regardless of distance, and the constraint was that fog must not take that away. It cannot: the pass reads the **depth and normal buffers** and composites over the *finished* colour, so fog changes what is under a line and never the line. `--fog-shot` carries an `ink_off` control at one envelope so the two layers can be told apart in the images instead of reasoned about.
+
+Measured, with a lit body standing at **16.0 m** — `enemy_vision_range`, the distance a lit player is seen from: the brightest pixel in the body is **115 with the fog off and 115 with it on**, at every envelope in the sweep.
+
+### Decision 4 — `fog_sky_affect` is one, and **zero is the trap**
+
+It reads like the setting that does not apply here — there is no sky, only a `BG_COLOR` clear — and the first build set it to 0.0 for exactly that reason. **At 0.0 the background renders black**: 1,1,1 against `PAPER`'s 10,10,13. That is worse than no fog at all, because unlit stone is 4,4,4 and a black ground puts the boundary back with the silhouette **inverted** — the rooms now read *lighter* than the nothing behind them.
+
+Nothing about that failure announces itself. The fog is still on, still the right colour, still the right distance, and the picture is still dark. It was found by reading pixels out of the sweep rather than from the property name, and it is a probe row now.
+
+### Decision 5 — the curve is a straight ramp, and the sweep is what says so
+
+`--fog-shot` sweeps `off / 1.6 / 1.0 / 0.6` at fixed ends. The first draft shipped **1.6**, on the theory that the near half should be held back so the room you are standing in is untouched — and the images show 1.6 leaving the far skyline legible as a ghost, because holding the middle distance back is precisely holding back the part that reads the layout. `floor_fog_begin` already protects the near field and does not need to do it twice. **0.6** also clears the skyline and moves half again as many pixels to get there. 1.0 is the least that works ⟨tune⟩.
+
+### Decision 6 — the Deep only, and the other three `Environment`s are argued out rather than forgotten
+
+- **`movement_gym.gd`** is a measuring instrument and says so in its own comment: *"flat and bright on purpose. Atmosphere is `ART-001`'s business and the ink shader's; a gym exists to make surfaces and their angles unambiguous."* Fogging it would blur the thing it exists to show.
+- **`threshold.gd` and `chamber.gd`** were photographed rather than assumed. Both are open above and the Threshold is open on one side, so the fault exists geometrically — and **nothing stands in the void there**. They are single rooms; there are no far rooftops to read, so fog would be a setting with nothing to do, which ADR-064 calls worse than absent. There is a positive reason to leave the Threshold alone as well: *"walk into the dark ahead to descend"* means the dark ahead **is** the Descent, and it is the one thing that room points at.
+- `ART-005` gives the underlying rule: there is no darkness mechanic in the hub, so there is nothing there for the lantern's twin to be a twin of.
+
+### Rejected
+
+- **Roofing the raised crossings** — Decision 1. Deleting `DES-015`'s vertical space to hide a consequence of it.
+- **Exponential fog** — it has no envelope, so it cannot be pinned to the two distances this change is an argument about. Depth mode is a probe row for that reason.
+- **Shortening `floor_fog_end` to close the boundary harder** — that number belongs to the ink falloff, and taking it would put linework over dissolved ground. The strength dial is the curve.
+- **Fog in the hub worlds** — Decision 6.
+- **Keeping the fog distances as level constants** — they are ⟨tune⟩ and they pair with `enemy_vision_range` and `floor_ambient_energy`, which is ADR-188 Decision 6's argument applied a second time: two halves of one fact belong in one place.
+
+### What this found on the way
+
+**The `fog_sky_affect` inversion**, above — the one time today the property name was wrong and the pixels were right.
+
+**And two headings had to be reworded to get past `status.py --check`.** `DEFERRING_HEADING_RE` matches `\b1\.0\b` for *"post-1.0"*, and both of those decisions are about a value that happens to be one — so a section deciding something *now* read as a section deferring something to a release. Reworded rather than exempted, because a heading with a bare `1.0` in it reads ambiguously to a person too; the rule itself is right, and `M4-T22` already owns checker accuracy.
+
+**Four dead drafts of the threat frame, and the last one is a finding about the build rather than about the harness.** The body had to stand at the lit sight range, in frame, on ground, and visible. It went (1) *inside rock*, standing at 16 m along the lamp line, because the dog-leg means there is no straight 16 m of corridor to stand it in — `--delvings-shot`'s lesson arriving in a different shot; (2) *in mid-air*, falling out of frame at 9 m/s while the log recorded it standing, because the deck's clear line is clear by having nothing in it; (3) *out of frame*, when it moved to an `enemy_posts()` entry and the camera stayed on the deck; and (4) **standing, in frame, at 14.4 m, and invisible** — because that post was in an unlit stretch, and `ART-005`'s promise that a threat outlines at full weight regardless of distance is `M4-T08` and **is not built**. The Deep's ink is 0.05 against a 0.04 page today, so a dark body in a dark corridor gets a dark line drawn on it.
+
+That is not a fog problem and the fog does not make it worse, but it is worth writing down: **the constraint this task was told was pre-paid is not paid yet.** It is paid by the two-world inversion at `M4-T08`, and until then threat legibility rests on the doorway lamps. The frame that survived stands the body **in** a lit doorway, which is what `enemy_vision_range` is a number about anyway.
+
+**`_worst_boundary`'s first version scored open sky and chose the emptiest view on the floor** — 120 m of nothing in every ray, and a photograph of the dark. What reads a layout is not emptiness, it is *distant structure*, so a ray now scores only if it comes back and only from beyond `floor_fog_begin`. Its second version fanned every ray upward at the frame's own pitch and scored 32 m off the whole floor, because a deck's rooftops lie *below* eye level. `M3-T22`'s rule twice in one function: a new probe's first finding is usually about the probe.
+
+**`ART-005`'s falloff existed only as a shader uniform default**, so no check could read it and nothing could be said about the relationship between the lines and the fill. It is `InkPass.FALLOFF_START`/`FALLOFF_END` now, set on the material rather than left implicit — one owner for the number, which is what makes Decision 2 enforceable rather than a comment.
+
+**And `DES-018`'s veto came back satisfied by measurement rather than by argument.** The frame that answers it is `--light-shot`'s exactly — unlit stone in the foreground, a lit doorway in the distance — and on this floor that doorway stands **20.3 m** away, the same worst case ADR-188 measured. Its peak brightness is **111 with the fog off and 111 at every envelope**, and the frame is fractionally *brighter* overall with the fog on, because fog lifts near-black stone toward `PAPER`. A floor is still crossable with the shutter shut by moving between the lamps.
+
+Six probe rows in `--fog-probe`, each planted against a deliberately broken build and each caught, plus the `_validate()` rule and the vacuous-pass case: handed `--fog-probeX` the level boots, prints no `[fog]` line and never reaches its own `quit()`, so the sweep row requires its closing line rather than the absence of `FAIL` (ADR-200, ADR-202).
 
 *Entries below to be added as design decisions are signed off.*
 

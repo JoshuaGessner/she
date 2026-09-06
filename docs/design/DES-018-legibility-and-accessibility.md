@@ -4,7 +4,7 @@ title: Legibility & Accessibility
 status: accepted
 owner: design
 tags: [accessibility, ui, hud, audio, legibility, clamor]
-updated: 2026-09-03
+updated: 2026-09-06
 related: [DES-005, DES-013, DES-017, ART-001, PRO-005]
 ---
 
@@ -78,6 +78,15 @@ A persistent, quiet on-screen cue reporting exactly what the mix reports.
 What keeps it satisfied is **not** the ambient light, which measurement showed was never doing the work (ADR-188). It is the doorway lamps:
 
 > **A floor must be crossable with the shutter shut, by moving between the lamps.**
+
+**Re-measured against the depth fog (`M4-T26`, ADR-203), because fog is the one
+change that could take this away.** On seed 31346 floor 1 the darkest standable
+point is 20.3 m from the nearest doorway lamp — ADR-188's worst case — and that
+lamp's peak brightness is **111 with the fog off and 111 with it on**, at every
+envelope swept. The frame is fractionally *brighter* overall with fog, because
+fog at the ground colour lifts near-black stone toward it. The lamp you are
+walking toward does not dissolve, and the envelope begins at 10 m precisely so
+that it cannot eat the layout the floor is entitled to show.
 
 Slower, blinder and much harder to be seen — a real playstyle rather than a concession, and the same shape as `DES-020`'s *no pack* option. A generated floor that left any part of itself unreachable in the dark would be failing this rule, not expressing the mechanic.
 

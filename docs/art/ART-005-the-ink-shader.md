@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-09-01
+updated: 2026-09-06
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -190,10 +190,48 @@ Cheap to author, no texture work in Phase 1 or 2, and outline suppression is ess
 
 **Outlining everything at 150 agents in a cluttered dungeon is visual noise**, and Principle 6 says legibility beats realism. Mandatory controls:
 
-- **Distance falloff** on line weight — distant geometry loses its outlines rather than becoming a scribble.
+- **Distance falloff** on line weight — distant geometry loses its outlines rather than becoming a scribble. **`InkPass.FALLOFF_START`/`FALLOFF_END`** ⟨tune⟩ since ADR-203, promoted out of the shader's uniform defaults so the fog envelope below can be checked against it.
 - **Outline suppression on unimportant props** via the R channel. Set dressing does not get lines.
 - **Enemies and loot always outline**, at full weight, regardless of distance ⟨tune⟩. If the shader ever makes a threat harder to see, the shader is wrong.
 - **Test in the busiest possible room** early. A style that only works in an empty corridor is not a style.
+
+## The floor has an outside
+
+> **DECIDED (ADR-203, `M4-T26`):** **Depth fog, at exactly the ground colour,
+> on the floor's `Environment` — and nowhere else.**
+
+Past the last wall there is `PAPER`, and the outside faces of every room stood
+in it. The fault is not brightness: unlit stone renders **darker** than the
+page, so the boundary reads as silhouettes cut out of it. Fog toward the
+background colour removes that contrast in both directions, and far enough away
+geometry simply becomes the page again — which is this document's own
+*"walking into an unlit room is walking onto paper nobody has drawn on yet"*,
+applied to the parts of the floor nobody was meant to be looking at.
+
+**It is a legibility change first and mood second.** A raised crossing deck is
+deliberately open above (`DES-015`'s visual-only vertical space), so standing on
+one showed the floor's rooftops to the horizon — which hands back over the top
+of the wall exactly what `--plan-probe`'s dog-leg bound withholds at the
+doorway.
+
+**The envelope is bracketed by two numbers rather than chosen:** it begins at
+the 10 m corridor sightline `FloorPlan.DOGLEG_RUN` guarantees, and finishes at
+`InkPass.FALLOFF_END` ⟨tune⟩.
+
+> **The distance falloff above is the line layer's half of the same decision.**
+> Fog dissolves the fill; the falloff dissolves the lines; they are one distance
+> seen twice. Fog that finished *first* would leave outlines hanging over ground
+> that had gone — the one way the two genuinely fight, and a `TuningProfile`
+> validator refuses it.
+
+**Fog cannot dim an outline**, because this pass reads the depth and normal
+buffers and composites over the finished colour. The promise above is therefore
+untouched by it, and `--fog-shot` photographs a lit body at `enemy_vision_range`
+with an ink-off control rather than asserting it.
+
+**The hub does not get fog** — there is no darkness mechanic there, so there is
+nothing for it to be the twin of, and the Threshold's dark ahead *is* the
+Descent.
 
 ## Production consequences
 

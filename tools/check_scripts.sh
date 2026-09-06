@@ -812,6 +812,29 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		fi
 	done
 
+	# **And the floor has an outside** (`M4-T26`, ADR-203). The stranger session
+	# reported *"the void around the level"*, and the fix is depth fog at the
+	# ground colour — three properties on an `Environment` that any later edit
+	# can turn back off without anything looking broken until somebody stands on
+	# a crossing deck. `--fog-shot` is how the density was chosen and it needs a
+	# person; these four rows are the part nobody should have to look at twice,
+	# including the `fog_sky_affect` trap that renders the background *black*
+	# and inverts every silhouette on the boundary.
+	#
+	# On a generated floor, because the last row is about a raised crossing deck
+	# and the Deep has none. **The `[fog] fog closes` line is required, not
+	# merely read** — an unknown flag boots this level, runs nothing and quits 0
+	# (ADR-200), so a check that only greps for `FAIL` passes vacuously.
+	fog="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
+		levels/room_set/room_set.tscn -- --fog-probe --delvings --seed=31346 \
+		--floor=1 2>&1)"
+	if [[ $? -ne 0 ]] || ! printf '%s\n' "$fog" | grep -q '^\[fog\] fog closes' \
+			|| printf '%s\n' "$fog" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		echo "FAIL the floor has an outside and the fog closes it" >&2
+		printf '%s\n' "$fog" | grep -E '\[fog\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The floor** (`M4-T01`, `DES-015` step 4, ADR-170, ADR-172). The graph
 	# became a space, and the row no other check can make is that it is still
 	# the same space: connectivity is read back off the grid rather than taken
@@ -1102,6 +1125,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "a build can be reconsidered and a keystone cannot,"
 	echo "every floor the generator can emit poses a question and reads its seed,"
 	echo "no two pieces of interface are allowed to sit in the same place,"
+	echo "the floor has an outside and the fog closes it,"
 	echo "and the space built from it is still that floor,"
 	echo "and the walls of that floor are where the plan put them,"
 	echo "and a party can cross every floor of a run, not just the one we bake,"

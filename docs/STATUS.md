@@ -2,13 +2,13 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-09-05_
+<!-- generated-stamp --> _Regenerated 2026-09-06_
 
 **Current milestone: M4 — Vertical Slice**
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`79/106` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`80/106` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>6/27"]:::current
+  M4["M4 Vertical Slice<br/>7/27"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `████▒▒░░░░░░░░░░░░░░` | 6/27 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████▒▒░░░░░░░░░░░░░` | 7/27 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -162,7 +162,7 @@ _None. Sequencing is clean._
 - · `M4-T08` **Ink shader, complete** — hatching (nested triplanar layers), the Threshold/Deep inversion, vertex-colour authoring across the asset library `ART-005`
 - · `M4-T09` **Composer onboarded; first full stem set** — brief handed over as-is, stems authored to one tempo and key. **Precondition (ADR-167): confirm current FMOD indie licensing terms before a single bank enters the repo.** ADR-050 chose raw Godot first and migration only when the musician's workflow becomes the deciding factor, so this is the moment the terms start to matter and the first moment they can be checked against a real decision; if they have moved, `TEC-005` already names Wwise as the strong second choice `ART-003` `TEC-005`
 - · `M4-T12` **Audio occlusion and reverb zones** — raycast → lerp `attenuation_filter_cutoff_hz`, and `Area3D` reverb driven by the player's current cell. *Split out by ADR-099: `M2-T03` and `M2-T09` built the adaptive driver, and `TEC-005` was reading as fully implemented because they were its only citers — while the half of it that makes the Deep sound like stone was neither built nor planned. ⟨~a week⟩ by `ART-002`'s own costing, and **portal propagation is for the Gullsjúkr only**, never a general system* `TEC-005` `ART-002` `DES-015`
-- · `M4-T26` **The floor has an outside** — *raised from the first `GATE M4 STRANGER` session: the void around the level, and a wish for the cave and dungeon spaces to read as caverns. There is **no fog anywhere in this project** — all three levels set `BG_COLOR` on `PAPER` (0.04, 0.04, 0.05) and nothing else, so past the last wall there is flat nothing, and the outside faces of rooms stand in it. **Not only cosmetic.** `--plan-probe` asserts fewer than 15% of corridors show a straight run past the dog-leg limit, because a player should not be able to read the layout from the doorway — and an open boundary hands that back over the top of the wall. The tool is depth fog at `PAPER`, which dissolves distance into the ground rather than drawing a horizon, and it is the visual twin of the lantern the way `Exposure` is of `ClamorSource` (ADR-188). **It cannot hide a threat**: `ART-005` already promises enemies and loot outline at full weight regardless of distance, so that constraint is pre-paid, and the density is ⟨tune⟩ against the 16.0 m lit / 6.7 m dark sight radius. Photograph it rather than reasoning about it — `--light-shot` sweeps one floor at four ambient values and this is the same kind of question, on ADR-093's precedent. ⟨a weekend⟩* `ART-001` `ART-005` `DES-018` `DES-015`
+- ✔ `M4-T26` **The floor has an outside** — ***ADR-203: depth fog at the ground colour, on the floor's `Environment` and nowhere else.*** *Measured on seed 31346 floor 1: **318 standable cells have open sky** — a raised crossing deck is deliberately unroofed (`DES-015`'s visual-only vertical space) — and from the worst of them the floor's rooftops read to the horizon, which hands back over the wall exactly what the dog-leg withholds at the doorway. **The fault is not brightness**: unlit stone renders at 4,4,4 against `PAPER`'s 10,10,13, so the boundary is silhouettes cut out of a *paler* page, and fog at the background colour is what removes the contrast in both directions. **The envelope is bracketed rather than chosen** — it begins at the 10 m sightline `FloorPlan.DOGLEG_RUN` guarantees and finishes at `InkPass.FALLOFF_END`, because fog that finished before the linework would leave outlines over ground that had gone; that is a `TuningProfile` validator, not a comment. **Both hard constraints came back measured rather than argued**: a lit body at 16.0 m peaks at 115 with the fog off and 115 with it on, and the doorway lamp 20.3 m from the darkest standable point peaks at 111 either way, so `DES-018`'s veto holds. **`fog_sky_affect = 0.0` was the trap** — it reads like the setting that does not apply with no sky, and it renders the background *black*, which puts the boundary back with every silhouette inverted; found by reading pixels, and a probe row now. **The other three `Environment`s are argued out rather than forgotten**: the gym is an instrument and says so, and the Threshold and Chamber were photographed — both open above, and nothing standing in the void to read. **The threat frame took four dead drafts and the last one is a finding about the build**: a body at 14.4 m in an unlit stretch is already invisible, because `ART-005`'s full-weight outline promise is `M4-T08` and not built, so the constraint this task was told was pre-paid is not paid yet — until then threat legibility rests on the doorway lamps. `--fog-shot` sweeps four envelopes across three frames with an ink-off control; `--fog-probe` is six rows in the sweep, all planted* `ART-001` `ART-005` `DES-018` `DES-015`
 - · `M4-T10` **Phase 2→3 asset production** — real models replacing blockout, per the schedule and specs `ART-004`
 - · `M4-T18` **A marketing plan, and the devlog that starts it** — *flagged by `PRO-007` as a genuine gap and carried in `OPEN-QUESTIONS.md` as an unnumbered row, where it blocked a milestone it could not be answered for (ADR-167). Tied to `M4-T08` by its own note — *the devlog starts when the shader works* — because the ink shader is the first thing this project has that is worth showing a stranger, and `PRO-007`'s failure mode is a finished game nobody has heard of* `PRO-007` `ART-005`
 - · `M4-T15` **Join-in-progress, as `TEC-004` specifies it** — *ADR-016 made late join **core, not post-launch**, `TEC-004` specifies it in full — the gate at the party's position, the world delta of looted containers, dead enemies, opened doors and Hunt state, the arrival with no accumulated loot — and **no task on this roadmap had ever picked it up.** Found by ADR-157, which refused an ungated mid-run join because it left two processes in different scenes on one connection and cost the host the run; that refusal is `ADR-064` absence, and this is the named replacement it requires. Same shape as ADR-116 §1, where `GATE M3 COOP` named a rank-8 floor nothing built. **After `M4-T01`**, because the delta is bounded per floor and *"a joiner arriving on floor 3 does not need floor 1's state"* is only expressible once there are three floors; and it wants `M4-T07`'s lobbies to be the thing that hands a joiner an address mid-session. `TEC-004`'s own test target is the acceptance criterion: a 4th player joins a floor-3 party ~20 minutes in, on a floor with ~200 looted containers and ~80 dead enemies, without a hitch on the host.* ***Where the joiner appears is now answered: the Shaft** (ADR-186). It stopped being an exit and became the way down, and `DES-005` Layer 3b has always said "the same mechanism that takes you out lets someone in" — so the arrival is diegetic, it is in a known place per floor, and it is deliberately inconvenient, which is the right cost for arriving late. **Tarkov's Scav runs are the shipped precedent**: a late spawn into a raid already in progress, into a map somebody else has already picked over — and note that a Scav still has to extract, so this is a cheaper way **in** and never a removed way out* `TEC-004` `DES-005` `DES-012`
@@ -182,6 +182,6 @@ _None. Sequencing is clean._
 
 ---
 
-_42 docs (42 accepted) · 202 ADRs · 0 open questions · 145 ⟨tune⟩ markers._
+_42 docs (42 accepted) · 203 ADRs · 0 open questions · 148 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).
