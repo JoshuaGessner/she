@@ -126,6 +126,41 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		printf '%s\n' "$problems" | sed 's/^/      /' | sort -u >&2
 		exit 1
 	fi
+	# **Four probes that existed, worked, and were run by nothing** (`M4-T27`,
+	# ADR-202). `--fight-probe` is ADR-194's poise rule, `--swarm-probe` is
+	# ADR-196's fourth awareness rung, `--combat-probe` holds the row ADR-197
+	# had to correct after it silently flipped, and `--clamor-probe` is the
+	# noise model the whole Ear rests on. All four passed the day they were
+	# written and not one was ever wired into a sweep, so the two headline
+	# features of `M4-T16` shipped with no standing guard at all.
+	#
+	# `check_dead.py` reads them as alive because `movement_gym.gd` calls its
+	# own handler — the "does anything use it?" gap of ADR-098, which is the
+	# same fault `M4-T19` was raised to fix for `--graph-probe`. Twice is a
+	# pattern: a probe is finished when something runs it, not when it passes.
+	#
+	# **Each row requires its own closing line**, not merely the absence of
+	# `FAIL`. An unknown flag boots the gym, runs nothing and exits 0 with no
+	# output, so a check that only greps for failure passes for a probe that
+	# never ran (ADR-200, measured).
+	while IFS='|' read -r flag marker claim; do
+		[ -z "$flag" ] && continue
+		gym="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+			levels/dev/movement_gym.tscn -- "$flag" 2>&1)"
+		if [[ $? -ne 0 ]] \
+				|| ! printf '%s\n' "$gym" | grep -qF "$marker" \
+				|| printf '%s\n' "$gym" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+			echo "FAIL $claim" >&2
+			printf '%s\n' "$gym" | grep -E '^\[|ERROR|FAIL' | sed 's/^/      /' >&2
+			exit 1
+		fi
+	done <<-'GYM'
+		--clamor-probe|[clamor] reach through doorway|noise carries the distance it claims
+		--combat-probe|[combat] guard on empty stamina|a swing, a telegraph and a guard each cost what they say
+		--fight-probe|[fight] a fight costs something|a fight is a decision, and heavy is what staggers
+		--swarm-probe|[swarm] the floor can be called|one body can call the floor, and the call can be stopped
+	GYM
+
 	# The shared rig, as Godot sees it. glTF export is where rigs quietly lose
 	# non-deforming leaf bones, and every socket on this rig is one — a socket
 	# that exists in Blender but not in the .glb fails silently, three tools

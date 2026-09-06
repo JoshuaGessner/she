@@ -6923,5 +6923,26 @@ It also contradicted `HOLD_RE`, in the same file. A hold makes a task wait on a 
 
 Scoped to `EXIT` gates, which are the only ones that claim a milestone's work is complete. `Milestone.cleared` is unchanged and still requires *every* gate — `M4` is not cleared until `EXIT`, `COOP` and `GREED` join this one. Planted both ways: `STRANGER` passing mid-milestone no longer errors, and marking `GATE M4 EXIT` passed with 21 tasks open still fires.
 
+## ADR-202 — Four probes that worked, and that nothing ran
+
+**Date:** 2026-09-05 · **Status:** accepted · **Opens and closes `M4-T27`** · **Wires `--clamor-probe`, `--combat-probe`, `--fight-probe`, `--swarm-probe`**
+
+**Context:** an audit asked of every probe flag in the repository the only question that matters about a check — *does anything run it?* Of **51**, four were run by nothing at all:
+
+| probe | what it guards |
+|---|---|
+| `--fight-probe` | ADR-194's poise rule — the whole of *"a fight is a decision"* |
+| `--swarm-probe` | ADR-196's fourth awareness rung, and the reason to disengage |
+| `--combat-probe` | the row ADR-197 had to restate after it silently flipped |
+| `--clamor-probe` | the noise model the Ear and every stealth claim rest on |
+
+All four pass today, and all four passed the day they were written. **Neither of `M4-T16`'s two headline features has had a standing guard since it landed** — the poise rule and the SWARM ladder were measured once, by hand, and then defended by nothing.
+
+**This is `M4-T19` a second time.** That task exists because `--graph-probe` was *"written, correct, and run by nothing"*, and ADR-098 is the entry that separates *does it work?* from *does anything use it?*. `check_dead.py` cannot see any of this: `movement_gym.gd` dispatches its own flags, so every one of these names reads as alive. Twice in one milestone is a pattern rather than an oversight, and the honest statement of it is that **a probe is finished when something runs it, not when it passes** — the ADRs that introduced these four each described a measurement and none of them described a guard.
+
+**Each row requires its own closing line**, not merely the absence of `FAIL`. ADR-200 measured why: `room_set` and the gym both boot, run nothing and exit **0 with no output** when handed an unknown flag, so a check that greps only for failure passes for a probe that never ran. Four flags, four markers, planted mistyped and all four blocked.
+
+**Not fixed here: the checker cannot ask this question.** `check_dead.py` answers *is this name referenced* and there is no tool that answers *is this probe reached by CI*. The audit that found these four was a shell one-liner run by a person. `M4-T22` already owns `check_dead.py`'s accuracy; a flag-coverage check is named in `M4-T27` rather than built now, because the four probes being unguarded is the urgent half and a tool to notice the fifth is the patient half.
+
 *Entries below to be added as design decisions are signed off.*
 

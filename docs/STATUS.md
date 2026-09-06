@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`78/105` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`79/106` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>5/26"]:::current
+  M4["M4 Vertical Slice<br/>6/27"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/6"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `████▒▒░░░░░░░░░░░░░░` | 5/26 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `████▒▒░░░░░░░░░░░░░░` | 6/27 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/6 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -167,6 +167,7 @@ _None. Sequencing is clean._
 - · `M4-T18` **A marketing plan, and the devlog that starts it** — *flagged by `PRO-007` as a genuine gap and carried in `OPEN-QUESTIONS.md` as an unnumbered row, where it blocked a milestone it could not be answered for (ADR-167). Tied to `M4-T08` by its own note — *the devlog starts when the shader works* — because the ink shader is the first thing this project has that is worth showing a stranger, and `PRO-007`'s failure mode is a finished game nobody has heard of* `PRO-007` `ART-005`
 - · `M4-T15` **Join-in-progress, as `TEC-004` specifies it** — *ADR-016 made late join **core, not post-launch**, `TEC-004` specifies it in full — the gate at the party's position, the world delta of looted containers, dead enemies, opened doors and Hunt state, the arrival with no accumulated loot — and **no task on this roadmap had ever picked it up.** Found by ADR-157, which refused an ungated mid-run join because it left two processes in different scenes on one connection and cost the host the run; that refusal is `ADR-064` absence, and this is the named replacement it requires. Same shape as ADR-116 §1, where `GATE M3 COOP` named a rank-8 floor nothing built. **After `M4-T01`**, because the delta is bounded per floor and *"a joiner arriving on floor 3 does not need floor 1's state"* is only expressible once there are three floors; and it wants `M4-T07`'s lobbies to be the thing that hands a joiner an address mid-session. `TEC-004`'s own test target is the acceptance criterion: a 4th player joins a floor-3 party ~20 minutes in, on a floor with ~200 looted containers and ~80 dead enemies, without a hitch on the host.* ***Where the joiner appears is now answered: the Shaft** (ADR-186). It stopped being an exit and became the way down, and `DES-005` Layer 3b has always said "the same mechanism that takes you out lets someone in" — so the arrival is diegetic, it is in a known place per floor, and it is deliberately inconvenient, which is the right cost for arriving late. **Tarkov's Scav runs are the shipped precedent**: a late spawn into a raid already in progress, into a map somebody else has already picked over — and note that a Scav still has to extract, so this is a cheaper way **in** and never a removed way out* `TEC-004` `DES-005` `DES-012`
 - · `M4-T23` **The visible-but-distant Prize** — *`DES-015` Layer 4 is two clauses and `M4-T01` built one (ADR-193). Value now climbs steeply with depth — 6 → 55 → 140 across three floors — and **nothing on floor 0 tells a player that the Cause is richer**, which is the other half in `DES-015`'s own words:* "the player must be able to see that from floor 1. The Prize being visible-but-distant from early in the expedition is what pulls people down" *(`PRO-005` §1). A gradient nobody can perceive changes no decision, so this is the half that makes the other half mean something. Sightlines, lighting and how the Shaft frames what is under it — `TEC-008` and `M2-T13`'s language rather than the generator's, which is why it is not part of `M4-T01`. Worth doing before the stranger session, whose* "reaches an exit having entered ≤4 rooms" *clause is a measurement of what a player can see and chooses to walk toward* `DES-015` `TEC-008` `PRO-005`
+- ✔ `M4-T27` **Four probes that worked, and that nothing ran** — *ADR-202, found by auditing every probe flag against what invokes it. Of **51**, four were run by nothing: `--fight-probe` (ADR-194's poise rule), `--swarm-probe` (ADR-196's fourth awareness rung), `--combat-probe` (which holds the row ADR-197 had to restate after it silently flipped) and `--clamor-probe` (the noise model the Ear rests on). All four pass, and all four passed the day they were written — **so neither of `M4-T16`'s two headline features has had a standing guard since it landed.** This is `M4-T19` a second time, and `check_dead.py` cannot see it because `movement_gym.gd` dispatches its own flags, so every name reads as alive: the ADR-098 gap. Twice in one milestone is a pattern, and the statement of it is that **a probe is finished when something runs it, not when it passes.** Each row requires its own closing line rather than the absence of `FAIL`, because the gym handed an unknown flag boots, runs nothing and exits 0 with no output (ADR-200); all four planted mistyped and all four blocked. **Still owed, and deliberately not built here: nothing can answer* is this probe reached by CI *— the audit was a shell one-liner run by a person. `M4-T22` owns `check_dead.py`'s accuracy; a flag-coverage check belongs beside it* `TEC-002` `DES-013` `DES-009`
 - · `M4-T22` **`check_dead.py` counts English words in tool docstrings as uses** — *found by falling into it (ADR-192): `FloorMachines.questions()` was called by nothing and the checker passed, in the same session as an ADR about dead names. The tool works — a nonsense-named canary is caught at once — and the hole is in the corpus. `scenes_and_data()` includes `tools/*.py` on purpose, because build tooling genuinely is a reader (`CollisionLayers` is read only by `check_project.py`), but `body_text()` strips `#` comments and **a Python docstring is not a `#` comment**. `status.py`'s* "Open questions grouped by the milestone" *counted as a call to a GDScript `questions()`. So **any GDScript name that is also an ordinary English word used in a tool's prose is invisible**, and has been since the tool was written. Filed rather than fixed inline because closing it will surface a backlog that each needs judging — which is the point* `TEC-002`
 - · `M4-T21` **Re-run the pre-mortem at the gate** — *`PRO-007`'s own last section says* "re-run it at each milestone gate — the failure modes change as the project does", *and after `M3` cleared it was not: the document sat at `updated: 2026-08-15` through the whole of `M3` and the start of `M4`. A mitigation the project wrote for itself and then did not take, which is ADR-098's shape applied to process rather than to code. ADR-191 ran it late and found §1 mutated (*"M1 never ended"* is now *"M4 never ends"*, seventeen open rows and the two-week timebox applied nowhere), §4 being realised (two play sessions reporting* not fun yet*, both answered with a resequence rather than with more game), and §6's precondition met since ADR-070 with nothing posted. This task exists so the ritual has an owner and a trigger instead of a sentence at the bottom of a document* `PRO-007`
 
@@ -181,6 +182,6 @@ _None. Sequencing is clean._
 
 ---
 
-_42 docs (42 accepted) · 201 ADRs · 0 open questions · 145 ⟨tune⟩ markers._
+_42 docs (42 accepted) · 202 ADRs · 0 open questions · 145 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).
