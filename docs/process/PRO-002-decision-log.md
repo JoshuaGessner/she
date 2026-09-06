@@ -6901,5 +6901,27 @@ Worth recording, because both were plausible enough to have been fixed on argume
 
 **Nothing walks the player.** Every reachability claim in this project is asked of the navmesh — a 0.45 m agent that climbs 0.30 m — or of the room graph. The player is a 0.35 m capsule driven by `move_and_slide` with no step-up at all, so a rise the mesh crosses is a wall to the body a person is actually holding. No fault is known to follow from it today; the point is that none could be seen. `M4-T25` owns it.
 
+## ADR-201 — `GATE M4 STRANGER` passes, and the hold lifts
+
+**Date:** 2026-09-05 · **Status:** accepted · **Passes `GATE M4 STRANGER`** · **Releases `M4-T02`, `M4-T03`, `M4-T04`**
+
+**Context:** ADR-200 held this gate's verdict for exactly one commit. The reasoning was narrow and worth keeping: criterion 1 asks that *"a first-time tester reaches an exit having entered ≤4 of the rooms on a floor"*, and on a floor with a walled-off branch a low room count measures the generator fault rather than the wayfinding. Recording a pass against a contaminated measurement is ADR-195's failure wearing a friendlier face.
+
+**The developer has called it clear**, on the testers' own experience rather than on a re-run. The distinction that settles it: the unreachable areas were noticed and reported **as a bug** — *"there are some improvements to be made such as unreachable areas"* — rather than being mistaken for a floor that simply ended there. A tester who can tell you the level is broken has not been misled about the wayfinding, which is the only thing criterion 1 is trying to detect. The other three criteria — noise, explaining a death, discovering the drop — never touched the fault.
+
+**So the gate passes**, and this is recorded as a judgement call rather than as a measurement, on `GATE M3 EXIT`'s precedent, which reads *"called clear by the developer on their own play of the ADR-164 build"*. The pass is about a build that predates ADR-200's fix; the fix strictly improves the thing the gate was worried about, so nothing here rests on floors that are now better than the ones tested.
+
+**What it releases.** `M4-T02` (~6 enemy archetypes, 2 hazard types), `M4-T03` (two classes) and `M4-T04` (contracts tier 1–3) have been held by ADR-190's `<!-- hold ... until=STRANGER -->` since it was written. `status.py` computes the hold from the gate's state rather than from the comment, so the release is automatic and the comment stays as the record of why they waited.
+
+**`M4-T02` is now the next substantial build**, and it is correctly ordered: `M4-T16` built the behaviour first precisely so that six archetypes are variations on something worth varying rather than six ways to meet the same fight.
+
+### Passing it found a contradiction in `status.py`
+
+Marking the gate passed turned the board red: **`gate-premature` — M4 STRANGER is passed but 21 task(s) are unfinished.** The check fired on *any* passed gate, which conflates *the milestone is finished* with *one of its questions has been answered*. Those are different for every gate that is not `EXIT`, and ADR-190 put this one third in `M4` precisely so the cheapest evidence about whether the loop is fun arrives **before** the expensive content is built on top of it.
+
+It also contradicted `HOLD_RE`, in the same file. A hold makes a task wait on a mid-milestone gate — so if passing that gate required every task done, **the gate could never be passed, because the tasks it releases are unfinished by definition.** Two features of `status.py`, one of which could not run while the other worked, and neither had ever been exercised together: this is the first mid-milestone gate the project has ever passed.
+
+Scoped to `EXIT` gates, which are the only ones that claim a milestone's work is complete. `Milestone.cleared` is unchanged and still requires *every* gate — `M4` is not cleared until `EXIT`, `COOP` and `GREED` join this one. Planted both ways: `STRANGER` passing mid-milestone no longer errors, and marking `GATE M4 EXIT` passed with 21 tasks open still fires.
+
 *Entries below to be added as design decisions are signed off.*
 

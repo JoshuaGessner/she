@@ -596,8 +596,23 @@ def check_milestones(milestones: list[Milestone], docs: dict[str, Doc],
                 f"clear {dep.id} first, or record the gate as passed if it genuinely is",
             ))
 
+        # **Only an EXIT gate claims the milestone's work is done** (ADR-201).
+        #
+        # This read `for gate in ms.gates` and fired on any passed gate, which
+        # conflates *the milestone is finished* with *one of its questions has
+        # been answered*. The two are different for every gate that is not
+        # EXIT: ADR-190 put `GATE M4 STRANGER` third in M4 on purpose, so that
+        # the cheapest evidence about whether the loop is fun arrives before
+        # the expensive content is built on top of it.
+        #
+        # It also contradicted `HOLD_RE`. A hold makes a task wait on a
+        # mid-milestone gate — and if passing that gate required every task
+        # done, the gate could never be passed, because the tasks it releases
+        # are unfinished by definition. Two features of this file, one of which
+        # could not run while the other worked. Found the first time a
+        # mid-milestone gate was ever passed.
         for gate in ms.gates:
-            if gate.passed:
+            if gate.passed and gate.kind == "EXIT":
                 unfinished = [t for t in ms.live() if t.state != DONE]
                 if unfinished:
                     issues.append(Issue(
