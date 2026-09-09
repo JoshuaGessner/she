@@ -4,7 +4,7 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-09-04
+updated: 2026-09-06
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
@@ -132,9 +132,23 @@ Loot and enemies placed against the rules already established: greed gradient (`
 > **BUILT (ADR-193), one clause of the two.** Value climbs — 6 → 55 → 140 in
 > tribute across three floors — because `_by_worth()` now reads `_depth`, which
 > it ignored until then, so floor 0 and floor 2 drew an identical pool and the
-> *"steeply with depth"* half was a sentence nothing implemented. **The second
-> clause is not built**: the player cannot yet *see* it from floor 1, and that
-> is `M4-T23`, filed rather than left implied. The Prize being visible-but-distant from early in the expedition is what pulls people down (`PRO-005 §1`).
+> *"steeply with depth"* half was a sentence nothing implemented. The Prize
+> being visible-but-distant from early in the expedition is what pulls people
+> down (`PRO-005 §1`).
+
+> **AND THE SECOND CLAUSE IS BUILT** (ADR-204, `M4-T23`): **worth becomes
+> light.** A Prize's glimmer scales with its `tribute_value`, and the Shaft's
+> foot pours the light of the best find on the floor *below* it — so the climb
+> is something a player looks at rather than something that is merely true. The
+> column stays pale, because `M2-T13`'s rule is that pale is the way through and
+> gold is what it will cost you, and the Shaft is now both at once. **The bottom
+> floor pours nothing**: there the Shaft leads out (ADR-186), and gold at the
+> foot of the way home would say *cost* about the exit.
+
+> **What is still owed is placement, not light** (`M4-T28`). Measured, only
+> **1–2%** of a floor's standable cells have any line of sight to the Prize, and
+> at depth 2 the furthest is 8.3 m — visible only from inside its own room,
+> which is not distant. A light can only reveal what a sightline already allows.
 
 ---
 

@@ -835,6 +835,33 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And whether the gradient can be seen** (`M4-T23`, ADR-204). `M4-T01`
+	# step 7 made value climb with depth — 6 → 55 → 140 — and `DES-015` Layer 4
+	# asks for a second thing: that a player can *see* the climb from floor 1.
+	# The Prize's glimmer now scales with what it is worth and the Shaft's foot
+	# carries the light of the best find below it, and both are one number read
+	# twice, so both go flat together and in silence if anything stops reading
+	# it.
+	#
+	# **Two depths, and they are different questions.** Floor 0 has a floor
+	# under it, so its Shaft must pour; floor 2 is the bottom, where the Shaft
+	# leads *out* (ADR-186) and gold at its foot would say `cost` about the way
+	# home. **The `[vista] worth is` line is required, not merely read** —
+	# ADR-200's vacuous pass.
+	for depth in 0 2; do
+		vista="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
+			levels/room_set/room_set.tscn -- --vista-probe --delvings \
+			--seed=31346 --floor=$depth 2>&1)"
+		if [[ $? -ne 0 ]] \
+				|| ! printf '%s\n' "$vista" | grep -q '^\[vista\] worth is' \
+				|| printf '%s\n' "$vista" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+			echo "FAIL worth is what you can see (floor $depth)" >&2
+			printf '%s\n' "$vista" | grep -E '\[vista\]|ERROR' \
+				| sed 's/^/      /' >&2
+			exit 1
+		fi
+	done
+
 	# **The floor** (`M4-T01`, `DES-015` step 4, ADR-170, ADR-172). The graph
 	# became a space, and the row no other check can make is that it is still
 	# the same space: connectivity is read back off the grid rather than taken
@@ -1126,6 +1153,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "every floor the generator can emit poses a question and reads its seed,"
 	echo "no two pieces of interface are allowed to sit in the same place,"
 	echo "the floor has an outside and the fog closes it,"
+	echo "what is worth more is what you can see,"
 	echo "and the space built from it is still that floor,"
 	echo "and the walls of that floor are where the plan put them,"
 	echo "and a party can cross every floor of a run, not just the one we bake,"

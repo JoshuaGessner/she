@@ -308,6 +308,17 @@ func filler() -> Array:
 ## at all. `M4-T17`'s loot tables replace the cut with authored depth bands and
 ## nothing above this line changes then either.
 func _by_worth() -> Array[ItemResource]:
+	return worth_at(_depth)
+
+
+## **What a floor of a given depth may hold, richest first** (ADR-193).
+##
+## Static and depth-taking since `M4-T23` (ADR-204), because the Shaft has to
+## answer *what is under me* — and the floor under you does not exist yet, since
+## a party builds one floor at a time (ADR-184). Nothing here reads the seed:
+## the pool is the corpus, and depth alone decides how much of the top of it is
+## withheld, so the question is answerable without rolling a plan.
+static func worth_at(depth: int) -> Array[ItemResource]:
 	var pool: Array[ItemResource] = []
 	for item: ItemResource in ItemCatalogue.all():
 		if item.id == &"con_ember" or item.id == WAYSTONE:
@@ -317,7 +328,14 @@ func _by_worth() -> Array[ItemResource]:
 		if a.tribute_value != b.tribute_value:
 			return a.tribute_value > b.tribute_value
 		return String(a.id) < String(b.id))
-	return pool.slice(_withheld(pool.size()))
+	return pool.slice(_withheld(pool.size(), depth))
+
+
+## The best find a floor of this depth can produce, in tribute — the 6 → 55 →
+## 140 climb ADR-193 measured, asked of a depth rather than of a built floor.
+static func best_find(depth: int) -> int:
+	var pool: Array[ItemResource] = worth_at(depth)
+	return pool[0].tribute_value if not pool.is_empty() else 0
 
 
 ## How many of the dearest items this floor may not produce.
@@ -328,11 +346,11 @@ func _by_worth() -> Array[ItemResource]:
 ## decision on it, and `LEAVE_AT_LEAST` is the floor under that — the shallowest
 ## expedition still has to be worth walking through, or `DES-002`'s loop has a
 ## dead first act.
-func _withheld(size: int) -> int:
+static func _withheld(size: int, depth: int) -> int:
 	if size <= LEAVE_AT_LEAST or RunFile.LAST_FLOOR <= 0:
 		return 0
 	var deepest: float = float(RunFile.LAST_FLOOR)
 	var shallowness: float = clampf(
-		(deepest - float(_depth)) / deepest, 0.0, 1.0)
+		(deepest - float(depth)) / deepest, 0.0, 1.0)
 	var cut: int = int(round(float(size) * WITHHELD * shallowness))
 	return clampi(cut, 0, size - LEAVE_AT_LEAST)

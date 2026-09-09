@@ -68,6 +68,9 @@ const WALL_COLOUR: Color = Color(0.44, 0.43, 0.43)
 ## A probe that reads `DOORS.size()` would pass with every light missing.
 const DOOR_LIGHT_GROUP: StringName = &"door_light"
 const LANDMARK_GROUP: StringName = &"landmark"
+## The gold at the Shaft's foot, so `--vista-probe` can find it in the built
+## world rather than counting on the constant that made it (`M4-T23`).
+const UNDERLIGHT_GROUP: StringName = &"shaft_underlight"
 
 ## How much redder than bluer a light has to be before `--sight-probe` calls it
 ## warm. Generous: `PALE` is very slightly blue and the treasure gold is far
@@ -681,6 +684,10 @@ func _ready() -> void:
 			_fog_shot(arg.split("=", true, 1)[1])
 		elif arg == "--fog-probe":
 			_fog_probe()
+		elif arg.begins_with("--vista-shot="):
+			_vista_shot(arg.split("=", true, 1)[1])
+		elif arg == "--vista-probe":
+			_vista_probe()
 		elif arg == "--lantern-probe":
 			_lantern_probe()
 		elif arg.begins_with("--ear-shot="):
@@ -3069,6 +3076,291 @@ func _fog_probe() -> void:
 
 	print("[fog] fog closes the floor's outside")
 	_report(problems, "fog")
+
+
+## **Worth is what you can see** (`M4-T23`, `DES-015` Layer 4, ADR-204).
+##
+## `--vista-shot` is how the two ⟨tune⟩ pairs were chosen and it needs a person.
+## These four rows are what stops the gradient going flat in silence — which is
+## the failure this task exists to fix, arriving a second time: `M4-T01` step 7
+## made value climb with depth and nothing made the climb perceptible, so a
+## build where every floor glows the same is indistinguishable from a build
+## where every floor *is* the same.
+func _vista_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ 1. the climb exists, and it is the one ADR-193 measured ─
+	var climb: PackedInt32Array = PackedInt32Array()
+	for depth: int in range(RunFile.LAST_FLOOR + 1):
+		climb.append(DelvingsFloor.best_find(depth))
+	print("[vista] best find     %s" % str(climb))
+	for depth: int in range(1, climb.size()):
+		if climb[depth] <= climb[depth - 1]:
+			problems.append(("the best find on floor %d is %d against floor "
+				+ "%d's %d — `DES-015` Layer 4 wants value climbing steeply "
+				+ "with depth, and a flat gradient makes every light below "
+				+ "identical whatever this task did")
+				% [depth, climb[depth], depth - 1, climb[depth - 1]])
+
+	# ─ 2. the Prize's glimmer is what the Prize is worth ─
+	#
+	# Asked of the built world rather than of the constants, because a glow that
+	# stopped reading `tribute_value` would leave every number here correct.
+	var anchor: Vector3 = _floor.prize()
+	var item: WorldItem = null
+	var nearest: float = INF
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var w: WorldItem = node as WorldItem
+		var d: float = w.global_position.distance_to(anchor)
+		if d < nearest:
+			nearest = d
+			item = w
+	var poured: float = 0.0
+	if item != null:
+		for node: Node in item.get_children():
+			if node is OmniLight3D:
+				poured = (node as OmniLight3D).light_energy
+	print("[vista] the Prize     %s pours %.2f" % [
+		"nothing" if item == null else String(item.name), poured])
+	if item == null:
+		problems.append("nothing is standing on this floor's Prize anchor, so "
+			+ "the floor's best find is not on the floor")
+	else:
+		# **What it should pour, derived from the corpus rather than restated.**
+		# A row comparing the light against a constant would pass against a
+		# build whose scale had stopped reading `tribute_value` — ADR-192's
+		# density row, which compared a measurement against the constant that
+		# produced it.
+		var worth: int = item.definition().tribute_value
+		var glitter: bool = item.definition().tags.has(&"glitter")
+		var low: int = -1
+		var high: int = 0
+		for known: ItemResource in ItemCatalogue.all():
+			if not known.tags.has(&"glitter"):
+				continue
+			high = maxi(high, known.tribute_value)
+			low = known.tribute_value if low < 0 else mini(low,
+				known.tribute_value)
+		var share: float = (0.0 if high <= low
+			else clampf(float(worth - low) / float(high - low), 0.0, 1.0))
+		var expect: float = (0.0 if not glitter else lerpf(
+			WorldItem.GLIMMER_ENERGY.x, WorldItem.GLIMMER_ENERGY.y, share))
+		if not is_equal_approx(poured, expect):
+			problems.append(("the Prize is worth %d and pours %.2f, against "
+				+ "the %.2f its worth buys — the glimmer has stopped reading "
+				+ "the number `DES-015` Layer 4 is about")
+				% [worth, poured, expect])
+
+	# ─ 3. the Shaft carries the light of what is under it ─
+	var under: Array[Node] = get_tree().get_nodes_in_group(UNDERLIGHT_GROUP)
+	var leads_out: bool = _shaft != null and _shaft.leads_out
+	print("[vista] under the way %d light(s), and this Shaft leads %s"
+		% [under.size(), "out" if leads_out else "down"])
+	if leads_out and under.size() > 0:
+		# **The load-bearing row.** On the bottom floor the Shaft is the way
+		# home (ADR-186), and gold at its foot would say *cost* about the exit —
+		# which is the one sentence `M2-T13` spent a whole task making the
+		# palette incapable of saying.
+		problems.append(("the bottom floor's Shaft has %d gold light(s) at its "
+			+ "foot and it leads *out* — that promises a floor that is not "
+			+ "there, and says `cost` about the way home")
+			% under.size())
+	if not leads_out and under.is_empty():
+		problems.append("this Shaft has a floor under it and pours no light "
+			+ "for it, so nothing on this floor says the Cause is richer — "
+			+ "which is the whole of `DES-015` Layer 4's second clause")
+	if not leads_out and under.size() > 0:
+		var glow := under[0] as OmniLight3D
+		var below: int = DelvingsFloor.best_find(_floor_index + 1)
+		var deepest: int = DelvingsFloor.best_find(RunFile.LAST_FLOOR)
+		var want: float = lerpf(WorldItem.GLIMMER_ENERGY.x,
+			WorldItem.GLIMMER_ENERGY.y,
+			clampf(float(below) / float(maxi(deepest, 1)), 0.0, 1.0))
+		print("[vista] it pours     %.2f for a best find of %d below"
+			% [glow.light_energy, below])
+		if not is_equal_approx(glow.light_energy, want):
+			problems.append(("the Shaft pours %.2f and the floor under it is "
+				+ "worth %d, which is %.2f — the light is not reading the "
+				+ "number it is supposed to be about")
+				% [glow.light_energy, below, want])
+		# **And it is about the floor below, not this one.** The row above
+		# cannot say that on its own: it derives what to expect from
+		# `_floor_index + 1`, so a build that dropped the `+ 1` moves both sides
+		# together and passes — ADR-192's density row, which compared a
+		# measurement against the constant that produced it, arriving in a probe
+		# written by somebody who had just re-read it.
+		#
+		# Row 1 gives the independent statement for free: value climbs with
+		# depth, so whatever is under you is worth strictly more than what is
+		# on the floor you are standing on, and the light has to say so.
+		var here: int = DelvingsFloor.best_find(_floor_index)
+		var here_buys: float = lerpf(WorldItem.GLIMMER_ENERGY.x,
+			WorldItem.GLIMMER_ENERGY.y,
+			clampf(float(here) / float(maxi(deepest, 1)), 0.0, 1.0))
+		if glow.light_energy <= here_buys:
+			problems.append(("the Shaft pours %.2f, which is what *this* "
+				+ "floor's best find of %d buys — it is lighting the floor it "
+				+ "stands on rather than the one under it, so it promises "
+				+ "nothing a player has not already walked through")
+				% [glow.light_energy, here])
+		if glow.light_color.r <= glow.light_color.b + GOLD_MARGIN:
+			problems.append("the light under the Shaft is not gold, so it "
+				+ "reads as another way through rather than as what it costs")
+
+	# ─ 4. how much of the floor can see it at all ─
+	#
+	# **A number, not a threshold** (ADR-144's discipline). Lighting can only
+	# reveal what a sightline already allows, and `M4-T23` is scoped out of the
+	# generator on purpose — so this is recorded on every sweep and asserted by
+	# nothing. `M4-T28` owns the placement question.
+	var seen: int = 0
+	var standable: int = 0
+	if _field != null and item != null:
+		var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+		var target: Vector3 = item.global_position + Vector3(0.0, 0.25, 0.0)
+		for y: int in range(_field.height()):
+			for x: int in range(_field.width()):
+				var centre: Vector3 = _field.cell_centre(x, y)
+				var down := PhysicsRayQueryParameters3D.create(
+					centre + Vector3.UP * 12.0, centre - Vector3.UP * 6.0)
+				down.collision_mask = CollisionLayers.WORLD
+				var ground: Dictionary = space.intersect_ray(down)
+				if ground.is_empty():
+					continue
+				var stand: Vector3 = ground["position"] as Vector3
+				var chest := PhysicsRayQueryParameters3D.create(
+					stand + Vector3.UP * 0.3, stand + Vector3.UP * 1.7)
+				chest.collision_mask = CollisionLayers.WORLD
+				if not space.intersect_ray(chest).is_empty():
+					continue
+				standable += 1
+				var sight := PhysicsRayQueryParameters3D.create(
+					stand + Vector3(0.0, 1.6, 0.0), target)
+				sight.collision_mask = CollisionLayers.WORLD
+				if space.intersect_ray(sight).is_empty():
+					seen += 1
+	print("[vista] sightlines    %d of %d standable cells see the Prize (%.0f%%)"
+		% [seen, standable, 100.0 * float(seen) / maxf(float(standable), 1.0)])
+
+	print("[vista] worth is what you can see")
+	_report(problems, "vista")
+
+
+## **The furthest standable cell with a clear line to a point** (`M4-T23`).
+##
+## The same walk `_away_from_the_lamps` and `_open_to_the_sky` make, asking a
+## third question: *where is the last place you can still see this from*. That
+## is the vista rule's own measurement — `DES-015` wants a moment where the
+## player can see something valuable **and distant** — so the frame is chosen by
+## the property being judged rather than by a coordinate somebody liked.
+func _furthest_view_of(target: Vector3) -> Vector3:
+	if _field == null:
+		return Vector3.INF
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var best: Vector3 = Vector3.INF
+	var furthest: float = 0.0
+	for y: int in range(_field.height()):
+		for x: int in range(_field.width()):
+			var centre: Vector3 = _field.cell_centre(x, y)
+			var down := PhysicsRayQueryParameters3D.create(
+				centre + Vector3.UP * 12.0, centre - Vector3.UP * 6.0)
+			down.collision_mask = CollisionLayers.WORLD
+			var ground: Dictionary = space.intersect_ray(down)
+			if ground.is_empty():
+				continue
+			var stand: Vector3 = ground["position"] as Vector3
+			var chest := PhysicsRayQueryParameters3D.create(
+				stand + Vector3.UP * 0.3, stand + Vector3.UP * 1.7)
+			chest.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(chest).is_empty():
+				continue
+			var d: float = stand.distance_to(target)
+			if d <= furthest:
+				continue
+			var sight := PhysicsRayQueryParameters3D.create(
+				stand + Vector3(0.0, 1.6, 0.0), target)
+			sight.collision_mask = CollisionLayers.WORLD
+			if space.intersect_ray(sight).is_empty():
+				furthest = d
+				best = stand
+	return best
+
+
+## **Is there a moment where you can see something valuable and distant**
+## (`M4-T23`, `DES-015` Layer 4, ADR-204) — photographed rather than argued, on
+## `--light-shot`'s precedent (ADR-093).
+##
+## Two frames, each taken from the furthest standable cell that can still see
+## its subject, because *distant* is half the claim and a frame chosen by hand
+## would be a frame chosen to flatter.
+##
+## - **`prize`** is the floor's best find. Its glimmer now scales with what it
+##   is worth, so this is the frame that says whether the 6 → 55 → 140 climb is
+##   perceptible or only true.
+## - **`shaft`** is the way down with a floor under it. Its foot carries the
+##   light of the best find *below*, which is `DES-015`'s second clause: on a
+##   poor floor there is nothing valuable to see, and what is valuable and
+##   distant is the next floor.
+##
+## Ink on, and fog on, because that is the shipped state — with one fog-off
+## control per frame, since `M4-T26` dissolves the middle distance and the
+## honest question is how much of the vista it takes.
+func _vista_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	player.show_ink(true)
+	var head: Node3D = player.get_node("Head") as Node3D
+
+	var frames: Array = []
+	var anchor: Vector3 = _floor.prize()
+	var item: WorldItem = null
+	var nearest: float = INF
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var w: WorldItem = node as WorldItem
+		var d: float = w.global_position.distance_to(anchor)
+		if d < nearest:
+			nearest = d
+			item = w
+	if item != null:
+		frames.append(["prize", item.global_position + Vector3(0.0, 0.25, 0.0)])
+	if _shaft != null:
+		frames.append(["shaft", _shaft.position + Vector3(0.0, 0.6, 0.0)])
+	if frames.is_empty():
+		# **Not a silent pass** (ADR-200): a floor with neither is a finding.
+		printerr("[vista] FAIL this floor has neither a Prize nor a Shaft to "
+			+ "photograph, so nothing here can answer the vista rule")
+		get_tree().quit(1)
+		return
+
+	for frame: Array in frames:
+		var target: Vector3 = frame[1] as Vector3
+		var best: Vector3 = _furthest_view_of(target)
+		if best == Vector3.INF:
+			printerr("[vista] FAIL nothing on this floor can see the %s"
+				% frame[0])
+			get_tree().quit(1)
+			return
+		var eye: Vector3 = best + Vector3(0.0, 1.6, 0.0)
+		var to: Vector3 = target - eye
+		var yaw: float = atan2(-to.x, -to.z)
+		var pitch: float = atan2(to.y, Vector2(to.x, to.z).length())
+		print("[vista] %-5s furthest clear view %.1f m, against fog running "
+			% [frame[0], best.distance_to(target)]
+			+ "%.1f–%.1f m" % [Config.tuning.floor_fog_begin,
+				Config.tuning.floor_fog_end])
+		for fog: bool in [true, false]:
+			_environment.fog_enabled = fog
+			player.teleport(best + Vector3(0.0, 0.1, 0.0), yaw)
+			await _hold(0.35)
+			head.rotation.x = pitch
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(
+				"%s_%d_%s%s.png" % [path.trim_suffix(".png"), _floor_index,
+					frame[0], "" if fog else "_no_fog"])
+			print("[vista] %-5s fog %-3s → shot"
+				% [frame[0], "on" if fog else "off"])
+	_environment.fog_enabled = true
+	get_tree().quit()
 
 
 ## The floor directly under a point, or `Vector3.INF` if there is none within
@@ -5742,10 +6034,67 @@ func _build_shaft() -> void:
 	# geometry rather than a spawn — so the paths match by construction.
 	_shaft.configure_replication()
 	_world.add_child(_shaft)
+	_light_what_is_under(_shaft.position)
 	_shaft.claimed.connect(_on_shaft_claimed)
 	for player: Player in _session.players():
 		_watch(player)
 	_session.player_spawned.connect(_watch)
+
+
+## **The Shaft frames what is under it** (`M4-T23`, `DES-015` Layer 4, ADR-204).
+##
+## `DES-015` asks for two things and `M4-T01` built one: value climbs steeply
+## with depth — 6 → 55 → 140 — *and the player must be able to see that from
+## floor 1*. Nothing said it. A gradient nobody can perceive changes no
+## decision, so the half that was built meant nothing on the floor a player is
+## standing on.
+##
+## **Gold at the foot, and the column stays pale.** `M2-T13`'s vocabulary is
+## that pale light is the way through and gold light is what it will cost you,
+## and the Shaft is now both things at once — it is the way down *and* the thing
+## worth going down for. Splitting them by colour keeps the rule intact rather
+## than bending it: the beacon is `Shaft.IDLE`, unchanged, and what pools around
+## its base is treasure light from a floor you cannot see yet. Light through the
+## seams of a hatch, which is also the diegetic reading.
+##
+## **Nothing is dug.** The floor under the pad stays solid: a visible hole would
+## be a fall, a navmesh cut and a `--reach-probe` row, to show a floor that does
+## not exist — a party builds one floor at a time (ADR-184). What is honest here
+## is the *light*, and the fog `M4-T26` added is what turns it into a glow with
+## no visible origin rather than a lamp lying on the ground — Kaplan & Kaplan's
+## **mystery** (`TEC-008` §2.4), which that section calls the single most
+## actionable idea in the whole review.
+##
+## **The bottom floor gets none, and that is the load-bearing case.** There the
+## Shaft `leads_out` (ADR-186), so a glow under it would promise a floor that is
+## not there — and on the one floor where the Shaft is the way *home*, gold at
+## its foot would say *cost* about the exit, which is precisely the sentence
+## `M2-T13` spent a whole task making the palette incapable of.
+func _light_what_is_under(at: Vector3) -> void:
+	if _shaft == null or _shaft.leads_out:
+		return
+	var below: int = DelvingsFloor.best_find(_floor_index + 1)
+	var deepest: int = DelvingsFloor.best_find(RunFile.LAST_FLOOR)
+	if below <= 0 or deepest <= 0:
+		return
+	# **The same light the thing itself would pour.** A Shaft over a floor whose
+	# best find is worth 140 glows like a 140 lying in front of you, because it
+	# is the same claim about the same object — one number, read twice, rather
+	# than a second scale to drift from the first.
+	var t: float = clampf(float(below) / float(deepest), 0.0, 1.0)
+	var glow := OmniLight3D.new()
+	glow.add_to_group(WorldItem.TREASURE_LIGHT_GROUP)
+	glow.light_color = WorldItem.TAG_COLOURS[&"glitter"]
+	glow.light_energy = lerpf(
+		WorldItem.GLIMMER_ENERGY.x, WorldItem.GLIMMER_ENERGY.y, t)
+	glow.omni_range = lerpf(
+		WorldItem.GLIMMER_RANGE.x, WorldItem.GLIMMER_RANGE.y, t)
+	glow.position = at + Vector3(0.0, 0.3, 0.0)
+	glow.add_to_group(UNDERLIGHT_GROUP)
+	_world.add_child(glow)
+	print("[shaft] floor %d stands over a best find of %d — its foot pours "
+		% [_floor_index, below] + "%.1f at %.1f m"
+		% [glow.light_energy, glow.omni_range])
 
 
 ## The Shaft is channelled here rather than driving itself, so the level owns

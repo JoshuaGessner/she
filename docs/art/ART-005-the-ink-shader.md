@@ -57,6 +57,13 @@ The brief was *more colour than the reference, but not much, and dark.* The rule
 - **One cold accent per biome**, used sparingly: Delvings a cold mineral blue-green; Barrow-Fields a sickly bone-ochre; Sunken Wood a deep viridian.
 - **Blood** is desaturated almost to black.
 
+> **And how much of it there is, is what the thing is worth** (ADR-204,
+> `M4-T23`). A Prize's glow scales with its `tribute_value`, and the Shaft's
+> foot carries the light of the best find on the floor below — so the one
+> saturated hue also carries the depth gradient, and *"the player's eye is
+> pulled to exactly the thing that will get them killed"* becomes a statement
+> with a magnitude rather than a switch. A coin still only marks a place.
+
 In a game about greed, **the only thing in colour is treasure.** The player's eye is pulled to exactly the thing that will get them killed, and that is not a metaphor we have to explain — it is just how the screen looks.
 
 **The Gullsjúkr is therefore the most saturated object in the game.** A monochrome ink world, and the thing hunting you is a mass of gold. It will be visible from across a room and it will look wrong.

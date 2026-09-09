@@ -7019,5 +7019,68 @@ That is not a fog problem and the fog does not make it worse, but it is worth wr
 
 Six probe rows in `--fog-probe`, each planted against a deliberately broken build and each caught, plus the `_validate()` rule and the vacuous-pass case: handed `--fog-probeX` the level boots, prints no `[fog]` line and never reaches its own `quit()`, so the sweep row requires its closing line rather than the absence of `FAIL` (ADR-200, ADR-202).
 
+## ADR-204 — Worth is what you can see
+
+**Date:** 2026-09-06 · **Status:** accepted · **`M4-T23`** · **Opens `M4-T28`** · **Amends `DES-015`, `ART-005`**
+
+**Context:** `DES-015` Layer 4 is two clauses. `M4-T01` step 7 built the first — value climbs steeply with depth, **6 → 55 → 140** in tribute across three floors (ADR-193) — and the second was left: *"the player must be able to see that from floor 1. The Prize being visible-but-distant from early in the expedition is what pulls people down"* (`PRO-005` §1). A gradient nobody can perceive changes no decision, so the half that was built meant nothing on the floor a player is standing on.
+
+**The measurement came first and corrected the brief twice.**
+
+1. **The Prize was already lit.** `WorldItem._build_glimmer()` has given every glitter-tagged item a gold emission and a 4.2 m glow since `M2-T13`, deliberately small: *"this marks a place, it does not light a room — a treasure that lit its surroundings would make the greedy route the easiest one to walk."* Turning that up is the obvious fix and it would have broken the rule that keeps the greedy route from being the cheap one.
+2. **What you actually see at 23 m is a pinprick, and `M4-T26`'s fog halves it.** Warmest world pixel r−b **40 without fog, 19 with**; warm-cast pixels **234 → 68**. That is a real cost of ADR-203 and it is recorded here rather than left in a screenshot.
+
+### Decision 1 — one rule, not two features: **worth becomes light**
+
+The Prize and the Shaft are not two problems. A floor has exactly two things to offer — what is on it, and what is under it — and both are already scored by the same number. So one rule covers both: **how much gold light a thing pours is what it is worth**, and `tribute_value` is the number that decides it.
+
+That makes the gradient itself the thing you see. A floor whose best find is worth 140 glows; one worth 6 does not.
+
+### Decision 2 — the glimmer scales with `tribute_value`, against the corpus
+
+`GLIMMER_ENERGY` runs 0.9 → 2.6 and `GLIMMER_RANGE` 4.2 → 9.0 ⟨tune⟩, linear in the item's worth between the cheapest and dearest **glitter in the catalogue**. The low end is `M2-T13`'s number unchanged, so a coin still marks a place rather than lighting a room and that sentence stays true of cheap loot; what changed is that it stops being true of the Prize, which is the one object the design wants you to cross a floor for.
+
+**Measured against the catalogue rather than a constant.** A hardcoded 140 would be a second copy of `glt_altar_plate.tres`, and the first designer to author something richer would get a Prize pouring less light than the thing it outranks, with nothing anywhere saying so.
+
+### Decision 3 — the Shaft's foot carries the light of the best find **below**, and the column stays pale
+
+`M2-T13`'s vocabulary is that **pale light is the way through and gold light is what it will cost you**, and the Shaft is now both things at once — the way down *and* the thing worth going down for. Splitting them by colour keeps the rule intact instead of bending it: the beacon is `Shaft.IDLE`, untouched, and what pools around its base is treasure light from a floor you cannot see yet. Light through the seams of a hatch, which is also the diegetic reading.
+
+**It pours exactly what that floor's Prize would pour**, through the same two constants — one number read twice rather than a second scale to drift from the first.
+
+Measured, seed 31346: floor 0 stands over a best find of 55 and pours **1.57**; floor 1 stands over 140 and pours **2.60**; floor 2 pours nothing.
+
+### Decision 4 — nothing is dug, and the fog is what makes the light honest
+
+A visible hole under the pad would be a fall, a navmesh cut and a `--reach-probe` row, in order to show a floor that **does not exist** — a party builds one floor at a time (ADR-184). What is honest here is the *light*, and `M4-T26`'s fog is what turns it into a glow with no visible origin rather than a lamp lying on the ground: Kaplan & Kaplan's **mystery**, which `TEC-008` §2.4 calls the single most actionable idea in its whole review. The two tasks compose rather than collide.
+
+### Decision 5 — the bottom floor gets none, and that is the load-bearing case
+
+There the Shaft `leads_out` (ADR-186). A glow at its foot would promise a floor that is not there — and on the one floor where the Shaft is the way **home**, gold would say *cost* about the exit, which is precisely the sentence `M2-T13` spent a whole task making the palette incapable of. It is a probe row rather than a comment.
+
+### Decision 6 — the two ⟨tune⟩ pairs were chosen off the sweep, at both ends
+
+`--vista-shot` sweeps four values at the far case (floor 1, the Prize at **23.2 m**) and the near one (floor 2, the Prize at **8.3 m**). At 0.9/4.2 the far frame has nothing in it; at 1.6/6.0 a hint; at **2.6/9.0** a clearly warm opening you would walk toward, and up close a gold room with the Guardian silhouetted in it. At 4.0/13.0 the gold spills onto the corridor walls outside the room — which is *gold light on a wall*, the exact thing `--sight-probe` rule 5 exists to refuse. So 2.6/9.0 is the most that stays inside the palette's own rule.
+
+### Rejected
+
+- **A brighter uniform glow** — Decision 2. It breaks `M2-T13`'s reason for keeping the glimmer small, and says nothing about depth.
+- **`StandardMaterial3D.disable_fog` on treasure** — *distance takes the world, never the gold* is a lovely sentence and it measured **19 → 20**. At 23 m the item's own mesh is a handful of pixels and nearly all of the warm cast is **stone lit by the glow**, which is geometry, which fogs. A setting with no effect is worse than absent (ADR-064).
+- **A separate room-scale gold wash for the Prize's room** — a second scale beside the item's, with nothing tying them together, and gold on walls that are not treasure.
+- **Digging a visible shaft** — Decision 4.
+- **A placement guarantee in the generator** — `M4-T23` scopes itself out of generation in its own entry, and `M4-T25` is live in that code. `M4-T28` carries it instead.
+
+### What this found on the way
+
+**Floor 0's Prize is not glitter at all.** Its best find is worth 6 — a hide satchel — so it pours nothing and can pour nothing. That reads as a gap and is the design working: on a floor with nothing valuable on it, the valuable-and-distant thing is **the next floor**, and that is exactly what the Shaft now says. The two halves of this task turn out to cover for each other by depth.
+
+**And the Prize lights its own Guardian.** At 2.6/9.0 on floor 2 the body standing over the hoard is silhouetted against the gold it is guarding — the thing that will get you killed, lit by the thing you came for. Nothing was built for that; it falls out of putting the light on the object.
+
+**One probe row could not fail, and it is ADR-192's shape.** The Shaft's energy row derived what to expect from `_floor_index + 1` — the same expression the code under test uses — so a build that dropped the `+ 1` moved both sides together and passed. Row 1 supplies the independent statement: value climbs with depth, so whatever is under you is worth strictly more than what is on the floor you are standing on, and the light has to say so. Planted in `_light_what_is_under` alone the second time, and caught.
+
+**The sightline census, recorded rather than acted on.** Lighting can only reveal what a sightline already allows, and on seed 31346 only **4 of 295, 5 of 318 and 4 of 259** standable cells have any line to the Prize — 1–2% — with the furthest view running 36.7 m, 23.2 m and **8.3 m** by depth. On floor 2 that means the Prize is visible only from inside its own room, which is `DES-015`'s vista rule unmet and a **layout** property. `--vista-probe` prints it on every sweep as a number with no threshold (ADR-144's discipline) and `M4-T28` owns the question.
+
+Six probe rows in `--vista-probe`, each planted against a deliberately broken build and each caught, plus the vacuous-pass guard: the sweep requires the `[vista] worth is` line rather than the absence of `FAIL` (ADR-200, ADR-202).
+
 *Entries below to be added as design decisions are signed off.*
 

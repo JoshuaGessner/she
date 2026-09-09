@@ -80,6 +80,23 @@ const DEFAULT_COLOUR: Color = Color(0.55, 0.54, 0.52)
 ## wall sconce would say "valuable" in the only vocabulary the Deep has for it.
 const TREASURE_LIGHT_GROUP: StringName = &"treasure_light"
 
+## **What a glitter pool is worth, in light** ⟨tune⟩ (`M4-T23`, ADR-204).
+##
+## The first value is what the cheapest glitter in the corpus pours; the second
+## is what the richest does. Everything between is linear in `tribute_value`,
+## because that is the number `M4-T01` step 7 made climb with depth (ADR-193) —
+## 6 → 55 → 140 across three floors — and `DES-015` Layer 4's second clause is
+## that a player must be able to *see* that climb. A constant glow says every
+## floor is worth the same, which is the state the gradient was built out of.
+##
+## The low end is unchanged from `M2-T13`, deliberately: a coin still marks a
+## place rather than lighting a room, so *"a treasure that lit its surroundings
+## would make the greedy route the easiest one to walk"* still holds of cheap
+## loot. What changed is that the sentence stops being true of the Prize, which
+## is the one object the design wants you to cross a floor for.
+const GLIMMER_ENERGY: Vector2 = Vector2(0.9, 2.6)
+const GLIMMER_RANGE: Vector2 = Vector2(4.2, 9.0)
+
 const EMBER_COLOUR: Color = Color(0.95, 0.45, 0.14)
 const EMBER_RADIUS: float = 0.30
 
@@ -249,13 +266,37 @@ func _build_glimmer() -> void:
 	# on the first run.
 	glow.add_to_group(TREASURE_LIGHT_GROUP)
 	glow.light_color = _colour()
-	# Small and weak on purpose. This marks a place, it does not light a room —
-	# a treasure that lit its surroundings would make the greedy route the
-	# *easiest* one to walk, which inverts the entire point.
-	glow.light_energy = 0.9      # ⟨tune⟩
-	glow.omni_range = 4.2        # ⟨tune⟩
+	# **How much it pours is what it is worth** (`M4-T23`, ADR-204). A coin is
+	# still the small mark `M2-T13` made it; the richest thing on the floor is a
+	# pool you can see from another room, which is `ART-005`'s *"treasure should
+	# be visually magnetic — greed should be a visual pull before it is a
+	# mechanical one"* given the one number that varies.
+	var t: float = _share_of_the_richest()
+	glow.light_energy = lerpf(GLIMMER_ENERGY.x, GLIMMER_ENERGY.y, t)
+	glow.omni_range = lerpf(GLIMMER_RANGE.x, GLIMMER_RANGE.y, t)
 	glow.position.y = 0.45
 	add_child(glow)
+
+
+## Where this item sits between the cheapest and the dearest glitter the
+## corpus holds, 0 to 1.
+##
+## **Measured against the catalogue rather than a constant.** A hardcoded 140
+## would be a second copy of `glt_altar_plate.tres`, and the first designer to
+## author something richer would get a Prize that pours less light than the
+## thing it outranks — with nothing anywhere saying so.
+func _share_of_the_richest() -> float:
+	var low: int = -1
+	var high: int = 0
+	for item: ItemResource in ItemCatalogue.all():
+		if not item.tags.has(&"glitter"):
+			continue
+		high = maxi(high, item.tribute_value)
+		low = item.tribute_value if low < 0 else mini(low, item.tribute_value)
+	if low < 0 or high <= low:
+		return 0.0
+	return clampf(float(_definition.tribute_value - low) / float(high - low),
+		0.0, 1.0)
 
 
 ## An ember on the floor (`M2-T05`). A glowing sphere rather than a box, so it
