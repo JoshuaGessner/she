@@ -780,9 +780,38 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# is not an error to `room_set` — it boots the level, runs nothing, and
 	# quits 0 — so a check that only greps for `FAIL` would pass for a probe
 	# that never ran. That is `M4-T19` exactly, in the check written to fix it.
-	reach="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+	# **And a body walks it, not only an agent** (`M4-T25`, ADR-205). Everything
+	# above asks the navmesh — a 0.45 m agent that climbs 0.30 m — and the
+	# player is a 0.35 m capsule on `move_and_slide` with no step-up at all, so
+	# a rise the mesh crosses is a wall to the thing a person is holding. The
+	# probe now walks the real body along the real route.
+	#
+	# **Three required lines, and they do different jobs.** `[reach] control`
+	# walks the *authored* floor and is an assertion: the steering is naive on
+	# purpose, so a stall means nothing until the walker is known to cross a
+	# floor people have walked. `[reach] body` is the census on generated
+	# floors, and is deliberately **not** a threshold — it reads 5 of 9 today
+	# and `M4-T29` owns the fault. Requiring the line is what stops it going
+	# quiet; requiring a number it must hit would paint the sweep red for
+	# something this task is not fixing.
+	#
+	# The control is why `0/0` cannot pass: a route of fewer than two corners is
+	# "arrived" by definition, so an empty control would have waved the whole
+	# census through — and did, on its first run, printing `0/0 leg(s), 0.0 m`
+	# and calling it green (ADR-202's vacuous pass, inside the check written to
+	# avoid one).
+	# **The budget went up with the walking, and it is frames rather than
+	# seconds.** The navmesh half of this probe is geometry queries and cost
+	# 4.7 s; a body is simulated at 60 physics ticks per *wall-clock* second, so
+	# nine floors of walking cost about five minutes and nothing can hurry them.
+	# 60000 frames was ample for a probe that never waited for physics and is
+	# not obviously ample for one that does — and a budget that expires looks
+	# exactly like a probe that hung.
+	reach="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900000 \
 		levels/room_set/room_set.tscn -- --reach-probe 2>&1)"
 	if [[ $? -ne 0 ]] || ! printf '%s\n' "$reach" | grep -q '^\[reach\] panel' \
+			|| ! printf '%s\n' "$reach" | grep -q '^\[reach\] control' \
+			|| ! printf '%s\n' "$reach" | grep -q '^\[reach\] body' \
 			|| printf '%s\n' "$reach" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
 		echo "FAIL a party can cross every floor of a run" >&2
 		printf '%s\n' "$reach" | grep -E '\[reach\]|ERROR' | sed 's/^/      /' >&2

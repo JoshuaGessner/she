@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-06
+updated: 2026-09-10
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -7081,6 +7081,77 @@ There the Shaft `leads_out` (ADR-186). A glow at its foot would promise a floor 
 **The sightline census, recorded rather than acted on.** Lighting can only reveal what a sightline already allows, and on seed 31346 only **4 of 295, 5 of 318 and 4 of 259** standable cells have any line to the Prize — 1–2% — with the furthest view running 36.7 m, 23.2 m and **8.3 m** by depth. On floor 2 that means the Prize is visible only from inside its own room, which is `DES-015`'s vista rule unmet and a **layout** property. `--vista-probe` prints it on every sweep as a number with no threshold (ADR-144's discipline) and `M4-T28` owns the question.
 
 Six probe rows in `--vista-probe`, each planted against a deliberately broken build and each caught, plus the vacuous-pass guard: the sweep requires the `[vista] worth is` line rather than the absence of `FAIL` (ADR-200, ADR-202).
+
+## ADR-205 — Nothing had ever walked the player, and four floors in nine will not let it
+
+**Date:** 2026-09-10 · **Status:** accepted · **`M4-T25`** · **Opens `M4-T29`** · **Amends `TEC-008`**
+
+**Context:** `M4-T25` closed two run-ending generator faults in ADR-200 and left one row owed, in the task's own words: *"nothing walks the player."* Every reachability claim in this repository is asked of the navmesh — a **0.45 m** agent that climbs **0.30 m** — or of the room graph. The player is a **0.35 m** capsule driven by `move_and_slide` with **no step-up at all**: `CharacterBody3D` has none and this project adds none. So a rise the mesh is willing to cross is a wall to the body a person is actually holding, and the two had never been put on the same floor.
+
+The row was filed as *"no fault is known to follow from this today; the point is that none could be seen."* One of those two halves survived contact.
+
+### Decision 1 — the walk goes in `--reach-probe`, not in a probe of its own
+
+`--reach-probe` already bakes eight run seeds × three depths and asserts a navmesh route from the entrance to the Shaft. Adding *"and a body can walk it"* to a panel that already builds those floors is far cheaper than a second probe that would rebuild them, and it keeps the two claims about one floor next to each other where a divergence is visible.
+
+The technique is `_walk_speed`'s, which was already in the file: press the real action, run physics frames, read the real body. Steering is the only addition — a `teleport` to where the body already stands, because `_yaw` is private and `rotation.y` is rewritten from it every frame, with the velocity put back afterwards because `teleport` zeroes it. Arrival is asserted, never speed.
+
+**The floors are lifted 1000 m clear of the Deep first.** `FloorBuilder` lays cells out from the origin and `AuthoredFloor` is already standing there. That costs the navmesh rows nothing — the bake reads one geometry group and the Deep is not in it — but a body is not so selective, and a player dropped in at those coordinates would be shouldering through the Deep's masonry with every stall the probe's fault rather than the generator's. The lift is a **pure translation**, which is load-bearing rather than incidental: ADR-200's fault *was* voxel alignment, and a lift that moved the grid relative to the walls would stop reproducing it. Recast takes its voxel origin from the bounds of the geometry it is handed, so translating every wall together moves the grid with them. That is reasoning; the evidence is the panel reading `24 floor(s) walked end to end, 0 refused` either side of the constant — an aggregate, enough to say no floor was disconnected and not enough to say no vertex moved.
+
+### Decision 2 — the control runs first, and it is the only assertion here
+
+**A walk that stalls proves nothing until the walker is known good.** The steering is naive by design — aim at the next corner, hold forward — and naive steering wedges on wall corners, so *"the body did not arrive"* has two readings and only the second is interesting.
+
+So the probe walks the **Deep** first: hand-authored, the stage thirty other probes measure, and a floor people have actually walked. Entrance to exit is the span `--route-probe` requires to bend, so the control is not a straight line either. It reads **40 of 40 legs, 39.7 m** — the walker crosses a real floor end to end, through doorways and around a barricade, and every number below it therefore means something.
+
+This is `--walk-probe`'s missing half. That probe walks *enemies* — navmesh agents steered by `_steer_toward` — and so shares every assumption these rows are trying to get outside of.
+
+**The control's first run printed `0/0 leg(s), 0.0 m` and called it green.** The Deep's own bake is asynchronous, the route was asked for on the frame after `_ready`, and `_walk_route` calls a route of fewer than two corners *arrived* — correctly, there is nowhere to walk. An empty control would have waved the entire census through. That is ADR-202's vacuous pass arriving inside the check written to prevent one, in the same session as the ADR about it; the route is now polled like every other navmesh query here (ADR-106), and fewer than two corners is a failure rather than a pass.
+
+### Decision 3 — what it found: **five floors of nine**
+
+| seed · floor | legs walked | route | stalled on |
+|---|---|---|---|
+| 31346 · 0 | **23 of 114** | 101.1 m | 22° surface, 0.30 m ahead, on wall |
+| 31346 · 1 | 45 of 45 | 69.0 m | — |
+| 31346 · 2 | 43 of 43 | 71.7 m | — |
+| 78901 · 0 | 46 of 46 | 83.3 m | — |
+| 78901 · 1 | 36 of 36 | 61.3 m | — |
+| 78901 · 2 | **44 of 108** | 140.0 m | 22° surface, 0.30 m ahead |
+| 24680 · 0 | **34 of 66** | 71.9 m | flat, 0.30 m ahead |
+| 24680 · 1 | 77 of 77 | 118.9 m | — |
+| 24680 · 2 | **17 of 53** | 65.6 m | flat, 0.05 m ahead |
+
+In every stall the body is **standing on the floor** and advances 0.0–0.6 m of a leg before stopping. Three of the four have **exactly 0.30 m** of stone in front of them, which is `agent_max_climb` to the decimal: the mesh merges spans within 0.30 m into one walkable surface, so the route crosses the rise without noticing it, and the capsule cannot climb it at all.
+
+**The capsule's real limit is about 0.10 m,** and it is a consequence of shape rather than a setting. A capsule of radius `r` meeting a step of height `h` contacts the step's top edge at a normal `atan(√(r²−(r−h)²) / (r−h))` off vertical; at `floor_max_angle` 45° that solves to `h = r(1 − 1/√2)` = **0.1025 m** for `r` 0.35. Between 0.10 m and 0.30 m is a band the navmesh treats as ground and the player treats as a wall, and nothing in the repository knew the band existed.
+
+### Decision 4 — it is a census, not a threshold, and `M4-T29` owns the fault
+
+The generated-floor rows print and do not fail. This is ADR-144's discipline and `--vista-probe` row 4's precedent, taken for the same reason: the fault is in generation, fixing it is not what this task is, and asserting it would paint the sweep red for something no commit here is going to change. The line is printed unconditionally so it cannot go quiet, and the **control** remains an assertion so the census cannot quietly stop meaning anything.
+
+The sweep requires `[reach] control` and `[reach] body` as positive signal lines, not the absence of `FAIL` (ADR-200, ADR-202).
+
+**The control is planted, because it is the only thing here that can fail.** `_yaw_toward` was inverted to `atan2(d.x, d.z)` — the version that reads naturally and walks the body away from every corner, which is the same sign trap `rise_toward` documents. The control fell to **3 of 40 legs**, the census to **0 of 9**, and the sweep exited 1 with the row naming the authored floor. Both of its failure modes are therefore demonstrated: a walker that cannot steer, and the empty route it was already caught by once.
+
+### Why this is worse than a stumble: **the jump does not cover it when it matters**
+
+A player can jump, and 0.30 m is trivially jumpable — *unladen*. `jump_velocity` 4.2 against `gravity` 18.0 is **0.49 m** of clearance. But load costs height by design: `jump_at_capacity` 0.6 scales the impulse by encumbrance, so at full load the jump is 2.52 m/s and clears **0.176 m** — and the break-even against a 0.30 m rise is **≈55% encumbrance**.
+
+So the band is not a stumble. It is a wall that appears **exactly when the player is carrying enough to care**, on a floor where the Hunt walks over the same rise at full speed because the Hunt is the 0.30 m agent. `DES-002` asks weight to cost you speed and noise; it does not ask it to cost you the floor. And `CLAUDE.md`'s fourth principle asks that a player be able to explain their death in one sentence — *"I was stuck on an invisible thirty-centimetre lip while the Hunt walked over it"* is not that sentence.
+
+### What was rejected
+
+- **Asserting the census now.** It would block every commit in the queue behind a generator fix that is not scoped, and ADR-064's test for a permitted placeholder is a named task with a milestone — which `M4-T29` is.
+- **Lowering `agent_max_climb` to 0.10 to make the mesh honest.** The attractive one-line answer, and it is the *direction* `M4-T29` should test first — but Recast merging is what currently joins ramp feet and lapped slabs to the floors they meet (`LEDGE_FOOT` records three of four ledges baking as islands once already), so it may disconnect floors rather than fix them. That is a measurement, not a guess, and it belongs in the task that owns it.
+- **Giving the player a step-up.** Real code in the most feel-critical function in the game (`DES-009`), to paper over geometry nobody designed. Subtraction first.
+- **Walking all eight seeds.** A body is simulated at 60 physics ticks per *wall-clock* second and nothing can hurry it: the navmesh panel costs 4.7 s and the walk costs about **five and a half minutes** for nine floors. `--fixed-fps` would decouple simulated time from real time and would equally decouple the asynchronous navmesh bake this probe polls for — trading a slow check for a flaky one. Every seed is still asked whether a route *exists*, because that is ADR-200's fault and it was found by breadth; three are asked whether a body can walk it, because a rise the mesh crosses and the capsule cannot is a property of how the generator joins surfaces and every floor is joined by the same three functions.
+
+### What this found on the way
+
+**A comment that stopped being true underneath ADR-200.** `LEDGE_JOIN` is 0.1 m and its header says it is *"deliberately under one navmesh voxel (`cell_size` 0.15)"* — enough that the solids overlap, *"too little for Recast to rasterise as a step."* ADR-200 dropped `cell_size` to **0.10**, so 0.1 m is now exactly one voxel rather than under one, and `FLOOR_LAP` carries the same stale 0.15 in its reasoning. Neither number was changed here — they are generator constants and `M4-T29`'s to weigh — but a constant whose stated justification no longer holds is a named suspect rather than a curiosity, and 24680 floor 2 stalled against **0.05 m**.
+
+**The diagnostic conflates a slope with a step, and says so.** `_obstruction_height` casts forward from the feet and reports the first height that is clear, which on a 22° surface reports the surface itself: 0.6 m ahead of a 22° slope is 0.24 m higher, so it reads ≈0.30 m whether or not there is a step there. Two of the four stalls are on such a surface and their `0.30 m` is therefore not independent evidence of a step; the two on **flat** ground are. This is recorded rather than fixed because separating the two is `M4-T29`'s measurement, and a diagnostic that overstates its own reach is worse than one that states its limit.
 
 *Entries below to be added as design decisions are signed off.*
 

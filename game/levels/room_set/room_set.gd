@@ -177,11 +177,82 @@ const GENERATED_NAV_GROUP: StringName = &"generated_nav_source"
 const REACH_PANEL: Array[int] = [
 	31346, 11111, 40404, 57721, 66666, 78901, 13579, 24680,
 ]
+## Which of those seeds a **player body** is walked across, not merely routed
+## (`M4-T25`).
+##
+## A subset, and the reason is wall-clock. The navmesh rows are geometry
+## queries and the whole panel costs 4.7 s; walking is simulated at 60 Hz in
+## real time, so a floor takes about as long to cross as it would take a person
+## to cross it. Godot's `--fixed-fps` would decouple that, and it would also
+## decouple the asynchronous navmesh bake this probe polls for — trading a check
+## that is slow for one that is flaky.
+##
+## So the panel is split by what each half is for. **Every** seed is asked
+## whether a route exists, because that is the ADR-200 fault and it was found by
+## breadth. **Three** are asked whether a body can walk it, because the fault
+## that would show there — a rise the mesh crosses and the capsule cannot — is a
+## property of how the generator joins surfaces, and every floor is joined by
+## the same three functions. Breadth buys much less against a systematic fault
+## than against a knife-edge one.
+##
+## 78901 is kept for the same reason `REACH_PANEL` keeps it, and one seed from
+## each end of the list, so the three are not neighbours in whatever order the
+## sweep happened to try.
+const WALK_PANEL: Array[int] = [31346, 78901, 24680]
 ## How far a room centre may sit from the mesh before the room counts as
 ## off it. One body-width plus slack ⟨tune⟩.
 const NAV_REACH: float = 1.5
 const NAV_AGENT_RADIUS: float = 0.45
 const NAV_AGENT_HEIGHT: float = 1.8
+
+## Where `--reach-probe` puts the floors it walks a **body** across (`M4-T25`).
+##
+## The generated floor and the Deep stand in the same place: `FloorBuilder` lays
+## cells out from the origin and `AuthoredFloor` is already there. That costs
+## the navmesh rows nothing, because the bake reads one geometry group and the
+## Deep is not in it — but a body is not so selective. A player dropped into a
+## generated floor at these coordinates would be shouldering through the Deep's
+## masonry, and every stall would be the probe's fault rather than the
+## generator's.
+##
+## Lifting the floor clear is a **pure translation**, which matters more here
+## than it looks: ADR-200's fault *was* voxel alignment, so a lift that moved
+## the grid relative to the walls would stop reproducing it. Recast takes its
+## voxel origin from the bounds of the geometry it is handed, so translating
+## every wall together moves the grid with them and nothing changes about how a
+## doorway falls against it.
+##
+## That is reasoning, and the evidence for it is the panel: `24 floor(s) walked
+## end to end, 0 refused` either side of this constant, which is the row ADR-200
+## made red. It is an aggregate rather than a per-floor comparison — enough to
+## say the lift did not disconnect a floor, not enough to say no vertex moved.
+const WALK_LIFT: Vector3 = Vector3(0.0, 1000.0, 0.0)
+## How near a route corner the body must come before the leg counts as walked.
+##
+## `NAV_REACH` is 1.5 m and is the wrong number here: it is the slack allowed
+## between a *room centre* and the mesh, and a corner the body only ever gets
+## 1.4 m from is a corner it did not turn. One body-width and a little ⟨tune⟩.
+const WALK_ARRIVE: float = 1.2
+## Physics frames one leg of a route may take before it is called stalled.
+##
+## Generous on purpose, and it costs nothing when the leg is walked in fifty —
+## the budget is only spent in full by a leg that never finishes, which is the
+## case worth waiting for. At 60 Hz this is fifteen seconds to cross what is
+## usually a single room.
+const WALK_LEG_FRAMES: int = 900
+## How often the body is turned back toward the corner it is walking to.
+##
+## Steering is a `teleport` to where the body already is, because `_yaw` is
+## private and `rotation.y` is overwritten from it every frame — so a probe that
+## set the rotation directly would be steering nothing. The velocity is put back
+## afterwards, since `teleport` zeroes it and a body re-accelerating from rest
+## twelve times a second is not the body a person is holding.
+##
+## **Only while it is standing.** `teleport` also refreshes `_last_solid`, so
+## re-aiming a falling body would quietly tell the void guard that the inside of
+## a pit was solid ground — which would hide the one fault this row exists to
+## find.
+const WALK_AIM_EVERY: int = 12
 
 ## How many physics frames the build probe will wait for the navigation map to
 ## rebuild after a bake before calling it a failure.
@@ -1500,6 +1571,78 @@ func _reach_probe() -> void:
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
 	var kinds: PackedStringArray = _prize_kinds(modules)
 	var walked: int = 0
+	# **And the body a person is actually holding** (`M4-T25`).
+	#
+	# Every reachability claim in this repository is asked of the navmesh — a
+	# 0.45 m agent that climbs 0.30 m — or of the room graph. The player is a
+	# 0.35 m capsule on `move_and_slide` with **no step-up at all**, so a rise
+	# the mesh crosses is a wall to the thing being steered. Until now nothing
+	# had ever put the two on the same floor.
+	var player: Player = _session.local_player()
+	var bodies: int = 0
+	var legs: int = 0
+
+	# ─ the control, and it runs first ─
+	#
+	# **A walk that stalls proves nothing until the walker is known good.** The
+	# steering here is naive by design — aim at the next corner, hold forward —
+	# and naive steering wedges on wall corners, so *"the body did not arrive"*
+	# has two readings and the interesting one is the second: the floor is not
+	# walkable, or this probe cannot walk.
+	#
+	# The Deep separates them. It is hand-authored, it is the stage thirty other
+	# probes measure, and a person has walked it — so a body that cannot cross
+	# **it** is a fault in the walker, and every generated-floor row below is
+	# void. Entrance to exit is the same span `--route-probe` requires to bend,
+	# which means the control is not a straight line either.
+	#
+	# This is `--walk-probe`'s missing half. That one walks *enemies* — navmesh
+	# agents, steered by `_steer_toward` — and so shares every assumption the
+	# rows below are trying to get outside of.
+	if player != null:
+		var map_here: RID = get_world_3d().navigation_map
+		# Polled, never waited out: the Deep's own bake is asynchronous too, and
+		# the first draft of this row asked for a route on the frame after
+		# `_ready` and got an empty one — see the failure below, which is what
+		# said so.
+		var control := PackedVector3Array()
+		for frame: int in NAV_SYNC_FRAMES:
+			NavigationServer3D.map_force_update(map_here)
+			if NavigationServer3D.map_get_iteration_id(map_here) > 0:
+				control = NavigationServer3D.map_get_path(
+					map_here,
+					NavigationServer3D.map_get_closest_point(
+						map_here, _room_centre("entrance")),
+					NavigationServer3D.map_get_closest_point(
+						map_here, _room_centre("exit")),
+					true)
+				if control.size() > 1:
+					break
+			await get_tree().physics_frame
+		var walk: Dictionary = await _walk_route(player, control)
+		print("[reach] control    the Deep, entrance to exit: %d/%d leg(s), "
+			% [int(walk["walked"]), int(walk["of"])]
+			+ "%.1f m of route" % _route_length(control))
+		# **An empty control is a failure, not a pass.** `_walk_route` calls a
+		# route of fewer than two corners arrived — correctly, there is nowhere
+		# to walk — so a control that never got a route would report `0/0` and
+		# wave every row below it through. That is the vacuous pass of ADR-202
+		# arriving inside the check written to prevent one, and it did: this row
+		# printed `0/0 leg(s), 0.0 m` on its first run and called it green.
+		if control.size() < 2:
+			problems.append(("no route across the Deep to walk — the control "
+				+ "asked for one from the entrance to the exit and got %d "
+				+ "corner(s) after %d frame(s). Nothing below this line has "
+				+ "been checked against a floor known to be walkable")
+				% [control.size(), NAV_SYNC_FRAMES])
+		elif not bool(walk["arrived"]):
+			problems.append(("the player body cannot cross the **authored** "
+				+ "floor — %d of %d leg(s), stuck %.1f m short of a corner. "
+				+ "The Deep is hand-built and walked by people, so this is "
+				+ "the probe's steering failing and not a floor: every "
+				+ "generated-floor row below it means nothing until it is "
+				+ "green") % [int(walk["walked"]), int(walk["of"]),
+					_planar_gap(walk["stopped"], walk["wanted"])])
 
 	for run_seed: int in REACH_PANEL:
 		# `RunFile.LAST_FLOOR`, because that is the file that clamps a descent
@@ -1516,6 +1659,9 @@ func _reach_probe() -> void:
 				continue
 
 			var navroot := Node3D.new()
+			# Clear of the Deep, which is standing on the same co-ordinates —
+			# see `WALK_LIFT`. Every query below is lifted with it.
+			navroot.position = WALK_LIFT
 			add_child(navroot)
 			FloorBuilder.build(plan, graph, run_seed, depth, navroot)
 			navroot.add_to_group(GENERATED_NAV_GROUP)
@@ -1541,7 +1687,7 @@ func _reach_probe() -> void:
 			var map: RID = get_world_3d().navigation_map
 			var entrance: int = graph.node_with(MissionGraph.Role.ENTRANCE)
 			var shaft: int = graph.node_with(MissionGraph.Role.SHAFT)
-			var start_at: Vector3 = _plan_centre(plan, entrance)
+			var start_at: Vector3 = _plan_centre(plan, entrance) + WALK_LIFT
 			# Poll for the population about to be measured, never for a fixed
 			# frame count — ADR-106's lesson, and the reason `--build-probe`
 			# stopped being red on CI and green here.
@@ -1551,7 +1697,7 @@ func _reach_probe() -> void:
 				if NavigationServer3D.map_get_iteration_id(map) > 0:
 					on_mesh = 0
 					for node: int in standing:
-						var centre: Vector3 = _plan_centre(plan, node)
+						var centre: Vector3 = _plan_centre(plan, node) + WALK_LIFT
 						if NavigationServer3D.map_get_closest_point(map, centre) \
 								.distance_to(centre) <= NAV_REACH:
 							on_mesh += 1
@@ -1563,14 +1709,14 @@ func _reach_probe() -> void:
 			for node: int in standing:
 				if node == entrance:
 					continue
-				var centre: Vector3 = _plan_centre(plan, node)
+				var centre: Vector3 = _plan_centre(plan, node) + WALK_LIFT
 				var route: PackedVector3Array = NavigationServer3D.map_get_path(
 					map, start_at, centre, true)
 				if route.is_empty() \
 						or route[route.size() - 1].distance_to(centre) \
 							> NAV_REACH:
 					stranded += 1
-			var down: Vector3 = _plan_centre(plan, shaft)
+			var down: Vector3 = _plan_centre(plan, shaft) + WALK_LIFT
 			var out: PackedVector3Array = NavigationServer3D.map_get_path(
 				map, start_at, down, true)
 			var arrives: bool = not out.is_empty() \
@@ -1588,6 +1734,45 @@ func _reach_probe() -> void:
 					% [run_seed, depth, stranded, standing.size()])
 			else:
 				walked += 1
+				# The mesh says there is a way down. Now send the body.
+				if player != null and WALK_PANEL.has(run_seed):
+					var began: int = Time.get_ticks_msec()
+					var trek: Dictionary = await _walk_route(player, out)
+					legs += int(trek["walked"])
+					# Per floor, because the aggregate cannot say *which* floor
+					# is slow and this row is the one with a wall-clock cost
+					# worth watching (`WALK_PANEL`).
+					print("[reach] walk       seed %d floor %d: %d/%d leg(s), "
+						% [run_seed, depth, int(trek["walked"]),
+							int(trek["of"])]
+						+ "%.1f m of route, %.1f s"
+						% [_route_length(out),
+							float(Time.get_ticks_msec() - began) / 1000.0])
+					if bool(trek["arrived"]):
+						bodies += 1
+					else:
+						# **A census, not a threshold** (ADR-144's discipline,
+						# and `--vista-probe` row 4's precedent). What this
+						# found is a generation fault with a task of its own —
+						# `M4-T29` — and asserting it here would paint the
+						# sweep red for something no commit in this task is
+						# going to fix. The number is printed on every run so
+						# that it cannot go quiet, and the **control** above is
+						# the row that still fails, because the moment the
+						# walker breaks this census stops meaning anything.
+						var stopped: Vector3 = trek["stopped"]
+						var wanted: Vector3 = trek["wanted"]
+						print(("[reach] stall      seed %d floor %d: %.1f m of "
+							+ "an %.1f m leg, stopped %.2f m below the corner, "
+							+ "on a %.0f° surface, %.2f m of stone ahead, "
+							+ "on wall %s")
+							% [run_seed, depth, float(trek["moved"]),
+								_planar_gap(stopped, wanted)
+									+ float(trek["moved"]),
+								wanted.y - stopped.y,
+								float(trek["slope"]),
+								float(trek["step"]),
+								bool(trek["on_wall"])])
 
 			region.queue_free()
 			navroot.remove_from_group(GENERATED_NAV_GROUP)
@@ -1598,7 +1783,165 @@ func _reach_probe() -> void:
 		% [walked, problems.size()]
 		+ "across %d seed(s) x %d depth(s)"
 		% [REACH_PANEL.size(), RunFile.LAST_FLOOR + 1])
+	# **The row that says what walking found**, and it is a number rather than a
+	# pass: `M4-T29` owns the fault, and until that lands this line is expected
+	# to read short of the panel it was asked about. Printed unconditionally, so
+	# a build where it silently reached zero would be as loud as one where it
+	# reached all of them.
+	var asked: int = WALK_PANEL.size() * (RunFile.LAST_FLOOR + 1)
+	print("[reach] body       %d of %d floor(s) crossed by the player capsule, "
+		% [bodies, asked]
+		+ "%d route leg(s) walked" % legs)
 	_report(problems, "reach")
+
+
+## **Walk the route with the body, and see whether it arrives** (`M4-T25`).
+##
+## Everything else in this file that says *reachable* is asking the navmesh or
+## the room graph, and both answer about an **agent**: 0.45 m wide, 1.8 m tall,
+## climbing 0.30 m. The thing a person is holding is a 0.35 m capsule driven by
+## `move_and_slide` with **no step-up whatsoever** — Godot's `CharacterBody3D`
+## has none and this project adds none — so any rise the mesh is willing to
+## cross is a wall to the player and a ramp to the Hunt. That asymmetry has
+## never been measured here, in either direction.
+##
+## The technique is `_walk_speed`'s, which drives the real body through the real
+## input path rather than moving a transform: press the action, run physics
+## frames, read the result. Steering is the only addition, and it is a
+## `teleport` to where the body already stands, because `_yaw` is private and
+## `rotation.y` is rewritten from it every frame — see `WALK_AIM_EVERY` for why
+## the velocity is put back and why a falling body is left alone.
+##
+## **Arrival, never speed.** How fast a capsule crosses a room is a `DES-009`
+## question with a probe of its own; this one asks only whether it gets there,
+## so the re-aim's cost in momentum is not a measurement being spoiled.
+func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
+	var result: Dictionary = {
+		"arrived": false,
+		"walked": 0,
+		"of": maxi(route.size() - 1, 0),
+		"stopped": Vector3.ZERO,
+		"wanted": Vector3.ZERO,
+		# What the body was doing when it gave up. A stall against masonry and
+		# a stall in mid-air are different faults, and *"it never moved at
+		# all"* is a third — without these the report can only say that it did
+		# not arrive, which is the observation and not the diagnosis.
+		"on_wall": false,
+		"on_floor": false,
+		"moved": 0.0,
+		"step": 0.0,
+		"slope": 0.0,
+	}
+	# A one-corner route is the entrance and the Shaft in the same place, which
+	# the generator does not emit and which nothing would be learned from.
+	if route.size() < 2:
+		result["arrived"] = true
+		return result
+
+	# Half a metre up. A route corner sits *on* the mesh and the mesh is the
+	# floor, so a capsule spawned with its feet exactly level with the ground
+	# starts the frame interpenetrating and spends its first steps being pushed
+	# out rather than walking.
+	player.teleport(route[0] + Vector3(0.0, 0.5, 0.0),
+		_yaw_toward(route[0], route[1]))
+	for i: int in range(12):
+		await get_tree().physics_frame
+
+	for corner: int in range(1, route.size()):
+		var target: Vector3 = route[corner]
+		var arrived: bool = false
+		var leg_from: Vector3 = player.global_position
+		Input.action_press("move_forward")
+		for frame: int in WALK_LEG_FRAMES:
+			if frame % WALK_AIM_EVERY == 0 and player.is_on_floor():
+				var carried: Vector3 = player.velocity
+				player.teleport(player.global_position,
+					_yaw_toward(player.global_position, target))
+				player.velocity = carried
+			await get_tree().physics_frame
+			if _planar_gap(player.global_position, target) <= WALK_ARRIVE:
+				arrived = true
+				break
+		Input.action_release("move_forward")
+		for i: int in range(4):
+			await get_tree().physics_frame
+		if not arrived:
+			result["stopped"] = player.global_position
+			result["wanted"] = target
+			result["on_wall"] = player.is_on_wall()
+			result["on_floor"] = player.is_on_floor()
+			result["moved"] = _planar_gap(leg_from, player.global_position)
+			result["step"] = _obstruction_height(
+				player.global_position, target - player.global_position)
+			result["slope"] = (rad_to_deg(
+				player.get_floor_normal().angle_to(Vector3.UP))
+				if player.is_on_floor() else -1.0)
+			return result
+		result["walked"] = int(result["walked"]) + 1
+
+	result["arrived"] = true
+	return result
+
+
+## The yaw that points a body's front at `to`.
+##
+## A body turned `θ` about Y faces `-basis.z`, which is `(-sin θ, 0, -cos θ)`,
+## so the angle that faces a direction `d` is `atan2(-d.x, -d.z)` — **not** the
+## `atan2(d.x, d.z)` that reads naturally, which is the same sign trap
+## `rise_toward` documents and which walks the body away from every corner.
+static func _yaw_toward(from: Vector3, to: Vector3) -> float:
+	var d: Vector3 = to - from
+	return atan2(-d.x, -d.z)
+
+
+## Distance along the floor, ignoring height.
+##
+## Arrival is a place you are standing, and a route corner on a ramp is metres
+## above the body that is about to walk up to it. Measuring in three dimensions
+## would call that leg unfinished at the moment it was finished.
+static func _planar_gap(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
+## How far a route runs, corner to corner.
+##
+## The honest denominator for *"the body walked N legs"*: a route's leg count is
+## a property of how the mesh was cornered and says nothing about the distance
+## involved, so two floors with the same leg count can be a room apart or a
+## floor apart.
+static func _route_length(route: PackedVector3Array) -> float:
+	var run: float = 0.0
+	for i: int in range(1, route.size()):
+		run += route[i - 1].distance_to(route[i])
+	return run
+
+
+## **How tall the thing in front of the body is** (`M4-T25`).
+##
+## A stall is an observation; this is the diagnosis. Cast forward from the feet
+## at rising heights and report the first one that is clear — a step reads as
+## its own height, and anything taller than a body could climb reads as `INF`.
+##
+## The number this exists to catch is **0.30 m**: the navmesh bakes
+## `agent_max_climb = 0.3`, `CharacterBody3D` has no step-up at all and this
+## project adds none, so anything between zero and 0.30 m is a surface the route
+## crosses and the player cannot.
+func _obstruction_height(feet: Vector3, facing: Vector3) -> float:
+	var ahead: Vector3 = Vector3(facing.x, 0.0, facing.z)
+	if ahead.length_squared() < 0.0001:
+		return INF
+	# Just past the capsule's own radius, so the ray clears the body rather than
+	# starting inside it.
+	ahead = ahead.normalized() * 0.6
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for rung: int in range(1, 21):
+		var high: Vector3 = Vector3(0.0, float(rung) * 0.05, 0.0)
+		var ray := PhysicsRayQueryParameters3D.create(
+			feet + high, feet + high + ahead)
+		ray.collision_mask = CollisionLayers.WORLD
+		if space.intersect_ray(ray).is_empty():
+			return float(rung) * 0.05
+	return INF
 
 
 func _plan_probe() -> void:
