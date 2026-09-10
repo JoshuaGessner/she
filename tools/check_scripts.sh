@@ -901,8 +901,17 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		vista="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
 			levels/room_set/room_set.tscn -- --vista-probe --delvings \
 			--seed=31346 --floor=$depth 2>&1)"
+		# **And the row that asks the rule as it is written** (`M4-T28`,
+		# ADR-207). `DES-015` wants *"at least one moment"* — an existence
+		# claim — and the census above answers a coverage question instead. It
+		# reads 1–3% on every floor measured, including one where the Prize is
+		# in view from a third of the walk at 24 m and one where it is never in
+		# view at all, so it cannot tell those two apart. `[vista] on the way`
+		# samples the walk the player actually takes. Required as a line, not
+		# as a threshold: the fault it reports is `M4-T28`'s remaining half.
 		if [[ $? -ne 0 ]] \
 				|| ! grep -q '^\[vista\] worth is' <<<"$vista" \
+				|| ! grep -q '^\[vista\] on the way' <<<"$vista" \
 				|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$vista"; then
 			echo "FAIL worth is what you can see (floor $depth)" >&2
 			printf '%s\n' "$vista" | grep -E '\[vista\]|ERROR' \

@@ -254,6 +254,13 @@ const WALK_LEG_FRAMES: int = 900
 ## find.
 const WALK_AIM_EVERY: int = 12
 
+## How far apart the vista row samples the walk, in metres (`M4-T28`).
+##
+## By distance rather than per route corner, because a navmesh corners where its
+## polygons happen to meet — a fact about rasterisation, not about where a
+## player's eyes are. One metre is a stride ⟨tune⟩.
+const VISTA_STRIDE: float = 1.0
+
 ## How many physics frames the build probe will wait for the navigation map to
 ## rebuild after a bake before calling it a failure.
 ##
@@ -1601,24 +1608,8 @@ func _reach_probe() -> void:
 	# rows below are trying to get outside of.
 	if player != null:
 		var map_here: RID = get_world_3d().navigation_map
-		# Polled, never waited out: the Deep's own bake is asynchronous too, and
-		# the first draft of this row asked for a route on the frame after
-		# `_ready` and got an empty one — see the failure below, which is what
-		# said so.
-		var control := PackedVector3Array()
-		for frame: int in NAV_SYNC_FRAMES:
-			NavigationServer3D.map_force_update(map_here)
-			if NavigationServer3D.map_get_iteration_id(map_here) > 0:
-				control = NavigationServer3D.map_get_path(
-					map_here,
-					NavigationServer3D.map_get_closest_point(
-						map_here, _room_centre("entrance")),
-					NavigationServer3D.map_get_closest_point(
-						map_here, _room_centre("exit")),
-					true)
-				if control.size() > 1:
-					break
-			await get_tree().physics_frame
+		var control: PackedVector3Array = await _route_when_ready(
+			map_here, _room_centre("entrance"), _room_centre("exit"))
 		var walk: Dictionary = await _walk_route(player, control)
 		print("[reach] control    the Deep, entrance to exit: %d/%d leg(s), "
 			% [int(walk["walked"]), int(walk["of"])]
@@ -1793,6 +1784,32 @@ func _reach_probe() -> void:
 		% [bodies, asked]
 		+ "%d route leg(s) walked" % legs)
 	_report(problems, "reach")
+
+
+## A route, once the map that answers for it has actually finished building.
+##
+## Godot bakes navmeshes on a worker thread and the map's rebuild lands some
+## frames after the call returns (ADR-106, ADR-177), so a route asked for too
+## early comes back **empty** — which is indistinguishable from a floor with no
+## way across it, and which is exactly how `--reach-probe`'s control managed to
+## print `0/0 leg(s), 0.0 m` and call itself green.
+##
+## Polled for the answer rather than waited out for a fixed count, because a
+## fixed wait is an assumption about how fast the machine is: it costs nothing
+## when the map is ready on the first pass, which is the normal case.
+func _route_when_ready(map: RID, from_at: Vector3,
+		to_at: Vector3) -> PackedVector3Array:
+	var route := PackedVector3Array()
+	for frame: int in NAV_SYNC_FRAMES:
+		NavigationServer3D.map_force_update(map)
+		if NavigationServer3D.map_get_iteration_id(map) > 0:
+			route = NavigationServer3D.map_get_path(map,
+				NavigationServer3D.map_get_closest_point(map, from_at),
+				NavigationServer3D.map_get_closest_point(map, to_at), true)
+			if route.size() > 1:
+				break
+		await get_tree().physics_frame
+	return route
 
 
 ## **Walk the route with the body, and see whether it arrives** (`M4-T25`).
@@ -3584,6 +3601,68 @@ func _vista_probe() -> void:
 					seen += 1
 	print("[vista] sightlines    %d of %d standable cells see the Prize (%.0f%%)"
 		% [seen, standable, 100.0 * float(seen) / maxf(float(standable), 1.0)])
+
+	# ─ 5. and whether the *walk* ever offers the moment ─
+	#
+	# **The rule is an existence claim and row 4 measures coverage** (`M4-T28`,
+	# ADR-207). `DES-015` asks each floor for *"at least one moment where the
+	# player can see something valuable and distant that they must route
+	# toward"* — one moment, not a share of the floor. Row 4's 1–2% is a true
+	# number answering a question the design never asked, and read as a verdict
+	# it condemns a floor whose single vista is doing exactly its job.
+	#
+	# A moment is only a moment if the player is somewhere they would actually
+	# be, so this samples the **route they walk**: entrance to Shaft, the line
+	# every run follows, and the one the Prize has to tempt them off. A cell in
+	# a corner nobody visits is not a moment, however clear its sightline.
+	#
+	# Distance is the half that decides it. *Valuable and distant* is one
+	# clause, so a Prize visible only from inside its own room satisfies
+	# neither, and the furthest range on the route is what says which.
+	var on_route: int = 0
+	var route_points: int = 0
+	var furthest: float = 0.0
+	var walk_run: float = 0.0
+	var spawns: Array[Vector3] = _floor.spawns()
+	if item != null and _shaft != null and not spawns.is_empty():
+		var route: PackedVector3Array = await _route_when_ready(
+			get_world_3d().navigation_map, spawns[0], _shaft.position)
+		# **No route is a failure, not a floor with no view.** Two of the nine
+		# floors measured genuinely report `0 of N` — the Prize is never in
+		# sight of the walk — and a route that never baked would report `0 of
+		# 0` and read as the same thing at a glance. That is ADR-202's vacuous
+		# pass in the shape it took in `--reach-probe`'s control, which printed
+		# `0/0` and called itself green; the difference between *nothing to see*
+		# and *nothing was asked* has to be in the report and not in the reader.
+		if route.size() < 2:
+			problems.append(("no route from the spawn to the Shaft to sample, "
+				+ "after %d frame(s) — the vista row measured nothing, and a "
+				+ "floor with no view and a floor nobody asked about print the "
+				+ "same zero") % NAV_SYNC_FRAMES)
+		walk_run = _route_length(route)
+		var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+		var target: Vector3 = item.global_position + Vector3(0.0, 0.25, 0.0)
+		for corner: int in range(1, route.size()):
+			var from_at: Vector3 = route[corner - 1]
+			var to_at: Vector3 = route[corner]
+			# Sampled by distance rather than per corner: the mesh corners
+			# where its polygons happen to meet, which is a fact about
+			# rasterisation and not about where a player's eyes are.
+			var strides: int = maxi(1,
+				int(from_at.distance_to(to_at) / VISTA_STRIDE))
+			for step: int in strides:
+				var at: Vector3 = from_at.lerp(to_at,
+					float(step) / float(strides))
+				route_points += 1
+				var sight := PhysicsRayQueryParameters3D.create(
+					at + Vector3(0.0, EYE_HEIGHT, 0.0), target)
+				sight.collision_mask = CollisionLayers.WORLD
+				if space.intersect_ray(sight).is_empty():
+					on_route += 1
+					furthest = maxf(furthest, at.distance_to(target))
+	print("[vista] on the way    %d of %d point(s) on a %.0f m walk see the "
+		% [on_route, route_points, walk_run]
+		+ "Prize, furthest %.1f m" % furthest)
 
 	print("[vista] worth is what you can see")
 	_report(problems, "vista")

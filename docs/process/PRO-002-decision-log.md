@@ -7215,5 +7215,69 @@ The direction differs and matters. Reading a sweep through `tail` calls a **red 
 
 **The local sweep is not a weaker CI, it is a differently-timed one.** ADR-104 put it as *"a green local tree and a green CI are different claims; only the second one is about a repository somebody else could clone."* This is the first time that gap has been a **race** rather than a missing input — no `lfs: true` to add, nothing absent from the checkout, the same script and the same binary reaching opposite verdicts on identical bytes. The remedy is the same either way: read the CI result at the start of every session, because the thing that catches this is somebody looking.
 
+## ADR-207 — The vista rule was being measured by a number that cannot fail differently
+
+**Date:** 2026-09-10 · **Status:** accepted · **`M4-T28`** · **Amends `DES-015`, `TEC-008`**
+
+**Context:** ADR-204 closed `M4-T23` and filed the half it could not reach: *"only 1–2% of standable cells can see the Prize at all, and on floor 2 the furthest view is 8.3 m."* `M4-T28` was opened to fix the **placement** that produced those numbers.
+
+The numbers are correct. They are also the wrong numbers, and this ADR is mostly about how that was found — because the fix `M4-T28` was written to make would have been tuned against a metric that cannot tell a good floor from a broken one.
+
+### Decision 1 — the rule is an existence claim, so measure existence
+
+`DES-015` says it in one sentence:
+
+> each floor should contain **at least one moment** where the player can see something valuable and distant that they must route toward.
+
+*One moment.* Not a share of the floor. The census in `--vista-probe` row 4 walks every standable cell and reports what fraction has a line to the Prize, which is a coverage question the design never asks — and coverage is dominated by the cells nobody stands on, because most of a floor is corridor and back-of-room that no run ever visits.
+
+**A moment is only a moment if the player is somewhere they would actually be.** So row 5 samples the **route**: entrance to Shaft, on the baked navmesh, every metre, at eye height, asking whether the Prize is in view and from how far. That is the line every run follows and the one the Prize has to tempt somebody off.
+
+### Decision 2 — what the two metrics say, side by side
+
+Nine floors, three seeds, three depths:
+
+| seed · floor | census (whole floor) | on the route | furthest, on the route |
+|---|---|---|---|
+| 31346 · 0 | 4 of 295 — **1%** | 5 of 141 | 9.6 m |
+| 31346 · 1 | 5 of 318 — **2%** | **0 of 75** | **0.0 m** |
+| 31346 · 2 | 4 of 259 — **2%** | 7 of 84 | 7.5 m |
+| 78901 · 0 | 6 of 176 — **3%** | 35 of 92 | **24.1 m** |
+| 78901 · 1 | 5 of 187 — **3%** | 14 of 69 | **24.1 m** |
+| 78901 · 2 | 10 of 498 — **2%** | 37 of 168 | **21.2 m** |
+| 24680 · 0 | 5 of 160 — **3%** | 20 of 96 | 8.1 m |
+| 24680 · 1 | 5 of 293 — **2%** | 14 of 140 | 9.3 m |
+| 24680 · 2 | 6 of 391 — **2%** | **0 of 83** | **0.0 m** |
+
+**The census is flat at 1–3% across every floor.** It gives 3% to seed 78901 floor 0, where the Prize is in view from 38% of the walk at up to 24.1 m, and 2% to seed 31346 floor 1, where the Prize is **never in view from the route at all**. Those are the best and worst floors in the panel and the census separates them by one percentage point, in the wrong direction.
+
+A number that moves by noise between a floor that satisfies the rule and a floor that cannot is not a weak measurement, it is a measurement of something else. Tuning placement until that percentage rose would have been optimising the count of unvisited corners with a sightline.
+
+### Decision 3 — the generator already does this, and does not know it
+
+The finding underneath is not the one `M4-T28` was filed with. **Seed 78901 meets the vista rule on all three of its floors** — 21.2 m to 24.1 m, from between 15% and 38% of the walk. The generator's existing vocabulary produces a real vista; `TEC-008`'s devices work.
+
+And **two floors of nine give the player no view of the Prize whatsoever.** Not a short one. None.
+
+So this is **variance, not incapacity**, and that changes the fix from a redesign to a guarantee: the generator must be made to always deliver what it currently delivers by luck, and it has an existence proof of its own that this is reachable. That is a much smaller and much better-specified piece of work than *"fix the placement"*, and it is what remains of `M4-T28`.
+
+### What was rejected
+
+- **Replacing the census.** It stays. It is the right instrument for a different question — *can this floor be seen into at all* — and it is what caught the floor-2 8.3 m case ADR-204 reported. Two rows, two questions; deleting the older one would lose the reason the newer one exists.
+- **Making row 5 a threshold now.** There is no defensible number yet: *distant* is ⟨tune⟩, the panel is three seeds, and the row would be asserting a target chosen the same afternoon it was first measured. It is required as a **line** (ADR-200, ADR-202) so it cannot go quiet, and `M4-T28` sets the threshold when it lands the guarantee.
+- **Fixing placement in this commit.** The measurement changed what *fixed* means, and a placement change tuned against the metric it replaced would have to be redone. The guarantee is specified in `M4-T28` and not started here.
+
+### What this found on the way
+
+**Two hypotheses died to the measurement, in order.**
+
+The first was mine before the panel: reading the rule as an existence claim, the census's own furthest views — 36.7 m, 23.2 m, 8.3 m — suggested floors 0 and 1 already passed and only floor 2 failed. The route says otherwise. On seed 31346 the whole-floor furthest is **36.7 m** and the furthest **from the walk** is **9.6 m**: the long line exists, in a place the run never goes. A sightline nobody stands on is not a moment.
+
+The second was that the fault is structural. Rooms are at most 5×5 cells — 10 m across, ~14 m on the diagonal — and `FloorPlan.DOGLEG_RUN` caps any straight corridor run at 4 cells, which `--fog-probe` already reads as a 10.0 m entitlement. Seed 31346's 9.6 m and seed 24680's 8.1 m and 9.3 m sit exactly under that cap, and the conclusion that no floor could ever show the Prize from further looked solid. Seed 78901 refutes it three times at 21–24 m. Widening the panel from one seed to three is what turned a confident structural argument into a wrong one.
+
+**`--vista-probe` had no navmesh in it before today.** Row 5 needs a route, so the async-bake poll that `--reach-probe`'s control was caught by (ADR-205) is now a shared helper, `_route_when_ready`, rather than a second copy of the same twelve lines.
+
+**And the vacuous pass came back a third time, so it is guarded rather than remembered.** Two of the nine floors genuinely report `0 of N` — the Prize is never in sight of the walk — and a route that never baked would report `0 of 0` and read as the same thing at a glance. An empty route is therefore a failure here, not a floor with no view: *nothing to see* and *nothing was asked* must be distinguishable in the report rather than by the person reading it. Planted by replacing the route with an empty array; the row printed `0 of 0 point(s) on a 0 m walk` and the probe failed with the line naming the cause.
+
 *Entries below to be added as design decisions are signed off.*
 
