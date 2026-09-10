@@ -7153,5 +7153,67 @@ So the band is not a stumble. It is a wall that appears **exactly when the playe
 
 **The diagnostic conflates a slope with a step, and says so.** `_obstruction_height` casts forward from the feet and reports the first height that is clear, which on a 22° surface reports the surface itself: 0.6 m ahead of a 22° slope is 0.24 m higher, so it reads ≈0.30 m whether or not there is a step there. Two of the four stalls are on such a surface and their `0.30 m` is therefore not independent evidence of a step; the two on **flat** ground are. This is recorded rather than fixed because separating the two is `M4-T29`'s measurement, and a diagnostic that overstates its own reach is worse than one that states its limit.
 
+## ADR-206 — The sweep read its own checks through a pipe, fifty-eight times
+
+**Date:** 2026-09-10 · **Status:** accepted · **`M4-T25`** · **Amends `TEC-002`**
+
+**Context:** ADR-205 landed, the full local sweep was green, and **CI went red on the same commit** — in the `--reach-probe` row, whose output was word-for-word correct:
+
+```
+[reach] control    the Deep, entrance to exit: 40/40 leg(s), 39.7 m of route
+[reach] panel      24 floor(s) walked end to end, 0 refused, across 8 seed(s) x 3 depth(s)
+[reach] body       5 of 9 floor(s) crossed by the player capsule, 365 route leg(s) walked
+FAIL a party can cross every floor of a run
+```
+
+Every line the check required was present. No `FAIL` came from the probe. The check said `FAIL` anyway, and one line above it the log said what really happened:
+
+```
+tools/check_scripts.sh: line 813: printf: write error: Broken pipe
+```
+
+### The mechanism
+
+Every test in this file was written as `printf '%s\n' "$out" | grep -q …`.
+
+`grep -q` exits the instant it matches. If the writer has not finished, `printf` takes **EPIPE** and dies with **141**, and `set -o pipefail` makes 141 the status of the pipeline. So `! printf … | grep -q PATTERN` evaluates to *false* — "not found" — for output that plainly contains the pattern.
+
+It is a race against the 64 KB pipe buffer, and it has three ingredients:
+
+1. **Output larger than the buffer.** Until now every probe's was smaller, so `printf` always finished writing and exited 0.
+2. **A match near the start.** The earlier the match, the more `printf` has left to write when grep goes away.
+3. **Whatever the scheduler does that day.** Which is why it was green on this desk and red on a two-core runner.
+
+ADR-205 supplied the first two at once. The walking body made `--reach-probe`'s output large — it carries Godot's navmesh warnings as well — and the new test matched `[reach] control`, which is the **first line printed**.
+
+Reproduced deliberately, away from the sweep: 287 KB of output with the marker on line 1 gives the pipe form **status 141** and the herestring **status 0**.
+
+### Decision — herestrings, everywhere the status is read
+
+All **58** conditional `printf … | grep -q` forms become `grep -q … <<<"$var"`. A herestring is a temporary file, not a pipe; nothing can take EPIPE from it, and the transformation is otherwise exact — `<<<` supplies the same trailing newline `printf '%s\n'` did.
+
+**Only the forms whose status is read.** `printf … | grep -E … | sed … >&2`, the reporting lines that print context after a failure, keep their pipes: nothing tests them, and a lost byte there costs a line of diagnostics rather than a wrong verdict.
+
+### Why this is not merely a bug fix
+
+`CLAUDE.md` already carries the rule, learned twice:
+
+> **Never read a sweep's exit status through a pipe.** `check_scripts.sh | tail` reports `tail`'s status and will call a red sweep green.
+
+That is the same fault, one level out — and the file the rule was written to protect was committing it fifty-eight times to read its own probes. The recorded lesson had been generalised to how the sweep is *invoked* and never applied to how it is *written*.
+
+The direction differs and matters. Reading a sweep through `tail` calls a **red run green**, which hides a fault. This called a **green run red**, which manufactures one — and a check that fails for reasons unrelated to what it measures is the fastest way to teach somebody to re-run CI until it passes.
+
+### What was rejected
+
+- **Fixing only the `--reach-probe` row.** It is the row that happened to be loud. Fifty-seven others had the same defect and were waiting for a probe's output to grow, which is a thing probes do.
+- **Dropping `pipefail`.** It is what makes an engine crash mid-pipeline fail the row instead of passing silently. The pipe is the fault, not the option that reports it.
+- **`grep -q … || true` to swallow 141.** It swallows every other non-zero too, including grep's own failure to match, which is the answer the test exists to get.
+- **`head -c` or `cat` in front of grep.** Another process, another pipe, same race one link along.
+
+### What this found on the way
+
+**The local sweep is not a weaker CI, it is a differently-timed one.** ADR-104 put it as *"a green local tree and a green CI are different claims; only the second one is about a repository somebody else could clone."* This is the first time that gap has been a **race** rather than a missing input — no `lfs: true` to add, nothing absent from the checkout, the same script and the same binary reaching opposite verdicts on identical bytes. The remedy is the same either way: read the CI result at the start of every session, because the thing that catches this is somebody looking.
+
 *Entries below to be added as design decisions are signed off.*
 

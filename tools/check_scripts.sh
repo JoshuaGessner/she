@@ -20,6 +20,26 @@
 
 set -uo pipefail
 
+# **Every test reads its output from a herestring, never through a pipe**
+# (`M4-T25`, ADR-206).
+#
+# `grep -q` exits the instant it matches. If the writer on the other end of the
+# pipe has not finished, it takes EPIPE and dies with 141 — and `pipefail` makes
+# that the status of the whole pipeline, so `! printf … | grep -q` reads *false*
+# for output that plainly contains the thing it was looking for. It is a race
+# against the 64 KB pipe buffer: harmless while a probe's output is small, and a
+# coin-flip once it is not.
+#
+# It cost a red CI on a green tree. `--reach-probe` grew a walking body, its
+# output grew past the buffer, and the new test matched `[reach] control` — the
+# **first** line, so grep exited at once with the most left to write. The probe
+# printed every line the check wanted and the check said `FAIL`, on CI only,
+# because the timing differs there. `CLAUDE.md` already says never to read a
+# sweep's exit status through a pipe; this file was doing it fifty-eight times
+# to read its own.
+#
+# A herestring is a file, not a pipe. Nothing can get EPIPE from it.
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GAME="$ROOT/game"
 
@@ -148,8 +168,8 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		gym="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
 			levels/dev/movement_gym.tscn -- "$flag" 2>&1)"
 		if [[ $? -ne 0 ]] \
-				|| ! printf '%s\n' "$gym" | grep -qF "$marker" \
-				|| printf '%s\n' "$gym" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+				|| ! grep -qF "$marker" <<<"$gym" \
+				|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$gym"; then
 			echo "FAIL $claim" >&2
 			printf '%s\n' "$gym" | grep -E '^\[|ERROR|FAIL' | sed 's/^/      /' >&2
 			exit 1
@@ -168,7 +188,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# enforces them.
 	if [ -f "$GAME/art/characters/humanoid_rig.glb" ]; then
 		rig="$("$GODOT_BIN" --headless --path "$GAME" --script tests/rig_probe.gd 2>&1)"
-		if printf '%s\n' "$rig" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		if grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$rig"; then
 			echo "FAIL the shared humanoid rig" >&2
 			printf '%s\n' "$rig" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
 			exit 1
@@ -184,7 +204,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# never reaches its own quit() and would hang the build forever.
 	data="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
 		--script tests/data_probe.gd 2>&1)"
-	if printf '%s\n' "$data" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$data"; then
 		echo "FAIL the authored data" >&2
 		printf '%s\n' "$data" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -201,7 +221,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# code.
 	bag="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --bag-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$bag" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$bag"; then
 		echo "FAIL the greed loop" >&2
 		printf '%s\n' "$bag" | grep -E '\[bag\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -216,7 +236,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# different questions and only the first one had a check.
 	bagui="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --bagui-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$bagui" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$bagui"; then
 		echo "FAIL the bag has to be reachable" >&2
 		printf '%s\n' "$bagui" | grep -E '\[bagui\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -233,7 +253,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# `health.died`, so downing a player there frees every enemy in the level.
 	fallen="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
 		levels/room_set/room_set.tscn -- --fallen-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$fallen" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$fallen"; then
 		echo "FAIL the fallen are not a target" >&2
 		printf '%s\n' "$fallen" | grep -E '\[fallen\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -252,7 +272,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# exit code are the signal.
 	save="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
 		-- --save-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$save" | grep -qE 'PROBLEM|FAIL|SCRIPT ERROR'; then
+	if [[ $? -ne 0 ]] || grep -qE 'PROBLEM|FAIL|SCRIPT ERROR' <<<"$save"; then
 		echo "FAIL a profile has to survive a round trip and refuse what it cannot read" >&2
 		printf '%s\n' "$save" | grep -E '\[save\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -267,7 +287,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# under test is the settle, and the settle is a Lair action.
 	tithe="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
 		levels/lair/chamber.tscn -- --tithe-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$tithe" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$tithe"; then
 		echo "FAIL the Tithe has to cost something and die with you" >&2
 		printf '%s\n' "$tithe" | grep -E '\[tithe\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -288,7 +308,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# tried did that at rank 8.
 	rank="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
 		levels/room_set/room_set.tscn -- --rank-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$rank" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$rank"; then
 		echo "FAIL a rank-8 floor has to be a different floor" >&2
 		printf '%s\n' "$rank" | grep -E '\[rank\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -305,7 +325,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# events at all. That cost the whole of `M2-T18` to find on the bag.
 	class_="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
 		-- --class-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$class_" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$class_"; then
 		echo "FAIL a life has to be able to begin" >&2
 		printf '%s\n' "$class_" | grep -E '\[class\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -321,7 +341,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# reaches all of it.
 	pact="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
 		levels/lair/chamber.tscn -- --pact-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$pact" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$pact"; then
 		echo "FAIL power has to cost obligation" >&2
 		printf '%s\n' "$pact" | grep -E '\[pact\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -336,7 +356,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# age — and nothing asked whether the order let one reach the other.
 	creditor="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
 		levels/room_set/room_set.tscn -- --creditor-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$creditor" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$creditor"; then
 		echo "FAIL a missed Tithe has to reach the floor it was missed for" >&2
 		printf '%s\n' "$creditor" | grep -E '\[creditor\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -355,7 +375,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# true-but-beside-the-point assertion this milestone.
 	stalker="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --stalker-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$stalker" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$stalker"; then
 		echo "FAIL the quiet way out" >&2
 		printf '%s\n' "$stalker" | grep -E '\[stalker\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -372,7 +392,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# effect push can be caught not happening (`M3-T12` found it by accident).
 	respec="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
 		levels/lair/chamber.tscn -- --respec-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$respec" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$respec"; then
 		echo "FAIL a build has to be a commitment" >&2
 		printf '%s\n' "$respec" | grep -E '\[respec\]|\[pact\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -385,7 +405,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# and does nothing — and passes every other check in this file.
 	wing="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --wing-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$wing" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$wing"; then
 		echo "FAIL get in, get out, never fight" >&2
 		printf '%s\n' "$wing" | grep -E '\[wing\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -401,7 +421,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# otherwise a silent pass.
 	deeds="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
 		levels/lair/chamber.tscn -- --deeds-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$deeds" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$deeds"; then
 		echo "FAIL a run has to end on evidence" >&2
 		printf '%s\n' "$deeds" | grep -E '\[deeds\]|\[pact\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -416,7 +436,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# one a slot launders a hoard through a life you were going to lose.
 	legacy="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
 		levels/lair/chamber.tscn -- --legacy-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$legacy" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$legacy"; then
 		echo "FAIL a death has to be a decision" >&2
 		printf '%s\n' "$legacy" | grep -E '\[legacy\]|\[pact\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -434,7 +454,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# garbage itself. `FAIL`, `SCRIPT ERROR` and the exit code are the signal.
 	run="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --run-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$run" | grep -qE 'FAIL|SCRIPT ERROR'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$run"; then
 		echo "FAIL quitting has to cost what staying would have" >&2
 		printf '%s\n' "$run" | grep -E '\[run\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -454,7 +474,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# `run.active` open and blocks every future descent.
 	descent="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --descent-probe --seed=31346 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$descent" | grep -qE 'FAIL|SCRIPT ERROR'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$descent"; then
 		echo "FAIL a party has to arrive on the floor below with what it left with" >&2
 		printf '%s\n' "$descent" | grep -E '\[descent\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -475,7 +495,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	lantern="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --lantern-probe --delvings \
 		--seed=31346 --floor=1 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$lantern" | grep -qE 'FAIL|SCRIPT ERROR'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$lantern"; then
 		echo "FAIL carrying a light has to be a decision, and something has to read it" >&2
 		printf '%s\n' "$lantern" | grep -E '\[lantern\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -490,7 +510,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# not anything was cleared, so a plant deleting the clear walked through it.
 	vordr="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --vordr-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$vordr" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$vordr"; then
 		echo "FAIL a dead player has to still be playing" >&2
 		printf '%s\n' "$vordr" | grep -E '\[vordr\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -508,7 +528,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# body had been doing since `M3-T02`.
 	gear="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --gear-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$gear" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$gear"; then
 		echo "FAIL what you are holding has to matter" >&2
 		printf '%s\n' "$gear" | grep -E '\[gear\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -523,7 +543,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# of, and what it takes lands on the floor where you can contest it.
 	toll="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
 		levels/room_set/room_set.tscn -- --toll-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$toll" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$toll"; then
 		echo "FAIL the Hunt has to cost something" >&2
 		printf '%s\n' "$toll" | grep -E '\[toll\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -539,7 +559,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# is already failing.
 	prize="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --prize-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$prize" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$prize"; then
 		echo "FAIL greed has to weigh something" >&2
 		printf '%s\n' "$prize" | grep -E '\[set\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -558,7 +578,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	for gym_probe in clamor combat fight swarm; do
 		gym="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 			levels/dev/movement_gym.tscn -- "--$gym_probe-probe" 2>&1)"
-		if [[ $? -ne 0 ]] || printf '%s\n' "$gym" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+		if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$gym"; then
 			echo "FAIL the gym's $gym_probe probe" >&2
 			printf '%s\n' "$gym" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
 			exit 1
@@ -577,7 +597,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# player tested it. Players test exactly this.
 	hunt="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --hunt-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$hunt" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hunt"; then
 		echo "FAIL the Hunt" >&2
 		printf '%s\n' "$hunt" | grep -E '\[hunt\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -595,7 +615,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# `PRO-005` §5's fairness rule while every other check stayed green.
 	ground="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --ground-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$ground" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$ground"; then
 		echo "FAIL an enemy that cannot use the floor, or knows too much" >&2
 		printf '%s\n' "$ground" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -603,7 +623,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 
 	ear="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --ear-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$ear" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$ear"; then
 		echo "FAIL the twin channels" >&2
 		printf '%s\n' "$ear" | grep -E '\[ear\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -627,7 +647,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# scenario quits 0 when the second run begins and 1 when it does not.
 	again="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
 		-- --again 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$again" | grep -qE 'FAIL|SCRIPT ERROR'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$again"; then
 		echo "FAIL you have to be able to descend a second time" >&2
 		printf '%s\n' "$again" | grep -E '\[again\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -645,7 +665,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# having a run open, and every probe in this file runs unarmed and so gets
 	# the Deep. Nothing else here would notice the game going back to six grey
 	# rooms.
-	if ! printf '%s\n' "$again" | grep -q '^\[delvings\]'; then
+	if ! grep -q '^\[delvings\]' <<<"$again"; then
 		echo "FAIL the descent opens onto the Deep, not the Delvings" >&2
 		printf '%s\n' "$again" | grep -E '\[again\]|\[descent\]|\[delvings\]' \
 			| sed 's/^/      /' >&2
@@ -695,18 +715,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# Godot logs "Couldn't create an ENet host" itself when the bind fails, and
 	# that line is the condition under test rather than a fault — so the error
 	# grep here is for everything *except* it.
-	if ! printf '%s\n' "$taken" | grep -q 'gave up — Could not open the Threshold'; then
+	if ! grep -q 'gave up — Could not open the Threshold' <<<"$taken"; then
 		echo "FAIL hosting on a taken port" >&2
 		echo "      a second host on port $busy_port did not give up with a reason" >&2
 		printf '%s\n' "$taken" | grep -E '\[coop|ERROR' | sed 's/^/      /' >&2
 		exit 1
 	fi
-	if printf '%s\n' "$taken" | grep -q 'hosting on'; then
+	if grep -q 'hosting on' <<<"$taken"; then
 		echo "FAIL hosting on a taken port" >&2
 		echo "      a second host on port $busy_port claimed to be hosting" >&2
 		exit 1
 	fi
-	if printf '%s\n' "$taken" | grep -qE 'SCRIPT ERROR|Unable to get unique ID|busy adding/removing'; then
+	if grep -qE 'SCRIPT ERROR|Unable to get unique ID|busy adding/removing' <<<"$taken"; then
 		echo "FAIL hosting on a taken port" >&2
 		echo "      giving up from inside _ready threw on the way to the menu" >&2
 		printf '%s\n' "$taken" | grep -E 'SCRIPT ERROR|ERROR' | sed 's/^/      /' >&2
@@ -727,7 +747,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# re-answer a question this one is already standing in front of.
 	menu="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		ui/main_menu.tscn -- --menu-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$menu" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$menu"; then
 		echo "FAIL the way in and out" >&2
 		printf '%s\n' "$menu" | grep -E '\[menu\]|\[controls\]|ERROR' \
 			| sed 's/^/      /' >&2
@@ -742,7 +762,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# late one night, months after anybody reads `ART-003`.
 	camp="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/lair/threshold.tscn -- --threshold-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$camp" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$camp"; then
 		echo "FAIL the camp's own music" >&2
 		printf '%s\n' "$camp" | grep -E '\[camp\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -757,7 +777,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# floors of an expedition being three sizes rather than three places.
 	built="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
 		levels/room_set/room_set.tscn -- --build-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$built" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$built"; then
 		echo "FAIL the plan is a place" >&2
 		printf '%s\n' "$built" | grep -E '\[build\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -809,10 +829,10 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# exactly like a probe that hung.
 	reach="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900000 \
 		levels/room_set/room_set.tscn -- --reach-probe 2>&1)"
-	if [[ $? -ne 0 ]] || ! printf '%s\n' "$reach" | grep -q '^\[reach\] panel' \
-			|| ! printf '%s\n' "$reach" | grep -q '^\[reach\] control' \
-			|| ! printf '%s\n' "$reach" | grep -q '^\[reach\] body' \
-			|| printf '%s\n' "$reach" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || ! grep -q '^\[reach\] panel' <<<"$reach" \
+			|| ! grep -q '^\[reach\] control' <<<"$reach" \
+			|| ! grep -q '^\[reach\] body' <<<"$reach" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$reach"; then
 		echo "FAIL a party can cross every floor of a run" >&2
 		printf '%s\n' "$reach" | grep -E '\[reach\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -857,8 +877,8 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	fog="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
 		levels/room_set/room_set.tscn -- --fog-probe --delvings --seed=31346 \
 		--floor=1 2>&1)"
-	if [[ $? -ne 0 ]] || ! printf '%s\n' "$fog" | grep -q '^\[fog\] fog closes' \
-			|| printf '%s\n' "$fog" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || ! grep -q '^\[fog\] fog closes' <<<"$fog" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$fog"; then
 		echo "FAIL the floor has an outside and the fog closes it" >&2
 		printf '%s\n' "$fog" | grep -E '\[fog\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -882,8 +902,8 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 			levels/room_set/room_set.tscn -- --vista-probe --delvings \
 			--seed=31346 --floor=$depth 2>&1)"
 		if [[ $? -ne 0 ]] \
-				|| ! printf '%s\n' "$vista" | grep -q '^\[vista\] worth is' \
-				|| printf '%s\n' "$vista" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+				|| ! grep -q '^\[vista\] worth is' <<<"$vista" \
+				|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$vista"; then
 			echo "FAIL worth is what you can see (floor $depth)" >&2
 			printf '%s\n' "$vista" | grep -E '\[vista\]|ERROR' \
 				| sed 's/^/      /' >&2
@@ -904,7 +924,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# falls behind the generator is one unplaceable floor in a hundred.
 	plan="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 120000 \
 		levels/room_set/room_set.tscn -- --plan-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$plan" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$plan"; then
 		echo "FAIL the floor is the mission" >&2
 		printf '%s\n' "$plan" | grep -E '\[plan\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -925,7 +945,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# unreachable, the ADR-032 bypass real, and the Prize inside the held arm.
 	graph="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --graph-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$graph" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$graph"; then
 		echo "FAIL the floor poses a question" >&2
 		printf '%s\n' "$graph" | grep -E '\[graph\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -946,7 +966,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# other assertion here would still pass.
 	machine="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
 		levels/room_set/room_set.tscn -- --machine-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$machine" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$machine"; then
 		echo "FAIL the rooms pose questions" >&2
 		printf '%s\n' "$machine" | grep -E '\[machine\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -973,7 +993,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# requires for any screen that changes.
 	hud="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
 		levels/room_set/room_set.tscn -- --hud-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$hud" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hud"; then
 		echo "FAIL nothing overlaps anything" >&2
 		printf '%s\n' "$hud" | grep -E '\[hud\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -988,7 +1008,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# treasure and nothing else.
 	sight="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
 		levels/room_set/room_set.tscn -- --sight-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$sight" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$sight"; then
 		echo "FAIL you can see where to go" >&2
 		printf '%s\n' "$sight" | grep -E '\[sight\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1003,7 +1023,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# it parented to the root with its private API still registered.
 	edges="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 2400 \
 		levels/lair/threshold.tscn -- --edges-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$edges" | grep -qE 'FAIL|SCRIPT ERROR'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$edges"; then
 		echo "FAIL you can always get back" >&2
 		printf '%s\n' "$edges" | grep -E '\[edges\]' | sed 's/^/      /' >&2
 		exit 1
@@ -1017,7 +1037,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# through three walls cannot.
 	nav="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900 \
 		levels/room_set/room_set.tscn -- --nav-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$nav" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$nav"; then
 		echo "FAIL the enemies path around the level" >&2
 		printf '%s\n' "$nav" | grep -E '\[nav\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1038,7 +1058,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# measured nothing but how far a body gets in eight metres.
 	walk="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
 		levels/room_set/room_set.tscn -- --walk-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$walk" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$walk"; then
 		echo "FAIL a body walks out of every room" >&2
 		printf '%s\n' "$walk" | grep -E '\[walk\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1059,7 +1079,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# only exists here.
 	exits="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --exit-probe --floor=2 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$exits" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$exits"; then
 		echo "FAIL the way out" >&2
 		printf '%s\n' "$exits" | grep -E '\[exit\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1079,7 +1099,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# instead of saving a life is precisely the regression worth catching.
 	ember="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 12000 \
 		levels/room_set/room_set.tscn -- --ember-probe --floor=2 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$ember" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$ember"; then
 		echo "FAIL bear my ember out" >&2
 		printf '%s\n' "$ember" | grep -E '\[ember\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1095,7 +1115,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# off.
 	wipe="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
 		levels/room_set/room_set.tscn -- --wipe-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$wipe" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$wipe"; then
 		echo "FAIL the run has to end" >&2
 		printf '%s\n' "$wipe" | grep -E '\[wipe\]|\[death\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1109,7 +1129,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# from being wrong in either direction.
 	lair="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 6000 \
 		levels/lair/chamber.tscn -- --lair-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$lair" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$lair"; then
 		echo "FAIL the Settle beat" >&2
 		printf '%s\n' "$lair" | grep -E '\[lair\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1123,7 +1143,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# away from being wrong in a way no playtest notices for months.
 	party="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 600 \
 		levels/room_set/room_set.tscn -- --scaling-probe 2>&1)"
-	if [[ $? -ne 0 ]] || printf '%s\n' "$party" | grep -qE 'FAIL|SCRIPT ERROR|^ERROR:'; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$party"; then
 		echo "FAIL party scaling" >&2
 		printf '%s\n' "$party" | grep -E '\[party\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
