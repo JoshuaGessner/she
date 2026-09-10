@@ -7279,5 +7279,50 @@ The second was that the fault is structural. Rooms are at most 5×5 cells — 10
 
 **And the vacuous pass came back a third time, so it is guarded rather than remembered.** Two of the nine floors genuinely report `0 of N` — the Prize is never in sight of the walk — and a route that never baked would report `0 of 0` and read as the same thing at a glance. An empty route is therefore a failure here, not a floor with no view: *nothing to see* and *nothing was asked* must be distinguishable in the report rather than by the person reading it. Planted by replacing the route with an empty array; the row printed `0 of 0 point(s) on a 0 m walk` and the probe failed with the line naming the cause.
 
+## ADR-208 — A Python docstring is not a comment, and twenty-four names were living in one
+
+**Date:** 2026-09-10 · **Status:** accepted · **`M4-T22`** · **Amends `TEC-002`**
+
+**Context:** ADR-192 found `FloorMachines.questions()` called by nothing, with `check_dead.py` passing — in the same session as an ADR about dead names. The tool was not broken: a nonsense-named canary is caught at once. The **corpus** was.
+
+`scenes_and_data()` includes `tools/*.py` on purpose, and that inclusion is load-bearing rather than incidental: `CollisionLayers` names five physics layers that no *game* code ever looks up — the scenes set the raw integers — and what makes those names load-bearing is `check_project.py` asserting the two agree, by name, in a string literal. Build tooling genuinely is a reader.
+
+But `body_text()` drops `##` doc-comment lines and hands the rest to `strip_comments()`, which leaves string literals alone deliberately. In GDScript that is exactly right and what remains is code. **A Python docstring is neither a `##` line nor a `#` comment.** It is a string literal, so it survived both, and `status.py`'s prose — *"Open questions grouped by the milestone"* — counted as a call to a GDScript `questions()`.
+
+### Decision — strip docstrings, and only docstrings
+
+`ast.parse`, then blank the line range of any string-literal expression that is the first statement of a module, class or function. Nothing else is touched.
+
+**`ast` rather than a regex**, because a triple-quoted string is only a docstring when it stands in that position, and telling those apart from a triple-quoted *value* is what a parser is for. A file that will not parse is passed through unchanged: this is a corpus of things that might mention a name, so the safe direction is to keep too much.
+
+**Docstrings only, never every string.** Stripping all Python literals would close the false positives by opening false negatives — `CollisionLayers` would go dark, and the row `check_project.py` exists to enforce would stop being visible to the checker that proves nothing is orphaned. For a tool whose every finding needs judging, a false negative is the worse trade.
+
+### What it found: the hole was twenty-four names wide, and nothing had fallen in
+
+The corpus loses **31,924 characters** of prose — 255,899 down to 223,975 across 105 files. Comparing the two corpora against all **1,430** declared names, **24** were being kept alive by Python docstrings alone:
+
+`PATH`, `_descend`, `_end_the_run`, `_reset_floor`, `arm`, `blocked`, `chosen`, `claimed`, `definition`, `denser`, `describe`, `driving`, `edge`, `extracted`, `field`, `flat`, `machines`, `phase`, `progress`, `reachable`, `routes`, `settle`, `sworn`, `validate`
+
+**All twenty-four are genuinely used elsewhere, so `check_dead.py` still reports nothing.** The `M4-T22` entry predicted that closing this would surface a backlog each needing judgement, *"which is the point"*; it did not, and that prediction is now on the record as wrong rather than quietly dropped.
+
+### Planted, in both directions
+
+A canary named for a nonsense word was already caught before this change, so it proves nothing about the hole. The plant has to be **an ordinary English word that a tool's prose happens to use.**
+
+`func grouped() -> int` was added to `FloorMachines` — the class the original fault was found in — and called by nothing. `grouped` appears in GDScript only inside `##` doc comments, which `body_text()` already drops, and in `status.py`'s docstring: *"Open questions grouped by the milestone their section names."*
+
+- **With the stripping:** `DEAD-FUNC game/systems/generation/floor_machines.gd: grouped — nothing calls it`.
+- **Without it:** the name is found in the corpus at `status.py`'s docstring, so the function reads as alive and there is no finding.
+
+That is the whole defect, reproduced and closed on the same class it was discovered in.
+
+That is the honest result and it is not a reason to skip the fix. The tool was blind for twenty-four names and got lucky about which ones died — and `questions()`, the name that started this, was the unlucky draw that happened to be seen. A checker whose accuracy depends on which English words a maintainer chose for a function is not a checker, it is a coin.
+
+### What was rejected
+
+- **Dropping `tools/*.py` from the corpus.** It would fix the false positives and blind the checker to the real readers the inclusion was written for. `CollisionLayers` is the counter-example and it is documented at the call site.
+- **A regex for `"""`.** Wrong on any triple-quoted value, and this file's own header is a module docstring containing the words `DEAD-FUNC` and `DEAD-SIGNAL` — a checker that mangled its own source while reading it would be a fine way to spend an afternoon.
+- **Treating the empty result as a reason not to land it.** *"Does it work?"* and *"does anything use it?"* are different questions (ADR-098); *"did it find something today?"* is a third, and it is not the one that decides whether a check is worth having.
+
 *Entries below to be added as design decisions are signed off.*
 

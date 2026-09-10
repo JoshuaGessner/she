@@ -33,6 +33,7 @@ Deliberately dependency-free, matching the other tools here.
 
 from __future__ import annotations
 
+import ast
 import re
 import sys
 from pathlib import Path
@@ -113,11 +114,66 @@ def strip_comments(line: str) -> str:
     return "".join(out)
 
 
+def strip_py_docstrings(text: str) -> str:
+    """Blank the docstrings out of a Python source file.
+
+    `strip_comments` leaves strings alone on purpose, and in GDScript that is
+    right: a doc comment starts `##` and is dropped by line, a trailing comment
+    is dropped by `strip_comments`, and what is left is code. A **Python**
+    docstring is neither. It is a string literal, so it survives both, and every
+    ordinary English word in a tool's prose then reads as a use.
+
+    That is not hypothetical (ADR-192): `status.py` describes itself as printing
+    "Open questions grouped by the milestone", and `FloorMachines.questions()`
+    was called by nothing and passed this checker for it. Any GDScript name that
+    is also an ordinary English word was invisible here, and had been since the
+    tool was written.
+
+    **Docstrings only, never every string.** `tools/*.py` is in the corpus
+    deliberately, because build tooling genuinely is a reader — `CollisionLayers`
+    names five physics layers that no game code looks up and `check_project.py`
+    asserts the scenes agree with them, by name, in a string literal. Stripping
+    all Python strings would fix the false positives by creating false negatives,
+    which is the worse trade for a checker whose findings each need judging.
+
+    `ast` rather than a regex, because a triple-quoted string is only a
+    docstring when it is the first statement of a module, class or function, and
+    telling those apart from a triple-quoted value is exactly what a parser is
+    for. A file that will not parse is passed through unchanged: this is a
+    corpus of things that *might* mention a name, so the safe direction is to
+    keep too much.
+    """
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return text
+    drop: set[int] = set()
+    holders = (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)
+    for node in ast.walk(tree):
+        if not isinstance(node, holders) or not node.body:
+            continue
+        first = node.body[0]
+        if (
+            isinstance(first, ast.Expr)
+            and isinstance(first.value, ast.Constant)
+            and isinstance(first.value.value, str)
+            and first.end_lineno is not None
+        ):
+            drop.update(range(first.lineno, first.end_lineno + 1))
+    return "\n".join(
+        "" if number in drop else line
+        for number, line in enumerate(text.splitlines(), start=1)
+    )
+
+
 def body_text(paths: list[Path]) -> str:
     """Every line of code, with comments and doc comments removed."""
     chunks: list[str] = []
     for path in paths:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        text = path.read_text(encoding="utf-8")
+        if path.suffix == ".py":
+            text = strip_py_docstrings(text)
+        for line in text.splitlines():
             if line.lstrip().startswith("##"):
                 continue
             chunks.append(strip_comments(line))
