@@ -56,6 +56,19 @@ const DROP_DISTANCE: float = 0.9
 ## the fire. Measuring from where you last stood works at any altitude and needs
 ## to know nothing about where levels put themselves.
 const VOID_DROP: float = 45.0
+## How much of the motion it asked for a body must fail to make before the
+## step-up will look at what is in front of it (`M4-T29`, ADR-209).
+##
+## Generous on purpose. A body brushing a corner or grinding along a wall is
+## still walking and wants no help; the case this catches is the one that got
+## **almost nowhere at all**, which is what a lip does. Higher than this and
+## ordinary contact starts triggering steps; much lower and a body genuinely
+## wedged at a shallow angle never qualifies ⟨tune⟩.
+const STEP_STALLED: float = 0.35
+## The smallest rise worth attempting when a ceiling has cut the step short
+## (`M4-T29`, ADR-209). Below this the body would be scraping rather than
+## stepping, and the capsule already rolls over about 0.10 m unaided ⟨tune⟩.
+const STEP_LEAST: float = 0.05
 
 ## Godot's host is always peer 1, including the offline peer a solo launch
 ## gets, which is why none of this needs a single-player branch.
@@ -1857,8 +1870,118 @@ func _drive(delta: float, tuning: TuningProfile) -> void:
 			else carried.scale_by_load(tuning.jump_at_capacity)
 		velocity.y = tuning.jump_velocity * lift
 
+	var footing: bool = is_on_floor()
+	var stood_at: Vector3 = global_position
+	# What the feet asked for, read **before** the slide. Afterwards `velocity`
+	# is what the slide allowed, so a body that was refused outright reports
+	# asking for nothing — which is the one case the step exists to catch.
+	var asked: float = Vector2(velocity.x, velocity.z).length() * delta
 	move_and_slide()
+	# **Walk up what the route said you could** (`M4-T29`, ADR-209). After the
+	# slide, because it only ever runs when the slide has already refused: a
+	# body that got where it was going has nothing to step over.
+	if footing:
+		_step_up(tuning, wish, stood_at, asked)
 	grounded = is_on_floor()
+
+
+## **Up the ledge, or not at all** (`M4-T29`, ADR-209).
+##
+## `CharacterBody3D` has no step-up and this project had never added one, so the
+## player climbed only what its own capsule rolled over: a 0.35 m body meets a
+## step's top edge at 45° when the step is `r(1 − 1/√2)` = **0.10 m**, and that
+## was the real limit. Every route in the game is planned for a navmesh agent
+## allowed **0.30 m**. Between the two was a band of rises the Hunt walked and
+## the player could not — four generated floors in nine had one on the way to
+## the Shaft, and the jump did not cover it where it counted, because load takes
+## the jump from 0.49 m to 0.18 m and the band starts below that (ADR-205).
+##
+## **It fires on being stuck, not on being near something.** Two earlier
+## versions asked the wrong question and both are worth keeping on the record,
+## because the wrong questions are the plausible ones:
+##
+## - `is_on_wall()` — a report about the last slide, and **false at most of the
+##   stalls this exists to fix**. A body wedged where a ramp meets a lip is
+##   standing on the floor, touching nothing its own slide called a wall, and
+##   going nowhere.
+## - *is the thing in front of me steeper than walkable* — meant to keep this
+##   from climbing ramps in jerks, and it declined every stall on a slope,
+##   because the first thing a forward sweep meets from halfway up a ramp is
+##   **the ramp**, whose normal is walkable by definition. Measured: it made
+##   the reference floor worse, 55 legs down to 37.
+##
+## The question that works is whether the body **went where it asked to go.**
+## Walking a ramp already succeeds, so it never fires there and cannot jerk
+## anything; a wedge fails, and that is precisely the case worth a step.
+##
+## Then three sweeps, each refusing before the body is moved, so a failed step
+## costs nothing and never leaves the body somewhere it could not have walked:
+##
+## 1. is there headroom to rise by `step_height`,
+## 2. from up there, is the way forward now clear,
+## 3. and is there something standable to come down onto.
+##
+## Sweep 3 separates a **step** from a **gap**: if nothing is under the raised
+## body the ledge was the near lip of a hole, and walking into thin air is not a
+## step. Its landing must be standable too, or it is a wall touched from above.
+##
+## Only while already standing. Mid-air this would be a double jump, and
+## `DES-009` has no parkour in it.
+func _step_up(tuning: TuningProfile, wish: Vector3, stood_at: Vector3,
+		asked: float) -> void:
+	if tuning.step_height <= 0.0 or asked < 0.001:
+		return
+	# **Where the feet are being asked to go, never where they got.** Reading
+	# this off `velocity` cannot work: a body wedged against a lip has none
+	# left, so the one case this exists for is the one case it would decline to
+	# look at. `wish` is the input, and it says *forward* whether or not forward
+	# is happening.
+	var going := Vector3(wish.x, 0.0, wish.z)
+	if going.length_squared() < 0.01:
+		return
+	var forward: Vector3 = going.normalized()
+
+	# Did the slide deliver — **along the direction asked for**, not in any
+	# direction at all? A body meeting a lip square-on does not stop; it slides
+	# sideways along it, and a check on total distance reads that skid as
+	# walking and declines to help. Measured: seed 24680 floor 0 kept stalling
+	# on a flat 0.30 m lip with the step-up in and a distance test in front of
+	# it. Projecting onto `forward` scores the skid at what it is worth, which
+	# is nothing.
+	var moved := Vector3(global_position.x - stood_at.x, 0.0,
+		global_position.z - stood_at.z)
+	if moved.dot(forward) > asked * STEP_STALLED:
+		return
+	var ahead: Vector3 = forward * tuning.step_reach
+	var rise := Vector3(0.0, tuning.step_height, 0.0)
+
+	# **As much rise as the ceiling allows, not all-or-nothing.** Demanding the
+	# full `step_height` of headroom fails under anything low, and the Delvings
+	# are full of low: measured, seed 24680 floor 0 refused a 0.30 m lip for
+	# want of clearance to lift 0.40 m, in a corridor where 0.35 m was there for
+	# the taking. The lip is what has to be cleared; the step height is only the
+	# most this is willing to try.
+	var probe: Transform3D = global_transform
+	var headroom := KinematicCollision3D.new()
+	if test_move(probe, rise, headroom):
+		rise = Vector3(0.0, headroom.get_travel().y, 0.0)
+		if rise.y < STEP_LEAST:
+			return
+	probe.origin += rise
+	if test_move(probe, ahead):
+		return
+	probe.origin += ahead
+
+	var landing := KinematicCollision3D.new()
+	if not test_move(probe, -rise, landing):
+		return
+	if landing.get_normal().angle_to(Vector3.UP) > floor_max_angle:
+		return
+
+	global_position = probe.origin + landing.get_travel()
+	# The rise is a step, not a launch. Leaving the downward velocity alone
+	# would have gravity yank the body back off the ledge it just made.
+	velocity.y = maxf(velocity.y, 0.0)
 
 
 ## Footfalls and landings, the continuous half of DES-005 Layer 1.

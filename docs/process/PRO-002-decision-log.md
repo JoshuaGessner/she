@@ -7324,5 +7324,130 @@ That is the honest result and it is not a reason to skip the fix. The tool was b
 - **A regex for `"""`.** Wrong on any triple-quoted value, and this file's own header is a module docstring containing the words `DEAD-FUNC` and `DEAD-SIGNAL` — a checker that mangled its own source while reading it would be a fine way to spend an afternoon.
 - **Treating the empty result as a reason not to land it.** *"Does it work?"* and *"does anything use it?"* are different questions (ADR-098); *"did it find something today?"* is a third, and it is not the one that decides whether a check is worth having.
 
+## ADR-209 — The player can step, and the mesh now promises a voxel less than the body delivers
+
+**Date:** 2026-09-10 · **Status:** accepted · **`M4-T29`** · **Amends `DES-009`, `TEC-008`, `TEC-001`**
+
+**Context:** ADR-205 measured a band nobody knew existed. `CharacterBody3D` has no step-up and this project had never added one, so the player climbed only what its own capsule rolled over — `r(1 − 1/√2)` = **0.10 m** for a 0.35 m body — while every route in the game was planned for a navmesh agent allowed **0.30 m**. Four generated floors in nine had a rise on the way to the Shaft that the Hunt walked over and the party could not, and the jump did not cover it where it mattered: load takes it from 0.49 m to 0.176 m, break-even ≈55% encumbrance.
+
+Two fixes were available — give the body a step, or stop the generator making the rises. **The developer chose the step**, on the grounds that it does not change what the movement is meant to feel like. This is that, plus the guard that keeps it from changing anything else.
+
+### Decision 1 — the body is the generous one, and the mesh is baked short of it
+
+The obvious design was one number read by both: the body steps exactly what `agent_max_climb` promises, so they cannot drift. It was tried first and **two floors still would not walk, against 0.35 m of stone with the step set to 0.30**.
+
+**Recast quantises the climb to `cell_height`.** A mesh told to allow 0.30 m merges spans up to three 0.10 m voxels apart, and what that admits on the ground is measurably taller than the promise. Equal numbers put the rounding error on the side where the route promises more than the body can take — which is the original bug, one notch smaller.
+
+So `TuningProfile.step_height` is what the **body** does, 0.40 m, and `nav_settings` bakes `step_height − cell_height`. The route can then only ever promise a rise the body will actually take, and the error is on the safe side by construction rather than by luck.
+
+### Decision 2 — it fires on being stuck, not on being near something
+
+Three gates were tried and the two that failed are worth the record, because they are the plausible ones:
+
+| gate | what happened |
+|---|---|
+| `is_on_wall()` | **Never fired.** It reports on the last slide, and a body wedged where a ramp meets a lip is standing on the floor, touching nothing its own slide called a wall, and going nowhere. |
+| *is the thing ahead steeper than walkable* | Meant to stop this climbing ramps in jerks. **Made the reference floor worse — 55 legs down to 37** — because the first thing a forward sweep meets from halfway up a ramp is the ramp, whose normal is walkable by definition, so it declined every stall on a slope. |
+| distance moved | Missed lips hit square-on: a body meeting one does not stop, it **skids sideways along it**, and total distance reads that as walking. |
+
+What works is progress **along the direction asked for**, projected. Walking a ramp succeeds, so it never fires there and cannot jerk anything; a wedge scores nothing, which is precisely the case worth a step.
+
+Then up, forward, down — each sweep refusing before the body is moved, so a failed step costs nothing. The down sweep is what separates a step from a **gap**, and its landing must be standable or it is a wall touched from above.
+
+### Decision 3 — as much rise as the ceiling allows
+
+Demanding the full `step_height` of headroom refused a 0.30 m lip in a corridor that had 0.35 m of clearance for the taking. The lip is what has to be cleared; the step height is only the most this is willing to try, so a blocked lift is trimmed to the room available and retried rather than abandoned.
+
+### What it bought, and what it did not
+
+**Five floors of nine to seven, and 365 route legs to 509.** Seed 78901 floor 2 went from 44 of 108 legs to the whole route.
+
+**The two that remain are not steps, and the probe says so itself** rather than leaving it to be guessed:
+
+- `31346` floor 0 — *"raised 0.40 m and still blocked forward"*, on a 22° surface with 0.60 m of stone ahead and the corner 1.31 m above. A rise no step height reaches.
+- `24680` floor 2 — the same refusal against **0.05 m** of stone on flat ground, which is only possible if the obstruction is **lateral**: a gap the 0.70 m body cannot fit through where a centre-line ray sees clear air.
+
+Both are generator geometry and neither is `step_height`'s to fix. They stay in `M4-T29`.
+
+### The guard, because the ceiling on this number is the furniture
+
+`TEC-008` spends two of the Deep's landmarks on things meant to be walked **around** — the well kerb at 0.70 m, the barricade's beam at 0.92 m — and both are `DES-015`'s Retreat made physical. A barricade you can step over teaches the player that this level's furniture is scenery.
+
+So the margin between the step and the kerb is load-bearing, and `--reach-probe` now walks the body into both and asserts it neither rises onto them nor crosses their line. Planted at `step_height` 0.8 the body rises **0.70 m** — the kerb's exact height — and crosses, and the row fails naming it.
+
+**It took three versions to measure the right thing, and the last correction came from the sweep.**
+
+1. **Final height.** Vacuous: planted at 0.8 the body still ended at 0.00 m, because a body that mounts the kerb slides off again and a body that steps *over* the barricade lands on the floor beyond. Ending height cannot see either fault.
+2. **Peak height, and did it end past the landmark.** Better, and still wrong in the other direction: a body deflected off a round kerb also ends up behind it, having done exactly what the design wants. A crossing only counts if it happens near the landmark's own line — within `FURNITURE_THROUGH` — because that is the part you cannot walk round without having gone over.
+3. **The threshold itself.** `FURNITURE_CLIMB` was set at 0.35 by reasoning about what "on the floor" means, and the full sweep failed on a correct build: the body peaks at **0.36 m** riding up the well's face and **0.28 m** on the barricade, getting over neither. A body that genuinely mounts stands at the kerb's full 0.70 m, so 0.55 sits above the ride-up and below the mount — with both ends measured rather than either guessed.
+
+The third is the one worth keeping in mind: a guard whose threshold is chosen from geometry rather than from a run will be wrong by exactly the margin nobody measured.
+
+### What this found on the way
+
+**A check that moved the thing it was measuring.** The furniture walk was written above the seed loop, and the 324 physics frames it spends walking into things shifted the panel underneath it: one floor that crossed cleanly stopped doing so — reproducibly, same floor, same leg, on two runs. Moving it below the panel restored 7 of 9 exactly. A probe sharing a process with a measurement is part of that measurement's setup, and ordering is not cosmetic.
+
+**And a diagnostic that was lying.** `_obstruction_height` casts forward from the feet and cannot tell a slope from a step: on a 22° surface it reports the surface, ~0.30 m at 0.6 m out, which reads exactly like a lip. Two stalls were mis-diagnosed that way and one of them sent a tuning pass after a number that was never the problem. `_why_stuck` now runs the step-up's own sweeps against the real body in the real spot and names the first that refuses — and *"a step would fit, so something else is holding it"* is one of its answers, because the useful diagnostic has to be able to say *stop looking here*.
+
+## ADR-210 — Floor 0 cannot hold anything that glitters, and the Shaft does not cover for it
+
+**Date:** 2026-09-10 · **Status:** accepted · **`M4-T28`** · **Corrects ADR-204** · **Amends `DES-015`**
+
+**Context:** ADR-207 replaced the vista rule's metric — a coverage census over the whole floor — with a sample along the route the player actually walks, and found two floors of nine where the Prize is never in view. The developer asked the right question before any fix was designed: **is this a layout problem or a loot problem?**
+
+It is both, and the halves have nothing to do with each other.
+
+### What the census says
+
+`--vista-probe` now counts every `glitter`-tagged item on the floor, asks how many are ever in view from the walk, and asks the same of the Shaft's lit foot. Three seeds, three depths:
+
+| seed · floor | glitters on the floor | ever in view | furthest | the Shaft, furthest |
+|---|---|---|---|---|
+| 31346 · 0 | **0** | — | — | 5.3 m |
+| 31346 · 1 | 2 | **0** | — | 5.2 m |
+| 31346 · 2 | 3 | 3 | 12.7 m | 16.0 m |
+| 78901 · 0 | **0** | — | — | 3.9 m |
+| 78901 · 1 | 3 | 1 | 24.1 m | 5.7 m |
+| 78901 · 2 | 2 | 2 | 21.2 m | 9.0 m |
+| 24680 · 0 | **0** | — | — | 5.8 m |
+| 24680 · 1 | 1 | 1 | 9.3 m | 6.4 m |
+| 24680 · 2 | 4 | **0** | — | 3.9 m |
+
+### Finding 1 — floor 0 carries no glitter, and cannot
+
+**Zero on every seed**, and it is structural rather than unlucky. The cheapest glittering item in the corpus is `glt_hoard_coin` at **40** tribute; floor 0's best find is **6** (ADR-193's gradient, 6 → 55 → 140). Nothing that glows is worth little enough to be placed there, so floor 0 is incapable of showing the player anything valuable, at any range, under any layout.
+
+No amount of generator work fixes that. It is the item corpus, not the floor plan.
+
+### Finding 2 — the Shaft does not cover for it, and ADR-204 said it did
+
+ADR-204 closed this gap by argument:
+
+> **Floor 0's Prize is not glitter at all** and cannot glow — which is the design working, because on a floor with nothing valuable on it the valuable-and-distant thing is **the next floor**, and that is exactly what the Shaft now says.
+
+That was reasoning, not measurement, and the measurement does not support it. The Shaft's lit foot is in view from the walk at **3.9 m to 6.4 m** on eight floors of nine. *Distant* is half of `DES-015`'s clause and a light you see from four metres away is not the other end of a vista — it is a thing you have arrived at.
+
+The claim is withdrawn. `M4-T23`'s underlight is still doing its job — it says *the Cause is richer* to somebody standing at the Shaft, which is worth having — but it is not floor 0's vista and was never measured as one.
+
+### Finding 3 — the deep floors are a layout problem, and a smaller one than it looked
+
+Where glitter exists it is usually seen: four floors of six have one in view, at **9.3 m to 24.1 m**, which is the range the rule is asking for. Two of six have items and no sightline from the walk to any of them. That half is placement, it is the half `M4-T28` was opened for, and it is now separable from the floor-0 half by measurement rather than by guessing.
+
+### Decision — recorded, not fixed, and the fix needs a person
+
+Both halves are left open deliberately.
+
+**Floor 0 wants one cheap glittering item** — a tarnished coin or bead worth 5 or 6 — and that is the smallest possible change: no generator work, no gradient change, floor 0's best find stays 6. It is also a better beat than the gap it fills, because a first floor that shows you gold which turns out to be nearly worthless is the hoard-dragon's proposition stated in geometry rather than in dialogue.
+
+But it is **a new authored item**, which is design content and not a bug fix, and `PRO-004` and the item taxonomy (`M4-T17`) both have a claim on what goes in the corpus. Proposed, costed, and held for sign-off rather than added.
+
+**The layout half stays `M4-T28`'s**, now with a census that can tell whether a floor failed for want of something to see or for want of a line to it.
+
+### What was rejected
+
+- **Raising floor 0's value ceiling.** It rewrites ADR-193's 6 → 55 → 140 gradient, which is `DES-015` Layer 4's whole statement about depth, to solve a visibility problem. The tail wagging the dog.
+- **Making the Shaft visible from further.** Generator work that fights `FloorPlan.DOGLEG_RUN` directly — the dog-leg exists to stop you seeing the whole proposition from the doorway, and a Shaft visible across the floor is that, with gold on it.
+- **Tagging an existing cheap item as `glitter`.** The tag drives `WorldItem`'s glow and `M4-T23` ties glow energy to tribute value, so a worth-6 item tagged glitter pours almost nothing and would read as a bug rather than as bait. A new item can be authored to look right at the value it has.
+
 *Entries below to be added as design decisions are signed off.*
 

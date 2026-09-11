@@ -29,6 +29,38 @@ extends Resource
 @export var air_acceleration: float = 1.8
 @export var jump_velocity: float = 4.2
 @export var gravity: float = 18.0
+## How high a rise the body walks up without being asked to jump ⟨tune⟩.
+##
+## **The navmesh is baked from this, one voxel short of it** (`M4-T29`,
+## ADR-209). `CharacterBody3D` has no step-up, so before this the player climbed
+## whatever its own capsule happened to roll over — about `r(1 − 1/√2)` =
+## **0.10 m** for a 0.35 m body — while every route in the game was planned for
+## an agent allowed **0.30 m**. Between the two was a band of rises the Hunt
+## walked and the player could not, and nothing knew it existed: measured, four
+## generated floors in nine had one on the way to the Shaft (ADR-205).
+##
+## The fix is not to make the two numbers equal. **Recast quantises the climb to
+## `cell_height`**, so a mesh told to allow 0.30 m merges spans up to three
+## 0.10 m voxels apart and routes over real stone measurably taller than its
+## promise — measured at **0.35 m**, twice, after the first version set the
+## body's step and the agent's climb to the same 0.30 and two floors still would
+## not walk.
+##
+## So the body is the generous one and the mesh is baked a voxel short of it.
+## The route can then only ever promise a rise the body will actually take, and
+## the error is on the safe side by construction rather than by luck.
+##
+## **The ceiling on it is the furniture.** The Deep's well kerb stands 0.70 m
+## and the barricade's beam 0.92 m, and `TEC-008` wants both walked *around*
+## rather than over — a generous step would quietly turn them into ramps and
+## delete the reason they are solid. 0.40 m clears neither, with 0.30 m to spare
+## on the nearer one.
+@export var step_height: float = 0.4
+## How far ahead the step-up looks for somewhere to put a foot ⟨tune⟩.
+##
+## A little over the body's own radius, so the probe clears the capsule it
+## starts inside rather than reporting the ledge the body is already touching.
+@export var step_reach: float = 0.45
 
 @export_group("Body")
 @export var stand_height: float = 1.8

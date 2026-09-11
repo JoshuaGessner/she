@@ -253,6 +253,30 @@ const WALK_LEG_FRAMES: int = 900
 ## a pit was solid ground — which would hide the one fault this row exists to
 ## find.
 const WALK_AIM_EVERY: int = 12
+## How far off the floor a body may end up after walking into a landmark before
+## it counts as having climbed the thing (`M4-T29`, ADR-209).
+##
+## Not zero: a body pressed against a rounded kerb rides a little way up its
+## face and settles back, and the well is eight tilted segments rather than a
+## cylinder. This is the height above which it is standing **on** the furniture
+## rather than against it.
+##
+## **0.35 was too tight and the sweep said so.** Measured, the body peaks at
+## **0.36 m** on the well and **0.28 m** on the barricade while getting over
+## neither — the crossing test reports *went round or stopped* for both — so the
+## first value failed a build that was behaving exactly as designed. A body that
+## actually mounts the kerb stands at its full **0.70 m**, and the plant reaches
+## it: 0.55 sits above the ride-up and below the mount, with the gap measured at
+## both ends rather than guessed at either ⟨tune⟩.
+const FURNITURE_CLIMB: float = 0.55
+## How near a landmark's own line a crossing has to be to count as going
+## **through** it rather than round it (`M4-T29`, ADR-209).
+##
+## The well's kerb is 1.5 m in radius and the barricade's beam 3.4 m long, and
+## a body deflected off either ends up behind it having done exactly what the
+## design wants. Inside a metre of the post is the part you cannot walk round
+## without having gone over ⟨tune⟩.
+const FURNITURE_THROUGH: float = 1.0
 
 ## How far apart the vista row samples the walk, in metres (`M4-T28`).
 ##
@@ -1635,6 +1659,7 @@ func _reach_probe() -> void:
 				+ "green") % [int(walk["walked"]), int(walk["of"]),
 					_planar_gap(walk["stopped"], walk["wanted"])])
 
+
 	for run_seed: int in REACH_PANEL:
 		# `RunFile.LAST_FLOOR`, because that is the file that clamps a descent
 		# and `--build-probe` writing `in 3` inline is the second place saying
@@ -1755,15 +1780,14 @@ func _reach_probe() -> void:
 						var wanted: Vector3 = trek["wanted"]
 						print(("[reach] stall      seed %d floor %d: %.1f m of "
 							+ "an %.1f m leg, stopped %.2f m below the corner, "
-							+ "on a %.0f° surface, %.2f m of stone ahead, "
-							+ "on wall %s")
+							+ "on a %.0f° surface, %.2f m of stone ahead — %s")
 							% [run_seed, depth, float(trek["moved"]),
 								_planar_gap(stopped, wanted)
 									+ float(trek["moved"]),
 								wanted.y - stopped.y,
 								float(trek["slope"]),
 								float(trek["step"]),
-								bool(trek["on_wall"])])
+								String(trek["why"])])
 
 			region.queue_free()
 			navroot.remove_from_group(GENERATED_NAV_GROUP)
@@ -1774,6 +1798,78 @@ func _reach_probe() -> void:
 		% [walked, problems.size()]
 		+ "across %d seed(s) x %d depth(s)"
 		% [REACH_PANEL.size(), RunFile.LAST_FLOOR + 1])
+	# ─ and the furniture is still furniture ─
+	#
+	# **The step-up's ceiling, asserted rather than trusted** (`M4-T29`,
+	# ADR-209). A body that walks up `step_height` walks over anything shorter,
+	# and `TEC-008` spends two landmarks on things meant to be walked *around*:
+	# the well kerb stands 0.70 m and the barricade's beam 0.92 m. Both are
+	# `DES-015`'s Retreat made physical — a barricade you can step over teaches
+	# the player that this level's furniture is scenery — so the margin between
+	# the step and the kerb is load-bearing, and a raise to `step_height` has to
+	# fail here before it reaches anybody.
+	#
+	# Walked into rather than reasoned about, because what decides it is a
+	# capsule's contact with a rounded kerb and not the kerb's stated height.
+	#
+	# **After the panel, not before it.** It was written above the seed loop and
+	# moved here: the 324 physics frames it spends walking into things shifted
+	# the panel underneath it, and one floor that crossed cleanly stopped doing
+	# so — reproducibly, the same floor and the same leg both times. A check
+	# that changes the measurement it shares a probe with is not measuring the
+	# same build, and the cheap fix is to let the panel finish first.
+	if player != null:
+		for landmark: String in ["junction", "west"]:
+			var post: Vector3 = LANDMARKS[landmark][1]
+			player.teleport(post + Vector3(0.0, 0.5, 3.0),
+				_yaw_toward(post + Vector3(0.0, 0.0, 3.0), post))
+			for settle: int in range(8):
+				await get_tree().physics_frame
+			# **The highest it ever got, and whether it got past** — neither of
+			# which is where it finishes. Measuring the final height was the
+			# first version and it is **vacuous**: planted at an 0.8 m step,
+			# well over the kerb's 0.70 m, the body still ended at 0.00 m and
+			# the row passed. Two different reasons, and the check has to catch
+			# both. A body that steps onto the kerb slides off it again, so the
+			# climb is only visible while it is happening; and a body that
+			# steps *over* the barricade lands on the floor beyond, which is
+			# the exact fault this exists to catch and is indistinguishable
+			# from success by height alone.
+			var peak: float = 0.0
+			var beyond: bool = false
+			Input.action_press("move_forward")
+			for frame: int in range(150):
+				await get_tree().physics_frame
+				var body: Vector3 = player.global_position
+				peak = maxf(peak, body.y - post.y)
+				# **Past it through the middle, not past it round the side.**
+				# Walked at from +Z, so the far side is behind the post — but a
+				# body deflected off a round kerb also ends up behind it,
+				# having done exactly what the design wants. Only a crossing
+				# near the post's own line is a crossing *of* the thing.
+				if body.z < post.z and absf(body.x - post.x) < FURNITURE_THROUGH:
+					beyond = true
+			Input.action_release("move_forward")
+			for settle: int in range(4):
+				await get_tree().physics_frame
+			print("[reach] furniture  the %s: body rose %.2f m, %s"
+				% [String(LANDMARKS[landmark][0]), peak,
+					"crossed it" if beyond else "went round or stopped"])
+			if peak > FURNITURE_CLIMB or beyond:
+				problems.append(("the body got over the %s — %.2f m up and %s. "
+					+ "`TEC-008` wants this walked *around*: it is `DES-015`'s "
+					+ "Retreat made physical, and furniture you can step over "
+					+ "teaches the player that this level's furniture is "
+					+ "scenery. A `step_height` that clears it has to fail "
+					+ "here rather than reach a playtest")
+					% [String(LANDMARKS[landmark][0]), peak,
+						"out the far side" if beyond else "back down again"])
+			# Parked clear, so the next landmark starts from the floor rather than
+			# from wherever the last one left it.
+			player.teleport(post + Vector3(0.0, 0.5, 6.0), 0.0)
+			for settle: int in range(4):
+				await get_tree().physics_frame
+
 	# **The row that says what walking found**, and it is a number rather than a
 	# pass: `M4-T29` owns the fault, and until that lands this line is expected
 	# to read short of the panel it was asked about. Printed unconditionally, so
@@ -1848,6 +1944,7 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 		"moved": 0.0,
 		"step": 0.0,
 		"slope": 0.0,
+		"why": "",
 	}
 	# A one-corner route is the entrance and the Shaft in the same place, which
 	# the generator does not emit and which nothing would be learned from.
@@ -1890,6 +1987,8 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 			result["moved"] = _planar_gap(leg_from, player.global_position)
 			result["step"] = _obstruction_height(
 				player.global_position, target - player.global_position)
+			result["why"] = _why_stuck(player,
+				target - player.global_position)
 			result["slope"] = (rad_to_deg(
 				player.get_floor_normal().angle_to(Vector3.UP))
 				if player.is_on_floor() else -1.0)
@@ -1931,6 +2030,47 @@ static func _route_length(route: PackedVector3Array) -> float:
 	for i: int in range(1, route.size()):
 		run += route[i - 1].distance_to(route[i])
 	return run
+
+
+## **Why the step-up declined to help** (`M4-T29`, ADR-209).
+##
+## `_obstruction_height` says how tall the thing ahead is and cannot say what
+## kind of thing it is: cast forward from the feet, a 22° ramp reports as 0.30 m
+## of stone at 0.6 m, which reads exactly like a step and is not one. Two stalls
+## were mis-diagnosed that way before this row existed, and one of them sent a
+## whole tuning pass after a number that was never the problem.
+##
+## So this runs `Player._step_up`'s own three sweeps against the real body, in
+## the real spot, and names the first one that refuses. The answers are
+## different faults with different fixes: **headroom** is a ceiling, **forward**
+## is something too deep to step onto rather than a lip, **landing** is a gap
+## rather than a step, and **clear** means a step would have fitted and
+## something else is holding the body — which is the answer that says to stop
+## looking at step height altogether.
+func _why_stuck(player: Player, facing: Vector3) -> String:
+	var tuning: TuningProfile = Config.tuning
+	var going := Vector3(facing.x, 0.0, facing.z)
+	if going.length_squared() < 0.0001:
+		return "nowhere to go"
+	var ahead: Vector3 = going.normalized() * tuning.step_reach
+	var rise := Vector3(0.0, tuning.step_height, 0.0)
+	var probe: Transform3D = player.global_transform
+	var headroom := KinematicCollision3D.new()
+	if player.test_move(probe, rise, headroom):
+		rise = Vector3(0.0, headroom.get_travel().y, 0.0)
+		if rise.y < Player.STEP_LEAST:
+			return "only %.2f m of headroom — nothing to rise into" % rise.y
+	probe.origin += rise
+	if player.test_move(probe, ahead):
+		return "raised %.2f m and still blocked forward" % rise.y
+	probe.origin += ahead
+	var landing := KinematicCollision3D.new()
+	if not player.test_move(probe, -rise, landing):
+		return "nothing to land on — a gap, not a step"
+	if landing.get_normal().angle_to(Vector3.UP) > player.floor_max_angle:
+		return "landing is %.0f°, too steep to stand on" % rad_to_deg(
+			landing.get_normal().angle_to(Vector3.UP))
+	return "clear — a step would fit, so something else is holding it"
 
 
 ## **How tall the thing in front of the body is** (`M4-T25`).
@@ -3642,6 +3782,37 @@ func _vista_probe() -> void:
 		walk_run = _route_length(route)
 		var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 		var target: Vector3 = item.global_position + Vector3(0.0, 0.25, 0.0)
+		# **Every glitter on the floor, not only the Prize** (`M4-T28`).
+		#
+		# `DES-015` asks for *"something valuable and distant"*, and the Prize
+		# is only the most valuable of several. A floor where the Prize is
+		# hidden but four other glitters line the way is a floor that keeps the
+		# rule, and measuring one item cannot tell that apart from a floor with
+		# nothing to see — which is the difference between a **layout** fault
+		# and a **loot** one, and they need different fixes.
+		var glitters: Array[Vector3] = []
+		var worth: PackedInt32Array = PackedInt32Array()
+		for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+			var lit: WorldItem = node as WorldItem
+			if lit == null or not lit.definition().tags.has(&"glitter"):
+				continue
+			glitters.append(lit.global_position + Vector3(0.0, 0.25, 0.0))
+			worth.append(lit.definition().tribute_value)
+		# **And the Shaft, which on floor 0 is the whole answer** (ADR-204).
+		#
+		# `M4-T23` made the Shaft's foot pour the light of the best find
+		# *below* it, and argued that on a floor with nothing valuable on it
+		# the valuable-and-distant thing **is the next floor**. That is not a
+		# footnote here: measured, floor 0 carries **no glitter at all** on any
+		# seed in the panel, so a census of items alone judges it against a
+		# vista it was never meant to have and calls the design working as
+		# designed a failure.
+		var down_light: Vector3 = _shaft.position + Vector3(0.0, 0.6, 0.0)
+		var saw_shaft: int = 0
+		var furthest_shaft: float = 0.0
+		var seen_any: int = 0
+		var furthest_any: float = 0.0
+		var ever: Dictionary = {}
 		for corner: int in range(1, route.size()):
 			var from_at: Vector3 = route[corner - 1]
 			var to_at: Vector3 = route[corner]
@@ -3653,13 +3824,44 @@ func _vista_probe() -> void:
 			for step: int in strides:
 				var at: Vector3 = from_at.lerp(to_at,
 					float(step) / float(strides))
+				var eye: Vector3 = at + Vector3(0.0, EYE_HEIGHT, 0.0)
 				route_points += 1
-				var sight := PhysicsRayQueryParameters3D.create(
-					at + Vector3(0.0, EYE_HEIGHT, 0.0), target)
+				var sight := PhysicsRayQueryParameters3D.create(eye, target)
 				sight.collision_mask = CollisionLayers.WORLD
 				if space.intersect_ray(sight).is_empty():
 					on_route += 1
 					furthest = maxf(furthest, at.distance_to(target))
+				var any: bool = false
+				for index: int in glitters.size():
+					var glint := PhysicsRayQueryParameters3D.create(
+						eye, glitters[index])
+					glint.collision_mask = CollisionLayers.WORLD
+					if not space.intersect_ray(glint).is_empty():
+						continue
+					any = true
+					ever[index] = true
+					furthest_any = maxf(furthest_any,
+						at.distance_to(glitters[index]))
+				if any:
+					seen_any += 1
+				var pale := PhysicsRayQueryParameters3D.create(eye, down_light)
+				pale.collision_mask = CollisionLayers.WORLD
+				if space.intersect_ray(pale).is_empty():
+					saw_shaft += 1
+					furthest_shaft = maxf(furthest_shaft,
+						at.distance_to(down_light))
+		var richest: int = 0
+		for value: int in worth:
+			richest = maxi(richest, value)
+		print("[vista] the loot      %d glitter(s) on the floor, best worth %d, "
+			% [glitters.size(), richest]
+			+ "%d ever in view from the walk" % ever.size())
+		print("[vista] any glitter   %d of %d point(s) see something valuable, "
+			% [seen_any, route_points]
+			+ "furthest %.1f m" % furthest_any)
+		print("[vista] the Shaft     %d of %d point(s) see the way down, "
+			% [saw_shaft, route_points]
+			+ "furthest %.1f m" % furthest_shaft)
 	print("[vista] on the way    %d of %d point(s) on a %.0f m walk see the "
 		% [on_route, route_points, walk_run]
 		+ "Prize, furthest %.1f m" % furthest)
@@ -6336,10 +6538,29 @@ func _build_navigation() -> void:
 static func nav_settings(mesh: NavigationMesh) -> NavigationMesh:
 	mesh.agent_radius = NAV_AGENT_RADIUS
 	mesh.agent_height = NAV_AGENT_HEIGHT
-	# Nothing here is climbable. The well kerb and the barricade are meant to
-	# be walked *around*; a generous step height would quietly turn both into
-	# ramps and undo the reason they are solid.
-	mesh.agent_max_climb = 0.3
+	# **The body's step, not a number of its own** (`M4-T29`, ADR-209).
+	#
+	# This was the literal `0.3` and the player could climb about **0.10 m** —
+	# a 0.35 m capsule rolls over `r(1 − 1/√2)` and no further, because
+	# `CharacterBody3D` has no step-up and nothing here had added one. So every
+	# route in the game was planned for a climb the player did not have, and
+	# four generated floors in nine had a rise on the way to the Shaft that the
+	# Hunt walked over and the party could not (ADR-205).
+	#
+	# Reading the profile is what stops that recurring — but **one voxel short
+	# of it, not equal to it.** Recast quantises the climb to `cell_height`, so
+	# a mesh told to allow the body's full step merges spans up to that many
+	# voxels apart and routes over real stone taller than the promise: measured
+	# at **0.35 m** against a 0.30 m step, on two floors, when the two numbers
+	# were first made equal. Baking a voxel short puts the error on the side
+	# where the body can still take it.
+	#
+	# Set after `cell_height` below, because it is derived from it.
+	#
+	# Nothing here is climbable at that height, which is the other half of the
+	# number: the well kerb stands 0.70 m and the barricade's beam 0.92 m, and
+	# both are meant to be walked *around* — a generous step would quietly turn
+	# them into ramps and undo the reason they are solid.
 	mesh.agent_max_slope = 45.0
 	# **0.15, and this number closed every doorway in the level at 0.2.**
 	#
@@ -6369,6 +6590,9 @@ static func nav_settings(mesh: NavigationMesh) -> NavigationMesh:
 	# same second. Conservatism at 5 cm is cheaper than a floor with no route.
 	mesh.cell_size = 0.10
 	mesh.cell_height = 0.10
+	# The climb, derived — see the note above `agent_max_slope`.
+	mesh.agent_max_climb = maxf(
+		Config.tuning.step_height - mesh.cell_height, mesh.cell_height)
 	mesh.geometry_parsed_geometry_type = \
 		NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	mesh.geometry_source_geometry_mode = \
