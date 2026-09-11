@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-10
+updated: 2026-09-11
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -7448,6 +7448,75 @@ But it is **a new authored item**, which is design content and not a bug fix, an
 - **Raising floor 0's value ceiling.** It rewrites ADR-193's 6 → 55 → 140 gradient, which is `DES-015` Layer 4's whole statement about depth, to solve a visibility problem. The tail wagging the dog.
 - **Making the Shaft visible from further.** Generator work that fights `FloorPlan.DOGLEG_RUN` directly — the dog-leg exists to stop you seeing the whole proposition from the doorway, and a Shaft visible across the floor is that, with gold on it.
 - **Tagging an existing cheap item as `glitter`.** The tag drives `WorldItem`'s glow and `M4-T23` ties glow energy to tribute value, so a worth-6 item tagged glitter pours almost nothing and would read as a bug rather than as bait. A new item can be authored to look right at the value it has.
+
+## ADR-211 — The Hunter could not cross a single floor, and a deferral is why
+
+**Date:** 2026-09-11 · **Status:** accepted · **`M4-T30`** · **Closes a deferral from ADR-142** · **Amends `ART-005`, `DES-013`**
+
+**Context:** Reported from play: *the Hunter doesn't really traverse the whole levels well and is too wide for some doorways.* The developer proposed a despawn-and-respawn system to compensate, and asked whether it was a good idea.
+
+It was worse than *some doorways*, and the answer is no.
+
+### What was already known, and had stopped being true
+
+`gullsjukr.gd` has carried this header since ADR-142:
+
+> **The radius is a known compromise.** Its collider is 0.75 and `room_set` bakes the mesh at 0.45, so a path is planned for a body narrower than this one and corners will still catch it. That needs either a second bake or path smoothing away from walls, and it is `M4-T01`'s to solve properly — **the mesh is hand-authored until then.**
+
+`M4-T01` shipped. The mesh stopped being hand-authored — the Delvings generates it now — and nothing went back for the *until then*. This is ADR-098's shape applied to a **deferral** rather than to a name: a note that was true when written, whose precondition expired silently, and which nothing in the repository could notice because a comment is not a check.
+
+### Decision 1 — measure the body against the floors, both dimensions separately
+
+`--hunter-fit` bakes the `--reach-probe` panel at a given agent size and asks each floor for a route from the entrance to the Shaft.
+
+| radius | height | floors routing |
+|---|---|---|
+| 0.45 | 1.80 | **24 of 24** — the bake every other mesh in the game uses |
+| 0.55 | 1.80 | 23 of 24 |
+| **0.55** | **2.00** | **23 of 24** |
+| 0.55 | 2.20 | 17 of 24 |
+| 0.55 | 2.40 | 8 of 24 |
+| 0.65 | 2.00 | 16 of 24 |
+| 0.75 | 1.80 | **0 of 24** |
+| 0.45 | 2.40 | 8 of 24 |
+| **0.75** | **2.40** | **0 of 24** — the Gullsjúkr as it was |
+
+**The Hunter could not cross one floor the generator makes**, and each dimension was independently fatal: too wide on its own is zero, too tall on its own is eight. This is ADR-209's fault one axis over — there the mesh promised a **climb** the body did not have, here a **width** and a **height**.
+
+### Decision 2 — the body is resized to 0.55 × 2.00
+
+Both cliffs are sharp and neither buys anything: a centimetre wider costs seven floors, a step taller costs six. 0.55 × 2.00 sits at 23 of 24, and **the floor it misses is one `M4-T29`'s player cannot walk either** — the same generator geometry, refusing both bodies.
+
+`ART-005` asks for *huge, lopsided, glittering where a person should not*, and the resize keeps it: the Gullsjúkr is still **half again wider than the 0.35 m player and taller than one**. `_build_body` derives the collider, the hurtbox and the mesh from `NAV_RADIUS`/`NAV_HEIGHT` instead of repeating literals, and the taper is scaled rather than re-proportioned, so it is the same creature smaller and not a different one.
+
+### Decision 3 — the despawn-and-respawn system is rejected, for now
+
+The proposal was a reasonable response to the symptom. Against the measurement it is the wrong fix, on three counts.
+
+**It would have been the Hunter's only means of moving.** At 0 of 24 floors the system would not fire occasionally as a pacing tool; it would fire constantly, as locomotion. That is teleportation with a cooldown, and it is what players would read.
+
+**It would have hidden the cause permanently.** Once the Hunter can relocate, nobody discovers that the creature and the floors disagree about size. A corrective layer over a measurable fault is what `CLAUDE.md` names when it says to prefer subtraction.
+
+**It costs the counter-play.** `DES-005`'s Hunt is a thing you outwit — go quiet, break line of sight, put a door between you — and every one of those depends on the Hunter being genuinely where it is and bound by the floor you are on. A pursuer that can reappear cannot be reasoned about, and *"it respawned on me"* is not the one-sentence death `CLAUDE.md`'s fourth principle asks for.
+
+**Kept, as a different feature.** A director that repositions the Hunter when it has *genuinely lost you* — Alien: Isolation's, which relocates its alien to keep pressure without ever letting the player see it happen — is a pacing mechanism worth having, and the developer's instinct that the Hunter should sometimes feel like it comes from all directions is a real one. It is filed as its own idea rather than as this fault's remedy, and it can only be judged once the body can walk.
+
+### What was rejected
+
+- **Widening the generator's tight spots.** The floors play well and the brief was explicitly not to change how they feel. Resizing one creature is a smaller change than resizing every corridor that creature does not fit.
+- **Baking a second navmesh at the Hunter's size.** ADR-142's own suggestion, and the measurement kills it: at 0.75 × 2.40 the second bake has **no route on any floor**, so there would be nothing to follow. It is only worth revisiting if the creature has to grow again.
+- **Path smoothing away from walls.** ADR-142's other suggestion. It helps a body that fits and clips corners; it cannot help one that does not fit.
+- **Asserting the Hunter's row at 23 of 24.** That would pin a generator fault at its current size — the missed floor is `M4-T29`'s, and fixing it should make this number go up without anybody editing a threshold.
+
+### What this found on the way
+
+**The probe's first two drafts both measured something other than what their labels said, and its own control is what caught each one.**
+
+The first swept the radius while holding the height at the Hunter's 2.40 m, so every row labelled *width* was being refused by height — and its baseline read 5 of 24 at the standard bake.
+
+The second separated the dimensions and still read **15 of 24** for a corner `--reach-probe` scores 24 of 24, because it polled for *any* route and an asynchronous bake yields a partial path before it settles. Counting that as a refusal measured how fast the machine baked.
+
+Only the third reproduces 24 of 24, and that is why the control is an **assertion** rather than a printed number: a panel whose baseline can drift is a panel measuring itself. Planted by baking the control at 0.70 m — it drops to 16 of 24 and the row fails, naming it.
 
 *Entries below to be added as design decisions are signed off.*
 

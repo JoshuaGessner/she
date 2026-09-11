@@ -842,6 +842,8 @@ func _ready() -> void:
 			_build_probe()
 		elif arg == "--reach-probe":
 			_reach_probe()
+		elif arg == "--hunter-fit":
+			_hunter_fit()
 		elif arg == "--delvings-probe":
 			_delvings_probe()
 		elif arg == "--machine-probe":
@@ -1880,6 +1882,147 @@ func _reach_probe() -> void:
 		% [bodies, asked]
 		+ "%d route leg(s) walked" % legs)
 	_report(problems, "reach")
+
+
+## **Does the floor the generator makes admit the body that hunts you?**
+## (`M4-T30`, ADR-211)
+##
+## Every navmesh in this game is baked for a **0.45 m** agent. The Gullsjúkr is
+## **0.75 m** — a body 1.5 m across following a route planned for one 0.9 m
+## across — and `gullsjukr.gd` has said so in a header since ADR-142:
+##
+## > *The radius is a known compromise. Its collider is 0.75 and `room_set`
+## > bakes the mesh at 0.45, so a path is planned for a body narrower than this
+## > one and corners will still catch it [...] it is `M4-T01`'s to solve
+## > properly — the mesh is hand-authored until then.*
+##
+## `M4-T01` shipped and the mesh is not hand-authored any more, so the *until
+## then* expired without anybody noticing — the ADR-098 shape, applied to a
+## deferral rather than to a name. A playtest found the consequence before this
+## did: the Hunter traverses badly and does not fit some doorways.
+##
+## This is the same fault as ADR-209's step, one axis over. There the mesh
+## promised a climb the body did not have; here it promises a **width**. The
+## question is whether the floors admit a 0.75 m agent at all, and it is asked
+## by baking one — not by arithmetic about doorways, because what decides it is
+## Recast's erosion against the narrowest thing on the route and not the width
+## anybody wrote down.
+func _hunter_fit() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
+	var kinds: PackedStringArray = _prize_kinds(modules)
+	# **Several shapes, because one answer is not actionable.** *The Hunter does
+	# not fit* is a finding; *it fits at 0.55 and not at 0.65* is a decision
+	# somebody can make.
+	#
+	# **Width and height separately, because they are separate faults.** The
+	# first version swept the radius and held the height at the Hunter's 2.40 m,
+	# and its own baseline came back wrong — 5 of 24 at the 0.45 m radius every
+	# other bake in the game uses, where `--reach-probe` gets 24 of 24. Height
+	# was doing the refusing and the rows were all labelled width. A measurement
+	# that cannot reproduce the number it is a variation on is not measuring what
+	# its labels say.
+	#
+	# Two rows on every sweep: the corner the rest of the game bakes, which is
+	# the control, and the Hunter as it actually is. The wider panel that chose
+	# 0.55 × 2.00 is in ADR-211 rather than here — it cost minutes and it only
+	# had to be run once, whereas these two have to keep being true.
+	var shapes: Array[Vector2] = [
+		Vector2(NAV_AGENT_RADIUS, NAV_AGENT_HEIGHT),
+		Vector2(Gullsjukr.NAV_RADIUS, Gullsjukr.NAV_HEIGHT),
+	]
+	var hunted: int = 0
+	var of_floors: int = 0
+	for shape: Vector2 in shapes:
+		var fits: int = 0
+		var floors: int = 0
+		for run_seed: int in REACH_PANEL:
+			for depth: int in RunFile.LAST_FLOOR + 1:
+				var graph: MissionGraph = MissionGraph.build(run_seed, depth)
+				var lore := ExpeditionHistory.roll(run_seed, calamities, kinds)
+				var plan: FloorPlan = FloorPlan.build(
+					graph, run_seed, depth, modules, lore)
+				if not plan.problems().is_empty():
+					continue
+				floors += 1
+
+				var navroot := Node3D.new()
+				navroot.position = WALK_LIFT
+				add_child(navroot)
+				FloorBuilder.build(plan, graph, run_seed, depth, navroot)
+				navroot.add_to_group(GENERATED_NAV_GROUP)
+				var mesh := nav_settings(NavigationMesh.new())
+				mesh.agent_radius = shape.x
+				mesh.agent_height = shape.y
+				mesh.geometry_source_group_name = GENERATED_NAV_GROUP
+				var region := NavigationRegion3D.new()
+				region.navigation_mesh = mesh
+				add_child(region)
+				region.bake_navigation_mesh(false)
+
+				var map: RID = get_world_3d().navigation_map
+				var entrance: int = graph.node_with(MissionGraph.Role.ENTRANCE)
+				var shaft: int = graph.node_with(MissionGraph.Role.SHAFT)
+				var start_at: Vector3 = _plan_centre(plan, entrance) + WALK_LIFT
+				var down: Vector3 = _plan_centre(plan, shaft) + WALK_LIFT
+				# **Polled for an arriving route, not for any route.** The first
+				# version took `_route_when_ready`, which returns the moment a
+				# path of two corners exists — and before an asynchronous bake
+				# has settled that is a *partial* path, ending nowhere near the
+				# Shaft. Counted as a refusal it made the control read 15 of 24
+				# where `--reach-probe` gets 24 of 24, so the rows were
+				# measuring how fast the machine baked rather than how wide the
+				# doorways are.
+				var arrived: bool = false
+				for frame: int in NAV_SYNC_FRAMES:
+					NavigationServer3D.map_force_update(map)
+					if NavigationServer3D.map_get_iteration_id(map) > 0:
+						var route: PackedVector3Array = \
+							NavigationServer3D.map_get_path(
+								map, start_at, down, true)
+						if route.size() > 1 \
+								and route[route.size() - 1] \
+									.distance_to(down) <= NAV_REACH:
+							arrived = true
+							break
+					await get_tree().physics_frame
+				if arrived:
+					fits += 1
+
+				region.queue_free()
+				navroot.remove_from_group(GENERATED_NAV_GROUP)
+				navroot.queue_free()
+				await get_tree().process_frame
+
+		print("[hunter] r %.2f h %.2f   %d of %d floor(s) route entrance to Shaft"
+			% [shape.x, shape.y, fits, floors])
+		# **The control is asserted and the Hunter is counted.** The first
+		# version of this probe reported 15 of 24 for the standard bake, where
+		# `--reach-probe` gets 24 of 24, and every row under it was wrong by
+		# whatever that gap was. A panel whose baseline can drift is measuring
+		# the machine.
+		if is_equal_approx(shape.x, NAV_AGENT_RADIUS) \
+				and is_equal_approx(shape.y, NAV_AGENT_HEIGHT):
+			if fits < floors:
+				problems.append(("the control bakes at %.2f m × %.2f m — what "
+					+ "every other mesh in the game uses — and only %d of %d "
+					+ "floor(s) route. `--reach-probe` gets all of them, so "
+					+ "this probe is measuring itself and the Hunter row "
+					+ "below is meaningless")
+					% [shape.x, shape.y, fits, floors])
+		else:
+			hunted = fits
+			of_floors = floors
+
+	# **A number, not a threshold.** 23 of 24 is where 0.55 × 2.00 lands and the
+	# floor it misses is one `M4-T29` also cannot walk — so a threshold here would
+	# be asserting a generator fault stays fixed at its current size. The row is
+	# required to exist (ADR-200, ADR-202); what it should read is ADR-211's.
+	print("[hunter] the Hunter  %d of %d floor(s), body %.2f m × %.2f m against "
+		% [hunted, of_floors, Gullsjukr.NAV_RADIUS, Gullsjukr.NAV_HEIGHT]
+		+ "a %.2f m mesh" % NAV_AGENT_RADIUS)
+	_report(problems, "hunter")
 
 
 ## A route, once the map that answers for it has actually finished building.

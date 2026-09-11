@@ -108,14 +108,44 @@ const TINTS: Dictionary = {
 ## `"enemies"` group. The Gullsjúkr is in `"hunters"`. The check about pursuit
 ## excluded the pursuer.
 ##
-## **The radius is a known compromise.** Its collider is 0.75 and `room_set`
-## bakes the mesh at 0.45, so a path is planned for a body narrower than this
-## one and corners will still catch it. That needs either a second bake or path
-## smoothing away from walls, and it is `M4-T01`'s to solve properly — the mesh
-## is hand-authored until then. This stops it walking *into* walls; it does not
-## yet stop it clipping their corners.
-const NAV_RADIUS: float = 0.75
-const NAV_HEIGHT: float = 2.4
+## **The size is measured now, and it used to be a deferral that expired**
+## (`M4-T30`, ADR-211).
+##
+## This read *"the radius is a known compromise — its collider is 0.75 and
+## `room_set` bakes the mesh at 0.45, so a path is planned for a body narrower
+## than this one and corners will still catch it [...] it is `M4-T01`'s to solve
+## properly, the mesh is hand-authored until then."* `M4-T01` shipped, the mesh
+## stopped being hand-authored, and nothing went back for the *until then*. A
+## playtest found it first: the Hunter traverses badly and does not fit some
+## doorways.
+##
+## It was worse than *some*. `--hunter-fit` bakes the reach panel at a range of
+## body sizes and asks each for a route from the entrance to the Shaft. At
+## **0.75 × 2.40** the answer was **0 of 24 floors** — the Gullsjúkr could not
+## cross a single floor the generator makes, and each dimension was
+## independently fatal:
+##
+## | radius | height | floors routing |
+## |---|---|---|
+## | 0.45 | 1.80 | 24 of 24 — the bake everything else uses |
+## | 0.55 | 1.80 | 23 of 24 |
+## | **0.55** | **2.00** | **23 of 24** |
+## | 0.55 | 2.20 | 17 of 24 |
+## | 0.55 | 2.40 | 8 of 24 |
+## | 0.65 | 2.00 | 16 of 24 |
+## | 0.75 | 2.40 | **0 of 24** |
+##
+## **0.55 × 2.00 sits at both cliffs.** A centimetre wider costs seven floors, a
+## step taller costs six, and neither buys anything. It is still half again
+## wider than the 0.35 m player and taller than one, so `ART-005`'s *huge,
+## lopsided, wrong* survives the resize — the taper in `_build_body` is scaled
+## with it rather than re-proportioned.
+##
+## Every dimension of the body is derived from these two, so the collider, the
+## hurtbox and the mesh cannot drift apart from the path being planned for them
+## ⟨tune⟩.
+const NAV_RADIUS: float = 0.55
+const NAV_HEIGHT: float = 2.0
 const REPATH_SECONDS: float = 0.25
 ## Inside this, walk straight. Same reasoning as `Enemy.DIRECT_RANGE`: a path
 ## node closer than the body is worse than the direct line, and the map takes a
@@ -688,18 +718,25 @@ func _walk(delta: float) -> void:
 ## asks for a silhouette that reads at any distance and reads *wrong*: huge,
 ## lopsided, glittering where a person should not.
 func _build_body() -> void:
+	# **Sized to the floors it hunts on** (`M4-T30`, ADR-211). Every dimension
+	# here is `NAV_RADIUS`/`NAV_HEIGHT` rather than a literal, because the body
+	# and the mesh it walks disagreeing is the whole of the fault those two
+	# constants now carry the measurement for.
 	var shape := CylinderShape3D.new()
-	shape.radius = 0.75
-	shape.height = 2.4
+	shape.radius = NAV_RADIUS
+	shape.height = NAV_HEIGHT
 	var collider := CollisionShape3D.new()
 	collider.shape = shape
-	collider.position.y = 1.2
+	collider.position.y = NAV_HEIGHT * 0.5
 	add_child(collider)
 
+	# The taper is kept in proportion, so it is the same creature at a smaller
+	# size rather than a different one: the mesh overhangs the collider by the
+	# same fraction it always did, which is what gives it shoulders.
 	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.45
-	mesh.bottom_radius = 0.85
-	mesh.height = 2.4
+	mesh.top_radius = NAV_RADIUS * 0.60
+	mesh.bottom_radius = NAV_RADIUS * 1.13
+	mesh.height = NAV_HEIGHT
 	_material = StandardMaterial3D.new()
 	_material.roughness = 0.35
 	_mesh = MeshInstance3D.new()
@@ -726,10 +763,10 @@ func _build_body() -> void:
 	hurtbox.monitoring = false
 	var reach := CollisionShape3D.new()
 	var hit_shape := CylinderShape3D.new()
-	hit_shape.radius = 0.75
-	hit_shape.height = 2.4
+	hit_shape.radius = NAV_RADIUS
+	hit_shape.height = NAV_HEIGHT
 	reach.shape = hit_shape
-	reach.position.y = 1.2
+	reach.position.y = NAV_HEIGHT * 0.5
 	hurtbox.add_child(reach)
 	hurtbox.hit.connect(_on_struck)
 	add_child(hurtbox)

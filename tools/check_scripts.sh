@@ -838,6 +838,30 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **And the body that hunts you fits the floors it hunts on** (`M4-T30`,
+	# ADR-211). Every mesh in the game is baked for a 0.45 m agent and the
+	# Gullsjúkr was 0.75 m wide and 2.40 m tall — measured, **0 of 24 floors**
+	# would route it from the entrance to the Shaft, with each dimension
+	# independently fatal. `gullsjukr.gd` had said the radius was a known
+	# compromise since ADR-142 and deferred it to `M4-T01`, which shipped.
+	#
+	# **The control row is the assertion**, not the Hunter row: the standard
+	# bake must route all 24, because an earlier draft of this probe reported 15
+	# and everything under it was wrong by that gap. The Hunter's own row is a
+	# number — 23 of 24 at 0.55 × 2.00 — because the floor it misses is one
+	# `M4-T29` cannot walk either, and a threshold here would pin a generator
+	# fault at its present size.
+	hunter="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900000 \
+		levels/room_set/room_set.tscn -- --hunter-fit 2>&1)"
+	if [[ $? -ne 0 ]] \
+			|| ! grep -q '^\[hunter\] the Hunter' <<<"$hunter" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hunter"; then
+		echo "FAIL the Hunter fits the floors it hunts on" >&2
+		printf '%s\n' "$hunter" | grep -E '\[hunter\]|ERROR' \
+			| sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And the place is a level somebody could descend into** (`M4-T01`,
 	# ADR-183). Everything above measures the floor; this boots one as the game
 	# would — the same `_ready` that raises the Deep, handed a `DelvingsFloor` —

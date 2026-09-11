@@ -7,6 +7,8 @@ item.wpn_seax.name,Seax
 item.wpn_seax.desc,"A working blade, not a warrior's. Quick, light, and honest about what it cannot do."
 item.arm_mail_byrnie.name,Mail Byrnie
 item.arm_mail_byrnie.desc,"Riveted rings on a leather shirt. Turns an edge, and rings like a dropped purse when you run."
+item.glt_gilt_bead.name,Gilt Bead
+item.glt_gilt_bead.desc,"Gold leaf over lead, and thin enough to read the lead through. It catches the light like the real thing, which was the whole of the idea."
 item.glt_hoard_coin.name,Hoard-Coin
 item.glt_hoard_coin.desc,"Struck by a mint that no longer exists, for a king nobody remembers. She remembers."
 item.glt_raw_gemstone.name,Raw Gemstone
