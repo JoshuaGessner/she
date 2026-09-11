@@ -206,6 +206,18 @@ const STATE_PROPERTIES: Dictionary = {
 	".:sworn": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:effects": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:wearing": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **How far down the Pact this one is** (`M4-T20`, ADR-212). `DES-019`
+	# Layer 4 asks a party frame for a teammate's class *and* standing, and the
+	# rank lived only in `CoopSession._ranks` — host-side, keyed by peer, and
+	# never sent anywhere. So a client could see who its teammates were and not
+	# what they were, which matters in a game where ADR-010 scales the floor to
+	# the deepest rank **present**: the rank-8 player beside you is the reason
+	# the room is what it is.
+	#
+	# Here rather than on the spawn packet alone, for the reason the three
+	# above are: the host builds a joining peer's body from `peer_connected`,
+	# and that peer's `declare_descent` is an RPC that arrives afterwards.
+	".:rank": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# Spending a Waystone (`M2-T14`). `ALWAYS`, for the same reason as the two
 	# above: it moves every frame while it matters, and it is driving a ring
 	# somebody is watching. It has to replicate at all because `_spending` is
@@ -228,6 +240,13 @@ const STATE_PROPERTIES: Dictionary = {
 ## (`DES-020`: teammates can read your loadout across a room). The slot is what
 ## carries it until there are classes to look at.
 var party_slot: int = 0
+## Which rung of the Pact this body descends at, 1..`MAX_RANK` (`M4-T20`).
+##
+## Replicated rather than looked up: `GameState.pact_rank` is *this process's*
+## rank and `CoopSession._ranks` is the host's copy of everyone's, so neither
+## answers *what rank is the player standing next to me* on a client. See
+## `STATE_PROPERTIES`.
+var rank: int = 1
 
 ## 0 standing, 1 fully crouched. Replicated, because a crouched teammate must
 ## be crouched on every screen *and* present a shorter capsule to the host's

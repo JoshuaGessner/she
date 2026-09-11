@@ -7518,5 +7518,54 @@ The second separated the dimensions and still read **15 of 24** for a corner `--
 
 Only the third reproduces 24 of 24, and that is why the control is an **assertion** rather than a printed number: a panel whose baseline can drift is a panel measuring itself. Planted by baking the control at 0.70 m — it drops to 16 of 24 and the row fails, naming it.
 
+## ADR-212 — The two rows `M4-T20` owed, and a replication gap that was one value wide
+
+**Date:** 2026-09-11 · **Status:** accepted · **`M4-T20`** · **Amends `DES-019`, `TEC-004`**
+
+**Context:** ADR-190 split the gate-blocking quarter of the interface work out of `M4-T05`, and ADR-198 landed two of its four rows. The two left were both gate preconditions rather than screen polish:
+
+- **Layer 3's Waystone mark.** ADR-186 made a Waystone the only extraction above the bottom floor, so *do I have a way out* is the sharpest question on the HUD — and the only way to answer it was to open the bag, which `DES-019` designs as a vulnerable act. The game charged safety for an answer the design says is free, and `GATE M4 GREED` is a decision about exactly that.
+- **Layer 4's party frames.** `GATE M4 COOP` asks a repeatedly-downed newcomer whether they still want to go again, and `FallenReadout` binds to `local_player` — correctly, because being down is the worst moment in the game and the person in it needs the whole screen. Nobody could see whether a teammate was up, down or a Vörðr.
+
+### Decision 1 — the mark is a shape, not a lamp
+
+Filled standing stone when carried, hollow and struck through when not. The two states differ by **shape** before colour, so with the screen desaturated and the sound off the answer still arrives — `DES-018`'s parity, which a hue change would have failed. No number anywhere on it: ADR-015 caps a party at one Waystone, so the value is a bit and a bit has no dial (`DES-019` rule 2).
+
+**The empty state is the one that matters** and is photographed first. Unlit is not an absence of information, it is the answer with the consequence: you are going to the bottom.
+
+**It kills the line that stood in for it.** `DebugReadout` carried `waystone CARRIED` behind a flag, under a comment naming `M4-T05` as its replacement. Keeping both would be ADR-064's second, worse path — and a comment promising its own removal is exactly the kind nobody reads again (ADR-098).
+
+### Decision 2 — the frames draw everyone but you, in seat order
+
+The local body is the `BODY` layer's; drawing it twice would spend the left edge on something already on screen. Rows are ordered by `party_slot`, which rides the spawn packet and never changes, because a list that reorders itself when somebody goes down is a list you have to re-read at the moment you can least afford to.
+
+The bar vocabulary is `FallenReadout`'s on purpose — **shortening** is bleeding out, **filling** is a hand on you — so a player who learned it from the inside reads it on somebody else without being taught twice.
+
+### Decision 3 — the replication gap was one value wide, and I had it wrong
+
+Asked whether health and the Clamor pip could be drawn at all, the first answer given to the developer was that neither crossed the wire and that adding them was a `TEC-004` change. **That was wrong.** `Health:current`, `ClamorSource:level` and `sworn` have all been in `Player.STATE_PROPERTIES` since `M3-T07`, configured **by node path** — which is why a search of `health.gd` for replication finds nothing and a search for `"health` misses `"Health:current"`. Health rides the spawn packet too, and `maximum` is derived locally from the class every peer already has, so `fraction()` is correct on every machine without sending it.
+
+The developer's instruction to add the replication was given against that wrong answer, and the correct scope is **one value**: `rank`.
+
+It lived in `CoopSession._ranks` — host-side, keyed by peer, read only by `floor_rank()`. So a client could see who its teammates were and not what they were, which matters precisely because ADR-010 builds a floor for the deepest rank **present**: the rank-8 player beside you is the reason the room is what it is.
+
+`rank` now sits on the body beside `sworn`, `ON_CHANGE` in `STATE_PROPERTIES`, and on the spawn payload — both, for the reason `M3-T07` moved the class there. The host spawns a joining peer's body from `peer_connected` and that peer's `declare_descent` is an RPC arriving afterwards, so *declared first* and *spawned first* have to end in the same place. `declare_descent` writes the **clamped** value from `_ranks`, never the number that arrived, or a client sending 99 would be drawn as rank 99 on every frame while the floor was built for the ceiling (ADR-199).
+
+**The Clamor pip is comparative.** `DES-019` asks for it so *"you're the loud one"* is visible, which is a statement about the party rather than a number — so it scales against the loudest player present and no ⟨tune⟩ ceiling had to be invented. A party creeping together shows three small pips; whoever just sprinted in mail shows one big one.
+
+### Decision 4 — the measurement is windowed, and the grammar stays headless
+
+ADR-198's split holds: `--hud-probe` asserts the region grammar headless, because that is arithmetic over a viewport with no text in it, and `--party-shot` measures what is **drawn** windowed, because `_draw` never executes headless and writing that half headless-first produced fiction once already. Hand-run at a gate like `--chamber-shot` and `--bag-shot`, for the reason all three are: CI has no display.
+
+Planted by making `WaystoneMark.carried()` return false — the shot reports `mark empty` with a Waystone in the bag and fails, naming it.
+
+### What this found on the way
+
+**`HudFrame.place()` sets height to zero, and both new elements drew a line.** It was written for labels and containers, which grow their own height, and it overwrites `custom_minimum_size` with the region's width and nothing else. A drawn `Control` then paints into a `size.y` of 0. `settle()` exists for exactly this and reads `get_minimum_size()`, so the answer is to override `_get_minimum_size()` — the one declaration `place()` cannot trample — and to call both. This is the same fact that made the Chamber's speech region measure 0×0 and pass (ADR-198): **a free `Control` is never grown to its minimum by anybody.**
+
+**The mark had to stop scaling to its region.** `settle` gives a placed element the full width of its region, and a menhir polygon scaled to that is eight times wider than it is tall. The glyph is drawn from its own aspect and right-aligned, because `BURDEN` grows leftward from the right edge.
+
+**`check_dead.py` did not know `_get_minimum_size` is a virtual.** Two correct overrides reported as dead functions. The list is closed on purpose — so a typo'd override shows up as an ordinary uncalled function rather than being waved through — which means the fix is to add the name, and the tool behaved exactly as designed while being wrong.
+
 *Entries below to be added as design decisions are signed off.*
 

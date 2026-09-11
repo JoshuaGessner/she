@@ -82,13 +82,15 @@ func _process(_delta: float) -> void:
 			clamor.carried_floor * Config.tuning.clamor_metres_per_unit,
 		],
 	])
-	# `DES-019` Layer 3 puts the Waystone on the Burden layer and requires one
-	# question to be answerable in a glance: **do I still have my way out?**
-	# Binary, which only holds because ADR-015 caps it at one. The real Burden
-	# layer is `M4-T05`; this is where it lives until then.
-	lines.append("waystone  %s" % [
-		"CARRIED" if bag.waystone() != null else "none",
-	])
+	# **The Waystone line is gone, and it said so itself** (`M4-T20`, ADR-212).
+	#
+	# It read: *"`DES-019` Layer 3 puts the Waystone on the Burden layer and
+	# requires one question to be answerable in a glance [...] the real Burden
+	# layer is `M4-T05`; this is where it lives until then."* `WaystoneMark` is
+	# that, in `HudFrame.Region.BURDEN`, on the HUD every player can see rather
+	# than behind a debug flag — so keeping this would be the second, worse path
+	# ADR-064 bans, and the kind whose comment promises its own removal and is
+	# then never read again (ADR-098).
 	# **The per-enemy list is gone, and its own comment is why** (`M2-T13`,
 	# ADR-105). It read:
 	#

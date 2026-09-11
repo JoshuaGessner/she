@@ -58,6 +58,11 @@ ENGINE_VIRTUALS = {
     "_set", "_get_property_list", "_property_can_revert",
     "_property_get_revert", "_validate_property", "_integrate_forces",
     "_gui_input", "_can_drop_data", "_drop_data", "_get_drag_data",
+    # `Control`'s own sizing virtual (`M4-T20`). The engine calls it whenever a
+    # layout is computed, and it is the only way a free `Control` can tell
+    # `HudFrame.settle` how tall it needs to be — `place()` overwrites
+    # `custom_minimum_size`, so an assignment there does not survive.
+    "_get_minimum_size",
     "_get_configuration_warnings", "_physics_interpolated_changed",
     # A `--script` entry point. Godot instances the script as its MainLoop and
     # calls this; there is no call site anywhere and there cannot be one.

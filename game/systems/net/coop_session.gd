@@ -614,6 +614,19 @@ func sworn_of(peer: int) -> StringName:
 	return StringName(_sworn.get(peer, ""))
 
 
+## The rung one peer descends at (`M4-T20`).
+##
+## `floor_rank()` answers *how deep is the deepest of us*, which is what ADR-010
+## scales a floor by, and it has been the only reader of `_ranks` until now. A
+## party frame asks the other question — *what rank is **that** one* — and it is
+## the same dictionary one key at a time.
+##
+## Defaults to 1 rather than 0: an undeclared peer is a peer at the start of the
+## Pact, and `_ranks` is written clamped to 1..`MAX_RANK` by `declare_descent`.
+func rank_of(peer: int) -> int:
+	return int(_ranks.get(peer, 1))
+
+
 ## **How many of us have not said who they are** (`M3-T37`, ADR-158).
 ##
 ## No new wire and no new bit: `declare_descent` has carried the class since
@@ -728,6 +741,11 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 	var body: Player = player_for(id)
 	if body != null:
 		body.sworn = StringName(sworn)
+		# The clamped value, never the one that arrived: `_ranks` is the host's
+		# record and the body has to agree with it, or a client sending 99 would
+		# be shown as rank 99 on every party frame while the floor was built for
+		# the ceiling (`M4-T20`, ADR-199's clamp).
+		body.rank = _ranks[id]
 		body.effects = effects
 		body.wearing = worn
 		_hand_down(body, id)
@@ -868,6 +886,7 @@ func _build_player(payload: Dictionary) -> Node:
 	# that would leave a Húskarl standing there with a Veiðimaðr's numbers for
 	# a frame — on the host, which is the copy that decides what a blow does.
 	player.sworn = StringName(payload.get("class", ""))
+	player.rank = int(payload.get("rank", 1))
 	player.effects = payload.get("effects", PackedStringArray()) as PackedStringArray
 	player.wearing = (payload.get("worn", {}) as Dictionary).duplicate()
 	# Before `add_child`, so `_ready` already knows whether it is looking at
@@ -970,6 +989,11 @@ func spawn_player(peer: int, at: Vector3 = NO_PLACE) -> Player:
 		# beside the class and for the same reason: every peer derives the same
 		# body from the same payload.
 		"effects": effects_of(peer),
+		# Beside the class, and replicated as well for the same reason it is
+		# (`M4-T20`): `DES-019` Layer 4 wants a teammate's standing on the party
+		# frame, and the rank lived host-side in `_ranks` where no client could
+		# read it.
+		"rank": rank_of(peer),
 		"worn": _worn.get(peer, {}),
 	}) as Player
 	if player != null:

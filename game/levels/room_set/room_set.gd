@@ -531,6 +531,10 @@ var _session: CoopSession = null
 var _field: ClamorField = null
 var _hunter: Gullsjukr = null
 var _shaft: Shaft = null
+## `DES-019` Layer 3's one bit and Layer 4's frames (`M4-T20`). Held because
+## `_relayout_hud` has to find them again on every resize.
+var _waystone: WaystoneMark = null
+var _party: PartyFrames = null
 var _navigation: NavigationRegion3D = null
 ## The floor's own `Environment`, kept so `--light-shot` can sweep the ambient
 ## energy without rebuilding the level between exposures (`M4-T13`).
@@ -770,6 +774,8 @@ func _ready() -> void:
 			_prize_probe()
 		elif arg == "--bag-probe":
 			_bag_probe()
+		elif arg.begins_with("--party-shot="):
+			_party_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--bag-shot="):
 			_bag_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hunt-probe":
@@ -2023,6 +2029,41 @@ func _hunter_fit() -> void:
 		% [hunted, of_floors, Gullsjukr.NAV_RADIUS, Gullsjukr.NAV_HEIGHT]
 		+ "a %.2f m mesh" % NAV_AGENT_RADIUS)
 	_report(problems, "hunter")
+
+
+## Put the Deep's two placed elements back in their regions (`M4-T20`).
+##
+## On the viewport rather than once at build: `HudFrame`'s regions are fractions
+## of the window, so a resize moves them and an element that placed itself once
+## would sit where the window used to be. The Chamber learned this the same way
+## and `relayout` there is this function's twin.
+func _relayout_hud() -> void:
+	if _waystone == null or _party == null:
+		return
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+	HudFrame.place(_waystone, HudFrame.Region.BURDEN, screen)
+	HudFrame.place(_party, HudFrame.Region.PARTY, screen)
+	# **`settle` as well as `place`, or both of these draw a line.** `place`
+	# promises width and sets height to zero, which is correct for a container
+	# that grows its own and wrong for a `Control` that paints into `size`. A
+	# free `Control` is never grown to its minimum by anybody — the same fact
+	# that made the Chamber's speech region measure 0×0 and pass (ADR-198).
+	HudFrame.settle(_waystone, HudFrame.Region.BURDEN, screen)
+	HudFrame.settle(_party, HudFrame.Region.PARTY, screen)
+
+
+## What the Deep claims of the frame, for the windowed measurement (`M4-T20`).
+##
+## The grammar half of the overlap check runs headless in `--hud-probe` and asks
+## whether the *regions* collide. This is the other half — whether what is
+## actually drawn is inside the region it claimed — and it has to run windowed,
+## because `_draw` never executes headless and writing it headless-first
+## produced fiction once already (ADR-198).
+func hud_claims() -> Dictionary:
+	return {
+		"WAYSTONE": [HudFrame.Region.BURDEN, HudFrame.occupied_by(_waystone)],
+		"PARTY": [HudFrame.Region.PARTY, HudFrame.occupied_by(_party)],
+	}
 
 
 ## A route, once the map that answers for it has actually finished building.
@@ -5805,6 +5846,20 @@ func _build_hud() -> void:
 	# fade over a screenshot — and a probe that downs a player deliberately
 	# should be exercising it rather than hiding it.
 	layer.add_child(FallenReadout.new())
+	# **`DES-019` Layers 3 and 4, in the regions `HudFrame` already named for
+	# them** (`M4-T20`, ADR-212). Until now the Deep's HUD placed everything by
+	# literal and these two did not exist at all: *do I have a way out* was only
+	# answerable by opening the bag, which `DES-019` designs as a vulnerable act,
+	# and whether a teammate was up, down or a Vörðr was answerable nowhere.
+	#
+	# Placed rather than positioned, so `--hud-probe`'s grammar owns where they
+	# are and `_relayout_hud` is the only thing that moves them.
+	_waystone = WaystoneMark.new()
+	layer.add_child(_waystone)
+	_party = PartyFrames.new()
+	layer.add_child(_party)
+	_relayout_hud()
+	get_viewport().size_changed.connect(_relayout_hud)
 	# Not while a probe is measuring the floor: it would be three labels
 	# fading over a screenshot, and `--ear-shot` in particular photographs
 	# exactly the frames this covers.
@@ -8215,6 +8270,91 @@ func _bag_shot(path: String) -> void:
 	print("[bag] %d item(s) drawn, %.1f kg, wrote %s" % [
 		player.inventory.count(), player.carried.kilograms, path])
 	get_tree().quit()
+
+
+## **Photograph `DES-019` Layers 3 and 4, and measure what was drawn**
+## (`M4-T20`, ADR-212).
+##
+## The overlap check runs in two halves and this is the windowed one. The
+## grammar — do the regions collide, at five aspect ratios — is `--hud-probe`
+## and runs headless. Whether what is *drawn* is inside the region it claimed
+## cannot: `_draw` never executes headless, and ADR-198 recorded what happens
+## when that half is written headless-first, measuring the same Chamber panel at
+## 323×160 windowed and 323×353 headless from identical strings.
+##
+## **Both states of the mark, in one run.** A Waystone mark photographed only
+## while carrying one is a photograph of half a feature, and the half that
+## matters more is the empty one — ADR-186 made a Waystone the only extraction
+## above the bottom floor, so *unlit* is the answer with the consequence.
+##
+## The party frames are photographed with the second body **down**, because the
+## row that has to be legible is the one `GATE M4 COOP` is about: a teammate
+## bleeding out two rooms away, seen by somebody deciding whether to come.
+func _party_shot(path: String) -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+
+	# A second body, so the frames have something to draw. Spawned through the
+	# session rather than mocked: `PartyFrames` reads the `player` group, and a
+	# stand-in placed there would be a different object from the one that ships.
+	var mate: Player = _session.spawn_player(2, Vector3(4.0, 0.0, 4.0))
+	if mate != null:
+		mate.party_slot = 1
+		mate.rank = 4
+		for i: int in range(4):
+			await get_tree().physics_frame
+		# Down, not dead: `bleeding` is the host-side window and setting it is
+		# what `_go_down` does, so this is the state a teammate actually sees.
+		mate.bleeding = Config.tuning.bleed_out_seconds * 0.6
+	for i: int in range(8):
+		await get_tree().process_frame
+
+	# ─ 1. the empty mark, which is the one with the consequence ─
+	if _waystone.carried():
+		problems.append("the local body is carrying a Waystone before the "
+			+ "empty mark was photographed — the shot is of the wrong state")
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+
+	# ─ 2. and then the carried one ─
+	var stone: ItemResource = ItemCatalogue.by_id(DelvingsFloor.WAYSTONE)
+	if stone != null:
+		player.inventory.add(stone)
+	for i: int in range(4):
+		await get_tree().process_frame
+	if not _waystone.carried():
+		problems.append("a Waystone was put in the bag and the mark still "
+			+ "reads empty — it is drawing from something other than the bag "
+			+ "it claims to report")
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-carried.png"))
+
+	# ─ 3. what was drawn is inside what was claimed ─
+	var screen: Vector2 = get_viewport().get_visible_rect().size
+	for fault: String in HudFrame.escapes(hud_claims(), screen):
+		problems.append(fault)
+
+	var seen: Array[Player] = _party.others()
+	print("[party] frames     %d frame(s) drawn, mate is '%s', mark %s" % [
+		seen.size(),
+		PartyFrames.state_of(seen[0]) if not seen.is_empty() else "nobody",
+		"carried" if _waystone.carried() else "empty"])
+	# **A frame per teammate, and the state has to be the one that was set.**
+	# A readout that draws the right number of rows saying the wrong thing is
+	# the fault ADR-198 found three times in one screen.
+	if seen.is_empty():
+		problems.append("a second body is in the level and the party frames "
+			+ "drew nothing — Layer 4 is the one thing `GATE M4 COOP` cannot "
+			+ "be run without")
+	elif PartyFrames.state_of(seen[0]) != &"down":
+		problems.append(("the teammate is bleeding and the frame reads '%s' "
+			+ "— the row a rescuer reads is wrong about the only thing it is "
+			+ "for") % PartyFrames.state_of(seen[0]))
+	print("[party] wrote %s" % path)
+	_report(problems, "party")
 
 
 func _capture_top(path: String) -> void:
