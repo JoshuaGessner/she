@@ -16,7 +16,8 @@ extends RefCounted
 ## The same split every stage before it keeps. This picks nodes and machines;
 ## `MachineResource` says how many fallen, bodies and items; `DelvingsFloor`
 ## draws the items from the worth-sorted pool; `FloorBuilder` raises the marks.
-## No file here names an item, and `M4-T17` is the task that earns the right to.
+## No file here names an item: `DES-023` is the list, and `M4-T31` builds its
+## loot bands, which is where an item gets named.
 ##
 ## ## Three rooms the mission owns, and a machine may never take them
 ##

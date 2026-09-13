@@ -19,8 +19,8 @@ extends FloorSource
 ##
 ## So the long safe branch pays badly and the short guarded one pays well, on
 ## any floor, with no hand-placed coordinate and **no invented taxonomy**. When
-## `M4-T17` gives the items a real one and `DES-008` gives them loot tables,
-## this is the function that reads them instead; nothing above it changes.
+## `M4-T31` builds `DES-023`'s list and its depth bands, this is the function
+## that reads them instead; nothing above it changes.
 
 
 ## The way out that is not the Shaft (`DES-005`, ADR-110). One per floor, in the
@@ -48,7 +48,7 @@ const WITHHELD: float = 0.45
 ## A floor with nothing worth picking up has no decision on it, which is the one
 ## thing `DES-002`'s loop cannot survive in its first act. Also the guard that
 ## keeps a small corpus from cutting itself to nothing: fifteen items today,
-## and `M4-T17` has not written the taxonomy yet.
+## and `DES-023`'s bands are not built yet (`M4-T31`).
 const LEAVE_AT_LEAST: int = 6
 
 var _graph: MissionGraph = null
@@ -406,7 +406,7 @@ func filler() -> Array:
 ## **The numbers are `⟨tune⟩` and the shape is not.** `GATE M4 GREED` — *a
 ## playtester voluntarily abandons loot to survive* — is the measurement that
 ## settles how steep this should be, and it cannot be run against a flat curve
-## at all. `M4-T17`'s loot tables replace the cut with authored depth bands and
+## at all. `DES-023` §4's authored depth bands replace the cut at `M4-T31`, and
 ## nothing above this line changes then either.
 func _by_worth() -> Array[ItemResource]:
 	return worth_at(_depth)

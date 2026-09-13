@@ -29,8 +29,8 @@ extends RefCounted
 ## ## It answers where, never what
 ##
 ## Like `FloorAnchors`, which it wraps on the generated side. Which enemy, which
-## item, which Prize are `DES-013`, `M4-T17` and `DES-008`, and none of them is
-## settled — so nothing here names one.
+## item, which Prize are `DES-013`, `DES-023` and `DES-008`, and the list is
+## not built yet (`M4-T31`) — so nothing here names one.
 
 
 ## Raise the floor's geometry under `into`.

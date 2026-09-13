@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-13 · 42 documents_
+_Regenerated 2026-09-13 · 43 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -20,8 +20,8 @@ _What the game is._
 | `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-09-02 | DES-002, DES-007, DES-008 |
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
 | `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-08-14 | DES-002, DES-006, DES-008 |
-| `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-09-03 | DES-003, DES-004, DES-005 |
-| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-09-04 | DES-005, DES-007, DES-008, PRO-001 |
+| `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-09-13 | DES-003, DES-004, DES-005 |
+| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-09-13 | DES-005, DES-007, DES-008, PRO-001 |
 | `DES-010` | [Retention, Session Hooks & Churn Points](design/DES-010-retention-and-session-hooks.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, DES-007, PRO-001 |
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-08-25 | DES-004, DES-003, DES-012, DES-009 |
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-08-17 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
@@ -32,8 +32,9 @@ _What the game is._
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-01 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-06 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
 | `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-09-03 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
-| `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-09-03 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
+| `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-09-13 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
+| `DES-023` | [Items — the Slice's List](design/DES-023-items-the-slice-list.md) | ✔ accepted | 2026-09-13 | DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004 |
 
 ## Technical
 
@@ -83,6 +84,7 @@ _Visual and audio direction._
 - **adr** — PRO-002
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
+- **armour** — DES-023
 - **art** — ART-001, ART-004, ART-005
 - **assets** — ART-004
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
@@ -101,6 +103,7 @@ _Visual and audio direction._
 - **co-op** — DES-011, DES-012, DES-013, DES-014, TEC-004
 - **cognitive-load** — DES-019
 - **combat** — DES-009, DES-013
+- **consumables** — DES-023
 - **contracts** — DES-007
 - **conventions** — TEC-002
 - **core-loop** — DES-002
@@ -123,7 +126,7 @@ _Visual and audio direction._
 - **feel** — DES-009
 - **first-person** — DES-020
 - **gameplay** — DES-009
-- **gear** — DES-008, DES-020, DES-022
+- **gear** — DES-008, DES-020, DES-022, DES-023
 - **generation** — DES-015, TEC-007
 - **geometry** — TEC-008
 - **glossary** — PRO-003
@@ -140,14 +143,14 @@ _Visual and audio direction._
 - **inventory** — DES-009, DES-019, DES-020
 - **ip** — PRO-004
 - **ip-safety** — DES-006
-- **items** — DES-008
+- **items** — DES-008, DES-023
 - **lair** — DES-014
 - **layout** — TEC-009
 - **legal** — PRO-004
 - **legibility** — ART-005, DES-018, DES-019, TEC-008, TEC-009
 - **levels** — DES-015, TEC-007, TEC-008
 - **lineage** — DES-016
-- **loot** — DES-008
+- **loot** — DES-008, DES-023
 - **lore** — DES-006
 - **map** — DES-019
 - **meta** — DES-003, DES-004
@@ -205,6 +208,7 @@ _Visual and audio direction._
 - **structure** — DES-002, DES-007, TEC-002
 - **style** — ART-001, ART-005
 - **systems** — DES-013, TEC-001
+- **taxonomy** — DES-023
 - **tech-debt** — TEC-003
 - **technical** — DES-015
 - **tension** — DES-005
@@ -219,4 +223,5 @@ _Visual and audio direction._
 - **vision** — DES-001
 - **visual** — DES-020
 - **vitals** — DES-009
+- **weapons** — DES-023
 - **world** — DES-006

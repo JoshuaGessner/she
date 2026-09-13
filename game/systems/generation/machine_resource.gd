@@ -23,7 +23,7 @@ extends Resource
 ## The same split `FloorAnchors` and `DelvingsFloor` already keep: **this says
 ## how much and what shape, never which.** A machine that named `wep_seax`
 ## would be the invented taxonomy `delvings_floor.gd` refuses in as many words,
-## and `M4-T17` is the task that earns the right to name one. `gear` is a
+## and `M4-T31` — building `DES-023`'s bands — is where one gets named. `gear` is a
 ## count drawn from the worth-sorted pool for exactly that reason.
 ##
 ## ## Fields are added when something consumes them
@@ -103,8 +103,8 @@ enum Facing {
 ## everything else on the floor is dealt from.
 ##
 ## A **count, never an id.** Which items exist and what they are for belong to
-## `M4-T17` and `DES-008`; when they arrive, this is the field that reads a
-## loot table instead, and nothing above it changes.
+## `DES-023` and `DES-008`; when `M4-T31` builds the bands, this is the field
+## that reads them instead, and nothing above it changes.
 @export var gear: int = 0
 
 

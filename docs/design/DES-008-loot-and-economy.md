@@ -4,7 +4,7 @@ title: Loot, Gear & Economy
 status: accepted
 owner: design
 tags: [loot, economy, items, balance, greed, gear]
-updated: 2026-09-03
+updated: 2026-09-13
 related: [DES-003, DES-004, DES-005]
 ---
 
@@ -47,6 +47,8 @@ The interesting items are the ones where these disagree loudly: a Dvergar king's
 - **Materials** — crafting inputs for the Deep-Kin. Small, light, quietly essential.
 - **Grave-goods** — from the Barrow-Fields. Enormous tribute value, but **cursed**: the Draugr they belonged to hunts you until you extract, tribute, or return it. Loot that fights back is the best loot.
 
+> **THE LIST (ADR-217):** the categories above are filled for the vertical slice in `DES-023` — twenty-six items, each naming the one thing only it does, with where each comes from and at what depth. Grave-goods arrive with the Barrow-Fields (`M5-T02`).
+
 ## Gear philosophy
 
 **No rarity-tier stat ladder.** No green→blue→purple→orange with +12% each. That ladder is what makes late runs trivial and early runs pointless, and it's incompatible with Principle 1 and `DES-003`'s guardrails.
@@ -60,7 +62,7 @@ Instead, gear is **sidegrades with pronounced identity** (Barony and *Noita* bot
 
 Better gear = **more options and better condition**, not bigger numbers. A veteran is dangerous because they know a hammer opens that wall, not because their sword does 340 damage.
 
-- **Durability/condition** ⟨tune⟩ exists as an economy sink — but as *degrading identity* (a dulled blade stops cleaving) rather than the item vanishing. Item breakage that deletes a fun toy is punishing without being interesting.
+- **Durability/condition** ⟨tune⟩ *(not in the vertical slice — moved to `M5-T07` by the developer at ADR-217, with the forge it needs)* exists as an economy sink — but as *degrading identity* (a dulled blade stops cleaving) rather than the item vanishing. Item breakage that deletes a fun toy is punishing without being interesting.
 - **Identification**: unknown items must be tested, appraised, or risked. Lineage knowledge (`DES-003`) makes this progressively less tedious across lifetimes — a great example of persistence that removes friction without granting power.
 
 ## Faucets and sinks

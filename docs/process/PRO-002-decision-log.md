@@ -7781,5 +7781,68 @@ A Godot variation has one base, so the colour and the size live on different lev
 - **A control resolves its role only once it is in the tree.** Asked before `add_child`, it reports the engine's defaults even with a project theme set, where an override answered at once. Nothing measured early — the census would have shown it — but it is a new way to be wrong, so `MenuStyle`'s header says it.
 - **There are two alarming reds**, the Tithe's debt and the join screen's error, 0.1 apart. Both kept as tones; which one `DES-018` wants is `M4-T11`'s.
 
+---
+
+## ADR-217 — The slice has a list of twenty-six items, and each one names what only it does
+
+**Date:** 2026-09-13 · **Status:** accepted · **Closes `M4-T17`** · **Creates `DES-023`** · **Amends `DES-008`, `DES-009`, `DES-020`** · **Schedules `M4-T31`, `M4-T32`, `M5-T07`, `M5-T08`**
+
+**Context:** `DES-008` has the philosophy and `DES-009` the feel, and nothing had the list. `M4-T02`'s enemies need something to be armoured against, `M4-T03`'s classes need something to carry, and every generated floor deals its loot from the whole item folder sorted by worth (ADR-193) — so the list is not a document beside the generator, it is the generator's input.
+
+**Measured before writing:** sixteen items. Every weapon carries a `damage_type` and **nothing reads it**, so the Húskarl's 11 kg byrnie turns nothing. **Nothing heals** during a run — `Health` has `revive()` for the ember rescue and no other way up. The bag has shown head and arms slots since `M3` with nothing that fits them. And a weapon's hitbox already strikes every body in its arc and passes through walls.
+
+### Decision 1 — three calls, made by the developer
+
+Put as named options with the cost of each:
+
+| Question | Chosen | Rejected, and why |
+|---|---|---|
+| How big is the slice's list? | **Lean, about 27** — every item names what only it does | *A minimum of ~19* (shield, plate, bandage): about a week, but the *what do I carry* decision has few shapes and floors repeat sooner. *Launch-sized, ~45*: a month or more, mostly art, and the enemy and class tasks wait behind it |
+| When does gear wear down? | **`M5`** (`M5-T07`) | *In the slice*: about a month — per-item wear, the forge, the service currency, visible wear — for a sink the slice does not need, since death's stash wipe already stops inflation. *Cut*: would reverse `DES-008` and `DES-022`'s *"a blade that is still sharp"* |
+| What heals, and what magic? | **Bandages and one rune** | *Bandages only*: runes would wait for `M5` and the camp's rune-carver, leaving ADR-048's consumable magic out of the slice. *Several runes*: shatter and freeze need breakable walls and water, two more systems |
+
+### Decision 2 — the rule, and the list it produces
+
+> **Name the thing this item lets you do that no other item on the list does.**
+
+ADR-058's test applied to a corpus, paired with `DES-008`'s four axes having to disagree. The result is `DES-023`: **twenty-six items, sixteen existing and ten new** — a bearded axe (the one thrown thing that wounds), a round shield (stops a heavy blow and a missile), Dvergar plate (plated), a spangenhelm and iron bracers (each turns away one wound), a pack frame (the only pack the coin-chest and altar-plate share, and it creaks), a linen binding (the only healing), a hush rune (a circle where nothing sounds, which cracks when it ends), a coin-chest (the find you can barely carry), and **Ótr's pelt** — the skin the first hoard was paid over, which hides what you carry from the Gold-Sick's near sense (`DES-017`) and protects nothing, so wearing it refuses the richest single offer on the floor.
+
+### Decision 3 — armour is a class on the body, and head and arms turn away wounds
+
+`DES-009`'s triangle is built as a table ⟨tune⟩ — mailed lets a third of a cut through, plated a fifth of a cut and two-fifths of a pierce, and blunt goes through plate whole. **The class belongs to the body piece alone.** Three pieces each shaving a share off every blow is the stat ladder `DES-008` rejects, reassembled one slot at a time; so the helm prevents *Concussed* and the bracers *Broken arm*, which is a capability a player can feel the absence of. **It is symmetrical**: enemy archetypes carry classes and enemy attacks carry types (`M4-T02`), and a Hall-Warden being dead plate is why the hammer is on the list.
+
+**The shield stops what a weapon's guard cannot** — a heavy blow and a missile from the front. That is `DES-011`'s *"a shield that blocks what others must avoid"* as a rule, and it needs `M4-T02` to say which attacks are heavy.
+
+### Decision 4 — where items come from, and why it lands with the data
+
+Kits, the Prize, machine gear, the vista bait, filler, and never-on-a-floor, with authored **depth bands** replacing the worth cut (`DES-023` §4). Machine gear is gear and consumables, never glitter. The bands move ADR-193's measured climb from 6 → 55 → 140 to roughly 6 → 70 → 220, and **that is an economy change `GATE M4 GREED` is run against**, not a settled number. Because the floor deals from the whole folder, an item landing without its band would put plate armour in the bypass with the coins — so the bands and the kits are one task, `M4-T31`, and the bands admit each item as the task that gives it a behaviour lands (Decision 5).
+
+### Decision 5 — who builds it
+
+| Work | Task |
+|---|---|
+| The triangle, for players and enemies | `M4-T02` |
+| The shield | `M4-T03` |
+| Wounds, and with them the helm and bracers — **not before** | `M4-T14` |
+| The kits and the bands; the axe (its throw), the pelt (its concealment), the pack frame and the coin-chest; arcs that hit walls; the Regin blade's verb | `M4-T31` (new) |
+| Using a thing: the binding and the hush rune, on `ConsumableTrait` | `M4-T32` (new) |
+| Condition, repair, and a use for materials | `M5-T07` (new) |
+| The map and the compass | `M5-T08` (new) |
+
+**Each item lands with the task that gives it its behaviour, and not before** — plate with the triangle, the shield with the Húskarl, the helm and bracers with wounds. An item in the folder ahead of what it does is the byrnie again, and because the floor deals from the folder it reaches a player the day it is added.
+
+### Rejected alternatives
+
+- **A hide coat for the Veiðimaðr.** An unarmoured body piece does nothing a bare body does not, and would be an item whose purpose is filling a slot. *No armour* is the Veiðimaðr's choice already.
+- **An axe that cleaves.** Every weapon's hitbox already strikes every body in its arc once, so *hits two at once* is not a thing only the axe does.
+- **Head and arms adding to the armour class.** See Decision 3.
+- **The map and compass in the slice.** `DES-019` makes them items; a drawn map is a system, and the stranger session found its way without one. Placed in `M5` as a consequence of the lean list — **the one scheduling call here that was not put to the developer as its own question**, recorded so it can be reopened on its own merits.
+
+### What this found
+
+- **`rlc_regin_blade` fails the rule.** A seax with more damage, stagger and reach. It stays — it is in saves and the Legacy flow, and its 120 tribute does real work — and it owes a verb or an ADR (`M4-T31`).
+- **The spear's cost is unbuilt.** `DES-009`'s *"swing a poleaxe in a corridor and you hit the wall"* — a hitbox passes through stone, so the spear has reach and no price.
+- **The generator's comments name `M4-T17` as the task that earns the right to name an item.** They now name `M4-T31`, which is where the naming is built.
+
 *Entries below to be added as design decisions are signed off.*
 

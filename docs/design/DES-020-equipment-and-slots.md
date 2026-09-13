@@ -4,7 +4,7 @@ title: Equipment & Gear Slots
 status: accepted
 owner: design
 tags: [equipment, gear, slots, inventory, visual, first-person]
-updated: 2026-09-03
+updated: 2026-09-13
 related: [DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006]
 ---
 
@@ -66,6 +66,8 @@ The economy `DES-019` already designed lives here: **shield, lantern, map, and c
 - A player with a lantern in the off hand is lit, visible, and one-handed. A player with a shield is blind in the dark.
 
 > **HALF BUILT (ADR-188, `M4-T13`).** The lantern half is measured rather than asserted — 16.0 m lit against 6.7 m shuttered ⟨tune⟩ — and it gained a third state the paragraph did not anticipate: **shuttered.** That is *not* a free swap.
+>
+> **The shield is on the list (ADR-217).** `DES-023` names `arm_round_shield` — it stops a heavy blow and a missile from the front, which a weapon's guard does not — and `M4-T03` builds it. The paragraph below is what was true until then.
 >
 > **The shield half is still a sentence.** There is no shield item in the corpus, so *"a player with a shield is blind in the dark"* describes a trade nothing can currently make; `blocking` guards with whatever is in hand. The contest the off hand is named for is therefore **lantern versus two-hander** today — real, and measured — and becomes lantern versus shield when `M4-T17` writes the list of what exists to wear and carry. ADR-057 made off-hand swapping slow and interruptible so a shield and a light cannot both be carried; the shutter changes what the held thing is **doing**, not which thing is held, and it buys darkness rather than a shield. The off hand stays spent. A cooldown ⟨tune⟩ stops it being strobed for vision at no exposure.
 >

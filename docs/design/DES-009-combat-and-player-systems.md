@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-09-04
+updated: 2026-09-13
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -87,6 +87,8 @@ That single position resolves a dozen downstream questions. It's why avoidance m
 This cluster is where the game gets its personality, and it's disproportionately cheap: physics and shared hazard rules generate emergent stories at near-zero content cost (Principle 5).
 
 **Damage triangle** — cut / pierce / blunt against unarmoured / mailed / plated. Legible RPG texture without a stat ladder (`DES-008`). Learning it is Lineage-tier knowledge: your bestiary records what worked.
+
+> **Recorded and never read (ADR-217).** Every weapon has carried a damage type since weapons became data, and nothing applies it. `DES-023` §3 gives the table ⟨tune⟩ and one rule this line left open: **the armour class is the body piece's alone** — head and arms turn away a wound each instead of shaving more off every blow. Built for players and enemies together by `M4-T02`.
 
 ---
 
@@ -188,7 +190,7 @@ In order, per Swink:
 
 **Health does not regenerate.** This is the most important single decision in this document after the thesis.
 
-- Healing is a **scarce, slow-to-apply consumable**. You cannot safely heal mid-fight.
+- Healing is a **scarce, slow-to-apply consumable**. You cannot safely heal mid-fight. *(ADR-217: nothing heals in the build today; `DES-023`'s linen binding is that consumable, built by `M4-T32`.)*
 - Therefore every point of damage is a permanent resource loss for the run, and **damage taken becomes extraction pressure on its own** — "I'm at 40% and out of bandages" is a reason to leave that has nothing to do with a timer. Free pressure, deeply thematic, no systems required.
 
 **Stamina** governs swinging, blocking, sprinting, and climbing. Reduced by carried weight (`DES-005`). The moment a player notices their stamina bar shrinking as their bag fills, the core loop has taught itself.

@@ -11,7 +11,7 @@ extends RefCounted
 ## ## It decides positions, never contents
 ##
 ## What a Prize *is*, which enemy archetype posts where, and what an item does
-## belong to `DES-008`, `DES-013` and `M4-T17`. This answers *where*, from the
+## belong to `DES-008`, `DES-013` and `DES-023`. This answers *where*, from the
 ## graph's roles and the plan's rectangles, and nothing else. That split is what
 ## lets the loot taxonomy arrive later without touching a line of it.
 ##
@@ -215,7 +215,7 @@ func field() -> AABB:
 ## Where loot goes, richest first (`DES-008`, ADR-032).
 ##
 ## Returns one spot per room worth putting something in, tagged with what the
-## room is *for* rather than with an item id — `M4-T17` owns the taxonomy and
+## room is *for* rather than with an item id — `DES-023` owns the list and
 ## this owns the geography. Tags are `prize`, `held` and `bypass`.
 ##
 ## **The placement is the argument.** ADR-032's finding on the authored floor was
