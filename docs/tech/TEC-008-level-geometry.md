@@ -4,7 +4,7 @@ title: Level Geometry & Spatial Legibility
 status: accepted
 owner: tech
 tags: [levels, geometry, blockout, metrics, legibility, procgen, research]
-updated: 2026-09-02
+updated: 2026-09-12
 related: [DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001]
 ---
 
@@ -50,11 +50,20 @@ are what `game/data/tuning/default_tuning.tres` already says the player is.
 | Sprint jump gap | **≈2.9 m** air distance | `2·v_jump ÷ gravity × sprint` |
 | Field of view | 75° | `field_of_view` |
 | **Steepest ramp that bakes** | **~30°** | measured, ADR-180 |
+| **A ramp never turns while it climbs** | a flat landing at every corner | geometry, ADR-213 |
 
 > **The navmesh's `agent_max_slope` is 45° and that number is not usable.**
 > Two ramps at 39.5° — a ledge approach and every corridor bridge — produced
 > mesh Recast would not walk on. Both working ramps in the generator are under
 > 30°. Design ramps to the measured limit, not the configured one.
+
+> **A slab cannot rise through a corner.** A cell entered on one edge and left
+> by the edge beside it needs two heights at the corner those edges share, so a
+> ramp tilted along the diagonal of a turn stands proud of both neighbours — up
+> to half a metre, on 88 of 144 generated floors, and it stopped the player body
+> on both floors it could not cross. Buildings put a landing at every change of
+> direction and so does the generator: a turn keeps its height and the climb
+> resumes on the next straight cell (`FloorPlan.deck_rises`).
 
 And the shipped conventions the hand-authored rooms already use, which
 generated space must match or the two read as different games:
@@ -238,6 +247,14 @@ one.
    > every wall, so a foot that meets the floor *at* the wall leaves the deck an
    > island: measured, mesh from 2.5 m down to 0.7 m and none below it, on three
    > ledges of four.
+   >
+   > **Amended by ADR-213.** *Door-free* meant the wall the ledge runs along,
+   > and only that. A wall with a doorway at **both** of its ends is refused as
+   > well: whichever way the ledge is turned, one corridor opens onto the ramp's
+   > foot filling its own column. A person steps round it and the Gullsjúkr
+   > could not — it was both floors the Hunter failed to cross. Refusing a
+   > doorway at *either* end fixed the same two floors and cost 29% of ledges;
+   > both-ends costs 3%.
 2. **Corridor dog-legs — mystery.** No corridor holds a straight run longer
    than `DOGLEG_RUN` cells; where it would, it steps aside one cell, runs
    parallel, and steps back. Removes the see-the-whole-proposition-from-the-

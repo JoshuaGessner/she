@@ -775,9 +775,15 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	#
 	# Also holds the worked-stone-to-cave gradient, which is what stops three
 	# floors of an expedition being three sizes rather than three places.
+	#
+	# **And no corridor ramp climbs through a turn** (`M4-T29`, ADR-213) — the
+	# one fault behind both floors the player body could not cross. Its line is
+	# required, not just the absence of `FAIL`, because a probe that stopped
+	# before reaching the row would otherwise pass it (ADR-202).
 	built="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
 		levels/room_set/room_set.tscn -- --build-probe 2>&1)"
-	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$built"; then
+	if [[ $? -ne 0 ]] || ! grep -q '^\[build\] ramps' <<<"$built" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$built"; then
 		echo "FAIL the plan is a place" >&2
 		printf '%s\n' "$built" | grep -E '\[build\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -847,10 +853,10 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	#
 	# **The control row is the assertion**, not the Hunter row: the standard
 	# bake must route all 24, because an earlier draft of this probe reported 15
-	# and everything under it was wrong by that gap. The Hunter's own row is a
-	# number — 23 of 24 at 0.55 × 2.00 — because the floor it misses is one
-	# `M4-T29` cannot walk either, and a threshold here would pin a generator
-	# fault at its present size.
+	# and everything under it was wrong by that gap. The Hunter's own row was a
+	# number at 23 of 24 until ADR-213, which found the misses were a ledge laid
+	# between two doorways (not, as this said, a floor `M4-T29` could not walk)
+	# and fixed it — so it is asserted now, and a refusal names the cut link.
 	hunter="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 900000 \
 		levels/room_set/room_set.tscn -- --hunter-fit 2>&1)"
 	if [[ $? -ne 0 ]] \

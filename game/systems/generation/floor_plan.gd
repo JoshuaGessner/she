@@ -111,14 +111,25 @@ const MAX_ROLLS: int = 60
 ## and a step is a wall to anything that walks. Routing refuses those crossings
 ## so the builder never has to paper over one ⟨tune⟩.
 ##
+## **Straight** cells, and it took until ADR-213 for that word to be checked: a
+## turn on the approach is a landing and does not count toward the climb (see
+## `deck_rises`).
+##
 ## **Four, because three made the ramp too steep to bake** (ADR-180).
-## `FloorBuilder.RAMP_CELLS` is this minus one, so three gave 4.0 m of run for
+## The ramp is this minus one full cells and a half, so three gave 4.0 m of run for
 ## `BRIDGE_LIFT`'s 3.3 m — 39.5°, under the navmesh's stated 45° and *over* what
 ## it will actually accept. Every bridge on a floor was an unwalkable hump, and
 ## nothing said so, because a crossing sits on a cycle by construction and the
 ## route simply went the other way round. Four cells give 6.0 m of run and
 ## 28.8°, which bakes.
 const BRIDGE_CLEARANCE: int = 4
+## How high a bridge deck stands, in **half-risers** (`M4-T29`, ADR-213).
+##
+## A straight ramp cell climbs two half-risers and the deck sits one half-riser
+## under the full lift, so `BRIDGE_CLEARANCE` straight cells bring a deck back to
+## the floor exactly — three whole cells and one half. Integers because this file
+## decides in integers and `FloorBuilder` only multiplies: see `deck_rises`.
+const DECK_RISERS: int = 2 * BRIDGE_CLEARANCE - 1
 
 ## Fine cells a single corridor may visit before routing calls it hopeless.
 ##
@@ -507,8 +518,10 @@ func _route(edge: Vector2i, index: int, rng: RandomNumberGenerator) -> bool:
 ## Could this route climb to every crossing it makes?
 ##
 ## Measured on the path rather than assumed: the ramp needs `BRIDGE_CLEARANCE`
-## cells between a crossing and each doorway, and a route that cannot give it
-## that is one the builder would have to fake.
+## **straight** cells between a crossing and each doorway — see `deck_rises` for
+## why a turn does not count — and a route that cannot give it that is one the
+## builder would have to fake. The test is the heights themselves: both doorways
+## have to come back down to the floor.
 func _climbable(at: Vector2i, came: Dictionary, over: Dictionary) -> bool:
 	var path: Array[Vector2i] = []
 	var walk: Vector2i = at
@@ -519,12 +532,90 @@ func _climbable(at: Vector2i, came: Dictionary, over: Dictionary) -> bool:
 		if came[walk] == walk:
 			break
 		walk = came[walk]
+	var crossed: Array[Vector2i] = []
+	for cell: Vector2i in path:
+		if _corridor.has(cell):
+			crossed.append(cell)
+	if crossed.is_empty():
+		return true
+	var rises: PackedInt32Array = deck_rises(path, crossed)
+	return rises[0] == 0 and rises[rises.size() - 1] == 0
+
+
+## **How high the floor stands at every cell edge along a route**, in half-risers
+## (`M4-T29`, ADR-213).
+##
+## `size + 1` entries: edge `i` is where cell `i` is entered and edge `i + 1` is
+## where it is left. `FloorBuilder` multiplies these into metres and decides
+## nothing about them, which is what its header has always said it does — until
+## this function existed it worked the heights out for itself.
+##
+## ## A ramp never climbs through a turn
+##
+## `BRIDGE_CLEARANCE` was documented as *"cells of straight run"* and was only
+## ever checked as **distance**. So a route could climb toward a bridge and turn a
+## corner on the way, and the builder tilted that corner's slab along the
+## diagonal of the turn — which no slab can do. A cell entered on one edge and
+## left by the edge beside it needs those two edges at different heights, and
+## they **share a corner**: no plane is two heights at one point. The tilted box
+## stood up to half a metre proud of both straight neighbours and poked out of
+## its own cell into the corridor next door. It was on 88 of 144 floors sampled
+## (361 of 1500 ramps), and it is what stopped the player body on both of the
+## floors it could not cross.
+##
+## Buildings answer this with a **landing**, and so does this: a turn keeps the
+## height it was entered at, and the climb resumes on the next straight cell.
+##
+## **Landings rather than refusing the turn**, because refusing it was measured
+## first. Requiring dead-straight approaches removed every diagonal ramp and took
+## **70% of the floor's bridges with it** (1.49 per floor down to 0.45) at five
+## times the re-rolls — and `DES-015` asks for those bridges by name. A landing
+## costs one cell of corridor per turn and keeps the crossing.
+##
+## For a route with no turn near a crossing these are the heights the builder
+## used to lay, with one difference measured and kept: where two bridges on one
+## corridor are close enough for their ramps to meet, the dip between them can
+## bottom out a half-riser lower (4 cell edges in 144 floors). No cell is steeper
+## than a straight ramp cell either way — each profile moves at most two
+## half-risers a cell, and so does the highest of them.
+static func deck_rises(path: Array[Vector2i],
+		crossed: Array[Vector2i]) -> PackedInt32Array:
+	var rises := PackedInt32Array()
+	rises.resize(path.size() + 1)
+	rises.fill(0)
 	for i: int in path.size():
-		if not _corridor.has(path[i]):
+		if not crossed.has(path[i]):
 			continue
-		if i < BRIDGE_CLEARANCE or i > path.size() - 1 - BRIDGE_CLEARANCE:
-			return false
-	return true
+		rises[i] = maxi(rises[i], DECK_RISERS)
+		rises[i + 1] = maxi(rises[i + 1], DECK_RISERS)
+		# Down the far side, one cell at a time.
+		var height: int = DECK_RISERS
+		for j: int in range(i + 1, path.size()):
+			if height == 0:
+				break
+			if not turns(path, j):
+				height = maxi(height - 2, 0)
+			rises[j + 1] = maxi(rises[j + 1], height)
+		# And back down the near side.
+		height = DECK_RISERS
+		for j: int in range(i - 1, -1, -1):
+			if height == 0:
+				break
+			if not turns(path, j):
+				height = maxi(height - 2, 0)
+			rises[j] = maxi(rises[j], height)
+	return rises
+
+
+## Does the route change direction at `path[i]`?
+##
+## A doorway cell has only one neighbour on the route, so it has one direction
+## and is never a turn — the builder tilts it along the corridor like any other
+## straight cell.
+static func turns(path: Array[Vector2i], i: int) -> bool:
+	if i <= 0 or i >= path.size() - 1:
+		return false
+	return path[i + 1] - path[i] != path[i] - path[i - 1]
 
 
 ## Break a corridor's straight runs so it bends out of sight (`TEC-008` §3.3.2).
@@ -829,6 +920,29 @@ func problems() -> PackedStringArray:
 		found.append(("%d corridor cell(s) carry three or more crossing — two is "
 			+ "a bridge and anything more is a junction nobody can build")
 			% stacked)
+
+	# **Asked of the realised route, not the candidate routing accepted.**
+	# `_dogleg` rewrites a path after `_climbable` has passed it, and it leaves
+	# crossing routes alone only because it says so — this is the row that
+	# notices the day it stops.
+	var stranded := PackedStringArray()
+	var sloped_turns := PackedStringArray()
+	for route: int in routes():
+		var path: Array[Vector2i] = path_of(route)
+		var rises: PackedInt32Array = deck_rises(path, over_of(route))
+		if rises[0] != 0 or rises[rises.size() - 1] != 0:
+			stranded.append("route %d" % route)
+		for i: int in path.size():
+			if turns(path, i) and rises[i] != rises[i + 1]:
+				sloped_turns.append("route %d at %s" % [route, path[i]])
+	if not stranded.is_empty():
+		found.append(("%s climb to a bridge without room to come back down — "
+			+ "the doorway stands above the floor it opens onto, and a step at a "
+			+ "threshold is a wall") % ", ".join(stranded))
+	if not sloped_turns.is_empty():
+		found.append(("%d turn(s) are laid on a slope (%s) — a slab cannot rise "
+			+ "along two edges that share a corner, so a turn has to be a landing")
+			% [sloped_turns.size(), ", ".join(sloped_turns)])
 
 	var held_wrong: int = 0
 	for node: int in _graph.size():

@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-11
+updated: 2026-09-12
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -7566,6 +7566,90 @@ Planted by making `WaystoneMark.carried()` return false — the shot reports `ma
 **The mark had to stop scaling to its region.** `settle` gives a placed element the full width of its region, and a menhir polygon scaled to that is eight times wider than it is tall. The glyph is drawn from its own aspect and right-aligned, because `BURDEN` grows leftward from the right edge.
 
 **`check_dead.py` did not know `_get_minimum_size` is a virtual.** Two correct overrides reported as dead functions. The list is closed on purpose — so a typo'd override shows up as an ordinary uncalled function rather than being waved through — which means the fix is to add the name, and the tool behaved exactly as designed while being wrong.
+
+## ADR-213 — A ramp never climbs through a turn, and the last two uncrossable floors were one fault
+
+**Date:** 2026-09-12 · **Status:** accepted · **`M4-T29`** · **Amends `TEC-008`; closes the question ADR-209 left open**
+
+**Context:** ADR-209 gave the player body a step and took the walk panel from five floors of nine to seven. The two it left were filed as *"not steps — generator geometry"*: seed 31346 floor 0 stopped against 0.60 m of stone on a 22° ramp, and seed 24680 floor 2 stopped against **0.05 m on flat ground**, which the roadmap reasoned *"is only possible if the blocker is lateral — a gap the body cannot fit where a centre-line ray sees air."* The developer's standing instruction for this work was to make floors traversable without changing how they feel.
+
+### What it was
+
+**Neither diagnosis survived a row that names the thing being leaned on.** `_why_stuck` says which of the step-up's sweeps refused and `_obstruction_height` says how tall the thing ahead is; neither says *what* it is. `--reach-probe` now reads `move_and_slide`'s own contacts on the last frame the body is still pushing and prints them by the role `FloorBuilder._slab` gives every piece. Both floors answered the same way: **`ramp_512` 0.50 m up, 7° off ahead** and **`ramp_644` 0.47 m up, 13° off ahead** — head-on, into a corridor ramp. The "lateral pinch" was wrong: the ray at the feet read 0.05 m because it passed *under* a ramp's edge.
+
+Dumping the slabs showed both ramps rotated about **two** axes. Each was the cell where a corridor **turned a corner while climbing to a bridge**. `FloorBuilder._tunnel` tilts a sloped cell along `path[i+1] − path[i−1]`, which at a turn is the diagonal — and **no slab can do that**. A cell entered on one edge and left by the edge beside it needs the entry edge at one height and the exit edge at another, and those two edges share a corner: no plane is two heights at one point. So the tilted box stood proud of both straight neighbours, and at 3.26 m long it poked out of its own cell into the corridor next door — which is how a body on flat floor in a *different* corridor walked into it.
+
+**The planner said it prevented this.** `FloorPlan.BRIDGE_CLEARANCE` has been documented as *"cells of straight run a crossing needs on each side"* since it was written, and `_climbable` only ever measured **distance** from the doorway. The word *straight* was never checked.
+
+**Census, 48 seeds × 3 depths: 361 of 1,500 corridor ramps (265 steep, 96 shallow) on 88 of 144 floors.** Most do not stop the body only because they are off the route it happens to walk.
+
+### Decision 1 — landings, not straight approaches
+
+**The obvious fix was built first and measured, and it is rejected.** Refusing any crossing whose approach turns within reach of its ramp removed every diagonal ramp and took the floor's bridges with it:
+
+| | before | dead-straight approaches | **landings** |
+|---|---|---|---|
+| diagonal ramps | 361 | 0 | **0** |
+| bridges per floor | 1.49 | 0.45 (−70%) | **1.37 (−8%)** |
+| re-rolls, 144 floors | 105 | 514 | **143** |
+| floors that failed to plan | 0 | 0 | **0** |
+
+`DES-015` asks for those crossings by name, `FloorPlan`'s header records that forbidding them outright costs two orders of magnitude in re-rolls, and a floor with a third of its bridges is not the floor the developer asked to keep.
+
+**Landings are what buildings do.** A stair or ramp does not change direction while it climbs; it reaches a flat landing, turns, and climbs again. So a turn cell keeps the height it was entered at, and the climb resumes on the next straight cell. A crossing still needs four cells of climb either side — they have to be **straight** cells now, which is what the constant always said — and each turn on the approach costs one more cell of corridor rather than the bridge.
+
+### Decision 2 — the plan decides the heights and the builder multiplies
+
+`FloorBuilder`'s header says it *"decides nothing — every position here is read from the plan."* The corridor heights were the exception: the builder worked them out from index distance to the nearest crossing, and index distance cannot see a corner. **`FloorPlan.deck_rises(path, crossed)`** now returns every corridor edge height in integer **half-risers** (a straight cell climbs two; a bridge deck stands at `2 × BRIDGE_CLEARANCE − 1`), routing asks it whether both doorways come back to the floor, `problems()` asks it of the realised routes, and `FloorBuilder` multiplies by `HALF_RISER`. Routing and geometry can no longer disagree, because there is one reader.
+
+For a route with no turn near a crossing these are the heights the builder already laid — checked edge by edge against the old arithmetic, verbatim — with one difference kept on purpose: where two bridges on one corridor sit close enough for their ramps to meet, the dip between them can bottom out a half-riser lower (**4 cell edges in 144 floors**). No cell is steeper than a straight ramp cell either way, since each profile moves at most two half-risers a cell and so does the highest of them.
+
+### Decision 3 — the walk is an assertion now
+
+`--reach-probe`'s per-floor walk was a census, deliberately: asserting it before this task fixed the floors would have painted the sweep red for something no commit in between was going to fix (ADR-144). That reason has expired, so **a floor the player body cannot cross fails the sweep**, naming the slab it stopped against. The Deep control still has to pass first. And a walk panel that silently walked nothing now fails too, rather than passing by having nothing to fail (ADR-202).
+
+### Decision 4 — the Hunter lost a floor to this, and the cause was a ledge
+
+**Landings re-laid 31346 floor 0** (it carried 13 of the diagonal ramps), and `--hunter-fit` fell from 23 of 24 to **22**. Run against the old generator with nothing else changed, the old code refused only 57721 floor 1 — so the new refusal was this change's, and it was not waved off as variance. The row counted refusals without naming them, so it now names the **graph link that is cut**: which rooms the Hunter reaches, and the corridor where that stops. The first version printed where the failed route *ended*, which is the navmesh point nearest the Shaft rather than the pinch — on 31346 floor 0 a spot up on a ledge deck, and on 57721 floor 1 a spot on a room floor, neither saying which doorway was cut or that anything was.
+
+Both cuts were a **great-room ledge laid along a wall with a doorway at each end**. `_ledge` refused a wall with a doorway *along* it and never looked at the two end walls, which are exactly where the ramp's foot and the deck land — so whichever way the ledge was turned, one corridor opened onto a ramp foot filling its own column. A 0.7 m body steps round that and a 1.1 m Gullsjúkr cannot. Checked by hand on both, with the new rule switched off: on 31346 floor 0, doorways at (−14, 0) and (−14, 6) with a ledge on the strip between; on 57721 floor 1, doorways at (−8, 3) and (−2, 3), and the ramp's foot faces the western one — which is the doorway on the route the Hunter was cut off at.
+
+**Measured three ways before choosing**, across the same 144 floors:
+
+| ledge rule | ledges | Hunter |
+|---|---|---|
+| long wall only (before) | 291 | 22 of 24 |
+| refuse a doorway at **either** end | 208 (−29%) | 24 of 24 |
+| **refuse a doorway at both ends** | **281 (−3%)** | **24 of 24** |
+
+Either-end costs nearly a third of the ledges, which are the vista rule's delivery mechanism, for nothing both-ends does not also buy. **Turning a one-doorway ledge so its deck faces the door** was built too, and it changed neither number, so it was removed rather than kept on an argument — the claim that 2.2 m under a deck clears a 2.0 m Hunter was never measured, and code standing on an unmeasured claim is the thing this ADR spent its first half removing.
+
+**The Hunter row is an assertion now**, for Decision 3's reason. ADR-211 kept it a count at 23 of 24 and said the floor it missed was *"one `M4-T29` also cannot walk"* — **that was wrong**: it was 57721 floor 1, which is not on the walk panel, and nothing could say so while refusals went unnamed. Recorded here rather than edited into ADR-211.
+
+### Measured
+
+- `--reach-probe`: **9 of 9** walk-panel floors crossed, control 40/40, mesh panel 24 of 24, 447 legs walked.
+- `--hunter-fit`: **24 of 24** at 0.55 m × 2.00 m, up from 23 before this ADR; control 24 of 24.
+- `--plan-probe`: 360 floors planned, **0 invalid**, 398 re-rolls.
+- `--build-probe`: every row green; ledges 5 of 5 reachable; `[build] ramps` 60 across 8 floors, 0 tilted across a turn.
+- Census, 144 floors: 0 diagonal ramps, 1.37 bridges per floor, 281 ledges, 143 re-rolls, 0 failed.
+
+**Planted, each one:**
+
+- `problems()`: letting turns slope inside `deck_rises` — **192 of 360 floors invalid**, naming the stranded doorway and the sloped turn.
+- `[build] ramps`: re-sloping turn cells in the builder alone, so the plan stays clean — **233 ramps tilted**, the first three named by slab and seed. Under that plant a room also dropped off the navmesh, which says something about how bad a sloped turn is.
+- The walk: a final leg aimed 40 m through solid wall — **0 of 9 crossed**, each failure naming the wall. Two earlier plants did not reach the row and are recorded because they looked like they had: re-sloping landings broke three floors badly enough that the *mesh* refused them before any body walked, and switching the step-up off changed nothing at all (next section).
+- The Hunter: switching off the both-ends refusal — **22 of 24**, both cuts named.
+
+### What the step-up is doing now: nothing on this panel
+
+With `Player._step_up` returning immediately, the walk panel still crossed **9 of 9 with identical leg counts and timings**, and a clean run instrumented to print every successful step printed **none** — across the Deep control, all nine floors and the furniture guard (both measured on the landings build, before Decision 4's ledge rule, which moves no corridor). ADR-209 added the step for stalls it measured at *"0.30 m of stone ahead, on a 22° surface"*, and a diagonal ramp's edge standing proud of a 22.4° neighbour is a plausible description of every one of them. **It is left in**: the developer approved it as a feel decision, it guards geometry this panel does not happen to contain, and whether to keep a mechanic nothing currently exercises is theirs to decide — filed as Q111.
+
+### What this found on the way
+
+**Two suspects named by `M4-T29` were cleared, not changed.** `LEDGE_JOIN` and `FLOOR_LAP` both justified themselves against a 0.15 m `cell_size` that ADR-200 dropped to 0.10. For `FLOOR_LAP` the argument never depended on the figure. For `LEDGE_JOIN` it was the wrong axis: the overshoot runs *along* a 26.6° ramp, so what stands above the deck is **0.05 m of height** against a 0.10 m `cell_height`, and neither stall was anywhere near a ledge. Both notes now say so.
+
+**`_obstruction_height`'s note still said the project had no step-up**, after ADR-209 gave it one. Corrected.
 
 *Entries below to be added as design decisions are signed off.*
 

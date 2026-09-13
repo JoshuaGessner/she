@@ -94,9 +94,11 @@ const CHAMFER_MIN: float = 0.4
 const CEILING_DRIFT: float = 1.0
 ## How far every floor slab is grown past its own footprint.
 ##
-## Floors are coplanar and meet edge to edge, and Recast voxelizes at 0.15 m —
-## a butt joint whose seam does not land on a voxel boundary can rasterise into
-## a hairline gap, splitting a room's mesh from the corridor that serves it. The
+## Floors are coplanar and meet edge to edge, and Recast voxelizes at 0.10 m
+## (ADR-200; it was 0.15 when this was written, and the argument does not depend
+## on which) — a butt joint whose seam does not land on a voxel boundary can
+## rasterise into a hairline gap, splitting a room's mesh from the corridor that
+## serves it. The
 ## symptom is a room the route enters and stops inside, and it is intermittent
 ## because it depends where each edge falls against the grid. Overlapping the
 ## slabs removes the joint rather than hoping it aligns.
@@ -104,14 +106,16 @@ const FLOOR_LAP: float = 0.4
 ## How high a crossing corridor rides over the one beneath. Clears the lower
 ## tunnel's ceiling and its slab, so the two decks never intersect.
 const BRIDGE_LIFT: float = CORRIDOR_CEILING + WALL_THICK + 0.4
-## Cells of ramp on each approach to a crossing ⟨tune⟩.
+## One half-riser of corridor ramp, in metres — the unit
+## `FloorPlan.deck_rises` counts in.
 ##
-## **Two, because one is a wall.** `BRIDGE_LIFT` over a single 2.0 m cell is a
-## 58° climb, past the 45° the navmesh will bake and far past the 0.49 m the
-## player can jump — the first version lifted the crossing cell with no ramp at
-## all and left two rooms unreachable, which is what `--build-probe` caught.
-## Two cells make it 4.0 m of run for 3.2 m of rise: 39°, and walkable.
-const RAMP_CELLS: int = FloorPlan.BRIDGE_CLEARANCE - 1
+## `BRIDGE_LIFT` shared over `BRIDGE_CLEARANCE` cells of approach, halved: a
+## straight cell climbs two, and the deck stands one short of the full lift so
+## the last cell of every ramp is a half. **Four cells, because fewer was a
+## wall**: none lifted the crossing cell straight up and stranded two rooms
+## (`--build-probe` caught it), and three gave 39.5°, under the navmesh's stated
+## 45° and over what it will actually bake (ADR-180). Four is 22.4° a cell.
+const HALF_RISER: float = BRIDGE_LIFT / float(2 * FloorPlan.BRIDGE_CLEARANCE)
 
 ## How high a ledge stands over the floor of a great room ⟨tune⟩.
 ##
@@ -156,10 +160,18 @@ const ALCOVE_CEILING: float = 2.2
 const ALCOVE_MAX: int = 2
 ## How far a ledge ramp overshoots the deck it meets, in metres.
 ##
-## Deliberately **under one navmesh voxel** (`cell_size` 0.15): enough that the
-## two solids genuinely overlap, so the join check has something to see, and too
-## little for Recast to rasterise as a step. The deck must not overhang the ramp
-## by any amount at all — see `_ledge`.
+## Deliberately **under one navmesh voxel of height**: enough that the two solids
+## genuinely overlap, so the join check has something to see, and too little for
+## Recast to rasterise as a step. The deck must not overhang the ramp by any
+## amount at all — see `_ledge`.
+##
+## The voxel that matters is `cell_height`, not `cell_size`. This overshoot runs
+## *along* the ramp, so what stands above the deck is 0.1 m × tan 26.6° ≈
+## **0.05 m** — half of the 0.10 m `cell_height` and a sixth of the climb. This
+## note once justified it against a 0.15 m `cell_size`, which ADR-200 dropped to
+## 0.10 and which was the wrong axis to begin with; `M4-T29` listed it as a
+## suspect, and neither floor the body could not cross was stopped anywhere near
+## a ledge (ADR-213).
 const LEDGE_JOIN: float = 0.1
 
 ## Grey by depth: dressed stone, then stone going wrong, then rock. Real
@@ -483,6 +495,20 @@ func _outward(side: int) -> Vector2i:
 ##
 ## The wall it runs along must carry **no doorway**, so a ledge can never be
 ## raised over the threshold a corridor arrives at.
+##
+## **Nor may doorways stand at both of its ends** (ADR-213). Only the long wall
+## was ever checked, so a wall with a corridor arriving at each corner got a
+## ledge laid between them — and whichever way it was turned, one doorway opened
+## onto the ramp's foot filling its own column and the other under the deck. A
+## 0.7 m body steps round that; the 1.1 m Gullsjúkr could not, on both floors of
+## the panel it failed to reach the Shaft on — each checked by hand, each a
+## ledge with a doorway at either end of its wall.
+##
+## **Both ends, not either.** Refusing a wall with a doorway at either end also
+## gave the Hunter every floor and cost **29% of the ledges** (291 to 208 across
+## 144 floors), and a ledge is the vista rule's delivery mechanism. Refusing only
+## both-ends walls costs 3% (281). Turning a one-doorway ledge so its deck faces
+## the door was tried as well and changed nothing measurable, so it is not here.
 func _ledge(rect: Rect2i, doors: Array[Vector2i],
 		rng: RandomNumberGenerator) -> void:
 	var sides: Array[int] = []
@@ -496,6 +522,8 @@ func _ledge(rect: Rect2i, doors: Array[Vector2i],
 			if doors.has(cell + _outward(side)):
 				clear = false
 				break
+		if _door_at_end(wall, doors, true) and _door_at_end(wall, doors, false):
+			clear = false
 		if clear:
 			sides.append(side)
 	if sides.is_empty():
@@ -554,6 +582,16 @@ func _ledge(rect: Rect2i, doors: Array[Vector2i],
 			+ Vector3(0.0, LEDGE_HEIGHT - WALL_THICK * 0.5, 0.0),
 		STONE[_depth], 0.0, "ledge_floor")
 	_ledges_raised += 1
+
+
+## Is there a doorway just beyond the `first` (or last) cell of a strip, in line
+## with it? That is the end wall a ledge's ramp foot, or its deck, lands against.
+static func _door_at_end(strip: Array[Vector2i], doors: Array[Vector2i],
+		first: bool) -> bool:
+	var run: Vector2i = strip[1] - strip[0]
+	if first:
+		return doors.has(strip[0] - run)
+	return doors.has(strip[strip.size() - 1] + run)
 
 
 ## Every opening in one wall line, as (centre, width) along the wall's own axis:
@@ -656,37 +694,22 @@ func _route(plan: FloorPlan, route: int) -> int:
 		return 0
 	var over: Array[Vector2i] = plan.over_of(route)
 
-	# Height per cell: full lift where this route crosses another, sloping away
-	# over `RAMP_CELLS` on each side so the climb is walkable rather than a step.
-	var lift := PackedFloat32Array()
-	lift.resize(path.size())
-	for i: int in path.size():
-		# **Seeded with the ramp's own reach, not with the path's length.**
-		# This is "no crossing is near enough to matter", and writing it as
-		# `path.size()` was true only while every corridor was longer than a
-		# ramp. A two-cell corridor with no bridge anywhere then measured its
-		# nearest crossing as 2 and lifted *both its doorways* a third of the
-		# way to bridge height — a 1.10 m step against a 0.49 m jump, at the
-		# threshold, on 61 of 4780 routes. It survived because the doorway row
-		# baked one floor that happened to have no two-cell corridor on it, and
-		# it surfaced the moment `LATTICE` tightened and short corridors became
-		# common (ADR-180).
-		var nearest: int = RAMP_CELLS + 1
-		for j: int in path.size():
-			if over.has(path[j]):
-				nearest = mini(nearest, absi(i - j))
-		lift[i] = BRIDGE_LIFT * maxf(0.0,
-			float(RAMP_CELLS + 1 - nearest) / float(RAMP_CELLS + 1))
-
+	# **The heights are the plan's** (`M4-T29`, ADR-213). This used to work
+	# them out here — full lift at a crossing, sloping away by index distance —
+	# and index distance cannot see a corner. A ramp that turned while it
+	# climbed was tilted along the diagonal of the turn, which no slab can do,
+	# and it stopped the player body on both floors it could not cross.
+	# `FloorPlan.deck_rises` lays a landing at every turn instead, and routing
+	# refuses a crossing that has no room for one, so the two cannot disagree.
+	#
 	# A cell whose entry and exit heights differ is a **slope**, not a step.
 	# Laying each cell as a flat box at its own height built a staircase with
 	# 1.07 m risers — a wall to anything that walks, which is the same defect
 	# the unramped crossing had, one iteration smaller.
+	var rises: PackedInt32Array = FloorPlan.deck_rises(path, over)
 	for i: int in path.size():
-		var before: float = lift[maxi(i - 1, 0)]
-		var after: float = lift[mini(i + 1, path.size() - 1)]
-		var enters: float = (before + lift[i]) * 0.5
-		var leaves: float = (lift[i] + after) * 0.5
+		var enters: float = float(rises[i]) * HALF_RISER
+		var leaves: float = float(rises[i + 1]) * HALF_RISER
 		var travel: Vector2i = path[mini(i + 1, path.size() - 1)] \
 			- path[maxi(i - 1, 0)]
 		_tunnel(plan, path[i], enters, leaves, travel)

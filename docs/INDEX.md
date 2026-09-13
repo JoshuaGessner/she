@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-11 · 42 documents_
+_Regenerated 2026-09-12 · 42 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -48,7 +48,7 @@ _How it gets built._
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-01 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-03 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-04 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
-| `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-02 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
+| `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-12 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
 | `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ✔ accepted | 2026-09-04 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
 
 ## Process
@@ -57,8 +57,8 @@ _How we work, what we decided, what we must not do._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-11 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-11 | DES-001, DES-003, PRO-001 |
+| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-12 | DES-001, TEC-001, TEC-003 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-12 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |

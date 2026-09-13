@@ -1171,6 +1171,8 @@ func _build_probe() -> void:
 	]
 	var butted: int = 0
 	var checked: int = 0
+	var ramps: int = 0
+	var askew := PackedStringArray()
 	for pick: Vector2i in corpus:
 		var g: MissionGraph = MissionGraph.build(pick.x, pick.y)
 		var lore: ExpeditionHistory = ExpeditionHistory.roll(
@@ -1186,6 +1188,17 @@ func _build_probe() -> void:
 			var n := child as MeshInstance3D
 			var b := n.mesh as BoxMesh
 			var role: String = String(n.name)
+			# **A corridor ramp tilts about one wall's axis or it is a wall**
+			# (`M4-T29`, ADR-213). Tilted about a single horizontal axis, a
+			# box keeps one of its own sides lying along X or Z; tilted along
+			# the diagonal of a turn it keeps neither, and its edges stand
+			# proud of both neighbours. Asked of the laid slab rather than of
+			# `FloorPlan.deck_rises`, so this row and `problems()` do not share
+			# a blind spot.
+			if b != null and role.begins_with("ramp_"):
+				ramps += 1
+				if absf(n.basis.x.x) < 0.999 and absf(n.basis.z.z) < 0.999:
+					askew.append("%s on seed %d floor %d" % [role, pick.x, pick.y])
 			if b == null or not (role.contains("floor") or role.contains("ramp")):
 				continue
 			# Through the node's transform: a ramp is tilted, and its
@@ -1207,6 +1220,17 @@ func _build_probe() -> void:
 		problems.append(("%d floor slab(s) touch nothing they overlap — a butt "
 			+ "joint between coplanar slabs can voxelize into a seam and cut a "
 			+ "room off the navmesh") % butted)
+	print("[build] ramps       %d corridor ramp(s) across %d floors, %d tilted "
+		% [ramps, corpus.size(), askew.size()] + "across a turn")
+	if ramps == 0:
+		problems.append(("no corridor ramps on %d floors — the tilt check "
+			+ "measured nothing, and a generator that stopped bridging would "
+			+ "pass it") % corpus.size())
+	if not askew.is_empty():
+		problems.append(("%d corridor ramp(s) tilted along a turn (%s) — a slab "
+			+ "cannot rise along two edges that share a corner, so it stands "
+			+ "proud of both neighbours and the body walks into its edge")
+			% [askew.size(), ", ".join(askew.slice(0, 3))])
 
 	# ─ 6b. one floor, baked, walked end to end ─
 	#
@@ -1775,15 +1799,17 @@ func _reach_probe() -> void:
 					if bool(trek["arrived"]):
 						bodies += 1
 					else:
-						# **A census, not a threshold** (ADR-144's discipline,
-						# and `--vista-probe` row 4's precedent). What this
-						# found is a generation fault with a task of its own —
-						# `M4-T29` — and asserting it here would paint the
-						# sweep red for something no commit in this task is
-						# going to fix. The number is printed on every run so
-						# that it cannot go quiet, and the **control** above is
-						# the row that still fails, because the moment the
-						# walker breaks this census stops meaning anything.
+						# **An assertion now, and it was a census first on
+						# purpose** (ADR-144's discipline). What this found was
+						# a generation fault with a task of its own, and
+						# asserting it before `M4-T29` fixed it would have
+						# painted the sweep red for something no commit in
+						# between was going to fix. ADR-213 closed it — a ramp
+						# climbing through a turn, on both floors — and a floor
+						# the body cannot cross is now the regression it is.
+						# The **control** above still has to pass first,
+						# because the moment the walker breaks this row stops
+						# meaning anything.
 						var stopped: Vector3 = trek["stopped"]
 						var wanted: Vector3 = trek["wanted"]
 						print(("[reach] stall      seed %d floor %d: %.1f m of "
@@ -1796,6 +1822,17 @@ func _reach_probe() -> void:
 								float(trek["slope"]),
 								float(trek["step"]),
 								String(trek["why"])])
+						# Where, in the floor's own co-ordinates, and against what —
+						# so the next reader goes to a slab rather than to a height.
+						var here: Vector3 = stopped - WALK_LIFT
+						print("[reach] against    at (%.1f, %.2f, %.1f): %s"
+							% [here.x, here.y, here.z, String(trek["against"])])
+						problems.append(("seed %d floor %d: the player body "
+							+ "stopped %d of %d legs in, against %s — the mesh "
+							+ "routes a party across this floor and a person "
+							+ "holding the controller cannot follow it")
+							% [run_seed, depth, int(trek["walked"]),
+								int(trek["of"]), String(trek["against"])])
 
 			region.queue_free()
 			navroot.remove_from_group(GENERATED_NAV_GROUP)
@@ -1887,6 +1924,13 @@ func _reach_probe() -> void:
 	print("[reach] body       %d of %d floor(s) crossed by the player capsule, "
 		% [bodies, asked]
 		+ "%d route leg(s) walked" % legs)
+	# A stall names itself above. This is the walk that never happened — no
+	# body to send, or a panel floor that stopped reaching this branch — which
+	# would otherwise pass by having nothing to fail (ADR-202).
+	if bodies < asked and problems.is_empty():
+		problems.append(("only %d of the %d walk-panel floor(s) were walked, "
+			+ "and none of them stalled — the rest were never attempted, so "
+			+ "this row said nothing about them") % [bodies, asked])
 	_report(problems, "reach")
 
 
@@ -1940,9 +1984,11 @@ func _hunter_fit() -> void:
 	]
 	var hunted: int = 0
 	var of_floors: int = 0
+	var hunter_refused := PackedStringArray()
 	for shape: Vector2 in shapes:
 		var fits: int = 0
 		var floors: int = 0
+		var refused := PackedStringArray()
 		for run_seed: int in REACH_PANEL:
 			for depth: int in RunFile.LAST_FLOOR + 1:
 				var graph: MissionGraph = MissionGraph.build(run_seed, depth)
@@ -1981,20 +2027,72 @@ func _hunter_fit() -> void:
 				# measuring how fast the machine baked rather than how wide the
 				# doorways are.
 				var arrived: bool = false
+				var gave_up: Vector3 = start_at
 				for frame: int in NAV_SYNC_FRAMES:
 					NavigationServer3D.map_force_update(map)
 					if NavigationServer3D.map_get_iteration_id(map) > 0:
 						var route: PackedVector3Array = \
 							NavigationServer3D.map_get_path(
 								map, start_at, down, true)
+						if route.size() > 1:
+							gave_up = route[route.size() - 1]
 						if route.size() > 1 \
-								and route[route.size() - 1] \
-									.distance_to(down) <= NAV_REACH:
+								and gave_up.distance_to(down) <= NAV_REACH:
 							arrived = true
 							break
 					await get_tree().physics_frame
 				if arrived:
 					fits += 1
+				else:
+					# **Named, because a count cannot be investigated.** This row
+					# read 23 of 24 and then 22 after a generator change, and
+					# with no floor attached neither number said where to look.
+					#
+					# **By the link that is cut, not by where the route ends.**
+					# A route that cannot arrive stops at the navmesh point
+					# nearest the Shaft, which is not the pinch — the first
+					# version of this row printed that point, and got a spot up
+					# on a ledge deck that said nothing about which doorway was
+					# cut. A graph link with one room the Hunter reaches and one
+					# it does not is the pinch itself.
+					# Crawls are left out for the reason `--reach-probe` gives:
+					# nothing standing is meant to follow you into one.
+					var reached: Dictionary = {}
+					for node: int in graph.size():
+						var module: RoomModule = RoomCatalogue.by_id(
+							plan.module_of(node))
+						if module != null \
+								and module.volume == RoomModule.Volume.CRAWL:
+							continue
+						var centre: Vector3 = _plan_centre(plan, node) + WALK_LIFT
+						var to_room: PackedVector3Array = \
+							NavigationServer3D.map_get_path(
+								map, start_at, centre, true)
+						# The entrance is where it starts; a path to your own
+						# feet can come back as one corner, which is not two.
+						reached[node] = node == entrance or (to_room.size() > 1
+							and to_room[to_room.size() - 1]
+								.distance_to(centre) <= NAV_REACH)
+					var cuts := PackedStringArray()
+					for link: Vector2i in plan.realised_links():
+						if link.x < 0 or not reached.has(link.x) \
+								or not reached.has(link.y):
+							continue
+						if bool(reached[link.x]) == bool(reached[link.y]):
+							continue
+						var near: int = link.x if bool(reached[link.x]) \
+							else link.y
+						var far: int = link.y if near == link.x else link.x
+						cuts.append("room %d `%s` to room %d `%s`" % [near,
+							plan.module_of(near), far, plan.module_of(far)])
+					var inside: int = 0
+					for node: int in reached.keys():
+						if bool(reached[node]):
+							inside += 1
+					refused.append(("seed %d floor %d: reaches %d of %d "
+						+ "standing room(s), cut between %s") % [run_seed,
+						depth, inside, reached.size(), ", ".join(cuts)
+						if not cuts.is_empty() else "nothing it can name"])
 
 				region.queue_free()
 				navroot.remove_from_group(GENERATED_NAV_GROUP)
@@ -2003,6 +2101,8 @@ func _hunter_fit() -> void:
 
 		print("[hunter] r %.2f h %.2f   %d of %d floor(s) route entrance to Shaft"
 			% [shape.x, shape.y, fits, floors])
+		for why: String in refused:
+			print("[hunter]   refused %s" % why)
 		# **The control is asserted and the Hunter is counted.** The first
 		# version of this probe reported 15 of 24 for the standard bake, where
 		# `--reach-probe` gets 24 of 24, and every row under it was wrong by
@@ -2020,14 +2120,28 @@ func _hunter_fit() -> void:
 		else:
 			hunted = fits
 			of_floors = floors
+			hunter_refused = refused
 
-	# **A number, not a threshold.** 23 of 24 is where 0.55 × 2.00 lands and the
-	# floor it misses is one `M4-T29` also cannot walk — so a threshold here would
-	# be asserting a generator fault stays fixed at its current size. The row is
-	# required to exist (ADR-200, ADR-202); what it should read is ADR-211's.
+	# **An assertion now, and it was a number first on purpose.** ADR-211 left it
+	# at 23 of 24 as a count, because a threshold would have asserted a
+	# generator fault stayed fixed at its size. That note also said the missed
+	# floor was one `M4-T29` could not walk, and it was not: it was 57721 floor 1,
+	# which is not on the walk panel, and nothing could say so until refusals
+	# were named. ADR-213 found both refusals were the same fault — a ledge ramp's
+	# foot facing a doorway — and fixed it, so a floor the Hunter cannot cross is
+	# now the regression it is. `DES-005`'s counter-play assumes a pursuer that
+	# can follow you through the floor you are on.
 	print("[hunter] the Hunter  %d of %d floor(s), body %.2f m × %.2f m against "
 		% [hunted, of_floors, Gullsjukr.NAV_RADIUS, Gullsjukr.NAV_HEIGHT]
 		+ "a %.2f m mesh" % NAV_AGENT_RADIUS)
+	if of_floors == 0:
+		problems.append("the Hunter's shape was never baked — the row above "
+			+ "counted nothing and would have read as a pass")
+	elif hunted < of_floors:
+		problems.append(("the Gullsjúkr routes %d of %d floor(s) — %s. A floor "
+			+ "it cannot cross is a floor with a safe half, which the Hunt was "
+			+ "never designed to have") % [hunted, of_floors,
+			"; ".join(hunter_refused)])
 	_report(problems, "hunter")
 
 
@@ -2129,6 +2243,7 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 		"step": 0.0,
 		"slope": 0.0,
 		"why": "",
+		"against": "",
 	}
 	# A one-corner route is the entrance and the Shaft in the same place, which
 	# the generator does not emit and which nothing would be learned from.
@@ -2149,6 +2264,7 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 		var target: Vector3 = route[corner]
 		var arrived: bool = false
 		var leg_from: Vector3 = player.global_position
+		var pressing: String = ""
 		Input.action_press("move_forward")
 		for frame: int in WALK_LEG_FRAMES:
 			if frame % WALK_AIM_EVERY == 0 and player.is_on_floor():
@@ -2160,6 +2276,11 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 			if _planar_gap(player.global_position, target) <= WALK_ARRIVE:
 				arrived = true
 				break
+			# Read while forward is still held: once it is released the body
+			# stops pushing and the slide reports only the floor.
+			if frame == WALK_LEG_FRAMES - 1:
+				pressing = _pressed_against(player,
+					target - player.global_position)
 		Input.action_release("move_forward")
 		for i: int in range(4):
 			await get_tree().physics_frame
@@ -2176,6 +2297,7 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 			result["slope"] = (rad_to_deg(
 				player.get_floor_normal().angle_to(Vector3.UP))
 				if player.is_on_floor() else -1.0)
+			result["against"] = pressing
 			return result
 		result["walked"] = int(result["walked"]) + 1
 
@@ -2257,16 +2379,60 @@ func _why_stuck(player: Player, facing: Vector3) -> String:
 	return "clear — a step would fit, so something else is holding it"
 
 
+## **What the body is leaning on when it gives up** (`M4-T29`).
+##
+## `_why_stuck` names which of the step-up's sweeps refused, and a sideways
+## blocker defeats it: a gap narrower than the body refuses the forward sweep at
+## every rise, while a ray fired down the centre line sees air. One floor stalls
+## against 0.05 m on flat ground, which is exactly that shape — so the height of
+## the thing ahead was never going to name it.
+##
+## This lists what `move_and_slide` actually touched on the last frame the body
+## was still pushing, **by the role `FloorBuilder._slab` names every piece
+## with**, and how far round from straight ahead each contact faces. A head-on
+## contact is a step or a wall; one at 90° is a pinch. The answer is a piece of
+## the generator rather than a height, which is the thing a fix is written
+## against.
+func _pressed_against(player: Player, facing: Vector3) -> String:
+	var going := Vector3(facing.x, 0.0, facing.z)
+	var seen: PackedStringArray = PackedStringArray()
+	for i: int in player.get_slide_collision_count():
+		var hit: KinematicCollision3D = player.get_slide_collision(i)
+		var normal: Vector3 = hit.get_normal()
+		# The ground underfoot is holding the body up, not holding it back.
+		if normal.angle_to(Vector3.UP) <= player.floor_max_angle:
+			continue
+		# The collider is the `StaticBody3D` inside the slab, and the slab's name
+		# is the role. Read off the body's own path rather than by reaching
+		# into its parent (`TEC-001`).
+		var what := hit.get_collider() as Node
+		var named: String = "?"
+		if what != null:
+			var trail: NodePath = what.get_path()
+			if trail.get_name_count() >= 2:
+				named = String(trail.get_name(trail.get_name_count() - 2))
+		var push := Vector3(-normal.x, 0.0, -normal.z)
+		var round_from: float = -1.0
+		if push.length_squared() > 0.0001 and going.length_squared() > 0.0001:
+			round_from = rad_to_deg(push.angle_to(going))
+		seen.append("%s %.2f m up, %.0f° off ahead" % [named,
+			hit.get_position().y - player.global_position.y, round_from])
+	if seen.is_empty():
+		return "nothing but floor"
+	return ", ".join(seen)
+
+
 ## **How tall the thing in front of the body is** (`M4-T25`).
 ##
 ## A stall is an observation; this is the diagnosis. Cast forward from the feet
 ## at rising heights and report the first one that is clear — a step reads as
 ## its own height, and anything taller than a body could climb reads as `INF`.
 ##
-## The number this exists to catch is **0.30 m**: the navmesh bakes
-## `agent_max_climb = 0.3`, `CharacterBody3D` has no step-up at all and this
-## project adds none, so anything between zero and 0.30 m is a surface the route
-## crosses and the player cannot.
+## It was written to catch **0.30 m** — the mesh climbing more than the body
+## could, before ADR-209 gave the body a step. That band is closed now; what it
+## still cannot do is tell a slope from a step, because cast forward from the
+## feet a ramp reports as its own surface. `_why_stuck` and `_pressed_against`
+## are the rows that say what kind of thing it is.
 func _obstruction_height(feet: Vector3, facing: Vector3) -> float:
 	var ahead: Vector3 = Vector3(facing.x, 0.0, facing.z)
 	if ahead.length_squared() < 0.0001:
