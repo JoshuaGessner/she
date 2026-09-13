@@ -204,6 +204,10 @@ const WALK_PANEL: Array[int] = [31346, 78901, 24680]
 const NAV_REACH: float = 1.5
 const NAV_AGENT_RADIUS: float = 0.45
 const NAV_AGENT_HEIGHT: float = 1.8
+## The rise every navmesh treats as walkable. Deliberately more than the 0.10 m
+## the player's capsule climbs — see `nav_settings` for why, and for what holds
+## it to the body instead (ADR-214).
+const NAV_AGENT_CLIMB: float = 0.3
 
 ## Where `--reach-probe` puts the floors it walks a **body** across (`M4-T25`).
 ##
@@ -253,30 +257,6 @@ const WALK_LEG_FRAMES: int = 900
 ## a pit was solid ground — which would hide the one fault this row exists to
 ## find.
 const WALK_AIM_EVERY: int = 12
-## How far off the floor a body may end up after walking into a landmark before
-## it counts as having climbed the thing (`M4-T29`, ADR-209).
-##
-## Not zero: a body pressed against a rounded kerb rides a little way up its
-## face and settles back, and the well is eight tilted segments rather than a
-## cylinder. This is the height above which it is standing **on** the furniture
-## rather than against it.
-##
-## **0.35 was too tight and the sweep said so.** Measured, the body peaks at
-## **0.36 m** on the well and **0.28 m** on the barricade while getting over
-## neither — the crossing test reports *went round or stopped* for both — so the
-## first value failed a build that was behaving exactly as designed. A body that
-## actually mounts the kerb stands at its full **0.70 m**, and the plant reaches
-## it: 0.55 sits above the ride-up and below the mount, with the gap measured at
-## both ends rather than guessed at either ⟨tune⟩.
-const FURNITURE_CLIMB: float = 0.55
-## How near a landmark's own line a crossing has to be to count as going
-## **through** it rather than round it (`M4-T29`, ADR-209).
-##
-## The well's kerb is 1.5 m in radius and the barricade's beam 3.4 m long, and
-## a body deflected off either ends up behind it having done exactly what the
-## design wants. Inside a metre of the post is the part you cannot walk round
-## without having gone over ⟨tune⟩.
-const FURNITURE_THROUGH: float = 1.0
 
 ## How far apart the vista row samples the walk, in metres (`M4-T28`).
 ##
@@ -1814,14 +1794,13 @@ func _reach_probe() -> void:
 						var wanted: Vector3 = trek["wanted"]
 						print(("[reach] stall      seed %d floor %d: %.1f m of "
 							+ "an %.1f m leg, stopped %.2f m below the corner, "
-							+ "on a %.0f° surface, %.2f m of stone ahead — %s")
+							+ "on a %.0f° surface, %.2f m of stone ahead")
 							% [run_seed, depth, float(trek["moved"]),
 								_planar_gap(stopped, wanted)
 									+ float(trek["moved"]),
 								wanted.y - stopped.y,
 								float(trek["slope"]),
-								float(trek["step"]),
-								String(trek["why"])])
+								float(trek["step"])])
 						# Where, in the floor's own co-ordinates, and against what —
 						# so the next reader goes to a slab rather than to a height.
 						var here: Vector3 = stopped - WALK_LIFT
@@ -1843,83 +1822,15 @@ func _reach_probe() -> void:
 		% [walked, problems.size()]
 		+ "across %d seed(s) x %d depth(s)"
 		% [REACH_PANEL.size(), RunFile.LAST_FLOOR + 1])
-	# ─ and the furniture is still furniture ─
+	# **The row that says what walking found.** Each stall above is a failure in
+	# its own right (ADR-213); this is the total, printed unconditionally so a
+	# build where it silently reached zero is as loud as one where it reached
+	# all of them.
 	#
-	# **The step-up's ceiling, asserted rather than trusted** (`M4-T29`,
-	# ADR-209). A body that walks up `step_height` walks over anything shorter,
-	# and `TEC-008` spends two landmarks on things meant to be walked *around*:
-	# the well kerb stands 0.70 m and the barricade's beam 0.92 m. Both are
-	# `DES-015`'s Retreat made physical — a barricade you can step over teaches
-	# the player that this level's furniture is scenery — so the margin between
-	# the step and the kerb is load-bearing, and a raise to `step_height` has to
-	# fail here before it reaches anybody.
-	#
-	# Walked into rather than reasoned about, because what decides it is a
-	# capsule's contact with a rounded kerb and not the kerb's stated height.
-	#
-	# **After the panel, not before it.** It was written above the seed loop and
-	# moved here: the 324 physics frames it spends walking into things shifted
-	# the panel underneath it, and one floor that crossed cleanly stopped doing
-	# so — reproducibly, the same floor and the same leg both times. A check
-	# that changes the measurement it shares a probe with is not measuring the
-	# same build, and the cheap fix is to let the panel finish first.
-	if player != null:
-		for landmark: String in ["junction", "west"]:
-			var post: Vector3 = LANDMARKS[landmark][1]
-			player.teleport(post + Vector3(0.0, 0.5, 3.0),
-				_yaw_toward(post + Vector3(0.0, 0.0, 3.0), post))
-			for settle: int in range(8):
-				await get_tree().physics_frame
-			# **The highest it ever got, and whether it got past** — neither of
-			# which is where it finishes. Measuring the final height was the
-			# first version and it is **vacuous**: planted at an 0.8 m step,
-			# well over the kerb's 0.70 m, the body still ended at 0.00 m and
-			# the row passed. Two different reasons, and the check has to catch
-			# both. A body that steps onto the kerb slides off it again, so the
-			# climb is only visible while it is happening; and a body that
-			# steps *over* the barricade lands on the floor beyond, which is
-			# the exact fault this exists to catch and is indistinguishable
-			# from success by height alone.
-			var peak: float = 0.0
-			var beyond: bool = false
-			Input.action_press("move_forward")
-			for frame: int in range(150):
-				await get_tree().physics_frame
-				var body: Vector3 = player.global_position
-				peak = maxf(peak, body.y - post.y)
-				# **Past it through the middle, not past it round the side.**
-				# Walked at from +Z, so the far side is behind the post — but a
-				# body deflected off a round kerb also ends up behind it,
-				# having done exactly what the design wants. Only a crossing
-				# near the post's own line is a crossing *of* the thing.
-				if body.z < post.z and absf(body.x - post.x) < FURNITURE_THROUGH:
-					beyond = true
-			Input.action_release("move_forward")
-			for settle: int in range(4):
-				await get_tree().physics_frame
-			print("[reach] furniture  the %s: body rose %.2f m, %s"
-				% [String(LANDMARKS[landmark][0]), peak,
-					"crossed it" if beyond else "went round or stopped"])
-			if peak > FURNITURE_CLIMB or beyond:
-				problems.append(("the body got over the %s — %.2f m up and %s. "
-					+ "`TEC-008` wants this walked *around*: it is `DES-015`'s "
-					+ "Retreat made physical, and furniture you can step over "
-					+ "teaches the player that this level's furniture is "
-					+ "scenery. A `step_height` that clears it has to fail "
-					+ "here rather than reach a playtest")
-					% [String(LANDMARKS[landmark][0]), peak,
-						"out the far side" if beyond else "back down again"])
-			# Parked clear, so the next landmark starts from the floor rather than
-			# from wherever the last one left it.
-			player.teleport(post + Vector3(0.0, 0.5, 6.0), 0.0)
-			for settle: int in range(4):
-				await get_tree().physics_frame
-
-	# **The row that says what walking found**, and it is a number rather than a
-	# pass: `M4-T29` owns the fault, and until that lands this line is expected
-	# to read short of the panel it was asked about. Printed unconditionally, so
-	# a build where it silently reached zero would be as loud as one where it
-	# reached all of them.
+	# A guard that walked the body into the Deep's well and barricade lived here
+	# from ADR-209 to ADR-214. It existed to stop the step-up turning furniture
+	# into stairs, and went with the step-up: a capsule with nothing but its own
+	# rounding cannot mount a 0.70 m kerb, so the row could no longer fail.
 	var asked: int = WALK_PANEL.size() * (RunFile.LAST_FLOOR + 1)
 	print("[reach] body       %d of %d floor(s) crossed by the player capsule, "
 		% [bodies, asked]
@@ -2242,7 +2153,6 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 		"moved": 0.0,
 		"step": 0.0,
 		"slope": 0.0,
-		"why": "",
 		"against": "",
 	}
 	# A one-corner route is the entrance and the Shaft in the same place, which
@@ -2292,8 +2202,6 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 			result["moved"] = _planar_gap(leg_from, player.global_position)
 			result["step"] = _obstruction_height(
 				player.global_position, target - player.global_position)
-			result["why"] = _why_stuck(player,
-				target - player.global_position)
 			result["slope"] = (rad_to_deg(
 				player.get_floor_normal().angle_to(Vector3.UP))
 				if player.is_on_floor() else -1.0)
@@ -2338,54 +2246,11 @@ static func _route_length(route: PackedVector3Array) -> float:
 	return run
 
 
-## **Why the step-up declined to help** (`M4-T29`, ADR-209).
+## **What the body is leaning on when it gives up** (`M4-T29`, ADR-213).
 ##
-## `_obstruction_height` says how tall the thing ahead is and cannot say what
-## kind of thing it is: cast forward from the feet, a 22° ramp reports as 0.30 m
-## of stone at 0.6 m, which reads exactly like a step and is not one. Two stalls
-## were mis-diagnosed that way before this row existed, and one of them sent a
-## whole tuning pass after a number that was never the problem.
-##
-## So this runs `Player._step_up`'s own three sweeps against the real body, in
-## the real spot, and names the first one that refuses. The answers are
-## different faults with different fixes: **headroom** is a ceiling, **forward**
-## is something too deep to step onto rather than a lip, **landing** is a gap
-## rather than a step, and **clear** means a step would have fitted and
-## something else is holding the body — which is the answer that says to stop
-## looking at step height altogether.
-func _why_stuck(player: Player, facing: Vector3) -> String:
-	var tuning: TuningProfile = Config.tuning
-	var going := Vector3(facing.x, 0.0, facing.z)
-	if going.length_squared() < 0.0001:
-		return "nowhere to go"
-	var ahead: Vector3 = going.normalized() * tuning.step_reach
-	var rise := Vector3(0.0, tuning.step_height, 0.0)
-	var probe: Transform3D = player.global_transform
-	var headroom := KinematicCollision3D.new()
-	if player.test_move(probe, rise, headroom):
-		rise = Vector3(0.0, headroom.get_travel().y, 0.0)
-		if rise.y < Player.STEP_LEAST:
-			return "only %.2f m of headroom — nothing to rise into" % rise.y
-	probe.origin += rise
-	if player.test_move(probe, ahead):
-		return "raised %.2f m and still blocked forward" % rise.y
-	probe.origin += ahead
-	var landing := KinematicCollision3D.new()
-	if not player.test_move(probe, -rise, landing):
-		return "nothing to land on — a gap, not a step"
-	if landing.get_normal().angle_to(Vector3.UP) > player.floor_max_angle:
-		return "landing is %.0f°, too steep to stand on" % rad_to_deg(
-			landing.get_normal().angle_to(Vector3.UP))
-	return "clear — a step would fit, so something else is holding it"
-
-
-## **What the body is leaning on when it gives up** (`M4-T29`).
-##
-## `_why_stuck` names which of the step-up's sweeps refused, and a sideways
-## blocker defeats it: a gap narrower than the body refuses the forward sweep at
-## every rise, while a ray fired down the centre line sees air. One floor stalls
-## against 0.05 m on flat ground, which is exactly that shape — so the height of
-## the thing ahead was never going to name it.
+## The height of the thing ahead cannot name it. One floor stalled against
+## **0.05 m** on flat ground, which reads like a sideways pinch and was in fact
+## the edge of a corridor ramp the ray at the feet passed underneath.
 ##
 ## This lists what `move_and_slide` actually touched on the last frame the body
 ## was still pushing, **by the role `FloorBuilder._slab` names every piece
@@ -2429,10 +2294,10 @@ func _pressed_against(player: Player, facing: Vector3) -> String:
 ## its own height, and anything taller than a body could climb reads as `INF`.
 ##
 ## It was written to catch **0.30 m** — the mesh climbing more than the body
-## could, before ADR-209 gave the body a step. That band is closed now; what it
-## still cannot do is tell a slope from a step, because cast forward from the
-## feet a ramp reports as its own surface. `_why_stuck` and `_pressed_against`
-## are the rows that say what kind of thing it is.
+## could. What it cannot do is tell a slope from a step, because cast forward
+## from the feet a ramp reports as its own surface: two stalls were misread that
+## way, and one sent a tuning pass after a number that was never the problem.
+## `_pressed_against` is the row that says what kind of thing it is.
 func _obstruction_height(feet: Vector3, facing: Vector3) -> float:
 	var ahead: Vector3 = Vector3(facing.x, 0.0, facing.z)
 	if ahead.length_squared() < 0.0001:
@@ -6902,29 +6767,26 @@ func _build_navigation() -> void:
 static func nav_settings(mesh: NavigationMesh) -> NavigationMesh:
 	mesh.agent_radius = NAV_AGENT_RADIUS
 	mesh.agent_height = NAV_AGENT_HEIGHT
-	# **The body's step, not a number of its own** (`M4-T29`, ADR-209).
+	# **0.30 m, and it is not the body's number** (ADR-214).
 	#
-	# This was the literal `0.3` and the player could climb about **0.10 m** —
-	# a 0.35 m capsule rolls over `r(1 − 1/√2)` and no further, because
-	# `CharacterBody3D` has no step-up and nothing here had added one. So every
-	# route in the game was planned for a climb the player did not have, and
-	# four generated floors in nine had a rise on the way to the Shaft that the
-	# Hunt walked over and the party could not (ADR-205).
+	# The player climbs about **0.10 m** — a 0.35 m capsule rolls over
+	# `r(1 − 1/√2)` and no further — so a mesh that allows 0.30 m promises rises
+	# the body cannot take, and ADR-205 found four floors in nine where it did.
+	# ADR-209 answered with a step-up on the body; ADR-213 found the real fault
+	# was corridor ramps tilted through turns, after which the step fired **zero
+	# times** on the walk panel, and ADR-214 removed it.
 	#
-	# Reading the profile is what stops that recurring — but **one voxel short
-	# of it, not equal to it.** Recast quantises the climb to `cell_height`, so
-	# a mesh told to allow the body's full step merges spans up to that many
-	# voxels apart and routes over real stone taller than the promise: measured
-	# at **0.35 m** against a 0.30 m step, on two floors, when the two numbers
-	# were first made equal. Baking a voxel short puts the error on the side
-	# where the body can still take it.
+	# **Making the mesh describe the body was measured and it breaks the floor.**
+	# At a 0.10 m climb all five ledges on the reference floor went unreachable,
+	# a room fell off the mesh, and the standard bake routed 19 floors of 24 —
+	# so the joins this generator lays lean on Recast merging surfaces within
+	# the climb, and a mesh honest about the body is a mesh of islands.
 	#
-	# Set after `cell_height` below, because it is derived from it.
-	#
-	# Nothing here is climbable at that height, which is the other half of the
-	# number: the well kerb stands 0.70 m and the barricade's beam 0.92 m, and
-	# both are meant to be walked *around* — a generous step would quietly turn
-	# them into ramps and undo the reason they are solid.
+	# So the mesh stays generous and **the walk is the guard**: `--reach-probe`
+	# drives the real capsule along the routes this mesh promises and fails any
+	# floor it cannot cross, naming the slab it stopped against (ADR-213). A
+	# rise that is a surface to Recast and a wall to the body is found there,
+	# not reasoned away here.
 	mesh.agent_max_slope = 45.0
 	# **0.15, and this number closed every doorway in the level at 0.2.**
 	#
@@ -6954,9 +6816,8 @@ static func nav_settings(mesh: NavigationMesh) -> NavigationMesh:
 	# same second. Conservatism at 5 cm is cheaper than a floor with no route.
 	mesh.cell_size = 0.10
 	mesh.cell_height = 0.10
-	# The climb, derived — see the note above `agent_max_slope`.
-	mesh.agent_max_climb = maxf(
-		Config.tuning.step_height - mesh.cell_height, mesh.cell_height)
+	# The climb — see the note above `agent_max_slope`.
+	mesh.agent_max_climb = NAV_AGENT_CLIMB
 	mesh.geometry_parsed_geometry_type = \
 		NavigationMesh.PARSED_GEOMETRY_STATIC_COLLIDERS
 	mesh.geometry_source_geometry_mode = \

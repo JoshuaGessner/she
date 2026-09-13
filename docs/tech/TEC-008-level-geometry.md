@@ -4,7 +4,7 @@ title: Level Geometry & Spatial Legibility
 status: accepted
 owner: tech
 tags: [levels, geometry, blockout, metrics, legibility, procgen, research]
-updated: 2026-09-12
+updated: 2026-09-13
 related: [DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001]
 ---
 
@@ -47,6 +47,8 @@ are what `game/data/tuning/default_tuning.tres` already says the player is.
 | Eye height | 1.62 m | `stand_height − eye_drop` |
 | Walk / sprint / crouch | 3.4 / 6.2 / 1.6 m s⁻¹ | tuning |
 | Jump apex | **0.49 m** | `jump_velocity² ÷ 2·gravity` = 4.2² ÷ 36 |
+| **Rise the body walks up** | **0.10 m** — anything taller is a wall or a jump | capsule rounding `r(1 − 1/√2)`; no step-up, ADR-214 |
+| Rise the navmesh walks up | 0.30 m — **not** the body's number | `NAV_AGENT_CLIMB`, ADR-214; held to the body by `--reach-probe` |
 | Sprint jump gap | **≈2.9 m** air distance | `2·v_jump ÷ gravity × sprint` |
 | Field of view | 75° | `field_of_view` |
 | **Steepest ramp that bakes** | **~30°** | measured, ADR-180 |

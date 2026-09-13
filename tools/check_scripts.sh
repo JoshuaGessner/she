@@ -815,11 +815,11 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# **Three required lines, and they do different jobs.** `[reach] control`
 	# walks the *authored* floor and is an assertion: the steering is naive on
 	# purpose, so a stall means nothing until the walker is known to cross a
-	# floor people have walked. `[reach] body` is the census on generated
-	# floors, and is deliberately **not** a threshold — it reads 5 of 9 today
-	# and `M4-T29` owns the fault. Requiring the line is what stops it going
-	# quiet; requiring a number it must hit would paint the sweep red for
-	# something this task is not fixing.
+	# floor people have walked. `[reach] body` is the total on generated
+	# floors. It was a census while `M4-T29` owned the fault and read 5 of 9;
+	# since ADR-213 every stall is a failure of its own, naming the slab the
+	# body stopped against, and the line is required so a probe that walked
+	# nothing cannot pass by having nothing to fail.
 	#
 	# The control is why `0/0` cannot pass: a route of fewer than two corners is
 	# "arrived" by definition, so an empty control would have waved the whole

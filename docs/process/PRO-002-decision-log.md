@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-12
+updated: 2026-09-13
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -7650,6 +7650,37 @@ With `Player._step_up` returning immediately, the walk panel still crossed **9 o
 **Two suspects named by `M4-T29` were cleared, not changed.** `LEDGE_JOIN` and `FLOOR_LAP` both justified themselves against a 0.15 m `cell_size` that ADR-200 dropped to 0.10. For `FLOOR_LAP` the argument never depended on the figure. For `LEDGE_JOIN` it was the wrong axis: the overshoot runs *along* a 26.6° ramp, so what stands above the deck is **0.05 m of height** against a 0.10 m `cell_height`, and neither stall was anywhere near a ledge. Both notes now say so.
 
 **`_obstruction_height`'s note still said the project had no step-up**, after ADR-209 gave it one. Corrected.
+
+## ADR-214 — The step-up is removed, and the mesh keeps a climb the body does not have
+
+**Date:** 2026-09-13 · **Status:** accepted · **Closes Q111** · **Reverses ADR-209's step-up** · **Amends `TEC-008`**
+
+**Context:** ADR-209 gave the player body a 0.40 m step-up after the walk panel stalled on what it measured as 0.30 m of stone ahead. ADR-213 then found the actual fault — corridor ramps tilted along the diagonal of a turn — and after fixing it the step fired **zero times** on the walk panel, and switching it off changed no leg count and no timing. Filed as Q111: keep a movement rule nothing exercises, or remove it.
+
+**Decision: removed**, by the developer. `DES-009` describes a body with no parkour in it, the step was added to cover a fault that turned out to be somewhere else, and a mechanic no test reaches is a mechanic nothing will notice breaking. `Player._step_up`, `STEP_STALLED`, `STEP_LEAST`, `TuningProfile.step_height` and `step_reach` are gone; `move_and_slide` is back to exactly what it was before ADR-209.
+
+### What went with it
+
+**The furniture guard.** `--reach-probe` walked the body into the Deep's well kerb (0.70 m) and barricade beam (0.92 m) and failed if it got over either. It was written to stop a generous step turning furniture into stairs; with no step the capsule's own rounding rides 0.36 m up the kerb and no further, so the row could not fail, and it spent 324 physics frames that once shifted the panel it shared a probe with.
+
+**`_why_stuck`**, which re-ran the step-up's three sweeps at a stall to say which refused. With no step there are no sweeps to name, and ADR-213's `[reach] against` row — the slab the body is actually pushing on — is the diagnosis that found the real fault.
+
+### The mesh's climb, measured rather than assumed
+
+ADR-209 derived `agent_max_climb` from the step, one voxel short of it. With the step gone that derivation has nothing to derive from, and the principled-sounding answer is to make the mesh describe the body: a climb of **0.10 m**, what a 0.35 m capsule rolls over.
+
+**Measured, and it breaks the floor.** At 0.10 m, `--build-probe` found **all 5 ledges** on the reference floor unreachable and a room fallen off the mesh, and the standard 0.45 m bake in `--hunter-fit` routed **19 of 24** floors, down from 24. The joins this generator lays lean on Recast merging surfaces within the climb, and a mesh honest about the body is a mesh of islands. `TEC-008`'s body table now lists both rises, so nobody designs to the mesh's.
+
+So the climb stays **0.30 m**, now a named constant (`NAV_AGENT_CLIMB`) rather than a derivation, and it is explicitly **not** the body's number. What holds the mesh to the body is the walk: ADR-213 made every stall on the walk panel a failure naming the slab it stopped at, and that walk crossed 9 of 9 with the step switched off.
+
+### Measured
+
+- `--reach-probe` with the step-up gone and the climb at 0.30 m: **9 of 9** walk-panel floors crossed, **447 legs** — identical to the build that still had the step, control 40/40, mesh panel 24 of 24.
+- `--build-probe`: every row green, **5 of 5 ledges** reachable, 0 rooms off the mesh.
+- `--hunter-fit`: **24 of 24**, control 24 of 24.
+- At a 0.10 m climb instead: 0 of 5 ledges, 1 room off the mesh, standard bake 19 of 24 — the numbers the decision above rests on.
+
+**Nothing to plant**, and that is the point of the removal: the change deletes a mechanism rather than adding a check, and the assertions that guard what it touched — the walk and the Hunter — were planted in ADR-213 and ran green here.
 
 *Entries below to be added as design decisions are signed off.*
 
