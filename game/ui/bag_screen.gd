@@ -47,6 +47,25 @@ const SLOT_ROW: Array[Enums.Slot] = [
 	Enums.Slot.MAIN_HAND, Enums.Slot.OFF_HAND, Enums.Slot.ARMS,
 	Enums.Slot.HEAD, Enums.Slot.BODY, Enums.Slot.PACK,
 ]
+
+## **Only the slots something can go in** (ADR-218).
+##
+## The row drew all six, and nothing in the item folder has ever been worn on
+## the head or the arms — so a tester saw two places gear goes that no gear
+## goes, which is ADR-064's stub in a row of outlines. `DES-023` fills them
+## with a helm and bracers when wounds exist (`M4-T14`). This reads the folder,
+## so those slots appear the day the items do and nothing here changes.
+static func slots_for(corpus: Array[ItemResource]) -> Array[Enums.Slot]:
+	var named: Dictionary = {}
+	for item: ItemResource in corpus:
+		named[item.slot] = true
+	var out: Array[Enums.Slot] = []
+	for slot: Enums.Slot in SLOT_ROW:
+		if named.has(slot):
+			out.append(slot)
+	return out
+
+
 const SLOT_LABEL: Dictionary = {
 	Enums.Slot.MAIN_HAND: "hand", Enums.Slot.OFF_HAND: "off",
 	Enums.Slot.ARMS: "arms", Enums.Slot.HEAD: "head",
@@ -116,6 +135,8 @@ const OVERLOAD_COLOUR: Color = Color(0.82, 0.35, 0.30, 1.0)
 
 var _player: Player = null
 var _inventory: Inventory = null
+## `slots_for` the folder, asked once: the folder does not change mid-run.
+var _slots: Array[Enums.Slot] = []
 
 ## Where the hands are, in screen pixels. Mouse motion assigns it; the right
 ## stick integrates into it. Whichever moved last wins, which is the whole
@@ -432,8 +453,9 @@ func overflowing() -> PackedStringArray:
 ## question is asked in.
 func _slot_rect(slot: Enums.Slot) -> Rect2:
 	var panel: Rect2 = _panel_rect()
-	var index: int = SLOT_ROW.find(slot)
-	var span: float = SLOT_SIZE * SLOT_ROW.size() + GAP * (SLOT_ROW.size() - 1)
+	var row: Array[Enums.Slot] = slots()
+	var index: int = row.find(slot)
+	var span: float = SLOT_SIZE * row.size() + GAP * (row.size() - 1)
 	var left: float = panel.position.x + (panel.size.x - span) * 0.5
 	var top: float = _grid_origin().y + _grid_pixels().y + PADDING
 	return Rect2(Vector2(left + index * (SLOT_SIZE + GAP), top),
@@ -442,7 +464,7 @@ func _slot_rect(slot: Enums.Slot) -> Rect2:
 
 ## The slot under a point, or `NONE`.
 func _slot_at(point: Vector2) -> Enums.Slot:
-	for slot: Enums.Slot in SLOT_ROW:
+	for slot: Enums.Slot in slots():
 		if _slot_rect(slot).has_point(point):
 			return slot
 	return Enums.Slot.NONE
@@ -500,9 +522,17 @@ func _slot_mark(box: Rect2, slot: Enums.Slot, tint: Color) -> void:
 			pass
 
 
+## The slots this bag draws — `slots_for` the item folder. Read by
+## `--bagui-probe`.
+func slots() -> Array[Enums.Slot]:
+	if _slots.is_empty():
+		_slots = slots_for(ItemCatalogue.all())
+	return _slots
+
+
 func _draw_slots() -> void:
 	var worn: Equipment = _player.equipment
-	for slot: Enums.Slot in SLOT_ROW:
+	for slot: Enums.Slot in slots():
 		var box: Rect2 = _slot_rect(slot)
 		var item: ItemInstance = worn.in_slot(slot) if worn != null else null
 		# A slot the held item could go into lights up while you are dragging,

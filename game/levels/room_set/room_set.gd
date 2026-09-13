@@ -8641,6 +8641,38 @@ func _bagui_probe() -> void:
 		print("[bagui]   %s" % line)
 		problems.append("the bag draws text outside its own panel — " + line)
 
+	# ─ **every slot drawn is one something can go in** (ADR-218) ─
+	#
+	# Six outlines stood under the grid while nothing in the folder had ever been
+	# worn on the head or the arms. Asked both ways — no slot drawn that nothing
+	# fits, no slot missing that something does — and planted with a helm the
+	# folder does not have, so the second half is shown to be able to fail.
+	var drawn: Array[Enums.Slot] = bag.slots()
+	var names: PackedStringArray = []
+	for slot: Enums.Slot in drawn:
+		names.append(String(BagScreen.SLOT_LABEL[slot]))
+	print("[bagui] slots        %d drawn: %s" % [drawn.size(), " ".join(names)])
+	for slot: Enums.Slot in BagScreen.SLOT_ROW:
+		var fits: bool = false
+		for item: ItemResource in ItemCatalogue.all():
+			fits = fits or item.slot == slot
+		if drawn.has(slot) != fits:
+			problems.append("the `%s` slot is %s, and %s in the folder fits it"
+				% [BagScreen.SLOT_LABEL[slot], "drawn" if drawn.has(slot)
+					else "missing", "something" if fits else "nothing"])
+	var helm := ItemResource.new()
+	helm.slot = Enums.Slot.HEAD
+	var with_helm: Array[ItemResource] = ItemCatalogue.all()
+	with_helm.append(helm)
+	var planted: bool = BagScreen.slots_for(with_helm).has(Enums.Slot.HEAD)
+	print("[bagui] plant        a helm in the folder draws a head slot: %s"
+		% planted)
+	if not planted:
+		problems.append("a head item in the folder did not draw a head slot, so "
+			+ "M4-T14's helm would have nowhere to go")
+	if drawn.is_empty():
+		problems.append("the bag drew no slots at all")
+
 	_report(problems, "bagui")
 
 

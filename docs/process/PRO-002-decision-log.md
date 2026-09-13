@@ -7844,5 +7844,19 @@ Kits, the Prize, machine gear, the vista bait, filler, and never-on-a-floor, wit
 - **The spear's cost is unbuilt.** `DES-009`'s *"swing a poleaxe in a corridor and you hit the wall"* — a hitbox passes through stone, so the spear has reach and no price.
 - **The generator's comments name `M4-T17` as the task that earns the right to name an item.** They now name `M4-T31`, which is where the naming is built.
 
+---
+
+## ADR-218 — The bag draws the slots something can go in, and no others
+
+**Date:** 2026-09-13 · **Status:** accepted · **Fixes a finding of ADR-217** · **Amends `DES-020`'s display, not its slots**
+
+**Context:** ADR-217 found the bag drawing six slot outlines while nothing in the item folder had ever been worn on the head or the arms. A tester sees two places gear goes that no gear goes — ADR-064's stub, drawn as a row of outlines — and asked by the developer to fix what could be fixed, this was the one with no design call in it.
+
+**Decision:** `BagScreen.slots_for(corpus)` returns the slots at least one item in the folder names, in `DES-020`'s order, and the bag draws, hit-tests and centres only those. **It reads the folder rather than a list**, so `DES-023`'s helm and bracers bring the head and arms slots with them when `M4-T14` builds wounds, and nothing in the bag changes that day. `DES-020` still has six slots; the bag stops advertising the two nothing fills.
+
+**Rejected:** greying the two slots out. A disabled outline says *"not yet"* about something the build cannot do at all, which is the lie in a quieter voice.
+
+**Verification:** `--bagui-probe` asserts both directions — no slot drawn that nothing fits, none missing that something does — and plants a helm into a copy of the folder, which draws a head slot. Today: **4 drawn: hand, off, body, pack.** Photographed with `--bag-shot`: the row centres under the grid.
+
 *Entries below to be added as design decisions are signed off.*
 

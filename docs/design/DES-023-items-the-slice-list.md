@@ -162,5 +162,5 @@ A floor currently deals its loot from **the entire item folder**, sorted by wort
 
 - **Armour turns nothing and nothing heals.** The two gaps a playtester would name first, and neither is visible from a probe that asks whether items exist.
 - **`rlc_regin_blade` fails §1.** It is a seax with more damage, more stagger and more reach — a bigger number with a name. It stays because it is in saves and the Legacy flow, and because a relic's other half (120 tribute) is doing real work. **It owes a verb, or an ADR saying why a relic may be a number**, and that is `M4-T31`'s.
-- **The bag shows head and arms slots nothing can fill**, and has since `M3`. They fill when wounds exist (`M4-T14`).
+- **The bag showed head and arms slots nothing could fill**, and had since `M3`. **Fixed by ADR-218**: the bag draws the slots something in the folder can go in, so these two return with the helm and bracers (`M4-T14`).
 - **Every item added to the folder changes every floor**, because the floor deals from the whole folder. That is why §4 is part of this document and not a tuning pass after it.
