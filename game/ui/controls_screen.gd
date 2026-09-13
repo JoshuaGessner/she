@@ -85,6 +85,7 @@ const GROUPS: Array = [
 		["Pick up, and place in the bag", "take", ["interact"]],
 		["Drop what is in your hand", "drop", ["drop"]],
 		["Turn an item in the bag", "turn", ["rotate_item"]],
+		["Use a binding or a rune, in the bag", "use", ["use_item"]],
 		["Throw — bait the Hunter", "throw", ["throw"]],
 	]],
 	# **A group of its own, and that is the point** (`M4-T13`, `ART-001`).

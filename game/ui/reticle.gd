@@ -57,6 +57,10 @@ var _refused: float = 0.0
 ## at runtime, so the connection is remade whenever the body changes rather than
 ## once in `_ready` — the fault `_body_to_read` exists for, in signal form.
 var _listening: MeleeWeapon = null
+## The progress the last frame's ring was drawn at, 0 for none. Written **inside
+## the draw**, so `--use-probe` asks what reached the screen rather than what the
+## body knows — the two disagreed for every Waystone spent with nothing in reach.
+var _channel_drawn: float = 0.0
 
 
 func _ready() -> void:
@@ -97,6 +101,11 @@ func showing() -> String:
 ## than absent.
 func offer(text: String) -> void:
 	_offer = text
+
+
+## See `_channel_drawn`.
+func channel_drawn() -> float:
+	return _channel_drawn
 
 
 func _body_to_read() -> Player:
@@ -222,6 +231,11 @@ func _draw() -> void:
 	draw_circle(middle, radius, tint)
 	if _refused > 0.01:
 		_draw_refusal(middle, radius)
+	# **Before the reach test, not after it** (ADR-221). It sat below the
+	# early return, so a channel only drew while something was also in reach:
+	# the Shaft always is, and a Waystone spent in an empty corridor — the
+	# ordinary case — showed nothing at all, the fault this ring was built for.
+	_draw_channel(middle)
 	if _grown <= 0.01:
 		return
 	# Four ticks, opening outward as the thing comes into reach. Motion rather
@@ -233,7 +247,6 @@ func _draw() -> void:
 		var direction := Vector2(cos(angle), sin(angle))
 		draw_line(middle + direction * gap,
 			middle + direction * (gap + 5.0), tint, 1.5)
-	_draw_channel(middle)
 
 
 ## The climb, as a ring filling clockwise from the top.
@@ -260,6 +273,12 @@ func _draw_channel(middle: Vector2) -> void:
 	elif _body != null and is_instance_valid(_body) and _body.leaving > 0.0:
 		progress = _body.leaving
 		waiting = true
+	elif _body != null and is_instance_valid(_body) and _body.mending > 0.0:
+		# **A binding is the same grammar again** (`M4-T32`): a timed use you
+		# can be broken out of, so it is the same ring in the same place.
+		progress = _body.mending
+		waiting = true
+	_channel_drawn = progress if waiting else 0.0
 	if not waiting:
 		return
 	# The empty track is drawn whenever you are in reach, so the ring is not a

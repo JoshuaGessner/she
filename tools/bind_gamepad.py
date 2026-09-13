@@ -67,6 +67,11 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     "bag": [(BUTTON, LEFT_SHOULDER, 0.0)],
     "drop": [(BUTTON, DPAD_DOWN, 0.0)],
     "rotate_item": [(BUTTON, RIGHT_SHOULDER, 0.0)],
+    # **Using a binding or a rune** (`M4-T32`, ADR-221). Only ever read by
+    # BagScreen while it is open, so it shares `Y` with the class verb the way
+    # `rotate_item` shares a shoulder with `block` — the pad still has no free
+    # button, and the bag is the context that keeps the two apart.
+    "use_item": [(BUTTON, Y, 0.0)],
     # Baiting the Gullsjúkr (`M2-T02`, DES-017). On the trigger opposite attack,
     # because it is the other thing you do with a full hand under pressure and
     # the two must never be confused at the moment it matters.
@@ -142,6 +147,9 @@ SHARED_OK: dict[frozenset[str], str] = {
     frozenset({"block", "rotate_item"}):
         "disjoint by the bag: `blocking` requires `_bag <= 0.0`, and "
         "`rotate_item` is only read by BagScreen while it is open",
+    frozenset({"verb", "use_item"}):
+        "disjoint by the bag: `_hold` and `_snare` both require `_bag <= 0.0`, "
+        "and `use_item` is only read by BagScreen while it is open",
 }
 
 JOY_BUTTON = ('Object(InputEventJoypadButton,"resource_local_to_scene":false,'

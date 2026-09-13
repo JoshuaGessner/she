@@ -27,6 +27,10 @@ item.con_ember.name,Ember
 item.con_ember.desc,"A piece of her fire, going out. It is heavier than it has any right to be and it will not stop making noise, and it is someone you know."
 item.tol_horn_lantern.name,Horn Lantern
 item.tol_horn_lantern.desc,"Scraped horn instead of glass, because glass does not survive being carried. Shutter it and the dark comes back; leave it open and everything down here knows where to look."
+item.con_linen_binding.name,Linen Binding
+item.con_linen_binding.desc,"A strip of boiled linen and the time to tie it. Four seconds with your hands busy, and a blow or a run undoes the knot."
+item.con_hush_rune.name,Hush Rune
+item.con_hush_rune.desc,"A stave cut with a single rune. Break it and nothing near you makes a sound — until the wood gives out, and everything hears it go."
 class.huskarl.name,Húskarl
 class.huskarl.desc,"Shield-sworn. The last one standing in a doorway, and the one who decides where the doorway is."
 class.huskarl.exit,"Gets out by refusing to be stopped — heavy, armoured, and still moving under weight that would pin anyone else. Loud. The Hunt finds them easily."

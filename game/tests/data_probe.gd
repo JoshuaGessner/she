@@ -267,9 +267,13 @@ func _check_kits_can_be_worn() -> void:
 					+ "owns — that is a class armed with nothing, silently")
 					% [sworn.id, id])
 				continue
+			# **Cargo is not a fault** (ADR-221). This failed every kit entry
+			# with no slot as *dropped on the floor of `_dress_the_body`*, which
+			# was never true: `GameState.take_the_oath` stashes what has no slot
+			# and the first descent carries the stash down (ADR-127, and
+			# `--class-probe` counts it). It went unread while no kit carried
+			# cargo; the Húskarl's two bindings are the first that do.
 			if item.slot == Enums.Slot.NONE:
-				_fail("%s descends with '%s', which occupies no slot and so is "
-					% [sworn.id, id] + "dropped on the floor of `_dress_the_body`")
 				continue
 			# 2. **One item per slot.** Two body pieces in a kit means the
 			# second silently replaces the first, and which one survives is

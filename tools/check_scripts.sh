@@ -537,6 +537,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Using a thing** (`M4-T32`, ADR-221). Nothing in the build was used before
+	# this: a binding heals through the host's countdown and is broken by a blow
+	# or a sprint and not by a walk, and a hush rune's circle swallows what is
+	# made inside it and cracks where it was. `Health` had documented a `heal()`
+	# for three milestones that nobody had written. The crack is the last row, so
+	# requiring it proves the probe ran to the end rather than bailing early.
+	use="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 12000 \
+		levels/room_set/room_set.tscn -- --use-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$use" \
+			|| ! grep -q '^\[use\] cracked true' <<<"$use"; then
+		echo "FAIL a binding has to heal and a hush rune has to silence" >&2
+		printf '%s\n' "$use" | grep -E '\[use\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`

@@ -10,9 +10,11 @@ extends Node
 ## no timer and no system. So there is deliberately no regeneration here, and
 ## adding any would need an ADR.
 ##
-## Healing is a scarce consumable applied through `heal()`; nothing calls it
-## yet, because consumables are `M2-T01`. The method exists because it is the
-## only sanctioned way hit points ever go up, not as a placeholder.
+## Healing is a scarce consumable applied through `heal()` — the linen binding
+## (`M4-T32`, `DES-023`), four seconds of tying that a blow or a sprint breaks.
+## This header promised `heal()` from `M1` and the method was never written, so
+## for three milestones the only way hit points went up was being picked up off
+## the floor (ADR-221).
 
 signal damaged(amount: float, remaining: float, from: Node)
 signal died(from: Node)
@@ -51,6 +53,18 @@ func apply_damage(amount: float, from: Node = null) -> void:
 	if current <= 0.0:
 		_dead = true
 		died.emit(from)
+
+
+## **The only way hit points go up inside a run** (`M4-T32`, `DES-009`).
+##
+## Refuses the dead, and that refusal is the method's whole reason for being
+## separate from `revive()`: a binding that could raise the fallen would be a
+## resurrection item nobody designed, and `DES-012` already prices getting up.
+## Capped at `maximum` — a binding closes a wound, it does not store health.
+func heal(amount: float) -> void:
+	if _dead or amount <= 0.0:
+		return
+	current = minf(maximum, current + amount)
 
 
 ## Back on your feet, with `amount` hit points (`M2-T05`, `DES-012`).

@@ -418,6 +418,34 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         0.0 < revived_hp <= ceiling + 0.01,
         f"{revived_hp:.0f}, revive gives {ceiling:.0f}"))
 
+    # A client ties a binding (`M4-T32`, ADR-221). The use is a request and the
+    # countdown is the host's, so this is the only place the wire under it is
+    # asked: the client pressed, the host counted, and both saw it happen.
+    for report, who in ((host, "host"), (client, "client")):
+        mid = report["binding_mid"].get(client_body, {})
+        rows.append(check(
+            f"a client's binding was being tied, on the {who}",
+            0.0 < mid.get("mending", 0.0) < 1.0,
+            f"{mid.get('mending', 0.0):.2f} through"))
+    before = host["binding_mid"].get(client_body, {})
+    after = host["binding_done"].get(client_body, {})
+    restored = after.get("health", 0.0) - before.get("health", 0.0)
+    wanted = (float(after.get("maximum", host["player_max_health"]))
+              * float(host["binding_restores"]))
+    rows.append(check(
+        "and it closed the wound, and was spent",
+        abs(restored - wanted) < 0.5 and before.get("bindings", 0) == 1
+        and after.get("bindings", 1) == 0,
+        f"+{restored:.1f} of {wanted:.1f}, "
+        f"bindings {before.get('bindings', 0)} → {after.get('bindings', 0)}"))
+    seen = client["binding_done"].get(client_body, {})
+    rows.append(check(
+        "and the client sees the health and the bag the host left",
+        abs(seen.get("health", 0.0) - after.get("health", 0.0)) < 0.01
+        and seen.get("bindings", 1) == 0,
+        f"client {seen.get('health', 0.0):.1f} hp, "
+        f"{seen.get('bindings', 1)} binding(s)"))
+
     return rows
 
 

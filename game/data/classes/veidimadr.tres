@@ -14,4 +14,4 @@ health_scale = 0.8
 stamina_scale = 1.15
 speed_scale = 1.08
 carry_scale = 0.75
-kit = Array[StringName]([&"wpn_yew_bow"])
+kit = Array[StringName]([&"wpn_yew_bow", &"con_linen_binding", &"con_linen_binding"])

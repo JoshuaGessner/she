@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Script" path="res://systems/items/hush_trait.gd" id="2_hush"]
+
+[sub_resource type="Resource" id="Resource_hush"]
+script = ExtResource("2_hush")
+radius = 6.0
+seconds = 10.0
+crack = 10.0
+
+[resource]
+script = ExtResource("1_item")
+id = &"con_hush_rune"
+name_key = &"item.con_hush_rune.name"
+description_key = &"item.con_hush_rune.desc"
+weight = 0.2
+clamor = 0.0
+grid_size = Vector2i(1, 1)
+tribute_value = 0
+traits = Array[ExtResource("2_hush")]([SubResource("Resource_hush")])
+tags = Array[StringName]([&"consumable", &"stave"])

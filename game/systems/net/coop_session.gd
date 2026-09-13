@@ -126,6 +126,7 @@ var _next_hunter: int = 0
 ## index would give a new arrow the name of one a client is still despawning.
 var _next_arrow: int = 0
 var _next_snare: int = 0
+var _next_hush: int = 0
 ## The floor's noise field, handed over by the level that built it — the same
 ## handoff `Gullsjukr.hunt_with` gets, and for the same reason: an arrow or a
 ## snare has no business searching the tree for a system, and the field is
@@ -866,6 +867,8 @@ func _spawn_actor(data: Variant) -> Node:
 			return _build_arrow(payload)
 		"snare":
 			return _build_snare(payload)
+		"hush":
+			return _build_hush(payload)
 		_:
 			return _build_enemy(payload)
 
@@ -914,6 +917,7 @@ func _build_player(payload: Dictionary) -> Node:
 	player.loosed_arrow.connect(_on_player_loosed)
 	player.set_snare.connect(_on_player_set_snare)
 	player.roared.connect(_on_player_roared)
+	player.broke_hush.connect(spawn_hush)
 	return player
 
 
@@ -1404,6 +1408,32 @@ func _build_snare(payload: Dictionary) -> Node:
 	made.placer = int(payload["placer"])
 	made.hold_seconds = float(payload["hold"])
 	made.clamor_trigger = float(payload["clamor"])
+	made.configure_replication()
+	return made
+
+
+## A broken hush rune (`M4-T32`, ADR-221). Through the spawner for the snare's
+## reason: a circle only the host could see is silence nobody else can use or
+## avoid — and on a muted screen, `DES-018`, it would not exist at all. **Not one
+## at a time**: the rune is spent by breaking it, so each circle has been paid for.
+func spawn_hush(at: Vector3, rune: HushTrait) -> Hush:
+	if not is_host():
+		return null
+	var made: Hush = _spawner.spawn({
+		"kind": "hush", "index": _next_hush, "at": at, "radius": rune.radius,
+		"seconds": rune.seconds, "crack": rune.crack,
+	}) as Hush
+	_next_hush += 1
+	return made
+
+
+func _build_hush(payload: Dictionary) -> Node:
+	var made := Hush.new()
+	made.name = "hush_%d" % int(payload["index"])
+	made.position = payload["at"] as Vector3
+	made.radius = float(payload["radius"])
+	made.seconds = float(payload["seconds"])
+	made.crack = float(payload["crack"])
 	made.configure_replication()
 	return made
 

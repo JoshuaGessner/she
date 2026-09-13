@@ -66,8 +66,8 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 
 | id | What only it does | Costs | Source |
 |---|---|---|---|
-| `con_linen_binding` | **Heals.** The only thing on the list that does — `DES-009`: *health does not regenerate; healing is scarce and slow to apply* | Four seconds ⟨tune⟩ of binding, broken by a blow or a sprint; one cell of the bag each | 2 in each class kit · floor filler |
-| `con_hush_rune` | **A circle, 6 m ⟨tune⟩, where nothing makes a sound for 10 s** — your steps, your swing, an enemy's shout to its kin, a coin you drop. It works on `ClamorSource`, the system that already exists, and it is a ring on the floor you can see (`DES-018`) | Single use, rare; **the stave cracks when it ends**, one loud pulse at its centre — a price, and a bait | floor 1+ gear |
+| `con_linen_binding` | **Heals.** The only thing on the list that does — `DES-009`: *health does not regenerate; healing is scarce and slow to apply* | Four seconds ⟨tune⟩ of binding, broken by a blow or a sprint; one cell of the bag each. **Built by ADR-221**: restores 35% ⟨tune⟩, spent only when tied, refused on a body with no wound | 2 in each class kit · filler from floor 1 (ADR-221: from floor 0 it was five a solo run) |
+| `con_hush_rune` | **A circle, 6 m ⟨tune⟩, where nothing makes a sound for 10 s** — your steps, your swing, an enemy's shout to its kin, a coin you drop. It works on `ClamorSource`, the system that already exists, and it is a ring on the floor you can see (`DES-018`) | Single use, rare; **the stave cracks when it ends**, one loud pulse at its centre — a price, and a bait. **Built by ADR-221**: one storey tall, and the crack is heard by enemies as well as the Gullsjúkr | floor 1+ gear |
 | `con_waystone` *(exists)* | Extraction wherever you stand (ADR-015) | Loud to channel; one per party | fixture |
 | `con_ember` *(exists)* | A fallen teammate's life, carried (`DES-012`) | Heavy and loud; never loot | a downed body |
 
@@ -131,6 +131,8 @@ A floor dealt its loot from **the entire item folder**, sorted by worth and cut 
 
 **Depth bands**, as the *Source* column above lists them: floor 0 is light gear and the bead, so its best find stays in single figures as ADR-193 measured it; floor 1 opens the hammer, the axe, the shield, the frame, the helm, the bracers, the rune, and the coin, the gem and the torc; floor 2 holds plate, both relics, the altar-plate and the coin-chest. The climb ADR-193 measured — 6 → 55 → 140 — becomes roughly 6 → 70 → 220, and **that is an economy change `GATE M4 GREED` has to be run against**, not a number to trust from here. The bands are the greed gradient `DES-015` Layer 4 asks for, authored instead of cut — ⟨tune⟩.
 
+> **Bindings open at floor 1, not floor 0** (ADR-221). Dealt as floor 0 filler they alternated with bog iron and came to 1.7 a solo floor — five in a solo run with the kit's two, 175% of a health bar, which is not *scarce*. From floor 1 a solo run carries about 3.4. They are the cheapest filler, so they are dealt into the bypass first: the safe route pays in linen and the guarded one in gold.
+
 ---
 
 ## 5. What the list needs built, and who builds it
@@ -141,7 +143,7 @@ A floor dealt its loot from **the entire item folder**, sorted by worth and cut 
 | **A shield that stops heavy blows and missiles** | §3 | `M4-T03`, the Húskarl's |
 | **Wounds**, which the helm and bracers turn away | `DES-009`'s table; the Scar is what a wound becomes | `M4-T14` — **the helm and bracers arrive with wounds and not before**, or they are armour that turns nothing, which is the byrnie's fault repeated |
 | **The kits, the loot bands** replacing the worth cut, and the items whose behaviour is its own — the axe, the pelt, the frame, the coin-chest | §2, §4 | `M4-T31` |
-| **Using a thing** — the binding's slow heal and the hush rune's circle | Nothing in the build is *used*; everything is carried, worn, thrown or dropped | `M4-T32` |
+| **Using a thing** — the binding's slow heal and the hush rune's circle | Nothing in the build is *used*; everything is carried, worn, thrown or dropped | `M4-T32` — **built, ADR-221** |
 | **The spear's cost** — arcs that hit walls | `DES-009`: *"swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat."* A hitbox passes through stone today, so the spear has reach and no price | `M4-T31` |
 | **The axe's throw** landing as a blow | §2 | `M4-T31` |
 | **The pelt hiding what you carry** | §2, `DES-017` | `M4-T31` |

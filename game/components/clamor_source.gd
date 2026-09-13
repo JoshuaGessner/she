@@ -71,6 +71,11 @@ func _process(delta: float) -> void:
 func add(amount: float) -> void:
 	if amount <= 0.0:
 		return
+	# **Inside a broken hush rune, the sound never happens** (`M4-T32`,
+	# ADR-221). Here, before the level moves, so the field is never told either:
+	# it hears through `made_noise`, and a sound that did not happen emits none.
+	if Hush.silences(global_position):
+		return
 	# **Party scaling lives here, at the one place noise enters the world**
 	# (`M2-T07`, `DES-012`). Every footstep, swing, pickup and rummage from
 	# every source passes through this function, so one multiplication makes a
@@ -87,6 +92,12 @@ func add(amount: float) -> void:
 
 ## Metres this actor carries in open air, before any wall is in the way.
 func audible_radius() -> float:
+	# The level a bag of coin holds you at does not stop ringing because you
+	# stopped moving, so refusing `add` alone would leave it audible inside the
+	# circle. Nothing inside carries (ADR-221); the level is kept, and is heard
+	# again the moment you step out.
+	if Hush.silences(global_position):
+		return 0.0
 	return level * Config.tuning.clamor_metres_per_unit
 
 

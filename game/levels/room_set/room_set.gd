@@ -812,6 +812,8 @@ func _ready() -> void:
 			_creditor_probe()
 		elif arg == "--gear-probe":
 			_gear_probe()
+		elif arg == "--use-probe":
+			_use_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -6172,6 +6174,9 @@ var _probe_downed: Dictionary = {}
 var _probe_motion: Dictionary = {}
 var _probe_speeds: Dictionary = {}
 var _probe_revived: Dictionary = {}
+## A client's binding halfway and after (`M4-T32`, ADR-221).
+var _probe_binding_mid: Dictionary = {}
+var _probe_binding_done: Dictionary = {}
 var _probe_connect_seconds: float = 0.0
 var _probe_ending: bool = false
 var _probe_damage_events: int = 0
@@ -6412,6 +6417,27 @@ func _coop_probe(out: String) -> void:
 		Input.action_release("interact")
 	_probe_revived = _probe_down_state()
 
+	# 7. **A client ties a binding** (`M4-T32`, ADR-221). The use is a request
+	#    and the countdown is the host's, so one process cannot tell a working
+	#    wire from a host tying its own knot. The host puts linen in the client's
+	#    bag; the client finds it in what arrived and asks to use it; both peers
+	#    watch `mending` climb and the wound the revive left close. The client
+	#    stood up at the revive's fraction, so there is a wound to close.
+	if host:
+		var patient: Player = _client_body()
+		if patient != null:
+			patient.inventory.add(ItemCatalogue.by_id(&"con_linen_binding"))
+	await _hold(0.8)
+	if not host:
+		for held: ItemInstance in mine.inventory.items():
+			if held.definition.has_trait(MendingTrait):
+				mine.ask_to_use(held.instance_id)
+				break
+	await _hold(2.0)
+	_probe_binding_mid = _probe_binding_state()
+	await _hold(3.0)
+	_probe_binding_done = _probe_binding_state()
+
 	# **Last, and only now** (ADR-199). Everything above wants an empty floor,
 	# so this is the one phase that puts a body back — and it does it after the
 	# rest have finished rather than fighting them for the same enemies.
@@ -6497,6 +6523,10 @@ func _probe_report(host: bool) -> Dictionary:
 		"bags": _probe_bags,
 		"downed": _probe_downed,
 		"revived": _probe_revived,
+		"binding_mid": _probe_binding_mid,
+		"binding_done": _probe_binding_done,
+		"binding_restores": (ItemCatalogue.by_id(&"con_linen_binding")
+			.first_trait(MendingTrait) as MendingTrait).restores,
 		# The numbers the damage assertion is made of, carried in the report
 		# rather than repeated in the harness. A ⟨tune⟩ value that CI has its
 		# own copy of is a ⟨tune⟩ value nobody can change.
@@ -6577,6 +6607,26 @@ func _probe_down_state() -> Dictionary:
 			# something interrupted it.
 			"revival": player.revival,
 			"spent": player.spent,
+		}
+	return out
+
+
+## Where each body's binding has got to, as this peer sees it. Bindings are
+## counted from the `Inventory` this process holds, which on a client is only
+## ever what the host sent — so a client's own count falling is the host's
+## removal arriving, not the client's guess.
+func _probe_binding_state() -> Dictionary:
+	var out: Dictionary = {}
+	for player: Player in _session.players():
+		var linen: int = 0
+		for held: ItemInstance in player.inventory.items():
+			if held.definition.has_trait(MendingTrait):
+				linen += 1
+		out[player.name] = {
+			"mending": player.mending,
+			"health": player.health.current,
+			"maximum": player.health.maximum,
+			"bindings": linen,
 		}
 	return out
 
@@ -10013,6 +10063,249 @@ func _gear_probe() -> void:
 			+ "`DES-023` found weighing 11 kg and doing nothing")
 
 	_report(problems, "gear")
+
+
+## **Using a thing** (`M4-T32`, `DES-023`, ADR-221).
+##
+## Nothing in the build was used before this task, and `Health` documented a
+## `heal()` for three milestones that nobody had written. Every row goes through
+## the path a player's press takes — an item in the bag, `ask_to_use`, the host's
+## countdown — and each has its plant beside it: a binding that is **not**
+## broken by a walk, a sound that **is** heard just outside the circle, and the
+## same sound heard inside it once the stave has cracked.
+func _use_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var tuning: TuningProfile = Config.tuning
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.4)
+	var binding: ItemResource = ItemCatalogue.by_id(&"con_linen_binding")
+	var rune: ItemResource = ItemCatalogue.by_id(&"con_hush_rune")
+	var mend := binding.first_trait(MendingTrait) as MendingTrait
+	player.inventory.clear()
+
+	# ─ 1. **`heal()` is written, refuses the dead, and stops at the top** ─
+	var body_health: Health = player.health
+	body_health.restore()
+	body_health.apply_damage(body_health.maximum * 0.6)
+	var hurt: float = body_health.current
+	body_health.heal(body_health.maximum * 0.2)
+	var healed: float = body_health.current
+	body_health.heal(body_health.maximum * 5.0)
+	var capped: float = body_health.current
+	print("[use] heal()          %.0f → %.0f, and %.0f at most of %.0f" % [
+		hurt, healed, capped, body_health.maximum])
+	if absf(healed - hurt - body_health.maximum * 0.2) > 0.01:
+		problems.append("heal() did not add what it was given")
+	if capped > body_health.maximum + 0.01:
+		problems.append("heal() raised health past its maximum")
+	var dead := Health.new()
+	add_child(dead)
+	dead.apply_damage(dead.maximum * 2.0)
+	dead.heal(50.0)
+	if dead.current > 0.0 or not dead.is_dead():
+		problems.append(("heal() raised the dead — `DES-012` prices getting up, "
+			+ "and a binding that did it would be a resurrection nobody designed"))
+	dead.queue_free()
+
+	# ─ 2. **a binding closes a wound, and is spent when the knot is tied** ─
+	body_health.restore()
+	body_health.apply_damage(body_health.maximum * 0.6)
+	var before: float = body_health.current
+	var tied: ItemInstance = player.inventory.add(binding)
+	player.ask_to_use(tied.instance_id)
+	await _hold(mend.seconds * 0.5)
+	var halfway: float = player.mending
+	var still_held: bool = player.inventory.find(tied.instance_id) != null
+	var drawn: float = _reticle_channel()
+	await _hold(mend.seconds * 0.5 + 0.4)
+	var gained: float = body_health.current - before
+	print("[use] a binding       %.2f through at half, still in the bag %s, ring %.2f; +%.1f health, spent %s" % [
+		halfway, still_held, drawn, gained,
+		player.inventory.find(tied.instance_id) == null])
+	if halfway < 0.3 or halfway > 0.7:
+		problems.append("halfway through a %.0f s binding `mending` read %.2f"
+			% [mend.seconds, halfway])
+	if not still_held:
+		problems.append("the binding left the bag before it was tied — a broken "
+			+ "one would then cost the linen as well as the time")
+	if absf(gained - body_health.maximum * mend.restores) > 0.5:
+		problems.append("a finished binding restored %.1f, not %.1f"
+			% [gained, body_health.maximum * mend.restores])
+	if player.inventory.find(tied.instance_id) != null:
+		problems.append("a finished binding was not spent")
+	# The ring with nothing in reach: the Waystone's had been hidden behind the
+	# reach test, and a binding tied in an empty corridor is the ordinary case.
+	if drawn <= 0.0:
+		problems.append(("the crosshair drew no ring while a binding was tied "
+			+ "with nothing in reach — `DES-019` never ships a hold with no "
+			+ "progress on screen"))
+
+	# ─ 3. **never on a body with no wound** ─
+	body_health.restore()
+	var spare: ItemInstance = player.inventory.add(binding)
+	# What the bag asks before it sends anything or shuts — so a press at full
+	# health leaves the bag open instead of closing it on nothing.
+	var offered_whole: bool = player.can_use(spare)
+	player.ask_to_use(spare.instance_id)
+	await _hold(0.3)
+	print("[use] at full health  mending %.2f (want 0), still in the bag %s, the bag would send %s"
+		% [player.mending, player.inventory.find(spare.instance_id) != null,
+			offered_whole])
+	if player.mending > 0.0 or player.inventory.find(spare.instance_id) == null:
+		problems.append("a binding was begun on a body with nothing to mend")
+	if offered_whole:
+		problems.append(("the bag would send a binding at full health, and shut "
+			+ "itself on a press the host refuses"))
+	if not player.can_use(player.inventory.add(rune)):
+		problems.append("the bag would not send a hush rune, which needs no wound")
+
+	# ─ 4. **a blow undoes it, and the linen is kept** ─
+	body_health.apply_damage(body_health.maximum * 0.5)
+	player.ask_to_use(spare.instance_id)
+	await _hold(1.0)
+	var blow := Hitbox.new()
+	add_child(blow)
+	(player.get_node("Hurtbox") as Hurtbox).receive(4.0, Enums.DamageType.BLUNT, blow)
+	blow.queue_free()
+	await _hold(0.1)
+	var after_blow: float = player.mending
+	var hurt_to: float = body_health.current
+	await _hold(mend.seconds)
+	print("[use] struck at 1 s   mending %.2f (want 0), health %.1f → %.1f, still in the bag %s" % [
+		after_blow, hurt_to, body_health.current,
+		player.inventory.find(spare.instance_id) != null])
+	if after_blow > 0.0 or body_health.current > hurt_to + 0.01:
+		problems.append("a blow did not break the binding")
+	if player.inventory.find(spare.instance_id) == null:
+		problems.append("a broken binding was spent anyway")
+
+	# ─ 5. **a sprint undoes it; a walk does not** ─
+	#
+	# The body is moved by hand at each speed, so the host has only
+	# displacement to judge by — exactly what it has of a client's body.
+	var paces: Array = [["walk", tuning.walk_speed * 0.95], ["sprint", tuning.sprint_speed]]
+	var kept: Dictionary = {}
+	for pace: Array in paces:
+		player.teleport(ARCHER_POST, 0.0)
+		# Wounded afresh each pace rather than worn down across them, so one
+		# failing row cannot put the body on the floor and silence the rest.
+		body_health.restore()
+		body_health.apply_damage(body_health.maximum * 0.5)
+		if player.inventory.find(spare.instance_id) == null:
+			spare = player.inventory.add(binding)
+		await _hold(0.3)
+		player.ask_to_use(spare.instance_id)
+		await _hold(0.2)
+		var until: int = Time.get_ticks_msec() + 900
+		while Time.get_ticks_msec() < until:
+			await get_tree().physics_frame
+			player.global_position += Vector3(float(pace[1])
+				* get_physics_process_delta_time(), 0.0, 0.0)
+		kept[pace[0]] = player.mending
+		# Let whichever is still running finish or fail before the next pace.
+		await _hold(mend.seconds)
+	print("[use] moving          walking %.2f through (want >0), sprinting %.2f (want 0)"
+		% [float(kept["walk"]), float(kept["sprint"])])
+	if float(kept["walk"]) <= 0.0:
+		problems.append(("a walk broke the binding — `DES-023` breaks it on a "
+			+ "sprint, and a teammate walking while they tie one must keep it"))
+	if float(kept["sprint"]) > 0.0:
+		problems.append("a sprint did not break the binding")
+
+	# ─ 6. **a broken rune: nothing inside sounds, and just outside does** ─
+	body_health.restore()
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.4)
+	var hush := rune.first_trait(HushTrait) as HushTrait
+	var stave: ItemInstance = player.inventory.add(rune)
+	player.ask_to_use(stave.instance_id)
+	await _hold(0.3)
+	var circle: Hush = null
+	for node: Node in _session.find_children("hush_*", "", true, false):
+		circle = node as Hush
+	if circle == null:
+		problems.append("breaking a hush rune put no circle in the world")
+		_report(problems, "use")
+		return
+	var centre: Vector3 = circle.global_position
+	var outside: Vector3 = centre + Vector3(hush.radius + 2.0, 0.0, 0.0)
+	var own_level: float = player.clamor.level
+	player.clamor.add(4.0)
+	var inside_step: float = player.clamor.level - own_level
+	var inside_radius: float = player.clamor.audible_radius()
+	var field_at: float = _field.level_at(centre)
+	_field.deposit(centre, 4.0)
+	var inside_field: float = _field.level_at(centre) - field_at
+	var field_out: float = _field.level_at(outside)
+	_field.deposit(outside, 4.0)
+	var outside_field: float = _field.level_at(outside) - field_out
+	print("[use] inside the hush  step +%.2f, radius %.1f m, field +%.2f   outside field +%.2f   rune spent %s" % [
+		inside_step, inside_radius, inside_field, outside_field,
+		player.inventory.find(stave.instance_id) == null])
+	if inside_step > 0.0:
+		problems.append("a step inside the hush raised its source's level")
+	if inside_radius > 0.0:
+		problems.append(("a body inside the hush still carried %.1f m — what it "
+			+ "holds rings whether or not it moves") % inside_radius)
+	if inside_field > 0.0:
+		problems.append("noise landed in the field inside the hush")
+	if outside_field <= 0.0:
+		problems.append(("a sound just outside the hush was swallowed too, so "
+			+ "the row above is not measuring the circle"))
+	if player.inventory.find(stave.instance_id) != null:
+		problems.append("the hush rune was still in the bag after breaking it")
+
+	# ─ 7. **and then it cracks, where it was** ─
+	var waited: int = Time.get_ticks_msec() + int((hush.seconds + 1.0) * 1000.0)
+	while not circle.cracked and Time.get_ticks_msec() < waited:
+		await get_tree().physics_frame
+	var crack := circle.get_node("Crack") as ClamorSource
+	# Just beyond the circle, at an enemy's ear height (`enemy.tscn`'s `Ears`,
+	# 1.6 m) and along whichever line from the centre has no wall on it —
+	# `ARCHER_POST` is a walled room, and a listener behind a wall measures
+	# `ClamorSource.reach`'s occlusion rather than whether the crack happened.
+	var heard_from: Vector3 = Vector3.INF
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for step: int in range(16):
+		var angle: float = TAU * float(step) / 16.0
+		var candidate: Vector3 = centre + Vector3(cos(angle) * (hush.radius + 1.0),
+			1.6, sin(angle) * (hush.radius + 1.0))
+		var line := PhysicsRayQueryParameters3D.create(centre, candidate)
+		line.collision_mask = CollisionLayers.WORLD
+		if space.intersect_ray(line).is_empty():
+			heard_from = candidate
+			break
+	var heard: bool = heard_from != Vector3.INF and crack.audible_at(heard_from)
+	var cracked_level: float = crack.level
+	var again: float = player.clamor.level
+	player.clamor.add(4.0)
+	var after_step: float = player.clamor.level - again
+	print("[use] cracked %s after %.0f s   level %.1f, heard beyond the circle %s, a step inside now +%.2f" % [
+		circle.cracked, hush.seconds, cracked_level, heard, after_step])
+	if not circle.cracked:
+		problems.append("the hush never cracked")
+	if heard_from == Vector3.INF:
+		problems.append("no open line leaves the circle, so nothing here can hear it")
+	elif not heard:
+		problems.append(("the crack was not heard just beyond the circle — "
+			+ "`DES-023` prices the silence with it, and a quiet end is free"))
+	if after_step <= 0.0:
+		problems.append("the circle still swallowed sound after it cracked")
+
+	_report(problems, "use")
+
+
+## What the crosshair last drew as a channel, from the HUD this level built.
+func _reticle_channel() -> float:
+	for node: Node in find_children("*", "Control", true, false):
+		var reticle := node as Reticle
+		if reticle != null:
+			return reticle.channel_drawn()
+	return -1.0
 
 
 ## **The Vörðr** (`M3-T14`, `DES-012`, ADR-130).

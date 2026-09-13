@@ -114,6 +114,11 @@ func level_at(point: Vector3) -> float:
 func deposit(at: Vector3, amount: float) -> void:
 	if amount <= 0.0 or _width == 0:
 		return
+	# An arrow or a snare lands its noise here without a source (`Arrow._land`),
+	# so a hush rune's circle is asked here too (ADR-221). Sources were already
+	# refused in `ClamorSource.add`; this is the other door.
+	if Hush.silences(at):
+		return
 	var cell: Vector2i = cell_at(at)
 	if not in_bounds(cell):
 		return

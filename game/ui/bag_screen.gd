@@ -113,8 +113,9 @@ static func footer_lines() -> Array[String]:
 		"%s take & place    %s turn" % [
 			ControlsScreen.glyphs_for("interact"),
 			ControlsScreen.glyphs_for("rotate_item")],
-		"drag out or %s drop    %s close" % [
+		"drag out or %s drop    %s use    %s close" % [
 			ControlsScreen.glyphs_for("drop"),
+			ControlsScreen.glyphs_for("use_item"),
 			ControlsScreen.glyphs_for("bag")],
 	]
 
@@ -268,6 +269,9 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event.is_action_pressed("rotate_item"):
 		_turn()
 		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("use_item"):
+		_use_at_cursor()
+		get_viewport().set_input_as_handled()
 
 
 # ── the hands ─────────────────────────────────────────────────────────────
@@ -295,6 +299,24 @@ func _grab_at_cursor() -> void:
 	_held = item
 	_held_rotated = item.rotated
 	_grab = _cursor_cell() - item.cell
+
+
+## **Use what the hands are on** (`M4-T32`, ADR-221): a binding or a rune.
+##
+## The bag shuts as you do it. Tying linen and breaking a stave are done looking
+## at the room, not into a satchel — and the binding's ring is at the crosshair,
+## which the open bag hides. A press that would do nothing — a coin, or a binding
+## on a body with no wound — sends nothing and leaves the bag open, because
+## nothing happened (`Player.can_use`, the rule the host asks too).
+func _use_at_cursor() -> void:
+	var item: ItemInstance = hovered()
+	if not _player.can_use(item):
+		return
+	# A held item is the host's still, in the cell it came from, so letting go
+	# of it here is just letting go (see `set_openness`).
+	_held = null
+	_player.ask_to_use(item.instance_id)
+	_player.close_bag()
 
 
 func _turn() -> void:

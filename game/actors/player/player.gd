@@ -85,6 +85,9 @@ signal set_snare(at: Vector3, placer: int)
 ## **Never Where She Struck** left a noise behind it (`M3-T12`). Same seam as
 ## the two above: the body says what happened, the session makes it happen.
 signal roared(at: Vector3, amount: float)
+## A hush rune broken at someone's feet, host-side (`M4-T32`). Same seam again:
+## a circle every peer has to see is an actor, and actors are the session's.
+signal broke_hush(at: Vector3, rune: HushTrait)
 
 ## Left the floor alive, by Waystone. The level decides what that means — a
 ## body does not get to end its own run (`TEC-004`: consequences have one
@@ -211,6 +214,9 @@ const STATE_PROPERTIES: Dictionary = {
 	# host-side — so a client spending their way home saw **nothing happen**
 	# for the whole channel, exactly as they saw nothing standing in the Shaft.
 	".:leaving": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# Tying a binding (`M4-T32`), for `leaving`'s reason exactly: a host-side
+	# countdown driving a ring the player is watching.
+	".:mending": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 }
 
 ## Which seat in the party this body took, 0-3. Assigned once by `CoopSession`
@@ -390,6 +396,18 @@ var _spending_total: float = 0.0
 ## How far through spending a Waystone, 0–1, on every peer. Replicated because
 ## the countdown that drives it is not.
 var leaving: float = 0.0
+
+## Seconds left on a binding being tied, and the bag entry it is (`M4-T32`).
+## Host-side, like `_spending`; `mending` is the fraction that travels.
+var _binding: float = 0.0
+var _binding_total: float = 0.0
+var _binding_id: int = -1
+## Where the body was last frame and how fast the host has seen it going, so a
+## sprint can break the knot on a body the host did not drive. See `_tick_binding`.
+var _binding_at: Vector3 = Vector3.ZERO
+var _binding_speed: float = 0.0
+## How far through tying a binding, 0–1, on every peer.
+var mending: float = 0.0
 
 ## Seconds of bleeding left, or 0 when up. **Replicated**, because `DES-012`
 ## makes the window itself the decision — *"a visible, shortening window; your
@@ -697,6 +715,9 @@ func _on_swing_connected(_hurtbox_hit: Hurtbox) -> void:
 ## the version where blocking is a decision about *this swing* rather than a
 ## stance you adopt on the way in.
 func _on_hurt(amount: float, from: Node) -> void:
+	# **A blow undoes the knot** (`DES-023`), guarded or not — a shield that
+	# took the weight still jarred the hands tying the linen.
+	_stop_binding()
 	if blocking and stamina.current >= Config.tuning.block_stamina_minimum:
 		var tuning: TuningProfile = Config.tuning
 		stamina.spend(tuning.block_stamina_cost)
@@ -1287,6 +1308,7 @@ func _go_down() -> void:
 	_bag_wanted = false
 	_spending = 0.0
 	leaving = 0.0
+	_stop_binding()
 
 
 ## Host-side, per frame. The window shortens whatever anyone is doing about it,
@@ -1431,6 +1453,7 @@ func restore_for_descent() -> void:
 	# different node, and a much worse one.
 	refresh_recall()
 	leaving = 0.0
+	_stop_binding()
 	_reviving = false
 	_self_recovery = true
 	health.restore()
@@ -1550,6 +1573,9 @@ func _spend_waystone() -> void:
 	var stone: ItemInstance = inventory.waystone()
 	if stone == null or _spending > 0.0:
 		return
+	# Leaving is the larger decision, and one ring at the crosshair is one
+	# thing happening: a binding half-tied is abandoned, and stays in the bag.
+	_stop_binding()
 	_spending = _waystone_seconds(stone)
 	# **Windward** (`M3-T12`). `DES-005` makes the extraction walk the tensest
 	# part of the run; this shortens the standing-still half of it, which is the
@@ -1595,6 +1621,118 @@ func _tick_waystone(delta: float) -> void:
 	# carried out never includes the thing that carried you.
 	inventory.remove(stone.instance_id)
 	extracted.emit(self)
+
+
+# ── using a thing (`M4-T32`, `DES-023`, ADR-221) ─────────────────────────────
+#
+# Nothing in the build was *used* before this: everything was carried, worn,
+# thrown or dropped. Two things are now, and both are asked for **from the
+# bag**, because the bag is already where you are vulnerable (`DES-019`) — using
+# one costs the rummage that found it, and spends no button in the world.
+
+
+## Use the bag entry `instance_id`. A request like every other bag verb: the
+## client asks, and the host decides against its own copy of the bag.
+func ask_to_use(instance_id: int) -> void:
+	if multiplayer.is_server():
+		_use_from_bag(instance_id)
+	else:
+		_request_use.rpc_id(HOST_PEER, instance_id)
+
+
+@rpc("any_peer", "reliable")
+func _request_use(instance_id: int) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_use_from_bag(instance_id)
+
+
+## **Whether pressing use on this would do anything**, asked by the bag before
+## it sends a request and by the host before it honours one — one rule and two
+## readers, so the bag never shuts on a press the host was always going to
+## refuse. Reads only what every peer has: `mending` and `leaving` travel, and
+## `Health:current` does.
+##
+## **Never a binding on a body with no wound.** Charging the linen for a misclick
+## at full health is a trap `DES-019` would answer with a confirmation, and it
+## refuses those; so the use is refused and the linen stays in the bag.
+func can_use(item: ItemInstance) -> bool:
+	if item == null or is_incapacitated():
+		return false
+	if item.definition.has_trait(HushTrait):
+		return true
+	if not item.definition.has_trait(MendingTrait):
+		return false
+	return mending <= 0.0 and leaving <= 0.0 and health.current < health.maximum
+
+
+func _use_from_bag(instance_id: int) -> void:
+	var item: ItemInstance = inventory.find(instance_id)
+	if not can_use(item):
+		return
+	var mend := item.definition.first_trait(MendingTrait) as MendingTrait
+	if mend != null:
+		_begin_binding(item, mend)
+		return
+	var rune := item.definition.first_trait(HushTrait) as HushTrait
+	if rune != null:
+		# Broken at your feet, and gone from the bag before the circle exists,
+		# so there is no frame in which you hold the rune *and* stand in it.
+		inventory.remove(instance_id)
+		broke_hush.emit(global_position, rune)
+
+
+## One knot at a time, and never over the Waystone's ring — asked again of the
+## host's own clocks, which are exact where the replicated fractions in
+## `can_use` are a frame behind.
+func _begin_binding(item: ItemInstance, mend: MendingTrait) -> void:
+	if _binding > 0.0 or _spending > 0.0:
+		return
+	_binding = mend.seconds
+	_binding_total = mend.seconds
+	_binding_id = item.instance_id
+	_binding_at = global_position
+	_binding_speed = 0.0
+	mending = 0.0
+
+
+func _stop_binding() -> void:
+	_binding = 0.0
+	_binding_id = -1
+	mending = 0.0
+
+
+## Host-side, per frame. Finishing consumes the binding and closes the wound.
+func _tick_binding(delta: float, tuning: TuningProfile) -> void:
+	if _binding <= 0.0:
+		return
+	# **A sprint undoes it**, judged as the host sees the body move — the
+	# footstep's own rule (`_is_sprinting`), averaged over about a tenth of a
+	# second. A client's body arrives twenty times a second and eases between
+	# packets, and two packets landing in one frame read as a sprint for that
+	# one frame; unaveraged, a teammate walking while they tied a binding would
+	# lose it to the network.
+	var moved: Vector3 = global_position - _binding_at
+	moved.y = 0.0
+	_binding_at = global_position
+	_binding_speed = lerpf(_binding_speed, moved.length() / maxf(delta, 0.0001),
+		clampf(delta * 8.0, 0.0, 1.0))
+	var item: ItemInstance = inventory.find(_binding_id)
+	if item == null or is_incapacitated() or _is_sprinting(_binding_speed, tuning):
+		_stop_binding()
+		return
+	_binding -= delta
+	mending = clampf(1.0 - _binding / maxf(_binding_total, 0.001), 0.0, 1.0)
+	if _binding > 0.0:
+		return
+	var mend := item.definition.first_trait(MendingTrait) as MendingTrait
+	_stop_binding()
+	# Spent when the knot is tied, not when it was begun — the Waystone's
+	# order, so what a broken binding costs is the time and never the linen.
+	inventory.remove(item.instance_id)
+	health.heal(health.maximum * mend.restores)
 
 
 ## Noise made picking one thing up or setting it down: a fixed handling cost
@@ -1834,6 +1972,7 @@ func _physics_process(delta: float) -> void:
 	if multiplayer.is_server():
 		_emit_movement_clamor(delta, tuning)
 		_tick_waystone(delta)
+		_tick_binding(delta, tuning)
 		_tick_bleeding(delta)
 
 
