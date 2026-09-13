@@ -108,7 +108,7 @@ func _show_root() -> void:
 	_clear()
 	_column.add_child(MenuStyle.title("SHE"))
 	_column.add_child(MenuStyle.line(
-		"a hoard-dragon buys your soul one run at a time", 15))
+		"a hoard-dragon buys your soul one run at a time"))
 	_column.add_child(_gap(18))
 
 	var play: Button = MenuStyle.button("DESCEND ALONE")
@@ -145,8 +145,8 @@ func _show_root() -> void:
 	# explanation is barely better than the quit it replaced.
 	if not NetPlan.last_error.is_empty():
 		_column.add_child(_gap(14))
-		_column.add_child(MenuStyle.line(NetPlan.last_error, 14,
-			Color(0.82, 0.42, 0.36)))
+		_column.add_child(MenuStyle.line(NetPlan.last_error,
+			MenuStyle.SMALL_FAULT))
 		NetPlan.last_error = ""
 
 
@@ -241,12 +241,13 @@ func _show_host() -> void:
 	var address: String = NetPlan.local_address()
 	var code: String = NetPlan.code_for(address, NetPlan.DEFAULT_PORT)
 
-	_column.add_child(MenuStyle.title("HOST", 34))
-	_column.add_child(MenuStyle.line("On this network, join at", 14))
+	_column.add_child(MenuStyle.title("HOST", MenuStyle.SCREEN_TITLE))
+	_column.add_child(MenuStyle.line("On this network, join at",
+		MenuStyle.SMALL_DIM))
 	var shown: Label = MenuStyle.line("%s : %d" % [address, NetPlan.DEFAULT_PORT],
-		26, MenuStyle.WARM)
+		MenuStyle.BANNER_WARM)
 	_column.add_child(shown)
-	_column.add_child(MenuStyle.line("or with the code  %s" % code, 15))
+	_column.add_child(MenuStyle.line("or with the code  %s" % code))
 
 	_column.add_child(_gap(10))
 	# The honest part, where somebody will actually read it.
@@ -256,7 +257,7 @@ func _show_host() -> void:
 		"Direct connection — no relay. Someone on another network joins at "
 		+ "your public IP on port %d, which has to reach this machine. Steam "
 		+ "lobbies and relay arrive at M4-T07."
-		) % NetPlan.DEFAULT_PORT, 13)
+		) % NetPlan.DEFAULT_PORT, MenuStyle.CAPTION_DIM)
 	warning.custom_minimum_size = Vector2(380.0, 0.0)
 	_column.add_child(warning)
 
@@ -279,15 +280,15 @@ func _show_host() -> void:
 
 func _show_join() -> void:
 	_clear()
-	_column.add_child(MenuStyle.title("JOIN", 34))
+	_column.add_child(MenuStyle.title("JOIN", MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line(
 		"The host's address. Port %d is assumed if you leave it off."
-			% NetPlan.DEFAULT_PORT, 14))
+			% NetPlan.DEFAULT_PORT, MenuStyle.SMALL_DIM))
 
 	var field: LineEdit = MenuStyle.field("192.168.1.20  or  1.2.3.4:47018")
 	_column.add_child(field)
 
-	var problem: Label = MenuStyle.line("", 14, Color(0.82, 0.42, 0.36))
+	var problem: Label = MenuStyle.line("", MenuStyle.SMALL_FAULT)
 	_column.add_child(problem)
 
 	var go: Button = MenuStyle.button("JOIN")

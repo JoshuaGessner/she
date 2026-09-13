@@ -129,7 +129,7 @@ func _draw() -> void:
 		return
 	var screen: Vector2 = size
 	var origin := Vector2((screen.x - BAR.x) * 0.5, screen.y - FROM_BOTTOM)
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = get_theme_default_font()
 	var fill: float = 0.0
 	var tint: Color = DOWN_COLOUR
 
@@ -159,7 +159,7 @@ func _draw() -> void:
 	var help: String = hint()
 	if help != "":
 		_say(font, Vector2(origin.x, origin.y + BAR.y + 20.0), help, 13,
-			MenuStyle.DIM)
+			MenuStyle.tone(self, MenuStyle.DIM))
 
 
 func _say(font: Font, at: Vector2, text: String, size_of: int,

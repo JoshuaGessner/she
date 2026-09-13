@@ -36,17 +36,18 @@ func _ready() -> void:
 
 	var column: VBoxContainer = MenuStyle.column(14)
 	centre.add_child(column)
-	column.add_child(MenuStyle.title("SETTINGS", 34))
+	column.add_child(MenuStyle.title("SETTINGS", MenuStyle.SCREEN_TITLE))
 	column.add_child(MenuStyle.line(
-		"Changes apply as you make them and are kept when you quit.", 14))
+		"Changes apply as you make them and are kept when you quit.",
+		MenuStyle.SMALL_DIM))
 
 	column.add_child(_gap(8))
-	column.add_child(MenuStyle.line("SOUND", 13, MenuStyle.WARM))
+	column.add_child(MenuStyle.line("SOUND", MenuStyle.CAPTION_WARM))
 	for bus: String in Settings.VOLUME_BUSES:
 		column.add_child(_volume_row(bus))
 
 	column.add_child(_gap(10))
-	column.add_child(MenuStyle.line("LOOK", 13, MenuStyle.WARM))
+	column.add_child(MenuStyle.line("LOOK", MenuStyle.CAPTION_WARM))
 	column.add_child(_sensitivity_row())
 	column.add_child(_toggle_row("Invert vertical look", Settings.invert_look,
 		func(on: bool) -> void:
@@ -69,8 +70,8 @@ func _volume_row(bus: String) -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 
-	var name_label: Label = MenuStyle.line(String(BUS_LABELS[bus]), 16,
-		MenuStyle.TEXT)
+	var name_label: Label = MenuStyle.line(String(BUS_LABELS[bus]),
+		MenuStyle.LARGE_TEXT)
 	name_label.custom_minimum_size = Vector2(110.0, 0.0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(name_label)
@@ -83,7 +84,7 @@ func _volume_row(bus: String) -> HBoxContainer:
 	slider.custom_minimum_size = Vector2(200.0, 20.0)
 	row.add_child(slider)
 
-	var readout: Label = MenuStyle.line(_percent(slider.value), 15)
+	var readout: Label = MenuStyle.line(_percent(slider.value))
 	readout.custom_minimum_size = Vector2(48.0, 0.0)
 	readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	row.add_child(readout)
@@ -100,7 +101,7 @@ func _sensitivity_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 
-	var name_label: Label = MenuStyle.line("sensitivity", 16, MenuStyle.TEXT)
+	var name_label: Label = MenuStyle.line("sensitivity", MenuStyle.LARGE_TEXT)
 	name_label.custom_minimum_size = Vector2(110.0, 0.0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(name_label)
@@ -113,7 +114,7 @@ func _sensitivity_row() -> HBoxContainer:
 	slider.custom_minimum_size = Vector2(200.0, 20.0)
 	row.add_child(slider)
 
-	var readout: Label = MenuStyle.line("%.2fx" % slider.value, 15)
+	var readout: Label = MenuStyle.line("%.2fx" % slider.value)
 	readout.custom_minimum_size = Vector2(48.0, 0.0)
 	readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	row.add_child(readout)
@@ -129,9 +130,7 @@ func _toggle_row(text: String, on: bool, apply: Callable) -> CheckBox:
 	var box := CheckBox.new()
 	box.text = text
 	box.button_pressed = on
-	box.add_theme_font_size_override("font_size", 16)
-	box.add_theme_color_override("font_color", MenuStyle.TEXT)
-	box.add_theme_color_override("font_hover_color", MenuStyle.WARM)
+	box.theme_type_variation = MenuStyle.TOGGLE
 	# Wide enough that the check indicator is not clipped against the edge of a
 	# centred column — it sits to the *left* of the text, outside the width the
 	# label alone asks for. Only a screenshot shows this.

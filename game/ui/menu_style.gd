@@ -8,99 +8,160 @@ extends Object
 ## fix a colour and two of them get missed. `ART-001`'s palette is grubby and
 ## warm and the UI should not fight it; `ART-005` reserves saturated gold for
 ## treasure, so nothing here is allowed to be gold.
-
-const INK: Color = Color(0.07, 0.065, 0.06, 0.94)
-const PANEL: Color = Color(0.11, 0.105, 0.10, 0.96)
-const EDGE: Color = Color(0.28, 0.26, 0.24, 1.0)
-const TEXT: Color = Color(0.87, 0.85, 0.81, 1.0)
-const DIM: Color = Color(0.55, 0.53, 0.50, 1.0)
-const WARM: Color = Color(0.78, 0.55, 0.30, 1.0)
-
-## A panel that sits over the world rather than over a backdrop.
 ##
-## Lighter and more transparent than `PANEL`, because a readout in the Chamber
-## is competing with a lit room behind it and an opaque slab there would read as
-## a menu that failed to close.
-const OVERLAY: Color = Color(0.09, 0.085, 0.08, 0.72)
+## ## The look is a `Theme`, and this file only names it (ADR-216)
+##
+## Every size and colour lives in `res://ui/interface_theme.tres`, the project
+## theme. What this file holds is the **vocabulary**: constructors that build a
+## control and say which role it plays, and the role names as constants so a
+## typo is a parse error rather than a label that silently falls back to the
+## engine's white.
+##
+## It used to set every size and colour by hand, on every control, at the
+## moment it was built — forty hand-set styles across six scripts. That
+## made `M4-T11`'s dyslexia font, high-contrast palette and type scale each an
+## edit to every screen, and none of them could reach a screen that was already
+## open. A theme is resolved when the control draws, so changing it changes
+## what is on screen now.
+##
+## **The price: a control resolves its role only once it is in the tree.**
+## Measured, a `Label` given `CaptionDebt` and asked before `add_child` reports
+## the engine's 16 px and white — the project theme included. An override
+## answered immediately, so code that sizes a control before parenting it was
+## correct before this and is not now. A census of every screen's resolved
+## sizes and rects came back identical, so nothing did; add it, then measure.
+##
+## **A role is a size on a tone.** A Godot theme variation has one base, so
+## `BodyWarm` is a variation of `Warm`, which is a variation of `Label`: the
+## colour is written once per tone and the size once per role. A palette swap
+## is five tones, not twenty-two roles — plus the button, field and toggle, whose
+## colours are their own because a `Button` cannot inherit a `Label` tone.
+##
+## **The roles are what the screens drew before, not a type scale.** Twelve
+## sizes on five tones, some of them one pixel apart doing the same job. That is
+## an inventory for `M4-T05`'s typography, which is where collapsing it belongs;
+## collapsing it here would have been a restyle hiding inside a refactor.
+##
+## **Layout stays in the screens.** Separations, minimum widths and alignment
+## are decisions about one screen's shape, not about how text reads, and
+## `M4-T11`'s UI scaling moves them all at once through the window's scale.
 
+## ## Tones — read by drawn controls through `tone()`
+const TEXT: StringName = &"Text"
+const DIM: StringName = &"Dim"
+const WARM: StringName = &"Warm"
+
+## ## Roles — a size on a tone
+##
+## Named by size step and tone rather than by what they are for, because the
+## same pair is used for different jobs and the same job at different sizes.
+## Pretending otherwise would name a distinction the screens do not make.
+const TITLE: StringName = &"Title"  ## 44, the first screen of a flow.
+const SCREEN_TITLE: StringName = &"ScreenTitle"  ## 34.
+const DIALOG_TITLE: StringName = &"DialogTitle"  ## 30, a question asked over a screen.
+const HEADING: StringName = &"Heading"  ## 11, the name of a region.
+const FINE_DIM: StringName = &"FineDim"  ## 12.
+const CAPTION_DIM: StringName = &"CaptionDim"  ## 13.
+const CAPTION_TEXT: StringName = &"CaptionText"
+const CAPTION_WARM: StringName = &"CaptionWarm"
 ## **The one number in the game that is allowed to be alarming.**
 ##
 ## `ART-005` spends saturated gold on treasure and nothing else, so this is not
 ## gold — it is the desaturated red the wound vignette already uses, reserved
-## here for a debt that is about to come due. Anything using it must also say so
-## in shape or word, never in hue alone (`DES-018`).
-const DEBT: Color = Color(0.72, 0.36, 0.30, 1.0)
+## for a debt that is about to come due. Anything using it must also say so in
+## shape or word, never in hue alone (`DES-018`).
+const CAPTION_DEBT: StringName = &"CaptionDebt"
+const SMALL_DIM: StringName = &"SmallDim"  ## 14.
+const SMALL_WARM: StringName = &"SmallWarm"
+const SMALL_FAULT: StringName = &"SmallFault"  ## Something went wrong and you can act on it.
+const BODY_DIM: StringName = &"BodyDim"  ## 15, and what `line()` draws unless told.
+const BODY_TEXT: StringName = &"BodyText"
+const BODY_WARM: StringName = &"BodyWarm"
+const LARGE_DIM: StringName = &"LargeDim"  ## 16.
+const LARGE_TEXT: StringName = &"LargeText"
+const LARGE_WARM: StringName = &"LargeWarm"
+const SUB_DIM: StringName = &"SubDim"  ## 18.
+const SUB_WARM: StringName = &"SubWarm"
+const DISPLAY_WARM: StringName = &"DisplayWarm"  ## 21.
+const BANNER_WARM: StringName = &"BannerWarm"  ## 26.
+
+## **Never given the house style.** The Legacy screen and the deeds banner draw
+## in the engine's own white on its own grey buttons, and always have: they were
+## built beside `MenuStyle` rather than with it. These roles carry only the
+## sizes they already set, so the theme draws them exactly as before, and
+## bringing them into the register is `M4-T05`'s — it is a visible change a
+## person should look at, not a side effect of moving numbers into a file.
+const LEGACY_TITLE: StringName = &"LegacyTitle"
+const DEEDS_TITLE: StringName = &"DeedsTitle"
+const DEED_NAME: StringName = &"DeedName"
+
+## ## Controls
+##
+## Not `MenuButton`: that is a Godot class, and the theme refuses a variation
+## named after one.
+const ACTION: StringName = &"MenuAction"
+const FIELD: StringName = &"MenuField"
+const TOGGLE: StringName = &"MenuToggle"
+const FRAME: StringName = &"Frame"
+const RULE: StringName = &"Rule"
+const BACKDROP: StringName = &"Backdrop"
+## A backdrop you can still half see through, for a banner laid over a room.
+const SCRIM: StringName = &"Scrim"
 
 
 ## ## The two grounds, and the flip at the Descent (TEC-009 §5.5)
 ##
 ## `ART-005` §"Two worlds, two treatments" specifies that the Threshold and the
 ## Chamber are **white ground, hard black ink, fully drawn**, and the Deep is the
-## inverse — pale ink on black.
-##
-## Every colour above is absolute and assumes the Deep. So when `M4-T08` lands,
-## **every Lair screen becomes a black panel on a white world** — the hub wearing
-## the Deep's interface, at maximum contrast in the wrong direction, across
-## seventeen files.
-##
-## The rule that prevents it is one line:
+## inverse — pale ink on black. The rule that keeps the interface honest about
+## it is one line:
 ##
 ## > **Ink is the opposite of the ground, and the ground flips at the Descent.**
 ##
-## Defined here once, now, while it is nearly free.
+## **The ground is where a panel lives, not a switch somebody sets.** This
+## theme overrides only the `Text` and `Dim` tones, the frame and the rule, and a
+## Lair scene assigns it to the panels it builds; everything inside them — every
+## role on those tones — resolves against it, and nothing outside does. It
+## replaced a `static var` the Lair scenes set on the way in and had to restore
+## on the way out, because a static outlives the scene that wrote it (`M2-T15`):
+## a way out that forgot would have drawn the next floor in the hub's colours.
+## A theme on a node is freed with the node.
 ##
-## **What is expensive is the indirection, not the palette.** Seventeen screens
-## reference `TEXT` and `DIM` as constants; routing them through `ink()` and
-## `dim()` is the part that has to happen before `M4-T08`, and it is what makes
-## the eventual flip **four constants instead of seventeen files.**
-##
-## ## The values below are correct for the world as it is drawn *today*
+## ## The values in it are correct for the world as it is drawn *today*
 ##
 ## The Lair is not white yet — `ART-005`'s two treatments arrive with the ink
-## shader at `M4-T08`, and the Chamber is currently a dark, warm room. So `LAIR`
-## is a *warmer, higher-contrast* version of the same pale-on-dark reading,
-## rather than the inverted one it will become.
+## shader at `M4-T08`, and the Chamber is currently a dark, warm room. So the
+## hub's ground is a *warmer, higher-contrast* version of the same pale-on-dark
+## reading, rather than the inverted one it will become. Writing the inverted
+## palette now would put a black panel on a black wall and call it
+## forward-looking. **`M4-T08` changes the four entries in that file**; no
+## screen moves.
+const LAIR: Theme = preload("res://ui/lair_theme.tres")
+
+
+## A tone, as the ground under `of` draws it — for controls that paint rather
+## than lay out a `Label`, which is the reticle, the marks and the bag.
+static func tone(of: Control, name: StringName) -> Color:
+	return of.get_theme_color(&"font_color", name)
+
+
+## Every panel named here that is not drawn on the hub's ground. For
+## `--lair-probe` and `--threshold-probe`.
 ##
-## Writing the inverted palette now would put a black panel on a black wall and
-## call it forward-looking. **`M4-T08` changes these four constants**; nothing
-## above them and no screen below them moves. That is the whole return on the
-## indirection, and it is claimed here rather than promised.
-enum Ground {
-	DEEP,  ## Pale ink on black. Every level, and the default.
-	LAIR,  ## The hub. Warmer and brighter now; inverted at `M4-T08`.
-}
-
-## Which world the interface is currently being drawn in.
-##
-## **Set by the scene, and set on the way out as well.** A `static var` outlives
-## the scene that wrote it — `M2-T15` is a whole task about state that survived
-## a level change — so the Lair scenes restore `DEEP` when they leave, or the
-## first floor after a visit to the Chamber draws in the hub's palette.
-static var ground: Ground = Ground.DEEP
-
-const LAIR_INK: Color = Color(0.94, 0.91, 0.85, 1.0)
-const LAIR_DIM: Color = Color(0.66, 0.62, 0.57, 1.0)
-const LAIR_PANEL: Color = Color(0.13, 0.11, 0.09, 0.78)
-const LAIR_EDGE: Color = Color(0.44, 0.38, 0.30, 1.0)
-
-
-## Body text, in whichever world we are drawing in.
-static func ink() -> Color:
-	return LAIR_INK if ground == Ground.LAIR else TEXT
-
-
-## Secondary text — labels, units, the things you read second.
-static func dim() -> Color:
-	return LAIR_DIM if ground == Ground.LAIR else DIM
-
-
-## The fill behind a readout that floats over the world.
-static func overlay() -> Color:
-	return LAIR_PANEL if ground == Ground.LAIR else OVERLAY
-
-
-static func edge() -> Color:
-	return LAIR_EDGE if ground == Ground.LAIR else EDGE
+## A panel built without `LAIR` is the one way the flip goes wrong now, and
+## nothing else notices: it draws the Deep's palette, which is a readable
+## palette, in a room that is merely the wrong colour.
+static func off_the_lair_ground(tag: String, panels: Dictionary) -> PackedStringArray:
+	var out := PackedStringArray()
+	var wanted: Color = LAIR.get_color(&"font_color", DIM)
+	for name: String in panels:
+		var drawn: Color = tone(panels[name] as Control, DIM)
+		print("[%s] ground     %-9s reads Dim as %s" % [tag, name, drawn])
+		if drawn != wanted:
+			out.append(("`%s` reads Dim as %s, not the hub's %s — it was built "
+				+ "without `MenuStyle.LAIR`, so it draws the Deep's palette in "
+				+ "the hub") % [name, drawn, wanted])
+	return out
 
 
 ## A framed region that floats over the world (TEC-009 §5.5).
@@ -110,17 +171,13 @@ static func edge() -> Color:
 ## common region: a border around a group says *these four lines are one thing*
 ## far more cheaply than spacing does, which is what fifteen unframed lines in
 ## one corner could never say.
+##
+## Square in the theme. `ART-005` is a woodcut — a carved line has no radius,
+## and a rounded panel would be the one element on screen made by a different
+## tool.
 static func frame() -> PanelContainer:
 	var box := PanelContainer.new()
-	var style := StyleBoxFlat.new()
-	style.bg_color = overlay()
-	style.border_color = edge()
-	style.set_border_width_all(1)
-	style.set_content_margin_all(10)
-	# Square. `ART-005` is a woodcut — a carved line has no radius, and a
-	# rounded panel would be the one element on screen made by a different tool.
-	style.corner_radius_top_left = 0
-	box.add_theme_stylebox_override("panel", style)
+	box.theme_type_variation = FRAME
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return box
 
@@ -133,8 +190,7 @@ static func heading(text: String) -> Label:
 	# the string. It is a heading, never a sentence, so this cannot reach
 	# anything a translator has to reflow (`ADR-084` — text is keys).
 	label.text = " ".join(text.to_upper().split())
-	label.add_theme_font_size_override("font_size", 11)
-	label.add_theme_color_override("font_color", dim())
+	label.theme_type_variation = HEADING
 	return label
 
 
@@ -144,13 +200,12 @@ static func heading(text: String) -> Label:
 ## a shared left edge** are: a column of these scans as a table, where the same
 ## content as sentences scans as a paragraph nobody reads. That is the whole
 ## difference between the Chamber's fifteen lines and four rows.
-static func row(key: String, value: String, tone: Color = Color(0, 0, 0, 0)) -> HBoxContainer:
+static func row(key: String, value: String) -> HBoxContainer:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 10)
 	var key_label := Label.new()
 	key_label.text = key
-	key_label.add_theme_font_size_override("font_size", 13)
-	key_label.add_theme_color_override("font_color", dim())
+	key_label.theme_type_variation = CAPTION_DIM
 	# A fixed key column so the values line up, as a fraction of nothing — this
 	# is the one place a pixel width is right, because it is a text measure and
 	# it scales with the font when `M4-T11` swaps it.
@@ -158,9 +213,7 @@ static func row(key: String, value: String, tone: Color = Color(0, 0, 0, 0)) -> 
 	bar.add_child(key_label)
 	var read := Label.new()
 	read.text = value
-	read.add_theme_font_size_override("font_size", 13)
-	read.add_theme_color_override("font_color",
-		tone if tone.a > 0.0 else ink())
+	read.theme_type_variation = CAPTION_TEXT
 	read.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	read.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	bar.add_child(read)
@@ -169,9 +222,12 @@ static func row(key: String, value: String, tone: Color = Color(0, 0, 0, 0)) -> 
 
 ## A hairline between groups. Cheaper than a gap and says more: a gap is
 ## ambiguous about whether the next line belongs to the last group.
+##
+## A `Panel` rather than a `ColorRect`, because a `ColorRect`'s colour is a
+## property and a property cannot follow the ground it is drawn on.
 static func rule() -> Control:
-	var bar := ColorRect.new()
-	bar.color = edge()
+	var bar := Panel.new()
+	bar.theme_type_variation = RULE
 	bar.custom_minimum_size = Vector2(0.0, 1.0)
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	return bar
@@ -181,20 +237,18 @@ static func rule() -> Control:
 ## are and a title that sits left of its own buttons reads as a layout bug even
 ## when it is deliberate. Caught by `--menu-shot`, which is the only thing that
 ## can see it.
-static func title(text: String, size: int = 44) -> Label:
+static func title(text: String, role: StringName = TITLE) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", size)
-	label.add_theme_color_override("font_color", TEXT)
+	label.theme_type_variation = role
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	return label
 
 
-static func line(text: String, size: int = 15, colour: Color = DIM) -> Label:
+static func line(text: String, role: StringName = BODY_DIM) -> Label:
 	var label := Label.new()
 	label.text = text
-	label.add_theme_font_size_override("font_size", size)
-	label.add_theme_color_override("font_color", colour)
+	label.theme_type_variation = role
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	# Wide enough that a short sentence does not wrap into two ragged lines,
@@ -211,14 +265,7 @@ static func button(text: String) -> Button:
 	control.pressed.connect(func() -> void:
 		Foley.flat(control, Foley.Sound.CLICK))
 	control.custom_minimum_size = Vector2(280.0, 40.0)
-	control.add_theme_font_size_override("font_size", 18)
-	control.add_theme_color_override("font_color", TEXT)
-	control.add_theme_color_override("font_hover_color", WARM)
-	control.add_theme_color_override("font_focus_color", WARM)
-	control.add_theme_stylebox_override("normal", _box(PANEL))
-	control.add_theme_stylebox_override("hover", _box(PANEL, WARM))
-	control.add_theme_stylebox_override("focus", _box(PANEL, WARM))
-	control.add_theme_stylebox_override("pressed", _box(INK, WARM))
+	control.theme_type_variation = ACTION
 	return control
 
 
@@ -246,16 +293,13 @@ static func field(hint: String) -> LineEdit:
 	var edit := LineEdit.new()
 	edit.placeholder_text = hint
 	edit.custom_minimum_size = Vector2(280.0, 36.0)
-	edit.add_theme_font_size_override("font_size", 17)
-	edit.add_theme_color_override("font_color", TEXT)
-	edit.add_theme_stylebox_override("normal", _box(INK))
-	edit.add_theme_stylebox_override("focus", _box(INK, WARM))
+	edit.theme_type_variation = FIELD
 	return edit
 
 
-static func backdrop() -> ColorRect:
-	var rect := ColorRect.new()
-	rect.color = INK
+static func backdrop(role: StringName = BACKDROP) -> Control:
+	var rect := Panel.new()
+	rect.theme_type_variation = role
 	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	# Menus sit over a live world, so the backdrop has to swallow the clicks
 	# that would otherwise reach it.
@@ -269,12 +313,3 @@ static func column(gap: int = 10) -> VBoxContainer:
 	box.add_theme_constant_override("separation", gap)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	return box
-
-
-static func _box(fill: Color, border: Color = EDGE) -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = fill
-	style.border_color = border
-	style.set_border_width_all(1)
-	style.set_content_margin_all(8)
-	return style

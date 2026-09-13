@@ -827,6 +827,9 @@ func _threshold_probe() -> void:
 	# absent is a check with nothing in it.
 	for fault: String in await layout_faults():
 		problems.append(fault)
+	# ─ **and both panels are on the hub's ground** (ADR-216) ─
+	problems.append_array(MenuStyle.off_the_lair_ground("camp",
+		{"PLACE": _place, "CONTROLS": _controls}))
 
 	for problem: String in problems:
 		printerr("[camp] FAIL %s" % problem)
@@ -1318,17 +1321,19 @@ func _build_readout() -> void:
 	var layer := CanvasLayer.new()
 	layer.name = "CampReadout"
 	add_child(layer)
-	MenuStyle.ground = MenuStyle.Ground.LAIR
 	var screen: Vector2 = get_viewport().get_visible_rect().size
 
 	# ─ PLACE — the camp, and what is yours ─
+	#
+	# Both panels on the hub's ground (`MenuStyle.LAIR`), carried by the panel
+	# rather than set for the whole game and restored on the way out.
 	_place = MenuStyle.frame()
+	_place.theme = MenuStyle.LAIR
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 5)
 	body.add_child(MenuStyle.heading("The Threshold"))
 	_readout = Label.new()
-	_readout.add_theme_font_size_override("font_size", 13)
-	_readout.add_theme_color_override("font_color", MenuStyle.ink())
+	_readout.theme_type_variation = MenuStyle.CAPTION_TEXT
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(_readout)
 	_place.add_child(body)
@@ -1341,12 +1346,12 @@ func _build_readout() -> void:
 	# region is a fraction of the width and a reference you have to read across
 	# the screen is one you read instead of the room.
 	_controls = MenuStyle.frame()
+	_controls.theme = MenuStyle.LAIR
 	var keys := VBoxContainer.new()
 	keys.add_theme_constant_override("separation", 3)
 	keys.add_child(MenuStyle.heading("Controls"))
 	_control_lines = Label.new()
-	_control_lines.add_theme_font_size_override("font_size", 12)
-	_control_lines.add_theme_color_override("font_color", MenuStyle.dim())
+	_control_lines.theme_type_variation = MenuStyle.FINE_DIM
 	# **Wrapped, so it cannot outgrow its region.** The first render was ten
 	# pixels wider than `BODY` — harmless on its own, and exactly how a
 	# collision starts once anything else is drawn nearby. A region is a promise
@@ -1365,8 +1370,7 @@ func _build_readout() -> void:
 	# a corner sized for none. With a region of its own it is transient, which
 	# is what both of those messages always were.
 	_speech = Label.new()
-	_speech.add_theme_font_size_override("font_size", 15)
-	_speech.add_theme_color_override("font_color", MenuStyle.WARM)
+	_speech.theme_type_variation = MenuStyle.BODY_WARM
 	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speech.visible = false
 	layer.add_child(_speech)
@@ -1642,12 +1646,6 @@ func _take_down_the_chamber() -> void:
 ## A level cleans up what a level created, on the way out, whichever way out it
 ## was.
 func _exit_tree() -> void:
-	# **The palette goes back with the room** (`M4-T20`, `M2-T15`'s lesson).
-	# `MenuStyle.ground` is a `static var`, so it outlives this scene — leaving
-	# it on `LAIR` would draw the first floor's interface in the hub's colours,
-	# the same shape of fault as the Chamber that survived onto the main menu
-	# with its private `MultiplayerAPI` still registered.
-	MenuStyle.ground = MenuStyle.Ground.DEEP
 	if _chamber == null:
 		return
 	_take_down_the_chamber()

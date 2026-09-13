@@ -1,0 +1,22 @@
+[gd_resource type="Theme" format=3]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_frame"]
+content_margin_left = 10.0
+content_margin_top = 10.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+bg_color = Color(0.13, 0.11, 0.09, 0.78)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.44, 0.38, 0.3, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rule"]
+bg_color = Color(0.44, 0.38, 0.3, 1)
+
+[resource]
+Text/colors/font_color = Color(0.94, 0.91, 0.85, 1)
+Dim/colors/font_color = Color(0.66, 0.62, 0.57, 1)
+Frame/styles/panel = SubResource("StyleBoxFlat_frame")
+Rule/styles/panel = SubResource("StyleBoxFlat_rule")

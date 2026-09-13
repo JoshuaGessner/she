@@ -63,7 +63,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_name = MenuStyle.line("", 15, MenuStyle.TEXT)
+	_name = MenuStyle.line("", MenuStyle.BODY_TEXT)
 	_name.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
 	_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_name)
@@ -191,7 +191,7 @@ func _listen_for_refusals() -> void:
 ## more thing to learn. Nothing is in reach when this fires, so the two never
 ## draw at once.
 func _draw_refusal(middle: Vector2, radius: float) -> void:
-	var tint: Color = MenuStyle.DIM
+	var tint: Color = MenuStyle.tone(self, MenuStyle.DIM)
 	tint.a = _refused * 0.9
 	var gap: float = radius + 3.0 + GROW * (1.0 - _refused)
 	for step: int in range(4):
@@ -216,7 +216,8 @@ func _draw() -> void:
 	# the exact bug `Ear` was shipped with and photographed to find.
 	var middle: Vector2 = get_viewport_rect().size * 0.5
 	var radius: float = lerpf(DOT, REACH_DOT, _grown)
-	var tint: Color = MenuStyle.TEXT.lerp(MenuStyle.WARM, _grown)
+	var tint: Color = MenuStyle.tone(self, MenuStyle.TEXT).lerp(
+		MenuStyle.tone(self, MenuStyle.WARM), _grown)
 	tint.a = lerpf(0.5, 0.95, _grown)
 	draw_circle(middle, radius, tint)
 	if _refused > 0.01:
@@ -264,12 +265,12 @@ func _draw_channel(middle: Vector2) -> void:
 	# The empty track is drawn whenever you are in reach, so the ring is not a
 	# thing that appears from nowhere the instant you press the key — you can
 	# see what is about to fill before you commit to filling it.
-	var track: Color = MenuStyle.TEXT
+	var track: Color = MenuStyle.tone(self, MenuStyle.TEXT)
 	track.a = 0.22
 	_arc(middle, RING, 0.0, 1.0, track, 1.5)
 	if progress <= 0.0:
 		return
-	var done: Color = MenuStyle.WARM
+	var done: Color = MenuStyle.tone(self, MenuStyle.WARM)
 	done.a = 0.95
 	_arc(middle, RING, 0.0, progress, done, 2.5)
 

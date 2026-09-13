@@ -148,7 +148,10 @@ func _draw() -> void:
 func _draw_frame(body: Player, top: float, loudest: float) -> void:
 	var state: StringName = state_of(body)
 	var quiet: bool = state == &"up" or state == &"out"
-	var ink: Color = MenuStyle.dim() if quiet else MenuStyle.ink()
+	var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
+	var ink: Color = faint if quiet else MenuStyle.tone(self, MenuStyle.TEXT)
+	# The bar's empty track is the frame's own fill, so the two can never drift.
+	var track: Color = (get_theme_stylebox(&"panel", MenuStyle.FRAME) as StyleBoxFlat).bg_color
 	var font: Font = get_theme_default_font()
 
 	# The seat, as a standing tick. It is the only part of a frame that never
@@ -163,7 +166,7 @@ func _draw_frame(body: Player, top: float, loudest: float) -> void:
 	draw_string(font, Vector2(10.0, top + 13.0), who,
 		HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13, ink)
 	draw_string(font, Vector2(10.0, top + 27.0), "rank %d" % body.rank,
-		HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, MenuStyle.dim())
+		HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, faint)
 
 	var run: float = size.x * BAR_SHARE
 	var left: float = 10.0
@@ -173,12 +176,12 @@ func _draw_frame(body: Player, top: float, loudest: float) -> void:
 	# state bar replaces it only when there is a window running.
 	if state != &"down" and state != &"held":
 		var whole := Rect2(left, top + ROW - 10.0, run, BAR_HEIGHT)
-		draw_rect(whole, MenuStyle.overlay())
+		draw_rect(whole, track)
 		var share: float = clampf(body.health.fraction(), 0.0, 1.0)
 		draw_rect(Rect2(whole.position, Vector2(run * share, BAR_HEIGHT)), ink)
 	else:
 		var base := Rect2(left, top + ROW - 10.0, run, BAR_HEIGHT)
-		draw_rect(base, MenuStyle.overlay())
+		draw_rect(base, track)
 		# Shortening for a bleed-out, filling for a hand on you. **The two are
 		# not in the same units** — `revival` is already 0..1 and `bleeding` is
 		# *seconds remaining* — so the bleed is divided by the window it counts

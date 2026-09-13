@@ -85,6 +85,12 @@ def repo_item_count() -> int:
     return len(list(ITEMS.glob("*.tres")))
 
 
+def repo_theme_types() -> int:
+    """How many types `ui/interface_theme.tres` declares, read off the file."""
+    text = (GAME / "ui" / "interface_theme.tres").read_text(encoding="utf-8")
+    return len({m.group(1) for m in re.finditer(r"^(\w+)/", text, re.M)})
+
+
 def export(godot: str, preset: str, out: Path) -> tuple[bool, str]:
     # Godot fails with "The given export path doesn't exist" if the *directory*
     # is missing, which reads like a misconfigured preset and is not one.
@@ -128,6 +134,16 @@ def probe(binary: Path) -> tuple[bool, list[str]]:
         f"{count} packed, {expected} in repo")
 
     say("tuning profile loaded", "tuning loaded true" in log, "Config.tuning")
+
+    # ADR-216. A project setting is the theme's only reference, so a pack that
+    # lost it would boot and draw every menu in the engine's defaults.
+    look = re.search(r"\[export\] theme\s+(\S+), (\d+) type", log)
+    theme_path = look.group(1) if look else "none"
+    theme_types = int(look.group(2)) if look else -1
+    say("interface theme shipped",
+        theme_path == "res://ui/interface_theme.tres"
+        and theme_types == repo_theme_types(),
+        f"{theme_types} type(s), {repo_theme_types()} in repo")
 
     text = re.search(r"-> '([^']*)'", log)
     resolved = text.group(1) if text else ""

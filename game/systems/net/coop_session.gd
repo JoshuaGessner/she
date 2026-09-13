@@ -473,8 +473,8 @@ func _show_waiting() -> void:
 	_waiting_layer = CanvasLayer.new()
 	_waiting_layer.layer = 30
 	add_child(_waiting_layer)
-	var label: Label = MenuStyle.line("reaching for %s…" % _address, 18,
-		MenuStyle.WARM)
+	var label: Label = MenuStyle.line("reaching for %s…" % _address,
+		MenuStyle.SUB_WARM)
 	label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	label.position = Vector2(label.position.x, 40.0)
 	_waiting_layer.add_child(label)

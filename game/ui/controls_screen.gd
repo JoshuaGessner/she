@@ -133,7 +133,7 @@ func _ready() -> void:
 	var column: VBoxContainer = MenuStyle.column(8)
 	_body = column
 	centre.add_child(column)
-	column.add_child(MenuStyle.title("CONTROLS", 34))
+	column.add_child(MenuStyle.title("CONTROLS", MenuStyle.SCREEN_TITLE))
 
 	# **Two columns, because one did not fit** (ADR-137). Stacked in a single
 	# table this ran past the bottom of a 648-line viewport and cut the BACK
@@ -284,7 +284,7 @@ func _heading(table: GridContainer, text: String) -> void:
 	table.add_child(_gap(8))
 	table.add_child(_gap(8))
 	table.add_child(_gap(8))
-	var label: Label = MenuStyle.line(text, 13, MenuStyle.WARM)
+	var label: Label = MenuStyle.line(text, MenuStyle.CAPTION_WARM)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	label.custom_minimum_size = Vector2(215.0, 0.0)
 	table.add_child(label)
@@ -293,7 +293,7 @@ func _heading(table: GridContainer, text: String) -> void:
 
 
 func _row(table: GridContainer, text: String, actions: PackedStringArray) -> void:
-	var name_cell: Label = MenuStyle.line(text, 15, MenuStyle.TEXT)
+	var name_cell: Label = MenuStyle.line(text, MenuStyle.BODY_TEXT)
 	name_cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	name_cell.custom_minimum_size = Vector2(215.0, 0.0)
 	table.add_child(name_cell)
@@ -310,8 +310,8 @@ func _glyph_cell(glyphs: PackedStringArray, width: int) -> Label:
 	# than "nothing is bound here yet". ADR-075 makes both devices reach
 	# everything, so if this ever renders the dash, that is the bug.
 	var text: String = "  ".join(glyphs) if not glyphs.is_empty() else "—"
-	var cell: Label = MenuStyle.line(text, 15,
-		MenuStyle.TEXT if not glyphs.is_empty() else MenuStyle.DIM)
+	var cell: Label = MenuStyle.line(text,
+		MenuStyle.BODY_TEXT if not glyphs.is_empty() else MenuStyle.BODY_DIM)
 	cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	cell.custom_minimum_size = Vector2(float(width), 0.0)
 	return cell

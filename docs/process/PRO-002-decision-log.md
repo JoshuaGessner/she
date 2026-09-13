@@ -7729,5 +7729,57 @@ So the climb stays **0.30 m**, now a named constant (`NAV_AGENT_CLIMB`) rather t
 
 **The machine probe's gear check would have passed falsely.** It asserted a floor wanting gear carries more than two fixtures; a floor that dropped its gear and laid a bead would have had three. It now discounts the vista's row.
 
+---
+
+## ADR-216 — The interface's look is a Theme, and nothing on screen changed
+
+**Date:** 2026-09-13 · **Status:** accepted · **Closes `M4-T20`** · **Implements and amends `TEC-009` §5.5** · **Amends `TEC-002`** · **Completes ADR-190's second pulled-forward row**
+
+**Context:** ADR-190 pulled two rows into `M4-T20` on cost alone: the two-ground palette (built, ADR-198) and **`MenuStyle` as a Godot `Theme`**, because `M4-T11` — a dyslexia font, high contrast, colour-blind support, a type scale — is a global swap of a font, a size or a palette, and was going to be an edit to every screen instead. ⟨a weekend⟩ now, ⟨a month⟩ once `M4-T03`, `M4-T04` and `M4-T14` have each added screens. It is the last row the task owed.
+
+**Measured before anything changed:** 40 hand-set styles on individual controls — 16 font sizes, 17 font colours, 7 boxes — across six scripts, 23 of them inside `MenuStyle`; every `line()` and `title()` call passing its own size and colour; eight places reading `ThemeDB.fallback_font`; and the Lair palette as a `static var` two scenes set on the way in and restored in their `_exit_tree`. **An override beats any theme**, so none of `M4-T11`'s swaps could have reached a control already built, and a screen open when a setting changed would have kept the old look.
+
+### Decision 1 — the look is data, and a role is a size on a tone
+
+`res://ui/interface_theme.tres` is the **project theme** (`gui/theme/custom`), so it reaches every control without a screen remembering to ask. `MenuStyle` keeps the vocabulary — the constructors, and the role names as constants, so a typo is a parse error — and sets `theme_type_variation` instead of styles.
+
+A Godot variation has one base, so the colour and the size live on different levels: `BodyWarm` is a variation of `Warm`, which is a variation of `Label`. **The colour is written once per tone and the size once per role**, so a palette swap is five tones (`Text`, `Dim`, `Warm`, `Debt`, `Fault`) rather than twenty-two roles — plus the button, field and toggle, whose colours and boxes are their own, because a `Button` cannot inherit from a `Label` tone. One file either way, and a find-and-replace on a colour.
+
+**The roles are what the screens already drew, not a type scale.** Twelve sizes on five tones, some one pixel apart doing the same job — the Chamber's speech is 16 and the camp's is 15; an explanatory warm sentence is 14, 15 and 16 on three screens. That is an inventory for `M4-T05`'s typography, which is where `M4-T20`'s own text puts typography. Collapsing it here would have been a restyle inside a refactor, with nothing able to tell the two apart. Named by size step and tone (`CaptionDim`, `LargeWarm`) rather than by purpose, because the screens do not make the distinction a purpose name would claim.
+
+### Decision 2 — the ground is a theme the panel carries
+
+`res://ui/lair_theme.tres` overrides four entries — the `Text` and `Dim` tones, the frame and the rule — and the Chamber and the Threshold assign it to the panels they build. Every role inside resolves against it and nothing outside does. **The `static var`, its enum, the four ground-reading functions and both restore-on-exit blocks are deleted.** A theme on a node is freed with the node, so the fault those blocks existed to prevent (`M2-T15`: a hub palette surviving onto the next floor) has nothing left to be.
+
+`M4-T08` still changes four values when the Lair turns white-ground; they are in a resource now.
+
+### Decision 3 — what the theme owns, and what it does not
+
+| In the theme | Stays in the screen |
+|---|---|
+| Font, size and colour of every `Label`, button, field and toggle `MenuStyle` builds, and the boxes behind them | **Layout** — the 18 separations, minimum widths, alignment. A screen's shape is its own, and `M4-T11`'s UI scaling moves all of it through the window's scale factor. |
+| The colours draw code borrowed from `MenuStyle` — the reticle, the Waystone mark, party frames, the bag's slot marks, the fallen readout's hint — now read through `MenuStyle.tone()`, so they follow the ground they sit on | **HUD instruments' own palettes** — the bag's legal/illegal ghosts and load colours, the Ear, the wound vignette, the fallen readout's down/hand/Vörðr bars — and the sizes draw code passes. These are where `M4-T11`'s colour-blind work actually is (green against red, twice), and it needs shapes as well as colours there, not a colour move. Named on `M4-T11`. |
+| The font: the bag and the fallen readout drew with `ThemeDB.fallback_font`, which **a font swap never reaches**, and now ask their own theme | |
+
+### Decision 4 — it stays true
+
+- **`check_project.py`** fails any script that sets a font, size, colour or style on a control by hand, and fails a `project.godot` whose `gui/theme/custom` is not the interface theme.
+- **`--hud-probe` row 5**: every role `MenuStyle` names is a type the theme holds and reaches a control class, and every type the theme holds is reached by a name — `check_dead.py` does not read `.tres`, so a role nothing uses would otherwise be invisible. **Row 6**: a label already on screen follows its role when the theme changes — 15 → 24 px, 22 → 71 px tall, and a `Dim` change reaches a `BodyDim` label. That is the claim this ADR exists for, and the hand-set interface could not have passed it. The sweep requires `[hud] live`, the last line, so an early return is not a pass.
+- **`--lair-probe` and `--threshold-probe`** assert both of each room's panels read the hub's `Dim`, and the sweep requires the `ground` line.
+- **The export census** prints the theme and its 37 types, and `export_build.py` compares them with the file — its only reference is a project setting, so a pack without it would boot and draw every menu in the engine's defaults.
+
+### Verification — the screens are what they were
+
+- **A census of sixteen screens** — settings, controls, class, pact, legacy, run over, arrival, reticle, pause and its confirmation, the root, host and join menus, the deeds banner, and the Chamber's and Threshold's panels — recording every control's resolved size, colour, box, minimum and rect: **305 rows, identical** before and after, apart from the backdrops and rules now reporting as a styled panel of the same colour rather than a `ColorRect`.
+- **`--menu-shot`'s five screens are pixel-identical.** The Chamber, Threshold, bag, party and ember shots print identical layout rows; their images cannot be pixel-compared, because two runs of the *unchanged* code differ by up to 730,000 pixels in the Chamber — firelight and flicker through translucent panels. They were looked at.
+- **Planted, each caught:** a Chamber panel built without the Lair theme (`TITHE reads Dim as the Deep's`); a role misspelt in the theme (the missing role, the orphan and its now-unreached tone); a size set by hand inside `line()` (row 6 reads 15 → 15, and `check_project` names the line); the project theme pointed elsewhere.
+
+### What this found on the way
+
+- **The Legacy screen and the deeds banner were never in the house style.** They draw in the engine's own white on its own grey buttons and always have — built beside `MenuStyle` rather than with it, on the one screen `DES-003` calls the piece it feels strongest about. Their sizes moved into three roles so nothing visible changed; bringing them into the register is a change a person should look at, and it is `M4-T05`'s.
+- **Godot refuses a variation named after a class**, and `MenuButton` is one. The button role is `MenuAction`.
+- **A control resolves its role only once it is in the tree.** Asked before `add_child`, it reports the engine's defaults even with a project theme set, where an override answered at once. Nothing measured early — the census would have shown it — but it is a new way to be wrong, so `MenuStyle`'s header says it.
+- **There are two alarming reds**, the Tithe's debt and the join screen's error, 0.1 apart. Both kept as tones; which one `DES-018` wants is `M4-T11`'s.
+
 *Entries below to be added as design decisions are signed off.*
 

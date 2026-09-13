@@ -115,13 +115,14 @@ func _draw() -> void:
 		# Filled, and in the ink of the ground it is drawn on — not gold.
 		# `ART-005` spends saturated colour on treasure, and a Waystone is the
 		# opposite of treasure: it is the thing that gets the treasure home.
-		draw_colored_polygon(points, MenuStyle.ink())
+		draw_colored_polygon(points, MenuStyle.tone(self, MenuStyle.TEXT))
 	else:
 		# Hollow and struck through. The stroke is the same stone, so the two
 		# states are the same silhouette in different weights — and the bar is
 		# what makes *missing* an active statement rather than a faint one.
 		var outline := PackedVector2Array(points)
 		outline.append(points[0])
-		draw_polyline(outline, MenuStyle.dim(), STROKE)
+		var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
+		draw_polyline(outline, faint, STROKE)
 		draw_line(Vector2(left + wide * 0.16, tall * 0.78),
-			Vector2(left + wide * 0.84, tall * 0.30), MenuStyle.dim(), STROKE)
+			Vector2(left + wide * 0.84, tall * 0.30), faint, STROKE)

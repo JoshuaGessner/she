@@ -5840,7 +5840,106 @@ func _hud_probe() -> void:
 		problems.append("an absent element reported a collision, so a screen "
 			+ "is failed for the layers it does not carry")
 
+	# ─ 5. **the look is the theme, and every role in it is real** (ADR-216) ─
+	#
+	# A role is a `StringName`, and a `Label` given one the theme does not hold
+	# draws in the engine's white at the engine's size — no error, no warning, a
+	# readable screen in the wrong register. So every name `MenuStyle` declares
+	# is looked up, and so is every type the theme holds, because a role nothing
+	# names is data nothing reaches and `check_dead.py` does not read `.tres`.
+	var theme: Theme = ThemeDB.get_project_theme()
+	var named: Dictionary = {}
+	var constants: Dictionary = (load("res://ui/menu_style.gd") as GDScript) \
+		.get_script_constant_map()
+	for key: String in constants:
+		if constants[key] is StringName:
+			named[key] = constants[key]
+	print("[hud] theme      %s, %d type(s), %d role(s) named by MenuStyle" % [
+		theme.resource_path if theme != null else "none",
+		theme.get_type_list().size() if theme != null else 0, named.size()])
+	if theme == null or theme.resource_path != "res://ui/interface_theme.tres":
+		problems.append("the project theme is not ui/interface_theme.tres, so "
+			+ "every role MenuStyle names draws in the engine's defaults")
+		_report(problems, "hud")
+		return
+	var faults: PackedStringArray = _theme_faults(theme, named)
+	for fault: String in faults:
+		problems.append(fault)
+	# The plant: a misspelt role, and a type nothing names.
+	var misspelt: Dictionary = named.duplicate()
+	misspelt["PLANT_ROLE"] = &"BodyDimm"
+	var orphaned := theme.duplicate() as Theme
+	orphaned.set_type_variation(&"PlantOrphan", &"Label")
+	var plants_caught: int = _theme_faults(theme, misspelt).size() \
+		+ _theme_faults(orphaned, named).size() - 2 * faults.size()
+	print("[hud] plant      a misspelt role and an orphan type → %d fault(s)"
+		% plants_caught)
+	if plants_caught < 2:
+		problems.append("a misspelt role or a type nothing names passed, so the "
+			+ "roles row above cannot fail")
+
+	# ─ 6. **and changing the theme changes what is already on screen** ─
+	#
+	# The return on the move, claimed rather than promised: `M4-T11`'s type
+	# scale and palette are edits to this resource, and a setting changed while
+	# a screen is open has to reach that screen. An override wins over any
+	# theme, so the hand-set interface this replaced could not pass this row.
+	var stage := Control.new()
+	add_child(stage)
+	var shown: Label = MenuStyle.line("a label built before the theme changed")
+	stage.add_child(shown)
+	await get_tree().process_frame
+	var size_was: int = shown.get_theme_font_size(&"font_size")
+	var tall_was: float = shown.get_combined_minimum_size().y
+	var step: int = theme.get_font_size(&"font_size", MenuStyle.BODY_DIM)
+	var dim: Color = theme.get_color(&"font_color", MenuStyle.DIM)
+	var swapped := Color(1.0, 0.0, 1.0)
+	theme.set_font_size(&"font_size", MenuStyle.BODY_DIM, step + 9)
+	theme.set_color(&"font_color", MenuStyle.DIM, swapped)
+	await get_tree().process_frame
+	var size_now: int = shown.get_theme_font_size(&"font_size")
+	var tall_now: float = shown.get_combined_minimum_size().y
+	var colour_now: Color = shown.get_theme_color(&"font_color")
+	theme.set_font_size(&"font_size", MenuStyle.BODY_DIM, step)
+	theme.set_color(&"font_color", MenuStyle.DIM, dim)
+	stage.queue_free()
+	print("[hud] live       BodyDim %d → %d, %.0f → %.0f px tall; Dim reaches it: %s"
+		% [size_was, size_now, tall_was, tall_now, colour_now == swapped])
+	if size_now != size_was + 9 or tall_now <= tall_was:
+		problems.append("a label on screen did not follow its role's size, so "
+			+ "M4-T11's type scale would reach only screens opened afterwards")
+	if colour_now != swapped:
+		problems.append("changing the Dim tone did not reach a BodyDim label, so "
+			+ "a palette swap is every role rather than five tones")
+
 	_report(problems, "hud")
+
+
+## Every role `MenuStyle` names that the theme does not hold or that never
+## reaches a control, and every type the theme holds that no name reaches
+## (`--hud-probe` row 5, ADR-216).
+func _theme_faults(theme: Theme, named: Dictionary) -> PackedStringArray:
+	var out := PackedStringArray()
+	var types: PackedStringArray = theme.get_type_list()
+	var reached: Dictionary = {}
+	for key: String in named:
+		var role: StringName = named[key]
+		if not types.has(String(role)):
+			out.append("MenuStyle.%s names `%s`, which the theme does not hold, "
+				% [key, role] + "so it draws in the engine's defaults")
+			continue
+		var at: StringName = role
+		while at != &"" and not ClassDB.class_exists(at):
+			reached[String(at)] = true
+			at = theme.get_type_variation_base(at)
+		if at == &"":
+			out.append("`%s` never reaches a control class, so nothing draws it"
+				% role)
+	for type: String in types:
+		if not reached.has(type) and not ClassDB.class_exists(type):
+			out.append("the theme holds `%s` and nothing MenuStyle names reaches it"
+				% type)
+	return out
 
 
 func _report(problems: PackedStringArray, tag: String) -> void:

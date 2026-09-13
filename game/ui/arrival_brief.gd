@@ -59,10 +59,10 @@ func _ready() -> void:
 	# them. "Climb out at the light" is doing the most work here: it names the
 	# beacon as the exit, so the tall pale column stops being scenery the moment
 	# the player first sees one.
-	_line(place, 21, MenuStyle.WARM)
-	_line("take what you can carry", 15, MenuStyle.TEXT)
+	_line(place, MenuStyle.DISPLAY_WARM)
+	_line("take what you can carry", MenuStyle.BODY_TEXT)
 	_line("climb %s at the light — it is loud, and it is watched"
-		% ("out" if way_out else "down"), 15, MenuStyle.TEXT)
+		% ("out" if way_out else "down"), MenuStyle.BODY_TEXT)
 	# **Where the controls went** (ADR-139). This brief holds for 4.5 seconds and
 	# then frees itself, so anything it does not point at is gone with it. The
 	# Deep's control list used to live inside the diagnostic overlay, which is
@@ -71,7 +71,7 @@ func _ready() -> void:
 	# forgets it under pressure, and this is the line that tells them the answer
 	# is one keypress away rather than back at the fire.
 	_line("%s — the menu, and every control on it"
-		% ControlsScreen.glyphs_for("ui_cancel"), 13, MenuStyle.DIM)
+		% ControlsScreen.glyphs_for("ui_cancel"), MenuStyle.CAPTION_DIM)
 	# **A fourth line only when she is owed** (ADR-124). The Chamber says how
 	# short you are *before* you descend, and then the floor said nothing at
 	# all — the Hunt was simply four minutes further along than the player had
@@ -79,11 +79,11 @@ func _ready() -> void:
 	# one sentence, and *"I did not pay her"* is only available to somebody who
 	# was told it was still true down here.
 	if sent_early > 0.0:
-		_line("she was not paid — the Hunt began without you", 15, MenuStyle.WARM)
+		_line("she was not paid — the Hunt began without you", MenuStyle.BODY_WARM)
 
 
-func _line(text: String, size: int, colour: Color) -> void:
-	var label: Label = MenuStyle.line(text, size, colour)
+func _line(text: String, role: StringName) -> void:
+	var label: Label = MenuStyle.line(text, role)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_lines.add_child(label)

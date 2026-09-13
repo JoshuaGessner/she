@@ -4,7 +4,7 @@ title: Interface Architecture
 status: accepted
 owner: tech
 tags: [ui, hud, layout, legibility, accessibility, godot, research]
-updated: 2026-09-04
+updated: 2026-09-13
 related: [DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001]
 ---
 
@@ -440,6 +440,19 @@ migration *later*:
 
 Two palettes and one switch, defined once. This is the single most expensive
 thing in this document to retrofit and the cheapest to build in.
+
+> **Built by ADR-216 (`M4-T20`), and the trap is closed differently than
+> written above.** The two grounds are two theme resources rather than two
+> palettes and a switch: `ui/interface_theme.tres` is the project theme, and
+> `ui/lair_theme.tres` overrides four entries on the panels the hub builds, so
+> the ground is where a panel lives and there is no `static var` to restore.
+> The vocabulary sets **roles** — a size on a tone, twenty-two of them, the
+> sizes the screens already drew — and nothing sets a style by hand;
+> `check_project.py` enforces it and `--hud-probe` proves a theme change reaches
+> a screen already open. **Not in the theme:** layout, which a screen owns, and
+> the HUD instruments' own palettes (the bag's ghosts, the fallen readout's
+> bars, the Ear, the vignette), which are `M4-T11`'s colour-blind work and want
+> shape as well as hue.
 
 **Related, and the reason to do the vocabulary as a Godot `Theme` rather than
 as more static functions:** `M4-T11` is colour-blind support, **UI scaling**, a

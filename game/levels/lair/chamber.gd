@@ -442,9 +442,9 @@ func _build_door() -> void:
 ## than leaving the player to count. It reads as a debt because it is one: she
 ## is a creditor, not a shopkeeper (`DES-003`).
 ## Write the value half of a built row. The key half never changes, so it is
-## built once and only this side is touched.
-func _set_row(key: String, value: String,
-		tone: Color = Color(0, 0, 0, 0)) -> void:
+## built once and only this side is touched. An owed row changes role rather
+## than colour, so the debt tone stays in the theme with every other.
+func _set_row(key: String, value: String, owed: bool = false) -> void:
 	var line: HBoxContainer = _rows.get(key, null)
 	if line == null:
 		return
@@ -452,8 +452,8 @@ func _set_row(key: String, value: String,
 	if read == null:
 		return
 	read.text = value
-	read.add_theme_color_override("font_color",
-		tone if tone.a > 0.0 else MenuStyle.ink())
+	read.theme_type_variation = (MenuStyle.CAPTION_DEBT if owed
+		else MenuStyle.CAPTION_TEXT)
 
 
 ## **The Tithe, as three facts rather than one sentence** (ADR-029, `M4-T20`).
@@ -481,11 +481,10 @@ func _fill_the_tithe() -> void:
 		# meaning alone — the word "short" is right there beside it, because
 		# `DES-018` forbids hue-only information.
 		_set_row("paid", "%d of %d — %d short" % [
-			GameState.tithe_paid, owed, short], MenuStyle.DEBT)
+			GameState.tithe_paid, owed, short], true)
 	# The last run of a cycle is the one that matters, so it is the one that
 	# changes colour. Everything else is stated quietly.
-	_set_row("cycle", when,
-		MenuStyle.DEBT if remaining <= 1 else Color(0, 0, 0, 0))
+	_set_row("cycle", when, remaining <= 1)
 
 
 func _process(delta: float) -> void:
@@ -660,13 +659,14 @@ func _build_readout() -> void:
 	var layer := CanvasLayer.new()
 	layer.name = "LairReadout"
 	add_child(layer)
-	# The hub's palette. Restored to `DEEP` in `_exit_tree`, because a `static
-	# var` outlives the scene that set it.
-	MenuStyle.ground = MenuStyle.Ground.LAIR
 	var screen: Vector2 = get_viewport().get_visible_rect().size
 
 	# ─ PLACE — where you are, and what is yours ─
+	#
+	# On the hub's ground (`MenuStyle.LAIR`): the panel carries its palette, so
+	# it leaves with the panel and nothing has to put it back.
 	_place = MenuStyle.frame()
+	_place.theme = MenuStyle.LAIR
 	var place_body := VBoxContainer.new()
 	place_body.add_theme_constant_override("separation", 5)
 	place_body.add_child(MenuStyle.heading("The Chamber"))
@@ -691,6 +691,7 @@ func _build_readout() -> void:
 	# stash because ADR-050 already settled where a Tithe readout belongs:
 	# *"quietly, on the Burden layer — it is fundamentally a greed readout."*
 	_tithe = MenuStyle.frame()
+	_tithe.theme = MenuStyle.LAIR
 	var tithe_body := VBoxContainer.new()
 	tithe_body.add_theme_constant_override("separation", 5)
 	tithe_body.add_child(MenuStyle.heading("The Tithe"))
@@ -710,8 +711,7 @@ func _build_readout() -> void:
 	# (`chamber.gd:471`) — a layout workaround for having no layout. With a
 	# region of its own it can simply be absent when she is not speaking.
 	_speech = Label.new()
-	_speech.add_theme_font_size_override("font_size", 16)
-	_speech.add_theme_color_override("font_color", MenuStyle.WARM)
+	_speech.theme_type_variation = MenuStyle.LARGE_WARM
 	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speech.visible = false
 	layer.add_child(_speech)
@@ -728,8 +728,7 @@ func _build_readout() -> void:
 	# which is the entire argument for having written it.
 	_way_back = Label.new()
 	_way_back.text = "the pale slab behind you returns to the Threshold"
-	_way_back.add_theme_font_size_override("font_size", 12)
-	_way_back.add_theme_color_override("font_color", MenuStyle.dim())
+	_way_back.theme_type_variation = MenuStyle.FINE_DIM
 	_way_back.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	place_body.add_child(MenuStyle.rule())
 	place_body.add_child(_way_back)
@@ -839,16 +838,6 @@ func hud_claims() -> Dictionary:
 		"TITHE": [HudFrame.Region.BURDEN, HudFrame.occupied_by(_tithe)],
 		"SPEECH": [HudFrame.Region.SPEECH, HudFrame.occupied_by(_speech)],
 	}
-
-
-## **Both halves of the palette switch** (`M2-T15`'s lesson).
-##
-## `MenuStyle.ground` is a `static var`, so it outlives this scene. Leaving it
-## set to `LAIR` would draw the next floor's interface in the hub's palette —
-## the same shape of fault as the Chamber that survived onto the main menu with
-## its private `MultiplayerAPI` still registered.
-func _exit_tree() -> void:
-	MenuStyle.ground = MenuStyle.Ground.DEEP
 
 
 func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
@@ -1003,6 +992,9 @@ func _lair_probe() -> void:
 	# and a check that only ever sees it absent is a check with nothing in it.
 	for fault: String in await layout_faults():
 		problems.append(fault)
+	# ─ **and both panels are on the hub's ground** (ADR-216) ─
+	problems.append_array(MenuStyle.off_the_lair_ground("lair",
+		{"PLACE": _place, "TITHE": _tithe}))
 
 	for problem: String in problems:
 		printerr("[lair] FAIL %s" % problem)

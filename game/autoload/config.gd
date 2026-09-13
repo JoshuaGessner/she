@@ -70,6 +70,13 @@ func _export_probe() -> void:
 	print("[export] classes       %d" % ClassCatalogue.all().size())
 	print("[export] aspect nodes  %d" % AspectCatalogue.all().size())
 	print("[export] tuning loaded %s" % (tuning != null))
+	# The interface theme is reached by a project setting and nothing else
+	# (ADR-216), so a pack without it boots, loads, and draws every menu in the
+	# engine's defaults. The type count is what says it arrived whole.
+	var look: Theme = ThemeDB.get_project_theme()
+	print("[export] theme         %s, %d type(s)" % [
+		look.resource_path if look != null else "none",
+		look.get_type_list().size() if look != null else 0])
 	# The translation, read the way the game reads it. A key coming back
 	# unchanged means the table did not ship.
 	print("[export] translation   'item.wpn_seax.name' -> '%s'"

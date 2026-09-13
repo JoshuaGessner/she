@@ -46,6 +46,15 @@ CLASS_NAME = re.compile(r"^\s*class_name\s+([A-Za-z_]\w*)")
 CONST_DECL = re.compile(r"^\s*const\s+([A-Za-z_]\w*)")
 CALLS_UP = re.compile(r"\bget_parent\(\)\s*\.")
 
+# ADR-216. How text reads — its font, size and colour, and the boxes drawn
+# behind controls — lives in the project theme, so `M4-T11`'s swaps are an edit
+# to one resource. A screen that sets one by hand is a screen those swaps skip,
+# silently: the override wins over any theme. Layout (`add_theme_constant_
+# override`, separations) is a screen's own business and is not matched.
+THEME_OVERRIDE = re.compile(
+    r"\badd_theme_(font|font_size|color|stylebox)_override\s*\(")
+PROJECT_THEME = "res://ui/interface_theme.tres"
+
 # ADR-064. A placeholder is permitted only with a named replacement task ID and
 # a milestone by which it is gone. The task ID is the thing we can check for.
 PLACEHOLDER_WORDS = re.compile(
@@ -157,6 +166,15 @@ def check_settings() -> list[Issue]:
             f"{len(autoloads)} autoloads registered, budget is {AUTOLOAD_BUDGET}: "
             + ", ".join(sorted(autoloads)),
             "TEC-001 names the six; a seventh needs an ADR, not a habit",
+        ))
+
+    theme = cfg.get("gui", {}).get("theme/custom", "").strip('"')
+    if theme != PROJECT_THEME:
+        issues.append(Issue(
+            "error", "project-theme", where,
+            f"gui/theme/custom is {theme or 'unset'}, not {PROJECT_THEME}",
+            "ADR-216: every role MenuStyle names is resolved against that theme; "
+            + "without it every menu draws in the engine's defaults",
         ))
 
     main_scene = cfg.get("application", {}).get("run/main_scene", "").strip('"')
@@ -414,6 +432,13 @@ def check_script(path: Path) -> list[Issue]:
                 "error", "calls-up", f"{where}:{n}",
                 "reaches into a parent via get_parent()",
                 "TEC-001: signals up, calls down — emit a signal instead",
+            ))
+        if THEME_OVERRIDE.search(line) and not line.lstrip().startswith("#"):
+            issues.append(Issue(
+                "error", "theme-override", f"{where}:{n}",
+                "sets a font, size, colour or style on one control by hand",
+                "ADR-216: give it a role (theme_type_variation = MenuStyle.…); "
+                + "add the role to ui/interface_theme.tres if none fits",
             ))
     return issues
 

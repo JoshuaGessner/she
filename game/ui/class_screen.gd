@@ -47,9 +47,7 @@ func _ready() -> void:
 	# a `Control` takes focus only once the cards below are in the tree.
 	MenuStyle.focus_first.call_deferred(self)
 
-	var backdrop := ColorRect.new()
-	backdrop.color = MenuStyle.INK
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var backdrop: Control = MenuStyle.backdrop()
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
 
@@ -69,7 +67,7 @@ func _ready() -> void:
 	# player discovers on their first death is a different game from the one
 	# they agreed to play.
 	column.add_child(MenuStyle.line(
-		"Chosen once, and kept until you die.", 16, MenuStyle.WARM))
+		"Chosen once, and kept until you die.", MenuStyle.LARGE_WARM))
 
 	var sworn: Array[ClassResource] = ClassCatalogue.all()
 	for entry: ClassResource in sworn:
@@ -83,7 +81,7 @@ func _ready() -> void:
 		push_error("ClassScreen: the catalogue is empty; no life can begin")
 		column.add_child(MenuStyle.line(
 			"No classes are in this build. That is a packaging fault, not a choice.",
-			16, MenuStyle.WARM))
+			MenuStyle.LARGE_WARM))
 
 
 ## One class, led by how it gets out (`DES-011`).
@@ -98,9 +96,9 @@ func _card(entry: ClassResource) -> Control:
 	card.add_child(pick)
 
 	if entry.description_key != &"":
-		card.add_child(MenuStyle.line(tr(String(entry.description_key)), 15))
+		card.add_child(MenuStyle.line(tr(String(entry.description_key))))
 	if entry.exit_key != &"":
-		card.add_child(MenuStyle.line(tr(String(entry.exit_key)), 14, MenuStyle.DIM))
+		card.add_child(MenuStyle.line(tr(String(entry.exit_key)), MenuStyle.SMALL_DIM))
 	return card
 
 

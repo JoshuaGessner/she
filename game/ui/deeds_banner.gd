@@ -32,9 +32,7 @@ func show_these(ids: Array[String]) -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var backdrop := ColorRect.new()
-	backdrop.color = Color(MenuStyle.INK, 0.86)
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var backdrop: Control = MenuStyle.backdrop(MenuStyle.SCRIM)
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
 
@@ -49,7 +47,7 @@ func show_these(ids: Array[String]) -> void:
 	var heading := Label.new()
 	heading.text = tr("deeds.title")
 	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.add_theme_font_size_override("font_size", 26)
+	heading.theme_type_variation = MenuStyle.DEEDS_TITLE
 	column.add_child(heading)
 
 	for id: String in ids:
@@ -59,7 +57,7 @@ func show_these(ids: Array[String]) -> void:
 		var name_label := Label.new()
 		name_label.text = mark.display()
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_label.add_theme_font_size_override("font_size", 20)
+		name_label.theme_type_variation = MenuStyle.DEED_NAME
 		column.add_child(name_label)
 
 		var told := Label.new()

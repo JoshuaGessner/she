@@ -760,9 +760,14 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# When a player hears it, it is true — and a rule that survives only by
 	# being remembered is one that gets broken by whoever needs a nice sound
 	# late one night, months after anybody reads `ART-003`.
+	#
+	# `[camp] ground` is required as well as clean: the camp's two panels are on
+	# the hub's palette because they carry it (ADR-216), and a panel built
+	# without it draws the Deep's colours with every other row still green.
 	camp="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/lair/threshold.tscn -- --threshold-probe 2>&1)"
-	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$camp"; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$camp" \
+			|| ! grep -q '^\[camp\] ground' <<<"$camp"; then
 		echo "FAIL the camp's own music" >&2
 		printf '%s\n' "$camp" | grep -E '\[camp\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
@@ -1036,10 +1041,17 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# ADR-090's wall and ADR-093's rule, so those rows live in `--chamber-shot`
 	# and `--threshold-shot`, which run windowed and which the interface brief
 	# requires for any screen that changes.
+	#
+	# **And the look is the theme** (`M4-T20`, ADR-216). Rows 5 and 6: every
+	# role `MenuStyle` names is in `ui/interface_theme.tres` and nothing in the
+	# theme is unnamed, and a label already on screen follows the theme when it
+	# changes. `[hud] live` is the last line the probe prints, so requiring it
+	# is what stops an early return reading as a pass.
 	hud="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
 		levels/room_set/room_set.tscn -- --hud-probe 2>&1)"
-	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hud"; then
-		echo "FAIL nothing overlaps anything" >&2
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hud" \
+			|| ! grep -q '^\[hud\] live' <<<"$hud"; then
+		echo "FAIL nothing overlaps anything, and the look is the theme" >&2
 		printf '%s\n' "$hud" | grep -E '\[hud\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
 	fi
@@ -1172,9 +1184,12 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# That last pair is the economy's whole self-correction — `DES-008`'s great
 	# reset is why this design needs no late-game nerfs — and it is one line away
 	# from being wrong in either direction.
+	#
+	# `[lair] ground` is required for the camp's reason above (ADR-216).
 	lair="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 6000 \
 		levels/lair/chamber.tscn -- --lair-probe 2>&1)"
-	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$lair"; then
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$lair" \
+			|| ! grep -q '^\[lair\] ground' <<<"$lair"; then
 		echo "FAIL the Settle beat" >&2
 		printf '%s\n' "$lair" | grep -E '\[lair\]|ERROR' | sed 's/^/      /' >&2
 		exit 1

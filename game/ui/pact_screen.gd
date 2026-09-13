@@ -61,9 +61,7 @@ func _ready() -> void:
 	# The tree is bought with a pad as well as a mouse (ADR-141, ADR-075).
 	MenuStyle.focus_first.call_deferred(self)
 
-	var backdrop := ColorRect.new()
-	backdrop.color = MenuStyle.INK
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var backdrop: Control = MenuStyle.backdrop()
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
 
@@ -95,23 +93,23 @@ func _redraw() -> void:
 	_column.add_child(MenuStyle.line(
 		"%d boon unspent · rank %d · she expects %d a cycle" % [
 			GameState.boon, GameState.pact_rank, GameState.tithe_due()],
-		16, MenuStyle.WARM))
+		MenuStyle.LARGE_WARM))
 	# The coupling said out loud, on the screen where it is chosen. `DES-003`'s
 	# whole argument is that power costs obligation, and a tree that showed only
 	# the power would be teaching the opposite of the game.
 	_column.add_child(MenuStyle.line(
-		"Everything you take raises what she expects of you.", 14, MenuStyle.DIM))
+		"Everything you take raises what she expects of you.", MenuStyle.SMALL_DIM))
 	if viewing:
 		# Said once, at the top, rather than repeated under every disabled row.
 		# `DES-003`'s coupling is the reason and it is worth stating as one.
 		_column.add_child(MenuStyle.line(
 			"You are reading this in the Deep. The Aspects are bought at the "
 			+ "pile, where you give — come back to her with tribute.",
-			15, MenuStyle.WARM))
+			MenuStyle.BODY_WARM))
 
 	var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
 	if body == null:
-		_column.add_child(MenuStyle.line("No life has been sworn yet.", 15))
+		_column.add_child(MenuStyle.line("No life has been sworn yet."))
 		return
 
 	var shown: int = 0
@@ -124,14 +122,14 @@ func _redraw() -> void:
 		if not body.aspects.has(aspect):
 			continue
 		shown += 1
-		_column.add_child(MenuStyle.line(String(aspect).to_upper(), 18))
+		_column.add_child(MenuStyle.line(String(aspect).to_upper(), MenuStyle.SUB_DIM))
 		for node: AspectNode in AspectCatalogue.of_aspect(aspect):
 			_column.add_child(_row(node))
 
 	if shown == 0:
 		_column.add_child(MenuStyle.line(
 			"%s may not enter any Aspect this build has written."
-			% body.display(), 15, MenuStyle.WARM))
+			% body.display(), MenuStyle.BODY_WARM))
 
 
 ## Escape, or the bag key that opened nothing. No close button: `DES-019` is
@@ -163,9 +161,9 @@ func _row(node: AspectNode) -> Control:
 	row.add_child(take)
 
 	if node.description_key != &"":
-		row.add_child(MenuStyle.line(tr(String(node.description_key)), 14))
+		row.add_child(MenuStyle.line(tr(String(node.description_key)), MenuStyle.SMALL_DIM))
 	if owned:
-		row.add_child(MenuStyle.line("taken", 13, MenuStyle.WARM))
+		row.add_child(MenuStyle.line("taken", MenuStyle.CAPTION_WARM))
 		# **Respec** (`M3-T13`, `DES-004`). On the node itself rather than
 		# behind a mode: giving one back is the same kind of act as taking it,
 		# and a screen with a "respec mode" would make unmaking a build feel
@@ -178,9 +176,9 @@ func _row(node: AspectNode) -> Control:
 		give.pressed.connect(func() -> void: _give_back(node))
 		row.add_child(give)
 		if back != "":
-			row.add_child(MenuStyle.line(back, 13, MenuStyle.DIM))
+			row.add_child(MenuStyle.line(back, MenuStyle.CAPTION_DIM))
 	elif refused != "":
-		row.add_child(MenuStyle.line(refused, 13, MenuStyle.DIM))
+		row.add_child(MenuStyle.line(refused, MenuStyle.CAPTION_DIM))
 	return row
 
 

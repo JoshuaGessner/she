@@ -44,9 +44,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
-	var backdrop := ColorRect.new()
-	backdrop.color = MenuStyle.INK
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	var backdrop: Control = MenuStyle.backdrop()
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
 
@@ -72,7 +70,7 @@ func _heading(text: String) -> void:
 	var label := Label.new()
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.add_theme_font_size_override("font_size", 28)
+	label.theme_type_variation = MenuStyle.LEGACY_TITLE
 	_column.add_child(label)
 
 

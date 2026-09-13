@@ -4,7 +4,7 @@ title: Project Structure & Conventions
 status: accepted
 owner: tech
 tags: [structure, conventions, godot, tooling]
-updated: 2026-08-15
+updated: 2026-09-13
 related: [TEC-001, PRO-001]
 ---
 
@@ -57,6 +57,7 @@ Rationale: `data/` is deliberately isolated so content authoring never requires 
 - **Signals up, calls down.** A child never calls `get_parent().something`.
 - Header comment on every non-obvious system explaining **why**, not what.
 - No magic numbers in logic — they belong in `Config` / a `TuningProfile` resource.
+- **No hand-set styles on a control.** Font, size, colour and the boxes behind a control come from `ui/interface_theme.tres` through a role (`theme_type_variation = MenuStyle.…`); an `add_theme_*_override` for any of them beats every theme, so it is a screen `M4-T11`'s swaps silently skip. Layout — separations, minimum widths — is the screen's own. `check_project.py` enforces it (ADR-216).
 
 ## Testing
 

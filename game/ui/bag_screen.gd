@@ -352,7 +352,7 @@ func _header_width() -> float:
 	var cells: int = grid.x * grid.y
 	var widest: String = _header_summary(
 		Config.tuning.carry_capacity, cells, WIDEST_RADIUS)
-	return HEADER_INSET + ThemeDB.fallback_font.get_string_size(
+	return HEADER_INSET + get_theme_default_font().get_string_size(
 		widest, HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT).x
 
 
@@ -367,7 +367,7 @@ func _header_summary(kilograms: float, used: int, radius: float) -> String:
 ## Every line this screen draws that does not fit the box it is drawn in.
 ## Empty when the layout is honest; read by `--bagui-probe`.
 func overflowing() -> PackedStringArray:
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = get_theme_default_font()
 	var panel: Rect2 = _panel_rect()
 	var spilled := PackedStringArray()
 	var header: String = _header_summary(_inventory.total_weight(),
@@ -511,7 +511,9 @@ func _draw_slots() -> void:
 		var wanted: bool = (_held != null
 			and _held.definition.slot == slot)
 		draw_rect(box, PANEL_COLOUR)
-		draw_rect(box, MenuStyle.WARM if wanted else GRID_LINE, false, 2.0)
+		var warm: Color = MenuStyle.tone(self, MenuStyle.WARM)
+		var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
+		draw_rect(box, warm if wanted else GRID_LINE, false, 2.0)
 		if item != null:
 			draw_rect(box.grow(-6.0), WorldItem.colour_for(item.definition))
 			# The mark stays over a worn item, dark against it. The slot keeps
@@ -523,11 +525,10 @@ func _draw_slots() -> void:
 			# signal the border gives, said twice, because `DES-018` will not
 			# let the border's colour carry it alone.
 			_slot_mark(box, slot,
-				MenuStyle.WARM if wanted else Color(MenuStyle.DIM, 0.55))
-		var font: Font = ThemeDB.fallback_font
+				warm if wanted else Color(faint, 0.55))
+		var font: Font = get_theme_default_font()
 		draw_string(font, box.position + Vector2(4.0, box.size.y + 12.0),
-			String(SLOT_LABEL[slot]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11,
-			MenuStyle.DIM)
+			String(SLOT_LABEL[slot]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, faint)
 
 
 func _grid_origin() -> Vector2:
@@ -614,7 +615,7 @@ func _draw_blurb(panel: Rect2) -> void:
 	var item: ItemInstance = hovered()
 	if item == null or item.definition == null:
 		return
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = get_theme_default_font()
 	var width: float = panel.size.x - PADDING * 2.0
 	var top: float = panel.position.y + panel.size.y - FOOTER - BLURB + 11.0
 	draw_string(font, Vector2(panel.position.x + PADDING, top),
@@ -628,7 +629,7 @@ func _draw_blurb(panel: Rect2) -> void:
 
 ## The three numbers the decision is actually made on.
 func _draw_header(panel: Rect2) -> void:
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = get_theme_default_font()
 	var tuning: TuningProfile = Config.tuning
 	var kilograms: float = _inventory.total_weight()
 	var capacity: float = tuning.carry_capacity
@@ -669,7 +670,7 @@ func _draw_cells() -> void:
 
 
 func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = get_theme_default_font()
 	var colour: Color = WorldItem.colour_for(item.definition)
 	# Every ember is the same colour on the floor and the same colour here
 	# (ADR-094) — it is a piece of *her* fire, not a team marker. Whose it is
@@ -738,7 +739,7 @@ func _draw_held() -> void:
 ## invisible. A prompt that names both devices and then gets cut off names
 ## neither.
 func _draw_footer(panel: Rect2) -> void:
-	var font: Font = ThemeDB.fallback_font
+	var font: Font = get_theme_default_font()
 	var width: float = panel.size.x - PADDING * 2.0
 	var left: float = panel.position.x + PADDING
 	var base: float = panel.position.y + panel.size.y - FOOTER + 12.0
