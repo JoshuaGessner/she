@@ -4,7 +4,7 @@ title: Data Schemas
 status: accepted
 owner: tech
 tags: [data, resources, godot, tres, schema, tooling]
-updated: 2026-09-03
+updated: 2026-09-13
 related: [TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007]
 ---
 
@@ -59,7 +59,7 @@ class_name ItemResource extends Resource
 | Trait | Adds |
 |---|---|
 | `WieldableTrait` | damage type, arc, wind-up/active/recovery timings, stamina cost, Clamor per swing |
-| `WearableTrait` | slot, armour class (unarmoured / mailed / plated), encumbrance |
+| `WearableTrait` | slot, armour class (unarmoured / mailed / plated), encumbrance. **Built by ADR-219 as the class alone**: slot was already on `ItemResource` from `M3-T07` and encumbrance is the item's `weight`. Body slot only, and never unarmoured — both refused by `ItemResource.validate()` |
 | `LightTrait` | radius, energy, colour, **glare**, shutter cooldown. **Built at `M4-T13`** (ADR-188), third of the seven. `radius` is what you get and `glare` is what it costs, and the design lives in the gap: the lamp advertises you further than it lets you see. **`fuel` and `drop lit` are not built** — absent, not stubbed: `DES-022` charges risk rather than time, and a lantern left burning is a decoy that is only interesting once something navigates light, which nothing does |
 | `ConsumableTrait` | effect tag, use time, whether usable in combat |
 | `CursedTrait` | curse tag, what triggers it, whether it can be dropped |

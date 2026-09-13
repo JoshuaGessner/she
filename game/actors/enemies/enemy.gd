@@ -260,6 +260,7 @@ func _ready() -> void:
 	# an initialisation bug rather than as a design one.
 	_poise = tuning.enemy_poise
 	_hitbox.damage = tuning.enemy_attack_damage
+	_hitbox.damage_type = tuning.enemy_attack_type
 	_hurtbox.hit.connect(_on_hurt)
 	health.died.connect(_on_died)
 	_material = StandardMaterial3D.new()

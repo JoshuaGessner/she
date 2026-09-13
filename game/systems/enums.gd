@@ -22,6 +22,15 @@ extends Object
 ## reserved slot.
 enum DamageType { CUT, PIERCE, BLUNT }
 
+## What a body turns a blow with — the other side of `DamageType` (ADR-219,
+## `DES-009`'s triangle, `DES-023` §3).
+##
+## **A body has one**, and it comes from what is worn on the torso: head and
+## arms never add to it, because three pieces each shaving a share off every blow
+## is the stat ladder `DES-008` rejects, reassembled one slot at a time.
+## `TuningProfile.armour_through` holds the table.
+enum ArmourClass { UNARMOURED, MAILED, PLATED }
+
 ## `DES-020`'s six, and `NONE` for everything that is only ever cargo.
 ##
 ## Six deliberately: *"every slot multiplies against every armour set in art

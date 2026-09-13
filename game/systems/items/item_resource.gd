@@ -147,6 +147,13 @@ func validate() -> PackedStringArray:
 	if slot == Enums.Slot.NONE and (has_trait(WieldableTrait) or has_trait(RangedTrait)):
 		problems.append(("%s is a weapon in no slot — it can never be held, so "
 			+ "its wieldable numbers are read by nothing") % id)
+	# **Armour is the torso's alone** (ADR-219, `DES-023` §3). A class on a helm
+	# would stack with the coat's, and a stack of shares off every blow is the
+	# ladder `DES-008` rejects — so it is refused here, where it would be authored.
+	if has_trait(WearableTrait) and slot != Enums.Slot.BODY:
+		problems.append(("%s carries an armour class in the %s slot; only the body "
+			+ "slot has one — head and arms turn away a wound instead")
+			% [id, Enums.Slot.keys()[slot]])
 	if two_handed and slot != Enums.Slot.MAIN_HAND:
 		problems.append(("%s is two-handed but is not a main-hand item; "
 			+ "`DES-020` gives the second hand only to what the first one holds")

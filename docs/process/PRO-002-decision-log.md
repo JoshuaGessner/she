@@ -7858,5 +7858,36 @@ Kits, the Prize, machine gear, the vista bait, filler, and never-on-a-floor, wit
 
 **Verification:** `--bagui-probe` asserts both directions — no slot drawn that nothing fits, none missing that something does — and plants a helm into a copy of the folder, which draws a head slot. Today: **4 drawn: hand, off, body, pack.** Photographed with `--bag-shot`: the row centres under the grid.
 
+---
+
+## ADR-219 — Armour turns a blow by what the blow is, and the byrnie finally does
+
+**Date:** 2026-09-13 · **Status:** accepted · **Starts `M4-T02`** · **Implements `DES-009`'s triangle and `DES-023` §3** · **Corrects ADR-217 Decision 5**
+
+**Context:** ADR-217 found every weapon carrying a `damage_type` that nothing read, so the Húskarl's kit byrnie weighed 11 kg, jingled, and turned nothing — while its own description said *"turns an edge"*. Asked to fix what could be fixed, this is the half of `M4-T02` that stands alone: it needs no new enemy, because the player's side of the table is where the fault was felt.
+
+### Decision
+
+- **The triangle resolves in `Hurtbox.receive`**, the one place every blow arrives — a sword's `Hitbox`, an enemy's, and an arrow. Each carries a `damage_type`; the hurtbox carries an `armour` class set by its actor; `TuningProfile.armour_through` holds the table ⟨tune⟩. **The type is a required argument**, not a default: a caller that forgot it would strike as a cut, and a missing argument is a parse error where a wrong default is a balance bug.
+- **A player's class comes from the body slot alone**, through a new `WearableTrait` carrying `armour_class`. `ItemResource.validate()` refuses a wearable in any other slot, because a class on a helm stacks with the coat's and that stack is the ladder `DES-008` rejects. `TEC-006` named the trait for slot, class and encumbrance; slot was already built onto `ItemResource` and encumbrance is `weight`, so only the class is on it. An unarmoured wearable is refused too — it would be an item filling a slot.
+- **The table keeps its shape by validation**: every share in (0, 1]; plate turns more of a cut and a pierce than mail; **blunt through plate stays whole**, because that is the only reason the hammer is on the list.
+- **The one enemy built today strikes a cut** ⟨tune⟩ — the Wretch's shape, and the blow mail was made for, so the byrnie is felt in the first fight. `M4-T02`'s `AttackResource` gives each archetype its own. Enemy hurtboxes stay unarmoured until archetypes carry classes, so the weapon side of the table waits for the Hall-Warden.
+
+### Correction to ADR-217 — an item needs its band as well as its behaviour
+
+ADR-217 said plate *"arrives with the triangle"*. **It does not arrive here**, and the rule was incomplete: the floor still deals from the whole folder, so plate added today would be dealt by worth into floor 0's bypass beside the coins. **An item lands when both the thing that makes it work and the band that places it exist.** Plate, the shield and the rest wait for `M4-T31`'s bands; the byrnie needed neither, because it only lives in a kit.
+
+### Verification
+
+`--gear-probe` row 8 strikes the body's own hurtbox with a real `Hitbox` for 30 of each type, bare, in mail, and in **mail with its trait removed** — the plant, which must hurt exactly as much as no coat:
+
+| | cut | pierce | blunt |
+|---|---|---|---|
+| bare | 30.0 | 30.0 | 30.0 |
+| mail | **9.9** | **20.1** | **26.2** |
+| mail, trait removed | 30.0 | 30.0 | 30.0 |
+
+The sweep requires the plant's line. `TuningProfile.validate()` was planted three ways — blunt through plate at 0.9, plate letting half a cut through, a zero share — and caught each; a mailed helm fails `ItemResource.validate()`.
+
 *Entries below to be added as design decisions are signed off.*
 

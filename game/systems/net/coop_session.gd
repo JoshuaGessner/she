@@ -1330,7 +1330,8 @@ func spawn_arrow(at: Vector3, travel: Vector3, trait_of: RangedTrait,
 	var made: Arrow = _spawner.spawn({
 		"kind": "arrow", "index": _next_arrow, "at": at,
 		"travel": travel, "speed": trait_of.arrow_speed,
-		"damage": trait_of.damage, "clamor": trait_of.clamor_hit,
+		"damage": trait_of.damage, "type": trait_of.damage_type,
+		"clamor": trait_of.clamor_hit,
 		"range": trait_of.arrow_range, "shooter": shooter,
 	}) as Arrow
 	_next_arrow += 1
@@ -1416,6 +1417,7 @@ func _build_arrow(payload: Dictionary) -> Node:
 	made.travel = (payload["travel"] as Vector3).normalized()
 	made.speed = float(payload["speed"])
 	made.damage = float(payload["damage"])
+	made.damage_type = int(payload["type"]) as Enums.DamageType
 	made.clamor_hit = float(payload["clamor"])
 	made.left = float(payload["range"])
 	made.shooter = int(payload["shooter"])

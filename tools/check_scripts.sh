@@ -528,7 +528,10 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# body had been doing since `M3-T02`.
 	gear="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --gear-probe 2>&1)"
-	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$gear"; then
+	# `[gear] 30 through hollow` is the armour row's plant and the last line it
+	# prints (ADR-219): required, so the triangle cannot quietly stop being asked.
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$gear" \
+			|| ! grep -q '^\[gear\] 30 through hollow' <<<"$gear"; then
 		echo "FAIL what you are holding has to matter" >&2
 		printf '%s\n' "$gear" | grep -E '\[gear\]|ERROR' | sed 's/^/      /' >&2
 		exit 1

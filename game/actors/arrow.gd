@@ -38,6 +38,8 @@ const RADIUS: float = 0.14
 var travel: Vector3 = Vector3.FORWARD
 var speed: float = 34.0
 var damage: float = 32.0
+## A bow's is a pierce (ADR-219); carried on the payload with the damage.
+var damage_type: Enums.DamageType = Enums.DamageType.PIERCE
 var clamor_hit: float = 3.2
 ## Metres left before it gives up. Counted down rather than timed, so a slow
 ## arrow and a fast one reach equally far.
@@ -110,7 +112,7 @@ func _on_hit(area: Area3D) -> void:
 	var body := struck as Player
 	if body != null and body.get_multiplayer_authority() == shooter:
 		return
-	hurtbox.receive(damage, self)
+	hurtbox.receive(damage, damage_type, self)
 	_land(_field)
 
 

@@ -99,6 +99,22 @@ extends Resource
 ## would be asking you to give up the better one.
 @export var block_speed_multiplier: float = 0.55
 
+@export_group("Armour")
+## **How much of a blow lands through armour, by the blow's type** ⟨tune⟩
+## (ADR-219, `DES-009`'s triangle, `DES-023` §3).
+##
+## Recorded on every weapon since weapons became data, and read by nothing — so
+## the Húskarl's byrnie weighed 11 kg, jingled, and turned nothing. Unarmoured
+## takes every blow whole, so it has no row. **Blunt through plate is the one
+## that must stay whole**: it is the only reason the hammer is on the list, and
+## `validate()` holds it there.
+@export var mailed_cut_through: float = 0.33
+@export var mailed_pierce_through: float = 0.67
+@export var mailed_blunt_through: float = 0.875
+@export var plated_cut_through: float = 0.2
+@export var plated_pierce_through: float = 0.4
+@export var plated_blunt_through: float = 1.0
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a
@@ -480,6 +496,11 @@ extends Resource
 @export_group("Enemy")
 @export var enemy_health: float = 60.0
 @export var enemy_attack_damage: float = 34.0
+## What the enemy's blow is (ADR-219). **A cut** ⟨tune⟩: the one archetype built
+## today is the Wretch's shape — a degenerate survivor with a blade or a claw —
+## and a cut is the blow mail was made for, so the Húskarl's byrnie is felt in
+## the first fight. `M4-T02`'s `AttackResource` gives every archetype its own.
+@export var enemy_attack_type: Enums.DamageType = Enums.DamageType.CUT
 @export var enemy_walk_speed: float = 2.0
 @export var enemy_run_speed: float = 3.6
 @export var enemy_turn_rate: float = 0.12
@@ -611,8 +632,40 @@ func node_cost(tier: AspectNode.Tier) -> int:
 			return node_cost_lesser
 
 
+## The share of a blow of `type` that lands on a body wearing `armour` (ADR-219).
+func armour_through(armour: Enums.ArmourClass, type: Enums.DamageType) -> float:
+	match armour:
+		Enums.ArmourClass.MAILED:
+			return [mailed_cut_through, mailed_pierce_through,
+				mailed_blunt_through][type]
+		Enums.ArmourClass.PLATED:
+			return [plated_cut_through, plated_pierce_through,
+				plated_blunt_through][type]
+	return 1.0
+
+
 func validate() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
+	# **The triangle has a shape, and the numbers must keep it** (ADR-219). Each
+	# share is a fraction of a blow, never zero — armour that turns a type whole
+	# is invulnerability to it — and plate must turn more of a cut and a pierce
+	# than mail does, or the heavier suit is only the louder one.
+	for armour: int in [Enums.ArmourClass.MAILED, Enums.ArmourClass.PLATED]:
+		for type: int in [Enums.DamageType.CUT, Enums.DamageType.PIERCE,
+				Enums.DamageType.BLUNT]:
+			var share: float = armour_through(armour, type)
+			if share <= 0.0 or share > 1.0:
+				problems.append("%s %s through is %.2f — a share of a blow sits "
+					% [Enums.ArmourClass.keys()[armour], Enums.DamageType.keys()[type],
+					share] + "in (0, 1]")
+	if plated_cut_through > mailed_cut_through \
+			or plated_pierce_through > mailed_pierce_through:
+		problems.append("plate lets more of a cut or a pierce through than mail "
+			+ "does, so the heavier suit is only the louder one")
+	if plated_blunt_through < 1.0:
+		problems.append("plated_blunt_through is %.2f — blunt through plate is "
+			% plated_blunt_through + "whole, or the hammer has no reason to exist "
+			+ "(DES-023 §2)")
 	# A call nobody can react to is not a telegraph, and `DES-013` asks for a
 	# *beat* rather than a frame — so this is held to the same human floor as a
 	# swing, and then some.

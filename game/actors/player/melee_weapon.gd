@@ -111,6 +111,10 @@ func _dress() -> void:
 	# hammer, which is a change to `DES-009`'s light/heavy rule rather than to
 	# a number, and ADR-058 puts that behind an ADR.
 	_hitbox.stagger = _held.stagger
+	# A seax cuts and a hammer crushes (ADR-219). Recorded on every weapon since
+	# weapons became data, and this is the line that finally carries it to the
+	# thing it strikes.
+	_hitbox.damage_type = _held.damage_type
 	var shape := _hitbox.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape != null:
 		var box := shape.shape as BoxShape3D

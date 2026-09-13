@@ -2280,6 +2280,12 @@ func _on_equipment_changed() -> void:
 	# puts the lantern in the bag and this line puts it out — which is `DES-020`
 	# working as written (*"no lantern, no shield, no map without stowing"*)
 	# rather than a case anything here has to special-case.
+	# **What the torso turns a blow with** (ADR-219, `DES-023` §3). Only the
+	# body slot: a class on a helm would stack with the coat's, and the triangle
+	# is one row per body, not a sum.
+	var coat := equipment.trait_in(Enums.Slot.BODY, WearableTrait) as WearableTrait
+	_hurtbox.armour = (coat.armour_class if coat != null
+		else Enums.ArmourClass.UNARMOURED)
 	var carried_light := equipment.trait_in(
 		Enums.Slot.OFF_HAND, LightTrait) as LightTrait
 	lantern.carry(carried_light)

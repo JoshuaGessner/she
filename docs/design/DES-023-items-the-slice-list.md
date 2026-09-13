@@ -94,7 +94,9 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 
 ## 3. Armour, and the triangle it has always been owed
 
-`DES-009` decided the damage triangle — *cut, pierce, blunt against unarmoured, mailed, plated* — and every weapon in the build has carried a `damage_type` for as long as weapons have been data. **Nothing reads it.** The byrnie in the Húskarl's kit weighs 11 kg, jingles, and turns nothing. So this is not a new system being proposed; it is an accepted one that was never built, and the list above does not work without it.
+> **Built for the player by ADR-219.** The table below is `TuningProfile.armour_through`, resolved in `Hurtbox.receive`; the byrnie is mailed; a cut of 30 lands as 9.9 through it. Enemy classes arrive with `M4-T02`'s archetypes.
+
+`DES-009` decided the damage triangle — *cut, pierce, blunt against unarmoured, mailed, plated* — and every weapon in the build has carried a `damage_type` for as long as weapons have been data. **Nothing read it.** The byrnie in the Húskarl's kit weighs 11 kg, jingles, and turns nothing. So this is not a new system being proposed; it is an accepted one that was never built, and the list above does not work without it.
 
 **How much a blow of each type lands through each class** ⟨tune⟩:
 
@@ -142,7 +144,7 @@ A floor currently deals its loot from **the entire item folder**, sorted by wort
 | **The axe's throw** landing as a blow | §2 | `M4-T31` |
 | **The pelt hiding what you carry** | §2, `DES-017` | `M4-T31` |
 
-> **An item lands with the task that makes it do what §2 says, and not before.** Plate arrives with the triangle, the shield with the Húskarl, the helm and bracers with wounds, the binding and the rune with using a thing. The bands admit each one as its task lands. An item in the folder ahead of its behaviour is the byrnie again — carried, weighed, and doing nothing — and because the floor deals from the folder, it would reach a player the day it was added.
+> **An item lands when both the thing that makes it work and the band that places it exist, and not before** (corrected by ADR-219). Plate needs the triangle *and* `M4-T31`'s bands, the shield the Húskarl's guard and the bands, the helm and bracers wounds and the bands, the binding and the rune `M4-T32` and the bands. An item in the folder ahead of its behaviour is the byrnie again — carried, weighed, and doing nothing — and because the floor deals from the folder, it would reach a player the day it was added.
 
 **Deliberately absent from the slice**, each with a home (ADR-064):
 

@@ -24,6 +24,10 @@ signal struck(hurtbox: Hurtbox)
 ## player has no poise pool and `DES-009` gives them stamina instead.
 @export var stagger: float = 0.0
 
+## What kind of blow this is (ADR-219). Set by whoever arms the box, beside
+## `damage`, and resolved against the armour of whatever it strikes.
+@export var damage_type: Enums.DamageType = Enums.DamageType.CUT
+
 var _armed: bool = false
 var _already_hit: Array[Hurtbox] = []
 
@@ -84,5 +88,5 @@ func _on_area_entered(area: Area3D) -> void:
 	if hurtbox == null or hurtbox in _already_hit:
 		return
 	_already_hit.append(hurtbox)
-	hurtbox.receive(damage, self)
+	hurtbox.receive(damage, damage_type, self)
 	struck.emit(hurtbox)

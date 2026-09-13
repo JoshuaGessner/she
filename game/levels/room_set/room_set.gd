@@ -9891,6 +9891,59 @@ func _gear_probe() -> void:
 			+ "may be destroyed by a slot changing, which is loot `DES-002` "
 			+ "never agreed to take") % (before - after))
 
+	# ─ 8. **the coat turns a blow, by what the blow is** (ADR-219) ─
+	#
+	# The byrnie weighed 11 kg and turned nothing: every weapon recorded a damage
+	# type and nothing read it. Asked through the real path — a `Hitbox` striking
+	# the body's own `Hurtbox` — bare, in mail, and in **mail with its armour
+	# taken off the item**. That last coat is the plant: the same byrnie without
+	# the trait has to hurt exactly as much as no coat, or the rows above it are
+	# measuring something other than the armour.
+	var hurtbox := player.get_node("Hurtbox") as Hurtbox
+	var blow := Hitbox.new()
+	add_child(blow)
+	var byrnie: ItemResource = ItemCatalogue.by_id(&"arm_mail_byrnie")
+	var hollow := byrnie.duplicate() as ItemResource
+	var no_traits: Array[ItemTrait] = []
+	hollow.traits = no_traits
+	var types: Array[Enums.DamageType] = [Enums.DamageType.CUT,
+		Enums.DamageType.PIERCE, Enums.DamageType.BLUNT]
+	var taken: Dictionary = {}
+	var coats: Array = [["bare", null], ["mail", byrnie], ["hollow", hollow]]
+	for coat: Array in coats:
+		gear.unequip(Enums.Slot.BODY)
+		if coat[1] != null:
+			gear.equip(ItemInstance.of(coat[1] as ItemResource, 9100))
+		await _hold(0.1)
+		var row: PackedStringArray = []
+		for type: Enums.DamageType in types:
+			player.health.restore()
+			var was: float = player.health.current
+			hurtbox.receive(30.0, type, blow)
+			var lost: float = was - player.health.current
+			taken["%s/%d" % [coat[0], type]] = lost
+			row.append("%s %.1f" % [Enums.DamageType.keys()[type].to_lower(), lost])
+		print("[gear] 30 through %-6s  %s" % [coat[0], "  ".join(row)])
+	gear.unequip(Enums.Slot.BODY)
+	blow.queue_free()
+	var tuning: TuningProfile = Config.tuning
+	for type: Enums.DamageType in types:
+		var name_of: String = Enums.DamageType.keys()[type].to_lower()
+		var wanted: float = 30.0 * tuning.armour_through(
+			Enums.ArmourClass.MAILED, type)
+		if absf(float(taken["mail/%d" % type]) - wanted) > 0.01:
+			problems.append("a %s of 30 through mail took %.2f, not the table's %.2f"
+				% [name_of, float(taken["mail/%d" % type]), wanted])
+		if absf(float(taken["bare/%d" % type]) - 30.0) > 0.01:
+			problems.append("a %s of 30 on a bare body took %.2f, not 30"
+				% [name_of, float(taken["bare/%d" % type])])
+		if absf(float(taken["hollow/%d" % type]) - float(taken["bare/%d" % type])) > 0.01:
+			problems.append(("a byrnie with no armour trait turned a %s — so the "
+				+ "rows above are not measuring the armour") % name_of)
+	if float(taken["mail/%d" % Enums.DamageType.CUT]) >= 30.0:
+		problems.append("mail turned nothing of a cut, which is the byrnie "
+			+ "`DES-023` found weighing 11 kg and doing nothing")
+
 	_report(problems, "gear")
 
 
