@@ -4182,7 +4182,7 @@ func _furthest_view_of(target: Vector3) -> Vector3:
 ## would be a frame chosen to flatter.
 ##
 ## - **`prize`** is the floor's best find. Its glimmer now scales with what it
-##   is worth, so this is the frame that says whether the 6 → 55 → 140 climb is
+##   is worth, so this is the frame that says whether the 8 → 70 → 140 climb is
 ##   perceptible or only true.
 ## - **`shaft`** is the way down with a floor under it. Its foot carries the
 ##   light of the best find *below*, which is `DES-015`'s second clause: on a
@@ -5669,6 +5669,8 @@ func _machine_probe() -> void:
 	# A cut pool that nothing reads would pass a pool-shaped assertion and change
 	# no run — the ADR-098 shape this probe's row 7 already exists for.
 	var worth_at := PackedInt32Array()
+	var loot_faults := PackedStringArray()
+	var dealt_rows: int = 0
 	for depth: int in RunFile.LAST_FLOOR + 1:
 		var best: int = 0
 		var total: int = 0
@@ -5678,6 +5680,10 @@ func _machine_probe() -> void:
 			if not made.problems().is_empty():
 				continue
 			floors_seen += 1
+			dealt_rows += made.fixtures().size() + made.filler().size()
+			for fault: String in _dealt_faults(made, depth, DelvingsFloor.LOOT):
+				if not loot_faults.has(fault):
+					loot_faults.append(fault)
 			for row: Array in made.fixtures() + made.filler():
 				var item: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
 				if item == null:
@@ -5704,6 +5710,34 @@ func _machine_probe() -> void:
 			+ "*steeply*, and a gentle curve is one the Tithe can be paid "
 			+ "against without ever going deep (`DES-003`)")
 			% (float(worth_at[worth_at.size() - 1]) / float(worth_at[0])))
+
+	# ─ 9b. **every floor deals by its table** (ADR-220, `DES-023` §4) ─
+	#
+	# The worth cut dealt from the whole folder, so a bow lay on thirty-nine
+	# floor 0s in forty. Asked of what the floors above actually laid: every row
+	# is in the table, at or below its band, and placed only in a way the table
+	# allows it. Planted with a copy of the table missing the altar-plate, which
+	# every floor 2 either guards or scatters.
+	print("[machine] by table   %d row(s) dealt, %d fault(s)"
+		% [dealt_rows, loot_faults.size()])
+	for fault: String in loot_faults:
+		problems.append(fault)
+	var stripped := DelvingsFloor.LOOT.duplicate(true) as LootTable
+	var kept: Array[LootEntry] = []
+	for entry: LootEntry in stripped.entries:
+		if entry.item != &"glt_altar_plate":
+			kept.append(entry)
+	stripped.entries = kept
+	var planted_faults: int = 0
+	for seed_at: int in range(8000, 8010):
+		var deep: DelvingsFloor = DelvingsFloor.of(seed_at, RunFile.LAST_FLOOR)
+		if deep.problems().is_empty():
+			planted_faults += _dealt_faults(deep, RunFile.LAST_FLOOR, stripped).size()
+	print("[machine] plant      a table without the altar-plate → %d fault(s)"
+		% planted_faults)
+	if planted_faults < 1:
+		problems.append("a table missing the altar-plate passed ten floor 2s "
+			+ "that deal one, so the row above cannot fail")
 
 	# ─ 10. **every Calamity is named, and the name is a name** (ADR-192) ─
 	#
@@ -5913,6 +5947,40 @@ func _hud_probe() -> void:
 			+ "a palette swap is every role rather than five tones")
 
 	_report(problems, "hud")
+
+
+## Every row a floor dealt that `table` does not allow at `depth`, one sentence
+## each (`--machine-probe` row 9b, ADR-220). The Waystone is laid by rule and
+## is nobody's loot, so it is the one row not asked.
+func _dealt_faults(made: DelvingsFloor, depth: int, table: LootTable) -> PackedStringArray:
+	var out := PackedStringArray()
+	var guarded: ItemResource = made.prize_item()
+	var bait: Array = made.vista()
+	var rows: Array = []
+	for row: Array in made.fixtures():
+		var role: int = LootEntry.Deal.GEAR
+		if row[1] == made.prize() and guarded != null and row[0] == guarded.id:
+			role = LootEntry.Deal.PRIZE
+		elif not bait.is_empty() and row == bait:
+			role = LootEntry.Deal.PRIZE | LootEntry.Deal.FILLER
+		rows.append([row[0], role])
+	for row: Array in made.filler():
+		rows.append([row[0], LootEntry.Deal.FILLER])
+	for row: Array in rows:
+		var id: StringName = row[0]
+		if id == DelvingsFloor.WAYSTONE:
+			continue
+		var entry: LootEntry = table.entry_for(id)
+		if entry == null:
+			out.append("floor %d dealt '%s', which its table does not hold"
+				% [depth, id])
+		elif entry.from_floor > depth:
+			out.append("floor %d dealt '%s', which its table opens at floor %d"
+				% [depth, id, entry.from_floor])
+		elif entry.deals & int(row[1]) == 0:
+			out.append("floor %d dealt '%s' in a way its table does not allow"
+				% [depth, id])
+	return out
 
 
 ## Every role `MenuStyle` names that the theme does not hold or that never
@@ -7065,7 +7133,7 @@ func _build_shaft() -> void:
 ## **The Shaft frames what is under it** (`M4-T23`, `DES-015` Layer 4, ADR-204).
 ##
 ## `DES-015` asks for two things and `M4-T01` built one: value climbs steeply
-## with depth — 6 → 55 → 140 — *and the player must be able to see that from
+## with depth — 8 → 70 → 140 (ADR-220) — *and the player must be able to see that from
 ## floor 1*. Nothing said it. A gradient nobody can perceive changes no
 ## decision, so the half that was built meant nothing on the floor a player is
 ## standing on.

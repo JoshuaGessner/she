@@ -85,7 +85,7 @@ const TREASURE_LIGHT_GROUP: StringName = &"treasure_light"
 ## The first value is what the cheapest glitter in the corpus pours; the second
 ## is what the richest does. Everything between is linear in `tribute_value`,
 ## because that is the number `M4-T01` step 7 made climb with depth (ADR-193) —
-## 6 → 55 → 140 across three floors — and `DES-015` Layer 4's second clause is
+## 8 → 70 → 140 across three floors on ADR-220's table — and `DES-015` Layer 4's second clause is
 ## that a player must be able to *see* that climb. A constant glow says every
 ## floor is worth the same, which is the state the gradient was built out of.
 ##

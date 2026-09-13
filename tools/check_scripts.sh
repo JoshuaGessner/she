@@ -923,7 +923,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	fi
 
 	# **And whether the gradient can be seen** (`M4-T23`, ADR-204). `M4-T01`
-	# step 7 made value climb with depth — 6 → 55 → 140 — and `DES-015` Layer 4
+	# step 7 made value climb with depth — 8 → 70 → 140 on ADR-220's table — and `DES-015` Layer 4
 	# asks for a second thing: that a player can *see* the climb from floor 1.
 	# The Prize's glimmer now scales with what it is worth and the Shaft's foot
 	# carries the light of the best find below it, and both are one number read

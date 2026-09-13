@@ -157,6 +157,8 @@ class_name LootTableResource extends Resource
 
 The greed gradient (`DES-008`) is a `Curve`, so it is tunable in the editor without touching code.
 
+> **Built by ADR-220 smaller than sketched.** `LootTable` (`id`, `entries`) of `LootEntry` (`item`, `from_floor`, `deals` — Prize, gear and filler as flags), one table per biome in `data/loot/`. **No weight, count range or `Curve`**: nothing reads them yet, and the depth bands are what the gradient needed. Validated in `LootTable.validate()`; `tests/data_probe.gd` fails an item in no table and no kit, and `--machine-probe` checks every row a floor deals against its table.
+
 ---
 
 ## Conventions

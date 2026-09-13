@@ -40,6 +40,7 @@ var _loaded: int = 0
 var _items: Array[ItemResource] = []
 var _nodes: Array[AspectNode] = []
 var _classes: Array[ClassResource] = []
+var _tables: Array[LootTable] = []
 ## Taken from the walk rather than from `Config`. This runs as `--script`,
 ## which builds a bare `SceneTree` with **no autoloads registered** — so
 ## `Config.tuning` is not merely empty here, it does not compile. The profile
@@ -65,6 +66,7 @@ func _run() -> void:
 	_check_catalogue_agrees()
 	_check_items_fit_the_grid()
 	_check_kits_can_be_worn()
+	_check_every_item_has_a_source()
 	_check_a_bad_row_is_refused()
 	_check_the_tree_hangs_together()
 
@@ -128,6 +130,10 @@ func _check(path: String) -> void:
 	var sworn := resource as ClassResource
 	if sworn != null:
 		_classes.append(sworn)
+
+	var table := resource as LootTable
+	if table != null:
+		_tables.append(table)
 
 	var node := resource as AspectNode
 	if node != null:
@@ -287,6 +293,37 @@ func _check_kits_can_be_worn() -> void:
 				+ "`Equipment` gives the off hand to the two-hander, so "
 				+ "whichever is equipped second disarms the first")
 				% [sworn.id, two_handed, off_hand])
+
+
+## **Every item can reach a hand** (ADR-220, `DES-023` §4).
+##
+## Since the floor stopped dealing from the whole folder, an item in no loot
+## table and no kit is on no floor and in no hand — authored, validated, and
+## unreachable, which is the dead name `check_dead.py` cannot see because it
+## lives in a `.tres`. The Ember and the Waystone are placed by rule, not dealt.
+## Whether a floor actually deals by the table is `--machine-probe`'s question:
+## `DelvingsFloor` reaches `Player`, which needs the autoloads this `--script`
+## does not have.
+func _check_every_item_has_a_source() -> void:
+	if _tables.is_empty():
+		_fail("no loot table found — every generated floor deals nothing")
+		return
+	var sourced: Dictionary = {"con_ember": "a downed body",
+		"con_waystone": "the floor's rule"}
+	for table: LootTable in _tables:
+		for entry: LootEntry in table.entries:
+			if entry != null:
+				sourced[String(entry.item)] = String(table.id)
+	for sworn: ClassResource in _classes:
+		for id: StringName in sworn.kit:
+			sourced[String(id)] = String(sworn.id)
+	for item: ItemResource in _items:
+		if not sourced.has(String(item.id)):
+			_fail(("'%s' is in no loot table and no kit — no floor deals it and "
+				+ "no body starts with it, so nothing can ever put it in a hand")
+				% item.id)
+	print("[data] %d item(s) have a source: %d loot table(s), %d kit(s)"
+		% [_items.size(), _tables.size(), _classes.size()])
 
 
 ## **The tree has to be walkable** (`M3-T01`, `TEC-006`).

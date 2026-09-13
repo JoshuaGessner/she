@@ -1,0 +1,87 @@
+[gd_resource type="Resource" script_class="LootTable" format=3]
+
+[ext_resource type="Script" path="res://systems/generation/loot_table.gd" id="1_table"]
+[ext_resource type="Script" path="res://systems/generation/loot_entry.gd" id="2_entry"]
+
+[sub_resource type="Resource" id="Resource_seax"]
+script = ExtResource("2_entry")
+item = &"wpn_seax"
+from_floor = 0
+deals = 2
+
+[sub_resource type="Resource" id="Resource_spear"]
+script = ExtResource("2_entry")
+item = &"wpn_ash_spear"
+from_floor = 0
+deals = 2
+
+[sub_resource type="Resource" id="Resource_hammer"]
+script = ExtResource("2_entry")
+item = &"wpn_dvergar_hammer"
+from_floor = 1
+deals = 2
+
+[sub_resource type="Resource" id="Resource_lantern"]
+script = ExtResource("2_entry")
+item = &"tol_horn_lantern"
+from_floor = 0
+deals = 2
+
+[sub_resource type="Resource" id="Resource_byrnie"]
+script = ExtResource("2_entry")
+item = &"arm_mail_byrnie"
+from_floor = 0
+deals = 2
+
+[sub_resource type="Resource" id="Resource_satchel"]
+script = ExtResource("2_entry")
+item = &"arm_hide_satchel"
+from_floor = 0
+deals = 2
+
+[sub_resource type="Resource" id="Resource_bead"]
+script = ExtResource("2_entry")
+item = &"glt_gilt_bead"
+from_floor = 0
+deals = 5
+
+[sub_resource type="Resource" id="Resource_gemstone"]
+script = ExtResource("2_entry")
+item = &"glt_raw_gemstone"
+from_floor = 1
+deals = 5
+
+[sub_resource type="Resource" id="Resource_coin"]
+script = ExtResource("2_entry")
+item = &"glt_hoard_coin"
+from_floor = 1
+deals = 5
+
+[sub_resource type="Resource" id="Resource_torc"]
+script = ExtResource("2_entry")
+item = &"glt_gilded_torc"
+from_floor = 1
+deals = 5
+
+[sub_resource type="Resource" id="Resource_altar"]
+script = ExtResource("2_entry")
+item = &"glt_altar_plate"
+from_floor = 2
+deals = 5
+
+[sub_resource type="Resource" id="Resource_regin"]
+script = ExtResource("2_entry")
+item = &"rlc_regin_blade"
+from_floor = 2
+deals = 1
+
+[sub_resource type="Resource" id="Resource_bog_iron"]
+script = ExtResource("2_entry")
+item = &"mat_bog_iron"
+from_floor = 0
+deals = 4
+
+[resource]
+script = ExtResource("1_table")
+id = &"lut_delvings"
+entries = Array[ExtResource("2_entry")]([SubResource("Resource_seax"), SubResource("Resource_spear"), SubResource("Resource_hammer"), SubResource("Resource_lantern"), SubResource("Resource_byrnie"), SubResource("Resource_satchel"), SubResource("Resource_bead"), SubResource("Resource_gemstone"), SubResource("Resource_coin"), SubResource("Resource_torc"), SubResource("Resource_altar"), SubResource("Resource_regin"), SubResource("Resource_bog_iron")])

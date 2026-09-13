@@ -79,7 +79,7 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 | `glt_raw_gemstone` *(exists)* | Worth a lot, weighs nothing, makes no sound — the thief's find | floor 1+ |
 | `glt_hoard_coin` *(exists)* | Heavy and loud for its worth | floor 1+ |
 | `glt_gilded_torc` *(exists)* | Light, bright, worth carrying out | floor 1+ |
-| `glt_altar_plate` *(exists)* | Heavy, loud, and a Prize | floor 2 Prize |
+| `glt_altar_plate` *(exists)* | Heavy, loud, and a Prize | floor 2 Prize · filler |
 | `glt_coin_chest` | **The find you can barely carry at all** — `DES-008`'s *Dvergar king's coin-chest*: 26 kg ⟨tune⟩ against a 30 kg Veiðimaðr, a 3 × 3 footprint, the loudest thing in a bag. Worth 220 ⟨tune⟩ | floor 2 Prize |
 
 ### Relics and materials
@@ -116,7 +116,9 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 
 ## 4. Where items come from
 
-A floor currently deals its loot from **the entire item folder**, sorted by worth and cut by depth (ADR-193). That was right while nothing had the list — it named nothing — and it is wrong the moment the list exists: add plate armour worth 0 and it lands in the bypass room with the coins; add a coin-chest and every floor-2 Prize changes. **The list and the loot bands have to land together** (`M4-T31`).
+> **Built by ADR-220** as `data/loot/lut_delvings.tres`. Three things were learned building it and are the rule now: **the Prize is chosen by the seed** among the Prizes of the deepest band a floor opens; **filler goes round its pool**, because a table deals filler as filler and a shallow floor has little of it; and **the altar-plate is floor 2 filler as well as a Prize**, or floor 2's filler is floor 1's again. Measured before and after in ADR-220.
+
+A floor dealt its loot from **the entire item folder**, sorted by worth and cut by depth (ADR-193). That was right while nothing had the list — it named nothing — and it is wrong the moment the list exists: add plate armour worth 0 and it lands in the bypass room with the coins; add a coin-chest and every floor-2 Prize changes. **The list and the loot bands have to land together** (`M4-T31`).
 
 | Source | What it deals | Rule |
 |---|---|---|

@@ -9,18 +9,19 @@ extends FloorSource
 ## session, the party, the Hunt, the extraction and the wipe are floor-agnostic
 ## already (ADR-182) and needed somewhere else to ask, not rebuilding.
 ##
-## ## Loot is placed by rule and named by value
+## ## Loot is placed by rule and named by the table
 ##
 ## Decision: *derive placement rules from the plan*. The rule is ADR-032's, and
 ## `FloorAnchors` already tags every spot `prize`, `held` or `bypass` from the
-## graph. What goes in them is chosen by **`tribute_value`, which the items
-## already carry** — the richest thing in the corpus goes on the Prize, the
-## dearer half is dealt into the held rooms, the cheaper half into the bypass.
+## graph. **What** goes in them is `LOOT`, the Delvings' table (ADR-220,
+## `DES-023` §4): each item says the shallowest floor it lies on and whether it
+## may be the Prize, a machine's gear or filler, and worth orders what is dealt
+## — dearest into the held rooms, cheapest into the bypass.
 ##
 ## So the long safe branch pays badly and the short guarded one pays well, on
-## any floor, with no hand-placed coordinate and **no invented taxonomy**. When
-## `M4-T31` builds `DES-023`'s list and its depth bands, this is the function
-## that reads them instead; nothing above it changes.
+## any floor, with no hand-placed coordinate. Until ADR-220 this dealt from the
+## whole item folder by worth alone, which dealt a bow on thirty-nine floor 0s
+## in forty because a bow was the cheapest thing there.
 
 
 ## The way out that is not the Shaft (`DES-005`, ADR-110). One per floor, in the
@@ -28,28 +29,18 @@ extends FloorSource
 ## the question it exists to ask.
 const WAYSTONE: StringName = &"con_waystone"
 
-## What share of the corpus's dearest end the **shallowest** floor may not
-## produce ⟨tune⟩ (`M4-T01` step 7, `DES-015` Layer 4, ADR-193).
+## **What these floors may deal, and from how deep** (ADR-220, `DES-023` §4).
 ##
-## `DES-015` asks for value that *"climbs steeply with depth"*, and steep is the
-## word doing the work: a gentle curve is one nobody changes a decision over, and
-## the decision is the product. At 0.45 against the fifteen authored items the
-## best thing on floor 0 is worth 8 tribute and the best on floor 2 is worth 140
-## — seventeen-fold, which is steep by any reading and is deliberately at the
-## uncomfortable end of the range until a playtest says otherwise.
-##
-## **This is a balance number and it is not settled.** `GATE M4 GREED` is the
-## measurement, and `DES-003`'s Tithe is what it lands on: a cycle payable out of
-## the Aftermath is a cycle nobody descends for.
-const WITHHELD: float = 0.45
+## Replaced ADR-193's worth cut, which withheld the dearest share of the whole
+## folder from shallow floors. The climb it was built for is kept — `DES-015`
+## asks for value that *"climbs steeply with depth"*, and `--machine-probe` still
+## holds it to strictly climbing and at least threefold — but the bands are
+## authored, so an item added to the folder changes no floor until a table says
+## where it lies. **The bands are ⟨tune⟩**; `GATE M4 GREED` is the measurement.
+const LOOT: LootTable = preload("res://data/loot/lut_delvings.tres")
 
-## How many items the shallowest floor keeps whatever `WITHHELD` says ⟨tune⟩.
-##
-## A floor with nothing worth picking up has no decision on it, which is the one
-## thing `DES-002`'s loop cannot survive in its first act. Also the guard that
-## keeps a small corpus from cutting itself to nothing: fifteen items today,
-## and `DES-023`'s bands are not built yet (`M4-T31`).
-const LEAVE_AT_LEAST: int = 6
+## `TEC-007` step 7, population: the stage this draws its one choice from.
+const STAGE: int = 7
 
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
@@ -277,10 +268,9 @@ func room_at(point: Vector3) -> int:
 ## the Waystone and a machine's gear.
 func _standing() -> Array:
 	var out: Array = []
-	var dearest: Array[ItemResource] = _by_worth()
-	if dearest.is_empty():
-		return out
-	out.append([dearest[0].id, _anchors.prize()])
+	var guarded: ItemResource = prize_item()
+	if guarded != null:
+		out.append([guarded.id, _anchors.prize()])
 	# In a held room if the floor has one, and otherwise wherever is deepest —
 	# never in the bypass, which is what would make the safe route the paying
 	# one and invert ADR-032.
@@ -294,21 +284,47 @@ func _standing() -> Array:
 	# thing which is a decision must not be deterministically absent at party
 	# size 1 — a lever nobody can pull is not a lever.
 	#
-	# Dealt from the **top** of the pool below the Prize's item, because a
+	# Dealt from the **top** of what this depth may deal as gear, because a
 	# situation is a room somebody had to decide about: gear cheap enough to
-	# walk past would make the decision for them.
-	var offer: int = 1
+	# walk past would make the decision for them. Never glitter (`DES-023` §4) —
+	# the fallen carried tools, and a machine full of gold is a treasure room.
+	var gear: Array[ItemResource] = LOOT.items_at(_depth, LootEntry.Deal.GEAR)
+	var offer: int = 0
 	for node: int in _machines.nodes():
 		var machine: MachineResource = _machines.at(node)
 		if machine.gear <= 0:
 			continue
 		var spots: Array[Vector3] = _anchors.spots_in(node, machine.gear)
 		for at: Vector3 in spots:
-			if offer >= dearest.size():
+			if offer >= gear.size():
 				break
-			out.append([dearest[offer].id, at])
+			out.append([gear[offer].id, at])
 			offer += 1
 	return out
+
+
+## **The one thing the Guardian sits on** (ADR-220, `DES-023` §4).
+##
+## Chosen from the Prizes of the deepest band this floor opens — a floor 2 lays
+## the altar-plate or Regin's blade, a floor 1 the torc, the gem or the coin —
+## and **by the seed**, so two floors of one depth do not always guard the same
+## object and one seed guards the same one on every machine (`TEC-007`). The
+## worth cut this replaced always laid the single dearest item, so a relic
+## cheaper than the altar-plate could never be a Prize at all.
+func prize_item() -> ItemResource:
+	var deepest: int = -1
+	for entry: LootEntry in LOOT.entries:
+		if entry.can(LootEntry.Deal.PRIZE) and entry.from_floor <= _depth:
+			deepest = maxi(deepest, entry.from_floor)
+	var candidates: Array[ItemResource] = []
+	for item: ItemResource in LOOT.items_at(_depth, LootEntry.Deal.PRIZE):
+		if LOOT.entry_for(item.id).from_floor == deepest:
+			candidates.append(item)
+	if candidates.is_empty():
+		return null
+	var pick: int = MissionGraph._mix(
+		MissionGraph.stage_seed(_seed, _depth) + STAGE)
+	return candidates[posmod(pick, candidates.size())]
 
 
 ## The threat a situation owns, placed once whatever the party size.
@@ -330,19 +346,19 @@ func machine_posts() -> Array[Vector3]:
 ## the rooms that cost the most to reach.
 func filler() -> Array:
 	var out: Array = []
-	var pool: Array[ItemResource] = _by_worth()
-	if pool.size() < 2:
-		return out
-	# The Prize's item is spoken for; the rest are dealt from dearest down.
-	pool.remove_at(0)
-	# And so is the bait, when this floor needed one — one glint laid on
-	# purpose, not a second copy of it dealt into the bypass by quantity.
+	var pool: Array[ItemResource] = LOOT.items_at(_depth, LootEntry.Deal.FILLER)
+	# The Prize's item is spoken for, and so is the bait when this floor needed
+	# one — one glint laid on purpose, not a second copy of it dealt into the
+	# bypass by quantity.
+	var spoken: Array[StringName] = []
+	var guarded: ItemResource = prize_item()
+	if guarded != null:
+		spoken.append(guarded.id)
 	var bait: Array = vista()
 	if not bait.is_empty():
-		for index: int in pool.size():
-			if pool[index].id == bait[0]:
-				pool.remove_at(index)
-				break
+		spoken.append(bait[0] as StringName)
+	pool = pool.filter(func(item: ItemResource) -> bool:
+		return not spoken.has(item.id))
 	if pool.is_empty():
 		return out
 	var held: Array[Vector3] = []
@@ -354,104 +370,46 @@ func filler() -> Array:
 			open.append(spot["at"] as Vector3)
 	# Dearest into the guarded rooms, cheapest into the bypass, and the walk is
 	# the price of the difference.
-	var rich: int = 0
-	var poor: int = pool.size() - 1
-	for at: Vector3 in held:
-		if rich > poor:
-			break
-		out.append([pool[rich].id, at])
-		rich += 1
-	for at: Vector3 in open:
-		if poor < rich:
-			break
-		out.append([pool[poor].id, at])
-		poor -= 1
+	#
+	# **Round the pool, not once through it** (ADR-220). The worth cut dealt
+	# each item at most once, which only worked because the folder was full of
+	# things that were not filler — a floor 0 had seven rooms of bows and seaxes.
+	# A table deals filler as filler, and a floor of the Aftermath has little
+	# of it, so the pool comes round again: a room of bog iron beside another is
+	# a floor of scrap, which is what the top of the Delvings is. The count is
+	# unchanged — `RoomSet` still takes `PartyScaling.loot` rows of this.
+	var count: int = pool.size()
+	for index: int in held.size():
+		out.append([pool[index % count].id, held[index]])
+	for index: int in open.size():
+		out.append([pool[count - 1 - index % count].id, open[index]])
 	return out
 
 
-## The corpus by what it is worth, dearest first, with the Ember excluded — it
-## is a body's own token and never lies on a floor (`DES-012`).
+## Everything this floor may deal, dearest first (`DES-015` Layer 4, ADR-220).
 ##
-## Sorted by `tribute_value` and then by id, because two items worth the same
-## must not be dealt in whatever order the catalogue happened to load them in
-## (`TEC-007` §1).
-##
-## ## **The pool is cut by depth** (`M4-T01` step 7, `DES-015` Layer 4, ADR-193)
-##
-## `DES-015` Layer 4 names the depth curve as the load-bearing part of
-## population: *"value must climb steeply with depth, and the player must be
-## able to see that from floor 1."* This function ignored `_depth` entirely, so
-## every floor of an expedition drew one identical pool — **the Prize on floor 0
-## was the same object as the Prize on floor 2**, and the only thing that got
-## worse as you descended was the Hunt.
-##
-## That is the flat middle `DES-015` opens by diagnosing in other games, sitting
-## inside our own generator, and it undercuts more than it looks like: `DES-003`
-## couples the Tithe to what you carry home, and a Tithe payable from the
-## shallowest floor is one nobody has to go deep for. **Depth has to be where
-## the money is or nothing pulls anybody down.**
-##
-## **Every caller inherits it for free**, which is why the fix is here and not in
-## three places: the Prize, the machine gear and the filler all read this one
-## list, so cutting the list cuts all of them and nothing above changes.
-##
-## ## One cut, not three tiers
-##
-## Floor `d` withholds the dearest `WITHHELD` share of the corpus, closing
-## linearly to nothing at `RunFile.LAST_FLOOR`. So the deepest floor can produce
-## anything and the shallowest cannot produce the best of it, with the floors
-## between overlapping — a gradient rather than three separate loot tables,
-## which is what keeps a floor from being identifiable by its drops.
-##
-## **The numbers are `⟨tune⟩` and the shape is not.** `GATE M4 GREED` — *a
-## playtester voluntarily abandons loot to survive* — is the measurement that
-## settles how steep this should be, and it cannot be run against a flat curve
-## at all. `DES-023` §4's authored depth bands replace the cut at `M4-T31`, and
-## nothing above this line changes then either.
+## **Depth has to be where the money is or nothing pulls anybody down** —
+## `DES-003` couples the Tithe to what you carry home, and a Tithe payable from
+## the shallowest floor is one nobody has to go deep for. ADR-193 found every
+## floor drawing one identical pool and cut it by depth; the table's bands are
+## that cut, authored.
 func _by_worth() -> Array[ItemResource]:
 	return worth_at(_depth)
 
 
-## **What a floor of a given depth may hold, richest first** (ADR-193).
+## **What a floor of a given depth may hold, richest first** (ADR-193, ADR-220).
 ##
 ## Static and depth-taking since `M4-T23` (ADR-204), because the Shaft has to
 ## answer *what is under me* — and the floor under you does not exist yet, since
 ## a party builds one floor at a time (ADR-184). Nothing here reads the seed:
-## the pool is the corpus, and depth alone decides how much of the top of it is
-## withheld, so the question is answerable without rolling a plan.
+## the table and the depth answer it without rolling a plan.
 static func worth_at(depth: int) -> Array[ItemResource]:
-	var pool: Array[ItemResource] = []
-	for item: ItemResource in ItemCatalogue.all():
-		if item.id == &"con_ember" or item.id == WAYSTONE:
-			continue
-		pool.append(item)
-	pool.sort_custom(func(a: ItemResource, b: ItemResource) -> bool:
-		if a.tribute_value != b.tribute_value:
-			return a.tribute_value > b.tribute_value
-		return String(a.id) < String(b.id))
-	return pool.slice(_withheld(pool.size(), depth))
+	return LOOT.items_at(depth)
 
 
-## The best find a floor of this depth can produce, in tribute — the 6 → 55 →
-## 140 climb ADR-193 measured, asked of a depth rather than of a built floor.
+## The best find a floor of this depth can produce, in tribute, asked of a depth
+## rather than of a built floor. ADR-193 measured 6 → 55 → 140 on the worth
+## cut; the table reads 8 → 70 → 140 (ADR-220).
 static func best_find(depth: int) -> int:
 	var pool: Array[ItemResource] = worth_at(depth)
 	return pool[0].tribute_value if not pool.is_empty() else 0
-
-
-## How many of the dearest items this floor may not produce.
-##
-## Zero at the bottom, `WITHHELD` of the corpus at the top, linear between.
-##
-## **Never the whole pool.** A floor with nothing to find is a floor with no
-## decision on it, and `LEAVE_AT_LEAST` is the floor under that — the shallowest
-## expedition still has to be worth walking through, or `DES-002`'s loop has a
-## dead first act.
-static func _withheld(size: int, depth: int) -> int:
-	if size <= LEAVE_AT_LEAST or RunFile.LAST_FLOOR <= 0:
-		return 0
-	var deepest: float = float(RunFile.LAST_FLOOR)
-	var shallowness: float = clampf(
-		(deepest - float(depth)) / deepest, 0.0, 1.0)
-	var cut: int = int(round(float(size) * WITHHELD * shallowness))
-	return clampi(cut, 0, size - LEAVE_AT_LEAST)

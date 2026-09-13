@@ -7889,5 +7889,42 @@ ADR-217 said plate *"arrives with the triangle"*. **It does not arrive here**, a
 
 The sweep requires the plant's line. `TuningProfile.validate()` was planted three ways — blunt through plate at 0.9, plate letting half a cut through, a zero share — and caught each; a mailed helm fails `ItemResource.validate()`.
 
+---
+
+## ADR-220 — Floors deal from a loot table, and a bow is no longer the Aftermath's gift
+
+**Date:** 2026-09-13 · **Status:** accepted · **Starts `M4-T31`** · **Replaces ADR-193's worth cut** · **Amends `DES-023` §4, `TEC-006`**
+
+**Context:** `DelvingsFloor` dealt from the whole item folder sorted by worth, withholding the dearest share from shallow floors (ADR-193). ADR-217 and ADR-219 both found that this blocks the list: an item cannot land before the band that places it, and there were no bands — only the folder. It is the precondition for every new item, so it goes first.
+
+**Measured first**, over seeds 8000–8039 at each depth, before anything changed: **floor 0 dealt a bow on 39 floors in 40**, a hammer on 20 and a seax on 31 — the cheapest things in the folder — and its Prize was the hide satchel on all 40. Floor 2 scattered Regin's blade as filler on 29 floors. Floor 1's Prize was the gemstone on every floor.
+
+### Decision
+
+- **A `LootTable` resource per biome** (`data/loot/lut_delvings.tres`), of `LootEntry` rows: an item, the shallowest floor it lies on, and the ways it may be dealt — **Prize**, **gear** (a machine's contents) or **filler**. A table rather than a field on the item, because where a thing is found is the biome's to say. `TEC-006` sketched *weight, count range, depth bias*; only the depth is built, because nothing reads the rest.
+- **The Prize is chosen by the seed** from the Prizes of the deepest band the floor opens — floor 2 guards the altar-plate or Regin's blade, floor 1 the torc, the gem or the coin. The worth cut always laid the single dearest, so a relic cheaper than the altar-plate could never be a Prize at all.
+- **Machine gear is gear**: never glitter, dearest first.
+- **Filler goes round the pool** rather than once through it. The cut dealt each item at most once, which only worked because the folder was full of things that were not filler; the count is unchanged — `RoomSet` still takes `PartyScaling.loot` rows.
+- **The altar-plate is filler on floor 2 as well as a Prize** — a correction to `DES-023` §4, found measuring: with it Prize-only, floor 2's filler was floor 1's glitter again and only the Prize climbed.
+- **An item in no table and no kit is caught**: `tests/data_probe.gd` now fails an item nothing can put in a hand. The table validates itself — ids exist, no duplicates, glitter is never gear, a Prize glitters or is a relic, the Ember and Waystone are never listed.
+
+### What changed on the floor, measured
+
+Per floor, averaged over the same forty seeds:
+
+| | floor 0 | floor 1 | floor 2 |
+|---|---|---|---|
+| best find | 6 → **8** | 55 → **70** | 140 → **140** |
+| Prize | satchel → **bead** | gemstone → **torc 8, coin 17, gem 15** | altar-plate → **altar-plate 18, Regin 22** |
+| fixtures + solo filler | 15 → **22** | 112 → **174** | 378 → **294** |
+| fixtures + party-of-four filler | 18 → **33** | 118 → **315** | 387 → **496** |
+| what the filler is | bows, seaxes, hammers → **bog iron** | weapons and coin → **glitter and bog iron** | weapons, Regin, torcs → **glitter and bog iron** |
+
+**Two consequences worth a person's attention.** Floor 1 pays roughly half again solo and nearly three times for a party of four, because glitter replaced the weapons that padded the rooms. Floor 2 solo pays *less*, because machine gear stopped being relics and torcs. The climb still holds — `--machine-probe` asserts strictly rising and at least threefold — but **this is an economy change `GATE M4 GREED` is run against**, not a settled one. And **floor 0 is scrap** — three bog irons, a bead and whatever a machine left — until `M4-T32` adds bindings to its filler.
+
+### Verification
+
+`--machine-probe` row 9b checks every row the forty floors of each depth dealt — **1,675 rows, 0 faults** — against the table: listed, at or below its band, dealt only a way the table allows. Planted with a copy missing the altar-plate: **18 faults** on ten floor 2s. The data probe was planted with the bead dealt as gear and the satchel removed from the table, and caught both. `--vista-probe` at floors 0 and 2, `--delvings-probe` and `--prize-probe` pass unchanged.
+
 *Entries below to be added as design decisions are signed off.*
 
