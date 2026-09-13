@@ -229,12 +229,15 @@ var _depth: int = 0
 var _alcoves_cut: int = 0
 var _ledges_raised: int = 0
 var _fallen_laid: int = 0
+## Every solid slab laid, as `[Transform3D, size]` — see `occluders`.
+var _occluders: Array = []
 
 
 ## Build `plan` under `into`. Returns a census the probe asserts against.
 ##
 ## `machines` is optional because `AuthoredFloor` has none and a probe pinning a
-## plan should not have to build a stamping to look at geometry.
+## plan should not have to build a stamping to look at geometry. `into` may be
+## null, which lays nothing and only records — see `occluders`.
 static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		floor_index: int, into: Node3D,
 		machines: FloorMachines = null) -> Dictionary:
@@ -278,7 +281,23 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		"alcoves": builder._alcoves_cut,
 		"ledges": builder._ledges_raised,
 		"fallen": builder._fallen_laid,
+		"occluders": builder._occluders,
 	}
+
+
+## **The same floor as data**: every solid slab as `[Transform3D, size]`, with no
+## node made (`M4-T28`, ADR-215).
+##
+## For `FloorVista`, which has to know what a sightline crosses before a single
+## item is placed — and has to know it the same way on every machine. The
+## physics engine would answer after the floor was raised, host-side, from
+## engine state; this answers from the builder's own arithmetic, so a seed picks
+## one spot everywhere. **One path through the builder, not two**: `build` with
+## no parent records exactly what it would have laid, so the data cannot drift
+## from the geometry.
+static func occluders(plan: FloorPlan, graph: MissionGraph, run_seed: int,
+		floor_index: int) -> Array:
+	return build(plan, graph, run_seed, floor_index, null)["occluders"]
 
 
 ## Where a cell's near corner sits in metres.
@@ -838,6 +857,9 @@ func _fallen(plan: FloorPlan, node: int, machine: MachineResource,
 ## passed by accident, and the failure would be a floor that bakes with holes in
 ## it for a reason nothing on screen explains.
 func _mark(size: Vector3, centre: Vector3, colour: Color, yaw: float) -> void:
+	if _into == null:
+		_fallen_laid += 1
+		return
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var material := StandardMaterial3D.new()
@@ -863,6 +885,13 @@ func _mark(size: Vector3, centre: Vector3, colour: Color, yaw: float) -> void:
 func _slab(size: Vector3, centre: Vector3, colour: Color,
 		yaw: float = 0.0, role: String = "slab",
 		tilt: Basis = Basis()) -> void:
+	# Recorded whether or not it is laid, from the same numbers the node gets:
+	# a tilt replaces the yaw, exactly as `node.basis` does below.
+	var turned: Basis = tilt if tilt != Basis() else Basis(Vector3.UP, yaw)
+	_occluders.append([Transform3D(turned, centre), size])
+	if _into == null:
+		_slabs += 1
+		return
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var material := StandardMaterial3D.new()

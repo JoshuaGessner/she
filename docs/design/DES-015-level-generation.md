@@ -4,7 +4,7 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-09-06
+updated: 2026-09-13
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
@@ -210,6 +210,12 @@ That keeps navmesh, AI traversal, and the Clamor field tractable — but it crea
 - **In-room traversal:** ledges, chains, mine lifts, collapsing floors that drop you a level *within* a room.
 
 **The vista rule:** each floor should contain at least one moment where the player can see something valuable and distant that they must route toward. That's the greed gradient (`DES-008`) delivered through architecture — you *see* the Prize before you can reach it.
+
+> **Made measurable and guaranteed (ADR-207, ADR-210, ADR-215).** *A moment* is a point on the walk from the arrival point to the Shaft. *Something valuable* is anything that glitters. *Distant* is seen **forward**, from **outside the room it lies in**, at **8 m or more** ⟨tune⟩ — inside the fog's 10 m start and longer than a straight corridor's four cells.
+>
+> The generator guarantees it. If no glitter that is always placed — the Prize or a machine's gear, never party-scaled filler — is in view that way, the floor lays **its cheapest glitter** where the walk sees best, computed from the plan and the builder's own slabs rather than the navmesh, so one seed picks one spot on every machine. Measured on nine floors before this: none of the three floor 0s offered it, and one deep floor of six did not either; after it, 24 floors of 24 do, on the navmesh walk and checked by the physics engine.
+>
+> **The Prize is the aspiration and the bait is the guarantee.** The Prize is still what the rule is for, and on floors 1–2 it or its gear is often the moment without help. What is guaranteed is weaker: sometimes the thing you saw glinting down the hall is a bead worth 5 — which is `DES-002`'s proposition in one object, and a pull the depth curve does not notice. **Guaranteeing the Prize itself was costed and not taken**: it means choosing the Prize *room* for its sightline at plan time, a change to `FloorPlan`'s placement with its own re-roll cost, for a floor-0 Prize that cannot glitter anyway. Whether a bait vista reads as a pull or teaches players to ignore glints is a playtest question (Q112).
 
 ### Run structure — three floors, earned exits (ADR-015, closes Q49)
 

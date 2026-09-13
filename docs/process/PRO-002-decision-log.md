@@ -7682,5 +7682,52 @@ So the climb stays **0.30 m**, now a named constant (`NAV_AGENT_CLIMB`) rather t
 
 **Nothing to plant**, and that is the point of the removal: the change deletes a mechanism rather than adding a check, and the assertions that guard what it touched — the walk and the Hunter — were planted in ADR-213 and ran green here.
 
+## ADR-215 — Every generated floor shows you something glittering down the hall, and it is guaranteed from the plan
+
+**Date:** 2026-09-13 · **Status:** accepted · **`M4-T28`** · **Amends `DES-015`** · **Completes ADR-207 and ADR-210**
+
+**Context:** `DES-015`'s vista rule asks each floor for *"at least one moment where the player can see something valuable and distant that they must route toward."* ADR-207 made it measurable on the walk from the arrival point to the Shaft, and ADR-210 separated the two faults: floor 0 could hold nothing that glitters, and a deep floor could hold several with no line to any of them. The developer, playing, put the target plainly: *"I could see the gold or purple items from fairly far away as long as there was a nice straight hallway between us and it was a nice feel."* What was owed was the guarantee, and the threshold it earns.
+
+**Measured before anything was built**, on nine floors after ADR-213 and ADR-214 had re-laid them: all three floor 0s showed no glitter from the walk at 8 m or more, and one deep floor of six showed none either (31346 floor 1: three glitters, none ever in view).
+
+### Decision 1 — what a moment is
+
+- **On the walk**, arrival point to Shaft (ADR-207).
+- **Something that glitters** — the Prize, a machine's gear, or any glitter item.
+- **Forward.** A player walking to the Shaft is not looking over their shoulder.
+- **From outside the room it lies in.** A thing visible only from inside its own room is neither distant nor something to route toward; `DES-015`'s own gloss is *"you see the Prize before you can reach it."*
+- **At least 8 m** ⟨tune⟩ — inside the fog's 10 m start, and longer than the four straight cells `DOGLEG_RUN` allows a corridor.
+- **For at least four metres of walk** ⟨tune⟩ — over a second at walking pace, long enough to be noticed. See Decision 4 for how this was found.
+
+### Decision 2 — guaranteed from the plan, not from the engine
+
+`FloorVista` computes the walk as the shortest door-to-door line through the plan's rooms and corridors and tests sightlines against **`FloorBuilder.occluders`** — the same builder run with no parent node, recording every slab's transform and size as data. Nothing reads the navmesh or the physics engine, for two reasons that are this project's rather than taste: loot placement is a stage of a seeded pipeline (`TEC-007`), and a Recast bake is threaded and platform-dependent (ADR-172). A seed picks one spot on every machine, and a bug report replays on a different one.
+
+**Its line of sight was checked against the physics engine before anything used it**: 36,000 random segments across 24 floors, **35,892 agree**, and all 108 disagreements are the safe way round — the plan's maths calls a segment blocked where physics finds it clear. It never claims a view physics does not have. It costs **18 ms a floor**.
+
+### Decision 3 — only when needed, and only the cheapest glitter
+
+`DelvingsFloor.vista()` asks whether a **fixture** glitter — the Prize or machine gear, which ADR-110 places at any party size — already offers the moment. If one does, nothing is added. If not, the floor lays **the cheapest glitter its depth may hold** (the gilt bead today, worth 5) at the spot the walk sees best: the longest sight capped at 20 m, then the most samples, never within 1.6 m of another fixture, post, spawn or loot spot, never under anything lower than 2 m, never in the entrance or a crawl. The bead is then withheld from filler so the floor does not deal a second one.
+
+- **Fixtures only, never filler.** Filler is dealt by party size, and a vista that exists only for four players is ADR-110's deterministically absent lever.
+- **The cheapest, not something valuable.** A guaranteed extra item on every floor is an economy change `GATE M4 GREED` has not measured; worth 5, it is one the depth curve of ADR-193 does not notice (the machine probe still reads 6 → 55 → 140). And a glint down a hall that turns out to be a bead is `DES-002`'s proposition in one object.
+- **The Prize itself is the aspiration and was not guaranteed.** That means choosing the Prize *room* for its sightline inside `FloorPlan`, with its own re-roll cost, for a floor-0 Prize that cannot glitter anyway. Costed at a week or more — it reshapes the placement `--plan-probe`'s 360 floors assert against — and not taken.
+
+**What "only when needed" turned out to mean: 23 floors of 24 get a bead.** A Prize at the centre of its room is almost never in view for four metres of forward walk from outside that room. So in practice this is a bead on nearly every floor, and whether a far glint that is usually a bead still pulls, or teaches players to ignore glints, is a playtest question — filed as Q112.
+
+### Decision 4 — the threshold is asserted, on a different instrument
+
+`--vista-probe` row 6 asks the **navmesh** walk and the **physics** engine the same question the plan asked, and fails the floor if fewer than four points see a glint forward, from outside its room, at 8 m. Two instruments, so the generator's model and the check cannot share a blind spot.
+
+**It found a fault on its first panel.** 23 of 24 floors passed; seed 66666 floor 1 did not. Its Prize had counted as the floor's vista on the strength of **one** sample of the plan's walk, so no bead was laid — and the navmesh walk, cutting a corner the plan's line did not, never saw the Prize at all. Two more floors passed on 3 and 4 points, both also "not needed" cases. A view one metre wide is not a moment and does not survive a route disagreeing by a corner, so `SEEN_LEAST` requires four metres everywhere: in the fixture check, in choosing the spot, and in the probe. **After it: 24 of 24**, the weakest seen from 6 points at 11.2 m, most from 20 or more.
+
+**Planted:** switching off the bead's placement fails seed 31346 floor 0 with 0 points. The plant also caught the probe's own report calling that floor *"none needed"* — an empty vista meant three different things and the row printed one of them for all three, so `vista_reason()` now says which.
+
+### What this found on the way
+
+**The gilt bead had no record.** ADR-210 proposed a cheap floor-0 glitter and held it for sign-off; the developer asked for it two sessions later, and it was added in the commit that closed `M4-T30` with no ADR and a `PRO-001` entry still reading *"held for sign-off rather than added"*. It is recorded here, and it is the item this guarantee lays.
+
+**The machine probe's gear check would have passed falsely.** It asserted a floor wanting gear carries more than two fixtures; a floor that dropped its gear and laid a bead would have had three. It now discounts the vista's row.
+
 *Entries below to be added as design decisions are signed off.*
 

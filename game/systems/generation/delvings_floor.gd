@@ -58,6 +58,9 @@ var _machines: FloorMachines = null
 var _history: ExpeditionHistory = null
 var _seed: int = 0
 var _depth: int = 0
+var _vista: Array = []
+var _vista_asked: bool = false
+var _vista_why: String = ""
 
 
 ## Roll a floor. Deterministic in `run_seed` and `floor_index` end to end, so
@@ -179,12 +182,100 @@ func door_lights() -> Array[Vector3]:
 	return _anchors.door_lights()
 
 
-## The Prize, and the Waystone in the guarded half (`M2-T17`, ADR-110).
+## The Prize, the Waystone in the guarded half (`M2-T17`, ADR-110), a machine's
+## gear, and — when the floor needs one — the glint that makes its vista.
 ##
-## Both are fixtures rather than filler for ADR-110's reason: they are decisions
+## All fixtures rather than filler for ADR-110's reason: they are decisions
 ## rather than quantity, and a lever that is deterministically absent at party
 ## size 1 is not a lever.
 func fixtures() -> Array:
+	var out: Array = _standing()
+	var bait: Array = vista()
+	if not bait.is_empty():
+		out.append(bait)
+	return out
+
+
+## **The moment `DES-015` asks every floor for, guaranteed** (`M4-T28`,
+## ADR-215): `[item id, position]`, or empty when the floor already has one.
+##
+## A fixture glitter the walk sees forward, from outside its room, at
+## `FloorVista.NEAR` or more for `FloorVista.SEEN_LEAST` samples, is the
+## vista, and nothing is added. Otherwise the
+## **cheapest glitter this floor may hold** is laid where the walk sees best.
+##
+## **Only when needed, and only the cheapest.** A floor whose Prize is already
+## in view down a hall is a floor that works, and the developer's instruction
+## was to make floors deliver without changing how the good ones feel. And a
+## glint that turns out to be a bead is `DES-002`'s proposition in one object —
+## you saw gold, you walked for it, it was nearly nothing — at a price the
+## depth curve of ADR-193 does not notice. Fixtures only, never filler, because
+## filler is dealt by party size and a vista that exists only for four players
+## is ADR-110's deterministically absent lever.
+##
+## Computed once per floor: it builds the floor as data and walks it, and a
+## probe that asks for fixtures on two hundred floors should pay for that once
+## each.
+func vista() -> Array:
+	if _vista_asked:
+		return _vista
+	_vista_asked = true
+	var standing: Array = _standing()
+	var walk: FloorVista = FloorVista.of(_plan, _graph, _anchors,
+		FloorBuilder.occluders(_plan, _graph, _seed, _depth), spawns()[0])
+	for row: Array in standing:
+		var item: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
+		if item == null or not item.tags.has(&"glitter"):
+			continue
+		if walk.offers(row[1] as Vector3):
+			_vista_why = "not needed — %s already offers the moment" % row[0]
+			return _vista
+	var bait: ItemResource = null
+	for item: ItemResource in _by_worth():
+		if item.tags.has(&"glitter"):
+			bait = item
+	# Nothing that glitters may lie here at all: no vista to guarantee, and
+	# `--vista-probe` is what says so rather than a quiet absence.
+	if bait == null:
+		_vista_why = "nothing that glitters may lie on this floor"
+		return _vista
+	var avoid: Array[Vector3] = []
+	for row: Array in standing:
+		avoid.append(row[1] as Vector3)
+	for spot: Dictionary in _anchors.loot():
+		avoid.append(spot["at"] as Vector3)
+	avoid.append_array(spawns())
+	avoid.append_array(enemy_posts())
+	avoid.append_array(machine_posts())
+	avoid.append(hunter())
+	var spot: Dictionary = walk.best(avoid, FloorAnchors.SPREAD)
+	if spot.is_empty():
+		_vista_why = "no spot on this floor is a vista from the walk"
+		return _vista
+	_vista = [bait.id, spot["at"] as Vector3]
+	_vista_why = "laid where the walk sees it from %d point(s) at %.1f m" \
+		% [int(spot["seen"]), float(spot["far"])]
+	return _vista
+
+
+## Why `vista` came back as it did, in words — because *empty* means three
+## different things (a fixture already offers the moment, nothing may glitter
+## here, or no spot is seen at all) and a probe that printed one of them for all
+## three said *not needed* about a floor that had simply failed.
+func vista_reason() -> String:
+	vista()
+	return _vista_why
+
+
+## Which room a point stands in, or -1 for a corridor — `FloorVista`'s answer,
+## for the probe that checks it.
+func room_at(point: Vector3) -> int:
+	return FloorVista.room_of(_plan, _graph, point)
+
+
+## The fixtures that stand on every floor whatever it looks like: the Prize,
+## the Waystone and a machine's gear.
+func _standing() -> Array:
 	var out: Array = []
 	var dearest: Array[ItemResource] = _by_worth()
 	if dearest.is_empty():
@@ -244,6 +335,16 @@ func filler() -> Array:
 		return out
 	# The Prize's item is spoken for; the rest are dealt from dearest down.
 	pool.remove_at(0)
+	# And so is the bait, when this floor needed one — one glint laid on
+	# purpose, not a second copy of it dealt into the bypass by quantity.
+	var bait: Array = vista()
+	if not bait.is_empty():
+		for index: int in pool.size():
+			if pool[index].id == bait[0]:
+				pool.remove_at(index)
+				break
+	if pool.is_empty():
+		return out
 	var held: Array[Vector3] = []
 	var open: Array[Vector3] = []
 	for spot: Dictionary in _anchors.loot():

@@ -937,11 +937,17 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		# reads 1–3% on every floor measured, including one where the Prize is
 		# in view from a third of the walk at 24 m and one where it is never in
 		# view at all, so it cannot tell those two apart. `[vista] on the way`
-		# samples the walk the player actually takes. Required as a line, not
-		# as a threshold: the fault it reports is `M4-T28`'s remaining half.
+		# samples the walk the player actually takes.
+		#
+		# **And `[vista] a moment` is the rule's threshold** (`M4-T28`,
+		# ADR-215): a glint seen forward, from outside its room, at 8 m for four
+		# metres of the navmesh walk, which `DelvingsFloor.vista` guarantees
+		# from the plan. Required as a line so a floor that stopped reaching the
+		# row cannot pass by never being asked.
 		if [[ $? -ne 0 ]] \
 				|| ! grep -q '^\[vista\] worth is' <<<"$vista" \
 				|| ! grep -q '^\[vista\] on the way' <<<"$vista" \
+				|| ! grep -q '^\[vista\] a moment' <<<"$vista" \
 				|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$vista"; then
 			echo "FAIL worth is what you can see (floor $depth)" >&2
 			printf '%s\n' "$vista" | grep -E '\[vista\]|ERROR' \

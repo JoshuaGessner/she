@@ -3925,9 +3925,9 @@ func _vista_probe() -> void:
 	# ─ 4. how much of the floor can see it at all ─
 	#
 	# **A number, not a threshold** (ADR-144's discipline). Lighting can only
-	# reveal what a sightline already allows, and `M4-T23` is scoped out of the
-	# generator on purpose — so this is recorded on every sweep and asserted by
-	# nothing. `M4-T28` owns the placement question.
+	# reveal what a sightline already allows, and this counts cells nobody
+	# stands on — ADR-207 showed it reads 1–3% on the best floor and the worst.
+	# Row 6 is the vista rule's assertion; this stays as the census it is.
 	var seen: int = 0
 	var standable: int = 0
 	if _field != null and item != null:
@@ -3978,6 +3978,9 @@ func _vista_probe() -> void:
 	var route_points: int = 0
 	var furthest: float = 0.0
 	var walk_run: float = 0.0
+	var delved := _floor as DelvingsFloor
+	var moment_far: float = 0.0
+	var moment_points: int = 0
 	var spawns: Array[Vector3] = _floor.spawns()
 	if item != null and _shaft != null and not spawns.is_empty():
 		var route: PackedVector3Array = await _route_when_ready(
@@ -4007,12 +4010,15 @@ func _vista_probe() -> void:
 		# and a **loot** one, and they need different fixes.
 		var glitters: Array[Vector3] = []
 		var worth: PackedInt32Array = PackedInt32Array()
+		var glitter_rooms: PackedInt32Array = PackedInt32Array()
 		for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
 			var lit: WorldItem = node as WorldItem
 			if lit == null or not lit.definition().tags.has(&"glitter"):
 				continue
 			glitters.append(lit.global_position + Vector3(0.0, 0.25, 0.0))
 			worth.append(lit.definition().tribute_value)
+			glitter_rooms.append(delved.room_at(lit.global_position)
+				if delved != null else -1)
 		# **And the Shaft, which on floor 0 is the whole answer** (ADR-204).
 		#
 		# `M4-T23` made the Shaft's foot pour the light of the best find
@@ -4039,7 +4045,7 @@ func _vista_probe() -> void:
 			for step: int in strides:
 				var at: Vector3 = from_at.lerp(to_at,
 					float(step) / float(strides))
-				var eye: Vector3 = at + Vector3(0.0, EYE_HEIGHT, 0.0)
+				var eye: Vector3 = at + Vector3(0.0, FloorVista.EYE, 0.0)
 				route_points += 1
 				var sight := PhysicsRayQueryParameters3D.create(eye, target)
 				sight.collision_mask = CollisionLayers.WORLD
@@ -4047,6 +4053,9 @@ func _vista_probe() -> void:
 					on_route += 1
 					furthest = maxf(furthest, at.distance_to(target))
 				var any: bool = false
+				var ahead := Vector3(to_at.x - from_at.x, 0.0, to_at.z - from_at.z)
+				var standing_in: int = delved.room_at(at) if delved != null else -1
+				var counted: bool = false
 				for index: int in glitters.size():
 					var glint := PhysicsRayQueryParameters3D.create(
 						eye, glitters[index])
@@ -4057,6 +4066,17 @@ func _vista_probe() -> void:
 					ever[index] = true
 					furthest_any = maxf(furthest_any,
 						at.distance_to(glitters[index]))
+					# The moment as `FloorVista` defines it, asked of this walk.
+					var flat := Vector3(glitters[index].x - at.x, 0.0,
+						glitters[index].z - at.z)
+					if delved == null or flat.dot(ahead) <= 0.0 \
+							or (standing_in >= 0 and standing_in == glitter_rooms[index]):
+						continue
+					if flat.length() >= FloorVista.NEAR:
+						moment_far = maxf(moment_far, flat.length())
+						if not counted:
+							moment_points += 1
+							counted = true
 				if any:
 					seen_any += 1
 				var pale := PhysicsRayQueryParameters3D.create(eye, down_light)
@@ -4080,6 +4100,34 @@ func _vista_probe() -> void:
 	print("[vista] on the way    %d of %d point(s) on a %.0f m walk see the "
 		% [on_route, route_points, walk_run]
 		+ "Prize, furthest %.1f m" % furthest)
+	# ─ 6. **and the moment is there, on every generated floor** ─
+	#
+	# `M4-T28`'s threshold, which ADR-207 declined to set until a guarantee
+	# existed to earn it (ADR-215). `DelvingsFloor.vista` lays a glint where the
+	# plan's own walk sees it; this asks the **navmesh** walk and the **physics**
+	# engine the same question — forward, from outside the glint's room, at
+	# `FloorVista.NEAR` or more — so the two halves of the claim are measured by
+	# different instruments and cannot share a blind spot.
+	#
+	# Generated floors only. The Deep is hand-placed, and its vista is `M4-T23`'s
+	# photograph rather than a rule anybody has to guarantee.
+	if delved != null:
+		var bait: Array = delved.vista()
+		var laid: String = "" if bait.is_empty() else "%s at (%.1f, %.1f), " % [
+			String(bait[0]), (bait[1] as Vector3).x, (bait[1] as Vector3).z]
+		print("[vista] the bait     %s%s" % [laid, delved.vista_reason()])
+		print("[vista] a moment    %d point(s) see a glint forward, from outside "
+			% moment_points
+			+ "its room, furthest %.1f m, against %d point(s) at %.1f m asked"
+			% [moment_far, FloorVista.SEEN_LEAST, FloorVista.NEAR])
+		if moment_far < FloorVista.NEAR or moment_points < FloorVista.SEEN_LEAST:
+			problems.append(("the walk sees a glint forward, from outside its own "
+				+ "room, from %d point(s) and at most %.1f m, against %d at %.1f m "
+				+ "— `DES-015` asks every floor for one moment of something "
+				+ "valuable and distant to route toward, and "
+				+ "`DelvingsFloor.vista` exists to guarantee it")
+				% [moment_points, moment_far, FloorVista.SEEN_LEAST,
+					FloorVista.NEAR])
 
 	print("[vista] worth is what you can see")
 	_report(problems, "vista")
@@ -5547,9 +5595,12 @@ func _machine_probe() -> void:
 				+ "posts none — the stamping decided an encounter nothing "
 				+ "spawns") % [seed_at, wants_bodies])
 			continue
-		# Fixtures are the Prize, the Waystone and machine gear. The floor has
-		# to carry more of them than the two it carries without any machine.
-		if wants_gear > 0 and made.fixtures().size() <= 2:
+		# Fixtures are the Prize, the Waystone, machine gear and — when the floor
+		# needs one — the vista's glint (ADR-215). The floor has to carry more
+		# than the two it carries without any machine, **not counting the
+		# glint**, or a floor that laid a bead and dropped its gear would pass.
+		var glint: int = 0 if made.vista().is_empty() else 1
+		if wants_gear > 0 and made.fixtures().size() - glint <= 2:
 			problems.append(("seed %d wants %d piece(s) of machine gear and the "
 				+ "floor lays only the Prize and the Waystone — the gear was "
 				+ "decided and never placed") % [seed_at, wants_gear])
