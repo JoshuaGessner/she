@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="EnemyResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://systems/enemies/enemy_resource.gd" id="1_enemy"]
+[ext_resource type="Script" path="res://systems/enemies/attack_resource.gd" id="2_attack"]
+
+[sub_resource type="Resource" id="Resource_attack"]
+script = ExtResource("2_attack")
+telegraph = 0.7
+active = 0.15
+recovery = 0.7
+damage = 45.0
+damage_type = 1
+reach = 3.0
+heavy = true
+
+[resource]
+script = ExtResource("1_enemy")
+id = &"enm_hoard_keeper"
+name_key = &"enemy.enm_hoard_keeper.name"
+health = 120.0
+poise = 120.0
+poise_regen = 15.0
+stagger = 0.5
+walk_speed = 1.4
+run_speed = 2.6
+turn_rate = 0.08
+armour_class = 1
+leash = 4.0
+clamor_struck = 0.0
+wakes_within = 5.0
+attack = SubResource("Resource_attack")

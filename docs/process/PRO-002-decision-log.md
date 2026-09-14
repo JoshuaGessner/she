@@ -8322,5 +8322,58 @@ Through plate a cut lands a fifth and blunt lands whole, so a seax does 3 a swin
 - **The byrnie turns an eighth of the Warden's blow and a guard nothing**, so a Húskarl meeting one without a hammer or a shield has one answer — the door it holds is a door to go around, which is `DES-013`'s *go around, shove past, or pay for it*.
 - `M4-T03`'s shield now has a blow to stop.
 
+## ADR-233 — The Hoard-Keeper: nothing beyond its post wakes it, and nothing beyond its post keeps it
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T02` (step 3 of ADR-230's seven)** · **Builds `DES-013`'s Guardian**
+
+**Context:** `DES-013` calls the Guardian *the most important role* — *stationary, sits on high-value loot, it will never come to you* — and ADR-230 casts the Hoard-Keeper in it: mailed, a heavy thrust, on the Prize. ADR-232's leash already stops a body following you far, but it does not stop one **waking**. A Wretch sees a lit body at sixteen metres and hears a noise anywhere its sensor reaches, so a leashed Wretch on the Prize would still come the four metres its leash allows the moment you entered the room, stand at the edge facing you, and after `enemy_swarm_after` call the floor. That is a Blocker on a chest, not a Guardian: the danger is not self-selected if it starts before you choose to approach.
+
+### Decision
+
+- **`EnemyResource.wakes_within`**, in metres from the body's post, or `0` for everywhere. A body or a noise beyond it is not noticed at all: `_nearest_visible_player` skips a candidate outside it before asking whether it can be seen, and `_on_heard` drops a sound whose source is outside it.
+- **Asked every tick, not only while it sleeps.** A woken Keeper that loses you beyond its post goes through the ladder any enemy does when it loses you: out of patience, it looks where it last saw you, and then it walks home. So walking off its hoard is an answer to the fight, not only a way to avoid starting one.
+- **`validate` refuses a waking radius without a leash.** Something that wakes only near its post and then chases anywhere is a Guardian for the first second and a Wretch after it.
+- **`enm_hoard_keeper`** ⟨tune⟩: 120 health, 120 poise, regen 15, a 0.5 s stagger, walks 1.4 and runs 2.6, mailed, a 4 m leash, wakes within 5 m, and **silent when struck**. Its thrust telegraphs 0.7 s, lands 45 pierce at 3.0 m, is heavy, and recovers 0.7 s.
+
+**"Immobile" is read as "does not leave its hoard", not "cannot move".** A body that cannot step is killed for free from one pace beyond its reach, by a thrown axe (ADR-227) or anything else with range, and then the greed check costs nothing. Four metres of leash and three of reach make a seven-metre ring around the Prize that is the Keeper's, and none outside it.
+
+### What it does to a fight
+
+By the table, mail lets a cut through at a third, a thrust at two thirds and blunt at seven eighths, so the seax that walls on a Warden is merely poor here and the hammer is not needed. Its thrust is heavy, so a guard takes nothing off it: 45 into a bare body and 30 through a byrnie. It is silent when struck by choice: a fight on the Prize is heard by the floor only through what the player does, so taking a Keeper on is a private decision rather than one that turns every Wretch on the level. **It is not on any floor yet** — step 7 places archetypes.
+
+### Verification
+
+`--keeper-probe`, new and required. A Keeper and a Wretch stand four metres apart at the Guardian's post, and every row asks both:
+
+1. A noise 8.2 m from both, **both turned away** so only ears can wake them: the Wretch wakes and the Keeper does not.
+2. A lit, silent body 8.2 m away, both facing it: the Wretch wakes and the Keeper does not.
+3. The same body 3.0 m from the Keeper: it wakes. This row stops a Keeper that never wakes from passing the first two.
+4. That body walks back out to 8.2 m, lit and in its sight: the Keeper is asleep and within 0.6 m of its post after 10.2 s, with the player still standing.
+
+The probe's distances are fixed, and it refuses to run if a retuned radius no longer lies between them, so a tuning change cannot read as a broken Keeper.
+
+**Four faults in the probe's first draft, each of which would have been a false reading:**
+
+- The two enemies were spawned beside the player, who was then moved away, and the Keeper was awake before the first row began — correctly, for a body two metres from its post. The player now stands at the far mark before anything spawns.
+- The archer's lane was clear down its middle, but a column stood between the Wretch's post and the far mark, and the row read as a Wretch that could not see a lit body at eight metres. `_keeper_ground` now requires both posts' sightlines; of the archer's post, the butt, the walk and strike marks, the hunter's post and the Guardian's, only the Guardian's has them.
+- The noise row relied on the player being unlit. That end of the room is bright enough to be seen from past eight metres without a lantern, and a planted Keeper with its sight ungated woke on that row **by seeing** — so the Wretch it was compared with may have been seeing too. Both now face away for it.
+- Row 3 stood the player at a share of `wakes_within`, and a planted radius of nought put the player inside the Keeper.
+
+**Planted and failed, one plant per run:**
+
+| Plant | Caught by |
+|---|---|
+| sight ignores the post | rows 2 and 4 |
+| hearing ignores the post | row 1 |
+| the Keeper's radius set to 0 | rows 1, 2 and 4 |
+| the gate never lets anything through | row 3 |
+| a waking radius with no leash | `data_probe` |
+| a radius under 3 m, and one over 8.2 m | the probe's own guard |
+
+### Consequences
+
+- **Until step 4, a Keeper held at its leash edge still calls the floor**, like every other body. Row 4's sight plant showed it: a Keeper that kept seeing a player it could not reach went to `SWARM`. ADR-230's step 4 makes the Bellringer the only enemy that calls, which is the step that removes this.
+- `DES-013`'s Guardian row is built for the slice. The Draugr's *aggros on theft, not proximity* is a different trigger and stays with the Barrow-Fields (`M5-T04`).
+
 *Entries below to be added as design decisions are signed off.*
 

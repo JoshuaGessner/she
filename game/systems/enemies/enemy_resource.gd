@@ -41,6 +41,12 @@ extends Resource
 ## *deafeningly loud when struck*: dead armour ringing, which is what makes
 ## fighting it a decision about the floor as well as about the fight ⟨tune⟩.
 @export var clamor_struck: float = 0.0
+## **How near its post a thing has to be for it to notice** (ADR-233), in metres,
+## or `0` for anywhere it can see or hear. `DES-013`'s Guardian is *purely
+## optional — it will never come to you*: nothing it sees or hears beyond this
+## wakes it, so a Hoard-Keeper is a fight that only happens to a body that walks
+## up to what it sits on ⟨tune⟩.
+@export var wakes_within: float = 0.0
 
 @export_group("Attack")
 ## The one blow it deals. One, not `TEC-006`'s list: no archetype in the slice
@@ -69,8 +75,13 @@ func validate() -> PackedStringArray:
 			% [id, run_speed, walk_speed])
 	if turn_rate <= 0.0:
 		problems.append("%s cannot turn" % id)
-	if leash < 0.0 or clamor_struck < 0.0:
-		problems.append("%s has a negative leash or a negative ring" % id)
+	if leash < 0.0 or clamor_struck < 0.0 or wakes_within < 0.0:
+		problems.append("%s has a negative leash, ring or waking radius" % id)
+	# Something that only wakes near its post and then chases anywhere is a
+	# Guardian for the first second and a Wretch after it.
+	if wakes_within > 0.0 and leash <= 0.0:
+		problems.append(("%s wakes only within %.1f m of its post and has no leash — "
+			+ "once woken it would follow you off the Prize") % [id, wakes_within])
 	# A leash shorter than its own reach holds it somewhere it can never land a
 	# blow on anything that came to it, which is a statue.
 	if leash > 0.0 and attack != null and leash < attack.reach:

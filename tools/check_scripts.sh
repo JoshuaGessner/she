@@ -620,6 +620,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Hoard-Keeper** (`M4-T02` step 3, ADR-233). A noise and a lit body
+	# beyond its post wake the Wretch beside it and not the Keeper; the same lit
+	# body inside the post wakes it, so a Keeper that never wakes cannot pass;
+	# and a player who walks off its post is let go and it goes home.
+	keeper="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --keeper-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$keeper" \
+			|| ! grep -q "^\[keeper\] left for" <<<"$keeper"; then
+		echo "FAIL a Hoard-Keeper has to wake for its hoard and nothing else" >&2
+		printf '%s\n' "$keeper" | grep -E '\[keeper\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`

@@ -539,6 +539,9 @@ func _nearest_visible_player(tuning: TuningProfile) -> Node3D:
 		var candidate := node as Player
 		if candidate == null or not _worth_fighting(candidate):
 			continue
+		# **Nothing beyond its post wakes a Guardian** (ADR-233).
+		if not _near_its_post(candidate.global_position):
+			continue
 		if not _can_see(candidate, tuning):
 			continue
 		var distance: float = global_position.distance_to(candidate.global_position)
@@ -552,8 +555,21 @@ func _nearest_visible_player(tuning: TuningProfile) -> Node3D:
 ## is a real input. Deciding inside the signal would mean `_heard_for` only ever
 ## rises, and a room once disturbed would stay disturbed for good.
 func _on_heard(where: Vector3, _loudness: float) -> void:
+	# A noise across the floor is not a Hoard-Keeper's business (ADR-233).
+	if not _near_its_post(where):
+		return
 	_hearing_now = true
 	_heard_at = where
+
+
+## Whether `point` is close enough to this body's post for it to notice
+## (ADR-233). Everywhere, for an archetype with no `wakes_within`.
+func _near_its_post(point: Vector3) -> bool:
+	if _kind == null or _kind.wakes_within <= 0.0:
+		return true
+	var out: Vector3 = point - _home
+	out.y = 0.0
+	return out.length() <= _kind.wakes_within
 
 
 ## Noise moves UNAWARE to SUSPICIOUS, never straight to ALERTED. DES-013 is

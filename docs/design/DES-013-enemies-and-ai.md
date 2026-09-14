@@ -80,6 +80,8 @@ Roster is defined by *what problem it poses*, never by "fire guy / ice guy":
 
 **The Guardian role is the most important one.** An enemy that *never* threatens you unless you approach it is the purest possible expression of Pillar P1 — the danger is entirely self-selected.
 
+> **Built for the slice as the Hoard-Keeper** (ADR-233). Nothing beyond 5 m of its post wakes it — not a lit body, not a noise — and a player who walks back out past that is lost, looked for where last seen, and left. *Immobile* is read as *does not leave its hoard*: it has a 4 m leash, because a Guardian that cannot step is killed for free by anything with range. It is silent when struck, so the floor hears a fight on the Prize only through what the player does. ⟨tune⟩
+
 ## Roster sketch (~12 at 1.0)
 
 > **Built by `M4-T02`** (~6 archetypes, the slice) and **`M5-T04`** (the full roster). A sketch of twelve enemies is a content budget, so it names the milestones that spend it (ADR-077).

@@ -835,6 +835,8 @@ func _ready() -> void:
 			_archetype_probe()
 		elif arg == "--warden-probe":
 			_warden_probe()
+		elif arg == "--keeper-probe":
+			_keeper_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -11139,6 +11141,200 @@ func _warden_probe() -> void:
 
 	_session.clear_enemies()
 	_report(problems, "warden")
+
+
+## Where the Keeper's probe stands the player: well inside its post, then well
+## beyond it, measured along the line from between the two posts.
+const KEEPER_NEAR: float = 3.0
+const KEEPER_FAR: float = 8.0
+
+
+## **The Hoard-Keeper** (`M4-T02` step 3, ADR-233, `DES-013`'s Guardian).
+##
+## A Keeper and a Wretch stand side by side and the player is put somewhere
+## equally far from both posts, beyond the Keeper's waking radius: heard there,
+## then seen there, the Wretch wakes and the Keeper does not. Then the player
+## walks inside the radius, and the Keeper wakes — which is the row that stops a
+## Keeper that never wakes at all from passing the first two.
+func _keeper_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var keeper_kind: EnemyResource = EnemyCatalogue.by_id(&"enm_hoard_keeper")
+	if keeper_kind == null:
+		problems.append("no enm_hoard_keeper in the catalogue")
+		_report(problems, "keeper")
+		return
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, 0.0)
+	await _hold(0.3)
+	var line: Vector3 = _keeper_ground(GUARDIAN_POST)
+	if line == Vector3.ZERO:
+		problems.append("no line from the Guardian's post that both side posts can see down")
+		_report(problems, "keeper")
+		return
+	var side := Vector3(-line.z, 0.0, line.x) * 2.0
+	# Both posts face the far end of the line, where the player will stand.
+	var facing: float = atan2(-line.x, -line.z)
+	var keeper_post: Vector3 = GUARDIAN_POST + side
+	var wretch_post: Vector3 = GUARDIAN_POST - side
+	var far: Vector3 = GUARDIAN_POST + line * KEEPER_FAR
+	# The two distances have to straddle the post, or a retuned radius reads as
+	# a broken Keeper. Nought is let through: that is a Keeper with no post, and
+	# rows 1 and 2 are the ones that should say so.
+	if keeper_kind.wakes_within > 0.0 and (keeper_kind.wakes_within < KEEPER_NEAR
+			or keeper_kind.wakes_within > _flat_distance(far, keeper_post) - 1.0):
+		problems.append("the Keeper's %.1f m post no longer lies between this probe's %.1f m and %.1f m"
+			% [keeper_kind.wakes_within, KEEPER_NEAR, _flat_distance(far, keeper_post)])
+		_report(problems, "keeper")
+		return
+	# **Out there before anything is spawned.** The first draft spawned both
+	# beside the player and then moved the player away, and the Keeper had
+	# already seen them at two metres — inside its post, correctly.
+	player.lit = false
+	player.teleport(far, 0.0)
+	await _hold(0.3)
+	_session.spawn_enemy(keeper_post, facing, &"enm_hoard_keeper")
+	_session.spawn_enemy(wretch_post, facing)
+	await _hold(0.4)
+	var keeper: Enemy = null
+	var wretch: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null and body.archetype == &"enm_hoard_keeper":
+			keeper = body
+		elif body != null:
+			wretch = body
+	if keeper == null or wretch == null:
+		problems.append("the Keeper and its Wretch did not both arrive")
+		_report(problems, "keeper")
+		return
+	var awake := func(body: Enemy) -> bool:
+		return body.state() != Enemy.State.UNAWARE
+
+	# ─ 1. **heard from beyond its post** ─ both turned away, so only ears
+	# can wake them. Dark was not enough: the Prize lights the far end, and a
+	# planted Keeper with sight ungated woke on this row by *seeing* a body the
+	# row called unlit — which means the Wretch may have been seeing it too.
+	for body: Enemy in [keeper, wretch]:
+		_put_back(body, facing + PI)
+	await _hold(0.3)
+	for i: int in range(60):
+		player.clamor.add(2.0)
+		await get_tree().physics_frame
+	await _hold(0.3)
+	var heard: Array = [awake.call(keeper), awake.call(wretch)]
+	print("[keeper] a noise %.1f m from both   Keeper woke %s, Wretch woke %s (want false, true)"
+		% [_flat_distance(far, keeper_post), heard[0], heard[1]])
+	if heard[0] or not heard[1]:
+		problems.append(("a noise beyond the Keeper's %.1f m woke the Keeper %s and "
+			+ "the Wretch %s — a Guardian never comes to you")
+			% [keeper_kind.wakes_within, heard[0], heard[1]])
+
+	# ─ 2. **seen from beyond its post** ─ lit and silent
+	for body: Enemy in [keeper, wretch]:
+		_put_back(body, facing)
+	player.clamor.silence()
+	player.lit = true
+	await _hold(1.2)
+	var seen: Array = [awake.call(keeper), awake.call(wretch)]
+	print("[keeper] a lit body %.1f m away    Keeper woke %s, Wretch woke %s (want false, true)"
+		% [_flat_distance(far, keeper_post), seen[0], seen[1]])
+	if seen[0] or not seen[1]:
+		problems.append(("a lit body beyond the Keeper's %.1f m woke the Keeper %s and "
+			+ "the Wretch %s") % [keeper_kind.wakes_within, seen[0], seen[1]])
+
+	# ─ 3. **and inside it, the Keeper wakes** ─ at a fixed distance, not a
+	# share of `wakes_within`: a share of a planted radius of nought stood the
+	# player inside the Keeper, where nothing can be seen.
+	#
+	# The Wretch is held still from here: row 4 keeps the player standing for
+	# nine seconds, a Wretch awake beside them would fell them, and a downed
+	# body ends any archetype's chase — so the Keeper letting go would prove
+	# nothing about its post.
+	for body: Enemy in [keeper, wretch]:
+		_put_back(body, facing)
+	wretch.process_mode = Node.PROCESS_MODE_DISABLED
+	player.teleport(keeper_post + line * KEEPER_NEAR, 0.0)
+	await _hold(1.2)
+	var near_woke: bool = awake.call(keeper)
+	print("[keeper] a lit body %.1f m from it  Keeper woke %s (want true)"
+		% [KEEPER_NEAR, near_woke])
+	if not near_woke:
+		problems.append("a lit body inside the Keeper's post did not wake it, so it "
+			+ "guards nothing and the rows above prove nothing")
+
+	# ─ 4. **and leave, and it lets you go** ─ still lit, still in its sight
+	# cone, beyond its post and beyond its leash and reach: it loses you, looks
+	# where it last saw you, and walks home. A Keeper whose sight ignored its
+	# post would go on seeing a lit body at eight metres and never would.
+	player.teleport(far, 0.0)
+	var budget: float = Config.tuning.enemy_patience * 2.0 + 4.0
+	var waited: float = 0.0
+	while waited < budget and not (keeper.state() == Enemy.State.UNAWARE
+			and _flat_distance(keeper.global_position, keeper_post) < 0.6):
+		await _hold(0.25)
+		waited += 0.25
+	var home: bool = keeper.state() == Enemy.State.UNAWARE \
+		and _flat_distance(keeper.global_position, keeper_post) < 0.6
+	print("[keeper] left for %.1f m          Keeper home and asleep %s after %.1f s, player standing %s (want true, true)"
+		% [_flat_distance(far, keeper_post), home, waited, not player.is_incapacitated()])
+	if not home or player.is_incapacitated():
+		problems.append(("a player who left the Keeper's post for %.1f m was still held "
+			+ "after %.1f s (state %s, %.1f m from its post, player down %s) — a Guardian "
+			+ "that follows you off its hoard is not optional")
+			% [_flat_distance(far, keeper_post), waited, keeper.state(),
+				_flat_distance(keeper.global_position, keeper_post), player.is_incapacitated()])
+	player.lit = false
+	_session.clear_enemies()
+	_report(problems, "keeper")
+
+
+## A direction from `post` down which a body `KEEPER_FAR` out can be seen from
+## two metres either side of it — the Keeper's probe stands its two enemies
+## there. `_throw_line` alone was not enough: its line ran clear down the
+## middle while a column stood between the Wretch's post and the far end, and
+## the row read as a Wretch that could not see a lit body at eight metres.
+## None of the archer's lane, the butt or the walk marks has one; the
+## Guardian's post does.
+func _keeper_ground(post: Vector3) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var eye := Vector3.UP * 1.6
+	var chest := Vector3.UP * 0.9
+	for step: int in range(16):
+		var direction := Vector3(cos(TAU * step / 16.0), 0.0, sin(TAU * step / 16.0))
+		var side := Vector3(-direction.z, 0.0, direction.x) * 2.0
+		var far: Vector3 = post + direction * KEEPER_FAR
+		# [from, to]: room to stand down the middle, then each post's view.
+		var sightlines: Array = [
+			[post + chest, post + direction * (KEEPER_FAR + 4.0) + chest],
+			[post + side + eye, far + chest],
+			[post - side + eye, far + chest],
+		]
+		var clear: bool = true
+		for pair: Array in sightlines:
+			var query := PhysicsRayQueryParameters3D.create(pair[0], pair[1])
+			query.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(query).is_empty():
+				clear = false
+				break
+		if clear:
+			return direction
+	return Vector3.ZERO
+
+
+## An enemy back on its own post, facing `yaw`, knowing nothing — between two
+## rows of a probe that need the same body to start from the same place.
+func _put_back(body: Enemy, yaw: float) -> void:
+	body.global_position = body.get("_home")
+	body.velocity = Vector3.ZERO
+	body.rotation.y = yaw
+	body.set("_state", Enemy.State.UNAWARE)
+	body.set("_heard_for", 0.0)
+	body.set("_patience", 0.0)
+	body.set("_target", null)
 
 
 func _flat_distance(a: Vector3, b: Vector3) -> float:
