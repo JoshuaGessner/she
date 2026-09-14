@@ -74,6 +74,10 @@ const MAX_PARTY: int = 4
 ## coins this is — and passing the id alone made *putting something down* mean
 ## less than it does.
 signal dropped(item: ItemInstance, at: Vector3, yaw: float, launch: Vector3)
+## On the owning peer, once the host has carried a stash down into this body's
+## bag: which of the records it was sent fit (ADR-228). What did not fit stays
+## banked, so the owner withdraws exactly these and nothing is lost to a full bag.
+signal carried_down(taken: PackedInt32Array)
 ## A shot resolved on the host (`M3-T11`). **Signals up, calls down**: spawning
 ## is `CoopSession`'s job alone (ADR-112), so the body says an arrow left it and
 ## the session is what puts one in the world.
@@ -295,10 +299,29 @@ var effects: PackedStringArray = PackedStringArray():
 ## Empty means a life that has never equipped anything, and the class kit
 ## dresses it instead — which is a fresh life, and also every profile migrated
 ## up from before slots existed.
+##
+## **And the host keeps it true for the whole floor** (ADR-228). It was written
+## only by a declaration, so an item equipped mid-run changed the host's copy of
+## the body and nobody else's: the owner went on swinging the old weapon, and
+## declared it on the next floor over the one the host had taken out of the bag.
+## Now the host records it on every change (`_record_wear`), it replicates like
+## any other state, and every peer dresses the body again from it — the gear
+## only, never the health or the tree, which a re-dress has no business with.
 var wearing: Dictionary = {}:
 	set(value):
 		wearing = value
-		_redress()
+		if not _recording_wear:
+			_dress_again()
+
+## True while the host writes `wearing` from what the body already wears, so
+## the setter does not dress it again in what it is wearing (ADR-228).
+var _recording_wear: bool = false
+## True while `_dress_again` is putting gear on, so the slots emptying on the
+## way are not recorded as what the body wears (ADR-228).
+var _dressing: bool = false
+## Host-side: this body's owner has already had a stash carried down on this
+## floor, and may not ask again (ADR-228).
+var _stash_came_down: bool = false
 
 ## **Planted** (`M3-T02`, `DES-011`) — the Húskarl's verb, *Hold*.
 ##
@@ -1159,6 +1182,57 @@ func ask_to_drop_instance(instance_id: int, thrown: bool = false) -> void:
 		_put_down(instance_id, thrown)
 	else:
 		_request_drop.rpc_id(HOST_PEER, instance_id, thrown)
+
+
+## **Carry a stash down into this body's bag** (ADR-228). `rows` are item
+## records, the Scar with them; the answer arrives as `carried_down`.
+##
+## A request like every other change to a bag, because the host owns every
+## body's inventory. The floor used to add the stash straight into the local
+## body — right for the host, and on a client a body that did not exist yet, so
+## a client's stash never came down at all: not its kit's bindings, not what
+## she kept in Legacy.
+func ask_to_carry_down(rows: Array) -> void:
+	if multiplayer.is_server():
+		carried_down.emit(carry_down(rows))
+	else:
+		_request_carry_down.rpc_id(HOST_PEER, rows)
+
+
+@rpc("any_peer", "reliable")
+func _request_carry_down(rows: Array) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	# **Once per body.** A stash comes down when a floor does; a second request
+	# from the same body is a client minting items into its bag mid-run, and a
+	# declaration can only do that once a floor either.
+	if _stash_came_down:
+		return
+	_stash_came_down = true
+	_tell_what_came_down.rpc_id(get_multiplayer_authority(), carry_down(rows))
+
+
+## Host-side: bring each record into the bag, and say which fit. Untrusted like
+## a declared bag (`ItemInstance.from_record`): the same client already tells
+## the host what it carried off the last floor, and neither is progression.
+func carry_down(rows: Array) -> PackedInt32Array:
+	var taken := PackedInt32Array()
+	if not multiplayer.is_server():
+		return taken
+	for index: int in rows.size():
+		var item: ItemInstance = ItemInstance.from_record(rows[index], 0)
+		if item != null and inventory.bring(item) != null:
+			taken.append(index)
+	return taken
+
+
+@rpc("any_peer", "reliable")
+func _tell_what_came_down(taken: PackedInt32Array) -> void:
+	if multiplayer.get_remote_sender_id() != HOST_PEER:
+		return
+	carried_down.emit(taken)
 
 
 ## **Throw what is in the hand** (ADR-227). The aim is the owner's — where they
@@ -2471,8 +2545,34 @@ func _redress() -> void:
 	_shape_the_body(body)
 	if health.current > health.maximum or health.current <= 0.0:
 		health.restore()
+	_dress_again()
+
+
+## **Take everything off and put on what `wearing` says** (ADR-228).
+##
+## The gear half of `_redress`, and all a change of clothes may touch: a peer
+## re-dressing a downed teammate must not also restore their health, which the
+## whole `_redress` would, and replication would never correct it because the
+## host's value did not change.
+func _dress_again() -> void:
+	if equipment == null:
+		return
+	_dressing = true
 	equipment.clear()
-	_dress_the_body(body)
+	_dress_the_body(ClassCatalogue.by_id(sworn))
+	_dressing = false
+	_record_wear()
+
+
+## **The host writes down what this body wears, for every peer** (ADR-228).
+## Not while dressing, when the slots are briefly empty, and never on a client:
+## what a body wears is a consequence, and consequences have one owner.
+func _record_wear() -> void:
+	if _dressing or equipment == null or not multiplayer.is_server():
+		return
+	_recording_wear = true
+	wearing = equipment.to_wire()
+	_recording_wear = false
 
 
 ## **Every multiplier the class puts on the body, in one place** (ADR-224).
@@ -2495,6 +2595,10 @@ func _dress_the_body(body: ClassResource) -> void:
 	# hammer would find the seax back in their hand every descent.
 	if not wearing.is_empty():
 		for name: String in wearing:
+			# An empty slot, written as one (ADR-228) — which is what keeps a
+			# body that put everything away from being handed the kit again.
+			if wearing[name] == null:
+				continue
 			# **A record, so a Scar survives being worn** (ADR-223). This read
 			# an id and minted a whole item from it, so a Legacy weapon worn
 			# down one Shaft came back at full power and tributable.
@@ -2570,6 +2674,7 @@ func _on_equipment_changed() -> void:
 	# actually wearing, and never written for a teammate's body.
 	if _is_local:
 		GameState.worn = equipment.to_wire()
+	_record_wear()
 	# **What is worn weighs** (ADR-224), so putting a thing on or taking it off
 	# changes the load even when the bag it came from is not asked to change.
 	_reweigh()

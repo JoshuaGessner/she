@@ -163,9 +163,17 @@ func grid_size() -> Vector2i:
 ## rather than indices: an enum reordered later must not silently move a helm
 ## onto a hand. **Records, not ids** (save v10, ADR-223) — a Scarred seax worn
 ## through one descent came back whole, because an id cannot say it was Scarred.
+##
+## **Every slot, and an empty one says so with `null`** (ADR-228). An empty
+## dictionary is what `Player._dress_the_body` reads as *never dressed*, and it
+## dresses the class kit — so a body that had put everything away wrote exactly
+## that, and a Veiðimaðr who stowed the bow before the Shaft was handed a second
+## one on the next floor. Wearing nothing and never having dressed are now two
+## different dictionaries.
 func to_wire() -> Dictionary:
 	var rows: Dictionary = {}
-	for slot: Enums.Slot in _worn:
-		var item: ItemInstance = _worn[slot] as ItemInstance
-		rows[Enums.Slot.keys()[slot]] = item.to_record()
+	for slot: Enums.Slot in [Enums.Slot.MAIN_HAND, Enums.Slot.OFF_HAND,
+			Enums.Slot.ARMS, Enums.Slot.HEAD, Enums.Slot.BODY, Enums.Slot.PACK]:
+		var item: ItemInstance = in_slot(slot)
+		rows[Enums.Slot.keys()[slot]] = item.to_record() if item != null else null
 	return rows

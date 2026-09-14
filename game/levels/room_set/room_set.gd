@@ -596,6 +596,15 @@ func _ready() -> void:
 			GameState.class_id = &"huskarl"
 		if arg == "--stalker-probe":
 			GameState.class_id = &"veidimadr"
+		# **A stash to carry down** (ADR-228), before the floor carries it. The
+		# `--as-class=` lever for the one thing a harness process has no profile
+		# to hold: two processes on one machine cannot both have banked gear, and
+		# a client's stash reaching its bag is the question.
+		if arg.begins_with("--as-stash="):
+			for id: String in arg.split("=", true, 1)[1].split(",", false):
+				var banked: ItemResource = ItemCatalogue.by_id(StringName(id))
+				if banked != null:
+					GameState.stash.append(ItemInstance.of(banked, GameState.stash.size() + 1))
 		# **A cycle that closed short, set up before the floor exists**
 		# (ADR-124). The whole question is what the *floor* does about it, and
 		# a debt arranged after `_ready` would be a reconstruction of the order
@@ -790,6 +799,8 @@ func _ready() -> void:
 			_toll_probe()
 		elif arg == "--extraction":
 			_extraction()
+		elif arg == "--carried":
+			_carried()
 		elif arg == "--abandoned":
 			_abandoned()
 		elif arg == "--again":
@@ -8064,31 +8075,58 @@ func _spawn_actors() -> void:
 ## with you, and never once take one back down. `M2-T06` is called *"stash and
 ## re-descend"* and only the first half was built.
 ##
-## It is host-side and local, and those are the same thing here. `GameState` is
-## never networked (`TEC-004`, ADR-021) — every peer holds only its own — so
-## each process loads its own stash into its own body. Solo runs as host id 1,
-## so there is no second path for one player.
+## `GameState` is never networked (`TEC-004`, ADR-021) — every peer holds only
+## its own — so each process sends its own stash. **The host puts it in the
+## bag** (ADR-228), because the host owns every body's inventory: this added the
+## stash straight into the local body, which on a client was a body that did not
+## exist yet at `_ready` — the host builds it and the spawn arrives afterwards —
+## so a client's stash never came down at all, and nothing said so. Solo and the
+## host reach `Player.carry_down` directly; a client asks, once its body exists.
 ##
-## **What does not fit stays in the stash.** `Inventory.add()` returns null when
-## the grid has no room, and the honest answer to "your stash is bigger than
-## your bag" is that you carry what fits and the rest waits — not that the bag
-## silently grows, and not that the overflow is destroyed.
+## **What does not fit stays in the stash.** `Inventory.bring()` returns null
+## when the grid has no room, and the honest answer to "your stash is bigger
+## than your bag" is that you carry what fits and the rest waits — not that the
+## bag silently grows, and not that the overflow is destroyed. The host says
+## which records fit, and only those leave the stash.
 func _carry_the_stash_down() -> void:
 	if GameState.stash.is_empty():
 		return
+	var sent: Array[ItemInstance] = GameState.stash.duplicate()
+	var rows: Array = []
+	for item: ItemInstance in sent:
+		# Records, not definitions (ADR-223): the Scar travels with the item.
+		rows.append(item.to_record())
 	var body: Player = _session.local_player()
-	if body == null:
+	if multiplayer.is_server():
+		if body != null:
+			_withdraw_carried(body.carry_down(rows), sent, body)
 		return
-	var taken: int = 0
-	for item: ItemInstance in GameState.stash.duplicate():
-		# `bring`, not `add` (ADR-223): `add` minted a whole item from the
-		# definition, and this is where every Legacy item lost its Scar.
-		if body.inventory.bring(item) == null:
-			continue
-		GameState.withdraw(item)
-		taken += 1
+	_carry_down_when_the_body_arrives(sent, rows)
+
+
+## A client's half (ADR-228): wait for the body the host built, then ask.
+func _carry_down_when_the_body_arrives(sent: Array[ItemInstance], rows: Array) -> void:
+	var began: int = Time.get_ticks_msec()
+	var body: Player = _session.local_player()
+	while body == null:
+		await get_tree().physics_frame
+		if not is_inside_tree() or Time.get_ticks_msec() - began > PROBE_TIMEOUT_MSEC:
+			push_warning("RoomSet: no body arrived to carry the stash down into")
+			return
+		body = _session.local_player()
+	body.carried_down.connect(_withdraw_carried.bind(sent, body), CONNECT_ONE_SHOT)
+	body.ask_to_carry_down(rows)
+
+
+## Take out of the stash exactly what the host fit into the bag.
+func _withdraw_carried(taken: PackedInt32Array, sent: Array[ItemInstance],
+		body: Player) -> void:
+	for index: int in taken:
+		if index >= 0 and index < sent.size():
+			GameState.withdraw(sent[index])
 	print("[descent] carried %d of %d stashed item(s) down, %.1f kg" % [
-		taken, taken + GameState.stash.size(), body.inventory.total_weight()])
+		taken.size(), sent.size(), body.inventory.total_weight()
+		if is_instance_valid(body) else 0.0])
 
 
 # ── the guarantee, asserted rather than eyeballed ─────────────────────────
@@ -9081,6 +9119,95 @@ func _again() -> void:
 	var ends: Button = pause.way_out()
 	if ends != null:
 		ends.emit_signal("pressed")
+
+
+## **What a peer brought and what it wears, as both machines see it** (ADR-228).
+##
+## Two claims no single process can make, because each is about the host and a
+## client agreeing on something the client owns: a client's stash reaching the
+## bag the host holds for it, and a client's mid-run equip reaching the client's
+## own hands and the gear its next floor is built from.
+##
+## **Named without the word `probe`**, for `--extraction`'s reason turned the
+## other way: `_probing` skips carrying the stash down in `_ready`, and the
+## moment in `_ready` is the fault. It is not in `RunFile.HARNESS_FLAGS`, because
+## it opens no run file for that guard to protect.
+func _carried() -> void:
+	var role: String = "host" if multiplayer.is_server() else "client"
+	await _await_party()
+	var settling: int = Time.get_ticks_msec()
+	while not _session.everyone_declared():
+		await get_tree().physics_frame
+		if Time.get_ticks_msec() - settling > PROBE_TIMEOUT_MSEC:
+			break
+	await _hold(2.5)
+	_carried_census(role, "arrived")
+	# **And asked again, it brings nothing more.** A second request from one body
+	# is a client minting into its bag; the host refuses it, and the census after
+	# must match the one before.
+	if role == "client":
+		var asker: Player = _session.local_player()
+		if asker != null:
+			var again: Array = []
+			for id: String in ["con_linen_binding", "glt_gilt_bead"]:
+				again.append({"id": id, "scarred": false})
+			asker.ask_to_carry_down(again)
+	await _hold(1.0)
+	_carried_census(role, "again")
+	# **A spear handed over, then worn.** Handed by the host rather than taken
+	# from the stash, so this half is about a mid-run equip crossing the wire
+	# whether or not the stash half works.
+	if role == "host":
+		var other: Player = _client_body()
+		if other != null:
+			other.inventory.add(ItemCatalogue.by_id(&"wpn_ash_spear"))
+	await _hold(1.5)
+	if role == "client":
+		var mine: Player = _session.local_player()
+		if mine != null:
+			for held: ItemInstance in mine.inventory.items():
+				if held.definition.id == &"wpn_ash_spear":
+					mine.ask_to_equip(held.instance_id)
+					break
+	await _hold(2.0)
+	_carried_census(role, "equipped")
+	# **A re-dress changes clothes and nothing else.** The host puts the client
+	# on the floor and then changes what it holds: a peer that dressed the body
+	# again with the whole of `_redress` would also restore its health, and the
+	# host's value never changing would leave it standing on its own screen.
+	if role == "host":
+		var fallen: Player = _client_body()
+		if fallen != null:
+			fallen.health.apply_damage(fallen.health.maximum * 2.0)
+			await _hold(0.8)
+			for stowed: ItemInstance in fallen.inventory.items():
+				if stowed.definition.id == &"tol_horn_lantern":
+					fallen._equip_from_bag(stowed.instance_id)
+					break
+	else:
+		await _hold(0.8)
+	await _hold(1.5)
+	_carried_census(role, "downed")
+	print("[carried] %s done" % role)
+
+
+## One line per body as this peer sees it, and one about this peer's own
+## profile: what its stash still holds and what it would declare it wears.
+func _carried_census(role: String, phase: String) -> void:
+	for player: Player in _session.players():
+		var who: String = "self" if player == _session.local_player() else "other"
+		var ids := PackedStringArray()
+		for item: ItemInstance in player.inventory.items():
+			ids.append(String(item.definition.id))
+		ids.sort()
+		var hand: ItemInstance = player.equipment.in_slot(Enums.Slot.MAIN_HAND)
+		print("[carried] %s %s %s bag=%s hand=%s health=%.0f" % [role, phase, who,
+			",".join(ids), hand.definition.id if hand != null else "none",
+			player.health.current])
+	var declared: Variant = GameState.worn.get("MAIN_HAND", {})
+	print("[carried] %s %s stash=%d declares=%s" % [role, phase,
+		GameState.stash.size(),
+		str((declared as Dictionary).get("id", "none")) if declared is Dictionary else "none"])
 
 
 ## **The last person standing leaves, and the run has to end** (`M3-T35`,

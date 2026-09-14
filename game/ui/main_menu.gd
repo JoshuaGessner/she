@@ -1094,6 +1094,29 @@ func _class_probe() -> void:
 		problems.append(("the byrnie's %.1f kg did not follow it: %.1f worn, %.1f "
 			+ "stowed, %.1f set down") % [coat_kilograms, dressed, stowed, shed])
 
+	# ── a body that put everything away is not handed the kit again ─────
+	#
+	# **ADR-228.** What is worn was written slot by slot for the slots in use,
+	# so a Veiðimaðr who stowed the bow wrote an empty dictionary, and an empty
+	# dictionary is what dresses the class kit — a second bow on the next floor,
+	# with the first still in the bag. Stowed, then dressed again from what the
+	# body reports wearing, which is what the next floor builds from.
+	fleet.ask_to_unequip(Enums.Slot.MAIN_HAND)
+	var reported: Dictionary = fleet.wearing.duplicate(true)
+	fleet.wearing = reported
+	var bows_held: int = 1 if fleet.equipment.in_slot(Enums.Slot.MAIN_HAND) != null else 0
+	var bows_bagged: int = 0
+	for carried_item: ItemInstance in fleet.inventory.items():
+		if carried_item.definition.has_trait(RangedTrait):
+			bows_bagged += 1
+	print("[class] stowed bow   after a re-dress: %d in the hand, %d in the bag (want 0, 1); reports %d slot(s)"
+		% [bows_held, bows_bagged, reported.size()])
+	if bows_held != 0 or bows_bagged != 1:
+		problems.append(("a Veiðimaðr who stowed the bow was dressed again with %d "
+			+ "in the hand and %d in the bag — putting everything away read as "
+			+ "never having dressed, and the kit is handed out again")
+			% [bows_held, bows_bagged])
+
 	plain.queue_free()
 	stout.queue_free()
 	fleet.queue_free()

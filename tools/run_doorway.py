@@ -334,6 +334,102 @@ def run_not_ready(port: int) -> dict[str, str]:
     return {"host": host.text(), "client0": client.text()}
 
 
+# **What a client brought, and what it wears** (ADR-228). Both processes bank
+# the same two things; the host hands the client a spear mid-run to equip.
+CARRIED_STASH = "--as-stash=con_linen_binding,glt_gilt_bead"
+CARRIED_ITEMS = ("con_linen_binding", "glt_gilt_bead")
+CARRIED_CEILING = 40
+
+
+def run_carried(port: int) -> dict[str, str]:
+    """**A client's stash and a client's mid-run equip** (ADR-228).
+
+    Both straight into the Deep, like the extraction: the fault is in the
+    floor's own `_ready`, which carried the stash into the body *this process*
+    plays — a body a client does not have yet at that moment, because the host
+    builds it and the spawn arrives afterwards. And an equip is the host's, so
+    one process can never say whether the owner's hands and next floor heard it.
+    """
+    host = launch(["--host", f"--port={port}", "--carried", CARRIED_STASH,
+                   SWORN], DEEP, "host")
+    time.sleep(3.0)
+    client = launch(["--join=127.0.0.1", f"--port={port}", "--carried",
+                     CARRIED_STASH, SWORN], DEEP, "client0")
+    for process in (client, host):
+        wait_for(process, "[carried] " + ("client" if process is client
+                                         else "host") + " done",
+                 CARRIED_CEILING)
+    for process in (host, client):
+        process.kill()
+    return {"host": host.text(), "client0": client.text()}
+
+
+def carried_rows(logs: dict[str, str]) -> list[tuple[str, bool, str]]:
+    """The rows `run_carried` is judged by, shared by the full run and `--carried`."""
+    def line(log: str, role: str, phase: str, who: str) -> dict[str, str] | None:
+        match = re.search(rf"\[carried\] {role} {phase} {who} bag=(\S*) hand=(\S+) "
+                          r"health=(\S+)", log)
+        return ({"bag": match.group(1), "hand": match.group(2),
+                 "health": match.group(3)} if match else None)
+
+    def own(log: str, role: str, phase: str) -> dict[str, str] | None:
+        match = re.search(rf"\[carried\] {role} {phase} stash=(\d+) declares=(\S+)", log)
+        return {"stash": match.group(1), "declares": match.group(2)} if match else None
+
+    def holds(found: dict[str, str] | None) -> bool:
+        return found is not None and all(
+            item in found["bag"].split(",") for item in CARRIED_ITEMS)
+
+    rows: list[tuple[str, bool, str]] = []
+    host_self = line(logs["host"], "host", "arrived", "self")
+    rows.append(("the host's stash reached its bag", holds(host_self),
+                 host_self["bag"] or "empty" if host_self else "no census"))
+    host_other = line(logs["host"], "host", "arrived", "other")
+    rows.append(("a client's stash reached the bag the host holds",
+                 holds(host_other),
+                 host_other["bag"] or "EMPTY" if host_other else "no census"))
+    client_self = line(logs["client0"], "client", "arrived", "self")
+    rows.append(("and the bag the client sees", holds(client_self),
+                 client_self["bag"] or "EMPTY" if client_self else "no census"))
+    client_own = own(logs["client0"], "client", "arrived")
+    rows.append(("and it left the client's stash",
+                 client_own is not None and client_own["stash"] == "0",
+                 f"{client_own['stash']} still banked" if client_own else "no census"))
+
+    again = line(logs["host"], "host", "again", "other")
+    rows.append(("and asked twice, the host brings it once",
+                 host_other is not None and again is not None
+                 and again["bag"] == host_other["bag"],
+                 again["bag"] or "EMPTY" if again else "no census"))
+
+    held_host = line(logs["host"], "host", "equipped", "other")
+    rows.append(("a client's equip, as the host holds it",
+                 held_host is not None and held_host["hand"] == "wpn_ash_spear",
+                 held_host["hand"] if held_host else "no census"))
+    held_client = line(logs["client0"], "client", "equipped", "self")
+    rows.append(("and in the client's own hands",
+                 held_client is not None and held_client["hand"] == "wpn_ash_spear",
+                 held_client["hand"] if held_client else "no census"))
+    declared = own(logs["client0"], "client", "equipped")
+    rows.append(("and in what its next floor is built from",
+                 declared is not None and declared["declares"] == "wpn_ash_spear",
+                 declared["declares"] if declared else "no census"))
+    down_host = line(logs["host"], "host", "downed", "other")
+    down_client = line(logs["client0"], "client", "downed", "self")
+    rows.append(("a downed client re-dressed stays down on its own screen",
+                 down_host is not None and down_client is not None
+                 and down_host["health"] == "0" and down_client["health"] == "0"
+                 and down_client["hand"] == down_host["hand"],
+                 f"host {down_host['health']}, client {down_client['health']}, "
+                 f"hand {down_client['hand']}" if down_host and down_client
+                 else "no census"))
+    for name, log in logs.items():
+        quiet = "SCRIPT ERROR" not in log
+        rows.append((f"nothing threw — carried, {name}", quiet,
+                     "quiet" if quiet else "script error"))
+    return rows
+
+
 def run(probe: str, port: int, seconds: int) -> dict[str, str]:
     """One scenario: a host, a client, and a door."""
     host = launch(["--host", f"--port={port}", probe, SWORN], CAMP, "host")
@@ -371,6 +467,21 @@ def census(log: str, tag: str) -> dict[str, str] | None:
 
 
 def main() -> int:
+    # One scenario on its own, for building it: the full run is minutes long.
+    if sys.argv[1:] == ["--carried"]:
+        carried = run_carried(PORT + 8)
+        rows = carried_rows(carried)
+        for label, passed, detail in rows:
+            print(f"  {label:<48}{detail:<34}{'ok' if passed else 'FAIL'}")
+        if not all(passed for _, passed, _ in rows):
+            for name, log in carried.items():
+                print(f"\n--- carried: {name} ---", file=sys.stderr)
+                for text in log.splitlines():
+                    if re.search(r"carried|descent|ERROR|SCRIPT", text):
+                        print(f"    {text}", file=sys.stderr)
+            return 1
+        return 0
+
     logs = run("--doorway-probe", PORT, SECONDS)
 
     rows: list[tuple[str, bool, str]] = []
@@ -653,6 +764,10 @@ def main() -> int:
     rows.append(("the one knocking is told why", told,
                  "told" if told else "left with no reason"))
 
+    # ── what a client brought, and what it wears (ADR-228) ───────────────
+    carried = run_carried(PORT + 8)
+    rows.extend(carried_rows(carried))
+
     ok = True
     print()
     for label, passed, detail in rows:
@@ -664,11 +779,11 @@ def main() -> int:
         for label, source in (("party door", logs), ("private door", private),
                               ("the way out", leaving),
                               ("left behind", behind), ("late join", late),
-                              ("not ready", unready)):
+                              ("not ready", unready), ("carried", carried)):
             for name, log in source.items():
                 print(f"\n--- {label}: {name} ---", file=sys.stderr)
                 for line in log.splitlines():
-                    if re.search(r"chamber|coop|extract|left|ERROR|SCRIPT",
+                    if re.search(r"chamber|coop|extract|left|carried|ERROR|SCRIPT",
                                  line):
                         print(f"    {line}", file=sys.stderr)
         return 1

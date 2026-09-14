@@ -8168,5 +8168,45 @@ So one trip to the floor made a Legacy relic whole and worth its full value to h
 - **`M4-T31` is built.** Loot bands (ADR-220), real reach and glancing (ADR-222), Regin's blade (ADR-223), worn weight and the class numbers (ADR-224), the Scar's last leaks (ADR-225), the frame, the chest and the pelt (ADR-226), and the axe. What `DES-023` §4 names for the kits and is not here is the Húskarl's round shield, which is `M4-T03`'s. The task's last clause, the vista bait against the new climb, needed nothing: ADR-215's bait is the cheapest glitter a depth holds, and nothing cheaper was added.
 - The axe is a real answer at range for a class with no bow, and it costs the thing in your hand in a game where an empty hand does not swing. Whether anyone throws it twice is a playtest question.
 
+## ADR-228 — A client's stash never reached its bag, and a client's gear never left the host
+
+**Date:** 2026-09-14 · **Status:** accepted · **Closes `M4-T33`** · **Changes what `Equipment.to_wire` writes (no save migration)** · **Prerequisite of `GATE M4 COOP`**
+
+**Context:** ADR-223 and ADR-224 each raised one unverified doubt about a client's items, and the developer asked for both to be worked together. A new two-process scenario, `run_doorway.py --carried`, was written first and run against the unchanged build. Both were real, and a third fault came out of fixing the second.
+
+### What the scenario showed before anything changed
+
+| Row | Before |
+|---|---|
+| the host's stash reached its bag | ok |
+| **a client's stash reached the bag the host holds** | **empty** |
+| **and the bag the client sees** | **empty** |
+| **and it left the client's stash** | **2 still banked** |
+| a client's equip, as the host holds it | spear |
+| **and in the client's own hands** | **seax** |
+| **and in what its next floor is built from** | **seax** |
+
+- **The stash.** `RoomSet._carry_the_stash_down` added the stash to `local_player()` in the floor's `_ready`. On the host that body exists. On a client it does not yet — the host builds it and the spawn arrives afterwards — so the function returned on its null check, silently, and the client descended without its stash: not the two bindings its kit puts there (ADR-221), not what she kept in Legacy. Had the body existed, the items would have gone into a bag the host overwrites on its next push.
+- **The gear.** `wearing` was written only by a declaration, so a mid-run equip changed the host's copy of the body and nobody else's. The client's screen held the seax in its hand *and* in its bag, swung with the seax's timing, and wrote the seax to `GameState.worn` — which the next floor's declaration sends, and the host would have dressed the body in it over the spear it had already taken out of the bag. The spear would have existed nowhere.
+- **Found while fixing the gear: an empty wardrobe hands out the kit.** `Equipment.to_wire` wrote only the slots in use, and `Player._dress_the_body` reads an empty dictionary as *never dressed* and dresses the class kit. So a Veiðimaðr who stowed the bow before the Shaft was given a second bow on the next floor, with the first still in the bag — solo as well as in co-op. It was reachable before; the fix below would have made it happen every time a body put everything away.
+
+### Decision
+
+- **The host carries every stash down.** `Player.carry_down(records)` brings each item into the bag the host owns and returns which records fit; the floor calls it directly on the host, and a client asks through `ask_to_carry_down` once its body exists, gets `carried_down` back, and withdraws exactly those. What does not fit stays banked, as it always did. Records carry the Scar (ADR-223). A client may ask **once per body**: a second request is a client minting into its bag mid-run. The records are untrusted in the way a declared bag already is — the same client tells the host what it carried off the last floor, and neither is progression (`TEC-004`).
+- **The host records what every body wears.** On every equip change it writes `wearing` from the equipment (`_record_wear`), `wearing` already replicates, and every peer dresses the body again from it. **A re-dress changes the gear and nothing else** (`_dress_again`): the whole `_redress` restores health on a body at zero, and a client re-dressing a downed teammate would have stood them up on its own screen, where the host's unchanged value would never have corrected it. Recording is suppressed while dressing, when the slots are briefly empty.
+- **Every slot is written, and an empty one is `null`.** Wearing nothing and never having dressed are now different dictionaries. No migration: a saved wardrobe from before this reads exactly as it did, including the one case that was already wrong — an empty wardrobe from a life that had put everything away, which dresses the kit once more and is written properly after.
+
+This also closes a quieter door: an effects change mid-life (`M3-T13`'s respec) re-dressed from the gear declared when the floor began, which is the same loss by another route.
+
+### Verification
+
+`run_doorway.py --carried` — both processes boot straight into the Deep with the same banked stash, and the host hands the client a spear mid-run — now passes every row: both stashes in both bags as each peer sees them and gone from the client's stash; a second request brings nothing; the spear in the host's copy, the client's hands and the client's declaration; and a client put on the floor and then re-dressed is still at 0 health on both screens, holding what the host says. `--class-probe` gains a row: a Veiðimaðr stows the bow, is dressed again from what it reports wearing, and holds nothing with one bow in the bag. **Planted and failed, one plant per run:** a client's stash not sent; the host not recording what a body wears; a second request not refused; a re-dress that is the whole `_redress` (the client stood up at 125 on its own screen); and an empty slot left out of the wardrobe (a second bow in the hand). **Slots emptying mid-dress recorded as the wardrobe was not caught by the class probe**, whose bodies are undressed when they are dressed again, so nothing empties; `--scar-probe` re-dresses a body holding a seax, and there the plant left it holding nothing. The first run of the scenario against the unchanged build is the plant for the two faults themselves.
+
+### Consequences
+
+- **A client now descends with its kit's bindings and its Legacy items**, which it never has in any co-op run before this. `GATE M4 COOP` is the first real test of a party where everyone has what they kept.
+- **The ADR-227 axe gap is closed with it**: a client's thrown axe now leaves its hand on its own screen.
+- **Not tested: a client whose stash is larger than its bag.** The host answers with the records that fit and the client withdraws only those, but no scenario fills a client's bag first.
+
 *Entries below to be added as design decisions are signed off.*
 
