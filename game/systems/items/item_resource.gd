@@ -144,7 +144,8 @@ func validate() -> PackedStringArray:
 	var problems := PackedStringArray()
 	# A weapon nothing can hold is cargo with a damage number on it, and the
 	# whole point of `M3-T07` is that `WieldableTrait` finally has a reader.
-	if slot == Enums.Slot.NONE and (has_trait(WieldableTrait) or has_trait(RangedTrait)):
+	if slot == Enums.Slot.NONE and (has_trait(WieldableTrait) or has_trait(RangedTrait)
+			or has_trait(ThrownTrait)):
 		problems.append(("%s is a weapon in no slot — it can never be held, so "
 			+ "its wieldable numbers are read by nothing") % id)
 	# **Armour is the torso's alone** (ADR-219, `DES-023` §3). A class on a helm

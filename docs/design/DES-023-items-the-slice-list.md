@@ -37,7 +37,7 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 | id | What only it does | Costs | Source |
 |---|---|---|---|
 | `wpn_seax` *(exists)* | The fastest blade, **and it leaves a hand free** — for a shield or a light | Short reach; four blows to break a poise a hammer breaks in one | Húskarl kit · floor 0+ |
-| `wpn_bearded_axe` | **The one thrown thing that wounds.** Throw is a verb for everything (`DES-009`); only this lands as a blow — at the price of the weapon, which lies where it landed and rings when it hits | One-handed and slower than the seax; a thrown axe leaves you empty-handed | floor 1+ gear |
+| `wpn_bearded_axe` *(built, ADR-227)* | **The one thrown thing that wounds.** Throw is a verb for everything (`DES-009`); only this lands as a blow — at the price of the weapon, which lies where it landed and rings when it hits | One-handed and slower than the seax; a thrown axe leaves you empty-handed | floor 1+ gear |
 | `wpn_ash_spear` *(exists)* | **Hits from outside the reach of anything else that swings** | Two-handed; **useless in a corridor** — built by ADR-222: its 3.7 m glances off a wall a seax clears, on about one swing in five | floor 0+ gear |
 | `wpn_dvergar_hammer` *(exists)* | **Breaks a poise in one blow, and is the only thing plate does not turn** (§3) | Two-handed, slowest, loudest swing in the game | floor 1+ gear |
 | `wpn_yew_bow` *(exists)* | **Loud where it lands, not where it is loosed** — a weapon and a misdirection tool (`DES-009`) | Two-handed: no light, no shield; does not also swing | Veiðimaðr kit |
@@ -142,11 +142,11 @@ A floor dealt its loot from **the entire item folder**, sorted by worth and cut 
 | **Armour classes and the triangle**, for players and enemies | §3 — the byrnie does nothing today | `M4-T02`, with the attacks that carry types |
 | **A shield that stops heavy blows and missiles** | §3 | `M4-T03`, the Húskarl's |
 | **Wounds**, which the helm and bracers turn away | `DES-009`'s table; the Scar is what a wound becomes | `M4-T14` — **the helm and bracers arrive with wounds and not before**, or they are armour that turns nothing, which is the byrnie's fault repeated |
-| **The kits, the loot bands** replacing the worth cut, and the items whose behaviour is its own — the axe, the pelt, the frame, the coin-chest | §2, §4 | `M4-T31` |
+| **The kits, the loot bands** replacing the worth cut, and the items whose behaviour is its own — the axe, the pelt, the frame, the coin-chest | §2, §4 | `M4-T31` — **built, ADR-220 to ADR-227**; the Húskarl kit's round shield is `M4-T03`'s |
 | **Using a thing** — the binding's slow heal and the hush rune's circle | Nothing in the build is *used*; everything is carried, worn, thrown or dropped | `M4-T32` — **built, ADR-221** |
 | **The spear's cost** — arcs that hit walls | `DES-009`: *"swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat."* A hitbox passes through stone today, so the spear has reach and no price | `M4-T31` — **built, ADR-222**; reach itself turned out never to have been read |
-| **The axe's throw** landing as a blow | §2 | `M4-T31` |
-| **The pelt hiding what you carry** | §2, `DES-017` | `M4-T31` |
+| **The axe's throw** landing as a blow | §2 | `M4-T31` — **built, ADR-227**: the throw key throws a held axe, by the developer's call |
+| **The pelt hiding what you carry** | §2, `DES-017` | `M4-T31` — **built, ADR-226**: Her Reckoning's effect, worn |
 
 > **An item lands when both the thing that makes it work and the band that places it exist, and not before** (corrected by ADR-219). Plate needs the triangle *and* `M4-T31`'s bands, the shield the Húskarl's guard and the bands, the helm and bracers wounds and the bands, the binding and the rune `M4-T32` and the bands. An item in the folder ahead of its behaviour is the byrnie again — carried, weighed, and doing nothing — and because the floor deals from the folder, it would reach a player the day it was added.
 

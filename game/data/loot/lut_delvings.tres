@@ -93,6 +93,12 @@ item = &"con_hush_rune"
 from_floor = 1
 deals = 2
 
+[sub_resource type="Resource" id="Resource_axe"]
+script = ExtResource("2_entry")
+item = &"wpn_bearded_axe"
+from_floor = 1
+deals = 2
+
 [sub_resource type="Resource" id="Resource_frame"]
 script = ExtResource("2_entry")
 item = &"arm_pack_frame"
@@ -114,4 +120,4 @@ deals = 1
 [resource]
 script = ExtResource("1_table")
 id = &"lut_delvings"
-entries = Array[ExtResource("2_entry")]([SubResource("Resource_seax"), SubResource("Resource_spear"), SubResource("Resource_hammer"), SubResource("Resource_lantern"), SubResource("Resource_byrnie"), SubResource("Resource_satchel"), SubResource("Resource_bead"), SubResource("Resource_gemstone"), SubResource("Resource_coin"), SubResource("Resource_torc"), SubResource("Resource_altar"), SubResource("Resource_regin"), SubResource("Resource_bog_iron"), SubResource("Resource_binding"), SubResource("Resource_hush"), SubResource("Resource_frame"), SubResource("Resource_chest"), SubResource("Resource_pelt")])
+entries = Array[ExtResource("2_entry")]([SubResource("Resource_seax"), SubResource("Resource_spear"), SubResource("Resource_hammer"), SubResource("Resource_lantern"), SubResource("Resource_byrnie"), SubResource("Resource_satchel"), SubResource("Resource_bead"), SubResource("Resource_gemstone"), SubResource("Resource_coin"), SubResource("Resource_torc"), SubResource("Resource_altar"), SubResource("Resource_regin"), SubResource("Resource_bog_iron"), SubResource("Resource_binding"), SubResource("Resource_hush"), SubResource("Resource_frame"), SubResource("Resource_chest"), SubResource("Resource_pelt"), SubResource("Resource_axe")])

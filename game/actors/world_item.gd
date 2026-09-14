@@ -106,6 +106,15 @@ const EMBER_RADIUS: float = 0.30
 ## to be somewhere specific.
 const REST_HEIGHT: float = 0.0
 
+## How wide a thrown weapon is in the air, for what it can meet (ADR-227) — an
+## arrow's forgiving radius and a little more, because an axe is not a point.
+const STRIKE_RADIUS: float = 0.2
+
+## Emitted on the host when a thrown weapon strikes a body, with where it comes
+## to rest below the blow (ADR-227). **Signals up**: `CoopSession` owns every
+## spawn, so it lays the axe down there and frees this one in flight.
+signal struck(rest: Vector3)
+
 ## Set before the node enters the tree, by `CoopSession`, on every peer.
 var item_id: StringName = &""
 ## Launch velocity, also from the spawn payload. Zero for a dropped item, which
@@ -136,6 +145,15 @@ var bound_to: int = 0
 ## cannot say *this one* — and read back into the bag by whoever lifts it.
 ## Without it, setting a Legacy relic down and picking it up made it whole.
 var scarred: bool = false
+## **Whose throw this is, if it can wound** (ADR-227). The thrower's peer, or `0`
+## for everything that is only bait. Set from the spawn packet when a thing with
+## a `ThrownTrait` leaves a hand at speed; the host then resolves what it meets
+## in the air, and never on the body that threw it.
+var thrower: int = 0
+## The field a thrown weapon rings into. Handed down by `CoopSession`, as an
+## arrow's is, because a level that forgot to pass it should give a silent axe
+## rather than a crash.
+var _field: ClamorField = null
 ## **Tribute in Kind** (`hrd_tribute_in_kind`). Set when a Hoard build put this
 ## down: the Gullsjúkr treats it as worth stopping for whatever it is actually
 ## worth. A property of the *thing on the floor* rather than of the player,
@@ -215,6 +233,11 @@ func _physics_process(delta: float) -> void:
 	_velocity.y -= Config.tuning.gravity * delta
 	var step: Vector3 = _velocity * delta
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	# **A thrown weapon meets a body before the stone behind it** (ADR-227).
+	# Host-only, like an arrow: a client's copy is a thing flying, and the blow
+	# is the host's decision arriving.
+	if thrower != 0 and multiplayer.is_server() and _strike(space, step):
+		return
 	var query := PhysicsRayQueryParameters3D.create(
 		global_position, global_position + step)
 	query.collision_mask = CollisionLayers.WORLD
@@ -229,6 +252,78 @@ func _physics_process(delta: float) -> void:
 	_velocity = Vector3.ZERO
 	_flying = false
 	set_physics_process(false)
+	# A thrown axe rings on stone as well as on flesh: a miss still tells the
+	# floor where it went.
+	if thrower != 0:
+		_ring()
+
+
+## Handed the floor's noise field (ADR-227). Mirrors `Arrow.fly_with`.
+func fly_with(field: ClamorField) -> void:
+	_field = field
+
+
+## The first hurtbox inside this step that is not the thrower's, struck once.
+## True when it struck, so the flight stops here.
+func _strike(space: PhysicsDirectSpaceState3D, step: Vector3) -> bool:
+	var hurl: ThrownTrait = _thrown()
+	if hurl == null:
+		return false
+	var ball := SphereShape3D.new()
+	ball.radius = STRIKE_RADIUS
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = ball
+	query.transform = Transform3D(Basis.IDENTITY, global_position + step)
+	query.collide_with_areas = true
+	query.collide_with_bodies = false
+	query.collision_mask = CollisionLayers.ENEMY_HURTBOX | CollisionLayers.PLAYER_HURTBOX
+	for found: Dictionary in space.intersect_shape(query, 8):
+		var hurtbox := found.get("collider") as Hurtbox
+		if hurtbox == null:
+			continue
+		# Never the hand that threw it — `Arrow._on_hit`'s rule, for the same
+		# unexplainable death.
+		var body := hurtbox.get_parent() as Player
+		if body != null and body.get_multiplayer_authority() == thrower:
+			continue
+		global_position += step
+		hurtbox.receive(hurl.damage, hurl.damage_type, self)
+		_ring()
+		_velocity = Vector3.ZERO
+		_flying = false
+		set_physics_process(false)
+		struck.emit(_rest_below(space))
+		return true
+	return false
+
+
+## The ring (ADR-227): straight into the field at the axe, as an arrow's impact
+## is, and not through a `ClamorSource` — the thrower paid their own handling
+## noise when it left the hand, and the rest happens over there.
+func _ring() -> void:
+	var hurl: ThrownTrait = _thrown()
+	if hurl == null:
+		return
+	Foley.at(self, Foley.Sound.HIT, 0.9)
+	if multiplayer.is_server() and _field != null:
+		_field.deposit(global_position, hurl.clamor_hit)
+
+
+func _thrown() -> ThrownTrait:
+	if _definition == null:
+		return null
+	return _definition.first_trait(ThrownTrait) as ThrownTrait
+
+
+## The floor under a blow, where an axe that struck a body falls.
+func _rest_below(space: PhysicsDirectSpaceState3D) -> Vector3:
+	var query := PhysicsRayQueryParameters3D.create(global_position,
+		global_position + Vector3.DOWN * 6.0)
+	query.collision_mask = CollisionLayers.WORLD
+	var ground: Dictionary = space.intersect_ray(query)
+	if ground.is_empty():
+		return global_position
+	return (ground["position"] as Vector3) + Vector3.UP * 0.02
 
 
 ## Bulk, as a box. A 3x3 altar-plate is visibly a shield-sized slab and a 1x1

@@ -4,7 +4,7 @@ title: Data Schemas
 status: accepted
 owner: tech
 tags: [data, resources, godot, tres, schema, tooling]
-updated: 2026-09-13
+updated: 2026-09-14
 related: [TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007]
 ---
 
@@ -59,7 +59,8 @@ class_name ItemResource extends Resource
 | Trait | Adds |
 |---|---|
 | `WieldableTrait` | damage type, arc, wind-up/active/recovery timings, stamina cost, Clamor per swing. **`reach` is metres from the eye, and was read by nothing until ADR-222** — the arc was a sphere and the reader resized a box. The arc's *width* is one `TuningProfile.swing_arc_degrees` for every weapon rather than a field here, so a weapon meets walls by its length alone |
-| `WearableTrait` | slot, armour class (unarmoured / mailed / plated), encumbrance. **Built by ADR-219 as the class alone**: slot was already on `ItemResource` from `M3-T07` and encumbrance is the item's `weight`. Body slot only, and never unarmoured — both refused by `ItemResource.validate()` |
+| `WearableTrait` | slot, armour class (unarmoured / mailed / plated), encumbrance. **Built by ADR-219 as the class alone**: slot was already on `ItemResource` from `M3-T07` and encumbrance is the item's `weight`. Body slot only, and never unarmoured — both refused by `ItemResource.validate()`. **That weight counts on the body since ADR-224**; until then only the bag was weighed |
+| `ThrownTrait` | **Not in the original seven. Built by ADR-227** for `wpn_bearded_axe`, the one thrown thing that wounds: damage, damage type, speed from the hand, and the clamor it rings with where it strikes or lands. A thing carrying it that leaves a hand at speed is flown by `WorldItem` and resolved on the host against the first hurtbox that is not the thrower's; everything else thrown is still bait. A weapon trait, so `ItemResource.validate()` refuses it on an item no slot can hold |
 | `LightTrait` | radius, energy, colour, **glare**, shutter cooldown. **Built at `M4-T13`** (ADR-188), third of the seven. `radius` is what you get and `glare` is what it costs, and the design lives in the gap: the lamp advertises you further than it lets you see. **`fuel` and `drop lit` are not built** — absent, not stubbed: `DES-022` charges risk rather than time, and a lantern left burning is a decoy that is only interesting once something navigates light, which nothing does |
 | `ConsumableTrait` | effect tag, use time, whether usable in combat. **Built by ADR-221 as two traits, one per effect** — `MendingTrait` (seconds, share of maximum health restored) and `HushTrait` (radius, seconds, crack) — because a tag switched on in code leaves every effect's numbers on every item. *Usable in combat* is not built: the binding's combat rule is that a blow breaks it, and nothing would read a flag. Used from the bag (`use_item`), spent by the host |
 | `CursedTrait` | curse tag, what triggers it, whether it can be dropped |

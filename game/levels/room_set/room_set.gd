@@ -818,6 +818,8 @@ func _ready() -> void:
 			_arc_probe()
 		elif arg == "--scar-probe":
 			_scar_probe()
+		elif arg == "--throw-probe":
+			_throw_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -10551,6 +10553,235 @@ func _arc_probe() -> void:
 
 	rig.queue_free()
 	_report(problems, "arc")
+
+
+## **The one thrown thing that wounds** (ADR-227, `DES-023`).
+##
+## Every row goes through a real enemy and a real flight, with a control beside
+## each claim: a coin thrown the same way does nothing, so a wound is the axe's
+## and not the throw's; the thrower's own axe does nothing to them and the same
+## axe named as somebody else's does, so the skip is the rule and not a miss.
+func _throw_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var gear: Equipment = player.equipment
+	var tuning: TuningProfile = Config.tuning
+	var axe: ItemResource = ItemCatalogue.by_id(&"wpn_bearded_axe")
+	var hurl: ThrownTrait = null
+	if axe != null:
+		hurl = axe.first_trait(ThrownTrait) as ThrownTrait
+	if hurl == null:
+		problems.append("no bearded axe with a ThrownTrait in the catalogue")
+		_report(problems, "throw")
+		return
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	# **A line with nothing in it.** The first draft threw along +X from the
+	# archer's post and the axe struck a column 3.5 m out — correctly, and the
+	# row read as a throw that wounds nothing. So the line is found, not assumed.
+	var line: Vector3 = _throw_line(ARCHER_POST, 7.0)
+	if line == Vector3.ZERO:
+		problems.append("no clear seven-metre line from the archer's post to throw along")
+		_report(problems, "throw")
+		return
+	var mark: Vector3 = ARCHER_POST + line * 6.0
+
+	# ─ 1. **a coin thrown at a body is bait, not a blow** (the control) ─
+	var target: Enemy = await _throw_target(player, mark)
+	if target == null:
+		problems.append("no enemy spawned to throw at")
+		_report(problems, "throw")
+		return
+	gear.clear()
+	player.inventory.clear()
+	player.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+	var coin_before: float = target.health.current
+	_throw_look_at(player, target)
+	player._ask_to_drop(true)
+	await _throw_settle(&"glt_hoard_coin", target, [0.0])
+	var coin_hurt: float = coin_before - target.health.current
+	# **And it went past the body**, or "no damage" is a coin that fell short.
+	var coin_went: float = 0.0
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var lying := node as WorldItem
+		if lying != null and lying.item_id == &"glt_hoard_coin":
+			var gone: Vector3 = lying.global_position - ARCHER_POST
+			gone.y = 0.0
+			coin_went = maxf(coin_went, gone.length())
+	print("[throw] a coin         thrown at a body 6 m off: %.1f damage (want 0), landed %.1f m out (want past it)"
+		% [coin_hurt, coin_went])
+	if coin_hurt > 0.0:
+		problems.append("a thrown hoard-coin wounded a body — only a thrown weapon wounds")
+	if coin_went <= 6.0:
+		problems.append(("the coin landed %.1f m out, short of the body it was "
+			+ "thrown at, so the row above is about a coin that never arrived")
+			% coin_went)
+
+	# ─ 2. **the axe from the hand lands as a blow, lies there, and rings** ─
+	target = await _throw_target(player, mark)
+	if target == null:
+		problems.append("no enemy spawned for the axe")
+		_report(problems, "throw")
+		return
+	gear.clear()
+	gear.equip(ItemInstance.of(axe, 9400))
+	await _hold(0.1)
+	var before: float = target.health.current
+	var hurtbox := target.get("_hurtbox") as Hurtbox
+	var wanted: float = hurl.damage * tuning.armour_through(
+		hurtbox.armour if hurtbox != null else Enums.ArmourClass.UNARMOURED,
+		hurl.damage_type)
+	_throw_look_at(player, target)
+	player._ask_to_drop(true)
+	var hand_after: ItemInstance = gear.in_slot(Enums.Slot.MAIN_HAND)
+	var ring: Array = [0.0]
+	await _throw_settle(&"wpn_bearded_axe", target, ring)
+	var hurt: float = before - target.health.current
+	var resting: int = 0
+	var flying: int = 0
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var lying := node as WorldItem
+		if lying == null or lying.item_id != &"wpn_bearded_axe" or lying.is_queued_for_deletion():
+			continue
+		if lying.in_flight():
+			flying += 1
+		else:
+			var apart: Vector3 = lying.global_position - target.global_position
+			apart.y = 0.0
+			if apart.length() < 2.0:
+				resting += 1
+	print("[throw] the axe        %.1f damage (want %.1f), hand empty %s, lying at its feet %d, in the air %d, rang %.2f"
+		% [hurt, wanted, hand_after == null, resting, flying, float(ring[0])])
+	if absf(hurt - wanted) > 0.01:
+		problems.append(("a thrown bearded axe struck for %.1f, not %.1f — it is "
+			+ "the one thrown thing that wounds, and it wounds once") % [hurt, wanted])
+	if hand_after != null:
+		problems.append("the axe was thrown and the hand still holds it")
+	if resting != 1 or flying != 0:
+		problems.append(("after the blow %d axe(s) lie at the body's feet and %d "
+			+ "are still in the air — one axe, on the floor where it struck")
+			% [resting, flying])
+	if float(ring[0]) < hurl.clamor_hit * 0.5:
+		problems.append(("the axe struck and the floor heard %.2f there — `DES-023` "
+			+ "prices the throw with the ring") % float(ring[0]))
+
+	# ─ 3. **not mid-swing** ─
+	gear.clear()
+	gear.equip(ItemInstance.of(axe, 9401))
+	await _hold(0.1)
+	player.stamina.refill()
+	player.weapon.request_swing(player.stamina)
+	player._ask_to_drop(true)
+	var kept: bool = gear.in_slot(Enums.Slot.MAIN_HAND) != null
+	print("[throw] mid-swing      still in the hand %s (want true)" % kept)
+	if not kept:
+		problems.append("the axe was thrown out from under its own swing")
+	while player.weapon.is_busy():
+		await get_tree().physics_frame
+
+	# ─ 4. **never the hand that threw it**, with its control ─
+	#
+	# The same axe, flown at the thrower from two metres out, once named as
+	# theirs and once as somebody else's. Without the second, an axe that
+	# never struck anybody would pass the first.
+	gear.clear()
+	_session.clear_enemies()
+	await _hold(0.3)
+	player.health.restore()
+	var own_id: int = player.get_multiplayer_authority()
+	var taken: Array[float] = []
+	for named: int in [own_id, own_id + 1000]:
+		var was: float = player.health.current
+		var start: Vector3 = player.global_position + line * 2.0 + Vector3(0.0, 1.2, 0.0)
+		_session.spawn_world_item(&"wpn_bearded_axe", start, 0.0,
+			-line * hurl.speed, true, 0, false, false, named)
+		for i: int in range(40):
+			await get_tree().physics_frame
+		taken.append(was - player.health.current)
+		player.health.restore()
+	print("[throw] its own thrower %.1f damage as theirs, %.1f as another's (want 0, more)"
+		% [taken[0], taken[1]])
+	if taken[0] > 0.0:
+		problems.append("a thrown axe struck the body that threw it")
+	if taken[1] <= 0.0:
+		problems.append(("an axe named as another player's passed through this body "
+			+ "too, so the row above proves nothing about the thrower"))
+
+	# ─ 5. **a miss still rings** ─
+	var floor_mark: Vector3 = player.global_position + line * 3.0
+	var miss_peak: float = 0.0
+	_session.spawn_world_item(&"wpn_bearded_axe", floor_mark + Vector3(0.0, 1.5, 0.0),
+		0.0, Vector3(0.0, -4.0, 0.0), true, 0, false, false, own_id)
+	for i: int in range(60):
+		await get_tree().physics_frame
+		miss_peak = maxf(miss_peak, _peak_near(floor_mark))
+	print("[throw] a miss         rang %.2f where it fell (want above 0)" % miss_peak)
+	if miss_peak <= 0.0:
+		problems.append("a thrown axe fell on stone and the floor heard nothing")
+
+	_report(problems, "throw")
+
+
+## A fresh enemy at `mark` facing away, and the thrower back at the post.
+func _throw_target(player: Player, mark: Vector3) -> Enemy:
+	_session.clear_enemies()
+	await _hold(0.3)
+	player.restore_for_descent()
+	player.teleport(ARCHER_POST, 0.0)
+	var away: Vector3 = mark - ARCHER_POST
+	_session.spawn_enemy(mark, atan2(away.x, away.z))
+	await _hold(0.8)
+	return _first_live_enemy()
+
+
+## The first of sixteen flat directions from `post` with no world in the way for
+## `length` metres at knee, chest and head height, or zero if none is clear.
+func _throw_line(post: Vector3, length: float) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for step: int in range(16):
+		var angle: float = TAU * float(step) / 16.0
+		var direction := Vector3(cos(angle), 0.0, sin(angle))
+		var clear: bool = true
+		for height: float in [0.5, 1.1, 1.7]:
+			var from: Vector3 = post + Vector3(0.0, height, 0.0)
+			var query := PhysicsRayQueryParameters3D.create(from, from + direction * length)
+			query.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(query).is_empty():
+				clear = false
+				break
+		if clear:
+			return direction
+	return Vector3.ZERO
+
+
+## Point the camera at the middle of `target`, allowing for the fall of a 16 m/s
+## throw over the distance, so the aim is the one a player would take.
+func _throw_look_at(player: Player, target: Enemy) -> void:
+	var head := player.get_node("Head") as Node3D
+	var to: Vector3 = target.global_position + Vector3(0.0, 1.5, 0.0) - head.global_position
+	var flat: float = Vector2(to.x, to.z).length()
+	player.rotation.y = atan2(-to.x, -to.z)
+	player.set("_yaw", player.rotation.y)
+	var pitch: float = atan2(to.y, flat)
+	player.set("_pitch", pitch)
+	head.rotation.x = pitch
+
+
+## Wait until nothing named `id` is still in the air (three seconds at most),
+## keeping the loudest the floor heard near `target` in `ring[0]`.
+func _throw_settle(id: StringName, target: Node3D, ring: Array) -> void:
+	var near: Vector3 = target.global_position
+	for i: int in range(180):
+		await get_tree().physics_frame
+		ring[0] = maxf(float(ring[0]), _peak_near(near))
+		var airborne: bool = false
+		for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+			var item := node as WorldItem
+			if item != null and item.item_id == id and item.in_flight() \
+					and not item.is_queued_for_deletion():
+				airborne = true
+		if not airborne and i > 10:
+			return
 
 
 ## One real swing with whatever is held: `[landed, glanced, clamor at the end]`.

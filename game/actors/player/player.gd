@@ -1126,6 +1126,14 @@ func _take(path: NodePath) -> void:
 ## value because `DES-005` Layer 1 puts the cost of greed in your legs, so that
 ## is the one whose removal you actually feel.
 func _ask_to_drop(thrown: bool) -> void:
+	# **An axe in the hand is what a throw throws** (ADR-227), by the developer's
+	# call over a held press and over throwing it only from the bag. The bag
+	# shut and a thrown weapon held: that is the one throw that wounds, and the
+	# bait is still a point-and-throw away in the open bag.
+	if thrown and _bag <= 0.0 and equipment != null \
+			and equipment.trait_in(Enums.Slot.MAIN_HAND, ThrownTrait) != null:
+		ask_to_throw_held()
+		return
 	var target: ItemInstance = null
 	if _bag > 0.0:
 		if _bag_screen != null:
@@ -1151,6 +1159,48 @@ func ask_to_drop_instance(instance_id: int, thrown: bool = false) -> void:
 		_put_down(instance_id, thrown)
 	else:
 		_request_drop.rpc_id(HOST_PEER, instance_id, thrown)
+
+
+## **Throw what is in the hand** (ADR-227). The aim is the owner's — where they
+## are looking, as a loosed arrow's is — and everything after it is the host's.
+func ask_to_throw_held() -> void:
+	var aim: Vector3 = -_camera.global_transform.basis.z
+	if multiplayer.is_server():
+		_throw_held(aim)
+	else:
+		_request_throw_held.rpc_id(HOST_PEER, aim)
+
+
+@rpc("any_peer", "reliable")
+func _request_throw_held(aim: Vector3) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_throw_held(aim)
+
+
+## Host-side. **Not mid-swing**: the blade is in the arc, and a throw that took
+## it out from under its own hitbox would be two attacks from one weapon. The
+## axe leaves the hand rather than the bag, so nothing comes back to the bag —
+## that is the price `DES-023` names, and it lies wherever it ends up.
+func _throw_held(aim: Vector3) -> void:
+	if is_incapacitated() or aim.length() < 0.5 or weapon.is_busy():
+		return
+	var held: ItemInstance = equipment.in_slot(Enums.Slot.MAIN_HAND)
+	if held == null:
+		return
+	var hurl := held.definition.first_trait(ThrownTrait) as ThrownTrait
+	if hurl == null:
+		return
+	equipment.unequip(Enums.Slot.MAIN_HAND)
+	var travel: Vector3 = aim.normalized()
+	clamor.add(_handling_clamor(held.definition))
+	# Half a metre out from the eye, like an arrow, so the first step of the
+	# flight is already clear of the thrower's own body.
+	dropped.emit(held, _head.global_position + travel * 0.5, rotation.y,
+		travel * hurl.speed)
+	Foley.at(self, Foley.Sound.SWING, 0.8)
 
 
 @rpc("any_peer", "reliable")

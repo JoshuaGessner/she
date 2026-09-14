@@ -5,6 +5,8 @@ item.wpn_ash_spear.name,Ash Spear
 item.wpn_ash_spear.desc,"Reaches further than anything else you own, and is useless the moment a corridor narrows."
 item.wpn_seax.name,Seax
 item.wpn_seax.desc,"A working blade, not a warrior's. Quick, light, and honest about what it cannot do."
+item.wpn_bearded_axe.name,Bearded Axe
+item.wpn_bearded_axe.desc,"Slower than a seax and hooked at the heel. Throw it and it lands as a blow, and then it is on the floor over there, ringing, and your hand is empty."
 item.arm_mail_byrnie.name,Mail Byrnie
 item.arm_mail_byrnie.desc,"Riveted rings on a leather shirt. Turns an edge, and rings like a dropped purse when you run."
 item.glt_gilt_bead.name,Gilt Bead

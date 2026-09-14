@@ -946,6 +946,12 @@ func _build_world_item(payload: Dictionary) -> Node:
 	item.disturbed = bool(payload["disturbed"])
 	item.bound_to = int(payload["bound"])
 	item.scarred = bool(payload.get("scarred", false))
+	item.thrower = int(payload.get("thrower", 0))
+	# **A thrown weapon is the host's to resolve** (ADR-227): it rings into the
+	# floor's field and tells the session where it came to rest after a blow.
+	if item.thrower != 0 and is_host():
+		item.fly_with(floor_field())
+		item.struck.connect(_on_item_struck.bind(item))
 	item.worth_stopping_for = bool(payload.get("bait", false))
 	item.position = payload["at"] as Vector3
 	item.rotation.y = float(payload["yaw"])
@@ -1076,13 +1082,14 @@ func spawn_enemy(at: Vector3, yaw: float = 0.0) -> void:
 func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0,
 		launch: Vector3 = Vector3.ZERO, disturbed: bool = false,
 		bound_to: int = 0, worth_stopping_for: bool = false,
-		scarred: bool = false) -> WorldItem:
+		scarred: bool = false, thrower: int = 0) -> WorldItem:
 	if not is_host():
 		return null
 	var made: WorldItem = _spawner.spawn({
 		"kind": "world_item", "index": _next_item, "item": item,
 		"at": at, "yaw": yaw, "launch": launch, "disturbed": disturbed,
 		"bound": bound_to, "bait": worth_stopping_for, "scarred": scarred,
+		"thrower": thrower,
 	}) as WorldItem
 	_next_item += 1
 	return made
@@ -1097,9 +1104,30 @@ func _on_player_dropped(item: ItemInstance, at: Vector3, yaw: float,
 	# A put-down ember is still somebody's. Losing the binding here would turn
 	# a friend into scenery the moment their rescuer set them down for a fight.
 	var bait: bool = from != null and from.has_effect(&"tribute_in_kind")
+	# **Only a thrown weapon wounds** (ADR-227): something with a `ThrownTrait`
+	# leaving a hand at speed, from the hand or from the bag — it is the same
+	# axe either way. Everything else thrown is bait, as it always was.
+	var thrower: int = 0
+	if from != null and not launch.is_zero_approx() \
+			and item.definition.has_trait(ThrownTrait):
+		thrower = from.get_multiplayer_authority()
 	# And a Scarred thing stays Scarred on the floor (ADR-225).
 	spawn_world_item(item.definition.id, at, yaw, launch, true, item.bound_to, bait,
-		item.scarred)
+		item.scarred, thrower)
+
+
+## A thrown weapon struck a body (ADR-227). It lies at the foot of the blow, not
+## wherever its arc would have ended: the flying copy is freed and a resting one
+## laid below, both through the spawner, so every peer agrees where the axe is —
+## each peer flies its own copy from the launch, and only the host saw it hit.
+func _on_item_struck(rest: Vector3, flying: WorldItem) -> void:
+	if not is_instance_valid(flying):
+		return
+	var definition: ItemResource = flying.definition()
+	if definition != null:
+		spawn_world_item(definition.id, rest, flying.rotation.y, Vector3.ZERO, true,
+			flying.bound_to, flying.worth_stopping_for, flying.scarred)
+	flying.queue_free()
 
 
 ## The Gullsjúkr took something (`M2-T19`, ADR-112). It lands at its feet as

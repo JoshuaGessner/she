@@ -8139,5 +8139,34 @@ So one trip to the floor made a Legacy relic whole and worth its full value to h
 - **A Scarred pelt still hides wealth**, because a Scar weakens only a weapon (ADR-223), so the pelt is a strong Legacy keep — refused as tribute, and still a coat she cannot see through. Worth watching beside Regin's blade.
 - **The bearded axe is all that is left of `M4-T31`'s four**, and the throw key throws a held axe, by the developer's call.
 
+## ADR-227 — The bearded axe lands as a blow, and `M4-T31` is built
+
+**Date:** 2026-09-14 · **Status:** accepted · **Closes `M4-T31`** · **Adds `ThrownTrait` to `TEC-006`** · **Amends `DES-023` §2 and §5**
+
+**Context:** `DES-009` makes throw a verb for everything — a coin is bait, a plate is a panic dump — and nothing thrown has ever hurt anything. `DES-023` gives exactly one item the other half: `wpn_bearded_axe`, *the one thrown thing that wounds, at the price of the weapon, which lies where it landed and rings when it hits*. The throw key already threw the richest thing in the bag as bait, so the first question was what it does with an axe in the hand.
+
+### Decision — the developer's call, and what it made
+
+- **With the bag shut and a thrown weapon held, the throw key throws it**, over a tap-for-bait, hold-for-the-axe press (a timing threshold on the one misdirection key) and over throwing it only from the open bag (the vulnerable posture, in a fight). Bait is still a point-and-throw away in the open bag; a player holding an axe who wants to bait with the bag shut stows it first.
+- **`ThrownTrait`** — damage, damage type, speed from the hand, and the clamor it rings with. Values only. The axe is one-handed and slower than the seax: 20 a swing, **26 thrown** ⟨tune⟩ as a cut, at 16 m/s ⟨tune⟩ along where you look, under gravity — faster than a dropped purse, slower than an arrow, and it can be walked out of. Floor 1+ gear.
+- **The throw is the host's, as an arrow is.** `Player._throw_held` refuses mid-swing (the blade is in the arc), takes the axe out of the hand — not into the bag — and hands it to the drop path at speed. `CoopSession` names a thrower only for something with a `ThrownTrait` leaving a hand at speed, from the hand or from the bag, since it is the same axe; everything else thrown stays bait. `WorldItem` flies it on every peer from the launch, and on the host asks each step for the first hurtbox that is not the thrower's.
+- **Where it lies.** Struck: the host frees the flying copy and lays a resting one on the floor beneath the blow, both through the spawner, so every peer agrees where the axe is. Missed: it lies where its arc ended, as any throw does.
+- **The ring** is deposited straight into the floor's field where it strikes or lands, 3.4 ⟨tune⟩ beside an arrow's 3.2 — heard where the axe is, not where you are.
+
+### What it does not do
+
+- **It does not stagger.** An enemy's poise reads the blow's `Hitbox`, and an arrow does not stagger either; a thrown blow breaking poise is a question for `M4-T02`'s archetypes.
+- **An axe in the air passes through a wall within one physics step** of a body behind it — a quarter of a metre at 16 m/s, below what a player could see.
+- **A client's throw**, like any mid-run equip, is not sent back to the client's own slots (ADR-224's unverified co-op gap): the host throws the axe and the client's hand may go on showing it until the next floor.
+
+### Verification
+
+`--throw-probe`, new and required on its last row, finds a clear seven-metre line from the archer's post first — **the first draft threw into a column 3.5 m out**, and the axe correctly struck stone, which read as a throw that wounds nothing. Then, against a real enemy: a hoard-coin thrown at it does no damage and lands past it (so the control arrived); the axe thrown from the hand does 26.0, leaves the hand empty, lies at the body's feet with nothing left in the air, and rings 3.78 there; a throw pressed mid-swing leaves the axe in the hand; an axe flown at the thrower does nothing as theirs and 26.0 named as another's; and an axe falling on stone rings. **Planted and failed, one plant per run:** nothing struck in the air; the thrower not skipped; the drop never naming a thrower; the throw key ignoring the hand; a throw accepted mid-swing; no ring; and no resting axe laid where it struck. **"Any thrown thing wounds" was not caught planted alone**, because the flight only strikes with a `ThrownTrait` and a coin has none — two guards, each sufficient — so it was planted in both and caught: the coin struck for 26.
+
+### Consequences
+
+- **`M4-T31` is built.** Loot bands (ADR-220), real reach and glancing (ADR-222), Regin's blade (ADR-223), worn weight and the class numbers (ADR-224), the Scar's last leaks (ADR-225), the frame, the chest and the pelt (ADR-226), and the axe. What `DES-023` §4 names for the kits and is not here is the Húskarl's round shield, which is `M4-T03`'s. The task's last clause, the vista bait against the new climb, needed nothing: ADR-215's bait is the cheapest glitter a depth holds, and nothing cheaper was added.
+- The axe is a real answer at range for a class with no bow, and it costs the thing in your hand in a game where an empty hand does not swing. Whether anyone throws it twice is a playtest question.
+
 *Entries below to be added as design decisions are signed off.*
 

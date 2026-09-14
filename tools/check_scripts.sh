@@ -582,6 +582,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The one thrown thing that wounds** (ADR-227, `DES-023`). A held axe
+	# thrown at a real enemy lands as a blow, lies at its feet and rings; a coin
+	# thrown the same way does not wound; a throw mid-swing is refused; the axe
+	# never strikes its thrower, with the same axe named as another's as the
+	# control; and a miss still rings. The last row is required.
+	throw_="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --throw-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$throw_" \
+			|| ! grep -q "^\[throw\] a miss" <<<"$throw_"; then
+		echo "FAIL an axe has to land as a blow" >&2
+		printf '%s\n' "$throw_" | grep -E '\[throw\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`
