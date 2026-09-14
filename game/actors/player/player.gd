@@ -606,6 +606,7 @@ func _ready() -> void:
 	# with a separate consequence.
 	health.died.connect(_on_health_emptied)
 	weapon.swing_started.connect(_on_swing_started)
+	weapon.glanced.connect(_on_swing_glanced)
 	weapon.connected.connect(_on_swing_connected)
 	# Before `_redress()`, which equips the class kit and therefore lights the
 	# lamp: a body that learned about its own lantern afterwards would measure
@@ -686,6 +687,18 @@ func _replay_swing() -> void:
 	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
 		return
 	weapon.begin_owned_swing()
+
+
+## **Steel on stone is as loud as steel on a body** (ADR-222). A glance is the
+## swing connecting with the wrong thing, so it costs the connecting half of the
+## weapon's noise — and a spear swung in a corridor tells the floor where you are
+## without having touched anything that could have told it instead.
+func _on_swing_glanced() -> void:
+	if not multiplayer.is_server():
+		return
+	var swung: WieldableTrait = weapon.held()
+	if swung != null:
+		clamor.add(swung.clamor_hit)
 
 
 func _on_swing_connected(_hurtbox_hit: Hurtbox) -> void:

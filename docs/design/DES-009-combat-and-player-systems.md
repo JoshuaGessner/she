@@ -63,7 +63,7 @@ That single position resolves a dozen downstream questions. It's why avoidance m
 > **Reading a telegraph was strictly dominated by ignoring it** — interrupting
 > a windup cancels the attack, dodging only avoids it — and Principle 3 has no
 > decision to offer when one option is never worse.
-- Weapon arcs are real and hit the world — swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat.
+- Weapon arcs are real and hit the world — swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat. *(Built by ADR-222: a swing whose arc meets a wall before a body glances off — no damage, a clang, a longer recovery — and a weapon's reach is what brings the wall into it.)*
 - **Every swing has a Clamor value.** Blunt weapons are loudest. This is the main combat↔pressure coupling.
 
 **Shooting** *(added by ADR-123)*

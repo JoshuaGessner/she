@@ -36,7 +36,11 @@ resource_local_to_scene = true
 albedo_color = Color(0.72, 0.71, 0.7, 1)
 roughness = 1.0
 
+; local_to_scene for the capsule's reason above (ADR-222): `MeleeWeapon._dress`
+; sizes this to what the hand holds, and shared, one player drawing a spear
+; would lengthen every other player's seax.
 [sub_resource type="SphereShape3D" id="SphereShape3D_arc"]
+resource_local_to_scene = true
 radius = 1.1
 
 [sub_resource type="BoxMesh" id="BoxMesh_blade"]

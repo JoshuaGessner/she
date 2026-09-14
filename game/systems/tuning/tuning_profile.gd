@@ -447,6 +447,26 @@ extends Resource
 ## refusal that fires every frame is a rattle nobody can read as a refusal.
 @export var empty_hand_gap: float = 0.4
 
+## **Half the width of the path a swing sweeps, in degrees** ⟨tune⟩ (ADR-222).
+##
+## `DES-009`: *"weapon arcs are real and hit the world — swing a poleaxe in a
+## corridor and you hit the wall. Space is a weapon stat."* One angle for every
+## weapon, so what makes a spear meet a wall is its **length** and not a second
+## number to keep in step with it: at 12° a 2.2 m seax needs 0.46 m either side
+## and a 3.7 m spear 0.77 m, and a wall just past the body stops the spear alone.
+##
+## **12 rather than 20, measured** (ADR-222). Across five generated floors,
+## facing somewhere a body could stand: at 20° the seax — `M1`'s signed-off
+## weapon — glanced on 8–15% of corridor swings and the spear on 20–29%; at 12°
+## the seax fell to 4–10% and the spear barely moved, 18–26%. The narrower arc
+## puts the price on length, which is where `DES-023` puts it.
+@export var swing_arc_degrees: float = 12.0
+
+## How much longer the recovery is after a swing glances off stone ⟨tune⟩. The
+## weapon rebounds and the hands have to find it again — which is the price, and
+## `DES-009`'s committal swing is what makes a price mean anything.
+@export var glance_recovery_scale: float = 1.5
+
 @export_group("Light")
 ## How much light the floor gives you for free ⟨tune⟩ (`M4-T13`, `ART-001`).
 ##
@@ -646,6 +666,14 @@ func armour_through(armour: Enums.ArmourClass, type: Enums.DamageType) -> float:
 
 func validate() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
+	# A swing that sweeps nothing cannot meet a wall, and one that sweeps a
+	# right angle either side meets the wall beside you on every swing.
+	if swing_arc_degrees <= 0.0 or swing_arc_degrees >= 90.0:
+		problems.append("swing_arc_degrees is %.1f; half a swing's path sits in (0, 90)"
+			% swing_arc_degrees)
+	if glance_recovery_scale < 1.0:
+		problems.append(("glance_recovery_scale is %.2f — a swing that hit stone "
+			+ "must not recover faster than one that hit nothing") % glance_recovery_scale)
 	# **The triangle has a shape, and the numbers must keep it** (ADR-219). Each
 	# share is a fraction of a blow, never zero — armour that turns a type whole
 	# is invulnerability to it — and plate must turn more of a cut and a pierce

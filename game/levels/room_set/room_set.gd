@@ -814,6 +814,8 @@ func _ready() -> void:
 			_gear_probe()
 		elif arg == "--use-probe":
 			_use_probe()
+		elif arg == "--arc-probe":
+			_arc_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -10297,6 +10299,204 @@ func _use_probe() -> void:
 		problems.append("the circle still swallowed sound after it cracked")
 
 	_report(problems, "use")
+
+
+## **Reach is real, and a swing glances off stone** (ADR-222, `DES-009`).
+##
+## `MeleeWeapon._dress` resized a box and the arc was a sphere, so every weapon
+## reached the `M1` seax's 2.2 m and no row anywhere asked how far a weapon
+## reaches — only whether it connected at the one distance probes stand at.
+## These rows ask it of every weapon, at a distance just inside and just past its
+## reach, and then put walls where a long weapon should meet them.
+##
+## The rig is built here, above the level, rather than found in it: a wall this
+## probe relies on should not move because a room did. Each wall row has its
+## plant beside it — the seax clearing the wall the spear glances off, and a
+## pillar *behind* a body, which the spear must reach the body before.
+func _arc_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var gear: Equipment = player.equipment
+	var tuning: TuningProfile = Config.tuning
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var ground: float = 60.0
+	var rig := Node3D.new()
+	rig.name = "ArcRig"
+	add_child(rig)
+	_arc_block(rig, Vector3(0.0, ground - 0.5, 0.0), Vector3(40.0, 1.0, 40.0))
+	var target := Hurtbox.new()
+	target.collision_layer = CollisionLayers.ENEMY_HURTBOX
+	target.collision_mask = 0
+	var body := CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = 0.4
+	capsule.height = 1.8
+	body.shape = capsule
+	target.add_child(body)
+	rig.add_child(target)
+	player.teleport(Vector3(0.0, ground + 0.1, 0.0), 0.0)
+	await _hold(0.6)
+	var at: Vector3 = player.global_position
+	var ids: int = 9300
+
+	# ─ 1. **every weapon reaches its own distance** ─
+	var weapons: Array[StringName] = [&"wpn_seax", &"wpn_dvergar_hammer",
+		&"rlc_regin_blade", &"wpn_ash_spear"]
+	for id: StringName in weapons:
+		var definition: ItemResource = ItemCatalogue.by_id(id)
+		var edge := definition.first_trait(WieldableTrait) as WieldableTrait
+		gear.equip(ItemInstance.of(definition, ids))
+		ids += 1
+		target.global_position = at + Vector3(0.0, 0.9, -(edge.reach + 0.2))
+		var inside: Array = await _arc_swing(player)
+		target.global_position = at + Vector3(0.0, 0.9, -(edge.reach + 0.6))
+		var past: Array = await _arc_swing(player)
+		print("[arc] %-19s reach %.1f m   lands at %.1f %s, at %.1f %s" % [
+			id, edge.reach, edge.reach + 0.2, int(inside[0]) > 0,
+			edge.reach + 0.6, int(past[0]) > 0])
+		if int(inside[0]) == 0:
+			problems.append("%s did not land on a body just inside its %.1f m reach"
+				% [id, edge.reach])
+		if int(past[0]) > 0:
+			problems.append(("%s landed on a body past its %.1f m reach — the arc "
+				+ "is not the weapon's") % [id, edge.reach])
+
+	# ─ 2. **each body's arc is its own** ─
+	var other: Player = (preload("res://actors/player/player.tscn")
+		.instantiate() as Player)
+	var mine_arc: Shape3D = (player.get_node("Head/Weapon/Hitbox/CollisionShape3D")
+		as CollisionShape3D).shape
+	var their_arc: Shape3D = (other.get_node("Head/Weapon/Hitbox/CollisionShape3D")
+		as CollisionShape3D).shape
+	print("[arc] two bodies     own arcs %s, theirs still %.1f m while this one holds a spear"
+		% [mine_arc != their_arc, (their_arc as SphereShape3D).radius * 2.0])
+	if mine_arc == their_arc:
+		problems.append(("two bodies share one arc — one player drawing a spear "
+			+ "lengthens every other player's seax"))
+	other.free()
+
+	# ─ 3. **a wall beside you: the spear glances, the seax clears it** ─
+	target.global_position = at + Vector3(0.0, 0.9, -1.8)
+	# Its face 0.6 m to the side: inside the spear's 0.77 m at 12°, outside the
+	# seax's 0.46 m. Placed off the arc tuning, so a change to it moves the wall
+	# with it rather than silently leaving this row measuring nothing.
+	var half_arc: float = deg_to_rad(tuning.swing_arc_degrees)
+	var seax_clear: float = (ItemCatalogue.by_id(&"wpn_seax").first_trait(
+		WieldableTrait) as WieldableTrait).reach * sin(half_arc)
+	var spear_needs: float = (ItemCatalogue.by_id(&"wpn_ash_spear").first_trait(
+		WieldableTrait) as WieldableTrait).reach * sin(half_arc)
+	var face: float = (seax_clear + spear_needs) * 0.5
+	var side: StaticBody3D = _arc_block(rig, at + Vector3(face + 0.1, 1.5, -3.0),
+		Vector3(0.2, 3.0, 6.0))
+	await _hold(0.1)
+	var spear: ItemResource = ItemCatalogue.by_id(&"wpn_ash_spear")
+	var long_edge := spear.first_trait(WieldableTrait) as WieldableTrait
+	var rows: Dictionary = {}
+	for id: StringName in [&"wpn_seax", &"wpn_ash_spear"]:
+		gear.equip(ItemInstance.of(ItemCatalogue.by_id(id), ids))
+		ids += 1
+		player.clamor.silence()
+		var quiet: float = player.clamor.level
+		var began: int = Time.get_ticks_msec()
+		var result: Array = await _arc_swing(player)
+		rows[id] = [int(result[0]), int(result[1]),
+			float(Time.get_ticks_msec() - began) / 1000.0,
+			float(result[2]) - quiet]
+	var seax_row: Array = rows[&"wpn_seax"]
+	var spear_row: Array = rows[&"wpn_ash_spear"]
+	var clean: float = long_edge.windup + long_edge.active + long_edge.recovery
+	var glanced_cycle: float = long_edge.windup + long_edge.active \
+		+ long_edge.recovery * tuning.glance_recovery_scale
+	print("[arc] wall beside  seax lands %d glances %d   spear lands %d glances %d, %.2f s (a glance is %.2f, a clean swing %.2f), noise +%.1f" % [
+		seax_row[0], seax_row[1], spear_row[0], spear_row[1], spear_row[2],
+		glanced_cycle, clean, spear_row[3]])
+	if int(seax_row[0]) == 0 or int(seax_row[1]) > 0:
+		problems.append(("a seax glanced off a wall just beside it — a "
+			+ "short weapon must swing where a long one cannot"))
+	if int(spear_row[1]) == 0:
+		problems.append(("a spear swung beside a wall did not glance — "
+			+ "`DES-009`'s corridor sentence, and the spear's only price"))
+	if int(spear_row[0]) > 0:
+		problems.append(("a spear swung beside a wall still hurt the body in "
+			+ "its arc — a glance strikes nothing"))
+	if float(spear_row[2]) < glanced_cycle - 0.05:
+		problems.append("a glanced spear recovered in %.2f s, not %.2f"
+			% [spear_row[2], glanced_cycle])
+	if float(spear_row[3]) <= long_edge.clamor_swing:
+		problems.append(("a glance made no more noise than the swing — steel on "
+			+ "stone is the connecting half of a weapon's clamor"))
+	side.queue_free()
+
+	# ─ 4. **flesh before stone**: a pillar behind the body ─
+	var pillar: StaticBody3D = _arc_block(rig, at + Vector3(0.0, 1.5, -3.1),
+		Vector3(0.6, 3.0, 0.6))
+	await _hold(0.1)
+	gear.equip(ItemInstance.of(spear, ids))
+	ids += 1
+	var behind: Array = await _arc_swing(player)
+	print("[arc] pillar behind  spear lands %d glances %d (want 1, 0)"
+		% [behind[0], behind[1]])
+	if int(behind[1]) > 0 or int(behind[0]) == 0:
+		problems.append(("a spear glanced off a pillar standing behind the body it "
+			+ "was swung at — the blade reaches the body first"))
+	pillar.queue_free()
+
+	# ─ 5. **level lines: looking down never glances off the floor** ─
+	target.global_position = at + Vector3(0.0, 0.9, -12.0)
+	player.set("_pitch", deg_to_rad(-45.0))
+	(player.get_node("Head") as Node3D).rotation.x = deg_to_rad(-45.0)
+	await _hold(0.1)
+	var down: Array = await _arc_swing(player)
+	player.set("_pitch", 0.0)
+	(player.get_node("Head") as Node3D).rotation.x = 0.0
+	print("[arc] looking down   spear glances %d (want 0) over open floor" % down[1])
+	if int(down[1]) > 0:
+		problems.append(("a spear glanced off the floor it was pointed at — the "
+			+ "lines are meant to find walls, not the ground under a crouched thing"))
+
+	rig.queue_free()
+	_report(problems, "arc")
+
+
+## One real swing with whatever is held: `[landed, glanced, clamor at the end]`.
+func _arc_swing(player: Player) -> Array:
+	var tally: Dictionary = {"landed": 0, "glanced": 0, "loudest": 0.0}
+	var on_land: Callable = func(_h: Hurtbox) -> void:
+		tally["landed"] = int(tally["landed"]) + 1
+	var on_glance: Callable = func() -> void:
+		tally["glanced"] = int(tally["glanced"]) + 1
+		tally["loudest"] = player.clamor.level
+	player.weapon.connected.connect(on_land)
+	player.weapon.glanced.connect(on_glance)
+	player.stamina.refill()
+	# Two frames, so the arc a new weapon was just dressed with and a target
+	# that just moved are both in the overlaps the strike will read.
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	player.weapon.request_swing(player.stamina)
+	var until: int = Time.get_ticks_msec() + 3000
+	while player.weapon.is_busy() and Time.get_ticks_msec() < until:
+		await get_tree().physics_frame
+	player.weapon.connected.disconnect(on_land)
+	player.weapon.glanced.disconnect(on_glance)
+	return [int(tally["landed"]), int(tally["glanced"]), float(tally["loudest"])]
+
+
+## A block of stone on `WORLD`, for the arc rig.
+func _arc_block(parent: Node3D, centre: Vector3, size: Vector3) -> StaticBody3D:
+	var block := StaticBody3D.new()
+	block.collision_layer = CollisionLayers.WORLD
+	block.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = size
+	shape.shape = box
+	block.add_child(shape)
+	parent.add_child(block)
+	block.global_position = centre
+	return block
 
 
 ## What the crosshair last drew as a channel, from the HUD this level built.

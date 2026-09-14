@@ -7961,5 +7961,44 @@ A solo run carries about **3.4 bindings** — two from the kit and one on roughl
 
 **Across the wire**, the two-process smoke gains a phase: the host puts linen in the revived client's bag, the client uses it from what arrived, and `run_coop.py` asks that both peers saw `mending` climb, that the host closed 35% of the wound and spent the binding, and that the client sees the same health and an empty bag. Planted with the host ignoring `_request_use`: all four rows failed. (That planted run also once reported the host seeing one player at report time, which the clean runs before and after did not. The plant touches nothing the party count reads, so this looks like an end-of-probe race, but its cause is unconfirmed and it is worth watching.) **A circle replicating to a client is not exercised**; it is spawned through the session exactly as the snare is.
 
+## ADR-222 — Reach was never read, and a swing that meets a wall glances off
+
+**Date:** 2026-09-13 · **Status:** accepted · **Advances `M4-T31`** · **Changes weapon reach (ADR-058)** · **Amends `DES-023` §2 and §5, `TEC-006`; builds a line of `DES-009`**
+
+**Context:** `M4-T17` found the spear had reach and no price: `DES-009` says *"weapon arcs are real and hit the world — swing a poleaxe in a corridor and you hit the wall"*, and a hitbox passed through stone. Reading the swing to build that price found something larger. **`WieldableTrait.reach` has never been read.** `MeleeWeapon._dress` cast the arc's shape to a `BoxShape3D` to set its depth; the arc has been a `SphereShape3D` since `M1-T02` (1.1 m around a point 1.1 m ahead), so the cast returned null and nothing happened. Every weapon has reached exactly as far as the `M1` seax — 2.2 m — since weapons became data, and the authored reaches (seax 0.9, hammer 1.0, Regin 1.5, spear 2.4) were never measured against anything. The shape was also shared between every player, so the first working resize would have lengthened every teammate's weapon.
+
+### Decision — the developer's two calls
+
+- **The seax keeps the 2.2 m `M1` signed off, and the others keep the gaps they were authored with**: hammer 2.3 m, Regin's blade 2.8 m, spear 3.7 m ⟨tune⟩. Chosen over the numbers as written (a seax that must step inside an enemy's 2.2 m attack range to strike, which rewrites how every fight feels) and over a feel pass before any of it lands. `reach` is now metres from the eye; the arc is a sphere from the eye to that reach, which is the `M1` shape exactly for the seax, and each body's arc is its own (`resource_local_to_scene`).
+- **A swing whose path meets a wall before a body glances off**: no damage to anything, a clang, the blade rebounds from where it was raised, recovery is 1.5× ⟨tune⟩, and it makes the weapon's connecting noise. Chosen over cutting the swing short at the wall, under which a spear still hit everything between you and the stone and barely paid for its length. The reference is *Mordhau* and *Chivalry 2*, where a weapon that strikes the environment is stopped and fighting in a corridor is a skill; what differs here is that the rebound also costs noise, because steel on stone is heard.
+
+### How a wall is found
+
+At the instant the strike would begin, five lines fan across the swing's path, each as long as the reach, **level at eye height** along the body's facing — so looking down at a crouched thing never glances off the floor and a low ceiling never stops a sweep. A line that reaches a body first is clear, because the blade found flesh before stone; a line that reaches the world first means the swing glances. The arc's half-width is one `TuningProfile.swing_arc_degrees` for every weapon, so what brings a wall into a swing is **length alone**, and there is no second number per weapon to drift out of step with the first.
+
+Every peer asks its own copy (the level is identical on each) and the host's answer is the one that arms or does not arm the hitbox. A client a few centimetres from where the host has it could, at the very edge of a wall's reach, hear a clang the host did not — only in its own sound and pose.
+
+### Measured: 12°, not 20°
+
+Five generated floors (seeds 8000 and 8001 at floor 0, 8000 at floor 1, 8000 and 8001 at floor 2), six hundred random points on each navmesh with random facings, counted only where 2.4 m ahead was clear — somewhere a body could stand to be swung at:
+
+| half-arc | seax, rooms | seax, corridors | spear, rooms | spear, corridors |
+|---|---|---|---|---|
+| 20° | 4–8% | 8–15% | 19–23% | 20–29% |
+| **12°** | **2–5%** | **4–10%** | **18–22%** | **18–26%** |
+
+With random facings and no clear space ahead, every weapon glanced a fifth to a third of the time, mostly by facing a wall — a measure of where people do not swing. At 20° the seax, the weapon `M1` signed off, glanced on up to one corridor swing in seven; narrowing to 12° halved that and barely touched the spear, which glances mostly because a wall stands within its length rather than beside it. **12° puts the price on length, where `DES-023` puts it**, so it is the default. Hammer and Regin's blade sit between, as their reaches do.
+
+### Consequences
+
+- The spear now outreaches an enemy's attack by 1.5 m and glances on about one swing in five; Regin's blade glances on about one in ten — a price on the relic `M4-T17` called a bigger number, though not the verb it is owed.
+- **Enemies do not glance.** Their swings are `M4-T02`'s archetypes; a Draugr with a poleaxe should meet the same walls, and that is where it belongs.
+- **The hammer's 0.1 m over the seax is below what the probe can resolve** at ±0.2 m, so that one gap is authored and unmeasured.
+- Every glance rate here is ⟨tune⟩ and is a feel question for a person holding a spear in a corridor.
+
+### Verification
+
+`--arc-probe`, new and required on its last row, builds its own floor, walls and target above the level so no room can move under it. Every weapon lands on a body 0.2 m inside its reach and misses one 0.2 m past it; two bodies do not share an arc; with a wall just beside the swing the seax lands and the spear glances, strikes nothing, recovers for the glance's duration and makes more than the swing's noise; a pillar standing *behind* the body does not glance the spear; and a spear pointed 45° down over open floor does not glance. **Planted and failed:** the arc left at the old fixed size (Regin's blade and the spear stop landing inside their reach), the shared shape restored, glancing switched off, the flesh-first rule removed (every swing glances off its own target, and the pillar row fails), the lines left pitched (looking down glances), the glance recovery unscaled, and the glance's noise removed. The wall rows were planted again after the arc narrowed to 12°. `--fight-probe` and `--gear-probe` pass unchanged.
+
 *Entries below to be added as design decisions are signed off.*
 

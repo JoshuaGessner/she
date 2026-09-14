@@ -552,6 +552,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Space is a weapon stat** (ADR-222, `DES-009`). Reach resized a box and the
+	# arc was a sphere, so every weapon reached the M1 seax's 2.2 m and nothing
+	# asked how far any weapon reaches. Every weapon is asked just inside and just
+	# past its reach, and a spear has to glance off a wall a seax clears — but not
+	# off a pillar behind the body it was swung at. The last row is required.
+	arc="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 12000 \
+		levels/room_set/room_set.tscn -- --arc-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$arc" \
+			|| ! grep -q '^\[arc\] looking down' <<<"$arc"; then
+		echo "FAIL a weapon has to reach its own distance and meet the walls in it" >&2
+		printf '%s\n' "$arc" | grep -E '\[arc\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`

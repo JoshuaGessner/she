@@ -38,7 +38,7 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 |---|---|---|---|
 | `wpn_seax` *(exists)* | The fastest blade, **and it leaves a hand free** — for a shield or a light | Short reach; four blows to break a poise a hammer breaks in one | Húskarl kit · floor 0+ |
 | `wpn_bearded_axe` | **The one thrown thing that wounds.** Throw is a verb for everything (`DES-009`); only this lands as a blow — at the price of the weapon, which lies where it landed and rings when it hits | One-handed and slower than the seax; a thrown axe leaves you empty-handed | floor 1+ gear |
-| `wpn_ash_spear` *(exists)* | **Hits from outside the reach of anything else that swings** | Two-handed; **useless in a corridor** — see §5, the cost is not built | floor 0+ gear |
+| `wpn_ash_spear` *(exists)* | **Hits from outside the reach of anything else that swings** | Two-handed; **useless in a corridor** — built by ADR-222: its 3.7 m glances off a wall a seax clears, on about one swing in five | floor 0+ gear |
 | `wpn_dvergar_hammer` *(exists)* | **Breaks a poise in one blow, and is the only thing plate does not turn** (§3) | Two-handed, slowest, loudest swing in the game | floor 1+ gear |
 | `wpn_yew_bow` *(exists)* | **Loud where it lands, not where it is loosed** — a weapon and a misdirection tool (`DES-009`) | Two-handed: no light, no shield; does not also swing | Veiðimaðr kit |
 
@@ -144,7 +144,7 @@ A floor dealt its loot from **the entire item folder**, sorted by worth and cut 
 | **Wounds**, which the helm and bracers turn away | `DES-009`'s table; the Scar is what a wound becomes | `M4-T14` — **the helm and bracers arrive with wounds and not before**, or they are armour that turns nothing, which is the byrnie's fault repeated |
 | **The kits, the loot bands** replacing the worth cut, and the items whose behaviour is its own — the axe, the pelt, the frame, the coin-chest | §2, §4 | `M4-T31` |
 | **Using a thing** — the binding's slow heal and the hush rune's circle | Nothing in the build is *used*; everything is carried, worn, thrown or dropped | `M4-T32` — **built, ADR-221** |
-| **The spear's cost** — arcs that hit walls | `DES-009`: *"swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat."* A hitbox passes through stone today, so the spear has reach and no price | `M4-T31` |
+| **The spear's cost** — arcs that hit walls | `DES-009`: *"swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat."* A hitbox passes through stone today, so the spear has reach and no price | `M4-T31` — **built, ADR-222**; reach itself turned out never to have been read |
 | **The axe's throw** landing as a blow | §2 | `M4-T31` |
 | **The pelt hiding what you carry** | §2, `DES-017` | `M4-T31` |
 

@@ -25,7 +25,15 @@ signal connected(hurtbox: Hurtbox)
 ## nothing crosses the wire, because a refusal is feedback rather than an event
 ## the world needs to agree on (`TEC-004`).
 signal swing_refused
+## A swing met stone before it met anything it could hurt (ADR-222). Every peer
+## raises it from its own copy of the swing, like `swing_started`; the host's is
+## the one whose hitbox was therefore never armed.
+signal glanced
 enum Phase { IDLE, WINDUP, ACTIVE, RECOVERY }
+
+## Lines cast across a swing's path to find a wall in it. Five across 24° leave
+## gaps of about 40 cm at a spear's length — narrower than any pillar the kit has.
+const ARC_RAYS: int = 5
 
 ## Blockout poses, as (position, rotation-in-degrees). Not juice: without a
 ## visible weapon the player cannot see wind-up, strike or recovery at all, and
@@ -59,6 +67,9 @@ var _refusal_gap: float = 0.0
 var _held: WieldableTrait = null
 ## Whether what is held came back through a Legacy slot (`M3-T05`).
 var _scarred: bool = false
+## Whether the swing now recovering glanced off the world, so it recoils from
+## where it was raised rather than from a strike that never happened.
+var _glancing: bool = false
 
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _model: Node3D = $Model
@@ -115,11 +126,17 @@ func _dress() -> void:
 	# weapons became data, and this is the line that finally carries it to the
 	# thing it strikes.
 	_hitbox.damage_type = _held.damage_type
+	# **The arc is a sphere from the eye to the reach** (ADR-222) — the shape
+	# `M1` signed the seax off with, 1.1 m around a point 1.1 m ahead, now drawn
+	# from what is held. This resized a `BoxShape3D` and the arc has always
+	# been a sphere, so the cast failed silently and every weapon in the game
+	# reached exactly as far as the seax.
 	var shape := _hitbox.get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if shape != null:
-		var box := shape.shape as BoxShape3D
-		if box != null:
-			box.size.z = _held.reach
+		var arc := shape.shape as SphereShape3D
+		if arc != null:
+			arc.radius = _held.reach * 0.5
+			shape.position.z = -_held.reach * 0.5
 
 
 func _pose(from: Array, to: Array, t: float) -> void:
@@ -140,7 +157,10 @@ func _update_pose() -> void:
 		Phase.ACTIVE:
 			_pose(POSE_RAISED, POSE_STRUCK, t)
 		Phase.RECOVERY:
-			_pose(POSE_STRUCK, POSE_REST, t)
+			# A glance rebounds from the raised pose: the blade stopped where
+			# it met the wall, and the strike was never made (`DES-018`'s twin
+			# of the clang).
+			_pose(POSE_RAISED if _glancing else POSE_STRUCK, POSE_REST, t)
 		Phase.IDLE:
 			_pose(POSE_REST, POSE_REST, 0.0)
 
@@ -224,6 +244,8 @@ func begin_owned_swing() -> void:
 
 
 func _enter(next: Phase, duration: float) -> void:
+	if next != Phase.RECOVERY:
+		_glancing = false
 	_phase = next
 	_remaining = duration
 	_duration = duration
@@ -250,7 +272,10 @@ func advance(delta: float, stamina: Stamina) -> void:
 
 	match _phase:
 		Phase.WINDUP:
-			_enter(Phase.ACTIVE, _held.active)
+			if _meets_the_world():
+				_glance(tuning)
+			else:
+				_enter(Phase.ACTIVE, _held.active)
 		Phase.ACTIVE:
 			_enter(Phase.RECOVERY, _held.recovery)
 		Phase.RECOVERY:
@@ -265,6 +290,58 @@ func advance(delta: float, stamina: Stamina) -> void:
 				_buffered_until = -1.0
 		Phase.IDLE:
 			pass
+
+
+## **Would this swing meet a wall before it met a body?** (ADR-222, `DES-009`).
+##
+## Asked at the instant the strike would begin, along `ARC_RAYS` lines fanned
+## `swing_arc_degrees` either side of where the body faces, each as long as the
+## reach. A line that reaches something it could hurt **first** is clear — the
+## blade found flesh before stone — and any line that reaches the world first
+## means the swing glances.
+##
+## **Level, not pitched.** The lines run at eye height along the body's facing,
+## so looking down at a crouched thing never glances off the floor and a low
+## ceiling never stops a sweep. Walls, pillars and door jambs are what it asks
+## about, because they are what `DES-009`'s corridor sentence is about.
+##
+## Every peer asks its own copy, since the level is the same on each; the host's
+## answer decides whether anything was hurt. A client standing a few centimetres
+## from where the host has it could hear a clang the host did not — at the very
+## edge of a wall's reach, and only in its own sound and pose.
+func _meets_the_world() -> bool:
+	if _held == null or not is_inside_tree():
+		return false
+	var forward: Vector3 = -global_basis.z
+	forward.y = 0.0
+	if forward.length_squared() < 0.000001:
+		return false
+	forward = forward.normalized()
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var half: float = deg_to_rad(Config.tuning.swing_arc_degrees)
+	for step: int in range(ARC_RAYS):
+		var angle: float = lerpf(-half, half, float(step) / float(ARC_RAYS - 1))
+		var along: Vector3 = forward.rotated(Vector3.UP, angle)
+		var line := PhysicsRayQueryParameters3D.create(global_position,
+			global_position + along * _held.reach)
+		line.collision_mask = CollisionLayers.WORLD | _hitbox.collision_mask
+		line.collide_with_areas = true
+		var hit: Dictionary = space.intersect_ray(line)
+		if not hit.is_empty() and not (hit["collider"] is Hurtbox):
+			return true
+	return false
+
+
+## **Glances off**: no strike, a clang, a recoil, and a longer recovery. The
+## hitbox is never armed, so nothing in the arc is hurt — the choice ADR-222
+## records over cutting the swing short, because a spear that still hit
+## everything between you and the wall would barely pay for its length.
+func _glance(tuning: TuningProfile) -> void:
+	_enter(Phase.RECOVERY, _held.active + _held.recovery * tuning.glance_recovery_scale)
+	_glancing = true
+	_update_pose()
+	glanced.emit()
+	Foley.at(self, Foley.Sound.HIT, 1.45, 3.0)
 
 
 func _on_struck(hurtbox: Hurtbox) -> void:

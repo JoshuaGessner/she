@@ -190,6 +190,10 @@ func _listen_for_refusals() -> void:
 	_listening = weapon
 	if weapon != null:
 		weapon.swing_refused.connect(func() -> void: _refused = 1.0)
+		# A glance is the same gesture (ADR-222): the swing was made and did
+		# nothing. The clang is what tells the two apart by ear, and the recoil
+		# of the blade is what tells them apart by eye.
+		weapon.glanced.connect(func() -> void: _refused = 1.0)
 
 
 ## The empty-handed flinch: the same four ticks the dot opens outward when a

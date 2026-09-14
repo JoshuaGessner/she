@@ -31,10 +31,16 @@ extends ItemTrait
 @export var damage: float = 25.0
 @export var damage_type: Enums.DamageType = Enums.DamageType.CUT
 
-## Metres the arc reaches. This is where a weapon's identity mostly lives:
-## DES-008's spear and hammer differ by this and by their timings, not by a
-## damage tier.
-@export var reach: float = 1.1
+## Metres from the eye the swing reaches ⟨tune⟩. This is where a weapon's
+## identity mostly lives: DES-008's spear and hammer differ by this and by their
+## timings, not by a damage tier.
+##
+## **Read by nothing until ADR-222.** `MeleeWeapon._dress` resized a box, and
+## the arc was a sphere, so every weapon swung the `M1` seax's 2.2 m and these
+## numbers — 0.9 to 2.4, never measured — described nothing. The seax keeps the
+## reach `M1` signed off and the others keep the gaps they were authored with;
+## a long reach is also what meets a wall (`MeleeWeapon._meets_the_world`).
+@export var reach: float = 2.2
 @export var stamina_cost: float = 18.0
 
 ## Poise this swing removes from what it hits. **`DES-009` line 47 has said
