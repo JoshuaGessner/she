@@ -334,6 +334,39 @@ static func _overlaps(a_at: Vector2i, a_size: Vector2i,
 ## which is the answer a pickup request needs — a bag that silently swallowed
 ## an item it had no room for would break the spatial half of the design.
 func add(definition: ItemResource) -> ItemInstance:
+	var made: ItemInstance = _mint(definition)
+	if made != null:
+		changed.emit()
+	return made
+
+
+## **The same thing, carried somewhere new** (ADR-223).
+##
+## A stashed item going down with you, a haul arriving at the Chamber: a new
+## place in *this* bag, so a fresh instance id — the stash mints its own and the
+## two would collide — but the same thing, so what lives on the instance comes
+## with it. Both used `add(item.definition)`, and **every Legacy item lost its
+## Scar the first time it left the stash**: full power, and worth its whole value
+## to her, which is `DES-003`'s Scar and ADR-003's laundering refusal undone by a
+## descent. `put_back` keeps the instance whole and is right for a return to the
+## bag it came from; this is for a move between two places that number items
+## differently.
+func bring(item: ItemInstance) -> ItemInstance:
+	if item == null:
+		return null
+	var made: ItemInstance = _mint(item.definition)
+	if made == null:
+		return null
+	made.scarred = item.scarred
+	made.bound_to = item.bound_to
+	changed.emit()
+	return made
+
+
+## Place a new instance of `definition`, or `null` when there is no room. Silent:
+## the caller emits once its instance is complete, so nothing listening to the
+## bag ever reads a Scarred item as whole for a frame.
+func _mint(definition: ItemResource) -> ItemInstance:
 	if not within_cap(definition):
 		return null
 	var placement: Dictionary = placement_for(definition)
@@ -356,7 +389,6 @@ func add(definition: ItemResource) -> ItemInstance:
 	made.cell = at
 	made.rotated = bool(placement["rotated"])
 	_items.append(made)
-	changed.emit()
 	return made
 
 

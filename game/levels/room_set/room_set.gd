@@ -816,6 +816,8 @@ func _ready() -> void:
 			_use_probe()
 		elif arg == "--arc-probe":
 			_arc_probe()
+		elif arg == "--scar-probe":
+			_scar_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -8051,7 +8053,9 @@ func _carry_the_stash_down() -> void:
 		return
 	var taken: int = 0
 	for item: ItemInstance in GameState.stash.duplicate():
-		if body.inventory.add(item.definition) == null:
+		# `bring`, not `add` (ADR-223): `add` minted a whole item from the
+		# definition, and this is where every Legacy item lost its Scar.
+		if body.inventory.bring(item) == null:
 			continue
 		GameState.withdraw(item)
 		taken += 1
@@ -10482,6 +10486,91 @@ func _arc_swing(player: Player) -> Array:
 	player.weapon.connected.disconnect(on_land)
 	player.weapon.glanced.disconnect(on_glance)
 	return [int(tally["landed"]), int(tally["glanced"]), float(tally["loudest"])]
+
+
+## **A Scar survives the descent, and Regin's blade is the one it does not
+## weaken** (ADR-223, `DES-003`).
+##
+## `--legacy-probe` proved the payout Scarred what came back, and that was true
+## and meant nothing: the stash carried down through `add(definition)`, what
+## was worn went to disk and the spawn packet as a bare id, and each minted a
+## whole item. A Legacy weapon was full power and full value to her by the first
+## Shaft. These rows follow one down: out of the stash, into the hand, through a
+## re-dress from what the body reports wearing, and into the swing.
+func _scar_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	var tuning: TuningProfile = Config.tuning
+	var hitbox := player.get_node("Head/Weapon/Hitbox") as Hitbox
+	player.inventory.clear()
+	GameState.stash.clear()
+	var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+	var relic: ItemResource = ItemCatalogue.by_id(&"rlc_regin_blade")
+	var bead: ItemResource = ItemCatalogue.by_id(&"glt_gilt_bead")
+	for definition: ItemResource in [seax, relic, bead]:
+		var kept: ItemInstance = ItemInstance.of(definition, GameState.stash.size() + 1)
+		kept.scarred = definition != bead
+		GameState.stash.append(kept)
+
+	# ─ 1. **out of the stash, still Scarred** ─
+	_carry_the_stash_down()
+	var down: Dictionary = {}
+	for item: ItemInstance in player.inventory.items():
+		down[item.definition.id] = item
+	var down_seax := down.get(&"wpn_seax") as ItemInstance
+	var down_relic := down.get(&"rlc_regin_blade") as ItemInstance
+	var down_bead := down.get(&"glt_gilt_bead") as ItemInstance
+	print("[scar] carried down   seax %s, Regin %s, bead %s (want true, true, false)" % [
+		down_seax.scarred if down_seax != null else "MISSING",
+		down_relic.scarred if down_relic != null else "MISSING",
+		down_bead.scarred if down_bead != null else "MISSING"])
+	if down_seax == null or down_relic == null or down_bead == null:
+		problems.append("the stash did not come down whole — three items went in")
+		_report(problems, "scar")
+		return
+	if not down_seax.scarred or not down_relic.scarred:
+		problems.append(("a Legacy item left the stash whole — full power and full "
+			+ "value to her from the first descent, which is the Scar undone"))
+	if down_bead.scarred:
+		problems.append("carrying down Scarred something that was not")
+
+	# ─ 2. **into the hand, and through a descent's re-dress** ─
+	player.ask_to_equip(down_seax.instance_id)
+	await _hold(0.2)
+	var wanted: float = seax.first_trait(WieldableTrait).get("damage") * tuning.scarred_power
+	var worn_record: Variant = GameState.worn.get("MAIN_HAND", {})
+	var in_hand_now: float = hitbox.damage
+	# What the next floor's body is built from: the record this one reports.
+	player.wearing = GameState.worn.duplicate(true)
+	await _hold(0.2)
+	var redressed: ItemInstance = player.equipment.in_slot(Enums.Slot.MAIN_HAND)
+	print("[scar] worn           record %s, swing %.1f → after a re-dress %s, %.1f (want %.1f)" % [
+		worn_record, in_hand_now, redressed.scarred if redressed != null else "EMPTY",
+		hitbox.damage, wanted])
+	if absf(in_hand_now - wanted) > 0.01:
+		problems.append("a Scarred seax in the hand swung %.1f, not %.1f"
+			% [in_hand_now, wanted])
+	if redressed == null or not redressed.scarred or absf(hitbox.damage - wanted) > 0.01:
+		problems.append(("a Scarred seax worn through a descent's re-dress came "
+			+ "back whole — the gear a body reports is what the next floor builds"))
+
+	# ─ 3. **Regin's blade swings whole, and is still not hers** ─
+	player.wearing = {}
+	player.equipment.clear()
+	player.ask_to_equip(down_relic.instance_id)
+	await _hold(0.2)
+	var full: float = relic.first_trait(WieldableTrait).get("damage")
+	print("[scar] Regin's blade  Scarred %s, swings %.1f (whole %.1f), refused as tribute '%s'" % [
+		down_relic.scarred, hitbox.damage, full, GameState.why_not_tribute(down_relic)])
+	if absf(hitbox.damage - full) > 0.01:
+		problems.append(("Regin's blade came back through death at %.1f of %.1f — "
+			+ "it is the one thing the Scar does not weaken") % [hitbox.damage, full])
+	if GameState.why_not_tribute(down_relic) == "":
+		problems.append(("Regin's blade came back whole and tributable — a relic "
+			+ "kept through a death and given is the hoard laundered through a life"))
+
+	GameState.stash.clear()
+	_report(problems, "scar")
 
 
 ## A block of stone on `WORLD`, for the arc rig.

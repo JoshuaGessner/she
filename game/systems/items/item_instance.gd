@@ -69,6 +69,45 @@ var bound_to: int = 0
 var scarred: bool = false
 
 
+## **The tag an item carries if it comes back through death whole** (ADR-223).
+## Only `rlc_regin_blade` has it: *Regin forged it to outlast its maker.*
+const ENDURING: StringName = &"enduring"
+
+
+## **Whether the Scar is costing this item its power** (ADR-223, `DES-003`).
+##
+## A Scar is two sentences — *carried through death at reduced power* and
+## *cannot be tributed* — and an `enduring` item keeps the second and not the
+## first. So `scarred` stays true on it, and `tribute_worth` and
+## `GameState.why_not_tribute` go on refusing it: a relic that came back whole
+## **and** worth 120 again would be the hoard laundered through a death.
+func weakened() -> bool:
+	return scarred and not definition.tags.has(ENDURING)
+
+
+## **An item as a profile or a teammate remembers it** (save v10, ADR-223): what
+## it is and whether it is Scarred, and nothing that only means something inside
+## one bag. The stash, the haul and what is worn were written as bare ids, so a
+## Scar never reached disk or the wire.
+func to_record() -> Dictionary:
+	return {"id": String(definition.id), "scarred": scarred}
+
+
+## The item a record describes, or `null` for a malformed row or an id this
+## build does not have. Untrusted, like `from_wire`: it arrives off a disk and
+## off a teammate's `declare_descent`.
+static func from_record(row: Variant, id: int) -> ItemInstance:
+	if typeof(row) != TYPE_DICTIONARY:
+		return null
+	var record: Dictionary = row
+	var known: ItemResource = ItemCatalogue.by_id(StringName(str(record.get("id", ""))))
+	if known == null:
+		return null
+	var made: ItemInstance = ItemInstance.of(known, id)
+	made.scarred = bool(record.get("scarred", false))
+	return made
+
+
 static func of(from: ItemResource, id: int) -> ItemInstance:
 	var made := ItemInstance.new()
 	made.definition = from

@@ -566,6 +566,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **A Scar survives the descent** (ADR-223, `DES-003`). `--legacy-probe`
+	# proved the payout Scarred what came back, and it meant nothing: the stash
+	# carried down through `add(definition)` and what was worn travelled as a bare
+	# id, so a Legacy weapon was full power and full value to her by the first
+	# Shaft. Follows one down, and asks Regin's blade — the one thing a Scar does
+	# not weaken — on the last row, which is required.
+	scar="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --scar-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$scar" \
+			|| ! grep -q "^\[scar\] Regin's blade" <<<"$scar"; then
+		echo "FAIL a Scar has to survive a descent" >&2
+		printf '%s\n' "$scar" | grep -E '\[scar\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`

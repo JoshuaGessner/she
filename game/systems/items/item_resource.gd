@@ -154,6 +154,13 @@ func validate() -> PackedStringArray:
 		problems.append(("%s carries an armour class in the %s slot; only the body "
 			+ "slot has one — head and arms turn away a wound instead")
 			% [id, Enums.Slot.keys()[slot]])
+	# **Enduring is about power, so only a weapon can have it** (ADR-223). A Scar
+	# costs a swing its damage and nothing else its function; `enduring` on a
+	# coin would promise a player something nothing reads.
+	if tags.has(&"enduring") and not has_trait(WieldableTrait):
+		problems.append(("%s is enduring and swings nothing — a Scar weakens only "
+			+ "a weapon, so it would come back through death exactly as it would "
+			+ "have anyway") % id)
 	if two_handed and slot != Enums.Slot.MAIN_HAND:
 		problems.append(("%s is two-handed but is not a main-hand item; "
 			+ "`DES-020` gives the second hand only to what the first one holds")

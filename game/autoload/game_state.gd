@@ -169,7 +169,8 @@ var hunt_head_start: float = 0.0
 ## profile is in and the condition the select screen opens on.
 var class_id: StringName = &""
 
-## **What this life is wearing** (`M3-T07`, `DES-020`). Slot name → item id.
+## **What this life is wearing** (`M3-T07`, `DES-020`). Slot name → an item
+## record, `{id, scarred}` (save v10, ADR-223) — an id alone lost the Scar.
 ##
 ## LIFE tier, beside the stash: gear is `DES-008`'s *record of where you have
 ## been*, and a record that outlived its owner would make death cost less than
@@ -418,7 +419,9 @@ func _next_stash_id() -> int:
 func _remember_the_life() -> Dictionary:
 	var wearing: Array[String] = []
 	for slot: String in worn:
-		wearing.append(String(worn[slot]))
+		var record: ItemInstance = ItemInstance.from_record(worn[slot], 0)
+		if record != null:
+			wearing.append(String(record.definition.id))
 	var stashed: Array[String] = []
 	for item: ItemInstance in stash:
 		stashed.append(String(item.definition.id))
@@ -885,7 +888,8 @@ func take_the_oath(id: StringName) -> bool:
 		# everything in the kit that has somewhere to go, so anything that does
 		# is already accounted for and only cargo waits in the stash.
 		if definition.slot != Enums.Slot.NONE:
-			worn[Enums.Slot.keys()[definition.slot]] = String(item)
+			worn[Enums.Slot.keys()[definition.slot]] = \
+				ItemInstance.of(definition, 0).to_record()
 			continue
 		stash.append(ItemInstance.of(definition, 0))
 	_persist()
@@ -904,20 +908,17 @@ func to_dict() -> Dictionary:
 	var pile: Array[String] = []
 	for id: StringName in hoard:
 		pile.append(String(id))
-	# **Ids only.** `_carry_the_stash_down()` re-mints a fresh `ItemInstance`
-	# from the definition and discards the stashed one, so a cell, a rotation
-	# and an instance id would all be written and then thrown away on load. The
-	# moment anything persists a *placed* item — a bag across a suspend — those
-	# come with it, and that is `M3-T09`.
-	var kept: Array[String] = []
+	# **Records, not ids** (save v10, ADR-223). `_carry_the_stash_down()` mints
+	# a fresh instance in the bag, so a cell, a rotation and an instance id are
+	# still not worth writing — but whether it is **Scarred** is, and an id could
+	# not say it. A Legacy item quit and reloaded came back whole.
+	var kept: Array[Dictionary] = []
 	for item: ItemInstance in stash:
-		kept.append(String(item.definition.id))
-	# Ids only, on the stash's own reasoning above: `Chamber` re-mints a fresh
-	# `ItemInstance` from the definition when it hands the haul back, so a cell
-	# and a rotation would be written and thrown away.
-	var held: Array[String] = []
+		kept.append(item.to_record())
+	# The haul on the stash's own reasoning: `Chamber` brings it back into a bag.
+	var held: Array[Dictionary] = []
 	for item: ItemInstance in carried:
-		held.append(String(item.definition.id))
+		held.append(item.to_record())
 	var spent: Array[String] = []
 	for id: StringName in taken:
 		spent.append(String(id))
@@ -994,21 +995,21 @@ func from_dict(data: Dictionary) -> void:
 	var life: Dictionary = _section(data, "life")
 	stash.clear()
 	for raw: Variant in life.get("stash", []) as Array:
-		var known: ItemResource = ItemCatalogue.by_id(StringName(raw))
-		if known == null:
-			push_warning("GameState: stashed '%s' is not in this build" % raw)
-			continue
 		# Instance id `0`: an `Inventory` mints from 1, so nothing in a bag can
 		# collide with something merely sitting in the stash.
-		stash.append(ItemInstance.of(known, 0))
+		var known: ItemInstance = ItemInstance.from_record(raw, 0)
+		if known == null:
+			push_warning("GameState: stashed '%s' is not in this build" % str(raw))
+			continue
+		stash.append(known)
 	# **And the haul that has not been decided about yet** (save v8, ADR-143).
 	carried.clear()
 	for raw: Variant in life.get("carried", []) as Array:
-		var brought: ItemResource = ItemCatalogue.by_id(StringName(raw))
+		var brought: ItemInstance = ItemInstance.from_record(raw, 0)
 		if brought == null:
-			push_warning("GameState: carried '%s' is not in this build" % raw)
+			push_warning("GameState: carried '%s' is not in this build" % str(raw))
 			continue
-		carried.append(ItemInstance.of(brought, 0))
+		carried.append(brought)
 	# Defaults matching a new life, so a `life` block from before `M3-T04`
 	# reads as what it was — rank 1, owing nothing. `SaveFile._migrate_1_to_2`
 	# writes them explicitly; these are what happens if a field is missing for
@@ -1130,20 +1131,29 @@ func _save_probe() -> void:
 
 	# ── a round trip ─────────────────────────────────────────────────────
 	tribute(ItemInstance.of(ItemCatalogue.by_id(&"glt_hoard_coin"), 1))
-	keep(ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 2))
+	# **Scarred, so the round trip is asked about the Scar** (save v10, ADR-223).
+	# Every row below passed while the stash, the haul and the gear reached disk
+	# as bare ids, because none of them was ever Scarred going in.
+	var remembered: ItemInstance = ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 2)
+	remembered.scarred = true
+	keep(remembered)
 	var gave: int = hoard_value
 	var pile: int = hoard.size()
 	# **What you are wearing is part of the life** (`M3-T07`, save v5). Recorded
 	# before the round trip below, because a plant that stopped writing `worn`
 	# to the wire went **uncaught**: every row here was about the hoard and the
 	# stash, and gear reached disk untested for the whole of its first task.
-	worn["MAIN_HAND"] = "wpn_seax"
+	var scarred_hand: ItemInstance = ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 0)
+	scarred_hand.scarred = true
+	worn["MAIN_HAND"] = scarred_hand.to_record()
 	# **And what was walked out with** (save v8, ADR-143), recorded here for the
 	# reason `worn` is: a haul that never reaches disk is invisible to every row
 	# that asks about the hoard or the stash. Extracting and quitting at the
 	# fire lost the whole bag, and this file's own header table said it should
 	# not have.
-	carried.append(ItemInstance.of(ItemCatalogue.by_id(&"glt_altar_plate"), 7))
+	var scarred_haul: ItemInstance = ItemInstance.of(ItemCatalogue.by_id(&"glt_altar_plate"), 7)
+	scarred_haul.scarred = true
+	carried.append(scarred_haul)
 	# **And how far down this lineage has been** (save v9, ADR-149). Recorded
 	# here for the reason `worn` and `carried` are: a field nothing asserts is a
 	# field that can silently stop reaching disk, and this one never reached it
@@ -1186,11 +1196,27 @@ func _save_probe() -> void:
 			+ "round trip — `AudioDirector` fills the camp out from this count "
 			+ "and the readout names it, so a lineage that forgets it is a camp "
 			+ "that sounds empty however long you have been coming back"))
-	print("[save] gear           main hand '%s'" % worn.get("MAIN_HAND", ""))
-	if String(worn.get("MAIN_HAND", "")) != "wpn_seax":
+	var hand: ItemInstance = ItemInstance.from_record(worn.get("MAIN_HAND", {}), 0)
+	print("[save] gear           main hand '%s'" % (
+		String(hand.definition.id) if hand != null else ""))
+	if hand == null or hand.definition.id != &"wpn_seax":
 		problems.append(("what was worn did not survive a round trip — "
 			+ "`DES-020` puts the class kit in slots, so a life that reloads "
 			+ "unarmed has lost the thing `M3-T02` swore it to"))
+	# ── **and each came back Scarred** (save v10, ADR-223) ─
+	var scars: PackedStringArray = PackedStringArray()
+	scars.append("stash %s" % (stash.size() == 1 and stash[0].scarred))
+	scars.append("haul %s" % (carried.size() == 1 and carried[0].scarred))
+	scars.append("worn %s" % (hand != null and hand.scarred))
+	print("[save] the Scars      %s (want all true)" % ", ".join(scars))
+	if stash.size() != 1 or not stash[0].scarred \
+			or carried.size() != 1 or not carried[0].scarred \
+			or hand == null or not hand.scarred:
+		problems.append(("a Scar did not survive a round trip (%s) — a Legacy "
+			+ "item quit and reloaded comes back at full power and worth its "
+			+ "whole value to her, which is `DES-003`'s Scar and ADR-003's "
+			+ "laundering refusal both undone by closing the game")
+			% ", ".join(scars))
 
 	# ── a scratch file left by an earlier crash ──────────────────────────
 	var litter := FileAccess.open(SaveFile.TMP, FileAccess.WRITE)
@@ -1359,6 +1385,29 @@ func _save_probe() -> void:
 			+ "never picked") % [pact_rank, class_id])
 	if not lifted_life.has("class_id"):
 		problems.append("the v2→v3 migration did not run; `class_id` is absent")
+
+	# **A v9 fixture** (ADR-223), literal text for the reason the v1 one is: the
+	# last format that wrote the stash, the haul and the gear as bare ids.
+	_write_raw('{"meta": {"save_version": 9}, "lineage": {"hoard": [], '
+		+ '"hoard_value": 0, "descents": 3}, "life": {"stash": ["wpn_seax"], '
+		+ '"carried": ["glt_gilt_bead"], "worn": {"MAIN_HAND": "wpn_ash_spear"}, '
+		+ '"class_id": "huskarl"}}')
+	stash.clear()
+	carried.clear()
+	worn.clear()
+	from_dict(SaveFile.read())
+	var v9_hand: ItemInstance = ItemInstance.from_record(worn.get("MAIN_HAND", {}), 0)
+	print("[save] v9 fixture    → stash '%s', haul '%s', hand '%s', none Scarred %s" % [
+		String(stash[0].definition.id) if stash.size() == 1 else "",
+		String(carried[0].definition.id) if carried.size() == 1 else "",
+		String(v9_hand.definition.id) if v9_hand != null else "",
+		stash.size() == 1 and not stash[0].scarred and v9_hand != null
+			and not v9_hand.scarred])
+	if stash.size() != 1 or stash[0].definition.id != &"wpn_seax" \
+			or carried.size() != 1 or carried[0].definition.id != &"glt_gilt_bead" \
+			or v9_hand == null or v9_hand.definition.id != &"wpn_ash_spear":
+		problems.append(("a v9 profile lost its stash, its haul or its gear on the "
+			+ "way to records — the ids were all there, and v10 only has to wrap them"))
 
 	SaveFile.wipe()
 	for problem: String in problems:

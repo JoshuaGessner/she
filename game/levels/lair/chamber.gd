@@ -179,7 +179,9 @@ func _spawn_body() -> void:
 	# wants the Settle beat to open on *what you brought*, and the most direct
 	# way to say that is for it to still be in the bag.
 	for item: ItemInstance in GameState.carried:
-		_player.inventory.add(item.definition)
+		# `bring`, not `add` (ADR-223): a Scarred item carried out arrived here
+		# whole, and was worth its full value on the pile three steps away.
+		_player.inventory.bring(item)
 
 
 ## Putting something down, and the place decides what it means.
@@ -877,7 +879,12 @@ func _seed_a_haul() -> void:
 	for id: StringName in [&"glt_altar_plate", &"glt_hoard_coin", &"mat_bog_iron"]:
 		var definition: ItemResource = ItemCatalogue.by_id(id)
 		if definition != null:
-			haul.append(ItemInstance.of(definition, next))
+			var made: ItemInstance = ItemInstance.of(definition, next)
+			# **One of them Scarred** (ADR-223), so arriving is asked whether a
+			# Scar survives it — the bag was filled with `add(definition)` and
+			# every Legacy item walked in whole.
+			made.scarred = id == &"glt_hoard_coin"
+			haul.append(made)
 			next += 1
 	GameState.bring_home(haul)
 
@@ -902,6 +909,18 @@ func _lair_probe() -> void:
 	if _player.inventory.count() != GameState.carried.size():
 		problems.append("what was carried out is not in the bag on arrival — "
 			+ "DES-019 opens the Settle beat on what you brought")
+	var arrived_scarred: int = 0
+	var left_scarred: int = 0
+	for item: ItemInstance in _player.inventory.items():
+		arrived_scarred += 1 if item.scarred else 0
+	for item: ItemInstance in GameState.carried:
+		left_scarred += 1 if item.scarred else 0
+	print("[lair] its Scars   %d Scarred in the bag of %d carried out (ADR-223)"
+		% [arrived_scarred, left_scarred])
+	if left_scarred == 0 or arrived_scarred != left_scarred:
+		problems.append(("%d Scarred item(s) were carried out and %d arrived — a "
+			+ "Legacy item that walks into the Chamber whole is worth its full "
+			+ "value on the pile three steps away") % [left_scarred, arrived_scarred])
 
 	# Give one thing, keep another, from the same bag.
 	var given: ItemInstance = _player.inventory.richest()
@@ -1480,7 +1499,7 @@ func _legacy_probe() -> void:
 	# more, so the row failed on a claim that was never true of that life
 	# rather than on anything the code did. Ballast *and* its keystone is a
 	# real route (`why_not` enforces the prerequisite), and 6 Boon is a rank.
-	GameState.worn = {"MAIN_HAND": "wpn_seax"}
+	GameState.worn = {"MAIN_HAND": {"id": "wpn_seax", "scarred": false}}
 	GameState.stash.clear()
 	GameState.stash.append(ItemInstance.of(
 		ItemCatalogue.by_id(&"glt_hoard_coin"), 1))
@@ -1639,9 +1658,57 @@ func _legacy_probe() -> void:
 			+ "is granted these %d things again for nothing, and the next death "
 			+ "keeps nothing at all because the board never empties")
 			% GameState.legacy.size())
+
+	# ─ 7b. **Regin's blade comes back whole, and still not hers** (ADR-223) ─
+	#
+	# The one item a Scar does not weaken. Asked through `draw_on_legacy` like
+	# row 5, and against a seax beside it, which is the plant: the same payout
+	# has to leave the seax weakened, or the blade's row is measuring a Scar that
+	# weakens nothing. Both must still be refused as tribute.
+	GameState.legacy.clear()
+	GameState.stash.clear()
+	GameState.legacy.append({"kind": "item", "id": "rlc_regin_blade"})
+	GameState.legacy.append({"kind": "item", "id": "wpn_seax"})
+	GameState.draw_on_legacy()
+	var relic: ItemInstance = null
+	var blade: ItemInstance = null
+	for item: ItemInstance in GameState.stash:
+		if item.definition.id == &"rlc_regin_blade":
+			relic = item
+		elif item.definition.id == &"wpn_seax":
+			blade = item
+	var label: String = ""
+	GameState.last_life = {"class_id": "huskarl", "worn": ["rlc_regin_blade"],
+		"stash": [], "taken": [], "rank": 1}
+	for offer: Dictionary in screen.offers():
+		if StringName(offer.get("id", "")) == &"rlc_regin_blade":
+			label = String(offer.get("name", ""))
+	print("[legacy] Regin's blade        weakened %s, seax weakened %s, refused as tribute '%s', offered as '%s'" % [
+		relic.weakened() if relic != null else "MISSING",
+		blade.weakened() if blade != null else "MISSING",
+		GameState.why_not_tribute(relic) if relic != null else "", label])
+	if relic == null or blade == null:
+		problems.append("the Legacy payout did not return Regin's blade and a seax")
+	else:
+		if relic.weakened():
+			problems.append(("Regin's blade came back through death weakened — "
+				+ "the one thing ADR-223 lets a relic do that nothing else does"))
+		if not blade.weakened():
+			problems.append(("a Scarred seax came back at full power, so the row "
+				+ "above is not measuring the Scar"))
+		if GameState.why_not_tribute(relic) == "" or relic.tribute_worth() != 0:
+			problems.append(("Regin's blade came back whole **and** worth its value "
+				+ "to her — a relic kept through a death and then given is the hoard "
+				+ "laundered through a life, which ADR-003 refuses"))
+	if label.find(ItemCatalogue.by_id(&"rlc_regin_blade").display()) < 0 \
+			or label == ItemCatalogue.by_id(&"rlc_regin_blade").display():
+		problems.append(("the Legacy screen offers Regin's blade as '%s' — the one "
+			+ "thing that comes back whole has to say so where it is chosen") % label)
+	GameState.stash.clear()
+
 	# The claim that matters is the **next** death being a real choice again.
 	GameState.class_id = &"veidimadr"
-	GameState.worn = {"MAIN_HAND": "wpn_yew_bow"}
+	GameState.worn = {"MAIN_HAND": {"id": "wpn_yew_bow", "scarred": false}}
 	GameState.forget_the_last_life()
 	GameState.die()
 	var second: String = GameState.why_not_keep("item", &"wpn_yew_bow")

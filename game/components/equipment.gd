@@ -138,11 +138,13 @@ func grid_size() -> Vector2i:
 	return pack.grid if pack != null else Config.tuning.inventory_grid
 
 
-## What is worn, as ids, for the save (`TEC-003`). Slot names rather than
-## indices: an enum reordered later must not silently move a helm onto a hand.
+## What is worn, for the save (`TEC-003`) and the spawn payload. Slot names
+## rather than indices: an enum reordered later must not silently move a helm
+## onto a hand. **Records, not ids** (save v10, ADR-223) — a Scarred seax worn
+## through one descent came back whole, because an id cannot say it was Scarred.
 func to_wire() -> Dictionary:
 	var rows: Dictionary = {}
 	for slot: Enums.Slot in _worn:
 		var item: ItemInstance = _worn[slot] as ItemInstance
-		rows[Enums.Slot.keys()[slot]] = String(item.definition.id)
+		rows[Enums.Slot.keys()[slot]] = item.to_record()
 	return rows

@@ -288,8 +288,8 @@ var effects: PackedStringArray = PackedStringArray():
 		effects = value
 		_redress()
 
-## **What this body arrived wearing** (`M3-T07`, `DES-020`). Slot name → item
-## id, off the spawn payload like `sworn` and `effects`, and for the same
+## **What this body arrived wearing** (`M3-T07`, `DES-020`). Slot name → an
+## item record (`ItemInstance.to_record`, save v10), off the spawn payload like `sworn` and `effects`, and for the same
 ## reason: the host dresses four bodies and three of them are somebody else's.
 ##
 ## Empty means a life that has never equipped anything, and the class kit
@@ -2391,11 +2391,14 @@ func _dress_the_body(body: ClassResource) -> void:
 	# hammer would find the seax back in their hand every descent.
 	if not wearing.is_empty():
 		for name: String in wearing:
-			var found: ItemResource = ItemCatalogue.by_id(StringName(wearing[name]))
+			# **A record, so a Scar survives being worn** (ADR-223). This read
+			# an id and minted a whole item from it, so a Legacy weapon worn
+			# down one Shaft came back at full power and tributable.
+			var found: ItemInstance = ItemInstance.from_record(wearing[name], 0)
 			if found == null:
-				push_warning("Player: worn '%s' is not in this build" % wearing[name])
+				push_warning("Player: worn '%s' is not in this build" % str(wearing[name]))
 				continue
-			equipment.equip(ItemInstance.of(found, 0))
+			equipment.equip(found)
 		return
 	if body == null:
 		return
@@ -2415,7 +2418,9 @@ func _on_equipment_changed() -> void:
 	var swung := equipment.trait_in(Enums.Slot.MAIN_HAND, WieldableTrait) as WieldableTrait
 	var drawn := equipment.trait_in(Enums.Slot.MAIN_HAND, RangedTrait) as RangedTrait
 	var in_hand: ItemInstance = equipment.in_slot(Enums.Slot.MAIN_HAND)
-	weapon.wield(swung, in_hand != null and in_hand.scarred)
+	# `weakened`, not `scarred`: an enduring relic keeps its Scar's tribute
+	# refusal and not its loss of power (ADR-223).
+	weapon.wield(swung, in_hand != null and in_hand.weakened())
 	if drawn != null and ranged == null:
 		ranged = RangedWeapon.new()
 		ranged.name = "Bow"

@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 9
+const SAVE_VERSION: int = 10
 
 ## **A `static var`, so a probe can point it somewhere harmless** (ADR-145).
 ##
@@ -98,6 +98,7 @@ static func migrations() -> Dictionary:
 		6: _migrate_6_to_7,
 		7: _migrate_7_to_8,
 		8: _migrate_8_to_9,
+		9: _migrate_9_to_10,
 	}
 
 
@@ -396,4 +397,29 @@ static func _migrate_8_to_9(old: Dictionary) -> Dictionary:
 	var lineage: Dictionary = out.get("lineage", {}) as Dictionary
 	lineage["descents"] = 1
 	out["lineage"] = lineage
+	return out
+
+
+## **v10 — an item is remembered with its Scar** (ADR-223).
+##
+## The stash, the haul and what is worn were bare ids, so a Legacy item quit and
+## reloaded — or worn down a Shaft — came back whole. Each id becomes a record
+## `{id, scarred}`, and **`scarred` is false for every one of them**: a v9 file
+## never wrote a Scar, so there is none on disk to recover. A Legacy item sitting
+## in a v9 stash comes back whole, once — which is what every build before this
+## one already did to it on the first descent.
+static func _migrate_9_to_10(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	for field: String in ["stash", "carried"]:
+		var rows: Array = []
+		for raw: Variant in life.get(field, []) as Array:
+			rows.append({"id": str(raw), "scarred": false})
+		life[field] = rows
+	var worn: Dictionary = {}
+	var was: Dictionary = life.get("worn", {}) as Dictionary
+	for slot: Variant in was:
+		worn[slot] = {"id": str(was[slot]), "scarred": false}
+	life["worn"] = worn
+	out["life"] = life
 	return out

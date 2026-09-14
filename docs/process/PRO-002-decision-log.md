@@ -8000,5 +8000,35 @@ With random facings and no clear space ahead, every weapon glanced a fifth to a 
 
 `--arc-probe`, new and required on its last row, builds its own floor, walls and target above the level so no room can move under it. Every weapon lands on a body 0.2 m inside its reach and misses one 0.2 m past it; two bodies do not share an arc; with a wall just beside the swing the seax lands and the spear glances, strikes nothing, recovers for the glance's duration and makes more than the swing's noise; a pillar standing *behind* the body does not glance the spear; and a spear pointed 45° down over open floor does not glance. **Planted and failed:** the arc left at the old fixed size (Regin's blade and the spear stop landing inside their reach), the shared shape restored, glancing switched off, the flesh-first rule removed (every swing glances off its own target, and the pillar row fails), the lines left pitched (looking down glances), the glance recovery unscaled, and the glance's noise removed. The wall rows were planted again after the arc narrowed to 12°. `--fight-probe` and `--gear-probe` pass unchanged.
 
+## ADR-223 — Regin's blade comes back through death whole, and no Scar had ever survived a descent
+
+**Date:** 2026-09-13 · **Status:** accepted · **Advances `M4-T31`** · **Save v10** · **Amends `DES-003` (one exception to the Scar), `DES-023` §6**
+
+**Context:** `M4-T17` found `rlc_regin_blade` was a seax with bigger numbers, and `DES-023` §6 said it owes a verb or an ADR saying why a relic may be a number. The developer chose, over the Gold-Sick flinching from it and over writing down why it may stay stronger, that **it is the one thing that comes back through death whole**: `DES-003` Scars every Legacy item — *reduced power, and cannot be tributed* — and this one keeps the second half and not the first. It touches no combat balance, and it makes *use it, give it to her, or keep it* a real three-way choice for the richest weapon on the list.
+
+**Building it found the Scar had never survived a descent.** `--legacy-probe` asserted the Legacy payout put Scarred items in the stash, and it did. Then:
+
+- `RoomSet._carry_the_stash_down` filled the bag with `Inventory.add(item.definition)`, which mints a whole item — **every Legacy item lost its Scar on the first descent**;
+- the Chamber filled its bag from the haul the same way, so a Scarred item carried out **walked into the Chamber whole and was worth its full value on the pile**;
+- the stash, the haul and worn gear were saved as bare ids, and worn gear crossed the network as bare ids, so **quitting, or wearing a Legacy weapon down one Shaft, un-Scarred it**.
+
+So in play every kept weapon was at full power by the first floor, and every kept relic could be given back — ADR-003's refusal to let a Legacy slot launder a hoard through a life you were going to lose, open three separate ways. It went unseen because every probe that asked about the Scar asked it in the room where the Scar was made.
+
+### Decision
+
+- **`rlc_regin_blade` carries an `enduring` tag.** `ItemInstance.weakened()` is *Scarred and not enduring*, and it is what the swing reads; `scarred` stays true on the blade, so `tribute_worth` and `why_not_tribute` go on refusing it. `ItemResource.validate` refuses `enduring` on anything that swings nothing, since a Scar weakens only a weapon. The Legacy screen offers it as *"Regin's Blade — comes back whole"*, because the reason to choose it has to be visible where it is chosen.
+- **`Inventory.bring(item)`** mints a fresh instance id in the new bag and keeps what lives on the instance — the Scar and an ember's owner — and emits once the instance is complete. The stash carried down and the Chamber's haul both use it. `put_back` stays the return to the bag an item came from.
+- **Save v10: an item is remembered as a record, `{id, scarred}`**, in the stash, the haul and what is worn, on disk and in the spawn packet (`ItemInstance.to_record` / `from_record`, the latter untrusted like `from_wire`). The migration wraps every v9 id with `scarred: false` — a v9 file never wrote a Scar, so there is none to recover, and a Legacy item in a v9 stash comes back whole once, which is what every earlier build already did to it on its first descent. `last_life`'s lists stay ids: they name what a life *had*, for the Legacy screen, and a Scar is not part of that question.
+
+### Verification
+
+`--scar-probe`, new and required on its last row, follows a Scarred seax, a Scarred Regin's blade and a whole bead down from the stash: all three arrive with their Scars as they left; the seax in the hand swings at `scarred_power` and still does after a re-dress from the record the body reports wearing, which is what the next floor builds; and Regin's blade swings at full damage and is still refused as tribute. `--legacy-probe` gains the payout row — the blade not weakened, a seax beside it weakened, both refused, the screen's label — and `--lair-probe` seeds one Scarred item in the haul and asks that it arrives Scarred. `--save-probe`'s round trip is now Scarred in all three places, and it has a literal **v9 fixture**. **Planted and failed:** the carry-down back on `add`; the Chamber back on `add`; the label removed; worn gear rebuilt from its id alone; `weakened` returning `scarred`; an enduring item accepted as tribute; records written without the Scar; the migration leaving worn gear as bare ids; and `enduring` on the gilt bead.
+
+### Consequences
+
+- **A Legacy weapon now really is at 70% ⟨tune⟩ for its whole next life**, for the first time. Nobody has played that, and `GATE M4 GREED` is where it will be felt.
+- **Regin's blade is now the best thing to keep in a Legacy slot** if you swing it, and one of the best to give her if you do not — which is the choice the developer wanted it to pose, and a number to watch.
+- **Noticed on the way and not investigated:** `_carry_the_stash_down` runs once in the level's `_ready` and fills `_session.local_player()`'s bag. That is the host's authoritative bag in solo; on a client the body may not have spawned yet, and a client's bag is the host's to fill. Whether a client's stash ever reaches its bag is unverified, and it is raised with the developer rather than assumed either way.
+
 *Entries below to be added as design decisions are signed off.*
 

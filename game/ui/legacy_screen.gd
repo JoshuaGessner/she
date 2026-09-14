@@ -142,6 +142,11 @@ func _offer(kind: String, id: StringName) -> Dictionary:
 		var definition: ItemResource = ItemCatalogue.by_id(id)
 		if definition != null:
 			shown = definition.display()
+			# **Said where the choice is made** (ADR-223). The body text tells a
+			# player what she keeps comes back Scarred; the one thing that comes
+			# back whole has to say so here, or the reason to pick it is hidden.
+			if definition.tags.has(ItemInstance.ENDURING):
+				shown = tr("legacy.keep.whole") % shown
 	else:
 		var node: AspectNode = AspectCatalogue.by_id(id)
 		if node != null:
