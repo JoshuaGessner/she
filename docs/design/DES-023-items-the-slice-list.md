@@ -4,7 +4,7 @@ title: Items — the Slice's List
 status: accepted
 owner: design
 tags: [items, loot, gear, weapons, armour, consumables, taxonomy]
-updated: 2026-09-13
+updated: 2026-09-14
 related: [DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004]
 ---
 
@@ -55,12 +55,12 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 |---|---|---|---|---|
 | `arm_mail_byrnie` *(exists)* | Body | **Mailed** — turns most of a cut (§3) | Heavy, and it jingles — **charged since ADR-224**: nothing worn weighed or sounded before, so both were free on the body | Húskarl kit · floor 0+ gear |
 | `arm_dvergar_plate` | Body | **Plated** — turns a cut and most of a pierce, so a swarm's chip damage stops mattering | The heaviest thing you can wear; loud to move in; a hammer goes straight through it | floor 2 gear |
-| `rlc_otr_pelt` | Body | **The Gold-Sick cannot feel through a wall what you carry while you wear it** (`DES-017`'s near sense). Ótr's skin, the one the first hoard was paid over | No protection at all — it is a pelt — and worth 180 to her ⟨tune⟩, so wearing it is refusing the richest single offer on the floor | floor 2 Prize |
+| `rlc_otr_pelt` *(built, ADR-226)* | Body | **The Gold-Sick cannot feel through a wall what you carry while you wear it** (`DES-017`'s near sense). *It is Her Reckoning's effect worn rather than bought, by the developer's call: the same capability at a different price.* Ótr's skin, the one the first hoard was paid over | No protection at all — it is a pelt — and worth 180 to her ⟨tune⟩, so wearing it is refusing the richest single offer on the floor | floor 2 Prize |
 | `arm_spangen_helm` | Head | **You cannot be Concussed** (`DES-009` wounds) | Weight; arrives with wounds (§5) | floor 1+ gear |
 | `arm_iron_bracers` | Arms | **You cannot have an arm broken** — so a heavy hit never takes your two-hander or your guard (`DES-009` wounds) | Weight; arrives with wounds (§5) | floor 1+ gear |
 | *no pack* | Pack | The quietest body in the game and the smallest grid — `DES-020`'s *"I came for one thing"* | 6 × 5 cells | Veiðimaðr default |
 | `arm_hide_satchel` *(exists)* | Pack | 7 × 6 cells, silent | Weight | floor 0+ gear |
-| `arm_pack_frame` | Pack | **8 × 7 cells** ⟨tune⟩ — the only pack the coin-chest and the altar-plate fit in together | Heavy, **and it creaks**: `DES-020`'s *"the upgrade that makes you more powerful is the upgrade that makes you louder"*, as an item. Visible on your back, so the party can see who is hauling | floor 1+ gear |
+| `arm_pack_frame` *(built, ADR-226)* | Pack | **8 × 7 cells** ⟨tune⟩, the largest grid on the list *(ADR-226 struck "the only pack the coin-chest and the altar-plate fit in together": at 3 × 3 each they lie side by side in no pack at all)* | Heavy, **and it creaks**: `DES-020`'s *"the upgrade that makes you more powerful is the upgrade that makes you louder"*, as an item. Visible on your back, so the party can see who is hauling *(not yet: no worn gear is drawn on any body, so this waits for `M4-T10`'s models)* | floor 1+ gear |
 
 ### Consumables
 
@@ -80,7 +80,7 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 | `glt_hoard_coin` *(exists)* | Heavy and loud for its worth | floor 1+ |
 | `glt_gilded_torc` *(exists)* | Light, bright, worth carrying out | floor 1+ |
 | `glt_altar_plate` *(exists)* | Heavy, loud, and a Prize | floor 2 Prize · filler |
-| `glt_coin_chest` | **The find you can barely carry at all** — `DES-008`'s *Dvergar king's coin-chest*: 26 kg ⟨tune⟩ against a 30 kg Veiðimaðr, a 3 × 3 footprint, the loudest thing in a bag. Worth 220 ⟨tune⟩ | floor 2 Prize |
+| `glt_coin_chest` *(built, ADR-226)* | **The find you can barely carry at all** — `DES-008`'s *Dvergar king's coin-chest*: 26 kg ⟨tune⟩ against a 30 kg Veiðimaðr, a 3 × 3 footprint, the loudest thing in a bag. Worth 220 ⟨tune⟩ | floor 2 Prize |
 
 ### Relics and materials
 
@@ -129,7 +129,7 @@ A floor dealt its loot from **the entire item folder**, sorted by worth and cut 
 | **Filler** | Glitter, bindings, bog iron | Party-scaled, dearest into the rooms that cost the most to reach (ADR-032) |
 | **Never on a floor** | The Ember, a second Waystone | `DES-012`, ADR-015 |
 
-**Depth bands**, as the *Source* column above lists them: floor 0 is light gear and the bead, so its best find stays in single figures as ADR-193 measured it; floor 1 opens the hammer, the axe, the shield, the frame, the helm, the bracers, the rune, and the coin, the gem and the torc; floor 2 holds plate, both relics, the altar-plate and the coin-chest. The climb ADR-193 measured — 6 → 55 → 140 — becomes roughly 6 → 70 → 220, and **that is an economy change `GATE M4 GREED` has to be run against**, not a number to trust from here. The bands are the greed gradient `DES-015` Layer 4 asks for, authored instead of cut — ⟨tune⟩.
+**Depth bands**, as the *Source* column above lists them: floor 0 is light gear and the bead, so its best find stays in single figures as ADR-193 measured it; floor 1 opens the hammer, the axe, the shield, the frame, the helm, the bracers, the rune, and the coin, the gem and the torc; floor 2 holds plate, both relics, the altar-plate and the coin-chest. The climb ADR-193 measured — 6 → 55 → 140 — becomes roughly 6 → 70 → 220, and **that is an economy change `GATE M4 GREED` has to be run against**, not a number to trust from here. *Measured by ADR-226 with the chest and the pelt in: the best find climbs 8 → 70 → 220 over forty seeds, floor 2 lays 15% more tribute than before, and its four Prizes are guarded 9, 9, 10 and 12 times in forty.* The bands are the greed gradient `DES-015` Layer 4 asks for, authored instead of cut — ⟨tune⟩.
 
 > **Bindings open at floor 1, not floor 0** (ADR-221). Dealt as floor 0 filler they alternated with bog iron and came to 1.7 a solo floor — five in a solo run with the kit's two, 175% of a health bar, which is not *scarce*. From floor 1 a solo run carries about 3.4. They are the cheapest filler, so they are dealt into the bypass first: the safe route pays in linen and the guarded one in gold.
 

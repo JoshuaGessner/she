@@ -355,10 +355,11 @@ func _richest_in_range() -> Player:
 		var player := node as Player
 		if player == null:
 			continue
-		# **Her Reckoning** (`hrd_her_reckoning`). Not invisible — skipped only
-		# by the sense that picks a *target out of a crowd for being rich*. The
-		# noise field does not know about this and never will.
-		if player.has_effect(&"unremarkable_wealth"):
+		# **Her Reckoning** (`hrd_her_reckoning`), **or Ótr's pelt worn**
+		# (ADR-226). Not invisible — skipped only by the sense that picks a
+		# *target out of a crowd for being rich*. The noise field does not know
+		# about this and never will.
+		if player.wealth_is_hidden():
 			continue
 		if global_position.distance_to(player.global_position) > reach:
 			continue

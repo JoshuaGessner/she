@@ -5681,11 +5681,18 @@ func _machine_probe() -> void:
 		var best: int = 0
 		var total: int = 0
 		var floors_seen: int = 0
+		# **Which Prize each floor guards** (ADR-226). The coin-chest and Ótr's
+		# pelt joined floor 2's band beside the altar-plate and Regin's blade,
+		# and a Prize the seed never picks is one the table holds for nothing.
+		var guarded_by: Dictionary = {}
 		for seed_at: int in range(8000, 8040):
 			var made: DelvingsFloor = DelvingsFloor.of(seed_at, depth)
 			if not made.problems().is_empty():
 				continue
 			floors_seen += 1
+			var guarded_item: ItemResource = made.prize_item()
+			if guarded_item != null:
+				guarded_by[guarded_item.id] = int(guarded_by.get(guarded_item.id, 0)) + 1
 			dealt_rows += made.fixtures().size() + made.filler().size()
 			for fault: String in _dealt_faults(made, depth, DelvingsFloor.LOOT):
 				if not loot_faults.has(fault):
@@ -5699,6 +5706,25 @@ func _machine_probe() -> void:
 		worth_at.append(best)
 		print("[machine] depth %d     best %d tribute, %d laid across %d floor(s)"
 			% [depth, best, total, floors_seen])
+		# The Prizes of the deepest band this floor opens, from the table.
+		var band: int = -1
+		for entry: LootEntry in DelvingsFloor.LOOT.entries:
+			if entry.can(LootEntry.Deal.PRIZE) and entry.from_floor <= depth:
+				band = maxi(band, entry.from_floor)
+		var never: PackedStringArray = []
+		for entry: LootEntry in DelvingsFloor.LOOT.entries:
+			if entry.can(LootEntry.Deal.PRIZE) and entry.from_floor == band \
+					and not guarded_by.has(entry.item):
+				never.append(String(entry.item))
+		var census: PackedStringArray = []
+		for id: StringName in guarded_by:
+			census.append("%s %d" % [id, guarded_by[id]])
+		census.sort()
+		print("[machine] prizes %d    %s" % [depth, ", ".join(census)])
+		if not never.is_empty():
+			problems.append(("floor %d's band holds Prize(s) %s that forty seeds never "
+				+ "guarded — a Prize the seed cannot pick is in the table for nothing")
+				% [depth, ", ".join(never)])
 	# **Strictly climbing, and by a lot.** `DES-015` says *steeply*, so equal
 	# adjacent floors is a failure and not a rounding artefact: two floors that
 	# pay the same are two floors with the same decision on them.
@@ -10067,6 +10093,69 @@ func _gear_probe() -> void:
 	if float(taken["mail/%d" % Enums.DamageType.CUT]) >= 30.0:
 		problems.append("mail turned nothing of a cut, which is the byrnie "
 			+ "`DES-023` found weighing 11 kg and doing nothing")
+
+	# ─ 9. **the frame: more room, and it costs you** (ADR-226, `DES-020`) ─
+	#
+	# *"The upgrade that makes you more powerful is the upgrade that makes you
+	# louder"*, as an item. Asked of the body rather than the file: the grid
+	# the bag became, the load the legs carry and the floor the body stands
+	# at, satchel against frame. All three have to move together, because a
+	# frame that was only bigger is the ladder `DES-008` rejects.
+	var frame: ItemResource = ItemCatalogue.by_id(&"arm_pack_frame")
+	var packs: Array = []
+	for worn_pack: ItemResource in [satchel, frame]:
+		gear.clear()
+		player.inventory.clear()
+		gear.equip(ItemInstance.of(worn_pack, 9200))
+		await _hold(0.2)
+		packs.append([player.inventory.grid(), player.carried.kilograms,
+			player.clamor.carried_floor])
+	var satchel_row: Array = packs[0]
+	var frame_row: Array = packs[1]
+	var frame_grid: Vector2i = frame_row[0]
+	var satchel_grid: Vector2i = satchel_row[0]
+	print("[gear] pack frame         %s → %s cells, %.1f → %.1f kg, standing %.2f → %.2f clamor"
+		% [satchel_grid, frame_grid, satchel_row[1], frame_row[1], satchel_row[2],
+		frame_row[2]])
+	if frame_grid.x * frame_grid.y <= satchel_grid.x * satchel_grid.y:
+		problems.append("the pack frame holds no more than the satchel")
+	if float(frame_row[1]) <= float(satchel_row[1]):
+		problems.append("the pack frame is no heavier on the body than the satchel")
+	if float(frame_row[2]) <= float(satchel_row[2]):
+		problems.append(("the pack frame is no louder standing still than the "
+			+ "satchel — `DES-023` makes it creak, and a bigger bag that costs "
+			+ "nothing is the ladder"))
+
+	# ─ 10. **Ótr's pelt: she cannot feel what you carry** (ADR-226, `DES-017`) ─
+	#
+	# The near sense, asked three ways about one body carrying an altar-plate:
+	# bare, wearing the pelt, and with the pelt in the bag instead — so a pelt
+	# that hid the bag by being *owned* rather than worn fails the third row,
+	# and a Hunter that never senses anybody fails the first.
+	gear.clear()
+	player.inventory.clear()
+	player.inventory.add(ItemCatalogue.by_id(&"glt_altar_plate"))
+	var pelt: ItemResource = ItemCatalogue.by_id(&"rlc_otr_pelt")
+	var sensed_bare: bool = false
+	var sensed_worn: bool = false
+	var sensed_carried: bool = false
+	if _hunter != null:
+		_hunter.global_position = player.global_position + Vector3(2.0, 0.0, 0.0)
+		sensed_bare = _hunter._richest_in_range() == player
+		gear.equip(ItemInstance.of(pelt, 9300))
+		sensed_worn = _hunter._richest_in_range() == player
+		gear.unequip(Enums.Slot.BODY)
+		player.inventory.add(pelt)
+		sensed_carried = _hunter._richest_in_range() == player
+	print("[gear] Ótr's pelt         sensed bare %s, wearing it %s, carrying it %s (want true, false, true)"
+		% [sensed_bare, sensed_worn, sensed_carried])
+	if _hunter == null:
+		problems.append("no Gold-Sick on this floor to ask about the pelt")
+	elif not sensed_bare or sensed_worn or not sensed_carried:
+		problems.append(("the Gold-Sick sensed a rich body bare %s, in Ótr's pelt "
+			+ "%s and carrying it %s — the pelt worn hides the bag, and only worn")
+			% [sensed_bare, sensed_worn, sensed_carried])
+	player.inventory.clear()
 
 	_report(problems, "gear")
 

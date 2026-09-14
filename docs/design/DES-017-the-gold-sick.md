@@ -4,7 +4,7 @@ title: The Gold-Sick — the Hunter
 status: accepted
 owner: design
 tags: [hunter, pressure, ai, theme, clamor, extraction]
-updated: 2026-09-01
+updated: 2026-09-14
 related: [DES-005, DES-013, DES-008, DES-014, DES-018]
 ---
 
@@ -52,7 +52,7 @@ This is the mechanical core and the thing that distinguishes it.
 | Range | What it senses |
 |---|---|
 | **Far** | Clamor. The general commotion of you existing loudly (`DES-005`) |
-| **Near** | **Carried tribute value.** It can feel gold through a wall. |
+| **Near** | **Carried tribute value.** It can feel gold through a wall *— unless the body has Her Reckoning, or wears Ótr's pelt (ADR-226)*. |
 | **Contact** | Sight and sound, normally |
 
 **Built at `M2-T02`**, and the far sense is built the hard way on purpose: it navigates `TEC-001`'s **clamor field by gradient**, never a player transform. It walks up the noise and arrives where the noise *was*. `--hunt-probe` asserts exactly that — make a sound, move away silently, and the Hunter must go to the sound — and the check was verified by handing it the player's position and watching it fail. That is the shortcut this design cannot survive, because players test it directly.

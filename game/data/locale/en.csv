@@ -66,7 +66,13 @@ node.hrd_weight_of_kings.desc,"There is no limit to what you can carry. Every ki
 node.hrd_tribute_in_kind.name,Tribute in Kind
 node.hrd_tribute_in_kind.desc,"You know what gold is worth to her. Anything you set down is worth her stooping for — and she will take it."
 item.arm_hide_satchel.name,Hide Satchel
-item.arm_hide_satchel.desc,"A wider frame, and a wider frame is a louder one. Everything you gain room for is something else the dark can hear you carrying."
+item.arm_hide_satchel.desc,"Soft hide, and it makes no sound at all. Room for more than your hands will hold, and not for a hoard."
+item.arm_pack_frame.name,Pack Frame
+item.arm_pack_frame.desc,"Ash staves lashed with rawhide, and room for a hoard on your back. It creaks under the load, walking or standing still."
+item.glt_coin_chest.name,Coin-Chest
+item.glt_coin_chest.desc,"A Dvergar king's coin, still in the king's chest. You can lift it. You cannot lift it quietly, and you will not be running anywhere."
+item.rlc_otr_pelt.name,Ótr's Pelt
+item.rlc_otr_pelt.desc,"The otter-skin the first hoard was paid over, and never quite covered. Wear it and the Gold-Sick cannot feel what you carry. She would give almost anything to have it back."
 fallen.down,"Bleeding out — %d s. Your ember will drop where you fall."
 fallen.hand,"A hand on you. Hold still."
 fallen.vordr,"Vörðr. You are loose, and nothing can touch you. Scout for them."

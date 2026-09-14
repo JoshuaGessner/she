@@ -73,6 +73,12 @@ var scarred: bool = false
 ## Only `rlc_regin_blade` has it: *Regin forged it to outlast its maker.*
 const ENDURING: StringName = &"enduring"
 
+## **The tag a coat carries if the Gold-Sick cannot feel through it** (ADR-226).
+## Only `rlc_otr_pelt` has it: *the skin the first hoard was paid over.* It is
+## Her Reckoning's effect worn rather than bought, by the developer's call —
+## the two differ in what they cost, not in what they do.
+const HIDES_WEALTH: StringName = &"hides_wealth"
+
 
 ## **Whether the Scar is costing this item its power** (ADR-223, `DES-003`).
 ##

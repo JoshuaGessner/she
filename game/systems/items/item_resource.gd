@@ -161,6 +161,12 @@ func validate() -> PackedStringArray:
 		problems.append(("%s is enduring and swings nothing — a Scar weakens only "
 			+ "a weapon, so it would come back through death exactly as it would "
 			+ "have anyway") % id)
+	# **Hiding wealth is the coat's** (ADR-226). The Gold-Sick reads the body
+	# slot alone, so the tag anywhere else would promise what nothing reads.
+	if tags.has(&"hides_wealth") and slot != Enums.Slot.BODY:
+		problems.append(("%s hides wealth from the %s slot; only what is worn on "
+			+ "the body is read — anywhere else it is carried, and hides nothing")
+			% [id, Enums.Slot.keys()[slot]])
 	if two_handed and slot != Enums.Slot.MAIN_HAND:
 		problems.append(("%s is two-handed but is not a main-hand item; "
 			+ "`DES-020` gives the second hand only to what the first one holds")

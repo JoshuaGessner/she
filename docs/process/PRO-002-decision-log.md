@@ -8092,5 +8092,52 @@ So one trip to the floor made a Legacy relic whole and worth its full value to h
 
 - **What the Gold-Sick tears out of a bag is richest-first**, and a Scarred item is worth nothing, so it is taken only from a bag of nothing else; when it is, it now lands Scarred.
 
+## ADR-226 — The pack frame, the coin-chest and Ótr's pelt land, and one line of the list was arithmetic that did not add up
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T31`** · **Changes floor 2's Prizes and the economy `GATE M4 GREED` runs against** · **Amends `DES-023` §2 and §4, `DES-017`**
+
+**Context:** three of `M4-T31`'s four items are data over systems that now exist: the pack frame's whole cost is weight and noise, which ADR-224 made real on the body; the coin-chest is glitter; and Ótr's pelt is a coat the Gold-Sick's near sense has to ask about. Two things had to be settled first.
+
+- **`DES-023` could not be built as written.** The frame was *"the only pack the coin-chest and the altar-plate fit in together"*, and the chest was 3 × 3. Two 3 × 3 items lie side by side in the no-pack grid of 6 × 5, and the satchel holds four.
+- **The pelt did exactly what a Hoard node already does.** Her Reckoning (`hrd_her_reckoning`, rank 4) takes a body out of `Gullsjukr._richest_in_range`, and the pelt as listed does the same.
+
+### Decision — the developer's calls
+
+- **The chest stays 3 × 3 and the line is struck**, over a 5 × 5 chest that would have made it true. Glitter is dense in kilograms and gear in squares (`Inventory`'s own table); a chest that was also the bulkiest thing in the game would have every cost pointing one way. The frame is the largest grid, heavier and louder, and that is its sentence.
+- **The pelt is built as listed**, over a ransom verb (it is torn off your back instead of your richest thing) and over changing the node. The two are one capability at two prices: Boon and rank 4, or a body slot with no armour and 180 tribute not given. A player who bought the node can give the pelt to her, which is the node paying off.
+
+### What landed ⟨tune⟩
+
+| | Grid | Weight | Clamor | Worth | Band |
+|---|---|---|---|---|---|
+| `arm_pack_frame` | 8 × 7 as a pack (2 × 4 carried) | 4.5 kg | 2.0 — 0.8 m standing, worn | 5 | floor 1+ gear |
+| `glt_coin_chest` | 3 × 3 | 26 kg | 6.0 — the loudest thing in a bag | 220 | floor 2 Prize |
+| `rlc_otr_pelt` | 2 × 3, body slot | 3.0 kg | 0 | 180 | floor 2 Prize |
+
+- **The creak is the frame's own clamor**, standing floor and all, through ADR-224's path — no second noise system. It is not a sound yet, as the byrnie's jingle is not: both are heard by the Deep and drawn on the bag's header and the party pip, which is `DES-018`'s visual twin. *Visible on your back* is not built: no worn gear is drawn on any body, and that is `M4-T10`'s.
+- **`Player.wealth_is_hidden()`** is the one question: the tree's `unremarkable_wealth`, or a body-slot item tagged `hides_wealth`. `ItemResource.validate` refuses the tag on any other slot. Only worn: a pelt in the bag hides nothing and is worth 180 to the near sense like anything else.
+- The satchel's description called itself *"a wider frame"*, and is now the silent pack it is.
+
+### Measured — the machine probe's forty seeds a floor
+
+| | before | after |
+|---|---|---|
+| Best find, floors 0 / 1 / 2 | 8 / 70 / 140 | **8 / 70 / 220** |
+| Tribute laid, floor 1 | 14,235 | 14,288 |
+| Tribute laid, floor 2 | 25,852 | **29,609** (+15%) |
+| Floor 2 Prizes | altar-plate, Regin's blade | altar-plate 9 · coin-chest 9 · Regin's blade 10 · Ótr's pelt 12 |
+
+`DES-023`'s projected 6 → 70 → 220 is what the floors deal. **Every glitter pool on the floor pours a little less light**, because a pool is lit by its share of the richest glitter in the catalogue (ADR-204) and the richest is now 220, not 140: the altar-plate, which poured the maximum, now pours 63% of the way there.
+
+### Verification
+
+`--gear-probe` row 9 wears the satchel and then the frame and asks the body — grid, kilograms and standing floor all rise (7 × 6 → 8 × 7, 1.8 → 4.5 kg, 0.00 → 0.50); row 10 asks the Gold-Sick's near sense about one body carrying an altar-plate, bare (sensed), in the pelt (not), and with the pelt in the bag instead (sensed). `--machine-probe` now prints which Prize each floor guards and **fails when a Prize in a floor's deepest band is never guarded in forty seeds**. `data_probe` passes with 21 items, every one with a source. **Planted and failed, one plant per run:** the frame silent; the frame no bigger than the satchel; the frame no heavier; the coat not read; owning the pelt anywhere hiding the bag; the Gold-Sick asking only the tree; `hides_wealth` on the coin-chest; and the seed always guarding the first Prize.
+
+### Consequences
+
+- **Floor 2 is worth more, and the chest is a trap as much as a prize.** A Veiðimaðr in their kit carrying it is 92% laden and walks at 0.63; a Húskarl, 76% and 0.61. Whether anyone carries it out is `GATE M4 GREED`'s question.
+- **A Scarred pelt still hides wealth**, because a Scar weakens only a weapon (ADR-223), so the pelt is a strong Legacy keep — refused as tribute, and still a coat she cannot see through. Worth watching beside Regin's blade.
+- **The bearded axe is all that is left of `M4-T31`'s four**, and the throw key throws a held axe, by the developer's call.
+
 *Entries below to be added as design decisions are signed off.*
 

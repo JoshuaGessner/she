@@ -306,7 +306,8 @@ func _standing() -> Array:
 ## **The one thing the Guardian sits on** (ADR-220, `DES-023` §4).
 ##
 ## Chosen from the Prizes of the deepest band this floor opens — a floor 2 lays
-## the altar-plate or Regin's blade, a floor 1 the torc, the gem or the coin —
+## the coin-chest, Ótr's pelt, the altar-plate or Regin's blade (ADR-226), a
+## floor 1 the torc, the gem or the coin —
 ## and **by the seed**, so two floors of one depth do not always guard the same
 ## object and one seed guards the same one on every machine (`TEC-007`). The
 ## worth cut this replaced always laid the single dearest item, so a relic

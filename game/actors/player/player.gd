@@ -2348,6 +2348,20 @@ func has_effect(tag: StringName) -> bool:
 	return effects.has(String(tag))
 
 
+## **Can the Gold-Sick feel what this body carries through a wall?** False when
+## the tree says so (Her Reckoning) or the coat does (Ótr's pelt, ADR-226).
+##
+## One question with two answers, by the developer's call: the pelt is the
+## node's effect worn rather than bought, and the difference is the price — a
+## body slot with no armour and 180 tribute not given, against Boon and rank 4.
+## Asked of the body, never of `GameState`, because the host asks it of four.
+func wealth_is_hidden() -> bool:
+	if has_effect(&"unremarkable_wealth"):
+		return true
+	var coat: ItemInstance = equipment.in_slot(Enums.Slot.BODY) if equipment != null else null
+	return coat != null and coat.definition.tags.has(ItemInstance.HIDES_WEALTH)
+
+
 ## **The kit is worn, not stashed** (`M3-T07`, `DES-020`).
 ##
 ## ADR-123 read the kit to decide whether a class carried a bow, and
