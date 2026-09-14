@@ -4,7 +4,7 @@ title: Enemies & AI
 status: accepted
 owner: design
 tags: [enemies, ai, combat, clamor, systems, co-op]
-updated: 2026-09-04
+updated: 2026-09-14
 related: [DES-005, DES-007, DES-009, TEC-001, TEC-004]
 ---
 
@@ -83,6 +83,8 @@ Roster is defined by *what problem it poses*, never by "fire guy / ice guy":
 ## Roster sketch (~12 at 1.0)
 
 > **Built by `M4-T02`** (~6 archetypes, the slice) and **`M5-T04`** (the full roster). A sketch of twelve enemies is a content budget, so it names the milestones that spend it (ADR-077).
+>
+> **The slice's roster, decided by ADR-230:** **Wretch** (attrition), **Sling-Wretch** (attrition at range — the missile), **Bellringer** (alarm — the only enemy that calls the floor), **Hall-Warden** (blocker, plated, a heavy overhead), **Hoard-Keeper** (guardian on the Prize, mailed, a heavy thrust), and the Gold-Sick as tracker. The Sump-Swarm waits for water and a second faction (`M5-T04`).
 
 **The Delvings** — Dvergar ruin
 - **Wretch** *(attrition)* — degenerate Dvergar survivors, numerous, pitiable

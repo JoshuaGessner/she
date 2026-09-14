@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-09-13
+updated: 2026-09-14
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -82,6 +82,7 @@ That single position resolves a dozen downstream questions. It's why avoidance m
 - **Kick/shove** is a core verb bound to its own key. Creates space, staggers, and puts things into pits, spikes, and water.
 - **Throw anything.** A pot, a torch, a coin purse, your weapon. Throwing loot is also the primary Hunt-misdirection tool (`DES-005`).
 - **Hazards are universal.** Traps, fire, water, and falls apply identically to enemies. Enemies of hostile factions fight each other.
+  > **The slice's two, decided by ADR-230:** **scree** (every step on it is loud, for anyone) and **choke-damp** (snuffs a lantern and stops breath recovering — stamina for a player, poise for an enemy, and no enemy calls the floor from inside it). One hazard for each of the two senses the game is built on.
 - **The environment is destructible where it matters** — braced beams, rotten floors, oil, dammed water, chandeliers.
 
 This cluster is where the game gets its personality, and it's disproportionately cheap: physics and shared hazard rules generate emergent stories at near-zero content cost (Principle 5).

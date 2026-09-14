@@ -8208,5 +8208,67 @@ This also closes a quieter door: an effects change mid-life (`M3-T13`'s respec) 
 - **The ADR-227 axe gap is closed with it**: a client's thrown axe now leaves its hand on its own screen.
 - **Not tested: a client whose stash is larger than its bag.** The host answers with the records that fit and the client withdraws only those, but no scenario fills a client's bag first.
 
+## ADR-229 — Deeds are awarded by what they say, and a sweep for authored data nothing reads
+
+**Date:** 2026-09-14 · **Status:** accepted · **Amends nothing in design; builds `DES-016`'s rule as `DeedResource` states it**
+
+**Context:** four faults this milestone were the same shape — a number or a rule authored, validated at boot, and read by nothing: `WieldableTrait.reach` (ADR-222), `carry_scale` and `stamina_scale` (ADR-224), and worn weight itself. The developer asked for other issues to be looked for before moving on, so the shape was searched for across the project rather than met one at a time.
+
+**The sweep.** Every `@export` on a `Resource` or `ItemTrait` script was counted for reads as a property anywhere but its own `validate()`, and every `effect_tag` on every Aspect node was checked for a reader in code. All 28 node tags have one. Every tuning field, trait field and generation field is read by name somewhere — a name read, not a proof the read is reached, which is `check_dead.py`'s caveat and why probes stay the proof. **One field was not read at all:** `DeedResource.condition`. `RoomSet._deeds_for` named the five deed ids in code — `ded_first_way_out`, `ded_bore_them_home` and the rest — and read `threshold` for one of them by id, so the field `DeedResource`'s own header describes as how a deed says what earns it was checked against its list of conditions and then ignored. A designer adding a sixth deed on an existing condition, which is the whole promise of deeds being data (`CLAUDE.md`, `TEC-006`), would have authored a deed nothing could award.
+
+### Decision
+
+- **`_deeds_for` asks every authored deed by its `condition`**, and reads each deed's own `threshold`. The five existing deeds are awarded exactly as before.
+- `category` stays unread by rule: it is validated against `DES-016`'s six and names what kind of deed it is, which nothing needs to act on yet. It is a description, not a switch.
+
+### Verification
+
+`--exit-probe` gains a row: after the stash comes back down and the bag is emptied, a sixth deed is authored for the length of the question on `empty_handed`, and it has to be earned beside `ded_empty_handed`. **Planted and failed:** deeds matched by id instead of condition — the sixth deed is not earned.
+
+## ADR-230 — The Delvings slice fields five enemies and the Gold-Sick, and two hazards, one for each sense
+
+**Date:** 2026-09-14 · **Status:** accepted · **Scopes `M4-T02`** · **Amends `DES-013` (the slice roster), `DES-009` (the hazards)**
+
+**Context:** `M4-T02` owes *~6 enemy archetypes, 2 hazard types* and the armour triangle's enemy half. `DES-013` sketches four Delvings enemies — Wretch, Hall-Warden, Sump-Swarm, Bellringer — and the Sump-Swarm lives in water no generated floor has. No hazard is designed anywhere. Today every enemy is one body with one set of `TuningProfile` numbers: it walks, it swings a cut, and after five seconds alerted **every one of them calls the floor**. `DES-023` §3 needs an enemy in plate (the hammer's reason), heavy blows and a missile (the shield's two reasons, `M4-T03`).
+
+### Decision — the developer's two calls
+
+**Five archetypes and the Gold-Sick**, over six with a neutral creature (which needs faction hostility, a system nothing has, for a slice with one faction) and over `DES-013`'s four as written (water in generation is a month, and no missile leaves the shield half a reason):
+
+| Archetype | Role (`DES-013`) | Armour | Its attack | What only it does |
+|---|---|---|---|---|
+| **Wretch** | attrition | unarmoured | a light cut | Numerous and cheap — today's enemy, made data |
+| **Sling-Wretch** | attrition, at range | unarmoured | a sling stone: **a missile**, blunt | Makes closing the distance the cost; the shield's missile |
+| **Bellringer** | alarm | unarmoured | a weak cut | **The only one that calls the floor.** Today every enemy does |
+| **Hall-Warden** | blocker | **plated** | an overhead: **heavy**, blunt | Holds a doorway on a leash; slow; loud when struck; the hammer's reason |
+| **Hoard-Keeper** | guardian | mailed | a thrust: **heavy**, pierce | Sits on the Prize and fights only a body that comes for it — `DES-013`'s purest greed check |
+| *The Gold-Sick* | tracker | — | — | Already built (`DES-017`); the slice's tracker |
+
+Neutral fauna waits for water and a second faction: the Sump-Swarm is `M5-T04`'s.
+
+**Scree and choke-damp**, over scree and alarm-chains (both noise, and light would get nothing) and over sump water (a month of generation):
+
+| Hazard | Sense | On a player | On an enemy (`DES-009`: hazards apply to everyone) |
+|---|---|---|---|
+| **Scree** | noise | every step on it is loud | the same — a Wretch led across it is heard |
+| **Choke-damp** | light and breath | snuffs a lantern and keeps it out; stamina does not recover inside | poise does not recover inside; a body cannot call the floor from it |
+
+Every number is ⟨tune⟩.
+
+### What this commits `M4-T02` to, in order
+
+1. **`EnemyResource` and `AttackResource`** as `TEC-006` specifies, validated — **`telegraph_ms >= 250` enforced where the data lives** (ADR-053) — and `Enemy` reading its archetype off the spawn payload. The Wretch is today's numbers, and the step is measured unchanged.
+2. The **Hall-Warden** and the enemy half of the triangle: an archetype's armour class on its hurtbox, and attacks that are heavy.
+3. The **Hoard-Keeper** on the guardian post, leashed.
+4. The **Bellringer**, and the floor-call taken off every other enemy — **a change to how every floor escalates**, measured before and after.
+5. The **Sling-Wretch** and a missile an enemy throws.
+6. **Scree and choke-damp**, as data and as rooms the generator can place.
+7. Floor population by archetype and depth band, measured.
+
+### Consequences
+
+- **Floors stop escalating from whoever sees you first.** Only a Bellringer calls; kill it or avoid it and a room stays a room. That is `DES-013`'s alarm role as written, and it will make the Deep quieter than it has been since `M2`. The swarm numbers are a playtest question.
+- The slice's cost is about two weeks for the roster and a weekend each for the hazards, not counting art, which is `M4-T10`'s.
+
 *Entries below to be added as design decisions are signed off.*
 

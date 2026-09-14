@@ -4630,6 +4630,30 @@ func _exit_probe() -> void:
 	GameState.stash.clear()
 	player.inventory.clear()
 
+	# ─ and what it earned, **asked of the deeds as authored** (ADR-229) ─
+	#
+	# The deed ids were named in code and `condition` was read by nothing, so a
+	# deed authored on an existing condition was never awarded. One more is
+	# authored here for the length of a question — on `empty_handed`, with the
+	# bag just emptied — and has to come back beside the one already on it.
+	var extra := DeedResource.new()
+	extra.id = &"ded_probe_empty_again"
+	extra.category = &"refusal"
+	extra.condition = &"empty_handed"
+	DeedCatalogue.all()
+	DeedCatalogue._by_id[String(extra.id)] = extra
+	DeedCatalogue._ids.append(String(extra.id))
+	var earned_ids := PackedStringArray()
+	for row: Dictionary in _deeds_for(player):
+		earned_ids.append(str(row.get("id", "")))
+	DeedCatalogue._by_id.erase(String(extra.id))
+	DeedCatalogue._ids.erase(String(extra.id))
+	print("[exit] deeds        %s" % ", ".join(earned_ids))
+	if not earned_ids.has("ded_probe_empty_again") or not earned_ids.has("ded_empty_handed"):
+		problems.append(("a deed authored on `empty_handed` was not awarded to an "
+			+ "empty-handed body (earned: %s) — the deeds are named in code and "
+			+ "the data is not read") % ", ".join(earned_ids))
+
 	for problem: String in problems:
 		printerr("[exit] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
@@ -7853,6 +7877,12 @@ func _on_extracted(player: Player) -> void:
 ##
 ## Every line below reads something the loop keeps for its own reasons. Nothing
 ## here added a field, and a deed that would have needed one was not written.
+##
+## **Asked of every authored deed, by its `condition`** (ADR-229). This named
+## the five deed ids in code, and `DeedResource.condition` and its `threshold`
+## (but for one) were validated at boot and read by nothing — so a sixth deed
+## authored on an existing condition, which is exactly what `DeedResource` says
+## a designer may do without touching code, would never have been awarded.
 func _deeds_for(body: Player) -> Array:
 	var earned: Array = []
 	if body.spent:
@@ -7860,19 +7890,26 @@ func _deeds_for(body: Player) -> Array:
 		# are all about a run you came back from, and the run you did not is
 		# what the Legacy screen is for.
 		return earned
-	earned.append({"id": "ded_first_way_out", "who": ""})
-	for peer: int in body.inventory.embers():
-		var saved: Player = _session.player_for(peer)
-		earned.append({"id": "ded_bore_them_home",
-			"who": saved.name if saved != null else "peer %d" % peer})
-	if body.inventory.count() == 0:
-		earned.append({"id": "ded_empty_handed", "who": ""})
-	if _the_prize_is_still_here():
-		earned.append({"id": "ded_left_the_prize", "who": ""})
-	var thread: DeedResource = DeedCatalogue.by_id(&"ded_by_a_thread")
-	if thread != null and body.health.maximum > 0.0 \
-			and body.health.current / body.health.maximum <= thread.threshold:
-		earned.append({"id": "ded_by_a_thread", "who": ""})
+	for mark: DeedResource in DeedCatalogue.all():
+		var id: String = String(mark.id)
+		match mark.condition:
+			&"got_out":
+				earned.append({"id": id, "who": ""})
+			&"bore_them_home":
+				for peer: int in body.inventory.embers():
+					var saved: Player = _session.player_for(peer)
+					earned.append({"id": id,
+						"who": saved.name if saved != null else "peer %d" % peer})
+			&"empty_handed":
+				if body.inventory.count() == 0:
+					earned.append({"id": id, "who": ""})
+			&"left_the_prize":
+				if _the_prize_is_still_here():
+					earned.append({"id": id, "who": ""})
+			&"by_a_thread":
+				if body.health.maximum > 0.0 \
+						and body.health.current / body.health.maximum <= mark.threshold:
+					earned.append({"id": id, "who": ""})
 	return earned
 
 
