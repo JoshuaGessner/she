@@ -945,6 +945,7 @@ func _build_world_item(payload: Dictionary) -> Node:
 	item.launch = payload["launch"] as Vector3
 	item.disturbed = bool(payload["disturbed"])
 	item.bound_to = int(payload["bound"])
+	item.scarred = bool(payload.get("scarred", false))
 	item.worth_stopping_for = bool(payload.get("bait", false))
 	item.position = payload["at"] as Vector3
 	item.rotation.y = float(payload["yaw"])
@@ -1074,13 +1075,14 @@ func spawn_enemy(at: Vector3, yaw: float = 0.0) -> void:
 ## screenshot of four side by side caught it, because the numbers all passed.
 func spawn_world_item(item: StringName, at: Vector3, yaw: float = 0.0,
 		launch: Vector3 = Vector3.ZERO, disturbed: bool = false,
-		bound_to: int = 0, worth_stopping_for: bool = false) -> WorldItem:
+		bound_to: int = 0, worth_stopping_for: bool = false,
+		scarred: bool = false) -> WorldItem:
 	if not is_host():
 		return null
 	var made: WorldItem = _spawner.spawn({
 		"kind": "world_item", "index": _next_item, "item": item,
 		"at": at, "yaw": yaw, "launch": launch, "disturbed": disturbed,
-		"bound": bound_to, "bait": worth_stopping_for,
+		"bound": bound_to, "bait": worth_stopping_for, "scarred": scarred,
 	}) as WorldItem
 	_next_item += 1
 	return made
@@ -1095,7 +1097,9 @@ func _on_player_dropped(item: ItemInstance, at: Vector3, yaw: float,
 	# A put-down ember is still somebody's. Losing the binding here would turn
 	# a friend into scenery the moment their rescuer set them down for a fight.
 	var bait: bool = from != null and from.has_effect(&"tribute_in_kind")
-	spawn_world_item(item.definition.id, at, yaw, launch, true, item.bound_to, bait)
+	# And a Scarred thing stays Scarred on the floor (ADR-225).
+	spawn_world_item(item.definition.id, at, yaw, launch, true, item.bound_to, bait,
+		item.scarred)
 
 
 ## The Gullsjúkr took something (`M2-T19`, ADR-112). It lands at its feet as
@@ -1108,7 +1112,7 @@ func _on_player_dropped(item: ItemInstance, at: Vector3, yaw: float,
 ## was somebody's ember, it is still somebody's.
 func _on_hunter_took(item: ItemInstance, at: Vector3) -> void:
 	spawn_world_item(item.definition.id, at, 0.0, Vector3.ZERO, true,
-		item.bound_to)
+		item.bound_to, false, item.scarred)
 
 
 ## Levels ask for the Hunter. Returns the host's copy so a level can hand it

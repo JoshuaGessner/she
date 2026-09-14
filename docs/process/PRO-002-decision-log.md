@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-13
+updated: 2026-09-14
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -8063,7 +8063,34 @@ Walk speed is the multiple of `walk_speed`. **The Húskarl starts every run abou
 ### Consequences
 
 - **This is a feel change to every run, and it is a person's to judge.** Nothing in `M1`'s movement sign-off was felt with a byrnie on; `GATE M4 GREED` and the next playtest are where *a tenth slower* is found right or wrong, and the numbers to move are the byrnie's weight and the classes' `carry_scale`, not the rule.
+- **Also found, and built next (ADR-225):** taking a Scarred weapon off, having one pushed out of the hand, and setting a Scarred thing down and lifting it again each put a whole one in the bag.
 - **Also found, and not built here:** a mid-run equip happens on the host and is never sent to anybody — `wearing` changes only on a declaration, and the owning client is sent its bag and not its slots. So a client who equips a hammer may still see a seax in their bag's hand slot, swing with the seax's timing, and re-declare the seax on the next floor, which the host would dress over the hammer it had already taken out of the bag. Unverified, and raised with the developer beside ADR-223's stash question: both are a client's items crossing the wire.
+
+## ADR-225 — A Scar came off in the hand and on the floor, and ADR-223 had closed only the descent
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T31`** · **Corrects ADR-223's claim**
+
+**Context:** ADR-223 said the Scar now survives the descent, a save and being worn, and it does. Building ADR-224's weight rows through `ask_to_unequip` found three more doors that minted a whole item from a definition, which is the shape ADR-223 was about:
+
+- **taking a thing off** — `_unequip_to_bag` put `inventory.add(worn.definition)` in the bag;
+- **being pushed out of the hand** — `_equip_from_bag` did the same for whatever a two-hander displaced;
+- **setting a thing down and lifting it again** — a `WorldItem` carried `bound_to` and not the Scar, and `_take` minted from the definition.
+
+So one trip to the floor made a Legacy relic whole and worth its full value to her, and a dropped Scarred relic was full-value bait to the Gold-Sick, who weighed floor items by `ItemResource.tribute_value`. ADR-003's refusal to launder a hoard through a life was open again, one gesture wide.
+
+### Decision
+
+- **Both hands use `Inventory.bring`**, which keeps the Scar and an ember's owner.
+- **A `WorldItem` carries `scarred`**, on the spawn packet beside `bound`, from a player's drop and from what the Gold-Sick tears out of a bag. `WorldItem.worth()` is zero when Scarred — `ItemInstance.tribute_worth` asked of the thing on the floor — and the Gold-Sick weighs a bait by it, as does a glitter pool's light, so a Scarred thing set down is neither bait nor lit like treasure.
+- **A pickup builds the instance before the bag announces it**: `_take` sets the owner and the Scar and then `bring`s it. It used to `add` and then write `bound_to`, so by the code's own order the owning client was sent its bag with an ember in it bound to nobody, until the next change sent it again (read, not reproduced on two machines).
+
+### Verification
+
+`--scar-probe` gains three rows and now requires the last: a Scarred Regin's blade taken off, and a Scarred seax pushed out of the hand by the spear, both reach the bag Scarred; the blade set down lies Scarred and worth 0, and the Gold-Sick placed beside it does not stoop for it — asked again with its Scar lifted for one question, as the control, it does; and picked up again it is Scarred and refused as tribute. **The first run failed on the probe, not the build:** the bag already held the whole seax the kit had put in the hand, and the row read that one. It now reads the newest. **Planted and failed, one plant per run:** taking off through `add`; a displaced weapon through `add`; the drop not sending the Scar; the spawn packet not reading it; the pickup not keeping it; `worth()` ignoring it; and the Gold-Sick weighing a bait by the definition's value. **Two plants taught the probe something.** The drop that lost the Scar was caught only by the stoop row at first, because the control put `scarred = true` back whatever it had been, which hid the floor row and the pickup row; it now puts back what it read. And the Gold-Sick's threshold alone back on the definition was **not** caught, because the ranking beneath it still weighed by `worth()` and a zero never outranks the zero it starts at — two guards, each sufficient, so the plant is both lines together, and that is caught.
+
+### Consequences
+
+- **What the Gold-Sick tears out of a bag is richest-first**, and a Scarred item is worth nothing, so it is taken only from a bag of nothing else; when it is, it now lands Scarred.
 
 *Entries below to be added as design decisions are signed off.*
 

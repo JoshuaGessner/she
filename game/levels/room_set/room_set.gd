@@ -10569,8 +10569,99 @@ func _scar_probe() -> void:
 		problems.append(("Regin's blade came back whole and tributable — a relic "
 			+ "kept through a death and given is the hoard laundered through a life"))
 
+	# ─ 4. **off the body, out of the hand, and off the floor** (ADR-225) ─
+	#
+	# Three more doors that minted a whole item from a definition: taking a
+	# thing off, being pushed out of the hand by a two-hander, and picking a
+	# thing up that you had set down. ADR-223 closed the descent's and missed
+	# these, so a Scarred relic was whole again after one trip to the floor.
+	player.ask_to_unequip(Enums.Slot.MAIN_HAND)
+	await _hold(0.1)
+	var stowed: ItemInstance = _newest_in_bag(player, &"rlc_regin_blade")
+	var spare := ItemInstance.of(seax, 0)
+	spare.scarred = true
+	var bagged_seax: ItemInstance = player.inventory.bring(spare)
+	if bagged_seax != null:
+		player.ask_to_equip(bagged_seax.instance_id)
+	var spear: ItemInstance = player.inventory.add(ItemCatalogue.by_id(&"wpn_ash_spear"))
+	if spear != null:
+		player.ask_to_equip(spear.instance_id)
+	await _hold(0.1)
+	var pushed: ItemInstance = _newest_in_bag(player, &"wpn_seax")
+	print("[scar] off the body   taken off %s, pushed out by a spear %s (want true, true)" % [
+		stowed.scarred if stowed != null else "MISSING",
+		pushed.scarred if pushed != null else "MISSING"])
+	if stowed == null or not stowed.scarred:
+		problems.append("a Scarred relic taken off went into the bag whole")
+	if pushed == null or not pushed.scarred:
+		problems.append(("a Scarred seax pushed out of the hand by a two-hander "
+			+ "went into the bag whole"))
+	if stowed == null:
+		_report(problems, "scar")
+		return
+	# Set down, asked about, and lifted again.
+	player.ask_to_drop_instance(stowed.instance_id)
+	await _hold(0.3)
+	var lying: WorldItem = null
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var candidate := node as WorldItem
+		if candidate != null and candidate.item_id == &"rlc_regin_blade":
+			lying = candidate
+	if lying == null:
+		problems.append("the Scarred relic set down is not on the floor")
+		_report(problems, "scar")
+		return
+	# **The Gold-Sick, asked twice about the same object**: Scarred, and then
+	# the Scar lifted for one question as the control, so a Hunter that would
+	# never stoop for anything cannot pass the first answer.
+	# Read before the control and **put back as it was**, not as it should be:
+	# restoring `true` unconditionally hid a drop that had lost the Scar from
+	# this row and the pickup's, and was caught only by the stoop row.
+	var lay_scarred: bool = lying.scarred
+	var lay_worth: int = lying.worth()
+	var stoops_scarred: bool = false
+	var stoops_whole: bool = false
+	if _hunter != null:
+		_hunter.global_position = lying.global_position + Vector3(1.5, 0.0, 0.0)
+		stoops_scarred = _hunter._bait_worth_taking() == lying
+		lying.scarred = false
+		stoops_whole = _hunter._bait_worth_taking() == lying
+		lying.scarred = lay_scarred
+	print("[scar] on the floor   Scarred %s, worth %d; the Gold-Sick stoops %s, and for it whole %s (want true, 0, false, true)" % [
+		lay_scarred, lay_worth, stoops_scarred, stoops_whole])
+	if not lay_scarred or lay_worth != 0:
+		problems.append(("a Scarred relic set down lies on the floor whole, worth "
+			+ "%d") % lay_worth)
+	if _hunter == null:
+		problems.append("no Gold-Sick on this floor to ask about the bait")
+	elif stoops_scarred or not stoops_whole:
+		problems.append(("the Gold-Sick stoops for a Scarred relic %s and for a "
+			+ "whole one %s — she pays nothing for the first, so it is no bait")
+			% [stoops_scarred, stoops_whole])
+	player.reach_for(lying)
+	await _hold(0.2)
+	var lifted: ItemInstance = _newest_in_bag(player, &"rlc_regin_blade")
+	print("[scar] picked up      Scarred %s, refused as tribute '%s' (want true, a reason)" % [
+		lifted.scarred if lifted != null else "MISSING",
+		GameState.why_not_tribute(lifted) if lifted != null else ""])
+	if lifted == null or not lifted.scarred or GameState.why_not_tribute(lifted) == "":
+		problems.append(("a Scarred relic set down and picked up came back whole "
+			+ "and tributable — one trip to the floor launders it"))
+
 	GameState.stash.clear()
 	_report(problems, "scar")
+
+
+## The most recently placed item of `id` in this body's bag, or null. Newest by
+## instance id, which a bag never reuses: the Scar probe's bag already holds the
+## whole seax the kit put in the hand, and the first seax found was that one.
+func _newest_in_bag(player: Player, id: StringName) -> ItemInstance:
+	var newest: ItemInstance = null
+	for item: ItemInstance in player.inventory.items():
+		if item.definition.id == id and (newest == null
+				or item.instance_id > newest.instance_id):
+			newest = item
+	return newest
 
 
 ## A block of stone on `WORLD`, for the arc rig.

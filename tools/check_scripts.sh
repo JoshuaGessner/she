@@ -575,7 +575,8 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	scar="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --scar-probe 2>&1)"
 	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$scar" \
-			|| ! grep -q "^\[scar\] Regin's blade" <<<"$scar"; then
+			|| ! grep -q "^\[scar\] Regin's blade" <<<"$scar" \
+			|| ! grep -q "^\[scar\] picked up" <<<"$scar"; then
 		echo "FAIL a Scar has to survive a descent" >&2
 		printf '%s\n' "$scar" | grep -E '\[scar\]|ERROR' | sed 's/^/      /' >&2
 		exit 1

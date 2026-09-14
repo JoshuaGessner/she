@@ -1100,13 +1100,19 @@ func _take(path: NodePath) -> void:
 	# A full bag refuses, and the item stays on the floor. Silently swallowing
 	# something there was no room for would delete the spatial half of
 	# `DES-019` the first time it mattered.
-	var taken: ItemInstance = inventory.add(definition)
-	if taken == null:
-		return
 	# Whose it is comes with it. For everything but an ember this is zero, and
 	# for an ember it is the whole point — the bag now knows it is carrying
-	# somebody (`DES-012`).
-	taken.bound_to = item.bound()
+	# somebody (`DES-012`). **And the Scar comes with it** (ADR-225): setting a
+	# Legacy relic down and picking it up again made it whole and worth its full
+	# value to her. Both are on the instance before the bag announces it, which
+	# `add` and a write afterwards were not — the owner's copy of the bag was
+	# sent in between.
+	var lifted := ItemInstance.of(definition, 0)
+	lifted.bound_to = item.bound()
+	lifted.scarred = item.scarred
+	var taken: ItemInstance = inventory.bring(lifted)
+	if taken == null:
+		return
 	clamor.add(_handling_clamor(definition))
 	# Pitched by how heavy the thing is, so a plate and a gemstone are not the
 	# same event (`ART-002` — the player should hear what they are carrying).
@@ -1227,7 +1233,9 @@ func _equip_from_bag(instance_id: int) -> void:
 	var coming_off: Array[ItemInstance] = equipment.equip(item)
 	inventory.remove(instance_id)
 	for spare: ItemInstance in coming_off:
-		if inventory.add(spare.definition) == null:
+		# `bring`, not `add(definition)` (ADR-225): a Scarred seax pushed out of
+		# the hand by a spear came back into the bag whole.
+		if inventory.bring(spare) == null:
 			# No room. It lands at your feet rather than being destroyed —
 			# the same gesture as dragging it out, and for the same reason.
 			dropped.emit(spare, global_position, rotation.y, Vector3.ZERO)
@@ -1256,7 +1264,8 @@ func _unequip_to_bag(slot: Enums.Slot) -> void:
 	var worn: ItemInstance = equipment.in_slot(slot)
 	if worn == null:
 		return
-	if inventory.add(worn.definition) == null:
+	# `bring` (ADR-225): taking a Scarred weapon off put a whole one in the bag.
+	if inventory.bring(worn) == null:
 		return
 	equipment.unequip(slot)
 	_push_bag()

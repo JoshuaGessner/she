@@ -131,6 +131,11 @@ var disturbed: bool = false
 ## The peer whose ember this is, or `0`. Carried through to `ItemInstance` on
 ## pickup, because a shared `ItemResource` cannot possibly answer *whose*.
 var bound_to: int = 0
+## **A Scar lies on the floor with the thing it is on** (ADR-225). Off the spawn
+## packet with `bound_to` and for the same reason — a shared `ItemResource`
+## cannot say *this one* — and read back into the bag by whoever lifts it.
+## Without it, setting a Legacy relic down and picking it up made it whole.
+var scarred: bool = false
 ## **Tribute in Kind** (`hrd_tribute_in_kind`). Set when a Hoard build put this
 ## down: the Gullsjúkr treats it as worth stopping for whatever it is actually
 ## worth. A property of the *thing on the floor* rather than of the player,
@@ -169,6 +174,16 @@ func definition() -> ItemResource:
 
 func bound() -> int:
 	return bound_to
+
+
+## What she would pay for this one: nothing if Scarred (`DES-003`), which is
+## `ItemInstance.tribute_worth` asked of the thing on the floor. What the
+## Gullsjúkr weighs a bait by and what a pool of glitter pours light by, so a
+## Scarred relic set down is neither worth stopping for nor lit like treasure.
+func worth() -> int:
+	if _definition == null or scarred:
+		return 0
+	return _definition.tribute_value
 
 
 ## **Is this somebody's fire rather than an object?** (`M2-T21`, ADR-114)
@@ -295,8 +310,7 @@ func _share_of_the_richest() -> float:
 		low = item.tribute_value if low < 0 else mini(low, item.tribute_value)
 	if low < 0 or high <= low:
 		return 0.0
-	return clampf(float(_definition.tribute_value - low) / float(high - low),
-		0.0, 1.0)
+	return clampf(float(worth() - low) / float(high - low), 0.0, 1.0)
 
 
 ## An ember on the floor (`M2-T05`). A glowing sphere rather than a box, so it

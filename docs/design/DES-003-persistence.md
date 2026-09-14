@@ -4,7 +4,7 @@ title: Persistence & Meta-Progression
 status: accepted
 owner: design
 tags: [persistence, meta, balance, death, skill-tree, economy]
-updated: 2026-09-13
+updated: 2026-09-14
 related: [DES-002, DES-004, DES-008, TEC-003]
 ---
 
@@ -63,7 +63,7 @@ The anti-wipe-cliff mechanism, and the piece I feel strongest about.
 - **3 Legacy slots**, expanding *very* slowly ⟨tune⟩ — one at lineage milestones, capped at 5 lifetime.
 - Each slot holds **one of**: a single item, or a single skill node (not a branch). **Raw Boon is disallowed** — it would be the fungible default pick every time, collapsing the choice into percentage-retention with extra UI.
 - Slots are chosen **at the moment of death**, from what you had — a genuinely dramatic screen, and a real decision. *"She'll only remember three things. Choose."*
-- **Legacy items are Scarred**: carried through death at reduced power (⟨tune⟩ ~70%) and cannot be tributed. They're a head start, not a stockpile. *(ADR-223: the Scar now survives the descent, a save and being worn — it did not, and a Legacy weapon was whole by the first Shaft. **One exception, by the developer's call:** `rlc_regin_blade` comes back at full power, and is still refused as tribute.)*
+- **Legacy items are Scarred**: carried through death at reduced power (⟨tune⟩ ~70%) and cannot be tributed. They're a head start, not a stockpile. *(ADR-223: the Scar now survives the descent, a save and being worn — it did not, and a Legacy weapon was whole by the first Shaft. ADR-225: and being taken off, pushed out of the hand, or set down and picked up, each of which also made it whole. **One exception, by the developer's call:** `rlc_regin_blade` comes back at full power, and is still refused as tribute.)*
 
 Why this works:
 - **Power creep is bounded by design, not by tuning.** Three slots is three slots. It cannot spiral no matter how many lifetimes accrue.

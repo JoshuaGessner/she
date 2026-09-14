@@ -15,7 +15,7 @@ _What the game is._
 |---|---|---|---|---|
 | `DES-001` | [Vision & Pillars](design/DES-001-vision-and-pillars.md) | ✔ accepted | 2026-08-14 | DES-002, DES-003, PRO-001 |
 | `DES-002` | [Core Loop](design/DES-002-core-loop.md) | ✔ accepted | 2026-08-14 | DES-001, DES-003, DES-005, DES-006 |
-| `DES-003` | [Persistence & Meta-Progression](design/DES-003-persistence.md) | ✔ accepted | 2026-09-13 | DES-002, DES-004, DES-008, TEC-003 |
+| `DES-003` | [Persistence & Meta-Progression](design/DES-003-persistence.md) | ✔ accepted | 2026-09-14 | DES-002, DES-004, DES-008, TEC-003 |
 | `DES-004` | [Skill Tree — The Dragon's Aspects](design/DES-004-skill-tree.md) | ✔ accepted | 2026-08-14 | DES-003, DES-007, DES-008 |
 | `DES-005` | [Extraction Pressure — The Hunt](design/DES-005-extraction-pressure.md) | ✔ accepted | 2026-09-02 | DES-002, DES-007, DES-008 |
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
@@ -59,7 +59,7 @@ _How we work, what we decided, what we must not do._
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
 | `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-13 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-13 | DES-001, DES-003, PRO-001 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-14 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |

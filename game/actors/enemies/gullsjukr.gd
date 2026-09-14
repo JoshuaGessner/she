@@ -414,8 +414,8 @@ func _bait_worth_taking() -> WorldItem:
 		# stoops for, and a build that can bait with rubbish is a build that has
 		# taught her to follow its discards.
 		if item.worth_stopping_for:
-			if definition.tribute_value > best_value:
-				best_value = definition.tribute_value
+			if item.worth() > best_value:
+				best_value = item.worth()
 				best = item
 			elif best == null:
 				best = item
@@ -432,14 +432,16 @@ func _bait_worth_taking() -> WorldItem:
 		# she will not buy it back, and a number here would make somebody's life
 		# bankable. It is what gold is *for*, which is exactly why this thing
 		# wants it more than gold.
-		if not item.is_ember() and definition.tribute_value < needed:
+		# `worth()`, not the definition's value (ADR-225): a Scarred relic set
+		# down is worth nothing to her, as it is in the bag it came out of.
+		if not item.is_ember() and item.worth() < needed:
 			continue
 		if global_position.distance_to(item.global_position) > wealth_range():
 			continue
 		# Ranked, not appended: an ember is worth 0 tribute, so comparing on the
 		# raw value would have let it pass the test above and then lose every
 		# comparison to a coin — and to the zero this starts at.
-		var worth: int = EMBER_WORTH if item.is_ember() else definition.tribute_value
+		var worth: int = EMBER_WORTH if item.is_ember() else item.worth()
 		if worth > best_value:
 			best_value = worth
 			best = item
