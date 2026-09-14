@@ -8296,5 +8296,31 @@ Every number is ⟨tune⟩.
 - **Nothing a player meets has changed.** Every floor still fields only Wretches until ADR-230's steps 2 to 5 add the others, and step 7 is what places them.
 - Adding an archetype is now a `.tres` and a locale row. Giving it a *behaviour* the Wretch does not have — a leash, a sling, being the only one that calls — is still code, and those are the next steps.
 
+## ADR-232 — The Hall-Warden: plate, a heavy overhead a guard cannot take, a door it will not leave, and armour that rings
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T02` (step 2 of ADR-230's seven)** · **Builds `DES-023` §3's heavy blow and `DES-013`'s Blocker**
+
+**Context:** ADR-230 names the Hall-Warden as the slice's Blocker — *dead Dvergar armour still doing its job; slow, immovable, deafeningly loud when struck* (`DES-013`) — and `DES-023` §3 makes it the reason for two other things: the hammer, the one weapon plate does not turn, and the shield, which stops a heavy blow that a weapon's guard cannot. Three behaviours the Wretch does not have were needed, and each is a field an archetype may carry rather than a class of enemy.
+
+### Decision
+
+- **`AttackResource.heavy`.** A heavy blow goes through a weapon's guard: `Player._on_hurt` spends no stamina on it and takes nothing off. The flag travels on the enemy's `Hitbox`, beside the damage and its type. The shield that stops one is `M4-T03`'s; until then a Hall-Warden's overhead is answered by not being under it.
+- **`EnemyResource.leash`**, in metres from where the body stood, or `0` for none. Pursuing or investigating, it goes to the nearest place within its leash rather than past it — so it owns a door, walking past its reach is a route, and the edge of the leash is somewhere it can see you and never touch you. `validate` refuses a leash shorter than the archetype's own reach, which would be a statue.
+- **`EnemyResource.clamor_struck`**, added to the body's own `ClamorSource` on every blow — the floor hears a Hall-Warden being fought.
+- **`enm_hall_warden`** ⟨tune⟩: 160 health, 150 poise (two hammer blows, seven seax), plated, walks 1.1 and runs 1.6, a 5 m leash, rings 6 when struck; its overhead telegraphs 0.9 s, lands 55 blunt at 2.8 m, is heavy, and recovers for 0.9 s — the long punish window a slow heavy swing owes.
+
+### What it does to a fight
+
+Through plate a cut lands a fifth and blunt lands whole, so a seax does 3 a swing to 160 health and a hammer 30-odd: the Warden is the hammer's reason and the seax's wall, as `DES-023` §2 says. Its overhead lands 48 through a byrnie guarded or not, where a guard takes a Wretch's cut from 11 to 4.5. **It is not on any floor yet** — ADR-230's step 7 places archetypes — so a player cannot meet one; it exists as data and behaviour a probe exercises.
+
+### Verification
+
+`--warden-probe`, new and required, stands a Wretch beside every claim: 30 as a cut and as blunt into each (Warden 6 / 30, Wretch 30 / 30); one blow into each with their noise silenced (the Warden rings 6, the Wretch 0); each archetype's own blow into the player open and then guarded, in the same coat (Warden 48.1 / 48.1, Wretch 11.2 / 4.5); and two Wretches identical but for a 3 m leash, hunting the player at a run from twelve metres for 3.5 s (the leashed one stops 2.8 m from its post, the other runs 8.6 m) — a Warden too slow to reach its own edge in the time could not make that row pass for it, so the leash is tested on bodies that can. **Planted and failed, one plant per run:** the guard ignoring `heavy`; the hitbox never carrying it; the leash ignored; a struck Warden silent; the Warden unarmoured; and a leash shorter than its reach.
+
+### Consequences
+
+- **The byrnie turns an eighth of the Warden's blow and a guard nothing**, so a Húskarl meeting one without a hammer or a shield has one answer — the door it holds is a door to go around, which is `DES-013`'s *go around, shove past, or pay for it*.
+- `M4-T03`'s shield now has a blow to stop.
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -833,6 +833,8 @@ func _ready() -> void:
 			_throw_probe()
 		elif arg == "--archetype-probe":
 			_archetype_probe()
+		elif arg == "--warden-probe":
+			_warden_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -10961,6 +10963,186 @@ func _archetype_probe() -> void:
 				+ "archetype on its spawn is not what it reads") % pair[2])
 	_session.clear_enemies()
 	_report(problems, "archetype")
+
+
+## **The Hall-Warden** (`M4-T02` step 2, ADR-232, `DES-013`'s Blocker).
+##
+## Every row stands a Wretch beside it as the control, because each claim is a
+## difference: plate turns the seax and not the hammer; its overhead goes through
+## a raised guard where a Wretch's cut does not; it holds within its leash while
+## a Wretch closes; and it rings when struck where a Wretch is silent.
+func _warden_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var warden_kind: EnemyResource = EnemyCatalogue.by_id(&"enm_hall_warden")
+	if warden_kind == null:
+		problems.append("no enm_hall_warden in the catalogue")
+		_report(problems, "warden")
+		return
+	player.restore_for_descent()
+	player.teleport(ARCHER_POST, 0.0)
+	await _hold(0.3)
+	var line: Vector3 = _throw_line(ARCHER_POST, 12.0)
+	if line == Vector3.ZERO:
+		problems.append("no clear twelve-metre line from the archer's post")
+		_report(problems, "warden")
+		return
+	var side := Vector3(-line.z, 0.0, line.x) * 2.5
+	_session.spawn_enemy(ARCHER_POST + line * 3.0 + side, 0.0, &"enm_hall_warden")
+	_session.spawn_enemy(ARCHER_POST + line * 3.0 - side, 0.0)
+	await _hold(0.4)
+	var warden: Enemy = null
+	var wretch: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null and body.archetype == &"enm_hall_warden":
+			warden = body
+		elif body != null:
+			wretch = body
+	if warden == null or wretch == null:
+		problems.append("the Warden and its Wretch did not both arrive")
+		_report(problems, "warden")
+		return
+
+	# ─ 1. **plate turns the seax, and the hammer goes through** ─
+	var struck := {}
+	var blow := Hitbox.new()
+	add_child(blow)
+	for pair: Array in [[warden, "warden"], [wretch, "wretch"]]:
+		var body: Enemy = pair[0]
+		var hurtbox := body.get("_hurtbox") as Hurtbox
+		for type: Enums.DamageType in [Enums.DamageType.CUT, Enums.DamageType.BLUNT]:
+			body.health.restore()
+			body.refill_poise()
+			var was: float = body.health.current
+			hurtbox.receive(30.0, type, blow)
+			struck["%s/%d" % [pair[1], type]] = was - body.health.current
+		body.health.restore()
+	print("[warden] 30 as a cut / blunt   Warden %.1f / %.1f, Wretch %.1f / %.1f" % [
+		struck["warden/0"], struck["warden/2"], struck["wretch/0"], struck["wretch/2"]])
+	if float(struck["warden/0"]) >= float(struck["wretch/0"]) \
+			or absf(float(struck["warden/2"]) - 30.0) > 0.01:
+		problems.append(("plate turned %.1f of a cut and let %.1f of 30 blunt through — "
+			+ "the Warden is the hammer's reason, and the seax's wall")
+			% [30.0 - float(struck["warden/0"]), struck["warden/2"]])
+
+	# ─ 2. **it rings when struck, and a Wretch does not** ─
+	for body: Enemy in [warden, wretch]:
+		body.clamor.silence()
+	await get_tree().physics_frame
+	for body: Enemy in [warden, wretch]:
+		(body.get("_hurtbox") as Hurtbox).receive(1.0, Enums.DamageType.BLUNT, blow)
+		body.health.restore()
+	var rang: float = warden.clamor.level
+	var quiet: float = wretch.clamor.level
+	print("[warden] struck once           Warden rings %.2f, Wretch %.2f" % [rang, quiet])
+	if rang < warden_kind.clamor_struck * 0.5 or quiet > 0.01:
+		problems.append(("a struck Warden rang %.2f and a struck Wretch %.2f — dead "
+			+ "armour is loud when struck, and only it") % [rang, quiet])
+	blow.queue_free()
+
+	# ─ 3. **its overhead goes through a raised guard** ─
+	#
+	# Each blow unguarded and then guarded, into the same body in the same coat,
+	# so what the coat turns is on both sides and only the guard differs. The
+	# first draft compared a guarded blow with its raw damage and read the
+	# byrnie's eighth off a blunt overhead as a guard that worked.
+	var through := {}
+	for pair: Array in [[warden, "warden"], [wretch, "wretch"]]:
+		var body: Enemy = pair[0]
+		var enemy_blow := body.get("_hitbox") as Hitbox
+		var taken: Array[float] = []
+		for guarded: bool in [false, true]:
+			player.restore_for_descent()
+			if guarded:
+				Input.action_press("block")
+			else:
+				Input.action_release("block")
+			await _hold(0.15)
+			player.health.restore()
+			player.stamina.refill()
+			var was_hp: float = player.health.current
+			(player.get_node("Hurtbox") as Hurtbox).receive(enemy_blow.damage,
+				enemy_blow.damage_type, enemy_blow)
+			taken.append(was_hp - player.health.current)
+		through[pair[1]] = taken
+	Input.action_release("block")
+	player.health.restore()
+	var warden_row: Array = through["warden"]
+	var wretch_row: Array = through["wretch"]
+	print("[warden] open / guarded        Warden %.1f / %.1f, Wretch %.1f / %.1f" % [
+		warden_row[0], warden_row[1], wretch_row[0], wretch_row[1]])
+	if float(wretch_row[1]) >= float(wretch_row[0]) - 0.01:
+		problems.append("a raised guard took nothing off a Wretch's cut, so the row "
+			+ "below is not about the guard")
+	if float(warden_row[1]) < float(warden_row[0]) - 0.01:
+		problems.append(("a raised guard took %.1f off the Warden's overhead — a heavy "
+			+ "blow goes through a weapon's guard (`DES-023` §3)")
+			% (float(warden_row[0]) - float(warden_row[1])))
+
+	# ─ 4. **a leash holds; the same body without one closes** ─
+	#
+	# Two Wretches that differ only by a leash, both hunting you at a run from
+	# twelve metres — so the leash is the whole difference, and a Warden too slow
+	# to reach its own edge in the time cannot make the row pass for it. Then
+	# the Warden's own data is asked to carry one.
+	_session.clear_enemies()
+	await _hold(0.3)
+	var leashed := EnemyCatalogue.by_id(EnemyCatalogue.DEFAULT).duplicate(true) as EnemyResource
+	leashed.id = &"enm_probe_leashed"
+	leashed.leash = 3.0
+	EnemyCatalogue._by_id[String(leashed.id)] = leashed
+	EnemyCatalogue._ids.append(String(leashed.id))
+	_session.spawn_enemy(ARCHER_POST + line * 1.5 + side, 0.0, leashed.id)
+	_session.spawn_enemy(ARCHER_POST + line * 1.5 - side, 0.0)
+	await _hold(0.3)
+	var held_body: Enemy = null
+	var free_body: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null and body.archetype == leashed.id:
+			held_body = body
+		elif body != null:
+			free_body = body
+	EnemyCatalogue._by_id.erase(String(leashed.id))
+	EnemyCatalogue._ids.erase(String(leashed.id))
+	if held_body == null or free_body == null:
+		problems.append("the leashed and unleashed Wretches did not both arrive")
+		_report(problems, "warden")
+		return
+	player.teleport(ARCHER_POST + line * 12.0, 0.0)
+	var homes := {}
+	for body: Enemy in [held_body, free_body]:
+		homes[body] = body.global_position
+		body.set("_home", body.global_position)
+		body.set("_target", player)
+		body.set("_last_seen", player.global_position)
+		body.set("_patience", 10.0)
+		body.set("_state", Enemy.State.ALERTED)
+	await _hold(3.5)
+	var held_went: float = _flat_distance(held_body.global_position, homes[held_body])
+	var free_went: float = _flat_distance(free_body.global_position, homes[free_body])
+	print("[warden] a leash of 3 m, 3.5 s  leashed %.1f m from its post, unleashed %.1f m; the Warden's leash %.1f m" % [
+		held_went, free_went, warden_kind.leash])
+	if held_went > leashed.leash + 0.5:
+		problems.append(("a body on a %.1f m leash went %.1f m from its post — a "
+			+ "Blocker owns a door, it does not chase down the corridor")
+			% [leashed.leash, held_went])
+	if free_went <= leashed.leash + 1.5:
+		problems.append(("the unleashed Wretch went only %.1f m, so the leash row is "
+			+ "measuring bodies that do not move") % free_went)
+	if warden_kind.leash <= 0.0:
+		problems.append("the Hall-Warden carries no leash, so it chases like a Wretch")
+
+	_session.clear_enemies()
+	_report(problems, "warden")
+
+
+func _flat_distance(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
 
 ## A fresh enemy at `mark` facing away, and the thrower back at the post.

@@ -32,6 +32,15 @@ extends Resource
 @export var turn_rate: float = 0.12
 ## What its body turns a blow with (`DES-023` §3, ADR-219).
 @export var armour_class: Enums.ArmourClass = Enums.ArmourClass.UNARMOURED
+## **How far from its post it will go** (ADR-232), in metres, or `0` for no
+## limit. `DES-013`'s Blocker *owns a corridor or door*: it goes no further than
+## this after you, so walking past its reach is a route, and standing just beyond
+## it is somewhere it can see you and never touch you ⟨tune⟩.
+@export var leash: float = 0.0
+## Clamor added each time it is struck (ADR-232). `DES-013`'s Hall-Warden is
+## *deafeningly loud when struck*: dead armour ringing, which is what makes
+## fighting it a decision about the floor as well as about the fight ⟨tune⟩.
+@export var clamor_struck: float = 0.0
 
 @export_group("Attack")
 ## The one blow it deals. One, not `TEC-006`'s list: no archetype in the slice
@@ -60,6 +69,13 @@ func validate() -> PackedStringArray:
 			% [id, run_speed, walk_speed])
 	if turn_rate <= 0.0:
 		problems.append("%s cannot turn" % id)
+	if leash < 0.0 or clamor_struck < 0.0:
+		problems.append("%s has a negative leash or a negative ring" % id)
+	# A leash shorter than its own reach holds it somewhere it can never land a
+	# blow on anything that came to it, which is a statue.
+	if leash > 0.0 and attack != null and leash < attack.reach:
+		problems.append("%s is leashed at %.1f m and reaches %.1f m — it could "
+			% [id, leash, attack.reach] + "never reach the edge of its own post")
 	if attack == null:
 		problems.append("%s has no attack" % id)
 	else:

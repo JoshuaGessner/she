@@ -25,6 +25,11 @@ extends Resource
 @export var damage_type: Enums.DamageType = Enums.DamageType.CUT
 ## How close a target has to be for the enemy to start it ⟨tune⟩.
 @export var reach: float = 2.2
+## **A heavy blow goes through a weapon's guard** (`DES-023` §3, ADR-232). A
+## raised seax takes the edge off a Wretch's cut and nothing off a Hall-Warden's
+## overhead; what stops a heavy blow is a shield, which is `M4-T03`'s. Carried
+## to the player on the hitbox, beside the damage and its type.
+@export var heavy: bool = false
 
 
 func validate() -> PackedStringArray:

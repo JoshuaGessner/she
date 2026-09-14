@@ -755,7 +755,11 @@ func _on_hurt(amount: float, from: Node) -> void:
 	# **A blow undoes the knot** (`DES-023`), guarded or not — a shield that
 	# took the weight still jarred the hands tying the linen.
 	_stop_binding()
-	if blocking and stamina.current >= Config.tuning.block_stamina_minimum:
+	# **A heavy blow goes through a weapon's guard** (`DES-023` §3, ADR-232):
+	# no stamina spent on it and nothing taken off. `M4-T03`'s shield is what
+	# stops one; a raised seax is a hand in the way of a falling hammer.
+	var heavy: bool = from is Hitbox and (from as Hitbox).heavy
+	if blocking and not heavy and stamina.current >= Config.tuning.block_stamina_minimum:
 		var tuning: TuningProfile = Config.tuning
 		stamina.spend(tuning.block_stamina_cost)
 		var through: float = amount * (1.0 - tuning.block_damage_fraction)

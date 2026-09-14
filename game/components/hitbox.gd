@@ -28,6 +28,11 @@ signal struck(hurtbox: Hurtbox)
 ## `damage`, and resolved against the armour of whatever it strikes.
 @export var damage_type: Enums.DamageType = Enums.DamageType.CUT
 
+## Whether a guard can take any of this (ADR-232). Set by an enemy from its
+## archetype's attack; a player's own swings are never heavy, because nothing
+## they strike has a guard to go through.
+var heavy: bool = false
+
 var _armed: bool = false
 var _already_hit: Array[Hurtbox] = []
 

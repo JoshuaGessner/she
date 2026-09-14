@@ -608,6 +608,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Hall-Warden** (`M4-T02` step 2, ADR-232). Plate turns a cut and not a
+	# blunt blow; it rings when struck; its heavy overhead goes through a raised
+	# guard; and a leash holds a body the same Wretch without one would not.
+	warden="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --warden-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$warden" \
+			|| ! grep -q "^\[warden\] a leash of" <<<"$warden"; then
+		echo "FAIL a Hall-Warden has to hold its door" >&2
+		printf '%s\n' "$warden" | grep -E '\[warden\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`

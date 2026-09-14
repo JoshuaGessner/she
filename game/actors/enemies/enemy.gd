@@ -275,6 +275,7 @@ func _ready() -> void:
 	_poise = _kind.poise
 	_hitbox.damage = _kind.attack.damage
 	_hitbox.damage_type = _kind.attack.damage_type
+	_hitbox.heavy = _kind.attack.heavy
 	# Its body turns a blow by its class (`DES-023` §3), as a player's coat does.
 	_hurtbox.armour = _kind.armour_class
 	_hurtbox.hit.connect(_on_hurt)
@@ -628,7 +629,7 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 			if _patience <= 0.0:
 				_state = State.UNAWARE
 			else:
-				_steer_toward(_last_seen, _kind.walk_speed, tuning)
+				_steer_toward(_on_its_leash(_last_seen), _kind.walk_speed, tuning)
 		State.ALERTED, State.SWARM:
 			# **SWARM behaves as ALERTED and reads as worse.** The difference is
 			# not what this body does, it is that the floor now knows — which is
@@ -663,7 +664,20 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				if range_to <= _kind.attack.reach:
 					_begin_attack(tuning)
 				else:
-					_steer_toward(_last_seen, _kind.run_speed, tuning)
+					_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+
+
+## **Where it may go after `point`** (ADR-232): the point itself for a body with
+## no leash, and otherwise the nearest place within `leash` of its post. It
+## still faces and follows you along the edge; it does not cross it.
+func _on_its_leash(point: Vector3) -> Vector3:
+	if _kind.leash <= 0.0:
+		return point
+	var out: Vector3 = point - _home
+	out.y = 0.0
+	if out.length() <= _kind.leash:
+		return point
+	return _home + out.normalized() * _kind.leash
 
 
 ## **The beat before the failure state** (`DES-013`).
@@ -834,6 +848,11 @@ func _tick_attack(delta: float, _tuning: TuningProfile) -> void:
 
 func _on_hurt(amount: float, from: Node) -> void:
 	health.apply_damage(amount, from)
+	# **Dead armour rings** (ADR-232). Through its own `ClamorSource`, so the
+	# floor hears it as it hears the call — and before the death check, since a
+	# killing blow on a Hall-Warden is as loud as any other.
+	if _kind.clamor_struck > 0.0:
+		clamor.add(_kind.clamor_struck)
 	if health.is_dead():
 		return
 	# **A hit staggers when it is heavy, or when it is earned** (`M4-T16`,
