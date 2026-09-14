@@ -193,6 +193,10 @@ extends Resource
 @export var hunter_wealth_floor: int = 20
 @export var hunter_walk_speed: float = 1.9
 @export var hunter_pursue_speed: float = 3.1
+## Radians a second it turns toward where it is going ⟨tune⟩. It borrowed the
+## enemy's per-tick rate times eight until that rate became each archetype's own
+## (ADR-231); 0.96 is the same turn, stated as the Gold-Sick's.
+@export var hunter_turn_rate: float = 0.96
 ## What escalation buys it, per minute on the floor ⟨tune⟩ — `DES-017`: *"it
 ## gets faster and reads you more accurately the longer you stay."*
 @export var hunter_speed_per_minute: float = 0.28
@@ -514,16 +518,10 @@ extends Resource
 @export var floor_fog_end: float = 34.0
 
 @export_group("Enemy")
-@export var enemy_health: float = 60.0
-@export var enemy_attack_damage: float = 34.0
-## What the enemy's blow is (ADR-219). **A cut** ⟨tune⟩: the one archetype built
-## today is the Wretch's shape — a degenerate survivor with a blade or a claw —
-## and a cut is the blow mail was made for, so the Húskarl's byrnie is felt in
-## the first fight. `M4-T02`'s `AttackResource` gives every archetype its own.
-@export var enemy_attack_type: Enums.DamageType = Enums.DamageType.CUT
-@export var enemy_walk_speed: float = 2.0
-@export var enemy_run_speed: float = 3.6
-@export var enemy_turn_rate: float = 0.12
+## **What every enemy shares** (ADR-231). Health, poise, speeds, armour and the
+## blow moved to each archetype's `EnemyResource` when the slice got a roster
+## (ADR-230); what stays here is what no archetype varies by yet — how it sees,
+## how long it hunts, and the floor-call.
 ## How far a **fully lit** body is seen from. Unchanged since `M1`: this is the
 ## number every existing measurement was taken against, and `M4-T13` made it
 ## the top of a range rather than the whole story.
@@ -535,32 +533,14 @@ extends Resource
 ## `ART-001`'s *"darkness is a mechanic, not an effect"* becomes a sentence the
 ## build contradicts.
 ##
-## Below `enemy_attack_range` would mean a thing could hit you without ever
-## having seen you, so `_validate()` refuses it.
+## Inside an archetype's attack reach would mean a thing could hit you without
+## ever having seen you, so `tests/data_probe.gd` refuses it (ADR-231).
 @export var enemy_vision_dark: float = 5.0
 @export var enemy_vision_half_angle: float = 60.0
 ## Seconds of pursuit after losing sight, before dropping to SUSPICIOUS and
 ## then back to UNAWARE. Short enough that breaking line of sight is a real
 ## counter-play, long enough that it is not trivial.
 @export var enemy_patience: float = 4.0
-@export var enemy_attack_range: float = 2.2
-## **Hard floor 0.25 s** — enforced in `_validate()`, not by convention.
-@export var enemy_telegraph: float = 0.50
-@export var enemy_attack_active: float = 0.12
-@export var enemy_attack_recovery: float = 0.45
-## How long a hit interrupts an attack. The reward for reading a telegraph.
-@export var enemy_stagger: float = 0.35
-
-## Poise an enemy absorbs before it staggers (`M4-T16`, ADR-194).
-##
-## Sized against the roster rather than picked: the hammer's 100 breaks it in
-## one hit, so `DES-009`'s *"heavy staggers"* is literally true, and the seax's
-## 22 cannot break it inside the four swings that kill this enemy — so a light
-## weapon has to earn its stagger in the recovery window. Regeneration is what
-## stops poise carrying between fights, and it is deliberately slower than the
-## fastest weapon's damage rate so sustained pressure still wins eventually.
-@export var enemy_poise: float = 100.0  # ⟨tune⟩
-@export var enemy_poise_regen: float = 18.0  # ⟨tune⟩
 
 ## Seconds an enemy must hold you before it calls the floor (`M4-T16`, ADR-196).
 ##
@@ -633,10 +613,8 @@ extends Resource
 ## actuation (DES-009 §3), so an attack faster than that produces a death the
 ## player cannot explain — Principle 4 with a number attached.
 ##
-## CLAUDE.md says CI enforces this. The full data validator is `M2-T08`, which
-## will check every `EnemyDef` rather than this one profile; until it exists
-## the constraint would otherwise be unenforced on the only telegraph value
-## that actually exists, so the resource checks itself at load.
+## CLAUDE.md says CI enforces this. **Every `AttackResource` is held to it**
+## (ADR-231), and the floor-call's beat below is held to it here.
 const TELEGRAPH_FLOOR: float = 0.25
 
 
@@ -701,18 +679,11 @@ func validate() -> PackedStringArray:
 		problems.append("enemy_swarm_telegraph is %.3f s, below the %.2f s floor "
 			% [enemy_swarm_telegraph, TELEGRAPH_FLOOR]
 			+ "— DES-013 wants one chance to prevent the call, not a coin flip")
-	# The call has to be preventable by fighting, which means it has to take
-	# longer than the fight takes to start. A call that lands before an enemy
-	# has swung once would make every encounter a swarm.
-	if enemy_swarm_after <= enemy_telegraph:
-		problems.append("enemy_swarm_after %.1f s is inside the first swing "
-			% enemy_swarm_after
-			+ "(%.2f s telegraph) — every fight would call the floor" % enemy_telegraph)
+	# The call against a swing's telegraph, and dark sight against an attack's
+	# reach, each compare this profile with an archetype, so they are asked in
+	# `tests/data_probe.gd`, which holds both corpora (ADR-231).
 	if enemy_swarm_clamor <= 0.0:
 		problems.append("a call at %.1f clamor is a silent shout" % enemy_swarm_clamor)
-	if enemy_telegraph < TELEGRAPH_FLOOR:
-		problems.append("enemy_telegraph is %.3f s, below the %.2f s floor (DES-009 §3)"
-			% [enemy_telegraph, TELEGRAPH_FLOOR])
 	# **The gap between lit and dark is the lantern** (`M4-T13`, ADR-188). Both
 	# rows below describe a build in which darkness has stopped being a
 	# mechanic, and neither would raise an error anywhere else: the game would
@@ -722,10 +693,6 @@ func validate() -> PackedStringArray:
 			+ "from %.1f m — with no gap the lantern costs nothing and "
 			+ "`ART-001`'s darkness is an effect again")
 			% [enemy_vision_dark, enemy_vision_range])
-	if enemy_vision_dark <= enemy_attack_range:
-		problems.append(("enemy_vision_dark %.1f m is inside enemy_attack_range "
-			+ "%.1f m — something could hit you having never seen you, which is "
-			+ "the death principle 4 forbids") % [enemy_vision_dark, enemy_attack_range])
 	if exposure_ambient < 0.0 or exposure_ambient > 1.0:
 		problems.append("exposure_ambient %.2f is outside 0–1" % exposure_ambient)
 	if floor_ambient_energy <= 0.0:

@@ -42,6 +42,12 @@ const ENEMY_POSTS: Array[Vector3] = [
 var _session: CoopSession = null
 
 
+## The Wretch's data (ADR-231): the one enemy these probes were written against,
+## whose numbers moved off `TuningProfile` when enemies became archetypes.
+func _wretch() -> EnemyResource:
+	return EnemyCatalogue.by_id(EnemyCatalogue.DEFAULT)
+
+
 func _ready() -> void:
 	_build()
 	_session = SESSION_SCENE.instantiate() as CoopSession
@@ -348,7 +354,7 @@ func _combat_probe(player: Player) -> void:
 			telegraph_ms = Time.get_ticks_msec() - telegraph_start
 			break
 	print("[combat] enemy telegraph          %4d ms   floor  250, expected %4d"
-		% [telegraph_ms, int(tuning.enemy_telegraph * 1000.0)])
+		% [telegraph_ms, int(_wretch().attack.telegraph * 1000.0)])
 
 	# 4. A **light** hit does not interrupt a windup (ADR-194).
 	#
@@ -381,9 +387,9 @@ func _combat_probe(player: Player) -> void:
 	# 5. Lethality, in hits. DES-009's open M1 question is whether 2-3 hits from
 	#    a common enemy kill a fresh player.
 	print("[combat] enemy dies in            %4d swings" % [
-		int(ceil(tuning.enemy_health / edge.damage))])
+		int(ceil(_wretch().health / edge.damage))])
 	print("[combat] player dies in           %4d hits" % [
-		int(ceil(tuning.player_health / tuning.enemy_attack_damage))])
+		int(ceil(tuning.player_health / _wretch().attack.damage))])
 
 	# 6. An enemy closing on the player faces the way it is travelling.
 	#    Nothing tested this before: every earlier check either left the enemy
@@ -678,15 +684,15 @@ func _fight_probe(player: Player) -> void:
 	var failures: int = 0
 
 	var cycle: float = edge.windup + edge.active + edge.recovery
-	var guard: float = tuning.enemy_stagger + tuning.enemy_telegraph
+	var guard: float = _wretch().stagger + _wretch().attack.telegraph
 	print("[fight] weapon cycle              %4d ms  (%s)" % [
 		int(cycle * 1000.0),
 		player.equipment.in_slot(Enums.Slot.MAIN_HAND).definition.id])
 	print("[fight] stagger + telegraph       %4d ms   the gap a stagger buys" % [
 		int(guard * 1000.0)])
 	print("[fight] swings to break poise     %4.1f   (%.0f poise / %.0f per hit)" % [
-		tuning.enemy_poise / maxf(edge.stagger, 0.001),
-		tuning.enemy_poise, edge.stagger])
+		_wretch().poise / maxf(edge.stagger, 0.001),
+		_wretch().poise, edge.stagger])
 
 	for pass_index: int in range(2):
 		var refill: bool = pass_index == 0
@@ -785,15 +791,15 @@ func _fight_probe(player: Player) -> void:
 	for trait_of: ItemTrait in ItemCatalogue.by_id(&"wpn_seax").traits:
 		knife = trait_of as WieldableTrait
 	print("[fight] hammer breaks poise in    %4.1f hits   (want 1.0)" % [
-		tuning.enemy_poise / maxf(hammer.stagger, 0.001)])
-	var kills: int = int(ceil(tuning.enemy_health / knife.damage))
+		_wretch().poise / maxf(hammer.stagger, 0.001)])
+	var kills: int = int(ceil(_wretch().health / knife.damage))
 	print("[fight] seax breaks poise in      %4.1f hits   (want > %d, the swings that kill it)" % [
-		tuning.enemy_poise / maxf(knife.stagger, 0.001), kills])
-	if hammer.stagger < tuning.enemy_poise:
+		_wretch().poise / maxf(knife.stagger, 0.001), kills])
+	if hammer.stagger < _wretch().poise:
 		print("[fight] FAIL the hammer does not stagger in one hit — "
 			+ "DES-009 line 47 says heavy staggers")
 		failures += 1
-	if knife.stagger * float(kills) >= tuning.enemy_poise:
+	if knife.stagger * float(kills) >= _wretch().poise:
 		print("[fight] FAIL the seax breaks poise inside the fight it wins — "
 			+ "the light weapon is a stagger-lock again")
 		failures += 1
@@ -945,7 +951,7 @@ func _swarm_probe(player: Player) -> void:
 			# A hammer's worth of stagger, through the real path.
 			victim.refill_poise()
 			var blow := Hitbox.new()
-			blow.stagger = tuning.enemy_poise
+			blow.stagger = _wretch().poise
 			victim.take_test_hit(1.0, blow)
 			await get_tree().physics_frame
 			stopped = victim.state() != Enemy.State.SWARM
@@ -961,7 +967,7 @@ func _swarm_probe(player: Player) -> void:
 	# ── 5. a fight you win quickly never calls ───────────────────────────
 	# The clock has to be longer than the fight, or every encounter is a swarm
 	# and "do I take this fight" has one answer again.
-	var kills: float = ceil(tuning.enemy_health / player.weapon.held().damage)
+	var kills: float = ceil(_wretch().health / player.weapon.held().damage)
 	var edge: WieldableTrait = player.weapon.held()
 	var fight: float = kills * (edge.windup + edge.active + edge.recovery)
 	print("[swarm] a won fight takes         %.1f s vs %.1f s of patience"

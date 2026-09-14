@@ -132,6 +132,12 @@ var _attack: Attack = Attack.NONE:
 var _attack_timer: float = 0.0
 var _stagger_timer: float = 0.0
 
+## **Which enemy this is** (`M4-T02`, ADR-231): an `EnemyCatalogue` id, set off
+## the spawn payload before `_ready` on every peer, as `WorldItem.item_id` is.
+var archetype: StringName = EnemyCatalogue.DEFAULT
+## Its data, resolved in `_ready`: health, poise, speeds, armour and its blow.
+var _kind: EnemyResource = null
+
 ## Poise remaining (`M4-T16`). **Host-only and deliberately not replicated:**
 ## its only output is `_state`, which already is, so putting poise on the wire
 ## would be sending a client a number it can do nothing with — and `TEC-004`
@@ -252,15 +258,25 @@ func _ready() -> void:
 	_agent.path_desired_distance = 0.5
 	_agent.target_desired_distance = ARRIVED
 	add_child(_agent)
-	var tuning: TuningProfile = Config.tuning
-	health.maximum = tuning.enemy_health
+	# **What kind of enemy this is** (ADR-231): every number below was one
+	# `TuningProfile` value for every body, and is its archetype's now.
+	_kind = EnemyCatalogue.by_id(archetype)
+	if _kind == null:
+		# Two peers disagreeing about what exists. Loud, as a `WorldItem` naming
+		# an unknown item is — and built as the Wretch rather than as nothing, so
+		# the host's floor is not missing a body over a data fault.
+		push_error("enemy spawned as unknown archetype '%s'" % archetype)
+		_kind = EnemyCatalogue.by_id(EnemyCatalogue.DEFAULT)
+	health.maximum = _kind.health
 	health.restore()
 	# Full at spawn. Left at the declared 0.0 this would stagger to the first
 	# touch of anything — the failure the pool exists to prevent, arriving as
 	# an initialisation bug rather than as a design one.
-	_poise = tuning.enemy_poise
-	_hitbox.damage = tuning.enemy_attack_damage
-	_hitbox.damage_type = tuning.enemy_attack_type
+	_poise = _kind.poise
+	_hitbox.damage = _kind.attack.damage
+	_hitbox.damage_type = _kind.attack.damage_type
+	# Its body turns a blow by its class (`DES-023` §3), as a player's coat does.
+	_hurtbox.armour = _kind.armour_class
 	_hurtbox.hit.connect(_on_hurt)
 	health.died.connect(_on_died)
 	_material = StandardMaterial3D.new()
@@ -291,7 +307,7 @@ func _build_lamp(offset: Vector3) -> StandardMaterial3D:
 ## Poise remaining, 0–1. For probes and for `M4-T02`'s archetypes, which will
 ## want to differ by how much of this they carry.
 func poise() -> float:
-	return _poise / maxf(Config.tuning.enemy_poise, 0.001)
+	return _poise / maxf(_kind.poise, 0.001)
 
 
 func _break_poise() -> void:
@@ -306,7 +322,7 @@ func _break_poise() -> void:
 	# straight through it: the timer is unreadable from any state this line can
 	# be reached from, so it was the mechanism in appearance only (ADR-098).
 	_poise = 0.0
-	_stagger_timer = Config.tuning.enemy_stagger
+	_stagger_timer = _kind.stagger
 	_state = State.STAGGERED
 
 
@@ -371,7 +387,7 @@ func reset_alert_clock() -> void:
 ## Refill the pool without staggering. Used by `--fight-probe` to prove the
 ## recovery punish stands on its own rather than on an empty pool.
 func refill_poise() -> void:
-	_poise = Config.tuning.enemy_poise
+	_poise = _kind.poise
 
 
 ## The dangerous window, as `is_telegraphing()` is the readable one. Added for
@@ -442,7 +458,7 @@ func _physics_process(delta: float) -> void:
 	# this is a no-op against the cap; inside one it is what stops a series of
 	# light hits banking indefinitely toward a stagger that was never earned.
 	if _state != State.STAGGERED:
-		_poise = minf(tuning.enemy_poise, _poise + tuning.enemy_poise_regen * delta)
+		_poise = minf(_kind.poise, _poise + _kind.poise_regen * delta)
 
 	# **Runs while it swings, not only between swings.** `_act` is skipped for
 	# the whole of an attack cycle, and a body inside its attack range spends
@@ -612,7 +628,7 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 			if _patience <= 0.0:
 				_state = State.UNAWARE
 			else:
-				_steer_toward(_last_seen, tuning.enemy_walk_speed, tuning)
+				_steer_toward(_last_seen, _kind.walk_speed, tuning)
 		State.ALERTED, State.SWARM:
 			# **SWARM behaves as ALERTED and reads as worse.** The difference is
 			# not what this body does, it is that the floor now knows — which is
@@ -644,10 +660,10 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 					_begin_call(tuning)
 					return
 				var range_to: float = global_position.distance_to(_target.global_position)
-				if range_to <= tuning.enemy_attack_range:
+				if range_to <= _kind.attack.reach:
 					_begin_attack(tuning)
 				else:
-					_steer_toward(_last_seen, tuning.enemy_run_speed, tuning)
+					_steer_toward(_last_seen, _kind.run_speed, tuning)
 
 
 ## **The beat before the failure state** (`DES-013`).
@@ -701,7 +717,7 @@ func _tick_call(delta: float, tuning: TuningProfile) -> void:
 
 func _settle(tuning: TuningProfile) -> void:
 	if global_position.distance_to(_home) > 0.4:
-		_steer_toward(_home, tuning.enemy_walk_speed, tuning)
+		_steer_toward(_home, _kind.walk_speed, tuning)
 	else:
 		velocity.x = 0.0
 		velocity.z = 0.0
@@ -766,7 +782,7 @@ func _steer_toward(point: Vector3, speed: float, tuning: TuningProfile) -> void:
 	_face(direction, tuning)
 
 
-func _face(direction: Vector3, tuning: TuningProfile) -> void:
+func _face(direction: Vector3, _tuning: TuningProfile) -> void:
 	# Godot's forward is **-Z**, so a Y rotation of θ points the node at
 	# (-sin θ, 0, -cos θ). Solving for θ therefore negates both components:
 	# atan2(direction.x, direction.z) yields the angle whose *+Z* axis is the
@@ -774,24 +790,25 @@ func _face(direction: Vector3, tuning: TuningProfile) -> void:
 	# at the player while looking away from them, and — because `_can_see`
 	# uses the same forward vector — went blind the instant it started closing.
 	var wanted: float = atan2(-direction.x, -direction.z)
-	rotation.y = rotate_toward(rotation.y, wanted, tuning.enemy_turn_rate)
+	rotation.y = rotate_toward(rotation.y, wanted, _kind.turn_rate)
 
 
 # ── attacking ─────────────────────────────────────────────────────────────
 
 
-func _begin_attack(tuning: TuningProfile) -> void:
+func _begin_attack(_tuning: TuningProfile) -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
 	_attack = Attack.TELEGRAPH
 	# DES-009's hard floor: human visual reaction time is ~250 ms before any
 	# decision or input. Anything faster produces a death the player cannot
 	# explain, which PRO-005 §5 identifies as the attribution failure that
-	# makes people quit rather than retry. TuningProfile enforces the floor.
-	_attack_timer = tuning.enemy_telegraph
+	# makes people quit rather than retry. `AttackResource` enforces the floor
+	# on every archetype's blow (ADR-231).
+	_attack_timer = _kind.attack.telegraph
 
 
-func _tick_attack(delta: float, tuning: TuningProfile) -> void:
+func _tick_attack(delta: float, _tuning: TuningProfile) -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
 	_attack_timer -= delta
@@ -800,11 +817,11 @@ func _tick_attack(delta: float, tuning: TuningProfile) -> void:
 	match _attack:
 		Attack.TELEGRAPH:
 			_attack = Attack.ACTIVE
-			_attack_timer = tuning.enemy_attack_active
+			_attack_timer = _kind.attack.active
 			_hitbox.arm()
 		Attack.ACTIVE:
 			_attack = Attack.RECOVERY
-			_attack_timer = tuning.enemy_attack_recovery
+			_attack_timer = _kind.attack.recovery
 			_hitbox.disarm()
 		Attack.RECOVERY:
 			_attack = Attack.NONE
@@ -867,7 +884,7 @@ func _tick_stagger(delta: float, tuning: TuningProfile) -> void:
 		# a stagger is the pool's price having been paid, so charging for it
 		# twice would mean the second stagger is always cheaper than the first
 		# and every fight ends in a lock again by a slower route.
-		_poise = tuning.enemy_poise
+		_poise = _kind.poise
 		_state = State.ALERTED
 
 

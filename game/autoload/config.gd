@@ -69,6 +69,9 @@ func _export_probe() -> void:
 	# which is the fault ADR-086 reproduced deliberately.
 	print("[export] classes       %d" % ClassCatalogue.all().size())
 	print("[export] aspect nodes  %d" % AspectCatalogue.all().size())
+	# Every enemy's numbers are its archetype's (ADR-231): a pack without them
+	# boots and spawns bodies that cannot resolve what they are.
+	print("[export] enemies packed %d" % EnemyCatalogue.all().size())
 	print("[export] tuning loaded %s" % (tuning != null))
 	# The interface theme is reached by a project setting and nothing else
 	# (ADR-216), so a pack without it boots, loads, and draws every menu in the

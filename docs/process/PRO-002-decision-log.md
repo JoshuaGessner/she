@@ -8270,5 +8270,31 @@ Every number is ⟨tune⟩.
 - **Floors stop escalating from whoever sees you first.** Only a Bellringer calls; kill it or avoid it and a room stays a room. That is `DES-013`'s alarm role as written, and it will make the Deep quieter than it has been since `M2`. The swarm numbers are a playtest question.
 - The slice's cost is about two weeks for the roster and a weekend each for the hazards, not counting art, which is `M4-T10`'s.
 
+## ADR-231 — An enemy is its archetype, and the Wretch is today's enemy measured unchanged
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T02` (step 1 of ADR-230's seven)** · **Moves thirteen fields off `TuningProfile`; amends `TEC-006` §Enemies**
+
+**Context:** ADR-230 orders the roster's first step as the data an archetype is made of, with the one existing enemy becoming the Wretch and nothing else changing. Every enemy was one body with one set of numbers on `TuningProfile` — health, damage and its type, walk, run and turn speed, attack range, telegraph, active, recovery, stagger, poise and poise regen — so five archetypes had nowhere to differ.
+
+### Decision
+
+- **`EnemyResource` and `AttackResource`**, as `TEC-006` sketched and narrower: an archetype carries health, poise, poise regen, stagger seconds, walk and run speed, turn rate, armour class and **one** attack; an attack carries telegraph, active, recovery, damage, damage type and reach, in seconds. Role, faction, senses, scene, modifiers and a list of attacks are **absent**: each arrives with the archetype that reads it, because a field nothing reads is the fault ADR-222 and ADR-224 each found. `EnemyCatalogue` finds them in `data/enemies/` as `ItemCatalogue` finds items, packed extensions included.
+- **The telegraph floor lives on every attack.** `AttackResource.validate` refuses a telegraph under `TuningProfile.TELEGRAPH_FLOOR`; it was held on the one tuning number while there was one enemy. The two rules that compared that number with the shared profile — the floor-call has to come after an attack starts, and a body in the dark has to be seen from further than an attack reaches — compare an archetype with the profile now, so `data_probe` asks them of every archetype.
+- **A spawn names its archetype**, on the payload, so every peer builds the same body. `spawn_enemy` defaults to the Wretch, which every existing call site means; an unknown id is a loud error and builds as the Wretch rather than as nothing. The enemy's hurtbox now carries its archetype's armour class, so ADR-219's triangle reaches enemies with the first archetype that is not unarmoured.
+- **`enm_wretch.tres` is today's numbers exactly.** Senses and the floor-call stay on `TuningProfile`, shared. The Gold-Sick, which borrowed the enemy's turn rate times eight, has its own `hunter_turn_rate` at the same 0.96 rad/s.
+
+### Measured unchanged
+
+`--combat-probe`, `--fight-probe`, `--swarm-probe`, `--stalker-probe` and `--throw-probe` were recorded before any file moved and again after. Every figure that is not a wall-clock timing is identical — four swings to kill, three hits to die, the 850 ms a stagger buys, 4.5 seax hits and 1.0 hammer hit to break poise, a 32 arrow, a 26 axe. The rows that differ are timed in milliseconds (a 518 ms telegraph read 522, a 558 ms draw 564), and one noise sample at the archer read 0.22 before and 0.40 after — run twice more on the new build it read 0.40 and then 0.22, so it is run-to-run variation, not the change.
+
+### Verification
+
+`--archetype-probe`, new and required, authors a scratch archetype sharing no number with the Wretch for the length of the question, spawns it beside a Wretch, and asks each body its health, its armour class and the damage and type its hitbox carries; the Wretch is the control a body ignoring its archetype would pass as. The export census prints `enemies packed` and `export_build.py` requires it to match the repository. **Planted and failed, one plant per run:** the spawn's archetype not read; the archetype's armour not worn; the blow not the archetype's; a telegraph of 0.2 s; a reach of 6 m against 5 m of dark sight; and a telegraph longer than the floor-call.
+
+### Consequences
+
+- **Nothing a player meets has changed.** Every floor still fields only Wretches until ADR-230's steps 2 to 5 add the others, and step 7 is what places them.
+- Adding an archetype is now a `.tres` and a locale row. Giving it a *behaviour* the Wretch does not have — a leash, a sling, being the only one that calls — is still code, and those are the next steps.
+
 *Entries below to be added as design decisions are signed off.*
 

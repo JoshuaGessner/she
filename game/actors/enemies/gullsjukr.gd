@@ -710,7 +710,7 @@ func _walk(delta: float) -> void:
 	# It moves badly because of the weight, and it never turns quickly. The
 	# slowness is the counter-play: `DES-005` says terrain is your friend.
 	var facing: float = atan2(-to_goal.x, -to_goal.z)
-	rotation.y = rotate_toward(rotation.y, facing, Config.tuning.enemy_turn_rate * 8.0 * delta)
+	rotation.y = rotate_toward(rotation.y, facing, Config.tuning.hunter_turn_rate * delta)
 	move_and_slide()
 
 

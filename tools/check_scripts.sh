@@ -596,6 +596,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **An enemy is the archetype its spawn names** (`M4-T02`, ADR-231). A
+	# scratch archetype that shares no number with the Wretch, spawned beside a
+	# Wretch: each body's health, armour and blow must be its own archetype's.
+	archetype="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --archetype-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$archetype" \
+			|| ! grep -q "^\[archetype\] Wretch" <<<"$archetype"; then
+		echo "FAIL an enemy has to be what its spawn names" >&2
+		printf '%s\n' "$archetype" | grep -E '\[archetype\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **And what it costs to let the Gullsjúkr reach you** (`M2-T19`, ADR-112).
 	# It used to cost nothing at all: it walked up, stopped at 24 cm, and stood
 	# inside the player indefinitely with health and bag untouched. `DES-017`

@@ -926,6 +926,8 @@ func _build_enemy(payload: Dictionary) -> Node:
 	enemy.name = "enemy_%d" % int(payload["index"])
 	enemy.position = payload["at"] as Vector3
 	enemy.rotation.y = float(payload["yaw"])
+	# Before `_ready`, which resolves it (ADR-231).
+	enemy.archetype = StringName(payload.get("archetype", EnemyCatalogue.DEFAULT))
 	# Authority stays with the host: every enemy is host-simulated (`TEC-004`),
 	# and the default authority of a spawned node is already peer 1.
 	enemy.configure_replication()
@@ -1056,11 +1058,15 @@ func seat_for(peer: int) -> int:
 ## Levels ask for enemies; they never instantiate one. Silently does nothing on
 ## a client, because a client asking for an enemy is asking the wrong process —
 ## the host's spawn will arrive on its own.
-func spawn_enemy(at: Vector3, yaw: float = 0.0) -> void:
+## `archetype` names an `EnemyResource` (ADR-231) and rides the payload, so every
+## peer builds the same kind of body from the same packet.
+func spawn_enemy(at: Vector3, yaw: float = 0.0,
+		archetype: StringName = EnemyCatalogue.DEFAULT) -> void:
 	if not is_host():
 		return
 	_spawner.spawn({
 		"kind": "enemy", "index": _next_enemy, "at": at, "yaw": yaw,
+		"archetype": String(archetype),
 	})
 	_next_enemy += 1
 

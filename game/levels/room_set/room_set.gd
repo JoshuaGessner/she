@@ -831,6 +831,8 @@ func _ready() -> void:
 			_scar_probe()
 		elif arg == "--throw-probe":
 			_throw_probe()
+		elif arg == "--archetype-probe":
+			_archetype_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -6598,7 +6600,7 @@ func _probe_report(host: bool) -> Dictionary:
 		# rather than repeated in the harness. A ⟨tune⟩ value that CI has its
 		# own copy of is a ⟨tune⟩ value nobody can change.
 		"swing_damage": _seax_damage(),
-		"enemy_max_health": Config.tuning.enemy_health,
+		"enemy_max_health": EnemyCatalogue.by_id(EnemyCatalogue.DEFAULT).health,
 		"player_max_health": Config.tuning.player_health,
 		"revive_health_fraction": Config.tuning.revive_health_fraction,
 		"godot": Engine.get_version_info()["string"],
@@ -8379,7 +8381,7 @@ func _walk_probe() -> void:
 	for walker: Enemy in walkers:
 		started.append(walker.global_position)
 
-	# Long enough to cross the floor: `enemy_walk_speed` is 2 m/s and the far
+	# Long enough to cross the floor: the Wretch's `walk_speed` is 2 m/s and the far
 	# corners are ~40 m apart, so four seconds — the first draft — measured
 	# nothing but how far a body gets in eight metres.
 	var frames: int = 1200
@@ -9531,7 +9533,7 @@ func _rank_probe() -> void:
 			spread = false
 	print("[rank] fixed stats %d enemy(s), health all %.0f = %s, telegraph %.2f s" % [
 		damage_seen.size(), damage_seen[0] if damage_seen.size() > 0 else 0.0,
-		spread, tuning.enemy_telegraph])
+		spread, EnemyCatalogue.by_id(EnemyCatalogue.DEFAULT).attack.telegraph])
 	if not spread:
 		problems.append(("enemies on this floor do not share one stat line — "
 			+ "`DES-022`'s rule is fixed stats per archetype, and a rank that "
@@ -10884,6 +10886,81 @@ func _throw_probe() -> void:
 		problems.append("a thrown axe fell on stone and the floor heard nothing")
 
 	_report(problems, "throw")
+
+
+## **An enemy is the archetype its spawn names** (`M4-T02`, ADR-231).
+##
+## A scratch archetype that shares no number with the Wretch is authored for the
+## length of the question, spawned beside a Wretch, and each body is asked what
+## it became: its health, its armour and the blow its hitbox carries. The Wretch
+## beside it is the control — a body that ignored its archetype would build as
+## the Wretch and pass a row that only asked the scratch one for *a* number.
+func _archetype_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	await _hold(0.3)
+	var odd := EnemyResource.new()
+	odd.id = &"enm_probe_odd"
+	odd.name_key = &"enemy.enm_wretch.name"
+	odd.health = 137.0
+	odd.poise = 43.0
+	odd.stagger = 0.61
+	odd.walk_speed = 1.3
+	odd.run_speed = 2.9
+	odd.turn_rate = 0.07
+	odd.armour_class = Enums.ArmourClass.PLATED
+	var blow := AttackResource.new()
+	blow.telegraph = 0.73
+	blow.damage = 19.0
+	blow.damage_type = Enums.DamageType.BLUNT
+	blow.reach = 2.6
+	odd.attack = blow
+	EnemyCatalogue.all()
+	EnemyCatalogue._by_id[String(odd.id)] = odd
+	EnemyCatalogue._ids.append(String(odd.id))
+	var wretch: EnemyResource = EnemyCatalogue.by_id(EnemyCatalogue.DEFAULT)
+	_session.spawn_enemy(player.global_position + Vector3(0.0, 0.1, 5.0), 0.0, odd.id)
+	_session.spawn_enemy(player.global_position + Vector3(4.0, 0.1, 5.0), 0.0)
+	await _hold(0.4)
+	var odd_body: Enemy = null
+	var plain_body: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body == null:
+			continue
+		if body.archetype == odd.id:
+			odd_body = body
+		elif body.archetype == EnemyCatalogue.DEFAULT:
+			plain_body = body
+	EnemyCatalogue._by_id.erase(String(odd.id))
+	EnemyCatalogue._ids.erase(String(odd.id))
+	if odd_body == null or plain_body == null or wretch == null:
+		problems.append("the two archetypes did not both arrive (odd %s, Wretch %s)"
+			% [odd_body != null, plain_body != null])
+		_report(problems, "archetype")
+		return
+	for pair: Array in [[odd_body, odd, "scratch"], [plain_body, wretch, "Wretch"]]:
+		var body: Enemy = pair[0]
+		var kind: EnemyResource = pair[1]
+		var hurtbox := body.get("_hurtbox") as Hurtbox
+		var hitbox := body.get("_hitbox") as Hitbox
+		print(("[archetype] %-8s health %.0f (want %.0f), armour %s (want %s), "
+			+ "blow %.0f %s (want %.0f %s)") % [pair[2], body.health.maximum,
+			kind.health, Enums.ArmourClass.keys()[hurtbox.armour],
+			Enums.ArmourClass.keys()[kind.armour_class], hitbox.damage,
+			Enums.DamageType.keys()[hitbox.damage_type], kind.attack.damage,
+			Enums.DamageType.keys()[kind.attack.damage_type]])
+		if not is_equal_approx(body.health.maximum, kind.health) \
+				or hurtbox.armour != kind.armour_class \
+				or not is_equal_approx(hitbox.damage, kind.attack.damage) \
+				or hitbox.damage_type != kind.attack.damage_type:
+			problems.append(("a body spawned as %s is not built from it — the "
+				+ "archetype on its spawn is not what it reads") % pair[2])
+	_session.clear_enemies()
+	_report(problems, "archetype")
 
 
 ## A fresh enemy at `mark` facing away, and the thrower back at the post.

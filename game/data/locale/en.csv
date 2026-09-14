@@ -3,6 +3,7 @@ item.wpn_dvergar_hammer.name,Dvergar Hammer
 item.wpn_dvergar_hammer.desc,"Short-hafted and head-heavy. Opens shields, doors, and the occasional wall. Slow enough to get you killed."
 item.wpn_ash_spear.name,Ash Spear
 item.wpn_ash_spear.desc,"Reaches further than anything else you own, and is useless the moment a corridor narrows."
+enemy.enm_wretch.name,Wretch
 item.wpn_seax.name,Seax
 item.wpn_seax.desc,"A working blade, not a warrior's. Quick, light, and honest about what it cannot do."
 item.wpn_bearded_axe.name,Bearded Axe

@@ -41,6 +41,7 @@ var _items: Array[ItemResource] = []
 var _nodes: Array[AspectNode] = []
 var _classes: Array[ClassResource] = []
 var _tables: Array[LootTable] = []
+var _enemies: Array[EnemyResource] = []
 ## Taken from the walk rather than from `Config`. This runs as `--script`,
 ## which builds a bare `SceneTree` with **no autoloads registered** — so
 ## `Config.tuning` is not merely empty here, it does not compile. The profile
@@ -69,6 +70,7 @@ func _run() -> void:
 	_check_every_item_has_a_source()
 	_check_a_bad_row_is_refused()
 	_check_the_tree_hangs_together()
+	_check_enemies_against_the_profile()
 
 	# A validator that validated nothing must never report success. This is
 	# the single most important line in the file: every other check here is
@@ -84,6 +86,9 @@ func _run() -> void:
 	# And for the classes, whose rule below is conditional on there being any.
 	if _classes.is_empty():
 		_fail("no classes found — every kit rule checked nothing")
+	# And for the enemies, whose telegraph floor is the rule CI is named for.
+	if _enemies.is_empty():
+		_fail("no enemies found — no attack was held to the telegraph floor")
 
 	print("[data] %d resource(s), %d item(s), %d node(s)" % [
 		_loaded, _items.size(), _nodes.size()])
@@ -93,6 +98,29 @@ func _run() -> void:
 		return
 	print("[data] every resource loads and validates")
 	quit()
+
+
+## **What an archetype may not do against what every enemy shares** (ADR-231).
+##
+## Two rules `TuningProfile.validate()` held while the numbers lived on one
+## profile, and which compare the profile with an archetype now: the floor-call
+## has to take longer than an attack takes to begin, or every fight calls the
+## floor; and a body in the dark has to be seen from further than an attack
+## reaches, or something can hit you having never seen you (principle 4).
+func _check_enemies_against_the_profile() -> void:
+	if _tuning == null:
+		return
+	for kind: EnemyResource in _enemies:
+		if kind.attack == null:
+			continue
+		if _tuning.enemy_swarm_after <= kind.attack.telegraph:
+			_fail(("%s telegraphs for %.2f s and the floor-call comes at %.1f s — "
+				+ "every fight with it would call the floor")
+				% [kind.id, kind.attack.telegraph, _tuning.enemy_swarm_after])
+		if _tuning.enemy_vision_dark <= kind.attack.reach:
+			_fail(("%s reaches %.1f m and a body in the dark is seen from %.1f m — "
+				+ "it could strike something it never saw")
+				% [kind.id, kind.attack.reach, _tuning.enemy_vision_dark])
 
 
 ## Every `.tres` under `root`, recursively. `DirAccess` rather than a hardcoded
@@ -134,6 +162,14 @@ func _check(path: String) -> void:
 	var table := resource as LootTable
 	if table != null:
 		_tables.append(table)
+
+	var kind := resource as EnemyResource
+	if kind != null:
+		_enemies.append(kind)
+		var named_as: String = "%s.tres" % kind.id
+		if path.get_file() != named_as:
+			_fail("%s holds enemy id '%s' — the file should be named %s"
+				% [path, kind.id, named_as])
 
 	var node := resource as AspectNode
 	if node != null:

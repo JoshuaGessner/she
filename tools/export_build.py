@@ -85,6 +85,11 @@ def repo_item_count() -> int:
     return len(list(ITEMS.glob("*.tres")))
 
 
+def repo_enemy_count() -> int:
+    """ADR-231: an export that lost `data/enemies` would build every body blind."""
+    return len(list((GAME / "data" / "enemies").glob("*.tres")))
+
+
 def repo_theme_types() -> int:
     """How many types `ui/interface_theme.tres` declares, read off the file."""
     text = (GAME / "ui" / "interface_theme.tres").read_text(encoding="utf-8")
@@ -134,6 +139,14 @@ def probe(binary: Path) -> tuple[bool, list[str]]:
         f"{count} packed, {expected} in repo")
 
     say("tuning profile loaded", "tuning loaded true" in log, "Config.tuning")
+
+    # ADR-231. Every enemy's numbers are its archetype's now, so a pack without
+    # the enemy files boots and spawns bodies that cannot resolve what they are.
+    enemies = re.search(r"\[export\] enemies packed\s+(\d+)", log)
+    enemy_count = int(enemies.group(1)) if enemies else -1
+    say("every enemy is in the pack",
+        enemy_count == repo_enemy_count() and enemy_count > 0,
+        f"{enemy_count} packed, {repo_enemy_count()} in repo")
 
     # ADR-216. A project setting is the theme's only reference, so a pack that
     # lost it would boot and draw every menu in the engine's defaults.

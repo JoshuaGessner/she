@@ -108,6 +108,8 @@ class_name AttackResource extends Resource
 
 > **The validator enforces `telegraph_ms >= 250`.** ADR-053 makes this a hard rule from human reaction time, and a rule that isn't checked is a rule that erodes. **CI fails the build if an attack telegraphs faster than a person can react.**
 
+> **Built by ADR-231, narrower than sketched.** `EnemyResource` carries `id`, `name_key`, health, poise, poise regen, stagger seconds, walk and run speed, turn rate, `armour_class` and **one** `attack`; `AttackResource` carries `telegraph`, `active`, `recovery` (seconds, like every other phase in the project), `damage`, `damage_type` and `reach`, and refuses a telegraph under `TuningProfile.TELEGRAPH_FLOOR`. **Role, faction, senses, scene, modifiers and a list of attacks are absent, not stubbed**: each arrives with the archetype that reads it (ADR-230's order), because a field nothing reads is the fault ADR-222 and ADR-224 each found. Senses stay on `TuningProfile`, which every archetype shares. Files live in `data/enemies/`, named for their `enm_` id, found by `EnemyCatalogue`; a spawn names one on its payload.
+
 **Modifiers** (`GildedModifier`, `SilentModifier`, `RousedModifier`…) are separate resources that mutate an enemy at spawn. ~8 modifiers × ~12 archetypes is where variety comes from — not from 40 hand-authored enemies.
 
 ## Skills

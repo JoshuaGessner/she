@@ -57,7 +57,7 @@ extends ItemTrait
 ## staggers — was the only weapon that could be hit back. `--fight-probe`
 ## measured zero damage taken in ten seconds of seax spam, stamina included.
 ##
-## Against `TuningProfile.enemy_poise`, so a light weapon cannot break poise
+## Against the struck archetype's `poise` (the Wretch's 100, ADR-231), so a light weapon cannot break poise
 ## inside an enemy's lifetime and must earn its stagger in the recovery window
 ## instead. That is the trade, and it is why this is not simply a damage
 ## number wearing another name (ADR-058).
