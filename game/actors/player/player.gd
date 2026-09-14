@@ -578,8 +578,9 @@ func _ready() -> void:
 	# from the spawn payload rather than from local state — `GameState` knows
 	# only this machine's class, and the host has to build everybody's body.
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
-	health.maximum = tuning.player_health * (body.health_scale if body else 1.0)
+	_shape_the_body(body)
 	health.restore()
+	stamina.refill()
 	_last_position = global_position
 	# **Where this body starts is ground it has stood on** (`M2-T16`, ADR-108).
 	#
@@ -941,13 +942,30 @@ func driving() -> bool:
 
 ## The bag changed on whichever peer holds it.
 func _on_inventory_changed() -> void:
+	if multiplayer.is_server():
+		_push_bag()
+	_reweigh()
+
+
+## **What this body carries: the bag and what it wears and holds** (ADR-224).
+##
+## Called when either changes. Only the bag was counted, so an 11 kg byrnie on
+## your back and a 6.4 kg hammer in your hands weighed nothing and made no
+## sound, and `DES-023`'s *heavy, and it jingles* described an item that cost
+## nothing to wear. The developer chose full weight over half and over none.
+func _reweigh() -> void:
+	var worn_kilograms: float = equipment.total_weight() if equipment != null else 0.0
+	var worn_noise: float = equipment.total_clamor() if equipment != null else 0.0
 	# Weight is host-owned and replicated (`STATE_PROPERTIES`). A client
 	# writing it would be overwritten a twentieth of a second later and the bug
 	# would read as "the weight is sometimes wrong".
 	if multiplayer.is_server():
-		carried.kilograms = inventory.total_weight()
-		_push_bag()
-	# Derived on every peer from the bag that peer holds, so no second
+		# **Weight of Kings** doubles the bag inside `Inventory`; what is worn is
+		# doubled here, because the node's sentence is *every kilogram*.
+		carried.kilograms = inventory.total_weight() + worn_kilograms \
+			* (2.0 if has_effect(&"weight_costs_double") else 1.0)
+	# Derived on every peer from the bag that peer holds and what the body
+	# wears, so no second
 	# replicated property is needed and a client's debug ring cannot disagree
 	# with the host's simulation about what this body gives away.
 	# **Not party-scaled, deliberately** (`M2-T07`, ADR-096). The party
@@ -961,7 +979,7 @@ func _on_inventory_changed() -> void:
 	# keystone to have a real drawback and this one's is that the whole floor
 	# hears the vault leaving.
 	var floor_noise: float = 0.0 if has_effect(&"weight_is_silent") \
-		else inventory.total_clamor() * Config.tuning.clamor_carried_fraction
+		else (inventory.total_clamor() + worn_noise) * Config.tuning.clamor_carried_fraction
 	if has_effect(&"weight_costs_double"):
 		floor_noise *= 2.0
 	# **Faint Trace** (`M3-T12`). The weight is still there and the sound of it
@@ -2377,12 +2395,25 @@ func _redress() -> void:
 		return
 	_push_effects_down()
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
-	var tuning: TuningProfile = Config.tuning
-	health.maximum = tuning.player_health * (body.health_scale if body else 1.0)
+	_shape_the_body(body)
 	if health.current > health.maximum or health.current <= 0.0:
 		health.restore()
 	equipment.clear()
 	_dress_the_body(body)
+
+
+## **Every multiplier the class puts on the body, in one place** (ADR-224).
+##
+## `ClassResource` has authored four since `M3-T02` and two were read: health
+## here and speed in `_target_speed`. `carry_scale` and `stamina_scale` were
+## validated at boot and read by nothing, so a Húskarl hauled against the
+## Veiðimaðr's 40 kg with the Veiðimaðr's stamina. Speed stays where it is
+## read, because it is one factor of a product rather than a component's size.
+func _shape_the_body(body: ClassResource) -> void:
+	health.maximum = Config.tuning.player_health * (body.health_scale if body else 1.0)
+	carried.class_scale = body.carry_scale if body else 1.0
+	stamina.class_scale = body.stamina_scale if body else 1.0
+	stamina.current = minf(stamina.current, stamina.maximum())
 
 
 func _dress_the_body(body: ClassResource) -> void:
@@ -2466,6 +2497,9 @@ func _on_equipment_changed() -> void:
 	# actually wearing, and never written for a teammate's body.
 	if _is_local:
 		GameState.worn = equipment.to_wire()
+	# **What is worn weighs** (ADR-224), so putting a thing on or taking it off
+	# changes the load even when the bag it came from is not asked to change.
+	_reweigh()
 
 
 func _on_draw_started() -> void:

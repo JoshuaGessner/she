@@ -18,15 +18,21 @@ var breathing: bool = false
 ## `is_empty()` and `fraction()`, which is what they were already doing.
 
 var current: float = 0.0
+## **The class's `stamina_scale`, pushed down by the body** (ADR-224). A longer
+## bar, not a faster refill: the delay before it refills is what makes stamina a
+## rhythm, and a class that shortened it would play a different game rather
+## than the same one as a different body. Authored at `M3-T02` and read by
+## nothing until ADR-224.
+var class_scale: float = 1.0
 var _since_spend: float = 0.0
 
 
 func _ready() -> void:
-	current = Config.tuning.stamina_max
+	current = maximum()
 
 
 func maximum() -> float:
-	return Config.tuning.stamina_max
+	return Config.tuning.stamina_max * class_scale
 
 
 func fraction() -> float:
@@ -71,8 +77,8 @@ func _process(delta: float) -> void:
 	# rather than a bigger pool — and standing still is the most exposed thing
 	# the Wing can ask you to do.
 	if (not breathing and _since_spend < tuning.stamina_regen_delay) \
-			or current >= tuning.stamina_max:
+			or current >= maximum():
 		return
-	current = minf(tuning.stamina_max, current + tuning.stamina_regen * delta)
+	current = minf(maximum(), current + tuning.stamina_regen * delta)
 
 

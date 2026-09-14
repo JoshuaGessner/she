@@ -22,7 +22,7 @@ So what does *"better gear"* mean, and what is the player watching improve?
 
 > **Better means more appropriate, better preserved, and better provenance — never bigger numbers.**
 
-A Dvergar king's mail is *extraordinary* to look at and is still a **sidegrade** to a good leather coat: heavier, louder, better against pierce, worse for a Veiðimaðr. The visual progression is real and satisfying, and it tracks **where you have been rather than how strong you are** — exactly like the trophies in `DES-016`.
+A Dvergar king's mail is *extraordinary* to look at and is still a **sidegrade** to a good leather coat: heavier, louder, better against pierce, worse for a Veiðimaðr. *(ADR-224: heavier and louder became true — worn and held gear weighs and sounds exactly as it does in the bag. Until then only the bag counted, and everything on the body was free.)* The visual progression is real and satisfying, and it tracks **where you have been rather than how strong you are** — exactly like the trophies in `DES-016`.
 
 That is a better fantasy than a stat ladder anyway. Your gear becomes a *record*.
 

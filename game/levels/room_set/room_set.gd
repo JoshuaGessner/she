@@ -11617,6 +11617,11 @@ func _wing_probe() -> void:
 ##
 ## Settled start, peak rather than delta, and back to the same place each time,
 ## so the two measurements are of the same walk.
+##
+## **Above the standing floor, not above zero** (ADR-224). The body wears its
+## kit, and a worn byrnie now gives away 0.40 standing still — so a silent crouch
+## peaked at exactly that and read as Soft Boots failing. What a crouch makes is
+## what the steps add to what the body already gives away, which is the claim.
 func _walk_and_listen(player: Player, crouched: bool) -> float:
 	player.teleport(ARCHER_POST, 0.0)
 	# **Through the input, not by assigning `stance`.** `_update_stance` recomputes
@@ -11633,13 +11638,13 @@ func _walk_and_listen(player: Player, crouched: bool) -> float:
 	# Wait for the last walk to fade, or this measures that one instead.
 	for settle: int in range(240):
 		await get_tree().physics_frame
-		if player.clamor.level <= 0.01:
+		if player.clamor.level <= player.clamor.carried_floor + 0.01:
 			break
 	var peak: float = 0.0
 	for step: int in range(24):
 		player.global_position += Vector3(0.28, 0.0, 0.0)
 		await get_tree().physics_frame
-		peak = maxf(peak, player.clamor.level)
+		peak = maxf(peak, player.clamor.level - player.clamor.carried_floor)
 	Input.action_release("crouch")
 	return peak
 

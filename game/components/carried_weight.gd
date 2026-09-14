@@ -5,11 +5,9 @@ extends Node
 ## from it. DES-005 Layer 1: weight is continuous, player-caused pressure —
 ## your own greed, expressed as something your legs have to carry.
 ##
-## Nothing sets this from gameplay yet. **Inventory is `M2-T01`**, and until it
-## exists the value is driven by hand so encumbrance can be felt and judged at
-## all. That is not a placeholder standing in for a system: this component is
-## the real one inventory will drive, and its interface does not change when it
-## does.
+## Set by the body, on the host, from **the bag and what the body wears and
+## holds** (ADR-224). Until then only the bag counted, so an 11 kg byrnie on
+## your back weighed nothing, and so did a two-handed hammer in your hands.
 
 signal changed(kilograms: float, encumbrance: float)
 
@@ -21,9 +19,20 @@ var kilograms: float = 0.0:
 		kilograms = clamped
 		changed.emit(kilograms, encumbrance())
 
+## **The class's `carry_scale`, pushed down by the body** (ADR-224). Above 1.0
+## the same kilograms land lighter: `DES-011`'s Húskarl *"keeps moving under
+## weight that would pin anyone else"*. Authored at `M3-T02` and read by
+## nothing, so every class hauled against the same 40 kg.
+var class_scale: float = 1.0:
+	set(value):
+		if is_equal_approx(value, class_scale):
+			return
+		class_scale = value
+		changed.emit(kilograms, encumbrance())
+
 
 func capacity() -> float:
-	return Config.tuning.carry_capacity
+	return Config.tuning.carry_capacity * class_scale
 
 
 ## 0.0 empty-handed, 1.0 at capacity. Deliberately clamped rather than allowed

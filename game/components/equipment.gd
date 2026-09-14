@@ -126,6 +126,27 @@ func clear() -> void:
 	changed.emit()
 
 
+## Kilograms worn and held (ADR-224). **The same weight it has in the bag**, by
+## the developer's call over half weight and over none: `DES-020`'s mail is
+## *"heavier, louder"*, its no-pack body *"minimal weight, near-silent"*, and
+## `DES-023` charges plate and the pack frame their weight. Before this only the
+## bag counted, and all of those were free on your body.
+func total_weight() -> float:
+	var sum: float = 0.0
+	for item: ItemInstance in _worn.values():
+		sum += item.weight()
+	return sum
+
+
+## What wearing it gives away, on the scale `Inventory.total_clamor` uses — a
+## byrnie jingles on your back as it does in the bag (ADR-224).
+func total_clamor() -> float:
+	var sum: float = 0.0
+	for item: ItemInstance in _worn.values():
+		sum += item.clamor()
+	return sum
+
+
 ## What the bag is, expressed as a grid (`DES-020`): *"the Pack slot sets your
 ## inventory grid size — bigger pack, more grid, more weight, more Clamor. The
 ## upgrade that makes you more powerful is the upgrade that makes you louder."*

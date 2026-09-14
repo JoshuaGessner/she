@@ -53,7 +53,7 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 
 | id | Slot | What only it does | Costs | Source |
 |---|---|---|---|---|
-| `arm_mail_byrnie` *(exists)* | Body | **Mailed** — turns most of a cut (§3) | Heavy, and it jingles | Húskarl kit · floor 0+ gear |
+| `arm_mail_byrnie` *(exists)* | Body | **Mailed** — turns most of a cut (§3) | Heavy, and it jingles — **charged since ADR-224**: nothing worn weighed or sounded before, so both were free on the body | Húskarl kit · floor 0+ gear |
 | `arm_dvergar_plate` | Body | **Plated** — turns a cut and most of a pierce, so a swarm's chip damage stops mattering | The heaviest thing you can wear; loud to move in; a hammer goes straight through it | floor 2 gear |
 | `rlc_otr_pelt` | Body | **The Gold-Sick cannot feel through a wall what you carry while you wear it** (`DES-017`'s near sense). Ótr's skin, the one the first hoard was paid over | No protection at all — it is a pelt — and worth 180 to her ⟨tune⟩, so wearing it is refusing the richest single offer on the floor | floor 2 Prize |
 | `arm_spangen_helm` | Head | **You cannot be Concussed** (`DES-009` wounds) | Weight; arrives with wounds (§5) | floor 1+ gear |

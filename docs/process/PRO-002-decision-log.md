@@ -8030,5 +8030,40 @@ So in play every kept weapon was at full power by the first floor, and every kep
 - **Regin's blade is now the best thing to keep in a Legacy slot** if you swing it, and one of the best to give her if you do not — which is the choice the developer wanted it to pose, and a number to watch.
 - **Noticed on the way and not investigated:** `_carry_the_stash_down` runs once in the level's `_ready` and fills `_session.local_player()`'s bag. That is the host's authoritative bag in solo; on a client the body may not have spawned yet, and a client's bag is the host's to fill. Whether a client's stash ever reaches its bag is unverified, and it is raised with the developer rather than assumed either way.
 
+## ADR-224 — What you wear weighs what it weighs, and the class numbers are read
+
+**Date:** 2026-09-13 · **Status:** accepted · **Advances `M4-T31`** · **Changes every run's movement feel** · **Builds `DES-020` and `DES-011` as written; amends `DES-023` §2**
+
+**Context:** `M4-T31` owes the pack frame, whose whole cost in `DES-023` is *"heavy, and it creaks"*. Reading what weight does to build that cost found **nothing worn or held has ever weighed anything or made a sound.** `Player` set `CarriedWeight.kilograms` from `Inventory.total_weight()` and its standing clamor from `Inventory.total_clamor()`, and `Equipment` is not the inventory: equipping takes a thing out of the bag. So the Húskarl's 11 kg byrnie cost nothing on their back and jingled for nobody, a 6.4 kg hammer in both hands weighed less than a coin in the bag, and `DES-020`'s *"heavier, louder"* mail and *"minimal weight, near-silent"* no-pack body, and `DES-023`'s plate and frame, described costs the build never charged.
+
+Beside it, two of `ClassResource`'s four body multipliers were **validated at boot and read by nothing**: `carry_scale` (Húskarl 1.3, Veiðimaðr 0.75) and `stamina_scale` (1.1, 1.15). `CarriedWeight.capacity()` returned the shared 40 kg, `Stamina.maximum()` the shared 100, so `DES-011`'s Húskarl, who keeps *"moving under weight that would pin anyone else"*, carried exactly what the Veiðimaðr carried, and `DES-023`'s *"26 kg against a 30 kg Veiðimaðr"* was measured against a number nothing used. `player.gd`'s own note on replicating `sworn` says a classless body was *"silently losing its health, speed and carry scales"* — it believed the third was applied.
+
+### Decision — the developer's two calls
+
+- **Worn and held gear counts in full, as it does in the bag.** Chosen over half weight (armour sits better on a body, but it is a second ⟨tune⟩ number, and *the heaviest thing you can wear* would be half true) and over noise only (plate and the frame would be *heavy* in a table and nowhere else). `Equipment.total_weight()` and `total_clamor()` join the bag's in `Player._reweigh()`, called when either changes; Weight of Kings doubles what is worn too, because its sentence is *every kilogram*.
+- **`carry_scale` and `stamina_scale` are read as authored** ⟨tune⟩, over deleting them. `CarriedWeight.class_scale` and `Stamina.class_scale` are pushed down by the body in `_shape_the_body`, the one place every class multiplier on a component is now set; a body is filled to its grown bar when it is built. The stamina scale makes the bar longer, not the refill faster, because the pause before a refill is what makes stamina a rhythm.
+- **The bag's header shows the body's load** — carried kilograms against the class's capacity, and the standing radius from `ClamorSource.carried_floor` — so what the bag says is what the legs carry. It had shown a Húskarl in their kit 0.2 kg against 40, and a radius that ignored Ballast and Faint Trace.
+
+### What it does to a run — computed from `_target_speed`, not walked
+
+| | before | after |
+|---|---|---|
+| Húskarl in kit (seax, byrnie, lantern, 2 bindings: 13.5 kg) | 0 % laden · walks at 0.92 | **26 % of 52 kg** · walks at **0.81** · footsteps 1.36× · sprints ~84 % as long |
+| Húskarl, byrnie taken off (2.5 kg) | — | 5 % · walks at 0.90 |
+| Veiðimaðr in kit (bow, 2 bindings: 1.6 kg) | 0 % · 1.08 | **5 % of 30 kg** · 1.05 |
+| Húskarl in kit with a hoard coin | 24 % · 0.82 | 44 % · 0.74 |
+| Veiðimaðr in kit with a hoard coin | 24 % · 0.96 | 37 % · 0.90 |
+
+Walk speed is the multiple of `walk_speed`. **The Húskarl starts every run about a tenth slower than they did**, and taking the byrnie off is now a choice with an answer each way: 11 % of walking pace, a quieter step and no jingle, against mail turning two-thirds of every cut. The Húskarl's room for loot before capacity barely moves (38.5 kg, was 40); the Veiðimaðr's falls from 40 to 28.4 — the stalker comes for one thing, which is `DES-011`'s class and `DES-020`'s no-pack body. The byrnie's standing noise is 0.4 clamor, 0.64 m, a third of a hoard coin's.
+
+### Verification
+
+`--class-probe` gains five rows, with expected values taken from the class resources and the kit's definitions rather than from `Equipment`: a Húskarl built in their kit carries the kit's 13.3 kg and a classless body 0; the Húskarl's standing floor is the byrnie's clamor × `clamor_carried_fraction`; the Húskarl bears 52 kg and the Veiðimaðr 30, and each rejects a scale of 1.0 as proving nothing; the bars are 110 and 115, and a Veiðimaðr who has done nothing is full; and the byrnie's 11 kg stays when it is taken off into the bag and goes when it leaves the bag. **Planted and failed, one plant per run:** worn weight left out; worn clamor left out; `carry_scale` unread; `stamina_scale` unread; the body not refilled after its bar grows; and equipping not reweighing, which double-counts the coat in the bag (24.3 kg stowed). **The sweep then failed `--wing-probe`, correctly:** Soft Boots' crouch was measured against zero, and the probe's body wears its kit, so a silent crouch now peaks at the byrnie's 0.40 standing floor. The claim is about footsteps, so the walk is measured above the body's own floor (a plain crouch 0.46, Soft Boots 0.00), and Soft Boots switched off was planted again and caught.
+
+### Consequences
+
+- **This is a feel change to every run, and it is a person's to judge.** Nothing in `M1`'s movement sign-off was felt with a byrnie on; `GATE M4 GREED` and the next playtest are where *a tenth slower* is found right or wrong, and the numbers to move are the byrnie's weight and the classes' `carry_scale`, not the rule.
+- **Also found, and not built here:** a mid-run equip happens on the host and is never sent to anybody — `wearing` changes only on a declaration, and the owning client is sent its bag and not its slots. So a client who equips a hammer may still see a seax in their bag's hand slot, swing with the seax's timing, and re-declare the seax on the next floor, which the host would dress over the hammer it had already taken out of the bag. Unverified, and raised with the developer beside ADR-223's stash question: both are a client's items crossing the wire.
+
 *Entries below to be added as design decisions are signed off.*
 

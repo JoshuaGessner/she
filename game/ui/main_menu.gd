@@ -1007,8 +1007,96 @@ func _class_probe() -> void:
 			+ "gap) — it fires once per life and then goes quiet, which is the "
 			+ "silence it exists to replace") % after)
 
+	# ── what the body wears weighs, and the class sizes what it can bear ──
+	#
+	# **ADR-224.** Only the bag was weighed, so the Húskarl's 11 kg byrnie cost
+	# nothing on their back and jingled for nobody; and `carry_scale` and
+	# `stamina_scale` were validated at boot and read by nothing. The expected
+	# numbers come from the **class resources and the kit's definitions**, not
+	# from `Equipment`, so a sum that forgot a slot cannot agree with itself.
+	var fleet: Player = scene.instantiate() as Player
+	fleet.sworn = &"veidimadr"
+	add_child(fleet)
+	await get_tree().process_frame
+	var tuning: TuningProfile = Config.tuning
+	var husk_class: ClassResource = ClassCatalogue.by_id(&"huskarl")
+	var kit_kilograms: float = 0.0
+	var kit_noise: float = 0.0
+	for id: StringName in husk_class.kit:
+		var kit_item: ItemResource = ItemCatalogue.by_id(id)
+		if kit_item != null and kit_item.slot != Enums.Slot.NONE:
+			kit_kilograms += kit_item.weight
+			kit_noise += kit_item.clamor
+	print("[class] the load     Húskarl kit worn %.1f kg, body carries %.1f kg; "
+		% [kit_kilograms, stout.carried.kilograms]
+		+ "classless body %.1f kg" % plain.carried.kilograms)
+	if kit_kilograms <= 0.0 or absf(stout.carried.kilograms - kit_kilograms) > 0.01:
+		problems.append(("a Húskarl wearing %.1f kg of kit carries %.1f kg — what "
+			+ "is worn and held is not being weighed, so the byrnie `DES-023` "
+			+ "calls heavy costs nothing on the body") % [kit_kilograms,
+			stout.carried.kilograms])
+	var want_floor: float = kit_noise * tuning.clamor_carried_fraction
+	print("[class] the jingle   standing floor %.2f, the kit's clamor wants %.2f"
+		% [stout.clamor.carried_floor, want_floor])
+	if kit_noise <= 0.0 or absf(stout.clamor.carried_floor - want_floor) > 0.001:
+		problems.append(("a Húskarl in a byrnie stands at a clamor floor of %.2f, "
+			+ "not %.2f — worn gear is silent, and a jingling coat is a word")
+			% [stout.clamor.carried_floor, want_floor])
+	var stalker_class: ClassResource = ClassCatalogue.by_id(&"veidimadr")
+	print("[class] the bearing  capacity %.0f classless · %.0f Húskarl · %.0f Veiðimaðr"
+		% [plain.carried.capacity(), stout.carried.capacity(), fleet.carried.capacity()])
+	for pair: Array in [[stout, husk_class], [fleet, stalker_class]]:
+		var bearer: Player = pair[0] as Player
+		var sworn_as: ClassResource = pair[1] as ClassResource
+		var want_capacity: float = tuning.carry_capacity * sworn_as.carry_scale
+		if is_equal_approx(sworn_as.carry_scale, 1.0) \
+				or absf(bearer.carried.capacity() - want_capacity) > 0.01:
+			problems.append(("a %s bears %.0f kg, not %.0f — `carry_scale` %.2f "
+				+ "is authored and not read (or is 1.0, and this row proves nothing)")
+				% [sworn_as.id, bearer.carried.capacity(), want_capacity,
+				sworn_as.carry_scale])
+		var want_stamina: float = tuning.stamina_max * sworn_as.stamina_scale
+		if is_equal_approx(sworn_as.stamina_scale, 1.0) \
+				or absf(bearer.stamina.maximum() - want_stamina) > 0.01:
+			problems.append(("a %s has a %.0f stamina bar, not %.0f — "
+				+ "`stamina_scale` %.2f is authored and not read")
+				% [sworn_as.id, bearer.stamina.maximum(), want_stamina,
+				sworn_as.stamina_scale])
+	# Full, on the body that has done nothing yet. The Húskarl swung above and
+	# is short by a swing, which is right; the Veiðimaðr has not moved, and a
+	# bar grown after `Stamina._ready` filled it would start a tenth empty.
+	print("[class] the wind     stamina %.0f classless · %.0f Húskarl · %.0f Veiðimaðr, "
+		% [plain.stamina.maximum(), stout.stamina.maximum(), fleet.stamina.maximum()]
+		+ "a fresh Veiðimaðr at %.0f" % fleet.stamina.current)
+	if absf(fleet.stamina.current - fleet.stamina.maximum()) > 0.01:
+		problems.append(("a Veiðimaðr who has done nothing starts at %.0f of %.0f "
+			+ "stamina — the bar grew after it was filled")
+			% [fleet.stamina.current, fleet.stamina.maximum()])
+	# **Taking it off moves the weight; putting it down removes it.** Into the
+	# bag it still weighs the same, and out of the bag it is gone — both, since
+	# a load that ignored the swap and a load that double-counted it each pass
+	# one half.
+	var coat_kilograms: float = coat.definition.weight if coat != null else 0.0
+	var dressed: float = stout.carried.kilograms
+	stout.ask_to_unequip(Enums.Slot.BODY)
+	var stowed: float = stout.carried.kilograms
+	var in_bag: ItemInstance = null
+	for held: ItemInstance in stout.inventory.items():
+		if coat != null and held.definition == coat.definition:
+			in_bag = held
+	if in_bag != null:
+		stout.inventory.remove(in_bag.instance_id)
+	var shed: float = stout.carried.kilograms
+	print("[class] taking off   %.1f kg worn → %.1f kg in the bag → %.1f kg set down"
+		% [dressed, stowed, shed])
+	if in_bag == null or absf(stowed - dressed) > 0.01 \
+			or absf(dressed - shed - coat_kilograms) > 0.01:
+		problems.append(("the byrnie's %.1f kg did not follow it: %.1f worn, %.1f "
+			+ "stowed, %.1f set down") % [coat_kilograms, dressed, stowed, shed])
+
 	plain.queue_free()
 	stout.queue_free()
+	fleet.queue_free()
 
 	# ── and the Húskarl's verb (`M3-T02`, `DES-011`) ─────────────────────
 	#

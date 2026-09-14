@@ -4,7 +4,7 @@ title: Classes — The Sworn
 status: accepted
 owner: design
 tags: [classes, builds, skill-tree, identity, co-op, progression]
-updated: 2026-08-25
+updated: 2026-09-13
 related: [DES-004, DES-003, DES-012, DES-009]
 ---
 
@@ -51,6 +51,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Aspects:** Scale · Cinder · Hoard
 **Fantasy:** the last one standing in a doorway.
 **How they get out:** by refusing to be stopped. Heavy armour, a shield that blocks what others must avoid, and the ability to keep moving under weight that would pin anyone else.
+> **Read since ADR-224:** the Húskarl bears 52 kg ⟨tune⟩ to the Veiðimaðr's 30, and a stamina bar a tenth longer. Both numbers were authored at `M3-T02` and read by nothing, and the byrnie weighed nothing worn — so the Húskarl carried exactly what the Veiðimaðr did, and the heavy armour cost nothing to wear. In their kit they now start a quarter laden.
 **Unique verb — Hold:** plant and become an immovable object. Nothing pushes past you. Allies can retreat through you.
 **Rite themes:** shield mastery, doorway control, carrying wounded allies, taking hits meant for others.
 **Cost:** loud, slow, and the Hunt finds them easily.

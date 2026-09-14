@@ -394,7 +394,7 @@ func _header_width() -> float:
 	var grid: Vector2i = _inventory.grid()
 	var cells: int = grid.x * grid.y
 	var widest: String = _header_summary(
-		Config.tuning.carry_capacity, cells, WIDEST_RADIUS)
+		_player.carried.capacity(), cells, WIDEST_RADIUS)
 	return HEADER_INSET + get_theme_default_font().get_string_size(
 		widest, HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT).x
 
@@ -404,7 +404,7 @@ func _header_width() -> float:
 func _header_summary(kilograms: float, used: int, radius: float) -> String:
 	var grid: Vector2i = _inventory.grid()
 	return "%.1f / %.0f kg     %d / %d cells     heard from %.1f m" % [
-		kilograms, Config.tuning.carry_capacity, used, grid.x * grid.y, radius]
+		kilograms, _player.carried.capacity(), used, grid.x * grid.y, radius]
 
 
 ## Every line this screen draws that does not fit the box it is drawn in.
@@ -413,7 +413,7 @@ func overflowing() -> PackedStringArray:
 	var font: Font = get_theme_default_font()
 	var panel: Rect2 = _panel_rect()
 	var spilled := PackedStringArray()
-	var header: String = _header_summary(_inventory.total_weight(),
+	var header: String = _header_summary(_player.carried.kilograms,
 		_inventory.cells_used(), _carried_radius())
 	var room: float = panel.size.x - PADDING * 2.0 - HEADER_INSET
 	var drawn: float = font.get_string_size(header,
@@ -682,9 +682,11 @@ func _draw_blurb(panel: Rect2) -> void:
 ## The three numbers the decision is actually made on.
 func _draw_header(panel: Rect2) -> void:
 	var font: Font = get_theme_default_font()
-	var tuning: TuningProfile = Config.tuning
-	var kilograms: float = _inventory.total_weight()
-	var capacity: float = tuning.carry_capacity
+	# **The body's load, not the bag's** (ADR-224): what is worn weighs, and the
+	# class sets the capacity. The bag's own sum showed a Húskarl in a byrnie
+	# 0.2 kg against 40 while their legs carried 13.5 against 52.
+	var kilograms: float = _player.carried.kilograms
+	var capacity: float = _player.carried.capacity()
 	var grid: Vector2i = _inventory.grid()
 	var at: Vector2 = panel.position + Vector2(PADDING, PADDING + 14.0)
 
@@ -814,7 +816,9 @@ static func _kilograms(value: float) -> String:
 ## `ClamorSource` decays to this rather than to zero, so it is the number that
 ## answers *"can I hide with all this on me?"* — which is the question
 ## `DES-005`'s counter-play list is built around.
+##
+## The body's standing floor rather than the bag's sum (ADR-224): it counts what
+## is worn, and it is the number `ClamorSource` actually decays to, so Ballast
+## and Faint Trace are in it as well — the bag's sum ignored both.
 func _carried_radius() -> float:
-	var tuning: TuningProfile = Config.tuning
-	return (_inventory.total_clamor() * tuning.clamor_carried_fraction
-		* tuning.clamor_metres_per_unit)
+	return _player.clamor.carried_floor * Config.tuning.clamor_metres_per_unit
