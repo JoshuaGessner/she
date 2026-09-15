@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-09-03
+updated: 2026-09-15
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
@@ -91,6 +91,8 @@ Without this rule the Ear becomes a wallhack, players stare at the corner instea
 ### Layer 2 — Body (bottom left)
 
 Health, stamina, wounds. Health does not regenerate (`DES-009`), so it reads as a **depleting resource**, not a bar that refills.
+
+> **Wounds are the first thing placed here (ADR-239).** Each is a mark and its name — a snapped bar, a cracked head, three slashes — stacked from the bottom of the region in a fixed order, so a mark never moves because another arrived. Shape before word and word before colour (`DES-018`); no number, and the concussion's clock is a line under its name that shortens. A newly taken wound is drawn heavier for a moment, since it arrives in the middle of a blow. The same three shapes, smaller, sit on every party frame (Layer 4). A concussion also swims the screen's edges with a pale haze, and takes the Ear's bearing (Layer 1) for as long as it lasts.
 
 ### Layer 3 — Burden (bottom right)
 

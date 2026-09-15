@@ -4,7 +4,7 @@ title: Data Schemas
 status: accepted
 owner: tech
 tags: [data, resources, godot, tres, schema, tooling]
-updated: 2026-09-14
+updated: 2026-09-15
 related: [TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007]
 ---
 
@@ -117,6 +117,8 @@ class_name AttackResource extends Resource
 > **Population (ADR-237).** `PopulationResource` in `data/population/`, prefixed `pop_`, one per biome as `LootTable` is: the five archetype ids it places (`rank_and_file`, `guardian`, `warden`, `slinger`, `ringer`), `warden_from_floor`, `slinger_rooms` (the smallest `RoomModule.Volume` per floor, -1 for none), `slinger_caps` per floor, and `ringer_every` — which left `TuningProfile`. `FloorSource.enemy_kind(index)` and `guardian_kind()` are how a level asks.
 
 > **The shield (ADR-238).** `ShieldTrait`, with no fields — what a shield does is that it is one, and a number on it would be a better shield. `ClassResource.carried`: items a class starts with in the bag rather than worn, so which of two off-hand items is held is said in the data rather than by the order of `kit`.
+
+> **Wounds (ADR-239).** `Enums.Wound` names the three. `WardTrait.wards` names the one wound an item turns away, and `WardTrait.worn_on(wound)` is the one table saying where that ward is read — `ItemResource.validate()` refuses a ward authored in any other slot, so a helm that keeps an arm whole cannot be written. `TuningProfile`'s *Wounds* group: `concussion_seconds`, and the gashed leg's speed, clamor and drain multipliers. The run file carries `wounds` (bits) and `dazed` (seconds) beside `health`, read with defaults so an older file carries none.
 
 **Modifiers** (`GildedModifier`, `SilentModifier`, `RousedModifier`…) are separate resources that mutate an enemy at spawn. ~8 modifiers × ~12 archetypes is where variety comes from — not from 40 hand-authored enemies.
 

@@ -40,6 +40,14 @@ extends Node
 ## footstep because the music was swelling.
 const BUSES: Array[String] = ["score", "ambience", "diegetic", "ui"]
 
+## **What a concussion muffles** (`M4-T14`, ADR-239, `DES-009`): the world's own
+## sounds. Not the score — it is how much trouble you are in rather than
+## anything in the room — so the Hunter's note stays true (`ART-002`), and the
+## Ear keeps its twin of it.
+const MUFFLED: Array[String] = ["ambience", "diegetic"]
+## Where a muffled bus loses its highs, in Hz ⟨tune⟩.
+const MUFFLE_CUTOFF_HZ: float = 700.0
+
 ## Seconds a layer takes to reach a new target volume ⟨tune⟩. `DES-018`:
 ## *"transitions are crossfades, not cuts — the player should feel the room
 ## getting worse, not be told."*
@@ -90,6 +98,29 @@ func _build_buses() -> void:
 		AudioServer.add_bus(index)
 		AudioServer.set_bus_name(index, name)
 		AudioServer.set_bus_send(index, "Master")
+	for name: String in MUFFLED:
+		var bus: int = AudioServer.get_bus_index(name)
+		if _muffle_slot(bus) != -1:
+			continue
+		var filter := AudioEffectLowPassFilter.new()
+		filter.cutoff_hz = MUFFLE_CUTOFF_HZ
+		AudioServer.add_bus_effect(bus, filter)
+		AudioServer.set_bus_effect_enabled(bus, _muffle_slot(bus), false)
+
+
+func _muffle_slot(bus: int) -> int:
+	for slot: int in AudioServer.get_bus_effect_count(bus):
+		if AudioServer.get_bus_effect(bus, slot) is AudioEffectLowPassFilter:
+			return slot
+	return -1
+
+
+## Whether the world's sounds are muffled right now. Public because a headless
+## check has no speakers, and the filter being on is what can be asserted.
+func muffled() -> bool:
+	var bus: int = AudioServer.get_bus_index(MUFFLED[0])
+	var slot: int = _muffle_slot(bus)
+	return slot != -1 and AudioServer.is_bus_effect_enabled(bus, slot)
 
 
 func _process(delta: float) -> void:
@@ -162,6 +193,21 @@ func _read_world() -> void:
 		if player != null and mix.hunter > 0.0:
 			var toward: Vector3 = hunter.global_position - player.global_position
 			mix.bearing = atan2(toward.x, toward.z)
+
+	# **A ringing head cannot place a sound** (`M4-T14`, ADR-239, `DES-009`'s
+	# *muffled audio*). The world's buses lose their highs, and the Ear loses
+	# its bearing with them — the twin goes where the sound goes, so a muted
+	# player is concussed exactly as hard (`DES-018`). How alert the room is and
+	# whether the Hunter is here both survive: they are the score's, not the
+	# room's.
+	var ringing: bool = player != null and player.has_wound(Enums.Wound.CONCUSSED)
+	if ringing:
+		mix.bearing = NAN
+	for name: String in MUFFLED:
+		var bus: int = AudioServer.get_bus_index(name)
+		var slot: int = _muffle_slot(bus)
+		if slot != -1 and AudioServer.is_bus_effect_enabled(bus, slot) != ringing:
+			AudioServer.set_bus_effect_enabled(bus, slot, ringing)
 
 
 ## `DES-013`'s ladder as a scalar. Discrete underneath — the enemy really is in

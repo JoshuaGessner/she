@@ -221,6 +221,14 @@ const STATE_PROPERTIES: Dictionary = {
 	# Tying a binding (`M4-T32`), for `leaving`'s reason exactly: a host-side
 	# countdown driving a ring the player is watching.
 	".:mending": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# **The wounds a body carries** (`M4-T14`, ADR-239). `ON_CHANGE`: a bit moves
+	# when a heavy blow lands and when a wound closes, and the owner's hands, the
+	# owner's screen and every teammate's frame all read it.
+	".:wounds": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# The concussion's clock, `ALWAYS` for `leaving`'s reason. It travels
+	# because every peer writes its own run file at the descent, and a clock
+	# only the host could read would leave a client's concussion on the stairs.
+	".:dazed": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 }
 
 ## Which seat in the party this body took, 0-3. Assigned once by `CoopSession`
@@ -431,6 +439,14 @@ var _binding_at: Vector3 = Vector3.ZERO
 var _binding_speed: float = 0.0
 ## How far through tying a binding, 0–1, on every peer.
 var mending: float = 0.0
+
+## **The wounds this body carries** (`M4-T14`, ADR-239): a bit per
+## `Enums.Wound`, host-authored and replicated. `DES-009`'s small set of named
+## injuries rather than a limb-health simulation — so a bit, not a number.
+var wounds: int = 0
+## Seconds of concussion left, or 0. Host-authored; the bit is what the rules
+## read, and this is what the Ear, the vignette and the run file read.
+var dazed: float = 0.0
 
 ## Seconds of bleeding left, or 0 when up. **Replicated**, because `DES-012`
 ## makes the window itself the decision — *"a visible, shortening window; your
@@ -793,7 +809,8 @@ func _on_hurt(amount: float, from: Node) -> void:
 	var shielded: bool = equipment != null \
 		and equipment.trait_in(Enums.Slot.OFF_HAND, ShieldTrait) != null
 	var guardable: bool = shielded or not past_a_weapon
-	if blocking and guardable and _guard_faces(from) \
+	var raised: bool = blocking and _guard_faces(from)
+	if raised and guardable and not has_wound(Enums.Wound.BROKEN_ARM) \
 			and stamina.current >= Config.tuning.block_stamina_minimum:
 		var tuning: TuningProfile = Config.tuning
 		stamina.spend(tuning.block_stamina_cost
@@ -804,11 +821,106 @@ func _on_hurt(amount: float, from: Node) -> void:
 		_try_to_recall(global_position)
 		return
 	health.apply_damage(amount, from)
+	if heavy:
+		_wound_from(from as Hitbox, raised)
 	# **After the blow lands, not instead of it** (`M3-T12`, `DES-004`). You
 	# were struck and *then* you were not there — a keystone that cancelled the
 	# damage would be invulnerability once a floor, which is not what escape
 	# means and not what the node says.
 	_try_to_recall(global_position)
+
+
+## **What a heavy blow leaves behind** (`M4-T14`, ADR-239, `DES-009`).
+##
+## Heavy blows only, by the developer's call: a wound is the Hall-Warden's
+## hammer and the Hoard-Keeper's spear, the two blows a player already reads as
+## the ones that matter, and never a Wretch's cut on the fortieth swing. Every
+## heavy blow that lands leaves one — no chance to roll, because a wound the
+## player could not predict is a death they could not explain (principle 4).
+##
+## **Blunt finds the head, unless an arm was in its way.** A blade held up
+## against a falling hammer is *a hand in the way of it* (ADR-232) — the blow
+## still lands whole, and the arm is what breaks. A point or an edge finds the
+## leg. A shield that took the blow is not here at all: nothing landed.
+func _wound_from(blow: Hitbox, raised: bool) -> void:
+	if blow == null:
+		return
+	if blow.damage_type == Enums.DamageType.BLUNT:
+		wound(Enums.Wound.BROKEN_ARM if raised else Enums.Wound.CONCUSSED)
+	else:
+		wound(Enums.Wound.GASHED_LEG)
+
+
+## **Whether the arms can use what the main hand holds** (`DES-009`, ADR-239).
+## A broken arm takes a two-hander — the spear, the hammer, the bow — and
+## leaves anything one hand can swing. Asked by the owner, the way stamina is:
+## a swing is committed and paid for on the machine that pressed the button.
+func _arm_holds() -> bool:
+	if not has_wound(Enums.Wound.BROKEN_ARM) or equipment == null:
+		return true
+	var held: ItemInstance = equipment.in_slot(Enums.Slot.MAIN_HAND)
+	return held == null or not held.definition.two_handed
+
+
+## Whether this body carries `kind`. Every peer can ask: `wounds` travels.
+func has_wound(kind: Enums.Wound) -> bool:
+	return (wounds & (1 << kind)) != 0
+
+
+## **Take a wound**, unless something worn turns it away. Host-side; returns
+## whether it landed. A wound already carried is not taken twice, and a
+## concussion's clock is not wound back by a second blow — the head is already
+## ringing, and a clock that restarted would be a penalty for being hit again
+## that nothing on screen could show.
+func wound(kind: Enums.Wound) -> bool:
+	if not multiplayer.is_server() or has_wound(kind) or wards(kind):
+		return false
+	wounds |= 1 << kind
+	if kind == Enums.Wound.CONCUSSED:
+		dazed = Config.tuning.concussion_seconds
+	return true
+
+
+## Whether what this body wears turns `kind` away (`WardTrait`). Read from the
+## one slot that ward is worn in, so a helm in the bag wards nothing.
+func wards(kind: Enums.Wound) -> bool:
+	var slot: Enums.Slot = WardTrait.worn_on(kind)
+	if equipment == null or slot == Enums.Slot.NONE:
+		return false
+	var ward := equipment.trait_in(slot, WardTrait) as WardTrait
+	return ward != null and ward.wards == kind
+
+
+## Close a wound. Host-side: a binding closes a gash, and time a concussion.
+func heal_wound(kind: Enums.Wound) -> void:
+	if not multiplayer.is_server():
+		return
+	wounds &= ~(1 << kind)
+	if kind == Enums.Wound.CONCUSSED:
+		dazed = 0.0
+
+
+## **The wounds a body brought down the stairs** (`M4-T14`, ADR-239). Host-side,
+## from `CoopSession._hand_down`. The concussion keeps the clock it had: ADR-037
+## says a staircase shakes nothing, and a descent that cleared a concussion
+## would be the bandage `RunFile.health()` exists to refuse.
+func carry_wounds(bits: int, seconds: float) -> void:
+	if not multiplayer.is_server():
+		return
+	wounds = bits
+	dazed = seconds if has_wound(Enums.Wound.CONCUSSED) else 0.0
+	if has_wound(Enums.Wound.CONCUSSED) and dazed <= 0.0:
+		heal_wound(Enums.Wound.CONCUSSED)
+
+
+## Host-side, per frame: the concussion's clock, which is the only wound that
+## ends by itself (`DES-009`: *time or the Lair*).
+func _tick_wounds(delta: float) -> void:
+	if not has_wound(Enums.Wound.CONCUSSED):
+		return
+	dazed = maxf(0.0, dazed - delta)
+	if dazed <= 0.0:
+		heal_wound(Enums.Wound.CONCUSSED)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1660,6 +1772,9 @@ func restore_for_descent() -> void:
 	_stop_binding()
 	_reviving = false
 	_self_recovery = true
+	# Wounds are run-scoped (`DES-009`), and this is a new run.
+	wounds = 0
+	dazed = 0.0
 	health.restore()
 
 
@@ -1869,7 +1984,10 @@ func can_use(item: ItemInstance) -> bool:
 		return true
 	if not item.definition.has_trait(MendingTrait):
 		return false
-	return mending <= 0.0 and leaving <= 0.0 and health.current < health.maximum
+	# A gashed leg is a wound at full health, and the binding is what closes it
+	# (`DES-009`: *bind, field, slow*; ADR-239).
+	return mending <= 0.0 and leaving <= 0.0 \
+		and (health.current < health.maximum or has_wound(Enums.Wound.GASHED_LEG))
 
 
 func _use_from_bag(instance_id: int) -> void:
@@ -1937,6 +2055,7 @@ func _tick_binding(delta: float, tuning: TuningProfile) -> void:
 	# order, so what a broken binding costs is the time and never the linen.
 	inventory.remove(item.instance_id)
 	health.heal(health.maximum * mend.restores)
+	heal_wound(Enums.Wound.GASHED_LEG)
 
 
 ## Noise made picking one thing up or setting it down: a fixed handling cost
@@ -2144,7 +2263,11 @@ func _physics_process(delta: float) -> void:
 		# also swing, which is `DES-011`'s *"poor in a straight fight"* written
 		# as a missing verb rather than as a penalty — and it is why the bow
 		# needs no button of its own.
-		if ranged != null:
+		# **A broken arm takes the two-hander** (`DES-009`, ADR-239), and says so
+		# with the empty hand's refusal: the button is not broken, the arm is.
+		if not _arm_holds():
+			weapon.refuse()
+		elif ranged != null:
 			ranged.request_draw(stamina)
 		else:
 			weapon.request_swing(stamina)
@@ -2167,7 +2290,7 @@ func _physics_process(delta: float) -> void:
 		# Anything that takes your hands abandons the draw, on the same rule the
 		# guard follows: the bag is a vulnerable act (`DES-019`) and being down
 		# is not a state you shoot from.
-		if _is_local and (bag_is_open() or is_incapacitated()):
+		if _is_local and (bag_is_open() or is_incapacitated() or not _arm_holds()):
 			ranged.cancel()
 		ranged.advance(delta)
 
@@ -2191,6 +2314,7 @@ func _physics_process(delta: float) -> void:
 		_emit_movement_clamor(delta, tuning)
 		_tick_waystone(delta)
 		_tick_binding(delta, tuning)
+		_tick_wounds(delta)
 		_tick_bleeding(delta)
 
 
@@ -2292,6 +2416,10 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 	var ground: HazardResource = HazardZone.at(self, global_position)
 	if ground != null and ground.step_clamor > 0.0:
 		amount = maxf(amount, ground.step_clamor)
+	# **A limp is heard** (`DES-009`, ADR-239). After the scree, so a gashed leg
+	# on loose stone is louder than either.
+	if has_wound(Enums.Wound.GASHED_LEG):
+		amount *= tuning.gashed_leg_clamor_multiplier
 	clamor.add(amount * carried.scale_by_load(tuning.clamor_footstep_at_capacity))
 	_footfall(1.0 if stance <= 0.5 else 1.22)
 
@@ -2369,6 +2497,9 @@ func _resolve_sprint(wish: Vector3, delta: float, tuning: TuningProfile) -> bool
 	var drain: float = tuning.sprint_drain * carried.scale_by_load(
 		tuning.stamina_drain_at_capacity
 	)
+	# **A gashed leg runs dear** (`DES-009`, ADR-239).
+	if has_wound(Enums.Wound.GASHED_LEG):
+		drain *= tuning.gashed_leg_drain_multiplier
 	return stamina.drain(drain, delta)
 
 
@@ -2409,7 +2540,10 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 		# and a swing is still refused, so the vulnerability stays real.
 		* (1.0 if has_effect(&"move_with_bag_open")
 			else lerpf(1.0, tuning.bag_speed_multiplier, _bag))
-		* (tuning.block_speed_multiplier if blocking else 1.0))
+		* (tuning.block_speed_multiplier if blocking else 1.0)
+		# **A gashed leg is slower** (`DES-009`, ADR-239), walking or running.
+		* (tuning.gashed_leg_speed_multiplier
+			if has_wound(Enums.Wound.GASHED_LEG) else 1.0))
 
 
 func _acceleration(tuning: TuningProfile) -> float:
@@ -2447,9 +2581,13 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	# exactly the vulnerability being paid for.
 	_hold(delta, tuning)
 	_snare(delta, tuning)
+	# **Nor with a broken arm** (`DES-009`, ADR-239): the arm is what a guard is
+	# made of. Asked here so the guard never shows, and again by the host in
+	# `_on_hurt`, which is the copy that decides — the stamina minimum's shape.
 	blocking = (_driving and Input.is_action_pressed("block")
 		and stamina.current >= tuning.block_stamina_minimum
 		and _bag <= 0.0
+		and not has_wound(Enums.Wound.BROKEN_ARM)
 		and not is_incapacitated())
 
 

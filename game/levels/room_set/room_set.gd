@@ -515,6 +515,7 @@ var _shaft: Shaft = null
 ## `_relayout_hud` has to find them again on every resize.
 var _waystone: WaystoneMark = null
 var _party: PartyFrames = null
+var _wound_marks: WoundMarks = null
 var _navigation: NavigationRegion3D = null
 ## The floor's own `Environment`, kept so `--light-shot` can sweep the ambient
 ## energy without rebuilding the level between exposures (`M4-T13`).
@@ -847,6 +848,8 @@ func _ready() -> void:
 			_population_probe()
 		elif arg == "--shield-probe":
 			_shield_probe()
+		elif arg == "--wound-probe":
+			_wound_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -2098,11 +2101,12 @@ func _hunter_fit() -> void:
 ## would sit where the window used to be. The Chamber learned this the same way
 ## and `relayout` there is this function's twin.
 func _relayout_hud() -> void:
-	if _waystone == null or _party == null:
+	if _waystone == null or _party == null or _wound_marks == null:
 		return
 	var screen: Vector2 = get_viewport().get_visible_rect().size
 	HudFrame.place(_waystone, HudFrame.Region.BURDEN, screen)
 	HudFrame.place(_party, HudFrame.Region.PARTY, screen)
+	HudFrame.place(_wound_marks, HudFrame.Region.BODY, screen)
 	# **`settle` as well as `place`, or both of these draw a line.** `place`
 	# promises width and sets height to zero, which is correct for a container
 	# that grows its own and wrong for a `Control` that paints into `size`. A
@@ -2110,6 +2114,7 @@ func _relayout_hud() -> void:
 	# that made the Chamber's speech region measure 0×0 and pass (ADR-198).
 	HudFrame.settle(_waystone, HudFrame.Region.BURDEN, screen)
 	HudFrame.settle(_party, HudFrame.Region.PARTY, screen)
+	HudFrame.settle(_wound_marks, HudFrame.Region.BODY, screen)
 
 
 ## What the Deep claims of the frame, for the windowed measurement (`M4-T20`).
@@ -2123,6 +2128,7 @@ func hud_claims() -> Dictionary:
 	return {
 		"WAYSTONE": [HudFrame.Region.BURDEN, HudFrame.occupied_by(_waystone)],
 		"PARTY": [HudFrame.Region.PARTY, HudFrame.occupied_by(_party)],
+		"WOUNDS": [HudFrame.Region.BODY, HudFrame.occupied_by(_wound_marks)],
 	}
 
 
@@ -6201,6 +6207,10 @@ func _build_hud() -> void:
 	layer.add_child(_waystone)
 	_party = PartyFrames.new()
 	layer.add_child(_party)
+	# **Layer 2's wounds** (`M4-T14`, ADR-239), in the region `HudFrame` named
+	# for health, stamina and wounds — the first thing ever placed in it.
+	_wound_marks = WoundMarks.new()
+	layer.add_child(_wound_marks)
 	_relayout_hud()
 	get_viewport().size_changed.connect(_relayout_hud)
 	# Not while a probe is measuring the floor: it would be three labels
@@ -7799,19 +7809,25 @@ func _take_the_party_down() -> void:
 	var body: Player = _session.local_player()
 	var bag: Array = []
 	var hurt: float = RunFile.UNHURT
+	# The wounds go down with the health (`M4-T14`, ADR-239), read off the same
+	# replicated body: `wounds` and `dazed` both travel.
+	var wounds: int = 0
+	var dazed: float = 0.0
 	if body != null:
 		bag = body.inventory.pack()
 		hurt = body.health.current
+		wounds = body.wounds
+		dazed = body.dazed
 	# **The Hunt comes with you** (ADR-037, `DES-017` Q9): *"descending grants
 	# nothing — going quiet and shedding carried value can shake it, but a
 	# staircase cannot."* Read off the Gullsjúkr rather than a clock, because
 	# `Shaft._escalation` reads the same `age` and the price of leaving and the
 	# pressure you feel have to come from one source.
 	var age: float = _hunter.age if _hunter != null else 0.0
-	RunFile.carry_down(bag, hurt, age)
+	RunFile.carry_down(bag, hurt, age, wounds, dazed)
 	var to: int = RunFile.descend()
-	print("[descent] floor %d → %d, carrying %d item(s) at %.0f hp, "
-		% [_floor_index, to, bag.size(), hurt]
+	print("[descent] floor %d → %d, carrying %d item(s) at %.0f hp, wounds %d, "
+		% [_floor_index, to, bag.size(), hurt, wounds]
 		+ "the Hunt %.0f s old" % age)
 	if _probing:
 		# The descent *happened*, which is what a probe reads. Changing scene
@@ -9575,7 +9591,8 @@ func _rank_probe() -> void:
 			+ "names as an anti-goal") % [bodies_read, ", ".join(off_the_line)])
 
 	# ── the highest rank present is the floor (ADR-010) ──────────────────
-	_session.declare_descent(1, "", PackedStringArray(), {}, [], RunFile.UNHURT)
+	_session.declare_descent(1, "", PackedStringArray(), {}, [], RunFile.UNHURT,
+		0, 0.0)
 	var alone: int = _session.floor_rank()
 	_session._ranks[9001] = 8
 	var with_veteran: int = _session.floor_rank()
@@ -12438,6 +12455,320 @@ func _hold_a_lamp(player: Player) -> void:
 		player.equipment.equip(ItemInstance.of(lamp, 0))
 
 
+## **Wounds** (`M4-T14`, ADR-239, `DES-009`).
+##
+## Which blow leaves which wound, with the blows that leave none beside them; what
+## the helm and the bracers turn away, worn and not; and what each wound takes —
+## the guard and the two-hander, the bearing and the world's highs, the pace, the
+## quiet and the breath — each measured against the same body unwounded.
+func _wound_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var shield: ItemResource = ItemCatalogue.by_id(&"arm_round_shield")
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	var hammer: ItemResource = ItemCatalogue.by_id(&"wpn_dvergar_hammer")
+	var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+	var helm: ItemResource = ItemCatalogue.by_id(&"arm_spangen_helm")
+	var bracers: ItemResource = ItemCatalogue.by_id(&"arm_iron_bracers")
+	var binding: ItemResource = ItemCatalogue.by_id(&"con_linen_binding")
+	var sling_kind: EnemyResource = EnemyCatalogue.by_id(&"enm_sling_wretch")
+	if shield == null or lamp == null or hammer == null or seax == null or helm == null \
+			or bracers == null or binding == null or sling_kind == null:
+		problems.append("an item or the Sling-Wretch this probe strikes with is missing")
+		_report(problems, "wound")
+		return
+	var tuning: TuningProfile = Config.tuning
+	player.restore_for_descent()
+	player.lit = false
+	player.teleport(GUARDIAN_POST, 0.0)
+	await _hold(0.3)
+	var line: Vector3 = _keeper_ground(GUARDIAN_POST)
+	if line == Vector3.ZERO:
+		problems.append("no clear line from the Guardian's post")
+		_report(problems, "wound")
+		return
+	var side := Vector3(-line.z, 0.0, line.x)
+	var away: float = atan2(-line.x, -line.z)
+	_session.spawn_enemy(GUARDIAN_POST + line * 2.0, away, &"enm_hall_warden")
+	_session.spawn_enemy(GUARDIAN_POST + line * 2.0 + side * 1.5, away, &"enm_hoard_keeper")
+	_session.spawn_enemy(GUARDIAN_POST + line * 2.0 - side * 1.5, away)
+	await _hold(0.3)
+	var strikers: Dictionary = {}
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null:
+			# Held still, for `_shield_probe`'s reason: a struck body wakes.
+			body.process_mode = Node.PROCESS_MODE_DISABLED
+			strikers[body.archetype] = body.get("_hitbox") as Hitbox
+	var overhead := strikers.get(&"enm_hall_warden") as Hitbox
+	var spear := strikers.get(&"enm_hoard_keeper") as Hitbox
+	var cut := strikers.get(&"enm_wretch") as Hitbox
+	if overhead == null or spear == null or cut == null:
+		problems.append("the Warden, the Keeper and the Wretch did not all arrive")
+		_report(problems, "wound")
+		return
+	var hurtbox := player.get_node("Hurtbox") as Hurtbox
+	var stone_from: Vector3 = GUARDIAN_POST + line * 5.0 - side * 3.0 + Vector3.UP * 0.9
+	var stone_way: Vector3 = (GUARDIAN_POST + Vector3.UP * 0.9 - stone_from).normalized()
+	var named := func(bits: int) -> String:
+		var names: PackedStringArray = PackedStringArray()
+		for kind: int in Enums.Wound.values():
+			if (bits & (1 << kind)) != 0:
+				names.append(String(Enums.Wound.keys()[kind]).to_lower())
+		return ", ".join(names) if not names.is_empty() else "none"
+
+	# ─ 1. which blow leaves which wound ─
+	# Each row: the off hand, whether the guard is up, which way the body faces,
+	# the blow, and the wounds it must leave — and nothing else.
+	var rows: Array = [
+		["an overhead, open", lamp, false, "front", "overhead", 1 << Enums.Wound.CONCUSSED],
+		["an overhead, on a blade", lamp, true, "front", "overhead", 1 << Enums.Wound.BROKEN_ARM],
+		["an overhead, blade up, behind", lamp, true, "behind", "overhead", 1 << Enums.Wound.CONCUSSED],
+		["an overhead, on the shield", shield, true, "front", "overhead", 0],
+		["a spear thrust, open", lamp, false, "front", "spear", 1 << Enums.Wound.GASHED_LEG],
+		["a cut, open", lamp, false, "front", "cut", 0],
+		["a stone, open", lamp, false, "front", "stone", 0],
+	]
+	var cut_open: float = 0.0
+	for row: Array in rows:
+		player.equipment.equip(ItemInstance.of(row[1] as ItemResource, 0))
+		player.restore_for_descent()
+		player.teleport(GUARDIAN_POST, away if row[3] == "front" else away + PI)
+		if row[2]:
+			Input.action_press("block")
+		else:
+			Input.action_release("block")
+		await _hold(0.15)
+		player.health.restore()
+		player.stamina.refill()
+		var was: float = player.health.current
+		match String(row[4]):
+			"overhead":
+				hurtbox.receive(overhead.damage, overhead.damage_type, overhead)
+			"spear":
+				hurtbox.receive(spear.damage, spear.damage_type, spear)
+			"cut":
+				hurtbox.receive(cut.damage, cut.damage_type, cut)
+			"stone":
+				_session.spawn_missile(stone_from, stone_way, sling_kind.attack, null)
+				await _hold(0.6)
+		var landed: float = was - player.health.current
+		if row[4] == "cut":
+			cut_open = landed
+		print("[wound] %-36s %5.1f landed, left %s (want %s)"
+			% [row[0], landed, named.call(player.wounds), named.call(int(row[5]))])
+		if landed <= 0.0:
+			problems.append("%s never landed, so what it left is about nothing" % row[0])
+		if player.wounds != int(row[5]):
+			problems.append("%s left %s where it should leave %s"
+				% [row[0], named.call(player.wounds), named.call(int(row[5]))])
+	Input.action_release("block")
+
+	# ─ 2. what the helm and the bracers turn away ─
+	var ward_rows: Array = [
+		["an overhead on a helm", helm, false, 0],
+		["an overhead on a blade and bracers", bracers, true, 0],
+		["an overhead, the helm in the bag", null, false, 1 << Enums.Wound.CONCUSSED],
+	]
+	player.equipment.equip(ItemInstance.of(lamp, 0))
+	for row: Array in ward_rows:
+		player.restore_for_descent()
+		player.equipment.unequip(Enums.Slot.HEAD)
+		player.equipment.unequip(Enums.Slot.ARMS)
+		if row[1] != null:
+			player.equipment.equip(ItemInstance.of(row[1] as ItemResource, 0))
+		else:
+			player.inventory.add(helm)
+		player.teleport(GUARDIAN_POST, away)
+		if row[2]:
+			Input.action_press("block")
+		else:
+			Input.action_release("block")
+		await _hold(0.15)
+		player.health.restore()
+		player.stamina.refill()
+		var ward_was: float = player.health.current
+		hurtbox.receive(overhead.damage, overhead.damage_type, overhead)
+		var ward_landed: float = ward_was - player.health.current
+		print("[wound] %-36s %5.1f landed, left %s (want %s)"
+			% [row[0], ward_landed, named.call(player.wounds), named.call(int(row[3]))])
+		if ward_landed <= 0.0:
+			problems.append("%s never landed, so what it turned away is about nothing" % row[0])
+		if player.wounds != int(row[3]):
+			problems.append("%s left %s where it should leave %s"
+				% [row[0], named.call(player.wounds), named.call(int(row[3]))])
+	Input.action_release("block")
+	player.equipment.unequip(Enums.Slot.HEAD)
+	player.equipment.unequip(Enums.Slot.ARMS)
+
+	# ─ 3. a broken arm: no guard, and no two-hander ─
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, away)
+	Input.action_press("block")
+	await _hold(0.15)
+	var guard_whole: bool = player.blocking
+	player.wound(Enums.Wound.BROKEN_ARM)
+	await _hold(0.15)
+	var guard_broken: bool = player.blocking
+	Input.action_release("block")
+	# The host's refusal on its own: a guard the owner still claims, one frame
+	# after the arm broke, takes nothing off.
+	player.health.restore()
+	player.blocking = true
+	var broken_was: float = player.health.current
+	hurtbox.receive(cut.damage, cut.damage_type, cut)
+	var through_broken: float = broken_was - player.health.current
+	print("[wound] a guard, whole and broken      raised %s and %s, a claimed guard let %.1f of an open %.1f through (want yes, no, all)"
+		% [guard_whole, guard_broken, through_broken, cut_open])
+	if not guard_whole:
+		problems.append("the guard never went up on a whole arm, so the broken-arm row is about nothing")
+	if guard_broken:
+		problems.append("a broken arm raised a guard (DES-009: no blocking)")
+	if absf(through_broken - cut_open) > 0.01:
+		problems.append("the host took %.1f off a cut on a broken arm's guard — the arm is what a guard is made of"
+			% (cut_open - through_broken))
+	var swings: Dictionary = {}
+	for hand: String in ["hammer whole", "hammer broken", "seax broken"]:
+		player.restore_for_descent()
+		player.equipment.equip(ItemInstance.of(hammer if hand.begins_with("hammer") else seax, 0))
+		if hand.ends_with("broken"):
+			player.wound(Enums.Wound.BROKEN_ARM)
+		await _hold(0.9)
+		player.stamina.refill()
+		var tally: Array[int] = [0, 0]
+		var on_swing := func() -> void: tally[0] += 1
+		var on_refuse := func() -> void: tally[1] += 1
+		player.weapon.swing_started.connect(on_swing)
+		player.weapon.swing_refused.connect(on_refuse)
+		Input.action_press("attack")
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		Input.action_release("attack")
+		await _hold(0.1)
+		player.weapon.swing_started.disconnect(on_swing)
+		player.weapon.swing_refused.disconnect(on_refuse)
+		swings[hand] = tally
+	print("[wound] the attack key                 %s (swung, refused)" % [swings])
+	if (swings["hammer whole"] as Array)[0] != 1:
+		problems.append("a whole arm pressing attack with a hammer did not swing, so the rows beside it are about nothing")
+	if (swings["hammer broken"] as Array)[0] != 0 or (swings["hammer broken"] as Array)[1] != 1:
+		problems.append("a broken arm pressing attack with a hammer swung %d time(s) and refused %d — it takes the two-hander, out loud"
+			% [(swings["hammer broken"] as Array)[0], (swings["hammer broken"] as Array)[1]])
+	if (swings["seax broken"] as Array)[0] != 1:
+		problems.append("a broken arm could not swing a seax — it takes two-handers, not one")
+	player.equipment.equip(ItemInstance.of(seax, 0))
+
+	# ─ 4. a gashed leg: slower, louder, dearer to run, and bound shut ─
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, away)
+	await _hold(0.3)
+	var pace_whole: float = await _walk_speed(player)
+	var step_whole: float = _one_step(player, tuning)
+	var drain_whole: float = _one_sprint(player, tuning)
+	player.wound(Enums.Wound.GASHED_LEG)
+	player.teleport(GUARDIAN_POST, away)
+	await _hold(0.3)
+	var pace_gashed: float = await _walk_speed(player)
+	var step_gashed: float = _one_step(player, tuning)
+	var drain_gashed: float = _one_sprint(player, tuning)
+	print("[wound] a gashed leg                    pace x%.2f, a step x%.2f, a sprint x%.2f (want x%.2f, x%.2f, x%.2f)"
+		% [pace_gashed / maxf(pace_whole, 0.001), step_gashed / maxf(step_whole, 0.001),
+			drain_gashed / maxf(drain_whole, 0.001), tuning.gashed_leg_speed_multiplier,
+			tuning.gashed_leg_clamor_multiplier, tuning.gashed_leg_drain_multiplier])
+	if pace_whole <= 0.5 or step_whole <= 0.0 or drain_whole <= 0.0:
+		problems.append("the whole leg walked %.2f, stepped %.2f and drained %.2f — nothing to compare a gash with"
+			% [pace_whole, step_whole, drain_whole])
+	else:
+		if absf(pace_gashed / pace_whole - tuning.gashed_leg_speed_multiplier) > 0.05:
+			problems.append("a gashed leg walked at x%.2f of a whole one" % (pace_gashed / pace_whole))
+		if absf(step_gashed / step_whole - tuning.gashed_leg_clamor_multiplier) > 0.01:
+			problems.append("a gashed leg's step was x%.2f as loud as a whole one's" % (step_gashed / step_whole))
+		if absf(drain_gashed / drain_whole - tuning.gashed_leg_drain_multiplier) > 0.01:
+			problems.append("a gashed leg's sprint drained x%.2f of a whole one's" % (drain_gashed / drain_whole))
+	player.health.restore()
+	var linen: ItemInstance = player.inventory.add(binding)
+	var bindable_gashed: bool = player.can_use(linen)
+	player.heal_wound(Enums.Wound.GASHED_LEG)
+	var bindable_whole: bool = player.can_use(linen)
+	player.wound(Enums.Wound.GASHED_LEG)
+	player._use_from_bag(linen.instance_id)
+	var knot: MendingTrait = binding.first_trait(MendingTrait) as MendingTrait
+	await _hold(knot.seconds + 0.4)
+	print("[wound] a binding at full health       usable gashed %s, whole %s; tied, the leg is %s (want yes, no, none)"
+		% [bindable_gashed, bindable_whole, named.call(player.wounds)])
+	if not bindable_gashed:
+		problems.append("a gashed leg at full health could not use a binding — the binding is what closes it")
+	if bindable_whole:
+		problems.append("a whole body at full health could use a binding, so the row above is about nothing")
+	if player.has_wound(Enums.Wound.GASHED_LEG):
+		problems.append("a tied binding left the leg gashed (DES-009: bind)")
+
+	# ─ 5. a concussion: no bearing, a muffled world, and it passes ─
+	player.restore_for_descent()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	await _hold(0.2)
+	var bearing_whole: bool = AudioDirector.mix.has_bearing()
+	var muffled_whole: bool = AudioDirector.muffled()
+	player.wound(Enums.Wound.CONCUSSED)
+	await _hold(0.5)
+	var bearing_ringing: bool = AudioDirector.mix.has_bearing()
+	var muffled_ringing: bool = AudioDirector.muffled()
+	var clock: float = player.dazed
+	var marked: Array[Enums.Wound] = _wound_marks.shown()
+	player.dazed = 0.05
+	await _hold(0.3)
+	var after: int = player.wounds
+	await _hold(0.1)
+	var muffled_after: bool = AudioDirector.muffled()
+	print("[wound] a concussion                    bearing %s then %s, muffled %s then %s, %.1f s left, marked %s, then %s and muffled %s (want yes, no, no, yes, <40, [1], none, no)"
+		% [bearing_whole, bearing_ringing, muffled_whole, muffled_ringing, clock, marked,
+			named.call(after), muffled_after])
+	if not bearing_whole:
+		problems.append("the Ear had no bearing on a clear head, so the concussed row is about nothing")
+	if bearing_ringing:
+		problems.append("a concussed head still placed a sound on the Ear (DES-009: muffled)")
+	if muffled_whole or not muffled_ringing or muffled_after:
+		problems.append("the world was muffled %s, %s and %s — clear, concussed, recovered"
+			% [muffled_whole, muffled_ringing, muffled_after])
+	if clock >= tuning.concussion_seconds or clock < tuning.concussion_seconds - 1.0:
+		problems.append("the concussion's clock read %.1f half a second in" % clock)
+	if marked.size() != 1 or marked[0] != Enums.Wound.CONCUSSED:
+		problems.append("the body's marks show %s while it carries a concussion" % [marked])
+	if after != 0:
+		problems.append("the concussion did not pass when its clock ran out (DES-009: time)")
+
+	_session.clear_enemies()
+	print("[wound] a heavy blow leaves its wound, and the wound is felt")
+	_report(problems, "wound")
+
+
+## One footstep's noise, walking pace, on flat ground, from silence (ADR-239).
+## Driven through the footstep itself so a gash is measured where it is applied.
+func _one_step(player: Player, tuning: TuningProfile) -> float:
+	player.clamor.silence()
+	var before: float = player.clamor.level
+	player.set("_step_accumulator", 0.0)
+	player.set("_last_position", player.global_position)
+	player.set("_was_grounded", true)
+	player.grounded = true
+	player.global_position += Vector3(tuning.clamor_step_distance + 0.01, 0.0, 0.0)
+	player.call("_emit_movement_clamor", 1.0, tuning)
+	player.global_position -= Vector3(tuning.clamor_step_distance + 0.01, 0.0, 0.0)
+	return player.clamor.level - before
+
+
+## One tenth of a second of sprinting's drain, from a full bar (ADR-239).
+func _one_sprint(player: Player, tuning: TuningProfile) -> float:
+	player.stamina.refill()
+	var before: float = player.stamina.current
+	Input.action_press("sprint")
+	player.call("_resolve_sprint", Vector3.FORWARD, 0.1, tuning)
+	Input.action_release("sprint")
+	return before - player.stamina.current
+
+
 ## A hazard laid on the Deep where a probe wants one, through the constructor the
 ## floor builder uses.
 func _lay_hazard(of: HazardResource, centre: Vector3, span: Vector2) -> HazardZone:
@@ -13267,6 +13598,11 @@ func _descent_probe() -> void:
 	if _hunter != null:
 		_hunter.age = 90.0
 	var hurt_before: float = body.health.current
+	# **A gashed leg and a ringing head go down too** (`M4-T14`, ADR-239).
+	body.wound(Enums.Wound.GASHED_LEG)
+	body.wound(Enums.Wound.CONCUSSED)
+	body.dazed = 17.0
+	var wounds_before: int = body.wounds
 	var scene_before: String = get_tree().current_scene.scene_file_path
 
 	_on_shaft_claimed(body)
@@ -13288,19 +13624,27 @@ func _descent_probe() -> void:
 	# ─ 2. what the run wrote down ─
 	var rows: Array = RunFile.bag()
 	print("[descent] carried down    %d row(s) of %d, %.0f hp of %.0f, "
-		% [rows.size(), put_in, RunFile.wound(), hurt_before]
+		% [rows.size(), put_in, RunFile.health(), hurt_before]
 		+ "hunt %.0f s" % RunFile.hunt_age())
 	if rows.size() != put_in:
 		problems.append(("the bag did not go down — %d item(s) went in and %d "
 			+ "were written, so a floor transition is a way to lose your haul")
 			% [put_in, rows.size()])
-	if absf(RunFile.wound() - hurt_before) > 0.01:
+	if absf(RunFile.health() - hurt_before) > 0.01:
 		problems.append("the wound did not go down — `DES-009` bans "
 			+ "regeneration *within* a run and ADR-015 makes a run three "
 			+ "floors, so a descent that heals is the one thing combat forbids")
 	if RunFile.hunt_age() < 89.0:
 		problems.append("the Hunt did not follow — ADR-037 closed Q9 with "
 			+ "*descending grants nothing, a staircase cannot shake it*")
+	print("[descent] wounds written  %d, %.1f s concussed (want %d, 5-17)"
+		% [RunFile.wounds(), RunFile.dazed(), wounds_before])
+	if RunFile.wounds() != wounds_before or wounds_before == 0:
+		problems.append(("the wounds did not go down — %d written of %d, so a "
+			+ "staircase is a splint (ADR-239)") % [RunFile.wounds(), wounds_before])
+	if RunFile.dazed() < 5.0 or RunFile.dazed() > 17.01:
+		problems.append(("the concussion went down with %.1f s on it, not the "
+			+ "17 or less it had — ADR-037's staircase shakes nothing") % RunFile.dazed())
 
 	# ─ 3. **and the floor below puts it back** ─
 	#
@@ -13309,12 +13653,20 @@ func _descent_probe() -> void:
 	# Driven through `declare_descent`, because that is the call
 	# `CoopSession._ready` makes on arrival and the host is what owns a bag.
 	body.inventory.clear()
-	body.health.current = body.health.maximum
+	# Full health and no wounds — the body a floor below is built as.
+	body.restore_for_descent()
 	_session.declare_descent(1, "huskarl", PackedStringArray(), {},
-		RunFile.bag(), RunFile.wound())
+		RunFile.bag(), RunFile.health(), RunFile.wounds(), RunFile.dazed())
 	await _hold(0.2)
-	print("[descent] handed back     %d item(s), %.0f hp (want %d, %.0f)" % [
-		body.inventory.count(), body.health.current, put_in, hurt_before])
+	print("[descent] handed back     %d item(s), %.0f hp, wounds %d (want %d, %.0f, %d)" % [
+		body.inventory.count(), body.health.current, body.wounds, put_in,
+		hurt_before, wounds_before])
+	if body.wounds != wounds_before:
+		problems.append(("the wounds were written and never read back — the body "
+			+ "arrived carrying %d of %d") % [body.wounds, wounds_before])
+	if body.dazed < 4.0 or body.dazed > 17.01:
+		problems.append("the concussion arrived with %.1f s on it — the floor below "
+			% body.dazed + "started a fresh head, or none")
 	if body.inventory.count() != put_in:
 		problems.append(("the bag was written and never read back — %d item(s) "
 			+ "arrived of %d, which is a run file with a haul in it and a "

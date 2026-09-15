@@ -155,6 +155,15 @@ func validate() -> PackedStringArray:
 		problems.append(("%s carries an armour class in the %s slot; only the body "
 			+ "slot has one — head and arms turn away a wound instead")
 			% [id, Enums.Slot.keys()[slot]])
+	# **A ward is worn where its wound lands** (ADR-239). A helm that keeps an
+	# arm whole would be read by nothing, since a wound looks for its ward in
+	# one slot only.
+	var ward := first_trait(WardTrait) as WardTrait
+	if ward != null and WardTrait.worn_on(ward.wards) != Enums.Slot.NONE \
+			and WardTrait.worn_on(ward.wards) != slot:
+		problems.append(("%s wards %s from the %s slot; that ward is only read "
+			+ "from %s") % [id, Enums.Wound.keys()[ward.wards],
+			Enums.Slot.keys()[slot], Enums.Slot.keys()[WardTrait.worn_on(ward.wards)]])
 	# **Enduring is about power, so only a weapon can have it** (ADR-223). A Scar
 	# costs a swing its damage and nothing else its function; `enduring` on a
 	# coin would promise a player something nothing reads.

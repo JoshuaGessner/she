@@ -4,7 +4,7 @@ title: Items — the Slice's List
 status: accepted
 owner: design
 tags: [items, loot, gear, weapons, armour, consumables, taxonomy]
-updated: 2026-09-14
+updated: 2026-09-15
 related: [DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004]
 ---
 
@@ -56,8 +56,8 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 | `arm_mail_byrnie` *(exists)* | Body | **Mailed** — turns most of a cut (§3) | Heavy, and it jingles — **charged since ADR-224**: nothing worn weighed or sounded before, so both were free on the body | Húskarl kit · floor 0+ gear |
 | `arm_dvergar_plate` | Body | **Plated** — turns a cut and most of a pierce, so a swarm's chip damage stops mattering | The heaviest thing you can wear; loud to move in; a hammer goes straight through it | floor 2 gear |
 | `rlc_otr_pelt` *(built, ADR-226)* | Body | **The Gold-Sick cannot feel through a wall what you carry while you wear it** (`DES-017`'s near sense). *It is Her Reckoning's effect worn rather than bought, by the developer's call: the same capability at a different price.* Ótr's skin, the one the first hoard was paid over | No protection at all — it is a pelt — and worth 180 to her ⟨tune⟩, so wearing it is refusing the richest single offer on the floor | floor 2 Prize |
-| `arm_spangen_helm` | Head | **You cannot be Concussed** (`DES-009` wounds) | Weight; arrives with wounds (§5) | floor 1+ gear |
-| `arm_iron_bracers` | Arms | **You cannot have an arm broken** — so a heavy hit never takes your two-hander or your guard (`DES-009` wounds) | Weight; arrives with wounds (§5) | floor 1+ gear |
+| `arm_spangen_helm` *(built, ADR-239)* | Head | **You cannot be Concussed** (`DES-009` wounds) — the Warden's overhead still lands whole, and leaves no ringing head | 2.2 kg and a little noise, worn or carried (ADR-224) | floor 1+ gear |
+| `arm_iron_bracers` *(built, ADR-239)* | Arms | **You cannot have an arm broken** — so a heavy hit on a raised blade never takes your two-hander or your guard (`DES-009` wounds) | 1.6 kg, and they clink | floor 1+ gear |
 | *no pack* | Pack | The quietest body in the game and the smallest grid — `DES-020`'s *"I came for one thing"* | 6 × 5 cells | Veiðimaðr default |
 | `arm_hide_satchel` *(exists)* | Pack | 7 × 6 cells, silent | Weight | floor 0+ gear |
 | `arm_pack_frame` *(built, ADR-226)* | Pack | **8 × 7 cells** ⟨tune⟩, the largest grid on the list *(ADR-226 struck "the only pack the coin-chest and the altar-plate fit in together": at 3 × 3 each they lie side by side in no pack at all)* | Heavy, **and it creaks**: `DES-020`'s *"the upgrade that makes you more powerful is the upgrade that makes you louder"*, as an item. Visible on your back, so the party can see who is hauling *(not yet: no worn gear is drawn on any body, so this waits for `M4-T10`'s models)* | floor 1+ gear |
@@ -143,7 +143,7 @@ A floor dealt its loot from **the entire item folder**, sorted by worth and cut 
 |---|---|---|
 | **Armour classes and the triangle**, for players and enemies | §3 — the byrnie does nothing today | `M4-T02`, with the attacks that carry types |
 | **A shield that stops heavy blows and missiles** | §3 | `M4-T03`, the Húskarl's |
-| **Wounds**, which the helm and bracers turn away | `DES-009`'s table; the Scar is what a wound becomes | `M4-T14` — **the helm and bracers arrive with wounds and not before**, or they are armour that turns nothing, which is the byrnie's fault repeated |
+| **Wounds**, which the helm and bracers turn away | `DES-009`'s table; the Scar is what a wound becomes | `M4-T14` — **the helm and bracers arrive with wounds and not before**, or they are armour that turns nothing, which is the byrnie's fault repeated. **Wounds, the helm and the bracers built, ADR-239**; the Scar is still owed |
 | **The kits, the loot bands** replacing the worth cut, and the items whose behaviour is its own — the axe, the pelt, the frame, the coin-chest | §2, §4 | `M4-T31` — **built, ADR-220 to ADR-227**; the Húskarl kit's round shield is `M4-T03`'s |
 | **Using a thing** — the binding's slow heal and the hush rune's circle | Nothing in the build is *used*; everything is carried, worn, thrown or dropped | `M4-T32` — **built, ADR-221** |
 | **The spear's cost** — arcs that hit walls | `DES-009`: *"swing a poleaxe in a corridor and you hit the wall. Space is a weapon stat."* A hitbox passes through stone today, so the spear has reach and no price | `M4-T31` — **built, ADR-222**; reach itself turned out never to have been read |

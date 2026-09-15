@@ -124,6 +124,20 @@ extends Resource
 @export var plated_pierce_through: float = 0.4
 @export var plated_blunt_through: float = 1.0
 
+@export_group("Wounds")
+## Seconds a concussion lasts ⟨tune⟩ (`M4-T14`, ADR-239). `DES-009` treats it with
+## *time or the Lair*, so it is the one wound that ends by itself; long enough
+## to cost a fight or a crossing, short enough that it does not cost the floor.
+@export var concussion_seconds: float = 40.0
+## How fast a gashed leg walks, as a share of what it would ⟨tune⟩ (`DES-009`:
+## *slower, louder, stamina drain*).
+@export var gashed_leg_speed_multiplier: float = 0.8
+## How loud a gashed leg's footsteps are, as a multiple ⟨tune⟩. A limp is
+## heard — which is the wound's real price in a game about noise.
+@export var gashed_leg_clamor_multiplier: float = 1.6
+## What a sprint drains from a gashed leg, as a multiple of `sprint_drain` ⟨tune⟩.
+@export var gashed_leg_drain_multiplier: float = 1.5
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a
@@ -818,6 +832,18 @@ func validate() -> PackedStringArray:
 	if guard_arc_degrees <= 0.0 or guard_arc_degrees > 180.0:
 		problems.append("guard_arc_degrees is %.1f — a guard covers more than nothing and no more than all round"
 			% guard_arc_degrees)
+	if concussion_seconds <= 0.0:
+		problems.append("concussion_seconds is %.1f — a concussion that never lands is no wound at all"
+			% concussion_seconds)
+	if gashed_leg_speed_multiplier <= 0.0 or gashed_leg_speed_multiplier > 1.0:
+		problems.append("gashed_leg_speed_multiplier is %.2f — a gash slows a leg, and never roots or quickens it"
+			% gashed_leg_speed_multiplier)
+	if gashed_leg_clamor_multiplier < 1.0:
+		problems.append("gashed_leg_clamor_multiplier is %.2f — a limp is never quieter than a stride"
+			% gashed_leg_clamor_multiplier)
+	if gashed_leg_drain_multiplier < 1.0:
+		problems.append("gashed_leg_drain_multiplier is %.2f — a gash never makes running cheaper"
+			% gashed_leg_drain_multiplier)
 	if heavy_block_stamina_multiplier < 1.0:
 		problems.append("heavy_block_stamina_multiplier is %.2f — a heavy blow cannot be cheaper to take than a cut"
 			% heavy_block_stamina_multiplier)

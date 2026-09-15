@@ -1,0 +1,21 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Script" path="res://systems/items/ward_trait.gd" id="2_ward"]
+
+[sub_resource type="Resource" id="Resource_ward"]
+script = ExtResource("2_ward")
+wards = 0
+
+[resource]
+script = ExtResource("1_item")
+id = &"arm_iron_bracers"
+name_key = &"item.arm_iron_bracers.name"
+description_key = &"item.arm_iron_bracers.desc"
+weight = 1.6
+clamor = 0.6
+grid_size = Vector2i(2, 1)
+tribute_value = 4
+slot = 3
+traits = Array[ExtResource("2_ward")]([SubResource("Resource_ward")])
+tags = Array[StringName]([&"gear", &"armour", &"metal"])

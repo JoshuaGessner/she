@@ -205,15 +205,22 @@ func _draw_hunter(centre: Vector2, grown: float) -> void:
 	if _mix.hunter <= 0.0:
 		return
 	var radius: float = (RING_RADIUS + 8.0) * grown
-	var angle: float = 0.0
-	if _mix.has_bearing():
-		var span: float = TAU / float(SECTORS)
-		angle = round(_mix.bearing / span) * span
-	var at: Vector2 = centre + Vector2(sin(angle), -cos(angle)) * radius
 	# A wedge rather than a dot, and it grows with the Hunter's state. Shape
 	# distinguishes it from anything else on the ring, so it survives both
 	# monochrome and a glance.
 	var heavy: float = 4.0 + 5.0 * _mix.hunter
+	if not _mix.has_bearing():
+		# **Here, and nowhere in particular** (ADR-239). A concussed head knows
+		# the Hunter is on the floor and cannot say where, and a mark drawn at
+		# the top of the ring would be a bearing nobody heard — so the whole
+		# ring is marked, thinly, and hollowed while it is collecting.
+		var ring: Color = HUNTER_MARK
+		ring.a *= 0.45 if _mix.collecting else 1.0
+		draw_arc(centre, radius, 0.0, TAU, 48, ring, heavy * 0.35, true)
+		return
+	var span: float = TAU / float(SECTORS)
+	var angle: float = round(_mix.bearing / span) * span
+	var at: Vector2 = centre + Vector2(sin(angle), -cos(angle)) * radius
 	draw_circle(at, heavy, HUNTER_MARK)
 	# While it is stooped over a bait the mark hollows out. That is the visual
 	# twin of the mix dropping away — the beat has to exist in both channels or

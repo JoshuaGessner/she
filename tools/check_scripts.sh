@@ -685,6 +685,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Wounds** (`M4-T14`, ADR-239, `DES-009`). Which heavy blow leaves which
+	# wound and which blows leave none; the helm and bracers worn and in the bag;
+	# and each wound's price against the same body whole — no guard and no
+	# two-hander, no bearing and a muffled world, slower, louder and dearer to run.
+	wound="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --wound-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$wound" \
+			|| ! grep -q "^\[wound\] a heavy blow leaves its wound" <<<"$wound"; then
+		echo "FAIL a heavy blow has to leave its wound, and the wound has to cost something" >&2
+		printf '%s\n' "$wound" | grep -E '\[wound\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

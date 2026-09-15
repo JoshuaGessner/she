@@ -203,6 +203,8 @@ static func begin(class_id: StringName, rank: int, seed: int) -> void:
 		# Húskarl has. It says *nothing is carried down* and the body uses its
 		# own maximum.
 		"health": UNHURT,
+		"wounds": 0,
+		"dazed": 0.0,
 		"stripped": false,
 	})
 
@@ -248,8 +250,10 @@ static func seed_of() -> int:
 ##
 ## Per process, like `GameState` and for the same reason: your bag is yours, and
 ## four peers each hold one quarter of the party's answer.
-static func carry_down(rows: Array, hurt: float, age: float) -> void:
-	note({"carried": rows, "health": hurt, "hunt_age": age})
+static func carry_down(rows: Array, hurt: float, age: float, wound_bits: int,
+		concussed_for: float) -> void:
+	note({"carried": rows, "health": hurt, "hunt_age": age, "wounds": wound_bits,
+		"dazed": concussed_for})
 
 
 ## The bag this run is carrying, in `Inventory.pack()` rows. Empty on a fresh
@@ -258,12 +262,25 @@ static func bag() -> Array:
 	return read().get("carried", []) as Array
 
 
-## The wound this run is carrying, or `UNHURT`. **`DES-009` bans regeneration
+## The health this run is carrying, or `UNHURT`. **`DES-009` bans regeneration
 ## *within* a run**, and ADR-015 makes a run three floors — so a floor
 ## transition that healed you would be the one thing the combat design says
 ## cannot happen, and quitting to the menu would become a bandage.
-static func wound() -> float:
+static func health() -> float:
 	return float(read().get("health", UNHURT))
+
+
+## The wounds this run is carrying, as `Player.wounds` bits (`M4-T14`,
+## ADR-239) — health's argument exactly: a staircase is not a splint. A file
+## written before wounds existed carries none, which is true of it, so the key
+## is read with a default rather than the version bumped.
+static func wounds() -> int:
+	return int(read().get("wounds", 0))
+
+
+## Seconds left on a carried concussion, or 0.
+static func dazed() -> float:
+	return maxf(0.0, float(read().get("dazed", 0.0)))
 
 
 ## How old the Hunt already is. ADR-037: *"the Hunt persists across floors.

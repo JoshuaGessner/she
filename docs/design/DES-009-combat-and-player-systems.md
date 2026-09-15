@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-09-14
+updated: 2026-09-15
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -203,9 +203,18 @@ In order, per Swink:
 | Wound | Effect | Treatment |
 |---|---|---|
 | Gashed leg | Slower, louder, stamina drain | Bind (field, slow) |
-| Broken arm | No two-handing, no blocking | Splint (field) or Lair |
-| Concussed | No map, muffled audio, blurred edges | Time or Lair |
-| Bleeding | HP drain until treated | Bind immediately |
+| Broken arm | No two-handing, no blocking | ~~Splint (field) or~~ Lair |
+| Concussed | ~~No map,~~ muffled audio, blurred edges | Time or Lair |
+| ~~Bleeding~~ | ~~HP drain until treated~~ | ~~Bind immediately~~ |
+
+> **Built by ADR-239 (`M4-T14`): three wounds, from heavy blows, by the developer's call.** Every heavy blow that lands leaves one and no other blow does — no chance to roll, because a wound nobody could predict is a death nobody can explain. **Blunt finds the head** (Concussed) **unless a blade was raised against it**, and then it breaks the arm; **a point or an edge finds the leg**. A blow a raised shield took leaves nothing. The helm wards the head and the bracers the arm (`DES-023` §3); nothing wards the leg, which the binding closes.
+>
+> - **Gashed leg** — walks and runs at ×0.8, steps at ×1.6 the noise, sprints at ×1.5 the drain ⟨tune⟩. A tied binding closes it, and a binding may be used at full health to do so.
+> - **Broken arm** — no guard, asked on the owner so it never shows and again on the host, which decides; a two-hander (spear, hammer, bow) refuses the attack key with the empty hand's thump. **No splint exists**, so it lasts the run.
+> - **Concussed** — 40 s ⟨tune⟩. The world's buses (ambience, diegetic) lose their highs, and the Ear loses its bearing with them — the twin goes where the sound goes, so a muted player is concussed exactly as hard (`DES-018`); how alert the room is and whether the Hunter is here survive, being the score's. The screen's edges swim with a pale haze. **There is no map** to take away.
+> - **Bleeding is struck.** A fourth wound that drains health until bound is `DES-012`'s bleed-out window under a second name, and "three, from heavy blows" was the call.
+>
+> **They go down the stairs with you** — arm and leg whole, the concussion with the seconds it had (ADR-037: a staircase shakes nothing) — and are shown in `DES-019`'s `BODY` region and on every party frame, in the same three shapes.
 
 Wounds are **run-scoped**; extracting while wounded converts one into a **Scar** (life-scoped, `DES-003`) ⟨tune⟩. That gives the "extract wounded" outcome in `DES-002` real teeth.
 

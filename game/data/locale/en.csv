@@ -35,6 +35,10 @@ item.con_ember.desc,"A piece of her fire, going out. It is heavier than it has a
 item.tol_horn_lantern.name,Horn Lantern
 item.arm_round_shield.name,Round Shield
 item.arm_round_shield.desc,"Linden boards under a rawhide rim. A blade held up takes nothing off a hammer coming down or a stone in the air; this does. It wants the hand the lantern wants."
+item.arm_spangen_helm.name,Spangen Helm
+item.arm_spangen_helm.desc,"Iron bands riveted over a leather cap. A hammer that finds your head still hurts; it does not leave you deaf and swaying for the better part of a minute."
+item.arm_iron_bracers.name,Iron Bracers
+item.arm_iron_bracers.desc,"Two curved plates laced over the forearms. Put an arm up against a falling blow and it stays an arm — your guard and your two-hander survive the hit."
 item.tol_horn_lantern.desc,"Scraped horn instead of glass, because glass does not survive being carried. Shutter it and the dark comes back; leave it open and everything down here knows where to look."
 item.con_linen_binding.name,Linen Binding
 item.con_linen_binding.desc,"A strip of boiled linen and the time to tie it. Four seconds with your hands busy, and a blow or a run undoes the knot."
@@ -88,6 +92,9 @@ fallen.vordr,"Vörðr. You are loose, and nothing can touch you. Scout for them.
 fallen.vordr.alone,"Vörðr. Your ember is on the floor, and nobody is left standing."
 fallen.up,"%s — get back up. You have one, and it is gone for the rest of the run."
 fallen.up.spent,"Your one way up is spent. Hold on, or go out."
+wound.broken_arm,Broken arm
+wound.concussed,Concussed
+wound.gashed_leg,Gashed leg
 runover.title,"YOU WENT OUT"
 runover.body,"Your ember is down there, and everything you were carrying is with it. The hoard is untouched — it always is. She is waiting at the fire."
 runover.go,"TO THE FIRE"

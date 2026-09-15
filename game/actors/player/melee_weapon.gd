@@ -178,7 +178,7 @@ func is_busy() -> bool:
 func request_swing(stamina: Stamina) -> bool:
 	var tuning: TuningProfile = Config.tuning
 	if _held == null:
-		_refuse(tuning)
+		refuse()
 		return false
 	if _phase == Phase.IDLE:
 		return _begin(stamina, tuning)
@@ -207,10 +207,13 @@ func request_swing(stamina: Stamina) -> bool:
 ## a dull `THUMP` — the sound of something heavy moving with nothing behind it —
 ## and the reticle flinching inward, which is the opposite gesture to the ticks
 ## it opens outward when a thing comes into reach.
-func _refuse(tuning: TuningProfile) -> void:
+##
+## Public since ADR-239: a broken arm holding a two-hander refuses the same way,
+## because from the seat it is the same fact — the hands cannot do this.
+func refuse() -> void:
 	if _refusal_gap > 0.0:
 		return
-	_refusal_gap = tuning.empty_hand_gap
+	_refusal_gap = Config.tuning.empty_hand_gap
 	swing_refused.emit()
 	Foley.at(self, Foley.Sound.THUMP, 0.55, -7.0)
 

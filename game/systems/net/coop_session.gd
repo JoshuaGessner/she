@@ -192,7 +192,7 @@ func _ready() -> void:
 		# solely at connect would be a declaration the floor never sees.
 		declare_descent.rpc_id(HOST_PEER, _my_rank(),
 			String(GameState.class_id), _my_effects(), _my_worn(),
-			_my_bag(), _my_wound())
+			_my_bag(), _my_health(), _my_wounds(), _my_dazed())
 		if multiplayer.is_server():
 			# **Re-applied on every session, because the peer outlives them and
 			# the flag does too.** A doorway is exactly where this has to be
@@ -220,7 +220,8 @@ func _ready() -> void:
 			# skipped rather than replaced.
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
 			declare_descent(_my_rank(), String(GameState.class_id),
-				_my_effects(), _my_worn(), _my_bag(), _my_wound())
+				_my_effects(), _my_worn(), _my_bag(), _my_health(), _my_wounds(),
+				_my_dazed())
 			spawn_player(HOST_PEER)
 
 
@@ -403,7 +404,8 @@ func _start_host() -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
 	declare_descent(_my_rank(), String(GameState.class_id),
-		_my_effects(), _my_worn(), _my_bag(), _my_wound())
+		_my_effects(), _my_worn(), _my_bag(), _my_health(), _my_wounds(),
+		_my_dazed())
 	spawn_player(HOST_PEER)
 
 
@@ -447,7 +449,7 @@ func _on_connected() -> void:
 	# it, which is the opposite of what ADR-010 is for.
 	declare_descent.rpc_id(HOST_PEER, _my_rank(),
 			String(GameState.class_id), _my_effects(), _my_worn(),
-			_my_bag(), _my_wound())
+			_my_bag(), _my_health(), _my_wounds(), _my_dazed())
 	# **Connecting is not arriving** (`M3-T36`, ADR-157).
 	#
 	# This cleared the deadline, and that is a claim the client is in no
@@ -586,7 +588,12 @@ var _bags: Dictionary = {}
 ## trip and the same reason as the bag: `DES-009` bans regeneration *within* a
 ## run, ADR-015 makes a run three floors, and the host is the copy that decides
 ## what a blow did.
+var _hurt: Dictionary = {}
+## Peer id → the wounds that peer arrived carrying, as `Player.wounds` bits,
+## and the seconds left on a carried concussion (`M4-T14`, ADR-239). Health's
+## trip for health's reason: a staircase is not a splint.
 var _wounds: Dictionary = {}
+var _dazed: Dictionary = {}
 ## What this process says its own rank is. `0` means "ask the profile", which
 ## is every real launch; `--as-rank=N` is the sweep building a mixed party.
 var _declared_rank: int = 0
@@ -695,7 +702,8 @@ func everyone_declared() -> bool:
 ## when the body is rebuilt one floor down.
 @rpc("any_peer", "call_local", "reliable")
 func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
-		worn: Dictionary, bag: Array, hurt: float) -> void:
+		worn: Dictionary, bag: Array, hurt: float, wounds: int,
+		dazed: float) -> void:
 	if not multiplayer.is_server():
 		return
 	var who: int = multiplayer.get_remote_sender_id()
@@ -733,7 +741,9 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 	# the host dresses four bodies and only one of the wardrobes is its own.
 	_worn[id] = worn
 	_bags[id] = bag
-	_wounds[id] = hurt
+	_hurt[id] = hurt
+	_wounds[id] = wounds
+	_dazed[id] = dazed
 	# **Tell the body, if it is already here.** A declaration and a spawn packet
 	# are independent events and neither waits for the other (ADR-122), so both
 	# orders have to end in the same place: the payload covers *declared first*,
@@ -847,7 +857,9 @@ func _forget(peer: int) -> void:
 	_effects.erase(peer)
 	_worn.erase(peer)
 	_bags.erase(peer)
+	_hurt.erase(peer)
 	_wounds.erase(peer)
+	_dazed.erase(peer)
 	var now: int = floor_rank()
 	if now != was:
 		_log("peer %d took rank %d with them — the next floor is rank %d, and "
@@ -1293,11 +1305,12 @@ func _log(message: String) -> void:
 func redeclare() -> void:
 	if multiplayer.is_server():
 		declare_descent(_my_rank(), String(GameState.class_id),
-			_my_effects(), _my_worn(), _my_bag(), _my_wound())
+			_my_effects(), _my_worn(), _my_bag(), _my_health(), _my_wounds(),
+			_my_dazed())
 	else:
 		declare_descent.rpc_id(HOST_PEER, _my_rank(),
 			String(GameState.class_id), _my_effects(), _my_worn(),
-			_my_bag(), _my_wound())
+			_my_bag(), _my_health(), _my_wounds(), _my_dazed())
 
 
 ## **Put back what this peer carried down** (`M4-T01`, ADR-185).
@@ -1322,9 +1335,12 @@ func _hand_down(body: Player, peer: int) -> void:
 	# and a floor transition that handed back a full pool is regeneration with a
 	# staircase in front of it. `UNHURT` is the fresh-run case, where the body's
 	# own maximum is right.
-	var hurt: float = float(_wounds.get(peer, RunFile.UNHURT))
+	var hurt: float = float(_hurt.get(peer, RunFile.UNHURT))
 	if hurt > 0.0:
 		body.health.current = minf(hurt, body.health.maximum)
+	# **And the wounds, for the same sentence** (`M4-T14`, ADR-239). Replaced
+	# rather than added to, like the bag, so the second call is the same body.
+	body.carry_wounds(int(_wounds.get(peer, 0)), float(_dazed.get(peer, 0.0)))
 
 
 func _my_worn() -> Dictionary:
@@ -1338,8 +1354,16 @@ func _my_bag() -> Array:
 	return RunFile.bag()
 
 
-func _my_wound() -> float:
-	return RunFile.wound()
+func _my_health() -> float:
+	return RunFile.health()
+
+
+func _my_wounds() -> int:
+	return RunFile.wounds()
+
+
+func _my_dazed() -> float:
+	return RunFile.dazed()
 
 
 func _my_effects() -> PackedStringArray:

@@ -167,6 +167,18 @@ func _draw_frame(body: Player, top: float, loudest: float) -> void:
 		HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13, ink)
 	draw_string(font, Vector2(10.0, top + 27.0), "rank %d" % body.rank,
 		HORIZONTAL_ALIGNMENT_LEFT, -1.0, 11, faint)
+	# **Their wounds, in the shapes yours are drawn in** (`M4-T14`, ADR-239).
+	# `DES-012` makes going back for somebody a decision, and a teammate with a
+	# broken arm is somebody who cannot guard the doorway you were counting on.
+	# Full ink even on a teammate who is up: the row goes quiet when nothing is
+	# wrong, and a wound is something wrong.
+	var mark_x: float = 70.0
+	for kind: Enums.Wound in WoundMarks.ORDER:
+		if not body.has_wound(kind):
+			continue
+		WoundMarks.draw_glyph(self, kind, Rect2(mark_x, top + 17.0, 12.0, 12.0),
+			MenuStyle.tone(self, MenuStyle.TEXT), 1.5)
+		mark_x += 16.0
 
 	var run: float = size.x * BAR_SHARE
 	var left: float = 10.0

@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-14
+updated: 2026-09-15
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -8683,6 +8683,97 @@ The no-source plant passed the first time: `--combat-probe` had been the only th
 - **A Húskarl starts in the dark.** To see, they take the shield off for the lamp through the bag — `DES-020`'s off-hand contest, now paid by the class that wanted both.
 - **A flank is a threat to everyone.** A Sling-Wretch to one side of a fight, or a Wretch behind a player guarding the Warden, lands in full.
 - `M4-T03` stays open: the two classes are complete in kit and verb at blockout fidelity, and whether they are *polished* is a question for play.
+
+## ADR-239 — A heavy blow leaves a wound, and the helm and the bracers each turn one away
+
+**Date:** 2026-09-15 · **Status:** accepted · **Advances `M4-T14`** · **Builds `DES-009`'s wounds and `DES-023` §3's helm and bracers** · **Amends `DES-009`'s table: bleeding struck, no splint, no map**
+
+**Context:** `M4-T14` is the Scar, and `DES-009` says a Scar is what a wound becomes — and no wound existed. `DES-023` puts a helm and bracers on the list that each turn one away, and holds them back until wounds exist, because armour that turns nothing is the byrnie's fault repeated. `DES-009`'s table named four wounds, from *heavy hits, falls, and traps*, and said nothing about which blow leaves which.
+
+### Decision — the developer's three calls
+
+- **Three wounds, from heavy blows**, over a wider set or a chance on every blow. Every heavy blow that lands leaves one and no other blow does. Heavy blows are the Hall-Warden's overhead and the Hoard-Keeper's thrust — the two a player already reads as the ones that matter — and no roll, because a wound nobody could predict is a death nobody can explain (principle 4).
+- **A Scar is the wound, milder, for life**, one per kind. *Built next, as its own ADR.*
+- **Everyone can see it.** `DES-012` makes a rescue a decision, and a cost the rescuer cannot see is one they cannot weigh. Wounds follow the same rule now, on every party frame.
+
+### Which blow, which wound
+
+| Blow | Wound |
+|---|---|
+| Heavy blunt, open or with a guard not facing it | **Concussed** |
+| Heavy blunt on a raised blade facing it | **Broken arm** — ADR-232's *a hand in the way of a falling hammer*: the blow lands whole, and the arm breaks |
+| Heavy pierce or cut | **Gashed leg** |
+| Any heavy blow a raised shield took (ADR-238) | none — nothing landed |
+| A cut, a stone, anything not heavy | none |
+
+The helm (`arm_spangen_helm`, head, 2.2 kg) cannot be concussed and the bracers (`arm_iron_bracers`, arms, 1.6 kg) cannot have an arm broken — whole, not a chance, and only while worn. Nothing wards the leg; the binding closes it. Both are gear from floor 1.
+
+### What each costs
+
+- **Broken arm:** no guard — refused on the owner so it never shows, and again on the host, which decides (the stamina minimum's shape). A two-hander (spear, hammer, bow) refuses the attack key with the empty hand's thump and the reticle's flinch; a one-hander swings. **No splint exists** on `DES-023`'s list, so it lasts the run.
+- **Concussed:** 40 s ⟨tune⟩, the only wound that ends by itself. The ambience and diegetic buses lose their highs (a low-pass at 700 Hz ⟨tune⟩), and the Ear loses its bearing with them — **the twin goes where the sound goes**, so a player with the sound off is concussed exactly as hard (`DES-018`). How alert the room is and whether the Hunter is on the floor both survive: they are the score's, not the room's, and the Hunter's mark becomes a ring rather than a bearing nobody heard. The screen's edges swim with a pale haze that thins over its last five seconds — bands, not a shader, `WoundVignette`'s rule. **There is no map** to take.
+- **Gashed leg:** ×0.8 pace, ×1.6 a footstep's noise, ×1.5 a sprint's drain ⟨tune⟩. A tied binding closes it, and may be used at full health to do so.
+- **Bleeding is struck.** A wound that drains health until bound is `DES-012`'s bleed-out window under a second name.
+
+### Built
+
+- `Enums.Wound`; **`WardTrait`** (`wards`), and `WardTrait.worn_on(wound)`, the one table saying where a ward is read — `ItemResource.validate()` refuses a ward in any other slot. The two items, their locale rows and loot entries.
+- **`Player.wounds`** (bits) and **`dazed`** (seconds) on the host's state sync — `ON_CHANGE` and `ALWAYS`. `wound()`, `wards()`, `heal_wound()`, `carry_wounds()`, `_wound_from()` in `_on_hurt`, the clock in `_tick_wounds`. `restore_for_descent` clears both.
+- **Down the stairs:** `RunFile.carry_down` writes `wounds` and `dazed` beside `health`; `declare_descent` carries both; `_hand_down` hands them back. **The concussion keeps the seconds it had** — ADR-037, a staircase shakes nothing. `dazed` travels because every peer writes its own run file, and a clock only the host could read would leave a client's concussion on the stairs. `RunFile.wound()` — which was health — is `health()`.
+- **`WoundMarks`** in `DES-019`'s `BODY` region, the first thing ever placed there: a snapped bar, a cracked head, three slashes, each beside its name, heavier for a moment when new, and a shortening line under a concussion. `PartyFrames` draws the same shapes. `AudioDirector.muffled()`; `MeleeWeapon.refuse()` is public.
+
+### Verification
+
+`--wound-probe`, new and required, against one Húskarl in a byrnie at one spot, the strikers held still:
+
+| Row | Landed | Left |
+|---|---|---|
+| overhead, open | 48.1 | concussed |
+| overhead, on a blade | 48.1 | broken arm |
+| overhead, blade up, facing away | 48.1 | concussed |
+| overhead, on the shield | 19.2 | none |
+| spear thrust, open | 30.2 | gashed leg |
+| cut, open / stone, open | 11.2 / 14.0 | none |
+| overhead on a helm / on a blade in bracers | 48.1 / 48.1 | none |
+| overhead, the helm in the bag | 48.1 | concussed |
+
+A whole arm raises a guard and a broken one does not; a guard the host is told is up on a broken arm lets 11.2 of an open 11.2 through. The attack key swings a hammer on a whole arm, refuses it on a broken one, and swings a seax. A gashed leg walks at ×0.80, steps at ×1.60 and sprints at ×1.50; at full health it may use a binding and a whole body may not, and the tied binding closes it. A concussion takes the Ear's bearing and muffles the world, reads 39.5 s half a second in, is marked, and passes when its clock runs out, taking the muffle with it. `--descent-probe` takes a gashed leg and a 17 s concussion down and back.
+
+**Planted and failed, one plant per run — all twenty-two:**
+
+| Plant | Caught by |
+|---|---|
+| a blade in the way breaks nothing | the blade row and the bracers row (concussed) |
+| every blow wounds | the cut row |
+| nothing worn wards | the helm and bracers rows |
+| a broken arm raises a guard | the guard row |
+| the host takes a broken arm's guard | the claimed-guard row (6.7 off) |
+| a broken arm swings a hammer | the attack row (swung once) |
+| a broken arm takes every weapon | the seax row |
+| a gash does not slow / is quiet / runs cheap | the pace, step and sprint rows (×1.00 each) |
+| no binding at full health | the binding rows |
+| a binding leaves the gash | the tied row |
+| a concussion never passes | the clock, the muffle and the passing rows |
+| a new run keeps its wounds | four blow rows, accumulating |
+| a concussed head keeps its bearing | the bearing row |
+| the world is never muffled | the muffle row |
+| the marks show nothing | the marks row |
+| the run file forgets the wounds | `--descent-probe`, written and handed back |
+| the floor below never hands them back | `--descent-probe`, handed back |
+| a staircase starts a fresh concussion | `--descent-probe` (39.8 s) |
+| a helm that wards the arm | `data_probe` |
+| a gash that quickens | `data_probe` |
+
+**The sweep's two-process smoke failed once, and not on wounds.** Its *party visible on both peers* row read the host seeing one player: the host logged the client leaving before it wrote its own report, while the machine was running the rest of the sweep. Run alone on the same tree, all twenty-nine rows passed, bodies agreeing to 0.00 m. Recorded because it is a race in the harness's report timing, and the next red run of that row should be read with this one beside it.
+
+**Unplanted:** the helm-in-the-bag row is a control — it says the ward is read from what is worn — and has no plant of its own. The marks and the haze are drawn only windowed; the probe asserts the list the marks draw from, not the pixels.
+
+### Consequences
+
+- **A Warden fight has a second price.** Its overhead was already the blow a blade could not guard; now taking it open costs the Ear for forty seconds, and taking it on a blade costs the guard for the run. The shield and the bracers are the two answers, and the Húskarl holds one.
+- **The Veiðimaðr's bow is a two-hander**, so a broken arm leaves them the throw and the seax they do not carry. Worth watching in play.
+- **Concussion is the one wound sound-off players already feel.** Everything it takes from the ears it takes from the Ear.
+- `M4-T14` stays open for the Scar.
 
 *Entries below to be added as design decisions are signed off.*
 

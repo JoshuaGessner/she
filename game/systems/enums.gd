@@ -42,3 +42,11 @@ enum ArmourClass { UNARMOURED, MAILED, PLATED }
 ## largest art saving in the system for a difference stylised low-poly barely
 ## registers.
 enum Slot { NONE, MAIN_HAND, OFF_HAND, ARMS, HEAD, BODY, PACK }
+
+## `DES-009`'s three wounds (`M4-T14`, ADR-239) — a small set of named injuries
+## from heavy blows, and not a limb-health simulation.
+##
+## A body holds each at most once, as a bit in `Player.wounds`: a second broken
+## arm is the first one, and a count would be a number the player has to read.
+## `WardTrait` names one of these for the helm and bracers to turn away.
+enum Wound { BROKEN_ARM, CONCUSSED, GASHED_LEG }

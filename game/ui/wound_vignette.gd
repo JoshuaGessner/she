@@ -73,6 +73,14 @@ const SHADOW: Color = Color(0.02, 0.02, 0.03)
 ## nothing about whether the thing they are holding down is working.
 const GUARD: Color = Color(0.62, 0.60, 0.54)
 const GUARD_SECONDS: float = 0.22  # ⟨tune⟩
+## **A ringing head** (`M4-T14`, ADR-239). Pale like a guard and slow where a
+## guard is brief, so it reads as neither: `DES-009`'s *blurred edges*, drawn as
+## a haze that swims in from every side and back.
+const DAZE: Color = Color(0.70, 0.70, 0.72)
+const DAZE_STRENGTH: float = 0.30  # ⟨tune⟩
+## Seconds over which the haze thins before a concussion ends ⟨tune⟩, so its
+## end is seen coming rather than arriving as a cut.
+const DAZE_FADE: float = 5.0
 
 var _body: Player = null
 var _health: Health = null
@@ -83,6 +91,8 @@ var _from_x: float = 0.0
 var _from_behind: bool = false
 ## Seconds of guard-flare left, drawn over the same edges a wound uses.
 var _guard: float = 0.0
+## The haze's own clock, so it swims whether or not anything else moves.
+var _swim: float = 0.0
 
 
 func _ready() -> void:
@@ -99,6 +109,7 @@ func _process(delta: float) -> void:
 		_flash = maxf(0.0, _flash - delta / FLASH_SECONDS)
 	if _guard > 0.0:
 		_guard = maxf(0.0, _guard - delta / GUARD_SECONDS)
+	_swim += delta
 	queue_redraw()
 
 
@@ -157,6 +168,7 @@ func _draw() -> void:
 		# frame tightening rather than as a direction.
 		_draw_sides(screen, true, true, 1.0, wound)
 		_draw_caps(screen, wound)
+	_draw_daze(screen)
 	_draw_guard(screen)
 	if _flash <= 0.0:
 		return
@@ -186,7 +198,7 @@ func _draw() -> void:
 ## a frame, and `ART-005`'s ink pass is the only shader this project has agreed
 ## to pay for.
 func _draw_sides(screen: Vector2, left: bool, right: bool, spread: float,
-		strength: float) -> void:
+		strength: float, tone: Color = SHADOW) -> void:
 	var band: float = screen.x * spread * 0.5
 	var thickness: float = band / float(STEPS)
 	for step: int in range(STEPS):
@@ -195,7 +207,7 @@ func _draw_sides(screen: Vector2, left: bool, right: bool, spread: float,
 		# evenly across the screen — which would read as fog rather than as a
 		# frame closing in.
 		var alpha: float = strength * (1.0 - through) * (1.0 - through)
-		var colour := Color(SHADOW.r, SHADOW.g, SHADOW.b, alpha)
+		var colour := Color(tone.r, tone.g, tone.b, alpha)
 		if left:
 			draw_rect(Rect2(Vector2(through * band, 0.0),
 				Vector2(thickness, screen.y)), colour)
@@ -204,19 +216,31 @@ func _draw_sides(screen: Vector2, left: bool, right: bool, spread: float,
 				Vector2(thickness, screen.y)), colour)
 
 
-## Top and bottom, for the standing wound only. A hit never draws these: a
-## flash on all four edges is indistinguishable from the wound itself.
-func _draw_caps(screen: Vector2, strength: float) -> void:
+## Top and bottom, for the standing wound and a concussion's haze. A hit never
+## draws these: a flash on all four edges is indistinguishable from the wound.
+func _draw_caps(screen: Vector2, strength: float, tone: Color = SHADOW) -> void:
 	var band: float = screen.y * 0.5
 	var thickness: float = band / float(STEPS)
 	for step: int in range(STEPS):
 		var through: float = float(step) / float(STEPS)
 		var alpha: float = strength * (1.0 - through) * (1.0 - through)
-		var colour := Color(SHADOW.r, SHADOW.g, SHADOW.b, alpha)
+		var colour := Color(tone.r, tone.g, tone.b, alpha)
 		draw_rect(Rect2(Vector2(0.0, through * band),
 			Vector2(screen.x, thickness)), colour)
 		draw_rect(Rect2(Vector2(0.0, screen.y - through * band - thickness),
 			Vector2(screen.x, thickness)), colour)
+
+
+## **The haze, while the local body is concussed** (ADR-239). Every edge, like the
+## standing wound, because a concussion is not a direction; swelling and
+## receding, because a haze that stood still would read as the wound darkening.
+func _draw_daze(screen: Vector2) -> void:
+	if not is_instance_valid(_body) or not _body.has_wound(Enums.Wound.CONCUSSED):
+		return
+	var fading: float = clampf(_body.dazed / DAZE_FADE, 0.0, 1.0)
+	var strength: float = DAZE_STRENGTH * fading * (0.7 + 0.3 * sin(_swim * 1.7))
+	_draw_sides(screen, true, true, 0.8 + 0.1 * sin(_swim * 1.1), strength, DAZE)
+	_draw_caps(screen, strength * 0.8, DAZE)
 
 
 ## A blow the guard took the weight of (`M3-T02`, `DES-009`).
