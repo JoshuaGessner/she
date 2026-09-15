@@ -46,6 +46,13 @@ var clamor_hit: float = 3.2
 var left: float = 26.0
 ## The peer that loosed it, so its own body cannot be hit by it.
 var shooter: int = 0
+## **A sling stone rather than an arrow** (ADR-235): a round thing in the air
+## rather than a shaft, so what is coming reads as what threw it. The flight is
+## the same flight.
+var stone: bool = false
+## The enemy that threw it, on the host, which is the only peer that resolves a
+## hit. Never on the payload: a client's copy has nothing to decide.
+var thrower: Node = null
 
 ## The field this arrow deposits into. Handed down by whatever spawned it,
 ## because an arrow has no business finding one for itself and a level that
@@ -58,8 +65,8 @@ var _spent: bool = false
 func _ready() -> void:
 	collision_layer = 0
 	# Hurtboxes only. **Not `WORLD`** — an arrow that collided with geometry as
-	# a body would be stopped by the floor it is flying over. Walls are handled
-	# by the range cap and by a separate query, not by making this a wall.
+	# a body would be stopped by the floor it is flying over. Walls are a ray
+	# along each step's flight instead (`_physics_process`).
 	collision_mask = CollisionLayers.ENEMY_HURTBOX | CollisionLayers.PLAYER_HURTBOX
 	var shape := CollisionShape3D.new()
 	var ball := SphereShape3D.new()
@@ -68,12 +75,18 @@ func _ready() -> void:
 	add_child(shape)
 
 	var mesh := MeshInstance3D.new()
-	var body := CylinderMesh.new()
-	body.top_radius = 0.02
-	body.bottom_radius = 0.02
-	body.height = 0.7
-	mesh.mesh = body
-	mesh.rotation_degrees.x = 90.0
+	if stone:
+		var ball_mesh := SphereMesh.new()
+		ball_mesh.radius = 0.07
+		ball_mesh.height = 0.14
+		mesh.mesh = ball_mesh
+	else:
+		var body := CylinderMesh.new()
+		body.top_radius = 0.02
+		body.bottom_radius = 0.02
+		body.height = 0.7
+		mesh.mesh = body
+		mesh.rotation_degrees.x = 90.0
 	add_child(mesh)
 
 	area_entered.connect(_on_hit)
@@ -87,6 +100,24 @@ func _physics_process(delta: float) -> void:
 	if _spent:
 		return
 	var step: float = speed * delta
+	# **A wall stops it** (ADR-235). The comment above promised "a separate
+	# query" for walls and there was none: an arrow flew through any wall for
+	# its whole range and wounded whatever stood behind it, which `PRO-005` §5
+	# calls the death nobody can explain — and an enemy's stone would have been
+	# that death arriving from a body the player could not see. The ray covers
+	# the step about to be taken, so a fast arrow cannot step over a thin wall.
+	#
+	# A body with its back to the wall is still hit: one standing half a metre
+	# off it fills about a metre of the flight, twice a step, and its overlap is
+	# reported at the top of the next physics frame — before this ray runs again.
+	var ahead := PhysicsRayQueryParameters3D.create(global_position,
+		global_position + travel * step)
+	ahead.collision_mask = CollisionLayers.WORLD
+	var wall: Dictionary = get_world_3d().direct_space_state.intersect_ray(ahead)
+	if not wall.is_empty():
+		global_position = wall["position"] as Vector3
+		_land(_field)
+		return
 	global_position += travel * step
 	left -= step
 	if left <= 0.0:
@@ -111,6 +142,10 @@ func _on_hit(area: Area3D) -> void:
 	var struck: Node = hurtbox.get_parent()
 	var body := struck as Player
 	if body != null and body.get_multiplayer_authority() == shooter:
+		return
+	# Nor the hand that threw it. Anything else in the way takes it — a Wretch
+	# between a slinger and you is cover, by the developer's call (ADR-235).
+	if thrower != null and struck == thrower:
 		return
 	hurtbox.receive(damage, damage_type, self)
 	_land(_field)

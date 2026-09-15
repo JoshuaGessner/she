@@ -30,6 +30,12 @@ extends Resource
 ## overhead; what stops a heavy blow is a shield, which is `M4-T03`'s. Carried
 ## to the player on the hitbox, beside the damage and its type.
 @export var heavy: bool = false
+## **A missile, thrown at this speed** (ADR-235), in metres per second, or `0`
+## for a blow within `reach`. A missile is thrown only at a body the thrower can
+## see this instant, from as far as `reach`, and flies no further than `reach`:
+## straight, dodgeable, stopped by a wall and by the first body in the way.
+## `DES-023` §3: it goes through a weapon's guard and stops on a shield ⟨tune⟩.
+@export var missile_speed: float = 0.0
 
 
 func validate() -> PackedStringArray:
@@ -46,4 +52,6 @@ func validate() -> PackedStringArray:
 		problems.append("an attack that deals %.1f is a gesture" % damage)
 	if reach <= 0.0:
 		problems.append("an attack with no reach can never begin")
+	if missile_speed < 0.0:
+		problems.append("a missile thrown at %.1f m/s flies backwards" % missile_speed)
 	return problems

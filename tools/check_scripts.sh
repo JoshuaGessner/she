@@ -633,6 +633,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Sling-Wretch** (`M4-T02` step 5, ADR-235). It stands off and slings;
+	# a guard takes nothing off a stone; a body in the way takes it and its thrower
+	# never does; a wall stops an arrow and a stone; and nothing is thrown at a
+	# body out of sight. Each row beside the case that would pass for it.
+	sling="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 12000 \
+		levels/room_set/room_set.tscn -- --sling-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$sling" \
+			|| ! grep -q "^\[sling\] out of sight" <<<"$sling"; then
+		echo "FAIL a stone has to come from something you can see, and stop at a wall" >&2
+		printf '%s\n' "$sling" | grep -E '\[sling\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

@@ -839,6 +839,8 @@ func _ready() -> void:
 			_keeper_probe()
 		elif arg == "--escalation-probe":
 			_escalation_probe()
+		elif arg == "--sling-probe":
+			_sling_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -9732,7 +9734,16 @@ func _stalker_probe() -> void:
 	await _hold(0.4)
 	player.teleport(ARCHER_POST, 0.0)
 	await _hold(0.3)
-	var mark: Vector3 = BUTT_POST
+	# **Down a line with nothing in it** (ADR-235). This row shot at `BUTT_POST`,
+	# twelve metres along +X — and 3.0 m out that line meets world geometry at
+	# x = −2.45. It passed from `M3-T11` on because an arrow went through walls;
+	# the day it stopped doing that, this row read 0.0 damage.
+	var clear_line: Vector3 = _throw_line(ARCHER_POST, 12.0)
+	if clear_line == Vector3.ZERO:
+		problems.append("no clear twelve-metre line from the archer's post to shoot down")
+		_report(problems, "stalker")
+		return
+	var mark: Vector3 = ARCHER_POST + clear_line * 11.0
 	# Facing away, so it is standing still when the arrow arrives. It does not
 	# stay that way — an arrow landing at its feet is 3.2 of Clamor and it
 	# comes looking, which is the coupling working rather than a flaw here.
@@ -11487,6 +11498,305 @@ func _in_view_of(watcher: Enemy) -> Vector3:
 					and not space.intersect_ray(ground).is_empty():
 				return spot + Vector3.UP * 0.1
 	return Vector3.INF
+
+
+## **The Sling-Wretch** (`M4-T02` step 5, ADR-235, `DES-013`'s attrition at
+## range, `DES-023` §3's missile).
+##
+## Six questions, each beside the case that would pass for it if it were false:
+##
+## 1. It stands off and slings — and a Wretch put in the same place walks in.
+## 2. A raised guard takes nothing off a stone — and does off a cut.
+## 3. A body in the way takes the stone — the open throw in row 2 reached you.
+## 4. It never hits the hand that threw it — the same stone thrown by nobody
+##    hits that body.
+## 5. A wall stops an arrow and a stone — and a body with its back to that wall
+##    is still hit, so "stopped" is not "hit nothing".
+## 6. Nothing is thrown at a body out of sight — the same slinger threw while
+##    it could see.
+func _sling_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var sling_kind: EnemyResource = EnemyCatalogue.by_id(&"enm_sling_wretch")
+	var bow_item: ItemResource = ItemCatalogue.by_id(&"wpn_yew_bow")
+	if sling_kind == null or bow_item == null:
+		problems.append("no enm_sling_wretch or no wpn_yew_bow in the catalogues")
+		_report(problems, "sling")
+		return
+	var sling: AttackResource = sling_kind.attack
+	var bow: RangedTrait = bow_item.first_trait(RangedTrait) as RangedTrait
+	var chest := Vector3.UP * 0.9
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, 0.0)
+	await _hold(0.3)
+	var line: Vector3 = _keeper_ground(GUARDIAN_POST)
+	if line == Vector3.ZERO:
+		problems.append("no clear line from the Guardian's post")
+		_report(problems, "sling")
+		return
+	# Out along the line is where the enemy stands; the player looks that way.
+	var faces_in: float = atan2(line.x, line.z)
+	var faces_out: float = atan2(-line.x, -line.z)
+
+	# ─ 1. **it stands off and slings** ─ lit, in sight, from nine metres
+	player.lit = true
+	var stood: Dictionary = {}
+	for kind_id: StringName in [sling_kind.id, EnemyCatalogue.DEFAULT]:
+		player.restore_for_descent()
+		player.teleport(GUARDIAN_POST, faces_out)
+		var body: Enemy = await _sling_fresh(GUARDIAN_POST + line * 9.0, faces_in, kind_id)
+		var throws: Array[int] = [0]
+		body.threw.connect(func(_at: Vector3, _travel: Vector3, _attack: AttackResource,
+				_by: Node) -> void: throws[0] += 1)
+		var from_stones: Array[float] = [0.0]
+		var count_stones := func(amount: float, _remaining: float, from: Node) -> void:
+			if from is Arrow:
+				from_stones[0] += amount
+		player.health.damaged.connect(count_stones)
+		var nearest: float = INF
+		var began: int = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - began < 4000:
+			await get_tree().physics_frame
+			nearest = minf(nearest, _flat_distance(body.global_position, player.global_position))
+			if player.health.current < player.health.maximum * 0.5:
+				player.health.restore()
+		player.health.damaged.disconnect(count_stones)
+		stood[kind_id] = [throws[0], from_stones[0], nearest]
+	var slung: Array = stood[sling_kind.id]
+	var walked: Array = stood[EnemyCatalogue.DEFAULT]
+	print(("[sling] from 9 m for 4 s          Sling-Wretch threw %d, stones dealt %.1f, "
+		+ "nearest %.1f m; a Wretch came to %.1f m") % [slung[0], slung[1], slung[2], walked[2]])
+	if walked[2] > 4.0:
+		problems.append(("a Wretch in the same place came no nearer than %.1f m, so a "
+			+ "Sling-Wretch standing off says nothing") % walked[2])
+	if slung[0] == 0 or slung[1] <= 0.0:
+		problems.append("a Sling-Wretch with the player in sight at 9 m threw %d and dealt %.1f"
+			% [slung[0], slung[1]])
+	if slung[2] < 8.0:
+		problems.append(("a Sling-Wretch closed to %.1f m — it slings from where it stands, "
+			+ "by the developer's call") % slung[2])
+
+	# ─ 2. **a raised guard takes nothing off a stone** ─ and something off a cut
+	_session.clear_enemies()
+	await _hold(0.2)
+	var hurtbox := player.get_node("Hurtbox") as Hurtbox
+	# In the tree, in front of the player: the wound vignette asks where a blow
+	# came from, and a hitbox nowhere is an engine error in the sweep.
+	var cut := Hitbox.new()
+	add_child(cut)
+	cut.global_position = GUARDIAN_POST + line + chest
+	var guarded_rows: Dictionary = {}
+	for what: String in ["stone", "cut"]:
+		var taken: Array[float] = []
+		for guarded: bool in [false, true]:
+			player.restore_for_descent()
+			player.teleport(GUARDIAN_POST, faces_out)
+			if guarded:
+				Input.action_press("block")
+			else:
+				Input.action_release("block")
+			await _hold(0.15)
+			player.health.restore()
+			player.stamina.refill()
+			var was: float = player.health.current
+			if what == "stone":
+				_session.spawn_missile(GUARDIAN_POST + line * 5.0 + chest, -line, sling, null)
+				await _hold(0.6)
+			else:
+				hurtbox.receive(sling.damage, Enums.DamageType.CUT, cut)
+			taken.append(was - player.health.current)
+		guarded_rows[what] = taken
+	Input.action_release("block")
+	cut.free()
+	var stone_row: Array = guarded_rows["stone"]
+	var cut_row: Array = guarded_rows["cut"]
+	print("[sling] open / guarded            stone %.1f / %.1f, a cut %.1f / %.1f"
+		% [stone_row[0], stone_row[1], cut_row[0], cut_row[1]])
+	if cut_row[1] >= cut_row[0]:
+		problems.append("a raised guard took nothing off a cut, so the stone row is not about the guard")
+	if stone_row[0] <= 0.0:
+		problems.append("a stone thrown straight at the player from 5 m never landed")
+	elif stone_row[1] < stone_row[0] - 0.01:
+		problems.append(("a raised guard took %.1f off a stone — a missile goes through a "
+			+ "weapon's guard (`DES-023` §3)") % (stone_row[0] - stone_row[1]))
+
+	# ─ 3. **a body in the way takes it** ─ facing away, in the dark, so it stands still
+	player.lit = false
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, faces_out)
+	var in_the_way: Enemy = await _sling_fresh(GUARDIAN_POST + line * 2.5, faces_out,
+		EnemyCatalogue.DEFAULT)
+	await _hold(0.15)
+	var way_was: float = in_the_way.health.current
+	var player_was: float = player.health.current
+	_session.spawn_missile(GUARDIAN_POST + line * 5.0 + chest, -line, sling, null)
+	await _hold(0.6)
+	var way_took: float = way_was - in_the_way.health.current
+	var player_took: float = player_was - player.health.current
+	print("[sling] a Wretch in the way       it took %.1f, the player %.1f (want >0, 0)"
+		% [way_took, player_took])
+	if way_took <= 0.0 or player_took > 0.0:
+		problems.append(("a stone thrown through a Wretch took %.1f off it and %.1f off the "
+			+ "player — a body in the way is cover, by the developer's call")
+			% [way_took, player_took])
+
+	# ─ 4. **never the hand that threw it** ─ thrown from inside that body
+	var hand: Enemy = await _sling_fresh(GUARDIAN_POST + line * 5.0, faces_out, sling_kind.id)
+	var by_hand: Dictionary = {}
+	for named: bool in [true, false]:
+		player.restore_for_descent()
+		player.teleport(GUARDIAN_POST, faces_out)
+		hand.health.restore()
+		await _hold(0.15)
+		var hand_was: float = hand.health.current
+		var you_were: float = player.health.current
+		_session.spawn_missile(hand.global_position + chest, -line, sling,
+			hand if named else null)
+		await _hold(0.6)
+		by_hand[named] = [hand_was - hand.health.current, you_were - player.health.current]
+	var thrown_by: Array = by_hand[true]
+	var thrown_by_nobody: Array = by_hand[false]
+	print(("[sling] from inside the thrower    it took %.1f and the player %.1f; with no thrower "
+		+ "named it took %.1f") % [thrown_by[0], thrown_by[1], thrown_by_nobody[0]])
+	if thrown_by_nobody[0] <= 0.0:
+		problems.append("a stone thrown from inside a body with no thrower named did not hit "
+			+ "that body, so the row beside it proves nothing")
+	if thrown_by[0] > 0.0 or thrown_by[1] <= 0.0:
+		problems.append(("a stone hit the hand that threw it (%.1f) and reached the player "
+			+ "for %.1f") % [thrown_by[0], thrown_by[1]])
+
+	# ─ 5. **a wall stops an arrow and a stone** ─
+	var wall: Dictionary = _wall_to_shoot_at()
+	if wall.is_empty():
+		problems.append("no post in the Deep faces a wall with floor beyond it")
+		_session.clear_enemies()
+		_report(problems, "sling")
+		return
+	var post: Vector3 = wall["post"]
+	var out: Vector3 = wall["dir"]
+	var walled: Dictionary = {}
+	for missile: String in ["arrow", "stone"]:
+		for place: String in ["behind", "against"]:
+			player.restore_for_descent()
+			player.teleport(post, atan2(-out.x, -out.z))
+			var target: Enemy = await _sling_fresh(wall[place], atan2(-out.x, -out.z),
+				EnemyCatalogue.DEFAULT)
+			await _hold(0.15)
+			var target_was: float = target.health.current
+			var loose_from: Vector3 = post + out * 0.6 + Vector3.UP * 1.2
+			if missile == "arrow":
+				_session.spawn_arrow(loose_from, out, bow, player.get_multiplayer_authority())
+			else:
+				_session.spawn_missile(loose_from, out, sling, null)
+			await _hold(0.8)
+			walled["%s %s" % [missile, place]] = target_was - target.health.current
+	print(("[sling] a wall %.1f m out          arrow %.1f behind it / %.1f against it, "
+		+ "stone %.1f / %.1f (want 0 / >0)") % [wall["d"], walled["arrow behind"],
+		walled["arrow against"], walled["stone behind"], walled["stone against"]])
+	for missile: String in ["arrow", "stone"]:
+		if walled["%s against" % missile] <= 0.0:
+			problems.append(("a%s %s never reached a body with its back to the wall, so the "
+				+ "row behind it proves nothing") % ["n" if missile == "arrow" else "", missile])
+		if walled["%s behind" % missile] > 0.0:
+			problems.append(("a%s %s went through a wall and took %.1f off the body behind "
+				+ "it — the death nobody can explain (`PRO-005` §5)")
+				% ["n" if missile == "arrow" else "", missile, walled["%s behind" % missile]])
+
+	# ─ 6. **nothing thrown at a body out of sight** ─ within reach the whole time
+	var slinger: Enemy = await _sling_fresh(post, atan2(-out.x, -out.z), sling_kind.id)
+	var thrown: Array[int] = [0]
+	slinger.threw.connect(func(_at: Vector3, _travel: Vector3, _attack: AttackResource,
+			_by: Node) -> void: thrown[0] += 1)
+	player.restore_for_descent()
+	player.lit = true
+	player.teleport(post + out * maxf(float(wall["d"]) - 1.0, 1.5), atan2(out.x, out.z))
+	var waited: int = Time.get_ticks_msec()
+	while thrown[0] == 0 and Time.get_ticks_msec() - waited < 3000:
+		await get_tree().physics_frame
+		player.health.restore()
+	var in_sight: int = thrown[0]
+	player.teleport(wall["behind"], 0.0)
+	# A stone already wound up when the player stepped away lands on the wall.
+	await _hold(1.0)
+	thrown[0] = 0
+	var hidden_began: int = Time.get_ticks_msec()
+	while Time.get_ticks_msec() - hidden_began < 3000:
+		await get_tree().physics_frame
+		player.health.restore()
+	print("[sling] out of sight              threw %d in sight, then %d in 3 s behind a wall (want >0, 0)"
+		% [in_sight, thrown[0]])
+	if in_sight == 0:
+		problems.append("the slinger never threw at a body it could see, so the next row proves nothing")
+	if thrown[0] > 0:
+		problems.append(("a Sling-Wretch threw %d stone(s) at a body behind a wall — a missile "
+			+ "is thrown only at what it can see") % thrown[0])
+
+	player.lit = false
+	_session.clear_enemies()
+	_report(problems, "sling")
+
+
+## One enemy of `kind_id` at `at`, and nothing else on the floor.
+func _sling_fresh(at: Vector3, yaw: float, kind_id: StringName) -> Enemy:
+	_session.clear_enemies()
+	await _hold(0.2)
+	_session.spawn_enemy(at, yaw, kind_id)
+	await get_tree().physics_frame
+	return _first_live_enemy()
+
+
+## **A wall to throw at** (ADR-235): a post, a direction whose chest-high line
+## meets the world two and a half to seven metres out, a place on open floor
+## just past that wall the post cannot see, and a place a body can stand with
+## its back to it. Empty where the Deep has none.
+func _wall_to_shoot_at() -> Dictionary:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for post: Vector3 in [GUARDIAN_POST, ARCHER_POST, BUTT_POST, PROBE_WALK_FROM,
+			PROBE_STRIKE_FROM, HUNTER_POST]:
+		for step: int in range(16):
+			var dir := Vector3(cos(TAU * step / 16.0), 0.0, sin(TAU * step / 16.0))
+			var high: Vector3 = post + Vector3.UP * 1.2
+			var line := PhysicsRayQueryParameters3D.create(high, high + dir * 7.0)
+			line.collision_mask = CollisionLayers.WORLD
+			var hit: Dictionary = space.intersect_ray(line)
+			if hit.is_empty():
+				continue
+			var d: float = _flat_distance(hit["position"] as Vector3, post)
+			if d < 2.5:
+				continue
+			for past: float in [1.0, 1.5, 2.0]:
+				var behind: Vector3 = post + dir * (d + past)
+				if _open_floor_at(behind) \
+						and not _clear_between(post + Vector3.UP * 1.6, behind + Vector3.UP * 0.9) \
+						and not _clear_between(high, behind + Vector3.UP * 1.2):
+					return {"post": post, "dir": dir, "d": d, "behind": behind,
+						"against": post + dir * (d - 0.55)}
+	return {}
+
+
+## Floor under `at` and room for a body standing on it.
+func _open_floor_at(at: Vector3) -> bool:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var ground := PhysicsRayQueryParameters3D.create(at + Vector3.UP, at + Vector3.DOWN)
+	ground.collision_mask = CollisionLayers.WORLD
+	if space.intersect_ray(ground).is_empty():
+		return false
+	var room := PhysicsShapeQueryParameters3D.new()
+	var ball := SphereShape3D.new()
+	ball.radius = 0.45
+	room.shape = ball
+	room.transform = Transform3D(Basis(), at + Vector3.UP * 0.9)
+	room.collision_mask = CollisionLayers.WORLD
+	return space.intersect_shape(room, 1).is_empty()
+
+
+func _clear_between(a: Vector3, b: Vector3) -> bool:
+	var ray := PhysicsRayQueryParameters3D.create(a, b)
+	ray.collision_mask = CollisionLayers.WORLD
+	return get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
 
 
 ## A fresh enemy at `mark` facing away, and the thrower back at the post.

@@ -97,6 +97,8 @@ Roster is defined by *what problem it poses*, never by "fire guy / ice guy":
 >
 > **The slice's roster, decided by ADR-230:** **Wretch** (attrition), **Sling-Wretch** (attrition at range — the missile), **Bellringer** (alarm — the only enemy that calls the floor), **Hall-Warden** (blocker, plated, a heavy overhead), **Hoard-Keeper** (guardian on the Prize, mailed, a heavy thrust), and the Gold-Sick as tracker. The Sump-Swarm waits for water and a second faction (`M5-T04`).
 
+> **The Sling-Wretch** (ADR-235) stands off and slings: once it sees you from within 12 m ⟨tune⟩ it stops and throws, and keeps throwing if you close. A stone is thrown only at what it can see this instant, stops at a wall, and hits the first body in its way, enemy or player, never the thrower. It throws from as far as it can see you — 5 m in full dark, its whole reach when you are lit.
+
 **The Delvings** — Dvergar ruin
 - **Wretch** *(attrition)* — degenerate Dvergar survivors, numerous, pitiable
 - **Hall-Warden** *(blocker)* — dead Dvergar armour still doing its job. Slow, immovable, deafeningly loud when struck

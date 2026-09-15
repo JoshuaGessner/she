@@ -758,8 +758,10 @@ func _on_hurt(amount: float, from: Node) -> void:
 	# **A heavy blow goes through a weapon's guard** (`DES-023` §3, ADR-232):
 	# no stamina spent on it and nothing taken off. `M4-T03`'s shield is what
 	# stops one; a raised seax is a hand in the way of a falling hammer.
-	var heavy: bool = from is Hitbox and (from as Hitbox).heavy
-	if blocking and not heavy and stamina.current >= Config.tuning.block_stamina_minimum:
+	# **And so does anything in the air** (ADR-235) — the same section's other
+	# half: a blade held up does not meet a stone or an arrow.
+	var unguarded: bool = from is Arrow or (from is Hitbox and (from as Hitbox).heavy)
+	if blocking and not unguarded and stamina.current >= Config.tuning.block_stamina_minimum:
 		var tuning: TuningProfile = Config.tuning
 		stamina.spend(tuning.block_stamina_cost)
 		var through: float = amount * (1.0 - tuning.block_damage_fraction)

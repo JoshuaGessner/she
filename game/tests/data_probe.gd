@@ -106,11 +106,16 @@ func _run() -> void:
 ## something can hit you having never seen you (principle 4). The floor-call
 ## against a swing was the other rule here until the call became the
 ## archetype's own (ADR-234), and `EnemyResource.validate` asks it now.
+##
+## **Not asked of a missile** (ADR-235). A blow starts on distance alone, so its
+## reach has to sit inside dark sight; a missile is thrown only at a body the
+## thrower sees that instant, so it cannot reach past sight however long its
+## reach is — `--sling-probe` holds that rule where it lives, in `Enemy`.
 func _check_enemies_against_the_profile() -> void:
 	if _tuning == null:
 		return
 	for kind: EnemyResource in _enemies:
-		if kind.attack == null:
+		if kind.attack == null or kind.attack.missile_speed > 0.0:
 			continue
 		if _tuning.enemy_vision_dark <= kind.attack.reach:
 			_fail(("%s reaches %.1f m and a body in the dark is seen from %.1f m — "

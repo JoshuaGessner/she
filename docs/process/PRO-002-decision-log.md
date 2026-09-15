@@ -8431,5 +8431,58 @@ The *nothing on the floor can call* rule was added before planting, on reading t
 - ADR-233's open consequence closes by the rule rather than by a probe: the Hoard-Keeper and the Hall-Warden carry no `calls_after`, so neither calls, at a leash edge or anywhere.
 - Every floor is now two archetypes. The Deep, the fixed floor the probes measure, gets Bellringers by the same rule as a generated floor.
 
+## ADR-235 — The Sling-Wretch stands off and slings, and nothing in the air goes through a wall
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T02` (step 5 of ADR-230's seven)** · **Builds `DES-023` §3's missile** · **Fixes arrows passing through walls**
+
+**Context:** ADR-230 casts the Sling-Wretch as attrition at range — *makes closing the distance the cost; the shield's missile*. Nothing an enemy did left its body. The player's arrow (`M3-T11`) was the only thing in the air, and reading it to build a stone found that **it went through walls**: its comment said walls were handled "by the range cap and by a separate query", and there was no query. An arrow flew its whole 26 m through any wall and wounded what stood behind. For an enemy's stone that is `PRO-005` §5's death nobody can explain, arriving from a body the player could not see.
+
+### Decision — the developer's two calls
+
+- **It stands off and slings**, over keeping its distance. Once it can see you from within reach it stops and throws, and keeps throwing if you close; up close it is a weak body. Backing away was the other option, and in rooms this size a retreating body finds a corner and a chase after attrition is a chore.
+- **A body in the way takes the stone**, enemy or player, over stones passing through enemies. A Wretch between you and a slinger is cover, so defence stays positional. Never the thrower.
+
+### Built
+
+- **`AttackResource.missile_speed`**, `0` for a blow. A missile starts only at a target the thrower sees that instant, from as far as `reach`; the thrower turns to face the target through the wind-up, so the telegraph reads as aimed; and the stone leaves where a blow would arm, aimed at where the target is then, not where it is going.
+- **The flight is the arrow's.** `CoopSession.spawn_missile` builds an `Arrow` from the attack — a round stone rather than a shaft, flying no further than its reach, with no noise where it lands, since a stone has no `clamor_hit` and none is invented. The enemy asks through a `threw` signal, as a player's bow does.
+- **Anything in the air stops at a wall.** Each step of an arrow's flight casts a ray against the world first. A body with its back to the wall is still hit: standing half a metre off it, the body fills about a metre of flight, twice a step, and its overlap is reported before the next ray. A second ray for exactly that case was written and removed — by that arithmetic it could never change a result, so no plant could fail it.
+- **`--stalker-probe` had been shooting through a wall since `M3-T11`.** Its arrow row aimed from the archer's post at `BUTT_POST`, twelve metres along +X, and a ray down that line meets world geometry 3.0 m out, at x = −2.45. It passed for as long as arrows ignored walls, and the sweep failed it the day they stopped. It shoots down a line `_throw_line` finds clear now, and reads the bow's 32 again.
+- **A guard stops nothing in the air**, `DES-023` §3's other half beside ADR-232's heavy blow: `Player._on_hurt` treats anything arriving as an `Arrow` as unguardable. This includes a teammate's arrow, which a raised guard used to reduce.
+- **`enm_sling_wretch`** ⟨tune⟩: 45 health, 60 poise, runs 3.2, unarmoured; a 16 blunt stone at 18 m/s from up to 12 m, a 0.7 s wind-up, a 1.2 s reload.
+- `data_probe`'s rule that dark sight must outreach an attack is not asked of a missile. A blow starts on distance alone; a missile starts only on sight, so it cannot reach past sight at any length. How far a Sling-Wretch throws from is how far it can see you: 5 m in full dark, up to its 12 m reach when you are lit.
+
+### Verification
+
+`--sling-probe`, new and required, six rows, each beside the case that would pass for it:
+
+| Row | Measured | Beside it |
+|---|---|---|
+| stands off and slings, from 9 m for 4 s | threw 2, dealt 28, came no nearer than 9.0 m | a Wretch in the same place came to 2.2 m |
+| a guard and a stone | 14.0 open, 14.0 guarded | a cut 5.3 open, 2.1 guarded |
+| a Wretch in the way | it took 16, the player 0 | row 2's open stone reached the player |
+| thrown from inside its thrower | it took 0, the player 14 | the same stone with no thrower named: it took 16 |
+| a wall 6.7 m out | arrow 0 and stone 0 behind it | arrow 32 and stone 16 into a body with its back to it |
+| out of sight | 0 thrown in 3 s behind a wall | 1 thrown while in sight |
+
+**Planted and failed, one plant per run:**
+
+| Plant | Caught by |
+|---|---|
+| no wall stops anything in the air | row 5, for the arrow and for the stone |
+| a stone hits the hand that threw it | rows 1 and 4 |
+| a stone passes through enemies (the option not taken) | rows 3, 4 and 5 |
+| a guard stops what is in the air | row 2 |
+| a missile thrown at what its thrower cannot see | row 6 |
+| a missile attack swings instead of throwing | rows 1 and 6 |
+| a Sling-Wretch with a Wretch's 2.2 m reach | rows 1, 2, 4 and 5 |
+| a missile thrown at −18 m/s | `data_probe` |
+
+### Consequences
+
+- **The lantern now arms a slinger.** In full dark one can only throw from 5 m; lit, from 12. `M4-T13`'s shutter is a decision about stones as well as about being seen.
+- `M4-T03`'s shield has its missile.
+- A Veiðimaðr can no longer shoot through a wall. Anything that relied on that was relying on a fault.
+
 *Entries below to be added as design decisions are signed off.*
 

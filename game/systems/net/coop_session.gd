@@ -928,6 +928,8 @@ func _build_enemy(payload: Dictionary) -> Node:
 	enemy.rotation.y = float(payload["yaw"])
 	# Before `_ready`, which resolves it (ADR-231).
 	enemy.archetype = StringName(payload.get("archetype", EnemyCatalogue.DEFAULT))
+	# Only the host's copy ever throws, since only the host runs the attack.
+	enemy.threw.connect(_on_enemy_threw)
 	# Authority stays with the host: every enemy is host-simulated (`TEC-004`),
 	# and the default authority of a spawned node is already peer 1.
 	enemy.configure_replication()
@@ -1382,6 +1384,33 @@ func spawn_arrow(at: Vector3, travel: Vector3, trait_of: RangedTrait,
 	return made
 
 
+## **An enemy's missile** (ADR-235): the arrow's flight, built from the
+## archetype's attack rather than a bow's kit. It flies no further than the reach
+## it was thrown from, so a body that backs out of range while it is in the air
+## has left its range. No noise where it lands — a stone has no `clamor_hit`
+## to carry, and one is not invented for it here.
+func spawn_missile(at: Vector3, travel: Vector3, attack: AttackResource,
+		thrower: Node) -> Arrow:
+	if not is_host():
+		return null
+	var made: Arrow = _spawner.spawn({
+		"kind": "arrow", "index": _next_arrow, "at": at,
+		"travel": travel, "speed": attack.missile_speed,
+		"damage": attack.damage, "type": attack.damage_type,
+		"clamor": 0.0, "range": attack.reach, "shooter": 0, "stone": true,
+	}) as Arrow
+	_next_arrow += 1
+	if made != null:
+		made.thrower = thrower
+		made.fly_with(floor_field())
+	return made
+
+
+func _on_enemy_threw(at: Vector3, travel: Vector3, attack: AttackResource,
+		thrower: Node) -> void:
+	spawn_missile(at, travel, attack, thrower)
+
+
 ## The level hands over the field it built. Called beside `hunt_with`, because
 ## the two are the same sentence: this is the floor, and this is what noise on
 ## it goes into.
@@ -1489,4 +1518,5 @@ func _build_arrow(payload: Dictionary) -> Node:
 	made.clamor_hit = float(payload["clamor"])
 	made.left = float(payload["range"])
 	made.shooter = int(payload["shooter"])
+	made.stone = bool(payload.get("stone", false))
 	return made

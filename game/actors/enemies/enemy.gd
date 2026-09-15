@@ -24,6 +24,9 @@ extends CharacterBody3D
 ## saturated colour for treasure, so states read as brightness.
 
 signal died
+## A missile leaves the hand (ADR-235). The session makes it, as it makes a
+## player's arrow: what exists in the world has one owner.
+signal threw(at: Vector3, travel: Vector3, attack: AttackResource, thrower: Node)
 
 ## **The ladder, all four rungs of it** (`M4-T16`, ADR-196). `CALLING` is not
 ## a fifth rung — it is the *beat* `DES-013` demands before the failure state,
@@ -679,7 +682,12 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 					_begin_call(tuning)
 					return
 				var range_to: float = global_position.distance_to(_target.global_position)
-				if range_to <= _kind.attack.reach:
+				# **A missile needs the target in sight** (ADR-235). A blow within
+				# two metres was never going to be thrown through a wall; a stone
+				# from twelve would be, at a body the thrower last saw round a
+				# corner — so out of sight it closes on where you were instead.
+				var can_start: bool = _kind.attack.missile_speed <= 0.0 or _sees
+				if range_to <= _kind.attack.reach and can_start:
 					_begin_attack(tuning)
 				else:
 					_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
@@ -840,9 +848,17 @@ func _begin_attack(_tuning: TuningProfile) -> void:
 	_attack_timer = _kind.attack.telegraph
 
 
-func _tick_attack(delta: float, _tuning: TuningProfile) -> void:
+func _tick_attack(delta: float, tuning: TuningProfile) -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
+	var missile: bool = _kind.attack.missile_speed > 0.0
+	# A thrower winds up **at you**, so the telegraph reads as aimed. A blow
+	# keeps the facing it began with, as it always has.
+	if missile and _attack == Attack.TELEGRAPH and is_instance_valid(_target):
+		var to_target: Vector3 = _target.global_position - global_position
+		to_target.y = 0.0
+		if to_target.length() > 0.01:
+			_face(to_target.normalized(), tuning)
 	_attack_timer -= delta
 	if _attack_timer > 0.0:
 		return
@@ -850,7 +866,10 @@ func _tick_attack(delta: float, _tuning: TuningProfile) -> void:
 		Attack.TELEGRAPH:
 			_attack = Attack.ACTIVE
 			_attack_timer = _kind.attack.active
-			_hitbox.arm()
+			if missile:
+				_throw()
+			else:
+				_hitbox.arm()
 		Attack.ACTIVE:
 			_attack = Attack.RECOVERY
 			_attack_timer = _kind.attack.recovery
@@ -859,6 +878,21 @@ func _tick_attack(delta: float, _tuning: TuningProfile) -> void:
 			_attack = Attack.NONE
 		Attack.NONE:
 			pass
+
+
+## **The stone leaves the hand** (ADR-235) at the instant a blow would arm:
+## aimed at where the target is now, not where it is going, so a body that moves
+## once the wind-up ends is a body it misses — `DES-009`'s *defense is
+## positional*, at range.
+func _throw() -> void:
+	if not is_instance_valid(_target):
+		return
+	var from: Vector3 = _eyes.global_position
+	var aim: Vector3 = _target.global_position + Vector3.UP * 0.9 - from
+	if aim.length() < 0.01:
+		return
+	var travel: Vector3 = aim.normalized()
+	threw.emit(from + travel * 0.5, travel, _kind.attack, self)
 
 
 # ── damage ────────────────────────────────────────────────────────────────
