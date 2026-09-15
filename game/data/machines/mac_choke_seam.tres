@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MachineResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://systems/generation/machine_resource.gd" id="1_machine"]
+[ext_resource type="Resource" path="res://data/hazards/haz_choke_damp.tres" id="2_hazard"]
+
+[resource]
+script = ExtResource("1_machine")
+id = &"mac_choke_seam"
+question = "A seam broke open and the air in this room is bad. A lamp goes out in it and you will not get your breath back. They were trying to leave, and what they carried is still in there. Go in dark and winded?"
+roles = PackedInt32Array()
+min_volume = 1
+held = 0
+min_floor = 1
+max_floor = 2
+fallen = 3
+facing = 0
+bodies = 0
+gear = 2
+hazard = ExtResource("2_hazard")

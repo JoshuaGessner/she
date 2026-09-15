@@ -165,6 +165,11 @@ var _call_timer: float = 0.0
 ## One call per body per acquisition. Without this a SWARM enemy re-shouts every
 ## frame it stays alerted, and the floor never stops being called.
 var _called: bool = false
+## What this body stands in this tick (ADR-236), asked once and read by the
+## poise, the call and the step below.
+var _ground: HazardResource = null
+## Metres walked since the last step it was heard taking on scree.
+var _stepped: float = 0.0
 var _patience: float = 0.0
 var _last_seen: Vector3 = Vector3.ZERO
 var _home: Vector3 = Vector3.ZERO
@@ -458,10 +463,14 @@ func _physics_process(delta: float) -> void:
 	_listen(delta, tuning)
 	_look(tuning)
 
+	# **The ground is everyone's** (ADR-236, `DES-009`): the damp holds an
+	# enemy's breath as it holds a player's, and scree hears its feet.
+	_ground = HazardZone.at(self, global_position)
+
 	# Poise returns whenever the body is not already broken. Outside a fight
 	# this is a no-op against the cap; inside one it is what stops a series of
 	# light hits banking indefinitely toward a stagger that was never earned.
-	if _state != State.STAGGERED:
+	if _state != State.STAGGERED and not (_ground != null and _ground.stops_recovery):
 		_poise = minf(_kind.poise, _poise + _kind.poise_regen * delta)
 
 	# **Runs while it swings, not only between swings.** `_act` is skipped for
@@ -481,7 +490,16 @@ func _physics_process(delta: float) -> void:
 	else:
 		_act(delta, tuning)
 
+	var was_at: Vector3 = global_position
 	move_and_slide()
+	# **A Wretch led across scree is heard** (ADR-230, ADR-236). An enemy makes
+	# no footstep noise anywhere else — that stays as it was — so this counts
+	# only what it walks on scree, at the player's stride.
+	if _ground != null and _ground.step_clamor > 0.0:
+		_stepped += Vector2(global_position.x - was_at.x, global_position.z - was_at.z).length()
+		if _stepped >= tuning.clamor_step_distance:
+			_stepped = 0.0
+			clamor.add(_ground.step_clamor)
 	# Published after the move, so what a client eases toward is where this
 	# body actually ended the frame rather than where it intended to go.
 	net_position = position
@@ -677,7 +695,10 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				# for one second and one that had you for thirty were the same
 				# enemy, so "do I take this fight" had no term that got worse.
 				# Only an archetype that calls ever does (ADR-234).
-				if not _called and _kind.calls_after > 0.0 \
+				# And never from inside choke-damp (ADR-236): the air will not
+				# carry a shout, so a ringer in the damp has you and tells nobody.
+				var muffled: bool = _ground != null and _ground.stops_calls
+				if not _called and _kind.calls_after > 0.0 and not muffled \
 						and _alerted_for >= _kind.calls_after:
 					_begin_call(tuning)
 					return

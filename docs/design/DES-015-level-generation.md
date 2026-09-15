@@ -122,6 +122,13 @@ Machines are the authored content budget — ⟨~a day each⟩ — and unlike ha
 > are absent rather than stubbed (ADR-064), and they are `M4-T02`'s and `M5`'s
 > to add. The Witness goes on the unheld branch, which is what finally gives
 > ADR-032's deliberately-badly-paying safe route something to be *about*.
+>
+> **Two more, each carrying a hazard (ADR-236).** A machine may name a
+> `HazardResource`, laid over the whole of its room. **The Scree Fall** — the roof
+> came down, the floor is loose stone, the gear is on the far side: *cross it
+> loud, or leave it?* **The Choke Seam** (the lower two floors) — a seam breached and
+> the air is bad: *go in dark and winded?* Hazards arrive only this way, by the
+> developer's call, so a hazard is always part of a situation that asks something.
 
 ## Layer 4 — Population
 

@@ -106,6 +106,10 @@ enum Facing {
 ## `DES-023` and `DES-008`; when `M4-T31` builds the bands, this is the field
 ## that reads them instead, and nothing above it changes.
 @export var gear: int = 0
+## **The ground this situation left** (ADR-236): a hazard over the whole of the
+## room, or none. Scree from a fall, choke-damp from a breached seam — the
+## hazard is part of what happened here, and the question is whether to cross it.
+@export var hazard: HazardResource = null
 
 
 ## Checked at boot, in the shape `ItemResource.validate()` established
@@ -122,7 +126,7 @@ func validate() -> PackedStringArray:
 		problems.append(("`%s` states no question — `DES-015` Layer 3 is that "
 			+ "a machine poses one the player answers with an action, and a "
 			+ "room with loot in it is not a machine") % id)
-	if fallen <= 0 and bodies <= 0 and gear <= 0:
+	if fallen <= 0 and bodies <= 0 and gear <= 0 and hazard == null:
 		problems.append(("`%s` puts nothing in the room at all, so stamping it "
 			+ "would change a floor's log and not its contents") % id)
 	if fallen < 0 or bodies < 0 or gear < 0:

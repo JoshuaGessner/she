@@ -646,6 +646,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Scree and choke-damp** (`M4-T02` step 6, ADR-236). Each rule asked twice,
+	# with a zone under the body and without: scree is loud crouched and hears a
+	# Wretch's feet; the damp puts a lamp out, holds stamina and poise, and keeps
+	# a Bellringer from calling; and a hazard machine lays a zone over its room.
+	hazard="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
+		levels/room_set/room_set.tscn -- --hazard-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hazard" \
+			|| ! grep -q "^\[hazard\] a floor lays" <<<"$hazard"; then
+		echo "FAIL the ground has to do what it says, to everyone" >&2
+		printf '%s\n' "$hazard" | grep -E '\[hazard\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

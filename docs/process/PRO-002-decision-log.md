@@ -8484,5 +8484,65 @@ The *nothing on the floor can call* rule was added before planting, on reading t
 - `M4-T03`'s shield has its missile.
 - A Veiðimaðr can no longer shoot through a wall. Anything that relied on that was relying on a fault.
 
+## ADR-236 — Scree and choke-damp arrive as machine rooms, and scree is loud whatever you do
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T02` (step 6 of ADR-230's seven)** · **Builds `DES-009`'s *hazards are universal*** · **Adds two machines to `DES-015` Layer 3**
+
+**Context:** ADR-230 decided the slice's two hazards and what each does — **scree**, every step on it loud for anyone; **choke-damp**, a lamp snuffed, breath that does not come back (stamina for a player, poise for an enemy), and no call from inside it — and ordered them *"as data and as rooms the generator can place."* Nothing on any floor changed what a body could do by standing somewhere.
+
+### Decision — the developer's two calls
+
+- **Hazards arrive as machine rooms**, over a placement pass of their own. `DES-015`'s machines already decide which room, on which floor, on which arm, and hold every room they stamp to the rule that it asks the player something. A hazard stamped into a room by a second system would be a colour with a rule under it and no question, and it would be a second placer to keep in step with the first.
+- **Scree is loud whatever you do**, over crouching still helping. Neither a crouch nor the Wing's silent crouch quiets it, so the answers are the ones `DES-009` wants from a hazard: go round, cross fast, or pay for it.
+
+### Built
+
+- **`HazardResource`**, in `data/hazards/`: `step_clamor`, `snuffs_light`, `stops_recovery`, `stops_calls`, and a look. Two files, one per hazard, and no catalogue — nothing asks for a hazard by id.
+- **`MachineResource.hazard`**, and two machines that carry one. **`mac_scree_fall`** (any floor, 2 gear past it): *the roof came down in here and the floor is loose stone; there is gear on the far side of it, and every step across it is heard.* **`mac_choke_seam`** (the lower two floors, 3 fallen facing the door, 2 gear): *a seam broke open and the air is bad; they were trying to leave, and what they carried is still in there.*
+- **`FloorBuilder._hazard`** lays a `HazardZone` over the stamped room and a look inside it: scree a stone-coloured layer on the floor, the damp a translucent haze to head height, neither with collision.
+- **`HazardZone` is a box a body asks about, not a physics area.** Every tick a body asks what it stands in, of its own position; no enter or leave signals, and so no per-peer tally of who is inside to fall out of step. Rooms never overlap, so a point is in one zone or none. `HazardZone.made` is the one constructor, used by the builder and the probe alike.
+- **The rules, on everyone** — `DES-009`'s *apply identically to enemies*:
+  - a player's step on scree is at least `step_clamor` (4.0 ⟨tune⟩, above a sprint's 2.55), after stance and the Wing have had their say;
+  - an enemy on scree is heard at the player's stride, and makes no step noise anywhere else, as before;
+  - in choke-damp the owner's lamp goes out and `try_shutter` refuses to open it, before charging the cooldown;
+  - `Stamina.choked` holds a player's breath, and an enemy's poise does not return;
+  - an enemy in the damp does not begin a call.
+- **`--machine-probe`'s gear row assumed a Waystone.** It counted a floor's machine gear as its fixtures less the glint, less two for the Prize and the Waystone — and a floor with no held loot spot lays no Waystone. On seeds 7033 and 7040 a Scree Fall stamped into a room too small to ring two spots (`FloorAnchors.spots_in` gives one, by design), laid its one piece, and the row read it as none. It counts the Prize and the Waystone as actually laid now: 75 floors of 75 place what they stamped, and a plant that lays no machine gear reads 0 of 75.
+
+### Verification
+
+`--hazard-probe`, new and required. Every body row asks one question twice, the zone laid under the body or not, in the same place — so the zone is the only difference:
+
+| Row | Without the zone | With it |
+|---|---|---|
+| a crouched walk for 3 s | loudest 0.88 over 3.9 m | loudest 7.69 over 3.8 m |
+| a Wretch walking for 3 s | 0.00 over 6.0 m | 7.40 over 6.0 m |
+| the lamp | opens | put out when the damp came, refuses to open, opens again once it is gone |
+| a player's stamina, 3 s | 42.0 back | 0.0 back |
+| a Wretch's poise, 1.5 s | 27.3 back | 0.0 back |
+| a Bellringer holding the player, 6 s | called | held the player and never called |
+| a floor pinned to the two hazard machines | — | 3 rooms stamped, 3 zones laid, 3 over their own room |
+
+**Planted and failed, one plant per run:**
+
+| Plant | Caught by |
+|---|---|
+| crouching quiets scree | the crouched walk (0.88 on scree) |
+| an enemy's feet silent on scree | the Wretch's walk (0.00) |
+| the damp never puts a lamp out | the lamp row, twice |
+| a lamp opens in the damp | the lamp row |
+| stamina comes back in the damp | the stamina row (42.0) |
+| poise comes back in the damp | the poise row (27.0) |
+| a Bellringer calls from the damp | the Bellringer row |
+| the builder lays no zone | the floor row (3 stamped, 0 laid) |
+| a zone one cell wide rather than its room | the walk, the Wretch, the lamp and the stamina rows — the first five failures, which is all the plant log kept |
+| scree with no rule | `data_probe` |
+
+### Consequences
+
+- **The machine corpus doubles, and machine count per floor does not.** `FloorMachines.SHARE` still stamps a third of eligible rooms; four machines now draw for those rooms where two did, so on average a floor carries fewer Bad Rooms and Witnesses than it did.
+- **A hazard room on the only route cannot be gone round.** Crossing it loud or dark is then the price of the floor rather than a choice — a playtest question, and `M4-T02` step 7's population is where a hazard's placement against the route can be asked.
+- The look is blockout; `M4-T05`'s art pass owns what scree and damp look like.
+
 *Entries below to be added as design decisions are signed off.*
 

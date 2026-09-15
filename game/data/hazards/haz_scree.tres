@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="HazardResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/hazards/hazard_resource.gd" id="1_hazard"]
+
+[resource]
+script = ExtResource("1_hazard")
+id = &"haz_scree"
+step_clamor = 4.0
+colour = Color(0.4, 0.38, 0.35, 1)

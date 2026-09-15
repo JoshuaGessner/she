@@ -222,6 +222,10 @@ const FALLEN_INSET: float = 0.9
 ## a formation is the one thing a room full of dead people must not read as.
 const FALLEN_WANDER: float = 0.55
 
+## How tall choke-damp is drawn — head height, so it reads as air a body is
+## standing in and not as a ceiling.
+const HAZARD_AIR: float = 2.0
+
 var _into: Node3D = null
 var _slabs: int = 0
 var _roughness: float = 0.0
@@ -229,6 +233,7 @@ var _depth: int = 0
 var _alcoves_cut: int = 0
 var _ledges_raised: int = 0
 var _fallen_laid: int = 0
+var _hazards_laid: int = 0
 ## Every solid slab laid, as `[Transform3D, size]` — see `occluders`.
 var _occluders: Array = []
 
@@ -269,6 +274,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 	if machines != null:
 		for node: int in machines.nodes():
 			builder._fallen(plan, node, machines.at(node), run_seed, floor_index)
+			builder._hazard(plan, node, machines.at(node))
 
 	return {
 		"rooms": rooms,
@@ -281,6 +287,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		"alcoves": builder._alcoves_cut,
 		"ledges": builder._ledges_raised,
 		"fallen": builder._fallen_laid,
+		"hazards": builder._hazards_laid,
 		"occluders": builder._occluders,
 	}
 
@@ -847,6 +854,45 @@ func _fallen(plan: FloorPlan, node: int, machine: MachineResource,
 			yaw += rng.randfn(0.0, FALLEN_WANDER)
 		_mark(FALLEN_SIZE,
 			Vector3(at_x, FALLEN_SIZE.y * 0.5, at_z), FALLEN_COLOUR, yaw)
+
+
+## **The ground a machine left** (ADR-236): its hazard over the whole of its room.
+##
+## A zone every body asks about and a look laid inside it, both without
+## collision — the navmesh must not see either, since scree is walked on and
+## choke-damp walked through. Drawn whether or not the room is ever entered: a
+## hazard you can only discover by standing in it is the unexplained noise, or
+## the lamp going out for no reason, that `PRO-005` §5 rules out.
+func _hazard(plan: FloorPlan, node: int, machine: MachineResource) -> void:
+	if machine == null or machine.hazard == null:
+		return
+	if _into == null:
+		_hazards_laid += 1
+		return
+	var rect: Rect2i = plan.rect_of(node)
+	var span := Vector2(rect.size.x * CELL, rect.size.y * CELL)
+	var zone := HazardZone.made(machine.hazard,
+		at(rect.position) + Vector3(span.x * 0.5, 0.0, span.y * 0.5), span)
+	zone.name = "hazard_%d" % _hazards_laid
+
+	var air: bool = machine.hazard.fills_air
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(span.x, HAZARD_AIR if air else 0.04, span.y)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = machine.hazard.colour
+	material.roughness = 1.0
+	if machine.hazard.colour.a < 1.0:
+		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		# Seen from inside as well as from the doorway.
+		material.cull_mode = BaseMaterial3D.CULL_DISABLED
+	var look := MeshInstance3D.new()
+	look.name = "look"
+	look.mesh = mesh
+	look.material_override = material
+	look.position.y = HAZARD_AIR * 0.5 if air else 0.02
+	zone.add_child(look)
+	_hazards_laid += 1
+	_into.add_child(zone)
 
 
 ## A box of world with **no collision** — something you look at and walk over.

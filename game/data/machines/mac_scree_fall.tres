@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="MachineResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://systems/generation/machine_resource.gd" id="1_machine"]
+[ext_resource type="Resource" path="res://data/hazards/haz_scree.tres" id="2_hazard"]
+
+[resource]
+script = ExtResource("1_machine")
+id = &"mac_scree_fall"
+question = "The roof came down in here and the floor is loose stone. There is gear on the far side of it, and every step you take across it is heard. Cross it, or leave it?"
+roles = PackedInt32Array()
+min_volume = 1
+held = 0
+min_floor = 0
+max_floor = 2
+fallen = 1
+facing = 2
+bodies = 0
+gear = 2
+hazard = ExtResource("2_hazard")

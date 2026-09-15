@@ -6,6 +6,9 @@ extends Node
 ## `Player` would be the child-into-parent call `CLAUDE.md` forbids. Same shape
 ## as `Inventory.weightless_materials` — the owner pushes what it knows down.
 var breathing: bool = false
+## **Choke-damp** (ADR-236), pushed down the same way: while it is set, nothing
+## comes back, however long the body has stood still.
+var choked: bool = false
 
 ## Stamina as a component, not a field on the player (TEC-001: composition).
 ## DES-009 has it governing swinging, blocking, sprinting and climbing — four
@@ -76,7 +79,7 @@ func _process(delta: float) -> void:
 	# removes it *while standing still*, so the node buys a place to recover
 	# rather than a bigger pool — and standing still is the most exposed thing
 	# the Wing can ask you to do.
-	if (not breathing and _since_spend < tuning.stamina_regen_delay) \
+	if choked or (not breathing and _since_spend < tuning.stamina_regen_delay) \
 			or current >= maximum():
 		return
 	current = minf(maximum(), current + tuning.stamina_regen * delta)

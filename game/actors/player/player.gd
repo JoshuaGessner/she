@@ -1930,6 +1930,12 @@ func _handling_clamor(definition: ItemResource) -> float:
 func try_shutter() -> bool:
 	if not lantern.held() or _shutter_cooling > 0.0:
 		return false
+	# A lamp will not open in choke-damp (ADR-236). Refused before the cooldown
+	# is charged, so stepping out is not also a wait.
+	if not lit:
+		var ground: HazardResource = HazardZone.at(self, global_position)
+		if ground != null and ground.snuffs_light:
+			return false
 	_shutter_cooling = lantern.shutter_seconds()
 	lit = not lit
 	return true
@@ -2112,6 +2118,14 @@ func _physics_process(delta: float) -> void:
 	# rather than when the tree changes — the tag is fixed for a life and the
 	# standing still is not.
 	stamina.breathing = has_effect(&"breath_while_still") and planar_speed() < 0.05
+	# **What the ground here does** (ADR-236), asked of this body's own position
+	# on every peer, so every peer answers the same. Choke-damp holds the breath
+	# where it is; the lamp is the owner's to lose, since the owner is the one
+	# who opens it and `lit` rides the wire from them.
+	var ground: HazardResource = HazardZone.at(self, global_position)
+	stamina.choked = ground != null and ground.stops_recovery
+	if _is_local and lit and ground != null and ground.snuffs_light:
+		lit = false
 	if multiplayer.is_server() and has_effect(&"recall_on_damage"):
 		_drop_a_crumb(delta)
 	weapon.advance(delta, stamina)
@@ -2237,6 +2251,13 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 	elif _is_sprinting(distance / maxf(delta, 0.0001), tuning):
 		amount *= 1.0 if has_effect(&"silent_sprint") \
 			else tuning.clamor_sprint_multiplier
+	# **Scree is loud whatever you do** (ADR-236, the developer's call). A floor
+	# under every step, after the stance and the Wing have had their say, so a
+	# crouch and the silent-crouch node both land on it — and a sprint, already
+	# louder, stays louder.
+	var ground: HazardResource = HazardZone.at(self, global_position)
+	if ground != null and ground.step_clamor > 0.0:
+		amount = maxf(amount, ground.step_clamor)
 	clamor.add(amount * carried.scale_by_load(tuning.clamor_footstep_at_capacity))
 	_footfall(1.0 if stance <= 0.5 else 1.22)
 

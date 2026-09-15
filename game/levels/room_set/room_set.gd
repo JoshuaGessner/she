@@ -841,6 +841,8 @@ func _ready() -> void:
 			_escalation_probe()
 		elif arg == "--sling-probe":
 			_sling_probe()
+		elif arg == "--hazard-probe":
+			_hazard_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -5649,14 +5651,23 @@ func _machine_probe() -> void:
 				+ "spawns") % [seed_at, wants_bodies])
 			continue
 		# Fixtures are the Prize, the Waystone, machine gear and — when the floor
-		# needs one — the vista's glint (ADR-215). The floor has to carry more
-		# than the two it carries without any machine, **not counting the
-		# glint**, or a floor that laid a bead and dropped its gear would pass.
+		# needs one — the vista's glint (ADR-215). What is left once those three
+		# are taken off is the gear, **counting each as actually laid**, or a
+		# floor that laid a bead and dropped its gear would pass.
+		#
+		# The Waystone used to be assumed. A floor with no held loot spot lays
+		# none, and on seeds 7033 and 7040 a Scree Fall's one piece of gear — one,
+		# since its room was too small to ring two — read as zero (ADR-236).
 		var glint: int = 0 if made.vista().is_empty() else 1
-		if wants_gear > 0 and made.fixtures().size() - glint <= 2:
+		var standing_without_gear: int = 1 if made.prize_item() != null else 0
+		for row: Array in made.fixtures():
+			if row[0] == DelvingsFloor.WAYSTONE:
+				standing_without_gear += 1
+		var laid_gear: int = made.fixtures().size() - glint - standing_without_gear
+		if wants_gear > 0 and laid_gear <= 0:
 			problems.append(("seed %d wants %d piece(s) of machine gear and the "
-				+ "floor lays only the Prize and the Waystone — the gear was "
-				+ "decided and never placed") % [seed_at, wants_gear])
+				+ "floor lays none of it beside the Prize, the Waystone and the "
+				+ "glint — the gear was decided and never placed") % [seed_at, wants_gear])
 			continue
 		joined += 1
 	print("[machine] reaches    %d of %d floor(s) placed what they stamped"
@@ -11797,6 +11808,259 @@ func _clear_between(a: Vector3, b: Vector3) -> bool:
 	var ray := PhysicsRayQueryParameters3D.create(a, b)
 	ray.collision_mask = CollisionLayers.WORLD
 	return get_world_3d().direct_space_state.intersect_ray(ray).is_empty()
+
+
+## **Scree and choke-damp** (`M4-T02` step 6, ADR-236, `DES-009`'s *hazards are
+## universal*).
+##
+## Every body row asks one question twice, with a zone laid under the body and
+## without — same place, same body, so the zone is the only difference. The last
+## row asks the generator whether a machine carrying a hazard lays one over its
+## room, which is the only way a player ever meets one.
+func _hazard_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var fall: MachineResource = MachineCatalogue.by_id(&"mac_scree_fall")
+	var seam: MachineResource = MachineCatalogue.by_id(&"mac_choke_seam")
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	if fall == null or seam == null or fall.hazard == null or seam.hazard == null \
+			or lamp == null:
+		problems.append("no scree fall or choke seam carrying its hazard, or no lantern")
+		_report(problems, "hazard")
+		return
+	var scree: HazardResource = fall.hazard
+	var damp: HazardResource = seam.hazard
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, 0.0)
+	await _hold(0.3)
+	var line: Vector3 = _keeper_ground(GUARDIAN_POST)
+	if line == Vector3.ZERO:
+		problems.append("no clear line from the Guardian's post to walk down")
+		_report(problems, "hazard")
+		return
+	var faces_out: float = atan2(-line.x, -line.z)
+	var faces_in: float = atan2(line.x, line.z)
+	# Over the whole walk: eight metres of the line, and more either side.
+	var walk_centre: Vector3 = GUARDIAN_POST + line * 4.0
+	var walk_span := Vector2(20.0, 20.0)
+
+	# ─ 1. **scree is loud crouched** ─ the same crouched walk on stone and on scree
+	var walks: Dictionary = {}
+	for on_scree: bool in [false, true]:
+		var zone: HazardZone = _lay_hazard(scree, walk_centre, walk_span) if on_scree else null
+		player.restore_for_descent()
+		player.teleport(GUARDIAN_POST, faces_out)
+		Input.action_press("crouch")
+		await _hold(0.6)
+		player.clamor.silence()
+		var from: Vector3 = player.global_position
+		var peak: float = 0.0
+		Input.action_press("move_forward")
+		var began: int = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - began < 3000:
+			await get_tree().physics_frame
+			peak = maxf(peak, player.clamor.level)
+		Input.action_release("move_forward")
+		Input.action_release("crouch")
+		walks[on_scree] = [peak, _flat_distance(from, player.global_position)]
+		if zone != null:
+			zone.queue_free()
+		await _hold(0.4)
+	var on_stone: Array = walks[false]
+	var on_loose: Array = walks[true]
+	print("[hazard] crouched, 3 s           stone: loudest %.2f over %.1f m; scree: %.2f over %.1f m (a step there is %.1f)"
+		% [on_stone[0], on_stone[1], on_loose[0], on_loose[1], scree.step_clamor])
+	if on_stone[1] < 2.0 or on_loose[1] < 2.0:
+		problems.append("the crouched walks covered %.1f and %.1f m — too little to take a step"
+			% [on_stone[1], on_loose[1]])
+	elif on_stone[0] >= scree.step_clamor * 0.5:
+		problems.append(("a crouched walk on stone peaked at %.2f, so scree being loud "
+			+ "crouched says nothing") % on_stone[0])
+	elif on_loose[0] < scree.step_clamor * 0.9:
+		problems.append(("a crouched walk across scree peaked at %.2f against a %.1f step — "
+			+ "scree is loud whatever you do, by the developer's call")
+			% [on_loose[0], scree.step_clamor])
+
+	# ─ 2. **a Wretch led across it is heard** ─ and makes no sound on stone
+	player.lit = false
+	player.teleport(ARCHER_POST, 0.0)
+	var wretch_walks: Dictionary = {}
+	for on_scree: bool in [false, true]:
+		var zone: HazardZone = _lay_hazard(scree, walk_centre, walk_span) if on_scree else null
+		var body: Enemy = await _sling_fresh(GUARDIAN_POST, faces_out, EnemyCatalogue.DEFAULT)
+		body.set("_last_seen", GUARDIAN_POST + line * 8.0)
+		body.set("_patience", 10.0)
+		body.set("_state", Enemy.State.SUSPICIOUS)
+		var from: Vector3 = body.global_position
+		var peak: float = 0.0
+		var began: int = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - began < 3000:
+			await get_tree().physics_frame
+			peak = maxf(peak, body.clamor.level)
+		wretch_walks[on_scree] = [peak, _flat_distance(from, body.global_position)]
+		if zone != null:
+			zone.queue_free()
+	var quiet_walk: Array = wretch_walks[false]
+	var loud_walk: Array = wretch_walks[true]
+	print("[hazard] a Wretch walking, 3 s    stone: loudest %.2f over %.1f m; scree: %.2f over %.1f m"
+		% [quiet_walk[0], quiet_walk[1], loud_walk[0], loud_walk[1]])
+	if quiet_walk[1] < 2.0 or loud_walk[1] < 2.0:
+		problems.append("the Wretch walked %.1f and %.1f m — too little to take a step"
+			% [quiet_walk[1], loud_walk[1]])
+	elif quiet_walk[0] > 0.0:
+		problems.append(("a Wretch walking on stone made %.2f of noise — an enemy's feet are "
+			+ "heard only on scree") % quiet_walk[0])
+	elif loud_walk[0] < scree.step_clamor * 0.9:
+		problems.append(("a Wretch walked across scree and peaked at %.2f — hazards apply to "
+			+ "everyone (`DES-009`)") % loud_walk[0])
+	_session.clear_enemies()
+
+	# ─ 3. **choke-damp puts the lamp out and keeps it out** ─
+	player.equipment.equip(ItemInstance.of(lamp, 0))
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, faces_out)
+	player.lit = false
+	var cooling: float = player.lantern.shutter_seconds() + 0.2
+	await _hold(cooling)
+	var opened_before: bool = player.try_shutter() and player.lit
+	var lamp_zone: HazardZone = _lay_hazard(damp, GUARDIAN_POST, Vector2(8.0, 8.0))
+	await _hold(0.2)
+	var snuffed: bool = not player.lit
+	await _hold(cooling)
+	var opened_inside: bool = player.try_shutter()
+	var lit_inside: bool = player.lit
+	lamp_zone.queue_free()
+	await _hold(cooling)
+	var opened_after: bool = player.try_shutter() and player.lit
+	player.lit = false
+	print("[hazard] the lamp                 opens outside %s, out when the damp came %s, opens inside %s, opens after %s (want yes, yes, no, yes)"
+		% [opened_before, snuffed, opened_inside or lit_inside, opened_after])
+	if not opened_before or not opened_after:
+		problems.append("the lamp would not open outside the damp, so its refusal inside proves nothing")
+	if not snuffed:
+		problems.append("an open lamp stayed lit in choke-damp")
+	if opened_inside or lit_inside:
+		problems.append("a lamp opened inside choke-damp")
+
+	# ─ 4. **breath does not come back** ─ a player's stamina, three seconds
+	var breaths: Dictionary = {}
+	for choked: bool in [false, true]:
+		var zone: HazardZone = _lay_hazard(damp, GUARDIAN_POST, Vector2(8.0, 8.0)) if choked else null
+		await _hold(0.2)
+		player.stamina.current = player.stamina.maximum() * 0.3
+		var low: float = player.stamina.current
+		await _hold(3.0)
+		breaths[choked] = player.stamina.current - low
+		if zone != null:
+			zone.queue_free()
+	print("[hazard] stamina over 3 s         %.1f back outside, %.1f back in the damp"
+		% [breaths[false], breaths[true]])
+	if breaths[false] <= 5.0:
+		problems.append("stamina came back %.1f outside the damp, so its holding inside proves nothing"
+			% breaths[false])
+	if breaths[true] > 0.01:
+		problems.append("stamina came back %.1f in choke-damp" % breaths[true])
+
+	# ─ 5. **nor an enemy's poise** ─
+	player.teleport(ARCHER_POST, 0.0)
+	var poised: Dictionary = {}
+	for choked: bool in [false, true]:
+		var body: Enemy = await _sling_fresh(GUARDIAN_POST + line * 3.0, faces_out,
+			EnemyCatalogue.DEFAULT)
+		var zone: HazardZone = _lay_hazard(damp, GUARDIAN_POST + line * 3.0,
+			Vector2(8.0, 8.0)) if choked else null
+		await _hold(0.2)
+		body.set("_poise", 10.0)
+		await _hold(1.5)
+		poised[choked] = float(body.get("_poise")) - 10.0
+		if zone != null:
+			zone.queue_free()
+	print("[hazard] a Wretch's poise, 1.5 s  %.1f back outside, %.1f back in the damp"
+		% [poised[false], poised[true]])
+	if poised[false] <= 5.0:
+		problems.append("poise came back %.1f outside the damp, so the row proves nothing"
+			% poised[false])
+	if poised[true] > 0.01:
+		problems.append("a Wretch's poise came back %.1f in choke-damp" % poised[true])
+
+	# ─ 6. **no call from inside it** ─ a Bellringer holding the player, both in the damp
+	var rang: Dictionary = {}
+	for choked: bool in [false, true]:
+		player.restore_for_descent()
+		player.teleport(GUARDIAN_POST, faces_out)
+		var ringer: Enemy = await _sling_fresh(GUARDIAN_POST + line * 1.8, faces_in,
+			&"enm_bellringer")
+		var zone: HazardZone = _lay_hazard(damp, GUARDIAN_POST, Vector2(10.0, 10.0)) if choked else null
+		var held: bool = false
+		var called: bool = false
+		var began: int = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - began < 6000:
+			await get_tree().physics_frame
+			player.health.restore()
+			held = held or ringer.is_hunting()
+			called = called or ringer.state() in [Enemy.State.CALLING, Enemy.State.SWARM]
+		rang[choked] = [held, called]
+		if zone != null:
+			zone.queue_free()
+	var rang_out: Array = rang[false]
+	var rang_in: Array = rang[true]
+	print("[hazard] a Bellringer for 6 s     outside held %s called %s; in the damp held %s called %s (want yes yes, yes no)"
+		% [rang_out[0], rang_out[1], rang_in[0], rang_in[1]])
+	if not rang_out[1]:
+		problems.append("a Bellringer holding the player outside the damp never called, so the row proves nothing")
+	if not rang_in[0]:
+		problems.append("the Bellringer in the damp never had the player, so its silence proves nothing")
+	elif rang_in[1]:
+		problems.append("a Bellringer called the floor from inside choke-damp")
+	_session.clear_enemies()
+
+	# ─ 7. **a machine lays its hazard over its room** ─ on a generated floor
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var graph: MissionGraph = MissionGraph.build(4242, 1)
+	var lore := ExpeditionHistory.roll(4242, CalamityCatalogue.all(), _prize_kinds(modules))
+	var plan: FloorPlan = FloorPlan.build(graph, 4242, 1, modules, lore)
+	var pinned: Array[MachineResource] = [fall, seam]
+	var stamping: FloorMachines = FloorMachines.of(plan, graph, 4242, 1, pinned)
+	var holder := Node3D.new()
+	var census: Dictionary = FloorBuilder.build(plan, graph, 4242, 1, holder, stamping)
+	var zones: Array[HazardZone] = []
+	for child: Node in holder.get_children():
+		if child is HazardZone:
+			zones.append(child as HazardZone)
+	var matched: int = 0
+	var index: int = 0
+	for node: int in stamping.nodes():
+		if index >= zones.size():
+			break
+		var rect: Rect2i = plan.rect_of(node)
+		var zone: HazardZone = zones[index]
+		if zone.hazard == stamping.at(node).hazard \
+				and is_equal_approx(zone.box.size.x, rect.size.x * FloorBuilder.CELL) \
+				and is_equal_approx(zone.box.size.z, rect.size.y * FloorBuilder.CELL):
+			matched += 1
+		index += 1
+	holder.free()
+	print("[hazard] a floor lays             %d room(s) stamped, %d zone(s) laid, %d over their own room (census %d)"
+		% [stamping.count(), zones.size(), matched, int(census.get("hazards", -1))])
+	if problems.is_empty() and stamping.count() == 0:
+		problems.append("a floor pinned to the two hazard machines stamped no room at all")
+	if zones.size() != stamping.count() or matched != stamping.count() \
+			or int(census.get("hazards", -1)) != stamping.count():
+		problems.append(("%d room(s) carry a hazard machine and %d zone(s) were laid, %d over "
+			+ "their own room") % [stamping.count(), zones.size(), matched])
+
+	_report(problems, "hazard")
+
+
+## A hazard laid on the Deep where a probe wants one, through the constructor the
+## floor builder uses.
+func _lay_hazard(of: HazardResource, centre: Vector3, span: Vector2) -> HazardZone:
+	var zone := HazardZone.made(of, centre, span)
+	_world.add_child(zone)
+	return zone
 
 
 ## A fresh enemy at `mark` facing away, and the thrower back at the post.
