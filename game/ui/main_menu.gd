@@ -838,7 +838,8 @@ func _class_probe() -> void:
 	# body and the stash is correctly empty. The claim that survives is that
 	# nothing is *lost* — every kit entry is either worn or stashed, never
 	# neither, which is the failure a first descent with empty hands would be.
-	var cargo: int = 0
+	# And what the class carries rather than wears goes there too (ADR-238).
+	var cargo: int = ClassCatalogue.by_id(&"huskarl").carried.size()
 	for id: StringName in ClassCatalogue.by_id(&"huskarl").kit:
 		var definition: ItemResource = ItemCatalogue.by_id(id)
 		if definition != null and definition.slot == Enums.Slot.NONE:

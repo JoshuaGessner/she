@@ -8620,5 +8620,69 @@ The uncapped and capped rows are the two drafts the developer's calls 3 and 4 an
 - **`GATE M4`'s rank comparison can be asked.** PRO-001 says to run it the day this lands: a rank-8 and a rank-1 player dying at similar rates for different reasons needs floors whose enemies differ, which they now do.
 - **Solo floors are small, and the numbers show it.** At rank 1 a floor has few guarded rooms — 1.9, 2.4 and 2.6 on average across the three depths of the census — so a Bellringer is more than half the bodies on the first floor's posts (42 of 77). The bodies a party or a rank adds are ordinary, so larger parties and higher ranks thin that out. All of it is ⟨tune⟩, and a playtest is where it is tuned.
 
+## ADR-238 — The Húskarl's shield guards what a blade cannot, and every guard faces somewhere
+
+**Date:** 2026-09-15 · **Status:** accepted · **Advances `M4-T03`** · **Builds `DES-023` §3's shield** · **Amends `DES-009`'s guard: it covers a front arc**
+
+**Context:** `DES-023` §3 says a heavy blow and a missile *go through a weapon's guard and stop on a shield*, and ADR-232 and ADR-235 built the first half: a raised blade takes nothing off the Hall-Warden's overhead or a sling stone. Nothing stopped them. `DES-011`'s Húskarl is *a shield that blocks what others must avoid*, and the Húskarl had no shield; `DES-023` §4's kit puts one in their hand and the lantern in their bag. And a guard turned a blow from any direction, so a body with its back to a Sling-Wretch guarded the stone as well as one facing it.
+
+### Decision — the developer's two calls
+
+- **The shield guards what a blade cannot, at the same share**, over stopping those blows outright. A raised shield takes `block_damage_fraction` off a heavy blow and a stone as off a cut, and a heavy blow on it costs twice the stamina. `DES-009`'s guard reduces and never negates, and `TuningProfile` refuses a guard that does; a shield that stopped the Warden's overhead whole would make a full stamina bar a few seconds of immunity — the holding contest `M3-T02` designed out. What the shield adds is *which* blows it can guard: a capability, by ADR-058's test.
+- **Every guard faces somewhere**, over the shield alone. A raised blade or shield covers `guard_arc_degrees` either side of where the body faces (60° ⟨tune⟩); a blow or a stone from outside it lands in full. `DES-009`'s defence is positional, and a guard that turned blows from behind had quietly switched that off for anyone holding the button.
+
+### Built
+
+- **`ShieldTrait`**, with no fields, on **`arm_round_shield`** — off hand, 6.0 kg, a little noise, floor 2 gear in `lut_delvings` from `from_floor = 1`.
+- **`Player._on_hurt`**: a blow is guarded if the guard is raised, faces it, and either the off hand holds a shield or the blow is neither heavy nor in the air. **`_guard_faces`** reads where the striker stands for a blow and the way a missile was flying for an arrow or a stone — an arrow's position on arrival is the body's own surface. A blow with no source anywhere is not guarded.
+- **`ClassResource.carried`**: items a class starts with in the bag rather than worn. The Húskarl's kit is seax, round shield, byrnie and two bindings, and it carries the horn lantern; `GameState.take_the_oath` stashes it, and it comes down in the bag. Its own list rather than a second off-hand item in `kit`, because which of two items is held would otherwise be decided by list order — the dependency `data_probe` refuses.
+
+### What changed around it
+
+**Every room-set probe swears a Húskarl**, so every probe's body now starts shield in hand and without a lamp. Four existing probes read differently until they said what they held:
+
+- `--sling-probe`'s lit rows — a lit body with no lamp is not lit, so the Sling-Wretch at nine metres never saw it — and its guard row, which a raised shield now passes differently. It holds a lamp.
+- `--keeper-probe`'s lit row and `--escalation-probe`, for the same reason. Both hold a lamp.
+- `--warden-probe`'s guard row faces each striker, and holds a lamp so the guard is a blade's.
+- `--combat-probe` struck with no source at all, which no guard can face. It strikes from a point ahead.
+
+`_hold_a_lamp` is the helper, so a probe that means a lit body says so.
+
+### Verification
+
+`--shield-probe`, new and required. Three blows — the Warden's heavy overhead, a stone, a Wretch's cut — each taken open, on a blade's guard and on the shield, facing the strikers and then turned away, in the same byrnie at the same spot:
+
+| Blow | Front: open / blade / shield | Behind: open / blade / shield |
+|---|---|---|
+| Heavy overhead | 48.1 / 48.1 / 19.2 | 48.1 / 48.1 / 48.1 |
+| Sling stone | 14.0 / 14.0 / 5.6 | 14.0 / 14.0 / 14.0 |
+| Cut | 11.2 / 4.5 / 4.5 | 11.2 / 11.2 / 11.2 |
+
+On the shield a cut costs 22.0 stamina and a heavy blow 44.0. A blow with no source lands 30 of 30 through a raised shield. The lantern and the shield each take the other off, and the hammer takes both the seax and the shield. A Húskarl starts holding the shield and carrying the lantern.
+
+**The probe's first two drafts read a stone wrongly.** The first threw it down the line the strikers stood on, and the Warden took it — a body in the way is cover (ADR-235) — so an open body read 0.0. The second threw from 31° off that line and left the strikers able to act, and a Warden's own overhead landed on the player inside some stone rows: 62.1 where a stone lands 14. The strikers are held still now; they are a place and a hitbox's numbers.
+
+**Planted and failed, one plant per run:**
+
+| Plant | Caught by |
+|---|---|
+| a shield guards nothing a blade cannot | the heavy and stone rows (48.1 and 14.0 through), and the heavy blow's stamina (0.0) |
+| a blade's guard takes a heavy blow | the heavy row (28.9 off) |
+| a guard faces every way | every row from behind |
+| a stone's direction read backwards | the stone rows, both ways round |
+| a heavy blow costs a shield what a cut does | the stamina row (22.0 and 22.0) |
+| the Húskarl holds the lantern again | the kit row |
+| a blow with no source is guarded | the no-source row (12.0 through), **on the second attempt** |
+| a guard with no arc | `data_probe` |
+| carrying an item that does not exist | `data_probe` |
+
+The no-source plant passed the first time: `--combat-probe` had been the only thing striking with no source, and it strikes from a point ahead now. The shield probe asks it directly.
+
+### Consequences
+
+- **A Húskarl starts in the dark.** To see, they take the shield off for the lamp through the bag — `DES-020`'s off-hand contest, now paid by the class that wanted both.
+- **A flank is a threat to everyone.** A Sling-Wretch to one side of a fight, or a Wretch behind a player guarding the Warden, lands in full.
+- `M4-T03` stays open: the two classes are complete in kit and verb at blockout fidelity, and whether they are *polished* is a question for play.
+
 *Entries below to be added as design decisions are signed off.*
 

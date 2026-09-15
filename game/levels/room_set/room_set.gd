@@ -845,6 +845,8 @@ func _ready() -> void:
 			_hazard_probe()
 		elif arg == "--population-probe":
 			_population_probe()
+		elif arg == "--shield-probe":
+			_shield_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -11080,10 +11082,19 @@ func _warden_probe() -> void:
 	# first draft compared a guarded blow with its raw damage and read the
 	# byrnie's eighth off a blunt overhead as a guard that worked.
 	var through := {}
+	#
+	# **A weapon's guard, facing the blow** (ADR-238). The probe body is a
+	# Húskarl, who holds a shield since ADR-238 — and a shield takes a share off
+	# a heavy blow, which is the other half of this row's question, asked in
+	# `--shield-probe`. So a lamp takes the off hand here, and the body turns to
+	# face each striker, because a guard covers only its front.
+	_hold_a_lamp(player)
 	for pair: Array in [[warden, "warden"], [wretch, "wretch"]]:
 		var body: Enemy = pair[0]
 		var enemy_blow := body.get("_hitbox") as Hitbox
 		var taken: Array[float] = []
+		var toward: Vector3 = body.global_position - player.global_position
+		player.teleport(player.global_position, atan2(-toward.x, -toward.z))
 		for guarded: bool in [false, true]:
 			player.restore_for_descent()
 			if guarded:
@@ -11197,6 +11208,8 @@ func _keeper_probe() -> void:
 	player.restore_for_descent()
 	player.teleport(GUARDIAN_POST, 0.0)
 	await _hold(0.3)
+	# Row 2 is a lit body, which needs a lamp to be lit by (ADR-238).
+	_hold_a_lamp(player)
 	var line: Vector3 = _keeper_ground(GUARDIAN_POST)
 	if line == Vector3.ZERO:
 		problems.append("no line from the Guardian's post that both side posts can see down")
@@ -11400,6 +11413,7 @@ func _escalation_probe() -> void:
 	print("[escalation] seed %d, floor %d: %d bodies %s"
 		% [_run_seed, _floor_index, bodies.size(), by_kind])
 
+	_hold_a_lamp(player)
 	var callers: Dictionary = {}
 	var sightings: int = 0
 	var unseen: int = 0
@@ -11551,6 +11565,9 @@ func _sling_probe() -> void:
 	# Out along the line is where the enemy stands; the player looks that way.
 	var faces_in: float = atan2(line.x, line.z)
 	var faces_out: float = atan2(-line.x, -line.z)
+	# Lit rows need a lamp to be lit by, and the guard row is a weapon's guard,
+	# which a lamp in the off hand leaves it (ADR-238).
+	_hold_a_lamp(player)
 
 	# ─ 1. **it stands off and slings** ─ lit, in sight, from nine metres
 	player.lit = true
@@ -12226,6 +12243,199 @@ func _hops_from(graph: MissionGraph, from: int) -> Dictionary:
 				hops[next] = int(hops[at]) + 1
 				queue.append(next)
 	return hops
+
+
+## **The Húskarl's shield** (`M4-T03`, ADR-238, `DES-023` §3).
+##
+## Three blows — the Hall-Warden's heavy overhead, a Sling-Wretch's stone and a
+## Wretch's cut — each taken open, on a weapon's guard and on the shield, first
+## from the front and then with the body turned away. Same coat, same place,
+## same striker each time, so the guard and its facing are the only differences.
+## Then what each costs in breath, what the off hand can hold at once, and what
+## a Húskarl starts with.
+func _shield_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var shield: ItemResource = ItemCatalogue.by_id(&"arm_round_shield")
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	var hammer: ItemResource = ItemCatalogue.by_id(&"wpn_dvergar_hammer")
+	var sling_kind: EnemyResource = EnemyCatalogue.by_id(&"enm_sling_wretch")
+	if shield == null or lamp == null or hammer == null or sling_kind == null:
+		problems.append("no round shield, lantern, hammer or Sling-Wretch in the catalogues")
+		_report(problems, "shield")
+		return
+	var tuning: TuningProfile = Config.tuning
+
+	# ─ the kit: a shield in the hand and the lantern in the bag (`DES-023` §4) ─
+	var in_hand: ItemInstance = player.equipment.in_slot(Enums.Slot.OFF_HAND)
+	var carried: Array[StringName] = ClassCatalogue.by_id(&"huskarl").carried
+	print("[shield] a Húskarl starts        holding %s, carrying %s"
+		% [in_hand.definition.id if in_hand != null else &"nothing", carried])
+	if in_hand == null or in_hand.definition != shield or not carried.has(&"tol_horn_lantern"):
+		problems.append("a Húskarl does not start with the shield in hand and the lantern carried")
+
+	player.restore_for_descent()
+	player.lit = false
+	player.teleport(GUARDIAN_POST, 0.0)
+	await _hold(0.3)
+	var line: Vector3 = _keeper_ground(GUARDIAN_POST)
+	if line == Vector3.ZERO:
+		problems.append("no clear line from the Guardian's post")
+		_report(problems, "shield")
+		return
+	var side := Vector3(-line.z, 0.0, line.x)
+	# Facing away from the player, in the dark: they stand still while struck with.
+	var away: float = atan2(-line.x, -line.z)
+	_session.spawn_enemy(GUARDIAN_POST + line * 2.0, away, &"enm_hall_warden")
+	_session.spawn_enemy(GUARDIAN_POST + line * 2.0 + side * 1.5, away)
+	await _hold(0.3)
+	var warden: Enemy = null
+	var wretch: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null and body.archetype == &"enm_hall_warden":
+			warden = body
+		elif body != null:
+			wretch = body
+	if warden == null or wretch == null:
+		problems.append("the Warden and the Wretch did not both arrive")
+		_report(problems, "shield")
+		return
+	# **Held still.** Facing away in the dark was not enough: a guarded blow is
+	# heard, the Warden turned, and its own overhead landed on the player in the
+	# middle of a stone's row. The strikers here are a place and a hitbox's
+	# numbers, and neither needs the body thinking.
+	warden.process_mode = Node.PROCESS_MODE_DISABLED
+	wretch.process_mode = Node.PROCESS_MODE_DISABLED
+	var hurtbox := player.get_node("Hurtbox") as Hurtbox
+	var overhead := warden.get("_hitbox") as Hitbox
+	var cut := wretch.get("_hitbox") as Hitbox
+	# **Off the line the two strikers stand on**: the first draft threw down it,
+	# the Warden took the stone — a body in the way is cover (ADR-235) — woke, and
+	# struck the player, which read as a stone landing 48.1 on a weapon's guard.
+	# Thirty-one degrees to the side the Wretch is not: inside the arc facing
+	# out, well outside it facing in.
+	var stone_from: Vector3 = GUARDIAN_POST + line * 5.0 - side * 3.0 + Vector3.UP * 0.9
+	var stone_way: Vector3 = (GUARDIAN_POST + Vector3.UP * 0.9 - stone_from).normalized()
+
+	# ─ every blow, every guard, both ways round ─
+	var taken: Dictionary = {}
+	var spent: Dictionary = {}
+	for way: String in ["front", "behind"]:
+		var yaw: float = away if way == "front" else away + PI
+		for guard: String in ["open", "weapon", "shield"]:
+			player.equipment.equip(ItemInstance.of(shield if guard == "shield" else lamp, 0))
+			for blow: String in ["heavy", "stone", "cut"]:
+				player.restore_for_descent()
+				player.teleport(GUARDIAN_POST, yaw)
+				if guard == "open":
+					Input.action_release("block")
+				else:
+					Input.action_press("block")
+				await _hold(0.15)
+				player.health.restore()
+				player.stamina.refill()
+				var health_was: float = player.health.current
+				var stamina_was: float = player.stamina.current
+				if blow == "heavy":
+					hurtbox.receive(overhead.damage, overhead.damage_type, overhead)
+				elif blow == "cut":
+					hurtbox.receive(cut.damage, cut.damage_type, cut)
+				else:
+					_session.spawn_missile(stone_from, stone_way, sling_kind.attack, null)
+					await _hold(0.6)
+				var key: String = "%s %s %s" % [way, guard, blow]
+				taken[key] = health_was - player.health.current
+				spent[key] = stamina_was - player.stamina.current
+	Input.action_release("block")
+	for way: String in ["front", "behind"]:
+		for blow: String in ["heavy", "stone", "cut"]:
+			print("[shield] %-6s %-5s               open %5.1f, weapon's guard %5.1f, shield %5.1f" % [
+				way, blow, taken["%s open %s" % [way, blow]],
+				taken["%s weapon %s" % [way, blow]], taken["%s shield %s" % [way, blow]]])
+	# From the front: a weapon takes nothing off heavy or a stone, the shield
+	# takes a share; both take the same share off a cut.
+	for blow: String in ["heavy", "stone"]:
+		var open: float = taken["front open %s" % blow]
+		if open <= 0.0:
+			problems.append("the %s never landed on an open body, so nothing below is about it" % blow)
+			continue
+		if absf(float(taken["front weapon %s" % blow]) - open) > 0.01:
+			problems.append("a weapon's guard took %.1f off a %s from the front, which goes through it (ADR-232, ADR-235)"
+				% [open - float(taken["front weapon %s" % blow]), blow])
+		if float(taken["front shield %s" % blow]) >= open * 0.5:
+			problems.append("a raised shield let %.1f of a %s's %.1f through from the front — it guards what a weapon cannot"
+				% [taken["front shield %s" % blow], blow, open])
+	if float(taken["front weapon cut"]) >= float(taken["front open cut"]):
+		problems.append("a weapon's guard took nothing off a cut from the front, so the rows above are not about the guard")
+	if absf(float(taken["front shield cut"]) - float(taken["front weapon cut"])) > 0.01:
+		problems.append("the shield took %.1f of a cut where a weapon's guard let %.1f through — the same share, not a bigger one"
+			% [taken["front shield cut"], taken["front weapon cut"]])
+	# From behind: nothing guards anything.
+	for guard: String in ["weapon", "shield"]:
+		for blow: String in ["heavy", "stone", "cut"]:
+			if absf(float(taken["behind %s %s" % [guard, blow]]) - float(taken["behind open %s" % blow])) > 0.01:
+				problems.append("a raised %s took %.1f off a %s from behind — a guard faces somewhere"
+					% [guard, float(taken["behind open %s" % blow]) - float(taken["behind %s %s" % [guard, blow]]), blow])
+
+	# ─ a blow from nowhere ─ no striker and no flight, so nothing to face
+	player.equipment.equip(ItemInstance.of(shield, 0))
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, away)
+	Input.action_press("block")
+	await _hold(0.15)
+	player.health.restore()
+	player.stamina.refill()
+	var nowhere_was: float = player.health.current
+	player._on_hurt(30.0, null)
+	var from_nowhere: float = nowhere_was - player.health.current
+	Input.action_release("block")
+	print("[shield] a blow from no source      %.1f of 30 through a raised shield (want 30)" % from_nowhere)
+	if absf(from_nowhere - 30.0) > 0.01:
+		problems.append(("a blow with no source took %.1f through a raised shield — a guard "
+			+ "faces somewhere, and there was nowhere to face") % from_nowhere)
+
+	# ─ what it costs ─
+	var cut_cost: float = spent["front shield cut"]
+	var heavy_cost: float = spent["front shield heavy"]
+	print("[shield] breath on the shield      a cut %.1f, a heavy blow %.1f (want %.1f and %.1f)"
+		% [cut_cost, heavy_cost, tuning.block_stamina_cost,
+			tuning.block_stamina_cost * tuning.heavy_block_stamina_multiplier])
+	if absf(cut_cost - tuning.block_stamina_cost) > 0.5 \
+			or absf(heavy_cost - tuning.block_stamina_cost * tuning.heavy_block_stamina_multiplier) > 0.5:
+		problems.append("a cut cost %.1f and a heavy blow %.1f on the shield" % [cut_cost, heavy_cost])
+
+	# ─ one off hand ─
+	var gear := player.equipment
+	gear.equip(ItemInstance.of(shield, 0))
+	var lamp_took: Array[ItemInstance] = gear.equip(ItemInstance.of(lamp, 0))
+	var shield_took: Array[ItemInstance] = gear.equip(ItemInstance.of(shield, 0))
+	var hammer_took: Array[ItemInstance] = gear.equip(ItemInstance.of(hammer, 0))
+	var names := func(items: Array[ItemInstance]) -> Array:
+		return items.map(func(item: ItemInstance) -> StringName: return item.definition.id)
+	print("[shield] one off hand              the lamp took %s, the shield took %s, the hammer took %s"
+		% [names.call(lamp_took), names.call(shield_took), names.call(hammer_took)])
+	if not names.call(lamp_took).has(&"arm_round_shield") \
+			or not names.call(shield_took).has(&"tol_horn_lantern") \
+			or not names.call(hammer_took).has(&"arm_round_shield"):
+		problems.append("the off hand held a shield beside a lantern or a two-hander")
+
+	_session.clear_enemies()
+	_report(problems, "shield")
+
+
+## **A lamp in the off hand, for a probe that means a lit body** (ADR-238). The
+## Húskarl every probe swears to carries its lantern in the bag since the shield
+## took that hand, and `lit` on a body holding no lamp lights nothing — so a probe
+## that wants to be seen says what it is holding.
+func _hold_a_lamp(player: Player) -> void:
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	var held: ItemInstance = player.equipment.in_slot(Enums.Slot.OFF_HAND)
+	if held == null or held.definition != lamp:
+		player.equipment.equip(ItemInstance.of(lamp, 0))
 
 
 ## A hazard laid on the Deep where a probe wants one, through the constructor the

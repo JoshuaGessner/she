@@ -52,6 +52,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Fantasy:** the last one standing in a doorway.
 **How they get out:** by refusing to be stopped. Heavy armour, a shield that blocks what others must avoid, and the ability to keep moving under weight that would pin anyone else.
 > **Read since ADR-224:** the Húskarl bears 52 kg ⟨tune⟩ to the Veiðimaðr's 30, and a stamina bar a tenth longer. Both numbers were authored at `M3-T02` and read by nothing, and the byrnie weighed nothing worn — so the Húskarl carried exactly what the Veiðimaðr did, and the heavy armour cost nothing to wear. In their kit they now start a quarter laden.
+> **The shield is in their hand (ADR-238)**, and the lantern in their bag: seax, round shield and byrnie are 18.1 kg worn of 52, about a third laden. Raised, the shield takes the guard's share off a Hall-Warden's overhead and a Sling-Wretch's stone, which a blade takes nothing off — from the front only. So a Húskarl who wants to see must take the shield off to hold the lamp, through the bag.
 **Unique verb — Hold:** plant and become an immovable object. Nothing pushes past you. Allies can retreat through you.
 **Rite themes:** shield mastery, doorway control, carrying wounded allies, taking hits meant for others.
 **Cost:** loud, slow, and the Hunt finds them easily.

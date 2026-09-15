@@ -734,6 +734,31 @@ func _on_swing_connected(_hurtbox_hit: Hurtbox) -> void:
 		clamor.add(landed.clamor_hit)
 
 
+## **Whether a blow arrives inside the guard's arc** (ADR-238).
+##
+## From where the striker stands for a blow, and from the way it was flying for
+## anything in the air — an arrow's position on arrival is this body's own
+## surface, which says nothing about where it came from. A blow with no source
+## anywhere is not a blow a guard can face.
+func _guard_faces(from: Node) -> bool:
+	var toward: Vector3 = Vector3.ZERO
+	if from is Arrow:
+		toward = -(from as Arrow).travel
+	elif from is Hitbox and (from as Hitbox).actor() != null:
+		toward = (from as Hitbox).actor().global_position - global_position
+	elif from is Node3D and (from as Node3D).is_inside_tree():
+		toward = (from as Node3D).global_position - global_position
+	else:
+		return false
+	toward.y = 0.0
+	if toward.length() < 0.01:
+		return true
+	var facing: Vector3 = -global_transform.basis.z
+	facing.y = 0.0
+	return facing.normalized().dot(toward.normalized()) \
+		>= cos(deg_to_rad(Config.tuning.guard_arc_degrees))
+
+
 ## A blow arrives, and the guard is the only thing between it and you.
 ##
 ## **Host-side, and that is what makes the block real.** `TEC-004` gives
@@ -756,14 +781,23 @@ func _on_hurt(amount: float, from: Node) -> void:
 	# took the weight still jarred the hands tying the linen.
 	_stop_binding()
 	# **A heavy blow goes through a weapon's guard** (`DES-023` §3, ADR-232):
-	# no stamina spent on it and nothing taken off. `M4-T03`'s shield is what
-	# stops one; a raised seax is a hand in the way of a falling hammer.
-	# **And so does anything in the air** (ADR-235) — the same section's other
-	# half: a blade held up does not meet a stone or an arrow.
-	var unguarded: bool = from is Arrow or (from is Hitbox and (from as Hitbox).heavy)
-	if blocking and not unguarded and stamina.current >= Config.tuning.block_stamina_minimum:
+	# no stamina spent on it and nothing taken off. A raised seax is a hand in the
+	# way of a falling hammer. **And so does anything in the air** (ADR-235) — the
+	# same section's other half: a blade held up does not meet a stone or an arrow.
+	#
+	# **A shield guards both** (ADR-238), at the same share a weapon takes off a
+	# cut, and a heavy blow on it costs more breath. **And every guard faces
+	# somewhere**: a blow from outside its arc lands whatever is raised.
+	var heavy: bool = from is Hitbox and (from as Hitbox).heavy
+	var past_a_weapon: bool = heavy or from is Arrow
+	var shielded: bool = equipment != null \
+		and equipment.trait_in(Enums.Slot.OFF_HAND, ShieldTrait) != null
+	var guardable: bool = shielded or not past_a_weapon
+	if blocking and guardable and _guard_faces(from) \
+			and stamina.current >= Config.tuning.block_stamina_minimum:
 		var tuning: TuningProfile = Config.tuning
-		stamina.spend(tuning.block_stamina_cost)
+		stamina.spend(tuning.block_stamina_cost
+			* (tuning.heavy_block_stamina_multiplier if heavy else 1.0))
 		var through: float = amount * (1.0 - tuning.block_damage_fraction)
 		blocked.emit(amount - through, from)
 		health.apply_damage(through, from)

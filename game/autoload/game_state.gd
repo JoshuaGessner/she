@@ -892,6 +892,15 @@ func take_the_oath(id: StringName) -> bool:
 				ItemInstance.of(definition, 0).to_record()
 			continue
 		stash.append(ItemInstance.of(definition, 0))
+	# **And what the class carries rather than wears** (ADR-238) — the Húskarl's
+	# lantern, whose hand the shield already holds. Stashed like any cargo, so
+	# it comes down in the bag.
+	for item: StringName in ClassCatalogue.by_id(id).carried:
+		var carried_item: ItemResource = ItemCatalogue.by_id(item)
+		if carried_item == null:
+			push_error("GameState: %s carries '%s', which is not an item" % [id, item])
+			continue
+		stash.append(ItemInstance.of(carried_item, 0))
 	_persist()
 	return true
 

@@ -333,6 +333,10 @@ func _check_kits_can_be_worn() -> void:
 				+ "`Equipment` gives the off hand to the two-hander, so "
 				+ "whichever is equipped second disarms the first")
 				% [sworn.id, two_handed, off_hand])
+		# 4. **What is carried resolves** (ADR-238), the rule 1 asks of the kit.
+		for id: StringName in sworn.carried:
+			if not by_id.has(String(id)):
+				_fail("%s carries '%s', which no item in the corpus owns" % [sworn.id, id])
 
 
 ## **Every item can reach a hand** (ADR-220, `DES-023` §4).
@@ -355,7 +359,7 @@ func _check_every_item_has_a_source() -> void:
 			if entry != null:
 				sourced[String(entry.item)] = String(table.id)
 	for sworn: ClassResource in _classes:
-		for id: StringName in sworn.kit:
+		for id: StringName in sworn.kit + sworn.carried:
 			sourced[String(id)] = String(sworn.id)
 	for item: ItemResource in _items:
 		if not sourced.has(String(item.id)):

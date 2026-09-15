@@ -427,11 +427,20 @@ func _combat_probe(player: Player) -> void:
 	#    hurtbox, because the question is what the *guard* does to a blow, not
 	#    whether a hitbox finds a body — `--toll-probe` already asks that.
 	var problems: PackedStringArray = PackedStringArray()
+	# **Struck from in front** (ADR-238). This pushed a blow with no source at all
+	# through the funnel, and a guard covers a front arc now — a blow from
+	# nowhere is not one it can face. A point a metre and a half ahead is the
+	# striker; the arc itself is `--shield-probe`'s question.
+	var striker := Node3D.new()
+	add_child(striker)
+	var ahead: Vector3 = -player.global_transform.basis.z
+	ahead.y = 0.0
+	striker.global_position = player.global_position + ahead.normalized() * 1.5
 	player.health.restore()
 	player.stamina.refill()
 	player.blocking = false
 	var open_health: float = player.health.current
-	player._on_hurt(30.0, null)
+	player._on_hurt(30.0, striker)
 	var unguarded: float = open_health - player.health.current
 
 	player.health.restore()
@@ -439,7 +448,7 @@ func _combat_probe(player: Player) -> void:
 	player.blocking = true
 	var guarded_stamina: float = player.stamina.current
 	var guarded_health: float = player.health.current
-	player._on_hurt(30.0, null)
+	player._on_hurt(30.0, striker)
 	var guarded: float = guarded_health - player.health.current
 	var spent_stamina: float = guarded_stamina - player.stamina.current
 	print("[combat] blocked 30 damage       %.0f through vs %.0f open, %.0f stamina"
@@ -464,8 +473,9 @@ func _combat_probe(player: Player) -> void:
 	player.health.restore()
 	var empty_health: float = player.health.current
 	player.blocking = true
-	player._on_hurt(30.0, null)
+	player._on_hurt(30.0, striker)
 	var on_empty: float = empty_health - player.health.current
+	striker.queue_free()
 	print("[combat] guard on empty stamina  %.0f through (want %.0f)"
 		% [on_empty, unguarded])
 	if not is_equal_approx(on_empty, unguarded):

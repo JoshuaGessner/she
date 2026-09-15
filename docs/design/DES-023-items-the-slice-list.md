@@ -112,6 +112,8 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 
 **The shield is the other half.** A raised weapon stops part of a normal blow, as it does today; **a heavy blow and a missile from the front go through a weapon's guard and stop on a shield.** That is what makes `DES-011`'s sentence a mechanic, and it needs `M4-T02` to say which attacks are heavy.
 
+> **Built (ADR-238), and "stop" is read as "guard".** By the developer's call, a shield takes the same share off a heavy blow or a stone that any guard takes off a cut, rather than stopping them outright — `DES-009`'s guard reduces and never negates, and a shield that negated would make a full stamina bar briefly immune to the Hall-Warden. A heavy blow on it costs twice the breath. **Every guard covers only the front**, 60° either side ⟨tune⟩. The Húskarl holds the shield and carries the lantern (`ClassResource.carried`), as §4 says.
+
 ---
 
 ## 4. Where items come from

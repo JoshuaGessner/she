@@ -33,6 +33,8 @@ item.con_waystone.desc,"Grey, unremarkable, and the only thing down here that is
 item.con_ember.name,Ember
 item.con_ember.desc,"A piece of her fire, going out. It is heavier than it has any right to be and it will not stop making noise, and it is someone you know."
 item.tol_horn_lantern.name,Horn Lantern
+item.arm_round_shield.name,Round Shield
+item.arm_round_shield.desc,"Linden boards under a rawhide rim. A blade held up takes nothing off a hammer coming down or a stone in the air; this does. It wants the hand the lantern wants."
 item.tol_horn_lantern.desc,"Scraped horn instead of glass, because glass does not survive being carried. Shutter it and the dark comes back; leave it open and everything down here knows where to look."
 item.con_linen_binding.name,Linen Binding
 item.con_linen_binding.desc,"A strip of boiled linen and the time to tie it. Four seconds with your hands busy, and a blow or a run undoes the knot."

@@ -14,4 +14,5 @@ health_scale = 1.25
 stamina_scale = 1.1
 speed_scale = 0.92
 carry_scale = 1.3
-kit = Array[StringName]([&"wpn_seax", &"arm_mail_byrnie", &"tol_horn_lantern", &"con_linen_binding", &"con_linen_binding"])
+kit = Array[StringName]([&"wpn_seax", &"arm_round_shield", &"arm_mail_byrnie", &"con_linen_binding", &"con_linen_binding"])
+carried = Array[StringName]([&"tol_horn_lantern"])

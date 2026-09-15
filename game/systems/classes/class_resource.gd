@@ -74,6 +74,12 @@ const ASPECTS: Array[StringName] = [
 ## catalogue — an id nothing knows fails `validate()` rather than silently
 ## arming somebody with nothing.
 @export var kit: Array[StringName] = []
+## **Carried in the bag rather than worn** (ADR-238): the second thing for a slot
+## the kit already fills. `DES-023` §4's Húskarl holds a shield and carries the
+## lantern, and the off hand is the contest between them. Its own list, so which
+## of two off-hand items is worn is said in the data rather than left to the
+## order of one list — the ordering dependency `data_probe` refuses in `kit`.
+@export var carried: Array[StringName] = []
 
 
 func display() -> String:

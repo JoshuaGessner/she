@@ -116,6 +116,8 @@ class_name AttackResource extends Resource
 
 > **Population (ADR-237).** `PopulationResource` in `data/population/`, prefixed `pop_`, one per biome as `LootTable` is: the five archetype ids it places (`rank_and_file`, `guardian`, `warden`, `slinger`, `ringer`), `warden_from_floor`, `slinger_rooms` (the smallest `RoomModule.Volume` per floor, -1 for none), `slinger_caps` per floor, and `ringer_every` — which left `TuningProfile`. `FloorSource.enemy_kind(index)` and `guardian_kind()` are how a level asks.
 
+> **The shield (ADR-238).** `ShieldTrait`, with no fields — what a shield does is that it is one, and a number on it would be a better shield. `ClassResource.carried`: items a class starts with in the bag rather than worn, so which of two off-hand items is held is said in the data rather than by the order of `kit`.
+
 **Modifiers** (`GildedModifier`, `SilentModifier`, `RousedModifier`…) are separate resources that mutate an enemy at spawn. ~8 modifiers × ~12 archetypes is where variety comes from — not from 40 hand-authored enemies.
 
 ## Skills

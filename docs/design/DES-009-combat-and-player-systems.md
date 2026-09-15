@@ -75,6 +75,7 @@ That single position resolves a dozen downstream questions. It's why avoidance m
 
 **Defending**
 - **Block** with weapon or shield, costs stamina, reduces damage, doesn't negate it.
+  > **Both built, and a guard faces somewhere (ADR-238).** A raised weapon or shield covers a front arc, 60° either side ⟨tune⟩; a blow or a stone from outside it lands in full. A weapon's guard takes nothing off a heavy blow or a missile; a shield takes the same share off those as off a cut, and a heavy blow on it costs twice the breath.
 - **No dodge-roll, no i-frames.** Defense is *positional*: spacing, cover, terrain, doorways, retreat. Movement is defense.
 - A short directional **step/lunge** exists for spacing, not for invulnerability.
 

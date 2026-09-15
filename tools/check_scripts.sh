@@ -672,6 +672,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Húskarl's shield** (`M4-T03`, ADR-238). A heavy blow, a stone and a
+	# cut, open, on a weapon's guard and on the shield, from the front and from
+	# behind: the shield guards what a weapon cannot, at the same share, and no
+	# guard faces backwards. What a heavy blow costs, and one off hand.
+	shield="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 12000 \
+		levels/room_set/room_set.tscn -- --shield-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$shield" \
+			|| ! grep -q "^\[shield\] one off hand" <<<"$shield"; then
+		echo "FAIL a shield has to stop what a blade cannot, from the front" >&2
+		printf '%s\n' "$shield" | grep -E '\[shield\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

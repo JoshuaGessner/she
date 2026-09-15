@@ -98,6 +98,15 @@ extends Resource
 ## makes movement the primary defence, and a block that stopped you moving
 ## would be asking you to give up the better one.
 @export var block_speed_multiplier: float = 0.55
+## **A guard faces somewhere** (ADR-238, the developer's call): half the arc, in
+## degrees either side of where the body faces, that a raised weapon or shield
+## covers. A blow or a stone from outside it lands in full — `DES-009`'s
+## positional defence, which a guard that turned blows from behind had quietly
+## switched off ⟨tune⟩.
+@export var guard_arc_degrees: float = 60.0
+## What a heavy blow costs a raised shield, as a multiple of `block_stamina_cost`
+## (ADR-238). Taking a hammer on boards is not taking a cut on them ⟨tune⟩.
+@export var heavy_block_stamina_multiplier: float = 2.0
 
 @export_group("Armour")
 ## **How much of a blow lands through armour, by the blow's type** ⟨tune⟩
@@ -806,6 +815,12 @@ func validate() -> PackedStringArray:
 			+ "converts and the tree is unreachable; above 1.0 a cycle earns "
 			+ "back more than it owes and `DES-003`'s coupling runs backwards")
 			% boon_cap_fraction)
+	if guard_arc_degrees <= 0.0 or guard_arc_degrees > 180.0:
+		problems.append("guard_arc_degrees is %.1f — a guard covers more than nothing and no more than all round"
+			% guard_arc_degrees)
+	if heavy_block_stamina_multiplier < 1.0:
+		problems.append("heavy_block_stamina_multiplier is %.2f — a heavy blow cannot be cheaper to take than a cut"
+			% heavy_block_stamina_multiplier)
 	if block_stamina_cost <= 0.0:
 		problems.append("block_stamina_cost must be positive or blocking is free, "
 			+ "and a free block is a stance rather than a resource")
