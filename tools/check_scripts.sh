@@ -178,7 +178,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		--clamor-probe|[clamor] reach through doorway|noise carries the distance it claims
 		--combat-probe|[combat] guard on empty stamina|a swing, a telegraph and a guard each cost what they say
 		--fight-probe|[fight] a fight costs something|a fight is a decision, and heavy is what staggers
-		--swarm-probe|[swarm] the floor can be called|one body can call the floor, and the call can be stopped
+		--swarm-probe|[swarm] the floor can be called|a Bellringer can call the floor, the call can be stopped, and a Wretch never calls
 	GYM
 
 	# The shared rig, as Godot sees it. glTF export is where rigs quietly lose
@@ -630,6 +630,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 			|| ! grep -q "^\[keeper\] left for" <<<"$keeper"; then
 		echo "FAIL a Hoard-Keeper has to wake for its hoard and nothing else" >&2
 		printf '%s\n' "$keeper" | grep -E '\[keeper\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
+	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
+	# generated floor is shown the player in turn: only a Bellringer may call,
+	# a Bellringer that holds the player does, and the floor has one to call.
+	escalation="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --delvings --seed=4 --escalation-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$escalation" \
+			|| ! grep -q "^\[escalation\] a caller shown the player called in" <<<"$escalation"; then
+		echo "FAIL only a Bellringer calls the floor, and it does" >&2
+		printf '%s\n' "$escalation" | grep -E '\[escalation\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
 	fi
 

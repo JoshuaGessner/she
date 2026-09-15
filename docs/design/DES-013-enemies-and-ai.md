@@ -45,7 +45,7 @@ UNAWARE ──heard something──► SUSPICIOUS ──confirmed──► ALERT
 > silent to each other. ADR-064 deferred `SWARM` until clamor could propagate
 > between actors; `M2` shipped that and the deferral was never revisited.
 >
-> An `ALERTED` body that holds you for `enemy_swarm_after` **stops and shouts**,
+> An `ALERTED` body that holds you long enough **stops and shouts**,
 > and the shout is real noise on the same system the player's own footsteps use.
 > The beat before it is a state (`CALLING`) rather than a timer, so a client
 > sees the wind-up too — *"one chance to prevent it"* cannot be a chance only
@@ -59,6 +59,15 @@ UNAWARE ──heard something──► SUSPICIOUS ──confirmed──► ALERT
 > **No new Ear channel.** `HuntMix.alert` is already this ladder flattened to a
 > scalar; `ALERTED` simply returned 1.0, leaving the top rung nowhere to go. The
 > four rungs are 0.35 / 0.70 / 0.85 / 1.0, so the Ear *grows during the beat*.
+>
+> **Only the Bellringer calls** (ADR-234). Every body used to, after five
+> seconds of holding you, so a floor escalated from whoever saw you first. How
+> long a body holds you before it calls is its archetype's `calls_after` now, and
+> only the Bellringer has one: **3 s** ⟨tune⟩, the Alarm row's number below. A
+> seax kills one in 1.2 s. Until `M4-T02` step 7 populates floors by depth, one
+> ordinary post in four holds a Bellringer, counted from the first so no floor
+> with a post is without one. The five-second counter above is a Bellringer's
+> three now; the other two stand.
 
 **Rule:** every transition is unmissable in **both** channels. A player must be able to know what state a room is in with their eyes closed — *and* with the sound off.
 

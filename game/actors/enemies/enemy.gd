@@ -376,7 +376,7 @@ func attack_phase() -> Attack:
 ## Put the swarm clock back to zero, without touching what the body knows.
 ##
 ## For probes that measure movement across a window: a body that has held the
-## player for `enemy_swarm_after` stops dead to call the floor, and a window
+## player for its `calls_after` stops dead to call the floor, and a window
 ## that lands on the call reads as a body going nowhere. `--stalker-probe`
 ## measures exactly that, about a snare, and its own vacuity guard caught the
 ## confound the day `SWARM` landed (ADR-196).
@@ -673,7 +673,9 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				# Nothing on this ladder used to escalate: an enemy that had you
 				# for one second and one that had you for thirty were the same
 				# enemy, so "do I take this fight" had no term that got worse.
-				if not _called and _alerted_for >= tuning.enemy_swarm_after:
+				# Only an archetype that calls ever does (ADR-234).
+				if not _called and _kind.calls_after > 0.0 \
+						and _alerted_for >= _kind.calls_after:
 					_begin_call(tuning)
 					return
 				var range_to: float = global_position.distance_to(_target.global_position)

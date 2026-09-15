@@ -102,21 +102,16 @@ func _run() -> void:
 
 ## **What an archetype may not do against what every enemy shares** (ADR-231).
 ##
-## Two rules `TuningProfile.validate()` held while the numbers lived on one
-## profile, and which compare the profile with an archetype now: the floor-call
-## has to take longer than an attack takes to begin, or every fight calls the
-## floor; and a body in the dark has to be seen from further than an attack
-## reaches, or something can hit you having never seen you (principle 4).
+## A body in the dark has to be seen from further than an attack reaches, or
+## something can hit you having never seen you (principle 4). The floor-call
+## against a swing was the other rule here until the call became the
+## archetype's own (ADR-234), and `EnemyResource.validate` asks it now.
 func _check_enemies_against_the_profile() -> void:
 	if _tuning == null:
 		return
 	for kind: EnemyResource in _enemies:
 		if kind.attack == null:
 			continue
-		if _tuning.enemy_swarm_after <= kind.attack.telegraph:
-			_fail(("%s telegraphs for %.2f s and the floor-call comes at %.1f s — "
-				+ "every fight with it would call the floor")
-				% [kind.id, kind.attack.telegraph, _tuning.enemy_swarm_after])
 		if _tuning.enemy_vision_dark <= kind.attack.reach:
 			_fail(("%s reaches %.1f m and a body in the dark is seen from %.1f m — "
 				+ "it could strike something it never saw")

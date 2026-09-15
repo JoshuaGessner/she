@@ -837,6 +837,8 @@ func _ready() -> void:
 			_warden_probe()
 		elif arg == "--keeper-probe":
 			_keeper_probe()
+		elif arg == "--escalation-probe":
+			_escalation_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -6931,7 +6933,13 @@ func _spawn_enemies() -> void:
 		if ring > 0:
 			var angle: float = TAU * float(index) / float(posts.size())
 			post += Vector3(cos(angle), 0.0, sin(angle)) * SPREAD * float(ring)
-		_session.spawn_enemy(post)
+		# **One in `bellringer_every` rings the floor** (ADR-234), by index for
+		# the same reason the ring is: body *n* is the same body however many
+		# people the floor grew for. From the first, so no floor with a post is
+		# without one — a floor nothing can call is a floor with no fourth rung.
+		var kind: StringName = &"enm_bellringer" \
+			if index % Config.tuning.bellringer_every == 0 else EnemyCatalogue.DEFAULT
+		_session.spawn_enemy(post, 0.0, kind)
 	if _enemies_placed == 0:
 		# The Guardian faces its prize's doorway and never leaves the room.
 		_session.spawn_enemy(_floor.guardian())
@@ -9524,25 +9532,32 @@ func _rank_probe() -> void:
 			+ "where the game is supposed to be hardest") % [top, 100.0 * at_top])
 
 	# ── and nothing hits harder (`DES-022`'s actual rule) ────────────────
+	# **Each body against its own archetype** (ADR-234). This asked whether every
+	# body shared one health figure, which was the same question while a floor
+	# held one archetype — and a weaker one than it looked, since a rank that
+	# raised every body alike would have passed it. A Bellringer beside a Wretch
+	# is two stat lines and no rank in either.
 	var enemies: Array[Node] = get_tree().get_nodes_in_group(&"enemies")
 	var tuning: TuningProfile = Config.tuning
-	var damage_seen: Array[float] = []
+	var bodies_read: int = 0
+	var kinds_seen: Dictionary = {}
+	var off_the_line: PackedStringArray = PackedStringArray()
 	for node: Node in enemies:
 		var body := node as Enemy
-		if body != null and body.health != null:
-			damage_seen.append(body.health.maximum)
-	var spread: bool = damage_seen.size() > 0
-	for value: float in damage_seen:
-		if not is_equal_approx(value, damage_seen[0]):
-			spread = false
-	print("[rank] fixed stats %d enemy(s), health all %.0f = %s, telegraph %.2f s" % [
-		damage_seen.size(), damage_seen[0] if damage_seen.size() > 0 else 0.0,
-		spread, EnemyCatalogue.by_id(EnemyCatalogue.DEFAULT).attack.telegraph])
-	if not spread:
-		problems.append(("enemies on this floor do not share one stat line — "
+		if body == null or body.health == null:
+			continue
+		bodies_read += 1
+		kinds_seen[body.archetype] = true
+		var kind: EnemyResource = EnemyCatalogue.by_id(body.archetype)
+		if kind == null or not is_equal_approx(body.health.maximum, kind.health):
+			off_the_line.append("%s at %.0f" % [body.archetype, body.health.maximum])
+	print("[rank] fixed stats %d enemy(s) of %d archetype(s), %d off their archetype's health"
+		% [bodies_read, kinds_seen.size(), off_the_line.size()])
+	if bodies_read == 0 or not off_the_line.is_empty():
+		problems.append(("%d enemies read, and these are not their archetype's health: %s — "
 			+ "`DES-022`'s rule is fixed stats per archetype, and a rank that "
 			+ "reaches the numbers is the trivialisation treadmill `CLAUDE.md` "
-			+ "names as an anti-goal"))
+			+ "names as an anti-goal") % [bodies_read, ", ".join(off_the_line)])
 
 	# ── the highest rank present is the floor (ADR-010) ──────────────────
 	_session.declare_descent(1, "", PackedStringArray(), {}, [], RunFile.UNHURT)
@@ -9858,20 +9873,10 @@ func _stalker_probe() -> void:
 			+ "does not end is a stun-lock, which is the no-counter-play answer "
 			+ "`PRO-005` §5 rules out") % [tuning.snare_hold_seconds * 2.0,
 			tuning.snare_hold_seconds])
-	# **The control window must not land on a swarm call** (`M4-T16`, ADR-196).
-	# By this point the body has held the player far longer than
-	# `enemy_swarm_after`, so the first thing it does on release is stand still
-	# and shout for `enemy_swarm_telegraph` — most of `window`. The control then
-	# reads 0.00 m for a reason that has nothing to do with the snare, and the
-	# vacuity guard below fires on a healthy build. It did, which is that guard
-	# working exactly as written.
-	#
-	# Reset rather than waited out: waiting swapped this confound for the older
-	# one recorded above, since the extra second let the body close the last of
-	# the distance and start swinging. Zeroing the clock leaves the measurement
-	# where it was designed — the instant of release — and only removes the one
-	# variable this probe is not about.
-	chaser.reset_alert_clock()
+	# The control window once landed on a swarm call — the body had held the
+	# player past the old shared `enemy_swarm_after` and stood still to shout on
+	# release — and was reset here (ADR-196). The chaser is a Wretch, and a
+	# Wretch no longer calls (ADR-234), so there is no clock left to reset.
 	var free_from: Vector3 = chaser.global_position
 	await _hold(window)
 	var free_moved: float = free_from.distance_to(chaser.global_position)
@@ -11339,6 +11344,149 @@ func _put_back(body: Enemy, yaw: float) -> void:
 
 func _flat_distance(a: Vector3, b: Vector3) -> float:
 	return Vector2(a.x - b.x, a.z - b.z).length()
+
+
+## Long enough for the slowest call a body can make to land and be heard.
+const ESCALATION_HOLD: float = 9.0
+
+
+## **How a floor escalates** (`M4-T02` step 4, ADR-234).
+##
+## One sighting at a time, of every body on the floor: all of them back on their
+## posts knowing nothing, the player lit and kept standing where that one body
+## can see them, and `ESCALATION_HOLD` seconds. It records who called the floor,
+## how soon, and how much of the floor was awake at the end.
+##
+## Run on generated floors (`--delvings --seed=N`), because how a floor
+## escalates is a property of where its bodies stand — and written before the
+## change it measures, so the before and the after are one instrument.
+func _escalation_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	await _hold(1.0)
+	var bodies: Array[Enemy] = []
+	var yaws: Dictionary = {}
+	var by_kind: Dictionary = {}
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null:
+			bodies.append(body)
+			yaws[body] = body.rotation.y
+			by_kind[body.archetype] = int(by_kind.get(body.archetype, 0)) + 1
+	print("[escalation] seed %d, floor %d: %d bodies %s"
+		% [_run_seed, _floor_index, bodies.size(), by_kind])
+
+	var callers: Dictionary = {}
+	var sightings: int = 0
+	var unseen: int = 0
+	var watcher_woke: int = 0
+	var called: int = 0
+	var first_calls: Array[float] = []
+	var awake_sum: int = 0
+	var ringers_shown: int = 0
+	var ringers_rang: int = 0
+	for watcher: Enemy in bodies:
+		for body: Enemy in bodies:
+			_put_back(body, yaws[body])
+			body.reset_alert_clock()
+			body.clamor.silence()
+		var spot: Vector3 = _in_view_of(watcher)
+		if spot == Vector3.INF:
+			unseen += 1
+			continue
+		# From the player to the watcher: the watcher faces back along it.
+		var toward: Vector3 = watcher.global_position - spot
+		toward.y = 0.0
+		watcher.rotation.y = atan2(toward.x, toward.z)
+		player.lit = true
+		player.clamor.silence()
+		player.teleport(spot, atan2(-toward.x, -toward.z))
+		var swarmed: Dictionary = {}
+		var woke: bool = false
+		var first_call: float = -1.0
+		var began: int = Time.get_ticks_msec()
+		while Time.get_ticks_msec() - began < int(ESCALATION_HOLD * 1000.0):
+			await get_tree().physics_frame
+			if player.is_incapacitated():
+				player.restore_for_descent()
+			else:
+				player.health.restore()
+			woke = woke or watcher.is_hunting()
+			for body: Enemy in bodies:
+				if body.state() == Enemy.State.SWARM and not swarmed.has(body):
+					swarmed[body] = true
+					if first_call < 0.0:
+						first_call = (Time.get_ticks_msec() - began) / 1000.0
+		sightings += 1
+		if woke:
+			watcher_woke += 1
+		var watcher_kind: EnemyResource = EnemyCatalogue.by_id(watcher.archetype)
+		if watcher_kind != null and watcher_kind.calls_after > 0.0:
+			ringers_shown += 1
+			if swarmed.has(watcher):
+				ringers_rang += 1
+		if not swarmed.is_empty():
+			called += 1
+			first_calls.append(first_call)
+		for body: Enemy in swarmed:
+			callers[body.archetype] = int(callers.get(body.archetype, 0)) + 1
+		for body: Enemy in bodies:
+			if body.state() != Enemy.State.UNAWARE:
+				awake_sum += 1
+
+	var mean_first: float = 0.0
+	for at: float in first_calls:
+		mean_first += at / first_calls.size()
+	print("[escalation] sightings %d (no view of %d), the body seen woke in %d"
+		% [sightings, unseen, watcher_woke])
+	print("[escalation] the floor was called in %d of %d, first call at %.1f s on average"
+		% [called, sightings, mean_first])
+	print("[escalation] calls by archetype %s" % callers)
+	print("[escalation] awake after %.0f s: %.1f of %d bodies on average"
+		% [ESCALATION_HOLD, float(awake_sum) / maxf(sightings, 1), bodies.size()])
+	print("[escalation] a caller shown the player called in %d of %d"
+		% [ringers_rang, ringers_shown])
+	if sightings == 0 or watcher_woke == 0:
+		problems.append("no body on the floor could be shown the player, so nothing was measured")
+	# **Only a caller calls** (ADR-234): a room where you kill the Bellringer,
+	# or never let it see you, stays a room.
+	for kind: StringName in callers:
+		var calling: EnemyResource = EnemyCatalogue.by_id(kind)
+		if calling == null or calling.calls_after <= 0.0:
+			problems.append(("a %s called the floor %d time(s), and only an archetype "
+				+ "with a call may") % [kind, callers[kind]])
+	# And one does — or the rule above passes on a floor where nothing can.
+	if ringers_shown == 0:
+		problems.append(("none of the %d bodies on this floor can call it, so it has no "
+			+ "fourth rung and the rule above held for nothing") % bodies.size())
+	elif ringers_rang == 0:
+		problems.append("%d Bellringer(s) held the player for %.0f s and none called"
+			% [ringers_shown, ESCALATION_HOLD])
+	player.lit = false
+	_report(problems, "escalation")
+
+
+## A place `watcher` can see from its post, on the floor, at two or three
+## metres — or `Vector3.INF` where the post is boxed in.
+func _in_view_of(watcher: Enemy) -> Vector3:
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var home: Vector3 = watcher.get("_home")
+	var eye: Vector3 = home + Vector3.UP * 1.6
+	for distance: float in [3.0, 2.0]:
+		for step: int in range(8):
+			var direction := Vector3(cos(TAU * step / 8.0), 0.0, sin(TAU * step / 8.0))
+			var spot: Vector3 = home + direction * distance
+			var sight := PhysicsRayQueryParameters3D.create(eye, spot + Vector3.UP * 0.9)
+			sight.collision_mask = CollisionLayers.WORLD
+			var ground := PhysicsRayQueryParameters3D.create(spot + Vector3.UP,
+				spot + Vector3.DOWN)
+			ground.collision_mask = CollisionLayers.WORLD
+			if space.intersect_ray(sight).is_empty() \
+					and not space.intersect_ray(ground).is_empty():
+				return spot + Vector3.UP * 0.1
+	return Vector3.INF
 
 
 ## A fresh enemy at `mark` facing away, and the thrower back at the post.

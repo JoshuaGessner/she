@@ -6,6 +6,7 @@ item.wpn_ash_spear.desc,"Reaches further than anything else you own, and is usel
 enemy.enm_wretch.name,Wretch
 enemy.enm_hall_warden.name,Hall-Warden
 enemy.enm_hoard_keeper.name,Hoard-Keeper
+enemy.enm_bellringer.name,Bellringer
 item.wpn_seax.name,Seax
 item.wpn_seax.desc,"A working blade, not a warrior's. Quick, light, and honest about what it cannot do."
 item.wpn_bearded_axe.name,Bearded Axe

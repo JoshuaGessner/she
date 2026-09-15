@@ -9,7 +9,7 @@ extends Resource
 ##
 ## **Only what an archetype actually varies by is here.** `TEC-006` sketches a
 ## role, a faction, a sense profile, a scene and a modifier list as well. Each
-## arrives with the archetype that needs it — the Bellringer's role, the Hall-
+## arrives with the archetype that needs it — the Bellringer's call, the Hall-
 ## Warden's leash — and not before: a field nothing reads is the stub ADR-064
 ## bans, and ADR-222 and ADR-224 were each a field like that. Senses stay on
 ## `TuningProfile`, where every archetype shares them until one does not.
@@ -47,6 +47,13 @@ extends Resource
 ## wakes it, so a Hoard-Keeper is a fight that only happens to a body that walks
 ## up to what it sits on ⟨tune⟩.
 @export var wakes_within: float = 0.0
+## **How long it has to hold you before it calls the floor** (ADR-234), in
+## seconds, or `0` for never. `DES-013`'s Alarm *escalates the whole floor if it
+## survives*, and it is the only role that does: a Wretch that has you is a
+## fight, and a Bellringer that has you is a fight on a clock. Sized against a
+## fight you win — a seax kills a Bellringer well inside it — so a call is a
+## ringer left standing or never kept out of sight ⟨tune⟩.
+@export var calls_after: float = 0.0
 
 @export_group("Attack")
 ## The one blow it deals. One, not `TEC-006`'s list: no archetype in the slice
@@ -75,8 +82,8 @@ func validate() -> PackedStringArray:
 			% [id, run_speed, walk_speed])
 	if turn_rate <= 0.0:
 		problems.append("%s cannot turn" % id)
-	if leash < 0.0 or clamor_struck < 0.0 or wakes_within < 0.0:
-		problems.append("%s has a negative leash, ring or waking radius" % id)
+	if leash < 0.0 or clamor_struck < 0.0 or wakes_within < 0.0 or calls_after < 0.0:
+		problems.append("%s has a negative leash, ring, waking radius or call" % id)
 	# Something that only wakes near its post and then chases anywhere is a
 	# Guardian for the first second and a Wretch after it.
 	if wakes_within > 0.0 and leash <= 0.0:
@@ -87,6 +94,12 @@ func validate() -> PackedStringArray:
 	if leash > 0.0 and attack != null and leash < attack.reach:
 		problems.append("%s is leashed at %.1f m and reaches %.1f m — it could "
 			% [id, leash, attack.reach] + "never reach the edge of its own post")
+	# A call that lands before a swing has begun calls the floor from every
+	# fight with it, which is a tax rather than a clock (ADR-196).
+	if calls_after > 0.0 and attack != null and calls_after <= attack.telegraph:
+		problems.append(("%s telegraphs for %.2f s and calls the floor at %.1f s — "
+			+ "every fight with it would call the floor")
+			% [id, attack.telegraph, calls_after])
 	if attack == null:
 		problems.append("%s has no attack" % id)
 	else:

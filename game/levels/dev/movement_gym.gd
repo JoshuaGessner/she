@@ -810,6 +810,24 @@ func _fight_probe(player: Player) -> void:
 		print("[fight] a fight costs something, and heavy is what staggers")
 
 
+## The swarm rows' floor (ADR-234): a Bellringer on the first post, where the
+## rows stand the player, and Wretches on the rest to hear it. The gym's own
+## population is Wretches, and a Wretch no longer calls.
+func _swarm_floor() -> Enemy:
+	_reset()
+	_session.clear_enemies()
+	await get_tree().physics_frame
+	for index: int in ENEMY_POSTS.size():
+		_session.spawn_enemy(ENEMY_POSTS[index], 0.0,
+			&"enm_bellringer" if index == 0 else EnemyCatalogue.DEFAULT)
+	await get_tree().physics_frame
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null and body.archetype == &"enm_bellringer":
+			return body
+	return null
+
+
 ## `DES-013`'s fourth rung (`M4-T16`, ADR-196).
 ##
 ## The ladder has read UNAWARE → SUSPICIOUS → ALERTED → SWARM since the design
@@ -818,25 +836,26 @@ func _fight_probe(player: Player) -> void:
 ## carried a `ClamorSensor` and no `ClamorSource`, so enemies heard the player
 ## and were silent to each other.
 ##
-## Five questions, and the last two are the ones that matter: a call nobody can
-## prevent is a punishment rather than a decision, and a call that does not
-## reach anybody is a tint change.
+## Six questions, and rows 4 to 6 are the ones that matter: a call nobody can
+## prevent is a punishment rather than a decision, a call that does not reach
+## anybody is a tint change, and since ADR-234 a call from anything but a
+## Bellringer is a floor that escalates from whoever saw you first.
 func _swarm_probe(player: Player) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var tuning: TuningProfile = Config.tuning
-	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-	var caller: Enemy = enemies[0] as Enemy
+	var ringing: EnemyResource = EnemyCatalogue.by_id(&"enm_bellringer")
+	var caller: Enemy = await _swarm_floor()
 	var others: Array[Enemy] = []
-	for node: Node in enemies:
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
 		var e := node as Enemy
 		if e != null and e != caller:
 			others.append(e)
 	var failures: int = 0
 
-	print("[swarm] enemies on the floor      %d (1 caller, %d listeners)"
-		% [enemies.size(), others.size()])
+	print("[swarm] enemies on the floor      %d (1 Bellringer, %d listeners)"
+		% [others.size() + 1, others.size()])
 	print("[swarm] call after / beat / shout %.1f s / %.2f s / %.1f (%.1f m)" % [
-		tuning.enemy_swarm_after, tuning.enemy_swarm_telegraph,
+		ringing.calls_after, tuning.enemy_swarm_telegraph,
 		tuning.enemy_swarm_clamor,
 		tuning.enemy_swarm_clamor * tuning.clamor_metres_per_unit])
 
@@ -854,7 +873,7 @@ func _swarm_probe(player: Player) -> void:
 	var beat_ms: int = 0
 	var swarmed_at: float = -1.0
 	var began: int = Time.get_ticks_msec()
-	for i: int in range(int(90.0 * (tuning.enemy_swarm_after + 4.0))):
+	for i: int in range(int(90.0 * (ringing.calls_after + 4.0))):
 		player.health.restore()
 		if caller.state() == Enemy.State.CALLING and beat_began == 0:
 			beat_began = Time.get_ticks_msec()
@@ -869,7 +888,7 @@ func _swarm_probe(player: Player) -> void:
 		beat_ms, floor_ms, int(tuning.enemy_swarm_telegraph * 1000.0)])
 	var saw_calling: bool = beat_ms >= floor_ms
 	print("[swarm] called the floor after    %.1f s (want ~%.1f)"
-		% [swarmed_at, tuning.enemy_swarm_after + tuning.enemy_swarm_telegraph])
+		% [swarmed_at, ringing.calls_after + tuning.enemy_swarm_telegraph])
 	if not saw_calling:
 		print("[swarm] FAIL the beat was %d ms against a %d ms floor — DES-013 "
 			% [beat_ms, floor_ms]
@@ -885,7 +904,7 @@ func _swarm_probe(player: Player) -> void:
 	# the call came minutes late. "It escalated eventually" would have passed
 	# that build. Generous, because acquisition and the walk-in are real time
 	# the enemy spends before the clock starts.
-	var due: float = tuning.enemy_swarm_after + tuning.enemy_swarm_telegraph
+	var due: float = ringing.calls_after + tuning.enemy_swarm_telegraph
 	if swarmed_at >= 0.0 and swarmed_at > due * 2.0:
 		print("[swarm] FAIL the call took %.1f s against %.1f s of tuning — the "
 			% [swarmed_at, due]
@@ -940,18 +959,16 @@ func _swarm_probe(player: Player) -> void:
 	# ── 4. staggering it throws the call away ────────────────────────────
 	# `_break_poise` is the counter a heavy weapon buys, and ADR-194's poise
 	# and this task's swarm turn out to be the same decision seen twice.
-	_reset()
-	await get_tree().physics_frame
-	var victim: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	var victim: Enemy = await _swarm_floor()
 	player.teleport(victim.global_position + Vector3(0, 0.1, -1.8), PI)
 	var stopped: bool = false
-	for i: int in range(int(90.0 * (tuning.enemy_swarm_after + 4.0))):
+	for i: int in range(int(90.0 * (ringing.calls_after + 4.0))):
 		player.health.restore()
 		if victim.state() == Enemy.State.CALLING:
 			# A hammer's worth of stagger, through the real path.
 			victim.refill_poise()
 			var blow := Hitbox.new()
-			blow.stagger = _wretch().poise
+			blow.stagger = ringing.poise
 			victim.take_test_hit(1.0, blow)
 			await get_tree().physics_frame
 			stopped = victim.state() != Enemy.State.SWARM
@@ -964,17 +981,43 @@ func _swarm_probe(player: Player) -> void:
 			+ "one chance to prevent the failure state")
 		failures += 1
 
-	# ── 5. a fight you win quickly never calls ───────────────────────────
-	# The clock has to be longer than the fight, or every encounter is a swarm
-	# and "do I take this fight" has one answer again.
-	var kills: float = ceil(_wretch().health / player.weapon.held().damage)
+	# ── 5. a Bellringer you go straight for never calls ──────────────────
+	# The clock has to be longer than killing it, or "kill it fast" is not a
+	# counter and every ringer that sees you is a swarm (ADR-234).
+	var kills: float = ceil(ringing.health / player.weapon.held().damage)
 	var edge: WieldableTrait = player.weapon.held()
 	var fight: float = kills * (edge.windup + edge.active + edge.recovery)
-	print("[swarm] a won fight takes         %.1f s vs %.1f s of patience"
-		% [fight, tuning.enemy_swarm_after])
-	if fight >= tuning.enemy_swarm_after:
-		print("[swarm] FAIL killing one enemy takes longer than the call — every "
-			+ "fight would summon the floor, which is a tax rather than a choice")
+	print("[swarm] killing a Bellringer takes %.1f s vs %.1f s before it calls"
+		% [fight, ringing.calls_after])
+	if fight >= ringing.calls_after:
+		print("[swarm] FAIL killing a Bellringer takes longer than its call — "
+			+ "DES-013's 'kill it fast' would not be an answer")
+		failures += 1
+
+	# ── 6. and nothing else calls ────────────────────────────────────────
+	# The gym's own floor is Wretches. Row 1's stance, held for longer than
+	# row 1 needed: a Wretch that has you is a fight, never a floor (ADR-234).
+	_reset()
+	await get_tree().physics_frame
+	var holder: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	player.teleport(holder.global_position + Vector3(0, 0.1, -1.8), PI)
+	var held_for: float = due + 3.0
+	var held: bool = false
+	var a_wretch_called: bool = false
+	for i: int in range(int(60.0 * held_for)):
+		player.health.restore()
+		held = held or holder.is_hunting()
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			var body := node as Enemy
+			if body != null and body.state() in [Enemy.State.CALLING, Enemy.State.SWARM]:
+				a_wretch_called = true
+		await get_tree().physics_frame
+	print("[swarm] a Wretch holding you %.1f s held %s, called %s (want yes, no)"
+		% [held_for, "yes" if held else "NO", "YES" if a_wretch_called else "no"])
+	if not held or a_wretch_called:
+		print("[swarm] FAIL a Wretch that held the player %s the floor — only a "
+			% ("called" if a_wretch_called else "never had them, so this says nothing about")
+			+ "Bellringer calls, or killing one would not keep a room a room")
 		failures += 1
 
 	if failures > 0:

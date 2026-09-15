@@ -8375,5 +8375,61 @@ The probe's distances are fixed, and it refuses to run if a retuned radius no lo
 - **Until step 4, a Keeper held at its leash edge still calls the floor**, like every other body. Row 4's sight plant showed it: a Keeper that kept seeing a player it could not reach went to `SWARM`. ADR-230's step 4 makes the Bellringer the only enemy that calls, which is the step that removes this.
 - `DES-013`'s Guardian row is built for the slice. The Draugr's *aggros on theft, not proximity* is a different trigger and stays with the Barrow-Fields (`M5-T04`).
 
+## ADR-234 — Only the Bellringer calls the floor, and one post in four holds one
+
+**Date:** 2026-09-14 · **Status:** accepted · **Advances `M4-T02` (step 4 of ADR-230's seven)** · **Builds `DES-013`'s Alarm** · **Moves `enemy_swarm_after` off `TuningProfile`**
+
+**Context:** Since ADR-196 every enemy that held the player for `enemy_swarm_after` (5 s) stopped and called the floor. `DES-013`'s Alarm role — *weak, but escalates the whole floor if it survives 3 seconds; kill it fast and quietly, or avoid its sightline* — describes one kind of enemy doing that, and ADR-230 casts the Bellringer in it: **the only one that calls**. ADR-230 ordered placement for step 7, so taking the call off everything else now would have left every floor with nothing that could escalate it until then.
+
+### Decision — the developer's two calls
+
+- **Bellringers stand on floors now**, over waiting for step 7 with every Wretch still calling, and over ADR-230's literal order, which leaves floors with no fourth rung in between. **One ordinary post in `bellringer_every` (4) ⟨tune⟩ holds one, counted from the first**, so every floor with a post has one and a party arriving late never changes who stands where — the same by-index rule the spawn ring uses. The Guardian's post and a machine's posts stay as they were. Step 7 replaces the rule with population by archetype and depth.
+- **It calls after 3 s**, `DES-013`'s own number, over today's 5. A seax kills one in 1.2 s, so going straight for it is an answer, and a ringer left standing is a floor called sooner than any body called it before.
+
+### Built
+
+- **`EnemyResource.calls_after`**: seconds holding the player before this body calls, or `0` for never. `enemy_swarm_after` is gone from `TuningProfile`; the shape of a call — its 0.9 s beat and its 19 m shout — stays shared. `validate` refuses a call that comes before the archetype's own swing, the rule `data_probe` held against the shared number (ADR-231).
+- **`enm_bellringer`** ⟨tune⟩: a Wretch's body with 40 health and 60 poise, an 18 cut at 2.0 m on the Wretch's timings, unarmoured, and a call at 3 s.
+- `--stalker-probe`'s reset of the chaser's call clock is removed: the chaser is a Wretch, and there is no clock left to reset.
+- **`--rank-probe`'s fixed-stats row asks each body against its own archetype.** It asked whether every body on the floor shared one health figure, and the sweep failed it the moment a Bellringer stood beside a Wretch. It was also weaker than it read: a rank that raised every body alike would have passed. Planted by giving every body half as much health again as its archetype, and the new row names all four; on the one-archetype floor the old row was written for, that plant leaves every figure equal and passes.
+
+### Measured before and after
+
+`--escalation-probe` is new and was written, and run, before any of the above. On a generated floor it takes every body in turn: all of them back on their posts knowing nothing, the player lit and kept standing where that body can see them, and 9 s. Ten floors, seeds 1–5 at rank 1 and at rank 8, the same ten each time:
+
+| | Before | After |
+|---|---|---|
+| Sightings that ended in a floor call | **46 of 47** | **28 of 47** |
+| Who called | Wretches | Bellringers only |
+| First call, on average | 6.4–6.8 s | 4.6–5.3 s |
+| Bodies awake at 9 s, rank-1 floors (2–5 bodies) | 1.95 | 1.82 |
+| Bodies awake at 9 s, rank-8 floors (4–9 bodies) | 3.36 | 3.05 |
+| A Bellringer shown the player called | — | 13 of 13 |
+
+**What it says.** A floor is now called in three sightings of five rather than every one, and when it is called it is called sooner. **How much of a floor is awake after nine seconds barely moved** — down a tenth, where ADR-230 expected the Deep to go quieter than it has been since `M2`. The likeliest reason, not measured: these floors field two to nine bodies, and a fight is loud, so the bodies a shout would reach were mostly hearing the swings already. What the change certainly moved is how often the floor reaches the `SWARM` rung — the Ear's top note — and how soon. Whether a floor now feels quieter is a playtest question, as ADR-230 said.
+
+### Verification
+
+Both probes required. `--escalation-probe` on seed 4 fails if any body without a call calls, if no body on the floor can call, or if a Bellringer that held the player never did. `--swarm-probe` puts a Bellringer where its caller stood: the beat still lasts 897 ms, the call lands at 4.2 s against 3.9 s of tuning, staggering it still throws the call away, killing it takes 1.2 s against 3 s — and a new sixth row holds the player in front of a Wretch for 6.9 s, longer than the Bellringer needed, and it holds them and never calls.
+
+**Planted and failed, one plant per run:**
+
+| Plant | Caught by |
+|---|---|
+| every body calls on a Bellringer's clock | `--swarm-probe` row 6; `--escalation-probe` (a Wretch called 8 times) |
+| the Bellringer has no call | `--swarm-probe` rows 1, 2 and 4; `--escalation-probe` (nothing on the floor can call) |
+| no floor places a Bellringer | `--escalation-probe` |
+| a Bellringer at 400 health | `--swarm-probe` row 5 |
+| a call at 0.4 s, before its 0.5 s swing | `data_probe` |
+| `bellringer_every` of 0 | `data_probe` |
+
+The *nothing on the floor can call* rule was added before planting, on reading the probe: without it, a floor with no Bellringer passed both of the other rules with nothing tested.
+
+### Consequences
+
+- **A Bellringer is the first thing worth killing in a room.** `DES-013`'s *kill it fast and quietly* is now the counter-play rather than a note: nothing else on the floor starts a clock.
+- ADR-233's open consequence closes by the rule rather than by a probe: the Hoard-Keeper and the Hall-Warden carry no `calls_after`, so neither calls, at a leash edge or anywhere.
+- Every floor is now two archetypes. The Deep, the fixed floor the probes measure, gets Bellringers by the same rule as a generated floor.
+
 *Entries below to be added as design decisions are signed off.*
 
