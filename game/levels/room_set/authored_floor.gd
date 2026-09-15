@@ -28,6 +28,21 @@ func guardian() -> Vector3:
 	return RoomSet.GUARDIAN_POST
 
 
+## **Floor one's population** (ADR-237): the same file the Delvings read, with
+## every post ordinary — the Deep's posts carry no rooms to read a door or a
+## hall off, and it is floor one that the Deep stands in for.
+var _population: FloorPopulation = FloorPopulation.plain(
+	RoomSet.ENEMY_POSTS.size(), DelvingsFloor.POPULATION)
+
+
+func enemy_kind(index: int) -> StringName:
+	return _population.kind_at(index)
+
+
+func guardian_kind() -> StringName:
+	return _population.guardian()
+
+
 ## **None, and that is an answer rather than a gap.** The Deep's situations are
 ## hand-placed — the Guardian on the Prize, the barricade in the west — so there
 ## is nothing for a stamper to have put here. `DES-015` step 6 is about floors

@@ -542,13 +542,6 @@ extends Resource
 ## counter-play, long enough that it is not trivial.
 @export var enemy_patience: float = 4.0
 
-## **One ordinary post in this many holds a Bellringer** (ADR-234), counted from
-## the first, so every floor with a post has one and a party arriving late never
-## changes who stands where. The only thing that calls the floor since ADR-234,
-## so this is how often a floor can escalate at all. `M4-T02`'s step 7 replaces
-## it with population by archetype and depth ⟨tune⟩.
-@export var bellringer_every: int = 4
-
 ## The beat before the call lands. `DES-013`: *"it must be loudly telegraphed a
 ## beat before it happens so the player gets one chance to prevent it."*
 ## Deliberately far above `TELEGRAPH_FLOOR` — this is not a swing to dodge, it
@@ -682,8 +675,6 @@ func validate() -> PackedStringArray:
 	# corpora (ADR-231). The call against a swing is the archetype's own (ADR-234).
 	if enemy_swarm_clamor <= 0.0:
 		problems.append("a call at %.1f clamor is a silent shout" % enemy_swarm_clamor)
-	if bellringer_every < 1:
-		problems.append("bellringer_every is %d — one post in fewer than one" % bellringer_every)
 	# **The gap between lit and dark is the lantern** (`M4-T13`, ADR-188). Both
 	# rows below describe a build in which darkness has stopped being a
 	# mechanic, and neither would raise an error anywhere else: the game would

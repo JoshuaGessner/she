@@ -843,6 +843,8 @@ func _ready() -> void:
 			_sling_probe()
 		elif arg == "--hazard-probe":
 			_hazard_probe()
+		elif arg == "--population-probe":
+			_population_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -6946,16 +6948,14 @@ func _spawn_enemies() -> void:
 		if ring > 0:
 			var angle: float = TAU * float(index) / float(posts.size())
 			post += Vector3(cos(angle), 0.0, sin(angle)) * SPREAD * float(ring)
-		# **One in `bellringer_every` rings the floor** (ADR-234), by index for
-		# the same reason the ring is: body *n* is the same body however many
-		# people the floor grew for. From the first, so no floor with a post is
-		# without one — a floor nothing can call is a floor with no fourth rung.
-		var kind: StringName = &"enm_bellringer" \
-			if index % Config.tuning.bellringer_every == 0 else EnemyCatalogue.DEFAULT
-		_session.spawn_enemy(post, 0.0, kind)
+		# **The floor says who** (ADR-237): a Warden at the door into the held
+		# arm, a slinger in a hall wide enough, a Bellringer in one ordinary body
+		# in four — by index, for the same reason the ring is: body *n* is the
+		# same body however many people the floor grew for.
+		_session.spawn_enemy(post, 0.0, _floor.enemy_kind(index))
 	if _enemies_placed == 0:
 		# The Guardian faces its prize's doorway and never leaves the room.
-		_session.spawn_enemy(_floor.guardian())
+		_session.spawn_enemy(_floor.guardian(), 0.0, _floor.guardian_kind())
 		# **And whatever a machine brought with it** (`DES-015` Layer 3,
 		# ADR-192), on the Guardian's rule and in the same branch, because it is
 		# the same kind of claim: a situation's threat is part of what the room
@@ -12053,6 +12053,179 @@ func _hazard_probe() -> void:
 			+ "their own room") % [stamping.count(), zones.size(), matched])
 
 	_report(problems, "hazard")
+
+
+## **Who stands where** (`M4-T02` step 7, ADR-237).
+##
+## A census of the generated floors every seed in a range builds, at each depth,
+## with each placement rule asked of every floor rather than of one — and then
+## the floor this process booted, whose spawned bodies have to be the ones the
+## census says. Run with `--delvings --seed=N --floor=2`.
+func _population_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var rules: PopulationResource = DelvingsFloor.POPULATION
+	var seeds: int = 40
+	var slingers_at: Array[int] = [0, 0, 0]
+	for depth: int in 3:
+		var census: Dictionary = {}
+		var wardens_placed: int = 0
+		var floors_with_held: int = 0
+		for seed_at: int in range(1, seeds + 1):
+			var made: DelvingsFloor = DelvingsFloor.of(seed_at, depth)
+			if not made.problems().is_empty():
+				continue
+			var graph: MissionGraph = made.get("_graph")
+			var plan: FloorPlan = made.get("_plan")
+			var held: Array[int] = []
+			for node: int in graph.size():
+				if graph.is_held(node):
+					held.append(node)
+			var posts: Array[Vector3] = made.enemy_posts()
+			if posts.size() != held.size():
+				problems.append("seed %d floor %d has %d posts for %d held rooms"
+					% [seed_at, depth, posts.size(), held.size()])
+				continue
+			if not held.is_empty():
+				floors_with_held += 1
+			# **What sits on the Prize is a Guardian**, asked of the archetype and not
+			# of the population file: a row that compared the floor with the file
+			# passed a file that put a Wretch there (ADR-237's plants).
+			var on_prize: EnemyResource = EnemyCatalogue.by_id(made.guardian_kind())
+			if on_prize == null or on_prize.wakes_within <= 0.0:
+				problems.append("seed %d floor %d puts %s on the Prize, which is not a Guardian"
+					% [seed_at, depth, made.guardian_kind()])
+			var hops: Dictionary = _hops_from(graph, graph.node_with(MissionGraph.Role.ENTRANCE))
+			var ringers: int = 0
+			var ordinary: int = 0
+			var wardens: int = 0
+			var slung_here: Array[int] = []
+			var left_ordinary: Array[int] = []
+			for index: int in posts.size():
+				var kind: StringName = made.enemy_kind(index)
+				census[kind] = int(census.get(kind, 0)) + 1
+				var node: int = held[index]
+				var module: RoomModule = RoomCatalogue.by_id(plan.module_of(node))
+				if kind == rules.warden:
+					wardens += 1
+					# The door into the arm: no held room nearer the entrance,
+					# and the post inside this room within reach of one of its doors.
+					for other: int in held:
+						if int(hops.get(other, 999)) < int(hops.get(node, 999)):
+							problems.append(("seed %d floor %d holds the door of room %d "
+								+ "and room %d is nearer the entrance") % [seed_at, depth, node, other])
+							break
+					var nearest_door: float = INF
+					for cell: Vector2i in plan.doors_of(node):
+						var door: Vector3 = FloorBuilder.at(cell) + Vector3(FloorBuilder.CELL * 0.5,
+							posts[index].y, FloorBuilder.CELL * 0.5)
+						nearest_door = minf(nearest_door, door.distance_to(posts[index]))
+					var rect: Rect2i = plan.rect_of(node)
+					var room_box := Rect2(FloorBuilder.at(rect.position).x, FloorBuilder.at(rect.position).z,
+						rect.size.x * FloorBuilder.CELL, rect.size.y * FloorBuilder.CELL)
+					var in_room: bool = room_box.has_point(Vector2(posts[index].x, posts[index].z))
+					var middle: bool = rect.size.x * FloorBuilder.CELL <= DelvingsFloor.DOOR_STEP * 2.0 \
+						or rect.size.y * FloorBuilder.CELL <= DelvingsFloor.DOOR_STEP * 2.0
+					if not in_room or (nearest_door > DelvingsFloor.DOOR_STEP + 0.5 and not middle):
+						problems.append(("seed %d floor %d's Warden stands %.1f m from its room's "
+							+ "nearest door, in the room %s") % [seed_at, depth, nearest_door, in_room])
+				elif kind == rules.slinger:
+					var needs: int = rules.slinger_room(depth)
+					if needs < 0 or module == null or module.volume < needs:
+						problems.append("seed %d floor %d puts a slinger in a room of volume %d"
+							% [seed_at, depth, module.volume if module != null else -1])
+					slingers_at[depth] += 1
+					slung_here.append(module.volume if module != null else -1)
+				else:
+					ordinary += 1
+					if kind == rules.ringer:
+						ringers += 1
+					var wide: int = rules.slinger_room(depth)
+					if wide >= 0 and module != null and module.volume >= wide:
+						left_ordinary.append(module.volume)
+			wardens_placed += wardens
+			# **Capped, and the largest first** (ADR-237): as many slingers as the
+			# cap allows when rooms qualify, and no room left without one that is
+			# larger than a room given one.
+			# Never the last ordinary post: that one is the Bellringer's.
+			var cap: int = maxi(0, mini(rules.slinger_cap(depth), posts.size() - wardens - 1))
+			if slung_here.size() > cap:
+				problems.append("seed %d floor %d has %d slingers against a cap of %d"
+					% [seed_at, depth, slung_here.size(), cap])
+			if slung_here.size() < cap and not left_ordinary.is_empty():
+				problems.append("seed %d floor %d has %d slinger(s), a cap of %d, and a qualifying room left without one"
+					% [seed_at, depth, slung_here.size(), cap])
+			for volume: int in left_ordinary:
+				for given: int in slung_here:
+					if volume > given:
+						problems.append("seed %d floor %d gave a slinger a room of volume %d and left one of %d without"
+							% [seed_at, depth, given, volume])
+			# **The first floor is Wretches and Bellringers** — the developer's ramp,
+			# asked as a fact rather than read back from the file that sets it.
+			if depth == 0 and (wardens > 0 or not slung_here.is_empty()):
+				problems.append("seed %d's first floor carries %d Warden(s) and %d slinger(s)"
+					% [seed_at, wardens, slung_here.size()])
+			# A Warden needs a second guarded room, so the first stays the ringer's.
+			var wants_warden: bool = depth >= rules.warden_from_floor and held.size() >= 2
+			if wardens != (1 if wants_warden else 0):
+				problems.append("seed %d floor %d has %d Warden(s) in %d guarded room(s), and wants %d"
+					% [seed_at, depth, wardens, held.size(), 1 if wants_warden else 0])
+			# **Every floor with a post can be called** (ADR-234, kept by ADR-237):
+			# asked of every floor with a post, not only of one with an ordinary
+			# post left — that narrower rule passed while half the deeper floors
+			# had nothing that could call them.
+			if posts.size() > 0 and ringers == 0:
+				problems.append("seed %d floor %d has %d post(s) and no Bellringer, so nothing can call it"
+					% [seed_at, depth, posts.size()])
+		print("[population] floor %d, %d seeds  %s on the posts, %d Warden(s) on %d floor(s) with a held room, a Keeper on every Prize"
+			% [depth + 1, seeds, census, wardens_placed, floors_with_held])
+	print("[population] slingers by floor   %d / %d / %d (want 0, then climbing)"
+		% [slingers_at[0], slingers_at[1], slingers_at[2]])
+	if slingers_at[0] != 0 or slingers_at[1] == 0 or slingers_at[2] <= slingers_at[1]:
+		problems.append("slingers by floor are %d / %d / %d — none on the first, and more on the third than the second"
+			% [slingers_at[0], slingers_at[1], slingers_at[2]])
+
+	# ─ **the floor this process built spawns what the population says** ─
+	var here := _floor as DelvingsFloor
+	if here == null:
+		problems.append("booted on the Deep — run with --delvings --seed=N --floor=2")
+		_report(problems, "population")
+		return
+	await _hold(0.5)
+	var expected: Dictionary = {}
+	for index: int in _enemies_placed:
+		var kind: StringName = here.enemy_kind(index)
+		expected[kind] = int(expected.get(kind, 0)) + 1
+	expected[here.guardian_kind()] = int(expected.get(here.guardian_kind(), 0)) + 1
+	var machine_bodies: int = here.machine_posts().size()
+	if machine_bodies > 0:
+		expected[rules.rank_and_file] = int(expected.get(rules.rank_and_file, 0)) + machine_bodies
+	var spawned: Dictionary = {}
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null:
+			spawned[body.archetype] = int(spawned.get(body.archetype, 0)) + 1
+	print("[population] this floor spawned %s, and its population says %s" % [spawned, expected])
+	if spawned.hash() != expected.hash() or spawned.size() != expected.size():
+		var same: bool = spawned.size() == expected.size()
+		for kind: StringName in expected:
+			if int(spawned.get(kind, 0)) != int(expected[kind]):
+				same = false
+		if not same:
+			problems.append("the floor spawned %s where its population says %s" % [spawned, expected])
+	_report(problems, "population")
+
+
+## Rooms from `from` to every room, by the graph.
+func _hops_from(graph: MissionGraph, from: int) -> Dictionary:
+	var hops: Dictionary = {from: 0}
+	var queue: Array[int] = [from]
+	while not queue.is_empty():
+		var at: int = queue.pop_front()
+		for next: int in graph.neighbours(at):
+			if not hops.has(next):
+				hops[next] = int(hops[at]) + 1
+				queue.append(next)
+	return hops
 
 
 ## A hazard laid on the Deep where a probe wants one, through the constructor the

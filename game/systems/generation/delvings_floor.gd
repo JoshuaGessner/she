@@ -42,10 +42,20 @@ const LOOT: LootTable = preload("res://data/loot/lut_delvings.tres")
 ## `TEC-007` step 7, population: the stage this draws its one choice from.
 const STAGE: int = 7
 
+## **Who stands where** (ADR-237): the Delvings' archetypes by room and depth.
+## The Deep reads the same file, as floor one.
+const POPULATION: PopulationResource = preload("res://data/population/pop_delvings.tres")
+
+## How far inside its doorway the Hall-Warden stands (ADR-237): a door cell is
+## the corridor's, so this brings the post over the threshold and clear of the
+## wall, where its leash holds the way in rather than the corridor outside ⟨tune⟩.
+const DOOR_STEP: float = 2.2
+
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
 var _anchors: FloorAnchors = null
 var _machines: FloorMachines = null
+var _population: FloorPopulation = null
 var _history: ExpeditionHistory = null
 var _seed: int = 0
 var _depth: int = 0
@@ -81,7 +91,16 @@ static func of(run_seed: int, floor_index: int) -> DelvingsFloor:
 	# which situations could be (`DES-015` Layer 3, ADR-192).
 	floor_at._machines = FloorMachines.of(
 		floor_at._plan, floor_at._graph, run_seed, floor_index)
+	# Step 7: which archetype each post carries, read off the rooms the posts
+	# stand in. It draws nothing, so no stream is spent on it (ADR-237).
+	floor_at._population = FloorPopulation.of(
+		floor_at._plan, floor_at._graph, floor_index, POPULATION)
 	return floor_at
+
+
+## Who stands where on this floor (ADR-237). Public for `--population-probe`.
+func population() -> FloorPopulation:
+	return _population
 
 
 ## What situations this floor is carrying. Public because `--machine-probe`
@@ -146,7 +165,43 @@ func spawns() -> Array[Vector3]:
 
 
 func enemy_posts() -> Array[Vector3]:
-	return _anchors.posts()
+	var posts: Array[Vector3] = _anchors.posts()
+	# **The Warden stands in the doorway, not the room** (ADR-237). Every other
+	# post is drawn inside its room; a Blocker drawn there would hold a patch of
+	# floor with its leash, and `DES-013`'s Blocker *owns a corridor or door*.
+	var door: int = _population.door_index()
+	if door >= 0 and door < posts.size():
+		posts[door] = door_post(_population.door_node())
+	return posts
+
+
+## Just inside the door of `node` nearest the entrance — the way into the
+## guarded arm from the side a party arrives on.
+func door_post(node: int) -> Vector3:
+	var middle: Vector3 = _anchors.centre_of(node)
+	var doors: Array[Vector2i] = _plan.doors_of(node)
+	if doors.is_empty():
+		return middle
+	var arrival: Vector3 = _anchors.centre_of(_graph.node_with(MissionGraph.Role.ENTRANCE))
+	var nearest: Vector3 = Vector3.INF
+	for cell: Vector2i in doors:
+		var at: Vector3 = FloorBuilder.at(cell) + Vector3(
+			FloorBuilder.CELL * 0.5, middle.y, FloorBuilder.CELL * 0.5)
+		if nearest == Vector3.INF or at.distance_to(arrival) < nearest.distance_to(arrival):
+			nearest = at
+	var inward: Vector3 = middle - nearest
+	inward.y = 0.0
+	if inward.length() <= DOOR_STEP:
+		return middle
+	return nearest + inward.normalized() * DOOR_STEP
+
+
+func enemy_kind(index: int) -> StringName:
+	return _population.kind_at(index)
+
+
+func guardian_kind() -> StringName:
+	return _population.guardian()
 
 
 func guardian() -> Vector3:

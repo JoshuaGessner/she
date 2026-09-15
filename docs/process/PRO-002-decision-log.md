@@ -8544,5 +8544,81 @@ The *nothing on the floor can call* rule was added before planting, on reading t
 - **A hazard room on the only route cannot be gone round.** Crossing it loud or dark is then the price of the floor rather than a choice — a playtest question, and `M4-T02` step 7's population is where a hazard's placement against the route can be asked.
 - The look is blockout; `M4-T05`'s art pass owns what scree and damp look like.
 
+## ADR-237 — Every archetype stands where its role reads, ramped in by depth, and every floor keeps a Bellringer
+
+**Date:** 2026-09-15 · **Status:** accepted · **Closes `M4-T02` (step 7 of ADR-230's seven)** · **Builds `DES-015` step 7's enemies** · **Amends `FloorSource`'s "where, never what"** · **Moves `bellringer_every` off `TuningProfile`**
+
+**Context:** Steps 2 to 5 built four archetypes that no floor placed. Every generated floor fielded Wretches, one post in four a Bellringer (ADR-234), and a Wretch on the Prize. Posts exist only in held rooms, one per room, with the bodies a party or a rank adds ringed around them.
+
+### Decision — the developer's four calls
+
+1. **By the room a post is in**, over a weighted roll per depth. The Hoard-Keeper sits on the Prize, a Hall-Warden at the door into the guarded arm, Sling-Wretches in the larger rooms, Bellringers among the rest. A roll would put a Warden where there is no door to hold.
+2. **Ramped in by depth**, over everything from the first floor. The first floor is Wretches and Bellringers with the Keeper on the Prize; the second adds the Warden and Sling-Wretches in great rooms; the third lets slingers into halls as well.
+3. **Slingers capped per floor**, after the census — at most one on the second floor, two on the third, the largest rooms first. Uncapped, the larger-rooms rule put a slinger in 41 of the 55 guarded rooms that were not the door on the second floor, and left three Wretches in forty floors.
+4. **The Bellringer keeps a post**, after the escalation measurement. The Warden and slingers had taken every post on 22 second floors in 40 and 26 third floors in 40 — solo, those floors had nothing that could call them. So a Warden needs a second guarded room, and a slinger never takes the last ordinary post.
+
+### Built
+
+- **`PopulationResource`** (`data/population/pop_delvings.tres`): the five archetypes it places, `warden_from_floor`, `slinger_rooms` and `slinger_caps` per floor, and `ringer_every`, off `TuningProfile`.
+- **`FloorPopulation`**, `DES-015` step 7 for enemies: each held room's post is the **door**, **wide** or **ordinary**, and `kind_at(index)` answers from the index alone — posts first, then the ring, all ordinary, one ordinary body in `ringer_every` a Bellringer counted from the first. It draws nothing, so no stage's stream moves. The Deep reads the same file as floor one, every post ordinary.
+- **The Warden stands in the doorway.** `DelvingsFloor.enemy_posts` moves the door post to just inside the door of that room nearest the entrance, 2.2 m over the threshold ⟨tune⟩; every other post stays where `FloorAnchors` drew it.
+- **`FloorSource.enemy_kind(index)` and `guardian_kind()`**, and `RoomSet._spawn_enemies` asks them. `FloorSource`'s header said it answers where and never what; enemies are now the one "what" it answers, because only the floor knows its rooms.
+
+### Measured
+
+**The census** — the posts of forty generated floors at each depth, solo at rank 1, with a Hoard-Keeper on every Prize:
+
+| Posts | Wretch | Bellringer | Hall-Warden | Sling-Wretch |
+|---|---|---|---|---|
+| Floor 1 (77) | 35 | 42 | 0 | 0 |
+| Floor 2 (95), uncapped | 3 | 11 | 40 | 41 |
+| Floor 2 (95), capped | 19 | 18 | 40 | 18 |
+| **Floor 2 (95), as built** | 19 | 40 | 22 | 14 |
+| **Floor 3 (103), as built** | 10 | 41 | 26 | 26 |
+
+The uncapped and capped rows are the two drafts the developer's calls 3 and 4 answered.
+
+**How the floors escalate**, `--escalation-probe` on the same six floors before step 7 and after it — seeds 1 to 3 on the second and third floors, solo, every body shown the player in turn for 9 s:
+
+| | Before: bodies | After: bodies | Called before / after | Awake at 9 s before / after |
+|---|---|---|---|---|
+| Floor 2, seed 1 | 1 Bellringer, 2 Wretches | Warden, Bellringer, Keeper | 2 of 3 / 1 of 3 | 1.7 / 1.3 |
+| Floor 2, seed 2 | 1 Bellringer, 1 Wretch | Bellringer, Keeper | 1 of 2 / 1 of 2 | 1.5 / 1.5 |
+| Floor 2, seed 3 | 1 Bellringer, 2 Wretches | Warden, Bellringer, Keeper | 1 of 3 / 1 of 3 | 1.3 / 1.7 |
+| Floor 3, seed 1 | 2 Bellringers, 5 Wretches | Warden, 2 slingers, Bellringer, 2 Wretches, Keeper | 2 of 7 / 1 of 7 | 1.3 / 1.3 |
+| Floor 3, seed 2 | 1 Bellringer, 4 Wretches | Warden, 2 slingers, Bellringer, Keeper | 1 of 5 / 1 of 5 | 1.4 / 1.4 |
+| Floor 3, seed 3 | 2 Bellringers, 7 Wretches | Warden, 2 slingers, 2 Bellringers, 3 Wretches, Keeper | 1 of 9 / 3 of 9 | 1.2 / 1.3 |
+
+**What it says.** Across the six, a sighting called the floor 8 times in 29 before and 8 in 29 after, and how much of a floor is awake at nine seconds did not move. Step 7 changes **what** a player fights on a floor and not how the floor escalates, because it kept the Bellringer's count — which is ADR-234's lever, and was the point of call 4. The first draft of this step, before call 4, measured two of the three second floors with nothing that could call them, and it was that measurement, not the census, that found the fault: the census rule then asked for a Bellringer only where an ordinary post was left.
+
+### Verification
+
+`--population-probe`, new and required, run on `--delvings --seed=3 --floor=2`. Forty seeds at each depth, every rule asked of every floor: the Keeper on every Prize; no Warden and no slinger on the first floor; one Warden where the guarded arm has two rooms or more, in the one fewest rooms from the entrance, standing within reach of its door; slingers only in rooms that qualify, no more than the cap or the last ordinary post allows, and never a smaller room given one while a larger went without; a Bellringer on every floor with a post; slingers climbing from floor to floor. Then the floor that process booted: what it spawned, by archetype, against what its population says.
+
+**Planted and failed, one plant per run:**
+
+| Plant | Caught by |
+|---|---|
+| the spawn forgets the guardian's kind | the booted floor (a Wretch where the Keeper was) |
+| the spawn ignores the population | the booted floor (eight Wretches and a Keeper) |
+| the Warden in the guarded room furthest from the entrance | the census (a nearer room) |
+| the Warden drawn inside its room, not at its door | the census (4.1 to 6.9 m from its door) |
+| a Warden in a floor's only guarded room | the census (no Bellringer, and a Warden it does not want) |
+| no cap on slingers | the census (4 against a cap of 1, and a floor with nothing to call it) |
+| the smallest qualifying rooms first | the census (a hall given one while a great room went without) |
+| slingers take the last ordinary post | the census (no Bellringer) |
+| the ringer count includes Wardens and slingers | the census (no Bellringer) |
+| a Wretch on the Prize, in the population file | the census, **on the second attempt** |
+| a Warden from the first floor, in the population file | the census, **on the second attempt** |
+| a negative slinger cap | `data_probe` |
+
+**Two plants passed the first time.** Both were changes to the population file, and the census read its rules back out of that same file — so a file that put a Wretch on the Prize, or a Warden on the first floor, agreed with itself. The census now asks what sits on the Prize of the archetype (it has to have a waking radius, which is what makes a Guardian), and asks the first floor for no Warden and no slinger as a fact rather than as the file says.
+
+### Consequences
+
+- **`M4-T02` is closed.** Five archetypes and two hazards are on the floors, built in the seven steps ADR-230 ordered.
+- **`GATE M4`'s rank comparison can be asked.** PRO-001 says to run it the day this lands: a rank-8 and a rank-1 player dying at similar rates for different reasons needs floors whose enemies differ, which they now do.
+- **Solo floors are small, and the numbers show it.** At rank 1 a floor has few guarded rooms — 1.9, 2.4 and 2.6 on average across the three depths of the census — so a Bellringer is more than half the bodies on the first floor's posts (42 of 77). The bodies a party or a rank adds are ordinary, so larger parties and higher ranks thin that out. All of it is ⟨tune⟩, and a playtest is where it is tuned.
+
 *Entries below to be added as design decisions are signed off.*
 

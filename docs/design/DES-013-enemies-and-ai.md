@@ -99,6 +99,8 @@ Roster is defined by *what problem it poses*, never by "fire guy / ice guy":
 
 > **The Sling-Wretch** (ADR-235) stands off and slings: once it sees you from within 12 m ⟨tune⟩ it stops and throws, and keeps throwing if you close. A stone is thrown only at what it can see this instant, stops at a wall, and hits the first body in its way, enemy or player, never the thrower. It throws from as far as it can see you — 5 m in full dark, its whole reach when you are lit.
 
+> **All five on the floors (ADR-237).** The first floor is Wretches and Bellringers with the Hoard-Keeper on the Prize; the second adds the Hall-Warden at the door into the guarded arm, where the arm has two rooms or more, and a Sling-Wretch in a great guarded room where there is one; the third allows two slingers, in great rooms or halls. Every floor keeps a post for a Bellringer, which neither takes. Placement by room and depth is `DES-015` Layer 4.
+
 **The Delvings** — Dvergar ruin
 - **Wretch** *(attrition)* — degenerate Dvergar survivors, numerous, pitiable
 - **Hall-Warden** *(blocker)* — dead Dvergar armour still doing its job. Slow, immovable, deafeningly loud when struck

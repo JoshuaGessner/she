@@ -26,11 +26,13 @@ extends RefCounted
 ## would be a week of risk for no change in structure; parameterising the six
 ## reads is the same result by arithmetic.
 ##
-## ## It answers where, never what
+## ## It answers where, and since ADR-237 who
 ##
-## Like `FloorAnchors`, which it wraps on the generated side. Which enemy, which
-## item, which Prize are `DES-013`, `DES-023` and `DES-008`, and the list is
-## not built yet (`M4-T31`) — so nothing here names one.
+## Like `FloorAnchors`, which it wraps on the generated side. Which item and
+## which Prize are `DES-023` and `DES-008`, and they arrive through the loot
+## table. **Which enemy stands on a post is the one "what" a floor answers**,
+## because it is read off the room the post is in — a door, a hall wide enough
+## to throw across — and only the floor knows its rooms (`DES-015` step 7).
 
 
 ## Raise the floor's geometry under `into`.
@@ -56,6 +58,17 @@ extends RefCounted
 ## whatever the party size: four of it would be a different encounter rather
 ## than a scaled one.
 @abstract func guardian() -> Vector3
+
+
+## **Which archetype body `index` is** (ADR-237): posts first, in `enemy_posts`
+## order, then the bodies a party or a rank stacks around them. A function of
+## the index alone, so a floor that grows for a late arrival never changes a body
+## already standing.
+@abstract func enemy_kind(index: int) -> StringName
+
+
+## What sits on the Prize.
+@abstract func guardian_kind() -> StringName
 
 
 ## Where the threat belonging to a **machine** stands (`DES-015` Layer 3,

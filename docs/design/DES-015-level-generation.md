@@ -142,6 +142,17 @@ Loot and enemies placed against the rules already established: greed gradient (`
 > *"steeply with depth"* half was a sentence nothing implemented. The Prize
 > being visible-but-distant from early in the expedition is what pulls people
 > down (`PRO-005 §1`).
+>
+> **Enemies by room and depth (ADR-237).** `FloorPopulation` reads each post's
+> room against the biome's `PopulationResource`. The Hoard-Keeper sits on every
+> Prize. **Every floor with a post keeps one for a Bellringer**, so every floor
+> can be called. From the second floor, where there are at least two guarded
+> rooms, a Hall-Warden stands just inside the door of the one nearest the
+> entrance. Sling-Wretches take the largest qualifying
+> rooms, capped — at most one on the second floor, in a great room, and two on
+> the third, in great rooms or halls ⟨tune⟩ — and never the Bellringer's post. Everything else is a Wretch, one ordinary body in
+> four a Bellringer. The bodies a party or a rank adds around the posts are all
+> ordinary, so a four-stack never meets four Wardens at one door.
 
 > **AND THE SECOND CLAUSE IS BUILT** (ADR-204, `M4-T23`): **worth becomes
 > light.** A Prize's glimmer scales with its `tribute_value`, and the Shaft's

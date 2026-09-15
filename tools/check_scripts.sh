@@ -659,6 +659,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Who stands where** (`M4-T02` step 7, ADR-237). A census of forty seeds at
+	# each depth with every placement rule asked of every floor — the Keeper on
+	# the Prize, the Warden at the door, slingers capped into the largest rooms,
+	# a Bellringer among the ordinary — and the booted floor spawns what it says.
+	population="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --delvings --seed=3 --floor=2 --population-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$population" \
+			|| ! grep -q "^\[population\] this floor spawned" <<<"$population"; then
+		echo "FAIL every archetype has to stand where its role reads" >&2
+		printf '%s\n' "$population" | grep -E '\[population\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

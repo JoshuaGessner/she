@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="PopulationResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/generation/population_resource.gd" id="1_population"]
+
+[resource]
+script = ExtResource("1_population")
+id = &"pop_delvings"
+rank_and_file = &"enm_wretch"
+guardian = &"enm_hoard_keeper"
+warden = &"enm_hall_warden"
+slinger = &"enm_sling_wretch"
+ringer = &"enm_bellringer"
+warden_from_floor = 1
+slinger_rooms = PackedInt32Array(-1, 3, 2)
+slinger_caps = PackedInt32Array(0, 1, 2)
+ringer_every = 4
