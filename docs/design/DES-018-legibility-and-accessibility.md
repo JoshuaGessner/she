@@ -122,7 +122,7 @@ The rest. **Built by `M4-T11`, the accessibility suite** — which exists becaus
 - **Visual sound indicators** as above — the same system, not a separate mode
 
 **Input** — *the first two moved out of this list by ADR-075; see below*
-- Full rebinding, including modifiers — `M4-T06`
+- Full rebinding, including modifier keys on their own — **built, `M4-T06` (ADR-245)**. Every verb, keyboard and pad, from the controls screen on the menu or mid-run; a clash swaps, a designed pair moves together, and Escape, Start and the debug keys are never a player's to take. Chords (Ctrl+E) are absent
 - No required rapid repeated inputs; **no quick-time events anywhere**
 
 ## Input parity is a standing rule, from M1 (ADR-075)
@@ -133,8 +133,10 @@ The rest. **Built by `M4-T11`, the accessibility suite** — which exists becaus
 - **Every hold action also has a latch.** Crouch ships with both (`ctrl`/B to hold, `c`/R3 to toggle); sprint, block and aim inherit the rule as they are built. Holding an input through the long quiet approach `DES-005` Layer 1 rewards is a real physical cost, not a preference.
 - **Look is available without fine pointer control** — stick or arrow keys, rate-based, with an adjustable response curve.
 - **Prompts name both devices** (`DES-019`).
+- **The menus too** (ADR-245). The engine's own `ui_accept` and `ui_cancel` had no pad button, so a pad could move through a menu and press none of it: **A presses, Start is the menu.** B stays crouch — as *back* it would pause on every crouch — and every screen has a BACK button. A probe presses them as pad buttons, not as action names.
+- **One input, one verb, on both devices.** `bind_gamepad.py` refuses two actions on one pad input and `check_project.py` the same on the keyboard and mouse, unless `SHARED_OK` names what keeps them apart.
 
-Still absent, deliberately: rumble, glyph-swapping prompt icons, and rebinding UI. Those are `M4-T05`/`M4-T06` and are not approximated in the meantime.
+Still absent, deliberately: rumble and glyph-swapping prompt icons (`M4-T05`). Rebinding is built (ADR-245).
 
 **Cognitive**
 - Contract and objective text re-readable at any time, never timed

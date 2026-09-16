@@ -27,6 +27,9 @@ const ALL: String = "all"
 ## Mouse *motion* is not an action, so the input map cannot express it. Look is
 ## read straight from `InputEventMouseMotion` in the player, which asks here.
 static var _pointer_allowed: bool = true
+## The device a launch was restricted to, so a rebuilt map can be restricted
+## again.
+static var _restricted: String = ALL
 
 
 ## True unless this instance was launched gamepad-only. The player consults it
@@ -51,6 +54,7 @@ static func restrict(device: String) -> String:
 	if device != KEYBOARD and device != GAMEPAD:
 		return ALL
 	_pointer_allowed = device == KEYBOARD
+	_restricted = device
 	var erased: int = 0
 	var touched: int = 0
 	for action: StringName in InputMap.get_actions():
@@ -71,6 +75,14 @@ static func restrict(device: String) -> String:
 	print("[input] %s only — erased %d binding(s) across %d action(s)" % [
 		device, erased, touched])
 	return device
+
+
+## **Put a restriction back** after the input map was rebuilt (`M4-T06`,
+## ADR-245) — a rebind reloads the project's map, which would otherwise hand a
+## gamepad-only launch its keyboard back mid-session.
+static func reapply() -> void:
+	if _restricted != ALL:
+		restrict(_restricted)
 
 
 static func _belongs_to(event: InputEvent, device: String) -> bool:

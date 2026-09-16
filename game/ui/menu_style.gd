@@ -102,6 +102,7 @@ const DEED_NAME: StringName = &"DeedName"
 const ACTION: StringName = &"MenuAction"
 const FIELD: StringName = &"MenuField"
 const TOGGLE: StringName = &"MenuToggle"
+const BINDING: StringName = &"BindingCell"
 const FRAME: StringName = &"Frame"
 const RULE: StringName = &"Rule"
 const BACKDROP: StringName = &"Backdrop"
@@ -266,6 +267,19 @@ static func button(text: String) -> Button:
 		Foley.flat(control, Foley.Sound.CLICK))
 	control.custom_minimum_size = Vector2(280.0, 40.0)
 	control.theme_type_variation = ACTION
+	return control
+
+
+## **A binding you can press** (ADR-245): the controls screen's cells, a line
+## tall so twenty verbs still fit two columns, and clicking like every button.
+static func binding(text: String, width: float) -> Button:
+	var control := Button.new()
+	control.text = text
+	control.pressed.connect(func() -> void:
+		Foley.flat(control, Foley.Sound.CLICK))
+	control.custom_minimum_size = Vector2(width, 0.0)
+	control.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	control.theme_type_variation = BINDING
 	return control
 
 

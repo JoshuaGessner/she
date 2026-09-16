@@ -25,16 +25,30 @@ extends Control
 ## action a row names must exist in `InputMap`. Adding an action without
 ## teaching it is then a failed build rather than a thing a playtester finds.
 ##
-## ## Not rebinding
+## ## And where you change them (`M4-T06`, ADR-245)
 ##
-## `M4-T06` owns rebinding. This is the display half, pulled forward under
-## ADR-137 because a gate needs it and rebinding does not. It is deliberately
-## read-only: a row you cannot click is honest, and a greyed row promising a
-## rebind you have not built is the stub `ADR-064` bans.
+## Every cell is a button now. Press one and the next key or mouse button — or,
+## on the pad side, button or stick — is that verb's; a row covering several
+## verbs asks for each in turn (*forward, left, back, right*); Escape, or six
+## seconds of nothing, lets it go. The rules — swaps, pairs, refusals — are
+## `Bindings`', and the screen only says what they did. It stayed generated, so
+## every other prompt in the game follows a rebind without being told.
 ##
 ## Both devices on every row, per `DES-019` rule 7.
 
 signal closed()
+
+
+## The two tables' parent, rebuilt after every rebind.
+var _spread: HBoxContainer = null
+## What the last capture did, or why it did not.
+var _status: Label = null
+## The capture in progress: `actions`, `index`, `device`, `left`, `label`.
+var _capture: Dictionary = {}
+## The cell buttons by `"label|device"`, for the probe that presses one.
+var _cells: Dictionary = {}
+## The cell last pressed, to hand focus back to.
+var _focus_key: String = ""
 
 ## The laid-out column, kept so `--menu-probe` can ask whether it fits. The
 ## screen's row count comes from `InputMap`, so it is the one menu in the game
@@ -150,18 +164,46 @@ func _ready() -> void:
 	# The split is **computed, not written down**: `M4-T06` adds rebinding rows
 	# and `DES-009` still owes three combat verbs, so a hardcoded halfway point
 	# would be wrong by the next task that touches the input map.
-	var spread := HBoxContainer.new()
-	spread.add_theme_constant_override("separation", 40)
-	column.add_child(spread)
+	_spread = HBoxContainer.new()
+	_spread.add_theme_constant_override("separation", 40)
+	column.add_child(_spread)
+	_fill()
 
+	column.add_child(_gap(8))
+	_status = MenuStyle.line("press a key or a button to change it", MenuStyle.CAPTION_DIM)
+	column.add_child(_status)
+	column.add_child(_gap(6))
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 16)
+	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	column.add_child(buttons)
+	var reset: Button = MenuStyle.button("DEFAULTS")
+	reset.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	reset.pressed.connect(restore_defaults)
+	buttons.add_child(reset)
+	var back: Button = MenuStyle.button("BACK")
+	# Every other menu's column is one button wide, so a stretched button looks
+	# right there and looks like a banner here. Shrink to its own width instead.
+	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	back.pressed.connect(func() -> void: closed.emit())
+	buttons.add_child(back)
+	back.grab_focus()
+
+
+## The two tables, from `InputMap` as it stands now.
+func _fill() -> void:
+	for child: Node in _spread.get_children():
+		_spread.remove_child(child)
+		child.queue_free()
+	_cells.clear()
 	var total: int = 0
 	for group: Array in GROUPS:
 		total += (group[1] as Array).size()
 
 	var left: GridContainer = _table()
 	var right: GridContainer = _table()
-	spread.add_child(left)
-	spread.add_child(right)
+	_spread.add_child(left)
+	_spread.add_child(right)
 
 	var placed: int = 0
 	for group: Array in GROUPS:
@@ -171,15 +213,130 @@ func _ready() -> void:
 		for row: Array in rows:
 			_row(table, String(row[0]), PackedStringArray(row[2] as Array))
 		placed += rows.size()
+	if _focus_key != "":
+		_refocus()
 
-	column.add_child(_gap(14))
-	var back: Button = MenuStyle.button("BACK")
-	# Every other menu's column is one button wide, so a stretched button looks
-	# right there and looks like a banner here. Shrink to its own width instead.
-	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-	back.pressed.connect(func() -> void: closed.emit())
-	column.add_child(back)
-	back.grab_focus()
+
+## **Start a capture** for a row on a device — what pressing a cell does, and
+## public so the probe presses the same thing.
+func press_cell(label: String, device: int) -> bool:
+	var cell := _cells.get("%s|%d" % [label, device]) as Button
+	if cell == null:
+		return false
+	cell.pressed.emit()
+	return true
+
+
+## Every default back.
+func restore_defaults() -> void:
+	_capture = {}
+	Bindings.reset()
+	_fill()
+	_say("every control is back where it started", MenuStyle.CAPTION_DIM)
+
+
+func _begin(label: String, actions: PackedStringArray, device: int) -> void:
+	_capture = {"label": label, "actions": actions, "index": 0,
+		"device": device, "left": Config.tuning.rebind_capture_seconds}
+	_focus_key = "%s|%d" % [label, device]
+	_ask()
+
+
+## Give focus back to the cell that was being changed once the table is rebuilt
+## under it — a pad has no pointer to find its place again with.
+func _refocus() -> void:
+	var cell := _cells.get(_focus_key) as Button
+	if cell != null:
+		cell.call_deferred("grab_focus")
+
+
+func _ask() -> void:
+	var actions: PackedStringArray = _capture["actions"]
+	var action: String = actions[int(_capture["index"])]
+	var which: String = ""
+	if actions.size() > 1:
+		which = " — " + action.get_slice("_", action.get_slice_count("_") - 1)
+	_say("%s%s: press %s, or Escape to leave it" % [
+		String(_capture["label"]), which,
+		"a key or a mouse button" if int(_capture["device"]) == Bindings.Device.KEYS
+			else "a pad button or push a stick"], MenuStyle.CAPTION_WARM)
+
+
+func _process(delta: float) -> void:
+	if _capture.is_empty():
+		return
+	_capture["left"] = float(_capture["left"]) - delta
+	if float(_capture["left"]) <= 0.0:
+		_capture = {}
+		_say("left as it was", MenuStyle.CAPTION_DIM)
+
+
+func _input(event: InputEvent) -> void:
+	if _capture.is_empty():
+		return
+	if capture(event):
+		get_viewport().set_input_as_handled()
+
+
+## **Offer an input to the capture in progress.** Returns whether it was taken
+## (or was the way out), so the screen swallows it. Public for the probe, which
+## hands it the same events a device would.
+func capture(event: InputEvent) -> bool:
+	if _capture.is_empty():
+		return false
+	var key := event as InputEventKey
+	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
+		_capture = {}
+		_say("left as it was", MenuStyle.CAPTION_DIM)
+		return true
+	if not _is_a_press(event):
+		return false
+	if Bindings.device_of(event) != int(_capture["device"]):
+		return false
+	var actions: PackedStringArray = _capture["actions"]
+	var action: String = actions[int(_capture["index"])]
+	var refused: String = Bindings.rebind(action, event)
+	if refused != "":
+		_capture = {}
+		_fill()
+		_say(refused, MenuStyle.SMALL_FAULT)
+		return true
+	var moved: String = Bindings.last_note
+	_capture["index"] = int(_capture["index"]) + 1
+	_capture["left"] = Config.tuning.rebind_capture_seconds
+	if int(_capture["index"]) < actions.size():
+		_ask()
+		return true
+	var label: String = String(_capture["label"])
+	_capture = {}
+	_fill()
+	_say(moved if moved != "" else "%s changed" % label, MenuStyle.CAPTION_TEXT)
+	return true
+
+
+## A key or button going down, or a stick or trigger pushed well past rest.
+func _is_a_press(event: InputEvent) -> bool:
+	if event is InputEventKey:
+		return (event as InputEventKey).pressed and not (event as InputEventKey).echo
+	if event is InputEventMouseButton:
+		return (event as InputEventMouseButton).pressed
+	if event is InputEventJoypadButton:
+		return (event as InputEventJoypadButton).pressed
+	if event is InputEventJoypadMotion:
+		return absf((event as InputEventJoypadMotion).axis_value) >= Config.tuning.rebind_axis_threshold
+	return false
+
+
+## What the status line says — for the probe, which asks how a capture ended.
+func said() -> String:
+	return _status.text if _status != null else ""
+
+
+func _say(text: String, role: StringName) -> void:
+	if _status == null:
+		return
+	_status.text = text
+	_status.theme_type_variation = role
 
 
 ## One action's binding as running text — `"e/X"`, `"tab/LB"`, `"lmb/RT"`.
@@ -306,20 +463,22 @@ func _row(table: GridContainer, text: String, actions: PackedStringArray) -> voi
 	# Wider on the left. Four arrow keys read as `Up  Left  Down  Right` and wrap
 	# at the pad column's width, which costs the row a second line — and the pad
 	# side never needs it, because every pad glyph here is two words at most.
-	table.add_child(_glyph_cell(keyboard_glyphs(actions), 152))
-	table.add_child(_glyph_cell(pad_glyphs(actions), 112))
+	table.add_child(_glyph_cell(text, actions, Bindings.Device.KEYS,
+		keyboard_glyphs(actions), 152))
+	table.add_child(_glyph_cell(text, actions, Bindings.Device.PAD,
+		pad_glyphs(actions), 112))
 
 
-func _glyph_cell(glyphs: PackedStringArray, width: int) -> Label:
+func _glyph_cell(label: String, actions: PackedStringArray, device: int,
+		glyphs: PackedStringArray, width: int) -> Button:
 	# An empty cell would be a lie of omission — it reads as "this verb has no
 	# binding on this device", which is a different and much worse statement
 	# than "nothing is bound here yet". ADR-075 makes both devices reach
 	# everything, so if this ever renders the dash, that is the bug.
 	var text: String = "  ".join(glyphs) if not glyphs.is_empty() else "—"
-	var cell: Label = MenuStyle.line(text,
-		MenuStyle.BODY_TEXT if not glyphs.is_empty() else MenuStyle.BODY_DIM)
-	cell.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	cell.custom_minimum_size = Vector2(float(width), 0.0)
+	var cell: Button = MenuStyle.binding(text, float(width))
+	cell.pressed.connect(_begin.bind(label, actions, device))
+	_cells["%s|%d" % [label, device]] = cell
 	return cell
 
 

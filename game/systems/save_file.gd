@@ -79,6 +79,16 @@ static func use_a_scratch_profile() -> void:
 	PATH = "user://profile.probe"
 	TMP = "user://profile.probe.tmp"
 
+
+## **A scratch profile from a newer build** (ADR-246), for the probes that ask
+## what a refused profile looks like from the places a player stands.
+static func plant_a_newer_one() -> void:
+	use_a_scratch_profile()
+	wipe()
+	var newer := FileAccess.open(PATH, FileAccess.WRITE)
+	newer.store_string(JSON.stringify({"meta": {"save_version": SAVE_VERSION + 1}}))
+	newer.close()
+
 ## Ordered forward migrations: `N` names the function taking a version-`N` dict
 ## and returning a version-`N+1` one.
 ##
@@ -280,6 +290,46 @@ static func read_raw() -> Dictionary:
 		push_error("SaveFile: %s is not a save file; refusing to load" % PATH)
 		return {}
 	return parsed as Dictionary
+
+
+## **What the profile on disk is, without opening it** (`M4-T06`, ADR-246):
+## `state` is `none`, `readable`, `newer` or `unreadable`, and a readable one
+## says how many descents and how rich a hoard, for the menu to name. Quiet —
+## the menu asks this every time it draws, and `read()` is the one that says
+## what is wrong, when a descent actually opens the file.
+static func standing() -> Dictionary:
+	if not exists():
+		return {"state": "none"}
+	var json := JSON.new()
+	if json.parse(FileAccess.get_file_as_string(PATH)) != OK \
+			or typeof(json.data) != TYPE_DICTIONARY:
+		return {"state": "unreadable"}
+	var raw: Dictionary = json.data
+	var version: int = int(_meta_of(raw).get("save_version", 0))
+	if version < 1:
+		return {"state": "unreadable"}
+	if version > SAVE_VERSION:
+		return {"state": "newer", "version": version}
+	var lineage: Variant = raw.get("lineage", {})
+	var kept: Dictionary = lineage if typeof(lineage) == TYPE_DICTIONARY else {}
+	return {"state": "readable", "version": version,
+		"descents": maxi(1, int(kept.get("descents", 1))),
+		"hoard_value": maxi(0, int(kept.get("hoard_value", 0)))}
+
+
+## **Set a lineage aside** (ADR-246): renamed, never deleted, so an abandon
+## regretted costs a rename rather than the lineage. Returns where it went, or
+## empty when there was nothing to move or it would not move.
+static func abandon() -> String:
+	if not exists():
+		return ""
+	var aside: String = "%s.abandoned.%d" % [PATH, int(Time.get_unix_time_from_system())]
+	var moved: int = DirAccess.rename_absolute(ProjectSettings.globalize_path(PATH),
+		ProjectSettings.globalize_path(aside))
+	if moved != OK:
+		push_error("SaveFile: cannot set %s aside (%d)" % [PATH, moved])
+		return ""
+	return aside
 
 
 ## Gone, along with its backups. Only `--save-probe` calls this today; deleting

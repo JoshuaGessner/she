@@ -193,6 +193,10 @@ what you learned  →  she remembers  →  choose what she keeps  →  descend
 
 **Leads with what was gained, never with what was lost.** Lineage accrues live during a run and commits on death, so this screen always has something real to open with.
 
+## When nothing is being kept (ADR-246)
+
+A profile this build will not open is said **everywhere a player stands**, because every write under it is thrown away: the menu names it in the fault tone and offers no abandon; the camp's readout opens with *NOT BEING SAVED*; the Chamber's first row is *saving: not*; and the Deep keeps *not being saved — see the menu* in its PLACE region for the whole descent. Otherwise the menu names the lineage — descents and the hoard's worth — and ABANDON THIS LINEAGE is a held button, its seconds counted down in words.
+
 ## The Lair
 
 Different rules apply. **Numbers are appropriate here** — you are comparing gear, planning a build, and doing Tithe arithmetic. This is the one place spreadsheet-brain is welcome.

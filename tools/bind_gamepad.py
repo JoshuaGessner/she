@@ -141,6 +141,20 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # block, shove and throw — of which three are still unbound. The layout
     # pass that fixes that properly belongs with rebinding at `M4-T06`.
     "block": [(BUTTON, RIGHT_SHOULDER, 0.0)],
+    # **The menu's two keys** (`M4-T06`, ADR-245). Godot 4.7 ships `ui_accept`
+    # as Enter, keypad Enter and Space and `ui_cancel` as Escape, with no pad
+    # button on either — so from ADR-075 until here a pad could move focus
+    # through every menu, press none of it, and never open the pause menu. This
+    # file walked the actions `project.godot` declares, and the engine's own are
+    # not declared until something overrides them: the half-check the
+    # docstring warns about, one level down.
+    #
+    # `A` presses and `START` is the menu, as on every pad. `B` is the other
+    # convention for *back*, and is not taken: `B` is crouch, and `ui_cancel`
+    # is also what opens the pause menu, so every crouch would pause. Every
+    # screen has a BACK button, and `A` presses it.
+    "ui_accept": [(BUTTON, A, 0.0)],
+    "ui_cancel": [(BUTTON, START, 0.0)],
 }
 
 # Pairs allowed to sit on one physical input, and the context that keeps them
@@ -164,6 +178,14 @@ SHARED_OK: dict[frozenset[str], str] = {
     frozenset({"debug_ink", "debug_overlays"}):
         "together by design: two debug views that a pad turns over at once, "
         "so the ping can have the d-pad (ADR-244, ADR-137's rule)",
+    # The menu's keys beside play's (ADR-245).
+    frozenset({"jump", "ui_accept"}):
+        "disjoint by focus: `ui_accept` presses only a focused control and a "
+        "hidden one gives its focus up — the keyboard's Space has done both "
+        "since M1",
+    frozenset({"debug_reset", "ui_cancel"}):
+        "disjoint by scene: `debug_reset` is read only by the movement gym, "
+        "which has no pause menu, lodge or pact screen",
 }
 
 JOY_BUTTON = ('Object(InputEventJoypadButton,"resource_local_to_scene":false,'

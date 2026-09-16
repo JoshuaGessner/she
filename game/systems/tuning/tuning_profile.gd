@@ -174,6 +174,18 @@ extends Resource
 ## How far off the aim a thing may be and still be what was marked ⟨tune⟩.
 @export var ping_cone_degrees: float = 5.0
 
+@export_group("Menus")
+## **How long ABANDON is held** ⟨tune⟩ (`M4-T06`, ADR-246). Long enough that
+## nobody sets a lineage aside by passing through the button, short enough to
+## still read as a choice.
+@export var abandon_hold_seconds: float = 3.0
+## How long the controls screen waits for a new input ⟨tune⟩ (ADR-245) before it
+## leaves the binding as it was — the pad's way out, since every pad button is
+## somebody's binding.
+@export var rebind_capture_seconds: float = 6.0
+## How far a stick or trigger must travel to be the input a rebind meant ⟨tune⟩.
+@export var rebind_axis_threshold: float = 0.6
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a
@@ -910,6 +922,15 @@ func validate() -> PackedStringArray:
 	if ping_cone_degrees <= 0.0 or ping_cone_degrees > 30.0:
 		problems.append("ping_cone_degrees is %.1f — a mark has to be about what you are looking at, not beside it"
 			% ping_cone_degrees)
+	if abandon_hold_seconds < 1.0:
+		problems.append("abandon_hold_seconds is %.2f — a lineage must not be set aside by a press that lingers"
+			% abandon_hold_seconds)
+	if rebind_capture_seconds < 2.0:
+		problems.append("rebind_capture_seconds is %.1f — a player needs time to find the key they want"
+			% rebind_capture_seconds)
+	if rebind_axis_threshold <= 0.2 or rebind_axis_threshold >= 1.0:
+		problems.append("rebind_axis_threshold is %.2f — a resting stick must not be taken, and a full push must be"
+			% rebind_axis_threshold)
 	if heavy_block_stamina_multiplier < 1.0:
 		problems.append("heavy_block_stamina_multiplier is %.2f — a heavy blow cannot be cheaper to take than a cut"
 			% heavy_block_stamina_multiplier)

@@ -125,6 +125,9 @@ func _ready() -> void:
 		# monument"*, and a monument photographed at zero is a photograph of a
 		# floor — the thing this shot exists to judge is whether many lives'
 		# worth of gold reads as a mountain you can walk on.
+		if arg == "--saving-probe":
+			SaveFile.plant_a_newer_one()
+			GameState.load_profile()
 		if arg.begins_with("--chamber-shot="):
 			GameState.hoard_value = 2400
 			# And her longest demand, part given, so the row is photographed
@@ -163,6 +166,8 @@ func _ready() -> void:
 			_pact_probe()
 		elif arg == "--demand-probe":
 			_demand_probe()
+		elif arg == "--saving-probe":
+			_saving_probe()
 	# **She names her demand when a life first comes before her** (ADR-243),
 	# and says when it is met — in the one voice this room has.
 	_she_says(GameState.take_demand_heard())
@@ -712,6 +717,12 @@ func _build_readout() -> void:
 	var place_body := VBoxContainer.new()
 	place_body.add_theme_constant_override("separation", 5)
 	place_body.add_child(MenuStyle.heading("The Chamber"))
+	# **First, when nothing is being kept** (`M4-T06`, ADR-246): what she is
+	# given here is thrown away on quitting, and that is the first thing a
+	# player standing at her pile is owed.
+	if GameState.refused_a_profile():
+		_rows["saving"] = MenuStyle.row("saving", "not — see the menu")
+		place_body.add_child(_rows["saving"])
 	_rows["descent"] = MenuStyle.row("descent", "")
 	place_body.add_child(_rows["descent"])
 	_rows["stash"] = MenuStyle.row("stash", "")
@@ -1540,6 +1551,30 @@ func _pact_probe() -> void:
 		problems.append("the cycle's conversion headroom survived a death, so "
 			+ "a new life would inherit a spent cap")
 	_report_pact(problems)
+
+
+## **`--saving-probe`**, her room's half (`M4-T06`, ADR-246): under a refused
+## profile the Chamber says so on its first row, above the descent — and,
+## windowed, the taller panel still sits inside its region.
+func _saving_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await get_tree().process_frame
+	var row := _rows.get("saving") as HBoxContainer
+	var said: String = (row.get_child(1) as Label).text if row != null else ""
+	var at: int = row.get_index() if row != null else -1
+	var faults: PackedStringArray = await layout_faults()
+	print("[saving] the Chamber      refused %s; says '%s' at row %d; layout faults %d (want yes, not, 1, 0)"
+		% [GameState.refused_a_profile(), said, at, faults.size()])
+	if not GameState.refused_a_profile():
+		problems.append("the setup did not refuse the profile, so nothing below is about a refusal")
+	if not said.begins_with("not") or at != 1:
+		problems.append("the Chamber did not say first that nothing is being saved")
+	problems.append_array(faults)
+	SaveFile.wipe()
+	for problem: String in problems:
+		printerr("[saving] FAIL %s" % problem)
+	print("[saving] her room says it first")
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 ## **`--demand-probe`** (`M4-T04`, ADR-243, `DES-007` tier 1). The oath names one

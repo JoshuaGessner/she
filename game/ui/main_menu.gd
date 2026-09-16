@@ -53,6 +53,10 @@ func _ready() -> void:
 			_class_probe()
 		if arg == "--menu-probe":
 			_menu_probe()
+		if arg == "--rebind-probe":
+			_rebind_probe()
+		if arg == "--lineage-probe":
+			_lineage_probe()
 		elif arg.begins_with("--menu-shot="):
 			_menu_shot(arg.split("=", true, 1)[1])
 
@@ -71,9 +75,10 @@ func _menu_shot(directory: String) -> void:
 	# able to grow past the bottom of the viewport without any code changing.
 	# `--menu-probe` can prove every row exists; only a photograph can show
 	# whether the last one is on screen.
-	for screen: String in ["root", "host", "join", "settings", "controls"]:
+	for screen: String in ["root", "host", "join", "settings", "controls", "abandon"]:
 		match screen:
 			"root": _show_root()
+			"abandon": _show_abandon()
 			"host": _show_host()
 			"join": _show_join()
 			"settings": _show_settings()
@@ -109,6 +114,12 @@ func _show_root() -> void:
 	_column.add_child(MenuStyle.title("SHE"))
 	_column.add_child(MenuStyle.line(
 		"a hoard-dragon buys your soul one run at a time"))
+	var said: Array = lineage_line(SaveFile.standing())
+	if not said.is_empty():
+		_column.add_child(_gap(6))
+		var told: Label = MenuStyle.line(String(said[0]), said[1] as StringName)
+		told.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_column.add_child(told)
 	_column.add_child(_gap(18))
 
 	var play: Button = MenuStyle.button("DESCEND ALONE")
@@ -134,6 +145,15 @@ func _show_root() -> void:
 	var settings: Button = MenuStyle.button("SETTINGS")
 	settings.pressed.connect(_show_settings)
 	_column.add_child(settings)
+
+	# **The lineage, and the way to set it aside** (`M4-T06`, ADR-246). Only a
+	# profile this build can read may be abandoned: one from a newer build is
+	# not this build's to touch, which is the whole of what it is told.
+	var standing: Dictionary = SaveFile.standing()
+	if String(standing["state"]) == "readable":
+		var abandon: Button = MenuStyle.button("ABANDON THIS LINEAGE")
+		abandon.pressed.connect(_show_abandon)
+		_column.add_child(abandon)
 
 	var quit: Button = MenuStyle.button("QUIT")
 	quit.pressed.connect(func() -> void: get_tree().quit())
@@ -305,6 +325,95 @@ func _show_join() -> void:
 	back.pressed.connect(_show_root)
 	_column.add_child(back)
 	field.grab_focus()
+
+
+## **What the menu says about the lineage on disk** (ADR-246): `[text, role]`,
+## or empty when there is none yet. A refused one is said plainly, in the one
+## tone the game keeps for something wrong you can act on, because every
+## descent it covers is being thrown away.
+static func lineage_line(standing: Dictionary) -> Array:
+	match String(standing.get("state", "none")):
+		"readable":
+			return ["your lineage: %d descent%s · a hoard worth %d" % [
+				int(standing["descents"]), "" if int(standing["descents"]) == 1 else "s",
+				int(standing["hoard_value"])], MenuStyle.SMALL_DIM]
+		"newer":
+			return [("your lineage was saved by a newer version of SHE — this one "
+				+ "will not open it, and nothing you do here will be saved"),
+				MenuStyle.SMALL_FAULT]
+		"unreadable":
+			return [("your lineage could not be read — this build will not write "
+				+ "over it, and nothing you do here will be saved"),
+				MenuStyle.SMALL_FAULT]
+	return []
+
+
+## **Setting a lineage aside, asked properly** (`M4-T06`, ADR-246): **held**,
+## not pressed, because this is the one choice in the game that is not a run's.
+## Held rather than typed because a word is a keyboard's, and ADR-075 gives a
+## pad everything — Destiny 2 deletes a character the same way, on a hold long
+## enough that nobody does it by passing through. The file is kept under
+## another name.
+const ABANDON_LABEL: String = "HOLD TO ABANDON"
+
+## The hold button while it is on screen, and how long it has been held; below
+## zero when nobody is holding it.
+var _abandon: Button = null
+var _abandon_held: float = -1.0
+
+
+func _show_abandon() -> void:
+	_clear()
+	_column.add_child(MenuStyle.title("ABANDON", MenuStyle.SCREEN_TITLE))
+	var told: Label = MenuStyle.line(("Everything she has kept of you — the hoard, "
+		+ "the deeds, the lives — is set aside, and your next descent begins a new "
+		+ "lineage. The old one is kept on disk under another name. Hold the "
+		+ "button for %d seconds to confirm.")
+		% roundi(Config.tuning.abandon_hold_seconds), MenuStyle.SMALL_DIM)
+	told.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_column.add_child(told)
+	_abandon = MenuStyle.button(ABANDON_LABEL)
+	_abandon_held = -1.0
+	# `button_down` and `button_up` come from a mouse, a key and a pad's accept
+	# alike, so one pair of signals is the whole of the parity.
+	_abandon.button_down.connect(func() -> void: _abandon_held = 0.0)
+	_abandon.button_up.connect(_let_go_of_abandon)
+	_abandon.tree_exited.connect(func() -> void:
+		_abandon = null
+		_abandon_held = -1.0)
+	_column.add_child(_abandon)
+	var back: Button = MenuStyle.button("BACK")
+	back.pressed.connect(_show_root)
+	_column.add_child(back)
+	# BACK first: the safe choice is where a pad lands.
+	back.grab_focus()
+
+
+func _process(delta: float) -> void:
+	hold_abandon(delta)
+
+
+## **Time on the hold** — `_process`'s, and the probe's, so a hold is measured
+## the same way whoever is counting. Says the seconds left on the button in
+## words (`DES-018`: not a fill colour alone), and sets the lineage aside when
+## they run out.
+func hold_abandon(delta: float) -> void:
+	if _abandon == null or _abandon_held < 0.0:
+		return
+	_abandon_held += delta
+	var hold: float = Config.tuning.abandon_hold_seconds
+	if _abandon_held < hold:
+		_abandon.text = "KEEP HOLDING — %d" % ceili(hold - _abandon_held)
+		return
+	_abandon_held = -1.0
+	GameState.forget_the_lineage()
+	_show_root()
+
+
+func _let_go_of_abandon() -> void:
+	_abandon_held = -1.0
+	if _abandon != null:
+		_abandon.text = ABANDON_LABEL
 
 
 func _show_settings() -> void:
@@ -576,6 +685,321 @@ func _menu_probe() -> void:
 ## only ever confirm itself, which is the fault `bind_gamepad.py` shipped with
 ## and `M3-T06` found again in `load_profile` — a check that enumerates its own
 ## expectations is not a check.
+## The root's buttons by label, for the lineage probe.
+func _root_labels() -> PackedStringArray:
+	var out := PackedStringArray()
+	for node: Node in _column.find_children("*", "Button", true, false):
+		out.append((node as Button).text)
+	return out
+
+
+## Every label the root is showing, joined, for the lineage probe.
+func _root_text() -> String:
+	var out := PackedStringArray()
+	for node: Node in _column.find_children("*", "Label", true, false):
+		out.append((node as Label).text)
+	return " | ".join(out)
+
+
+func _write_profile_text(text: String) -> void:
+	var file := FileAccess.open(SaveFile.PATH, FileAccess.WRITE)
+	file.store_string(text)
+	file.close()
+
+
+## **`--lineage-probe`** (`M4-T06`, ADR-246). No profile: nothing said and
+## nothing to abandon. A readable one: named, and abandoned only by the word
+## typed, which moves it aside intact, closes its run and leaves this process a
+## lineage nobody has lived. A newer one and an unreadable one: said plainly in
+## the fault tone, never offered for abandoning, opened by nothing, and every
+## place a player stands says nothing is being saved.
+func _lineage_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	SaveFile.use_a_scratch_profile()
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	if SaveFile.PATH == "user://profile.save" or RunFile.PATH == "user://run.active":
+		printerr("[lineage] FAIL this probe is pointed at the player's files")
+		get_tree().quit(1)
+		return
+	SaveFile.wipe()
+	RunFile.clear()
+
+	# ─ 1. no profile ─
+	_show_root()
+	var bare: PackedStringArray = _root_labels()
+	print("[lineage] no profile      %s; abandon offered %s (want none, no)"
+		% [SaveFile.standing()["state"], bare.has("ABANDON THIS LINEAGE")])
+	if String(SaveFile.standing()["state"]) != "none" or bare.has("ABANDON THIS LINEAGE"):
+		problems.append("with no profile the menu offered to abandon one")
+
+	# ─ 2. a readable lineage, named ─
+	GameState.descents = 4
+	GameState.hoard_value = 300
+	SaveFile.write(GameState.to_dict())
+	var original: String = FileAccess.get_file_as_string(SaveFile.PATH)
+	RunFile.begin(&"huskarl", 1, 5)
+	_show_root()
+	var named: String = _root_text()
+	var offered: bool = _root_labels().has("ABANDON THIS LINEAGE")
+	print("[lineage] readable        '%s'; abandon offered %s (want 4 descents and 300, yes)"
+		% [named, offered])
+	if not named.contains("4 descents") or not named.contains("300") or not offered:
+		problems.append("a readable lineage was not named, or could not be abandoned")
+
+	# ─ 3. abandoned only by a hold, and a pad can hold it ─
+	_show_abandon()
+	await get_tree().process_frame
+	var go: Button = _abandon
+	var hold: float = Config.tuning.abandon_hold_seconds
+	var focus: Control = get_viewport().gui_get_focus_owner()
+	var safe_first: bool = focus is Button and (focus as Button).text == "BACK"
+	if go != null:
+		go.pressed.emit()
+	var survived_a_press: bool = SaveFile.exists()
+	if go != null:
+		go.button_down.emit()
+	hold_abandon(hold * 0.6)
+	var counting: String = go.text if go != null else ""
+	if go != null:
+		go.button_up.emit()
+	hold_abandon(hold)
+	var survived_letting_go: bool = SaveFile.exists() and go != null \
+		and go.text == ABANDON_LABEL
+	# The pad's own accept, through the viewport, onto the focused button.
+	var pad_holds: bool = false
+	if go != null:
+		go.grab_focus()
+		var down := InputEventJoypadButton.new()
+		down.button_index = JOY_BUTTON_A
+		down.pressed = true
+		get_viewport().push_input(down)
+		pad_holds = _abandon_held >= 0.0
+		var up := InputEventJoypadButton.new()
+		up.button_index = JOY_BUTTON_A
+		up.pressed = false
+		get_viewport().push_input(up)
+		pad_holds = pad_holds and _abandon_held < 0.0 and SaveFile.exists()
+	if go != null:
+		go.button_down.emit()
+	hold_abandon(hold * 0.5)
+	hold_abandon(hold * 0.5 + 0.01)
+	await get_tree().process_frame
+	var set_aside: PackedStringArray = PackedStringArray()
+	for name: String in DirAccess.get_files_at("user://"):
+		if name.begins_with(SaveFile.PATH.get_file() + ".abandoned."):
+			set_aside.append(name)
+	var kept_whole: bool = set_aside.size() == 1 and FileAccess.get_file_as_string(
+		"user://" + set_aside[0]) == original
+	print("[lineage] abandoning      BACK first %s, a press did nothing %s, counting '%s', letting go did nothing %s, a pad's accept holds it %s; set aside %d, whole %s; profile %s, run %s; descents %d, hoard %d, saving %s (want yes, yes, KEEP HOLDING, yes, yes, 1, yes, gone, gone, 1, 0, no)"
+		% [safe_first, survived_a_press, counting, survived_letting_go, pad_holds,
+			set_aside.size(), kept_whole, "there" if SaveFile.exists() else "gone",
+			"open" if RunFile.exists() else "gone", GameState.descents,
+			GameState.hoard_value, GameState.saving()])
+	if not (safe_first and survived_a_press and counting.begins_with("KEEP HOLDING")
+			and survived_letting_go):
+		problems.append("the abandon could be done without holding it through")
+	if not pad_holds:
+		problems.append("a pad's accept could not hold the abandon, or letting go of it did not stop it")
+	if SaveFile.exists() or not kept_whole:
+		problems.append("an abandoned lineage was not moved aside whole")
+	if RunFile.exists():
+		problems.append("an abandoned lineage's run was left open")
+	if GameState.descents != 1 or GameState.hoard_value != 0 or GameState.saving():
+		problems.append("this process kept the abandoned lineage in memory")
+	var after_root: bool = _root_labels().has("ABANDON THIS LINEAGE")
+	if after_root:
+		problems.append("the menu still offered to abandon a lineage that is gone")
+
+	# ─ 4. a newer profile, and an unreadable one ─
+	for kind: String in ["newer", "unreadable"]:
+		SaveFile.wipe()
+		_write_profile_text('{"meta": {"save_version": %d}, "lineage": {}}'
+			% (SaveFile.SAVE_VERSION + 5) if kind == "newer" else "this is not a save")
+		_show_root()
+		var said: Array = lineage_line(SaveFile.standing())
+		var abandon_offered: bool = _root_labels().has("ABANDON THIS LINEAGE")
+		var opened: bool = GameState.load_profile()
+		var camp: PackedStringArray = Threshold.saving_lines()
+		var before: String = FileAccess.get_file_as_string(SaveFile.PATH)
+		GameState.descents = 9
+		GameState._persist()
+		var untouched: bool = FileAccess.get_file_as_string(SaveFile.PATH) == before
+		print("[lineage] %-15s %s; said in %s: '%s'; abandon offered %s; opened %s; the camp says %s; the file untouched %s (want %s, the fault tone, no, no, NOT BEING SAVED, yes)"
+			% [kind, SaveFile.standing()["state"],
+				said[1] if not said.is_empty() else "nothing",
+				said[0] if not said.is_empty() else "", abandon_offered, opened,
+				camp[0] if not camp.is_empty() else "nothing", untouched, kind])
+		if String(SaveFile.standing()["state"]) != kind or said.is_empty() \
+				or said[1] != MenuStyle.SMALL_FAULT or abandon_offered:
+			problems.append("a %s profile was not said plainly, or was offered for abandoning" % kind)
+		if opened or not GameState.refused_a_profile() or camp.is_empty() \
+				or not camp[0].begins_with("NOT BEING SAVED"):
+			problems.append("a %s profile was opened, or the camp did not say nothing is being saved" % kind)
+		if not untouched:
+			problems.append("a %s profile was written over" % kind)
+
+	SaveFile.wipe()
+	RunFile.clear()
+	for problem: String in problems:
+		printerr("[lineage] FAIL %s" % problem)
+	print("[lineage] one lineage, named, set aside only on purpose, and a refused one said everywhere")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## A key going down, for the rebind probe.
+static func _key(code: Key) -> InputEventKey:
+	var key := InputEventKey.new()
+	key.physical_keycode = code
+	key.keycode = code
+	key.pressed = true
+	return key
+
+
+static func _pad(button: JoyButton) -> InputEventJoypadButton:
+	var press := InputEventJoypadButton.new()
+	press.button_index = button
+	press.pressed = true
+	return press
+
+
+## **`--rebind-probe`** (`M4-T06`, ADR-245). A key taken is kept, survives a
+## fresh read and is what every prompt says; a clash swaps; Escape and the
+## debug keys are refused; a designed pair moves together and any other share
+## is refused with nothing changed; a trigger is a pad input; through the
+## screen, a row of four asks for each and swaps mid-row, Escape lets go, and a
+## pad capture ignores the keyboard; the defaults come back and the file
+## forgets; and a file from before rebinding reads as defaults.
+func _rebind_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	Settings.use_a_scratch_file()
+	Settings.bindings.clear()
+	Bindings.apply_overrides()
+	var one := func(action: String) -> String:
+		return " ".join(ControlsScreen.keyboard_glyphs(PackedStringArray([action])))
+	var pad_one := func(action: String) -> String:
+		return " ".join(ControlsScreen.pad_glyphs(PackedStringArray([action])))
+
+	# ─ 1. a key taken, kept, and said everywhere ─
+	var was: String = one.call("interact")
+	var refused: String = Bindings.rebind("interact", _key(KEY_K))
+	var prompt: String = ControlsScreen.glyphs_for("interact")
+	Settings.read_again()
+	var after_reload: String = one.call("interact")
+	print("[rebind] a key            interact %s -> %s, refused '%s', the prompt '%s', after a fresh read %s (want E, K, nothing, k/X, K)"
+		% [was, one.call("interact"), refused, prompt, after_reload])
+	if refused != "" or after_reload != "K" or not prompt.begins_with("k"):
+		problems.append("a rebound key was not taken, kept, or said by the prompts")
+	if Settings.PATH != Settings.PROBE_PATH:
+		problems.append("a fresh read put the settings path back on the player's file")
+
+	# ─ 2. a clash swaps ─
+	refused = Bindings.rebind("jump", _key(KEY_G))
+	print("[rebind] a clash          jump %s, drop %s, said '%s' (want G, Space, drop took jump's)"
+		% [one.call("jump"), one.call("drop"), Bindings.last_note])
+	if refused != "" or one.call("jump") != "G" or one.call("drop") != "Space" \
+			or not Bindings.last_note.contains("drop"):
+		problems.append("taking another verb's key did not hand it the one given up")
+
+	# ─ 3. refused: Escape, and the debug keys ─
+	var escape: String = Bindings.rebind("jump", _key(KEY_ESCAPE))
+	var debug: String = Bindings.rebind("debug_ink", _key(KEY_J))
+	var ink_key: InputEvent = Bindings.build(
+		Bindings.bound("debug_ink", Bindings.Device.KEYS)[0])
+	var taken: String = Bindings.rebind("jump", ink_key)
+	var start: String = Bindings.rebind("jump", _pad(JOY_BUTTON_START))
+	print("[rebind] refused          Escape '%s'; Start '%s'; a debug key '%s'; the ink view's key '%s'; jump still %s and %s (want four reasons, G, A)"
+		% [escape, start, debug, taken, one.call("jump"), pad_one.call("jump")])
+	if escape == "" or not start.begins_with("Start") or debug == "" or taken == "" \
+			or one.call("jump") != "G" or pad_one.call("jump") != "A":
+		problems.append("Escape, Start, a debug key, or what a debug key holds could be taken")
+
+	# ─ 4. a designed pair moves together; any other share is refused whole ─
+	var ping_was: String = pad_one.call("ping")
+	refused = Bindings.rebind("ping", _pad(JOY_BUTTON_Y))
+	var pair_ok: bool = refused == "" and pad_one.call("ping") == "Y" \
+		and pad_one.call("verb") == ping_was and pad_one.call("use_item") == ping_was
+	var bad: String = Bindings.rebind("block", _pad(JOY_BUTTON_LEFT_SHOULDER))
+	var untouched: bool = pad_one.call("block") == "RB" and pad_one.call("bag") == "LB"
+	print("[rebind] shared inputs    ping on %s, verb and use on %s and %s; block to LB refused '%s', block %s, bag %s (want Y, ping's old button twice, a reason, RB, LB)"
+		% [pad_one.call("ping"), pad_one.call("verb"), pad_one.call("use_item"), bad,
+			pad_one.call("block"), pad_one.call("bag")])
+	if not pair_ok:
+		problems.append("a designed pair did not move together to the input given up")
+	if bad == "" or not untouched:
+		problems.append("a rebind that left two unrelated verbs on one button was allowed, or half-made")
+
+	# ─ 5. a trigger is a pad input ─
+	var trigger := InputEventJoypadMotion.new()
+	trigger.axis = JOY_AXIS_TRIGGER_LEFT
+	trigger.axis_value = 1.0
+	refused = Bindings.rebind("attack", trigger)
+	print("[rebind] a trigger        attack %s, throw %s (want LT, RT)"
+		% [pad_one.call("attack"), pad_one.call("throw")])
+	if refused != "" or pad_one.call("attack") != "LT" or pad_one.call("throw") != "RT":
+		problems.append("a trigger could not be taken, or its swap went wrong")
+
+	# ─ 6. through the screen ─
+	var screen := ControlsScreen.new()
+	add_child(screen)
+	await get_tree().process_frame
+	var pressed: bool = screen.press_cell("Move", Bindings.Device.KEYS)
+	for code: Key in [KEY_U, KEY_H, KEY_K, KEY_L]:
+		screen.capture(_key(code))
+	await get_tree().process_frame
+	var moves: String = " ".join(PackedStringArray([one.call("move_forward"),
+		one.call("move_left"), one.call("move_back"), one.call("move_right")]))
+	print("[rebind] the screen       pressed %s; move is %s; interact moved to %s (want yes, U H K L, S)"
+		% [pressed, moves, one.call("interact")])
+	if not pressed or moves != "U H K L" or one.call("interact") != "S":
+		problems.append("the screen did not ask for each of a row's four verbs, or lost the swap mid-row")
+	screen.press_cell("Jump", Bindings.Device.KEYS)
+	var let_go: bool = screen.capture(_key(KEY_ESCAPE))
+	var let_go_said: String = screen.said()
+	screen.capture(_key(KEY_U))
+	var pad_side: bool = screen.press_cell("Jump", Bindings.Device.PAD)
+	var ignored: bool = not screen.capture(_key(KEY_U))
+	screen.capture(_key(KEY_ESCAPE))
+	print("[rebind] letting go       Escape taken %s, said '%s', jump still %s; a pad capture ignored a key %s (want yes, left as it was, G, yes)"
+		% [let_go, let_go_said, one.call("jump"), pad_side and ignored])
+	if not let_go or let_go_said != "left as it was" or one.call("jump") != "G" \
+			or not (pad_side and ignored):
+		problems.append("Escape did not let a capture go, or a pad capture took a key")
+
+	# ─ 7. the defaults come back, and the file forgets ─
+	screen.restore_defaults()
+	await get_tree().process_frame
+	var file := ConfigFile.new()
+	file.load(Settings.PROBE_PATH)
+	print("[rebind] defaults         interact %s, jump %s, attack %s, kept %d, the file's bindings %s (want E, Space, RT, 0, none)"
+		% [one.call("interact"), one.call("jump"), pad_one.call("attack"),
+			Settings.bindings.size(), file.has_section("bindings")])
+	if one.call("interact") != "E" or one.call("jump") != "Space" \
+			or pad_one.call("attack") != "RT" or not Settings.bindings.is_empty() \
+			or file.has_section("bindings"):
+		problems.append("the defaults did not all come back, or the file kept a binding")
+	screen.queue_free()
+
+	# ─ 8. a file from before rebinding reads as defaults, over what memory held ─
+	Bindings.rebind("interact", _key(KEY_K))
+	var old := ConfigFile.new()
+	old.set_value("input", "mouse_sensitivity", 1.5)
+	old.save(Settings.PROBE_PATH)
+	Settings.read_again()
+	print("[rebind] an older file    kept %d, interact %s, sensitivity %.1f (want 0, E, 1.5)"
+		% [Settings.bindings.size(), one.call("interact"), Settings.mouse_sensitivity])
+	if not Settings.bindings.is_empty() or one.call("interact") != "E" \
+			or absf(Settings.mouse_sensitivity - 1.5) > 0.01:
+		problems.append("a settings file from before rebinding did not read as the defaults")
+
+	Settings.use_a_scratch_file()
+	Settings.read_again()
+	for problem: String in problems:
+		printerr("[rebind] FAIL %s" % problem)
+	print("[rebind] every verb can be moved on both devices, and moving one never strands another")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
 func _controls_probe() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
 	var covered: PackedStringArray = ControlsScreen.covered()

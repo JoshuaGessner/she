@@ -978,7 +978,7 @@ Crouch, by contrast, is unambiguous: **10.6× quieter than walking**, which make
 ---
 
 ## ADR-075 — Full controller parity is a project rule, not a feature
-**Date:** 2026-08-16 · **Status:** accepted · **Amends `DES-009`, `DES-018`, `DES-019`**
+**Date:** 2026-08-16 · **Status:** accepted · **Amends `DES-009`, `DES-018`, `DES-019`** · **Amended by ADR-245: the menu's own keys — `ui_accept` and `ui_cancel` had no pad button, so A presses and Start is the menu**
 **Context:** Directed. `DES-018` already listed *"controller and keyboard parity"* and *"toggle-vs-hold for every hold action"* — but under **"Beyond the core loop"**, its own heading for things deferred past the vertical slice, and no `PRO-001` task implemented either. So the intent was recorded and nothing was going to build it, which is the precise failure ADR-065 exists to catch and did not, because that check works at document granularity and this was a line inside a scheduled doc.
 
 Left to M4 it becomes a retrofit, because the cost is never the input map: it is that a HUD reading *"press E"* has to be rebuilt, and that any action which quietly assumed a pointer has to be redesigned.
@@ -9027,6 +9027,88 @@ Shared map marks (there is no map), ping-to-ping replies, and marks in the Thres
 - **The pad is fully spent**, now with two debug views on one button. `M4-T06`'s rebinding is where a player who wants them apart gets that.
 - **The mouse half of the wheel is asserted only in a window**: a headless display will not capture a pointer, so the sweep asks the stick and a windowed run asks the mouse.
 - `M4-T05` stays open for the art, the audio and the type scale.
+
+## ADR-245 — Every verb can be moved on both devices, and a pad can finally press a menu
+
+**Date:** 2026-09-16 · **Status:** accepted · **Advances `M4-T06`** · **Amends ADR-075** (the menu's own keys) · **Moves two keyboard bindings** (ADR-137's rule)
+
+**Context:** `DES-018` lists full rebinding and ADR-075 left it absent, not stubbed, for `M4-T06`. `ControlsScreen` has been generated from `InputMap` since ADR-137 and every prompt reads its keys through `ControlsScreen.glyphs_for` since ADR-139, so a binding changed in the map is already a binding every screen says — the work is the rules and the capture, not the display.
+
+### Decision — the developer's call
+
+**Every action, keyboard and pad**, over keyboard only (which leaves the pad's full layout, ADR-244, with no answer) and over presets (which cannot fit a hand nobody listed). A player changes only what they touch; the rest keeps moving with the build.
+
+### What was built
+
+- **`Bindings`** (`systems/bindings.gd`), the rules. A player's changes are kept as **overrides**, per action and per device, in `settings.cfg`'s new `[bindings]` section — never a copy of the whole map, so a default a later build moves still moves for every verb nobody touched. Applying them reloads the project's map, lays the overrides over it, and puts a gamepad-only launch's restriction back.
+- **A clash swaps.** Taking an input another verb holds hands that verb the one given up — the rule most rebinding screens settle on, because it never leaves a verb unbound and a pad has no spare button to leave one on. **A designed pair moves together** (`block`/`rotate_item`, `verb`/`use_item`, the two debug views), and any other result that leaves two verbs on one input is refused whole, with the reason.
+- **What a player cannot take:** Escape and Start, the way to the menu on each device; the debug keys, which still answer in a shipped build, and whatever they hold.
+- **The controls screen captures.** Each binding is a button; pressing one asks for a key or mouse button, or for a pad button, stick or trigger pushed past 0.6 ⟨tune⟩. A row of several verbs — *Move*, *Look* — asks for each in turn and swaps as it goes. Escape leaves it as it was, and so does waiting 6 s ⟨tune⟩, which is a pad's way out since every pad button is somebody's. A keyboard capture ignores a pad and the other way round. DEFAULTS puts every binding back and empties the file's section. The pause menu's CONTROLS entry is the same screen, so a binding can be changed mid-run.
+- Both waits are `TuningProfile` values, validated at boot.
+
+### The pad could not press a menu
+
+Godot 4.7 ships `ui_accept` as Enter, keypad Enter and Space, and `ui_cancel` as Escape — **no pad button on either**. So from ADR-075 until now a pad could move focus through every menu and press none of it, and could not open the pause menu. `bind_gamepad.py --check` passed throughout, because it walks the actions `project.godot` declares, and the engine's own are declared only once something overrides them — the half-check its own docstring warns about, one level down. Every probe that pressed a menu button sent `ui_accept` **as an action name**, which is why none of them noticed.
+
+- **A presses and Start is the menu**, as on every pad. Both are now declared in `project.godot` with the engine's keys and generated by `bind_gamepad.py` like every other action; A sharing with `jump` and Start with the gym's `debug_reset` are recorded in `SHARED_OK` with what keeps them apart.
+- **B is not *back*.** It is the other convention, and it is crouch, and `ui_cancel` is also what opens the pause menu — so every crouch would pause. Every screen has a BACK button, and A presses it.
+
+### Found on the way
+
+- **The shutter and the class verb shared F.** `shutter` took F at `M4-T13` (ADR-188) while `verb` already held it, so for thirteen days a keyboard Húskarl planting their feet worked their lamp, and a Veiðimaðr setting a snare did too. `bind_gamepad.py` checks the pad for this and nothing checked the keyboard. The shutter is on **X** now, the one free key under the left hand, and `check_project.py` reads the keyboard and mouse half of `project.godot` on the pad's rule. The same read found `debug_reset` on R beside `rotate_item`; the gym's reset is on **F5**.
+- **A probe wrote over the developer's own `settings.cfg`.** `Settings.reload()` resolved to **`Script.reload()`** — a method every script already has — which re-ran every static initialiser, `PATH` included, so the probe's next write landed on the player's file. It ran three times before it was read. The function is `read_again` now; the probe writes to `Settings.PROBE_PATH` by name rather than through `PATH`; and a row fails if a fresh read ever moves the path back. The developer's volume and look settings were lost and have to be set again.
+
+### Absent, not stubbed
+
+Chords (Ctrl+E) — a modifier key is bindable on its own, which is what `sprint` and `crouch` are; rebinding the menu's own keys; per-device glyph icons (`M4-T05`); and B as *back*.
+
+### Verification
+
+`--rebind-probe`, new, on the menu, against a scratch settings file: interact taken to K is kept, is what the bag's prompt says (`k/X`), and survives a fresh read of the file — and the fresh read leaves the path on the scratch file. Jump to G hands drop the Space it gave up and says so. Escape, Start, a debug action, and the ink view's own key are refused with four different reasons, and jump stays on G and A. Ping to Y moves `verb` and `use_item` together to d-pad right; block to LB is refused because it would leave `bag` and `rotate_item` on one button, and nothing moved. Attack to the left trigger gives throw the right. Through the screen, the Move row takes U H K L one verb at a time and interact, which held K, is handed S; Escape during a capture says *left as it was* and changes nothing; a pad capture ignores a key. DEFAULTS brings back E, Space and the right trigger, keeps nothing, and the file has no bindings section; and a file from before rebinding reads as the defaults — over a binding memory still held — with its sensitivity kept. `--pad-menu-probe`, new, on the Deep, **sends pad buttons rather than action names**: Start opens the menu, A presses the focused BACK TO IT and it closes, Start opens and shuts it again. Windowed, the controls screen fits with its new buttons, and the shutter reads X. `bind_gamepad.py --check` binds all 29 actions; `check_project.py` and `check_dead.py` pass.
+
+**Planted and failed, one plant per run — all sixteen**: a fresh read that forgets the scratch file; a rebind never written down; a fresh read that keeps what memory held; a clash that takes without giving back; Start takeable; a debug key's input takeable; no pair allowed to share; defaults that keep what was changed; a row that asks one verb four times; Escape that does not let go; a pad capture that takes a key; the two shared-input lists disagreeing; the shutter back on F; A pressing nothing; Start opening nothing; and a capture with no time to answer.
+
+**Three plants passed the first time, and all three were the probe's.** A fresh read that kept what memory held changed nothing, because memory was empty by the time the file was read — the row now rebinds first. Start was refused anyway, because the gym's reset happens to hold it — the row now asks for Start's own reason. And Escape still let go without its branch, because Escape is also a refused binding and a refusal ends the capture — the row now asks what the screen said.
+
+### Consequences
+
+- **A pad reaches every menu**, which the COOP and GREED gates were going to find the hard way.
+- **The keyboard is checked like the pad.** A binding added on top of another is a build failure, not a bug report.
+- Rebinding is one screen, reached from the menu and mid-run.
+
+## ADR-246 — One lineage, set aside only by a held button, and a profile this build will not open is said everywhere
+
+**Date:** 2026-09-16 · **Status:** accepted · **Closes `M4-T06`** · **Builds `TEC-003`'s player-facing half** (ADR-116)
+
+**Context:** ADR-116 narrowed `M4-T06` to what a player touches of the save: profile management, and what a build does with a profile from a newer build. `SaveFile` already refused a newer profile rather than write over it (`TEC-003`), and said so only in the log — so a player on an old build played a whole session that was thrown away on quitting, with nothing on screen to say so.
+
+### Decision — the developer's two calls
+
+- **One lineage, with a start-over**, over save slots (a lineage is the Tithe's whole history, and a second slot is a second pact nobody asked the dragon for) and over no start-over at all (a player who wants a clean run has to find a file on disk).
+- **Say so, and play without saving**, over refusing to start (a player who installed an older build to check something is locked out) and over offering to overwrite (which is the one thing `TEC-003` exists to never do).
+
+### What was built
+
+- **The menu names the lineage** — *your lineage: 4 descents · a hoard worth 300* — read by `SaveFile.standing()` without opening the profile, quietly, because the menu asks every time it draws and `read()` is the one that says what is wrong.
+- **ABANDON THIS LINEAGE**, offered only for a lineage this build can read. The next screen says what is set aside and that the old lineage is kept on disk, and the button is **held for 3 s** ⟨tune⟩ — its label counting down in words — rather than pressed; let go and nothing happens. Focus lands on BACK. `SaveFile.abandon()` renames the profile to `profile.save.abandoned.<time>`, never deletes it, so a regretted abandon costs a rename; `GameState.forget_the_lineage()` closes the open run with it and returns this process to a lineage nobody has lived.
+- **Held, not typed.** The first draft asked for the word *abandon* typed, and a pad cannot type — ADR-075 gives a pad everything, and this would have been the one thing it could not do. Destiny 2 deletes a character the same way: a hold long enough that nobody does it by passing through.
+- **A refused profile is said everywhere a player stands**, in words rather than a colour (`DES-018`): on the menu in the fault tone (*saved by a newer version of SHE — this one will not open it, and nothing you do here will be saved*, or *could not be read*); as the first two lines of the camp's readout; as the Chamber's first row; and in the Deep's PLACE region, for the whole descent, claimed like every other HUD element. A newer or unreadable profile is never offered for abandoning — it is not this build's to touch.
+- `abandon_hold_seconds` is a `TuningProfile` value, validated at boot (at least a second).
+
+### Absent, not stubbed
+
+A second lineage slot — the abandoned one, renamed back by hand, is the only way to return to it, and nothing in the game offers it; restoring an abandoned lineage from the menu; cloud saves (`M4-T07`).
+
+### Verification
+
+`--lineage-probe`, new, on the menu, against scratch profile and run files it refuses to start without: with no profile the menu offers no abandon; with 4 descents and 300 in the hoard it names both and offers it. On the abandon screen focus is on BACK; a click does nothing; held 60 % of the way the button reads *KEEP HOLDING — 2*, and let go it goes back and nothing is set aside; **a pad's A, sent through the viewport, starts the hold and its release stops it**; held through, the lineage is set aside as one file byte-identical to the profile, the profile and the run are gone, this process is at 1 descent and 0 hoard and not saving, and the menu no longer offers the abandon. A newer profile and an unreadable one are each said in the fault tone, not offered for abandoning, not opened, left untouched, and the camp's readout begins *NOT BEING SAVED*. `--saving-probe`, new, on the Deep and the Chamber under a newer scratch profile: the Deep says *not being saved — see the menu*, claims its region, and still does a second later; the Chamber's first row after its heading is *saving: not — see the menu*. Windowed, both measure inside their regions — the Chamber's PLACE at 323×185 with no overlap and no escape. The menu's shots include the abandon screen.
+
+**Planted and failed, one plant per run — all fifteen**: a hold of no length; letting go that does not stop the hold; focus on the dangerous button; a lineage copied rather than moved; the abandoned life's run left open; the abandoned lineage kept in memory; a newer profile read as readable; a newer profile not said; any profile offered for abandoning; the camp saying nothing; the Deep saying nothing; the Deep's line claiming no region; her room saying nothing; her room saying it last; and an abandon held for a blink.
+
+### Consequences
+
+- **`M4-T06` is done.** The settings screen was built at `M2-T10`; the accessibility options are `M4-T11`'s.
+- An old build is safe to open beside a new one's profile, and says so.
 
 *Entries below to be added as design decisions are signed off.*
 

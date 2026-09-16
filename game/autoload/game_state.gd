@@ -1040,6 +1040,33 @@ func saving() -> bool:
 	return _live
 
 
+## **A profile is on disk and this build would not open it** (ADR-246) — the
+## state play has to say, because every write in it is being discarded.
+func refused_a_profile() -> bool:
+	return _refused_a_profile
+
+
+## **A lineage set aside** (`M4-T06`, ADR-246): the profile renamed out of the
+## way, the open run closed with it, and this process back to a lineage nobody
+## has lived — so the next descent opens no profile and begins a new one.
+func forget_the_lineage() -> String:
+	var aside: String = SaveFile.abandon()
+	if aside == "":
+		return ""
+	# Armed first: the menu has not opened the run file yet, and clearing an
+	# unarmed one does nothing — which would leave the abandoned life's run
+	# waiting to be resumed by a lineage that never lived it.
+	RunFile.arm()
+	RunFile.clear()
+	from_dict({})
+	fresh_deeds.clear()
+	last_life = {}
+	_live = false
+	_refused_a_profile = false
+	print("[save] a lineage set aside as %s" % aside.get_file())
+	return aside
+
+
 ## Swear to a class for this life (`M3-T02`, `DES-011`).
 ##
 ## **Refuses to overwrite an existing oath.** `DES-011` locks class until death

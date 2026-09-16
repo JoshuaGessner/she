@@ -77,6 +77,18 @@ The alternative was a guard: a lock file, or a second instance refusing to start
 
 **The one place two copies do run is `tools/run_coop.py`**, whose windowed mode launches a host and a client side by side for solo playtesting. That is a harness rather than the game, and since ADR-155 every launched process gets its own `HOME` and therefore its own `user://` — so the exception exists, is named, and is already separated.
 
+## What a player touches (`M4-T06`)
+
+> **DECIDED (ADR-246):** **One lineage, set aside only on purpose; a profile this build will not open is said wherever a player stands.**
+
+- **Named without being opened.** `SaveFile.standing()` reads the profile's version and its lineage totals and answers `none`, `readable`, `newer` or `unreadable` — quietly, because the menu asks every time it draws; `read()` is still the one that reports what is wrong, when a descent opens the file.
+- **Abandoned by a held button**, for `TuningProfile.abandon_hold_seconds`, only for a `readable` profile. `SaveFile.abandon()` **renames** it to `profile.save.abandoned.<unix time>` and deletes nothing; `GameState.forget_the_lineage()` closes the open run with it and resets the process to a lineage nobody has lived. One slot: returning to an abandoned lineage is a rename by hand.
+- **A refused profile plays unsaved and says so** — on the menu, at the camp, in the Chamber and in the Deep — in words.
+
+## Preferences are not the save
+
+`user://settings.cfg` (`Settings`) holds volumes, look and fullscreen, and since ADR-245 a `[bindings]` section: per action, per device (`keys`, `pad`), **only what the player changed**, each input as a small dictionary (`kind` and its code, button or axis and sign). A file from before rebinding has no section and reads as the defaults; a kept input that no longer builds is skipped rather than unbinding its verb. Not versioned, no migrations — a preference file a later build cannot read costs a player their bindings, not their lineage. Probes write `settings.probe.cfg` by name (`Settings.PROBE_PATH`).
+
 ## Run state (separate from profile)
 
 Mid-run state lives in a separate `user://run.active` file so a crash or quit mid-run can be resumed rather than silently converted into a death.

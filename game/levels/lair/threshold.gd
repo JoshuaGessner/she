@@ -1083,7 +1083,7 @@ func _process(delta: float) -> void:
 	_without_a_body = 0.0
 	_said_it_lost_the_body = false
 	if _readout != null:
-		_readout.text = "\n".join([
+		_readout.text = "\n".join(saving_lines() + PackedStringArray([
 			"descent    %d" % GameState.descents,
 			"stash      %d item(s), %d tribute" % [
 				GameState.stash.size(), GameState.stash_value()],
@@ -1102,7 +1102,7 @@ func _process(delta: float) -> void:
 			"the fire behind you is the Lodge's",
 			"walk into the dark ahead to descend",
 			"walk back onto the pale slab for your Chamber",
-		])
+		]))
 		# **The table renders into its own panel now** (`M4-T20`), and it is
 		# still generated rather than typed.
 		#
@@ -1636,6 +1636,17 @@ func relayout(screen: Vector2) -> void:
 	HudFrame.settle(_controls, HudFrame.Region.REFERENCE, screen)
 	HudFrame.settle(_speech, HudFrame.Region.SPEECH, screen)
 	await get_tree().process_frame
+
+
+## **What the camp says when nothing is being kept** (`M4-T06`, ADR-246): two
+## lines ahead of everything else, or none. Words rather than a colour, so the
+## one panel's single tone still carries it (`DES-018`).
+static func saving_lines() -> PackedStringArray:
+	if not GameState.refused_a_profile():
+		return PackedStringArray()
+	return PackedStringArray([
+		"NOT BEING SAVED — this build will not",
+		"write over your lineage (see the menu)", ""])
 
 
 func hud_claims() -> Dictionary:

@@ -214,6 +214,12 @@ func way_out() -> Button:
 	return _way_out
 
 
+## True while the menu is up — for `--pad-menu-probe`, which opens it with a
+## pad button rather than by calling `open`.
+func is_open() -> bool:
+	return _open
+
+
 ## True while the confirmation is up and nothing has been taken yet.
 func confirming() -> bool:
 	return _confirming

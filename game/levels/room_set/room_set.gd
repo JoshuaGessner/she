@@ -526,6 +526,8 @@ var _shaft: Shaft = null
 var _waystone: WaystoneMark = null
 var _party: PartyFrames = null
 var _wound_marks: WoundMarks = null
+## The Deep's one line about a profile it will not write (ADR-246), or null.
+var _not_saving: Label = null
 ## The layer the HUD hangs off, so a contract met mid-floor can say so there.
 var _hud: CanvasLayer = null
 ## This floor's contracts (`M4-T04`, ADR-241). Rebuilt with the floor.
@@ -631,6 +633,11 @@ func _ready() -> void:
 		# a debt arranged after `_ready` would be a reconstruction of the order
 		# rather than the order — which is exactly how the bug this probe
 		# exists for survived: every part was checked and the sequence was not.
+		# **A refused profile, before the HUD that has to say so** (ADR-246): a
+		# scratch profile from a newer build, opened the way the menu opens one.
+		if arg == "--saving-probe":
+			SaveFile.plant_a_newer_one()
+			GameState.load_profile()
 		if arg == "--creditor-probe":
 			GameState.pact_rank = 1
 			# **Part-paid, not unpaid.** The first draft set this to 0, which
@@ -884,6 +891,10 @@ func _ready() -> void:
 			_barrow_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ping-probe":
 			_ping_probe()
+		elif arg == "--saving-probe":
+			_saving_probe()
+		elif arg == "--pad-menu-probe":
+			_pad_menu_probe()
 		elif arg.begins_with("--ping-shot="):
 			_ping_shot(arg.split("=", true, 1)[1])
 		elif arg == "--rank-probe":
@@ -2151,6 +2162,8 @@ func _relayout_hud() -> void:
 	HudFrame.settle(_waystone, HudFrame.Region.BURDEN, screen)
 	HudFrame.settle(_party, HudFrame.Region.PARTY, screen)
 	HudFrame.settle(_wound_marks, HudFrame.Region.BODY, screen)
+	if _not_saving != null:
+		HudFrame.place(_not_saving, HudFrame.Region.PLACE, screen)
 
 
 ## What the Deep claims of the frame, for the windowed measurement (`M4-T20`).
@@ -2161,11 +2174,14 @@ func _relayout_hud() -> void:
 ## because `_draw` never executes headless and writing it headless-first
 ## produced fiction once already (ADR-198).
 func hud_claims() -> Dictionary:
-	return {
+	var claims: Dictionary = {
 		"WAYSTONE": [HudFrame.Region.BURDEN, HudFrame.occupied_by(_waystone)],
 		"PARTY": [HudFrame.Region.PARTY, HudFrame.occupied_by(_party)],
 		"WOUNDS": [HudFrame.Region.BODY, HudFrame.occupied_by(_wound_marks)],
 	}
+	if _not_saving != null:
+		claims["SAVING"] = [HudFrame.Region.PLACE, HudFrame.occupied_by(_not_saving)]
+	return claims
 
 
 ## A route, once the map that answers for it has actually finished building.
@@ -6263,6 +6279,13 @@ func _build_hud() -> void:
 	# for health, stamina and wounds — the first thing ever placed in it.
 	_wound_marks = WoundMarks.new()
 	layer.add_child(_wound_marks)
+	# **Nothing here is being kept** (`M4-T06`, ADR-246): said in the corner the
+	# Deep does not use, for as long as it is true — every descent under it is
+	# thrown away, and a player owed that sentence is owed it all the way down.
+	if GameState.refused_a_profile():
+		_not_saving = MenuStyle.line("not being saved — see the menu", MenuStyle.SMALL_FAULT)
+		_not_saving.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		layer.add_child(_not_saving)
 	_relayout_hud()
 	get_viewport().size_changed.connect(_relayout_hud)
 	# Not while a probe is measuring the floor: it would be three labels
@@ -13451,6 +13474,87 @@ func _toward_the_barrow(metres: float) -> Vector3:
 	var along: Vector3 = (Vector3(8.0, 0.0, -20.7) - SHAFT_AT)
 	along.y = 0.0
 	return SHAFT_AT + along.normalized() * metres + Vector3(0.0, 0.1, 0.0)
+
+
+## **`--saving-probe`** (ADR-246): a Deep entered under a profile this build
+## refused says so, in the corner it does not otherwise use, for the whole
+## floor — and claims that corner, so the layout check measures it.
+func _saving_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.3)
+	var said: String = _not_saving.text if _not_saving != null else ""
+	var shown: bool = _not_saving != null and _not_saving.visible
+	var claimed: bool = hud_claims().has("SAVING")
+	await _hold(1.0)
+	var still: bool = _not_saving != null and _not_saving.visible
+	# Windowed, the line has to sit inside the region it claims. Only then: a
+	# headless text server measures a dummy renderer (ADR-093).
+	var escapes: PackedStringArray = PackedStringArray()
+	if DisplayServer.get_name() != "headless":
+		escapes = HudFrame.escapes(hud_claims(), get_viewport().get_visible_rect().size)
+	print("[saving] the Deep         refused %s; says '%s', shown %s, claimed %s, still there a second later %s; escapes %d (want yes, not being saved, yes, yes, yes, 0)"
+		% [GameState.refused_a_profile(), said, shown, claimed, still, escapes.size()])
+	problems.append_array(escapes)
+	if not GameState.refused_a_profile():
+		problems.append("the setup did not refuse the profile, so nothing below is about a refusal")
+	if not said.begins_with("not being saved") or not shown or not claimed or not still:
+		problems.append("a Deep under a refused profile did not keep saying nothing is being saved")
+	SaveFile.wipe()
+	for problem: String in problems:
+		printerr("[saving] FAIL %s" % problem)
+	print("[saving] a refused profile is said all the way down")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **`--pad-menu-probe`** (`M4-T06`, ADR-245): the menu from a pad, by pad
+## events through the viewport rather than by the engine's action names —
+## Start opens it, A presses what has focus, Start shuts it. Every probe before
+## this one pressed `ui_accept` as an action, which is how a pad that could
+## press no button at all passed every one of them.
+func _pad_menu_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var pause: PauseMenu = null
+	for child: Node in get_children():
+		if child is PauseMenu:
+			pause = child as PauseMenu
+	if pause == null:
+		printerr("[pad] FAIL the Deep has no menu to reach")
+		get_tree().quit(1)
+		return
+	_pad_press(JOY_BUTTON_START)
+	await _hold(0.2)
+	var opened: bool = pause.is_open()
+	var focus: Control = get_viewport().gui_get_focus_owner()
+	var pressed: String = (focus as Button).text if focus is Button else "nothing"
+	_pad_press(JOY_BUTTON_A)
+	await _hold(0.2)
+	var closed_by_a: bool = not pause.is_open()
+	_pad_press(JOY_BUTTON_START)
+	await _hold(0.2)
+	var again: bool = pause.is_open()
+	_pad_press(JOY_BUTTON_START)
+	await _hold(0.2)
+	var shut: bool = not pause.is_open()
+	print("[pad] menu         Start opened it %s; A pressed '%s' and it closed %s; Start opened it %s and shut it %s (want yes, BACK TO IT, yes, yes, yes)"
+		% [opened, pressed, closed_by_a, again, shut])
+	if not opened or not again or not shut:
+		problems.append("Start on a pad does not open and shut the menu")
+	if pressed != "BACK TO IT" or not closed_by_a:
+		problems.append("A on a pad does not press the button that has focus")
+	for problem: String in problems:
+		printerr("[pad] FAIL %s" % problem)
+	print("[pad] a pad reaches the menu and everything on it")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## A pad button down and up, through the viewport as a pad would send it.
+func _pad_press(button: JoyButton) -> void:
+	for down: bool in [true, false]:
+		var event := InputEventJoypadButton.new()
+		event.button_index = button
+		event.pressed = down
+		get_viewport().push_input(event)
 
 
 ## A tap of the ping key, pressed and released a frame apart, as a hand does.

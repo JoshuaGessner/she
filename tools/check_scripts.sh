@@ -1003,6 +1003,64 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Rebinding** (`M4-T06`, ADR-245). A key taken is kept, survives a fresh
+	# read and is what every prompt says; a clash swaps; Escape and the debug
+	# keys are refused; a designed pair moves together and any other share is
+	# refused whole; a trigger is a pad input; through the screen a row of four
+	# asks for each; Escape lets go; the defaults come back; and an older file
+	# reads as defaults. On its own settings file, never the player's.
+	rebind="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 6000 \
+		ui/main_menu.tscn -- --rebind-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$rebind" \
+			|| ! grep -q "^\[rebind\] every verb can be moved on both devices" <<<"$rebind"; then
+		echo "FAIL every verb has to be movable on both devices without stranding another" >&2
+		printf '%s\n' "$rebind" | grep -E '\[rebind\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
+	# **One lineage, and a refused one said** (`M4-T06`, ADR-246). Named on the
+	# menu, set aside only by the word typed and kept whole, its run closed; a
+	# newer or unreadable profile said plainly, never offered for abandoning,
+	# never opened or written — and said in the camp and in the Deep. Graded on
+	# FAIL alone: refusing a profile is `SaveFile` saying so, on purpose.
+	lineage="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 6000 \
+		ui/main_menu.tscn -- --lineage-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$lineage" \
+			|| ! grep -q "^\[lineage\] one lineage, named, set aside only on purpose" <<<"$lineage"; then
+		echo "FAIL a lineage has to be named, set aside only on purpose, and a refused one said" >&2
+		printf '%s\n' "$lineage" | grep -E '\[lineage\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+	saving="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/room_set/room_set.tscn -- --saving-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$saving" \
+			|| ! grep -q "^\[saving\] a refused profile is said all the way down" <<<"$saving"; then
+		echo "FAIL the Deep has to say nothing is being saved under a refused profile" >&2
+		printf '%s\n' "$saving" | grep -E '\[saving\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+	saving="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/chamber.tscn -- --saving-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$saving" \
+			|| ! grep -q "^\[saving\] her room says it first" <<<"$saving"; then
+		echo "FAIL the Chamber has to say first that nothing is being saved" >&2
+		printf '%s\n' "$saving" | grep -E '\[saving\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
+	# **A pad reaches the menu** (`M4-T06`, ADR-245): Start opens and shuts it
+	# and A presses what has focus, sent as pad buttons rather than as the
+	# engine's action names — the engine's own `ui_accept` had no pad button,
+	# and every probe that pressed it by name passed anyway.
+	pad="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/room_set/room_set.tscn -- --pad-menu-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$pad" \
+			|| ! grep -q "^\[pad\] a pad reaches the menu" <<<"$pad"; then
+		echo "FAIL a pad has to open the menu with Start and press with A" >&2
+		printf '%s\n' "$pad" | grep -E '\[pad\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Does each place sound like itself (`M2-T09`)? `ART-002`'s three sonic
 	# worlds are three pieces, and the rule worth automating is the absolute
 	# one: **the Hunter's instrument is used exactly once, anywhere, ever.**

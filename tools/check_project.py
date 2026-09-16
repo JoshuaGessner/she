@@ -552,6 +552,62 @@ def check_gamepad() -> list[Issue]:
         "run: python3 tools/bind_gamepad.py")]
 
 
+def check_shared_inputs() -> list[Issue]:
+    """The inputs two actions may share, said once for each side (ADR-245).
+
+    `tools/bind_gamepad.py` refuses a shared pad input unless `SHARED_OK`
+    names the pair, and `Bindings.SHARED` refuses a player's rebind on the same
+    rule. Two copies of one rule drift, so they are read and compared here.
+    """
+    sys.path.insert(0, str(ROOT / "tools"))
+    import bind_gamepad  # noqa: E402
+    tool = {frozenset(pair) for pair in bind_gamepad.SHARED_OK}
+    source = (ROOT / "game" / "systems" / "bindings.gd").read_text(encoding="utf-8")
+    block = re.search(r"const SHARED: Array = \[(.*?)\n\]", source, re.S)
+    game = set()
+    if block:
+        for pair in re.findall(r'\["(\w+)", "(\w+)"\]', block.group(1)):
+            game.add(frozenset(pair))
+    issues: list[Issue] = []
+    if tool != game or not game:
+        issues.append(Issue(
+            "error", "shared-inputs", "game/systems/bindings.gd",
+            "Bindings.SHARED and bind_gamepad.SHARED_OK disagree: game %s, tool %s"
+            % (sorted(sorted(p) for p in game), sorted(sorted(p) for p in tool)),
+            "name the same pairs in both"))
+
+    # The keyboard side of the same rule. The pad's map is generated and
+    # checked by `bind_gamepad.py`; the keyboard's lives only in
+    # `project.godot`, and nothing read it — so `shutter` sat on `verb`'s F
+    # from M4-T13 to M4-T06, and a Húskarl planting their feet worked their lamp.
+    text = (ROOT / "game" / "project.godot").read_text(encoding="utf-8")
+    held: dict[str, set[str]] = {}
+    for action, events in re.findall(
+            r'(?ms)^(\w+)=\{\n"deadzone"[^\n]*\n"events": \[(.*?)\n\]', text):
+        for chunk in events.split("Object(")[1:]:
+            if chunk.startswith("InputEventKey,"):
+                found = re.search(r'"physical_keycode":(\d+)', chunk)
+                if found and found.group(1) != "0":
+                    held.setdefault("key %s" % found.group(1), set()).add(action)
+            elif chunk.startswith("InputEventMouseButton,"):
+                found = re.search(r'"button_index":(\d+)', chunk)
+                if found:
+                    held.setdefault("mouse %s" % found.group(1), set()).add(action)
+    if not held:
+        issues.append(Issue(
+            "error", "shared-inputs", "game/project.godot",
+            "no keyboard or mouse binding was read from the input map",
+            "the pattern above no longer matches how Godot writes [input]"))
+    for where, actions in sorted(held.items()):
+        if len(actions) > 1 and frozenset(actions) not in tool:
+            issues.append(Issue(
+                "error", "shared-inputs", "game/project.godot",
+                "%s is held by %s, and no context keeps them apart"
+                % (where, ", ".join(sorted(actions))),
+                "move one, or name the pair in SHARED_OK and Bindings.SHARED"))
+    return issues
+
+
 def main() -> int:
     strict = "--strict" in sys.argv[1:]
 
@@ -562,6 +618,7 @@ def main() -> int:
         issues += check_workflows()
         issues += check_lfs_content()
         issues += check_gamepad()
+        issues += check_shared_inputs()
         scripts = 0
         for path in game_files():
             issues += check_naming(path)
