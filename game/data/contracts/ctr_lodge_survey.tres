@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="ContractArchetypeResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/contracts/contract_archetype_resource.gd" id="1_contract"]
+
+[resource]
+script = ExtResource("1_contract")
+id = &"ctr_lodge_survey"
+faction = &"fac_ashen_lodge"
+kind = 2
+title_key = &"contract.ctr_lodge_survey.title"
+brief_key = &"contract.ctr_lodge_survey.brief"

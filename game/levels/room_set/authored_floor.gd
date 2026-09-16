@@ -63,6 +63,10 @@ func hunter() -> Vector3:
 	return RoomSet.HUNTER_POST
 
 
+func survey_point() -> Vector3:
+	return RoomSet.SURVEY_AT
+
+
 func fixtures() -> Array:
 	return RoomSet.FIXTURES
 

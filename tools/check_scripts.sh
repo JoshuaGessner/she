@@ -712,6 +712,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Lodge's work** (`M4-T04`, ADR-241, `DES-007`). What trust opens and
+	# two hands hold, favours bought and delivered once, each kind of work met on
+	# its floor against a control that was not, thirty generated floors placing it
+	# where the floor does not already send you, the end of a run hearing what was
+	# answered, and a death taking the Lodge's memory of the life.
+	contract="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --contract-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$contract" \
+			|| ! grep -q "^\[contract\] the Lodge's work is set out on its floor" <<<"$contract"; then
+		echo "FAIL the Lodge's work has to be set out on its floor and heard at the end of the run" >&2
+		printf '%s\n' "$contract" | grep -E '\[contract\]|\[lodge\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.
@@ -960,6 +974,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 			|| ! grep -q '^\[camp\] ground' <<<"$camp"; then
 		echo "FAIL the camp's own music" >&2
 		printf '%s\n' "$camp" | grep -E '\[camp\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
+	# **The Lodge's board** (`M4-T04`, ADR-241). The key opens it beside it and
+	# not across the camp, it holds the body and gives it back, three are
+	# offered and two taken, a favour is bought once, and the door delivers it.
+	board="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/threshold.tscn -- --board-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$board" \
+			|| ! grep -q "^\[board\] the Lodge's board offers three" <<<"$board"; then
+		echo "FAIL the Lodge's board has to offer three, take two, and keep its word" >&2
+		printf '%s\n' "$board" | grep -E '\[board\]|ERROR' | sed 's/^/      /' >&2
 		exit 1
 	fi
 

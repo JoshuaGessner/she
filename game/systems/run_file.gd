@@ -205,6 +205,12 @@ static func begin(class_id: StringName, rank: int, seed: int) -> void:
 		"health": UNHURT,
 		"wounds": 0,
 		"dazed": 0.0,
+		# **The Lodge's work, as this run has answered it** (`M4-T04`, ADR-241):
+		# which contracts are met, what each Retrieve was asked to bring up, and
+		# whether the Lodge's plans came down with the party.
+		"met": [],
+		"retrieve": {},
+		"plan": false,
 		"stripped": false,
 	})
 
@@ -281,6 +287,38 @@ static func wounds() -> int:
 ## Seconds left on a carried concussion, or 0.
 static func dazed() -> float:
 	return maxf(0.0, float(read().get("dazed", 0.0)))
+
+
+## **A contract this run has answered** (`M4-T04`, ADR-241), by `Contract.key()`.
+## Written when it happens, so a run quit and resumed has not forgotten a
+## cairn it already stood beside.
+static func meet(key: String) -> void:
+	var answered: Array = read().get("met", []) as Array
+	if answered.has(key):
+		return
+	answered.append(key)
+	note({"met": answered})
+
+
+static func met() -> PackedStringArray:
+	return PackedStringArray(read().get("met", []) as Array)
+
+
+## What a Retrieve contract was asked to bring up, recorded on the floor that
+## laid it, so the exit can check a bag against a floor it has left.
+static func expect(key: String, item: StringName) -> void:
+	var wanted: Dictionary = read().get("retrieve", {}) as Dictionary
+	wanted[key] = String(item)
+	note({"retrieve": wanted})
+
+
+static func expected() -> Dictionary:
+	return (read().get("retrieve", {}) as Dictionary).duplicate()
+
+
+## Whether the Lodge's plans came down with this run (`FavourResource.PLAN`).
+static func planned() -> bool:
+	return bool(read().get("plan", false))
 
 
 ## How old the Hunt already is. ADR-037: *"the Hunt persists across floors.

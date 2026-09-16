@@ -193,6 +193,21 @@ var worn: Dictionary = {}
 ## `ItemInstance.scarred`, a Legacy item's one mark (ADR-223). This is the body.
 var scars: int = 0
 
+## **The Lodge's two lanes** (`M4-T04`, ADR-241, ADR-050): trust opens the
+## grades of work it offers, and rises and falls with it; favour is earned
+## beside it and spent at the fire. LIFE tier (`DES-007`: *standing does not
+## persist*).
+var lodge_trust: int = 0
+var lodge_favour: int = 0
+## The work this life has taken for its next descent, or for the run under way.
+var contracts: Array[Contract] = []
+## Favours bought and not yet delivered: they come down with the next descent,
+## one of each, and never wait in the stash to be bought again.
+var favours_owed: Array[StringName] = []
+## What the Lodge made of the last run, for the fire to say once. Not saved: it
+## is a sentence about a moment, and the moment is the walk back up.
+var _lodge_heard: String = ""
+
 ## Whether a profile has been opened. See the header: nothing is written back
 ## to a file that was never read.
 var _live: bool = false
@@ -505,8 +520,13 @@ func die() -> void:
 	# Gear goes with the life. `DES-008` makes it a record of where you have
 	# been, and `DES-002` is what makes that record worth anything.
 	worn.clear()
-	# The body's Scars go with the body (ADR-240).
+	# The body's Scars go with the body (ADR-240), and the Lodge's trust with
+	# the name it was given to (ADR-241, `DES-007`).
 	scars = 0
+	lodge_trust = 0
+	lodge_favour = 0
+	contracts.clear()
+	favours_owed.clear()
 	tithe_paid = 0
 	cycle_runs = 0
 	boon_converted = 0
@@ -516,6 +536,131 @@ func die() -> void:
 	# `SaveFile.write` renames a complete file over the old one — either the
 	# life ended or it did not, and there is no third state on disk.
 	_persist()
+
+
+## The one faction the slice has.
+func lodge() -> FactionResource:
+	return ContractCatalogue.faction(ContractCatalogue.LODGE)
+
+
+## **What the Lodge's board offers this life, for its next descent.**
+func board() -> Array[Contract]:
+	return ContractBoard.offers(descents, class_id, lodge_trust, lodge())
+
+
+func has_contract(offer: Contract) -> bool:
+	for held: Contract in contracts:
+		if held.same_as(offer):
+			return true
+	return false
+
+
+## Why this offer cannot be taken, or `""` (the other `why_not_*`s' rule: a
+## refusal a player can read).
+func why_not_contract(offer: Contract) -> String:
+	if offer == null or offer.definition() == null:
+		return "there is no such work"
+	if class_id == &"":
+		return "the Lodge gives work to somebody, and nobody has been sworn"
+	if has_contract(offer):
+		return "already yours"
+	if contracts.size() >= ContractBoard.TAKEN_MAX:
+		return "two is as much as the Lodge will put on one pair of shoulders"
+	for posted: Contract in board():
+		if posted.same_as(offer):
+			return ""
+	return "that is not on the board"
+
+
+func take_contract(offer: Contract) -> bool:
+	if why_not_contract(offer) != "":
+		return false
+	contracts.append(offer)
+	_persist()
+	return true
+
+
+## Put taken work back on the board. Free, at the fire: nothing was attempted.
+func drop_contract(offer: Contract) -> bool:
+	for held: Contract in contracts:
+		if held.same_as(offer):
+			contracts.erase(held)
+			_persist()
+			return true
+	return false
+
+
+func why_not_favour(offered: FavourResource) -> String:
+	if offered == null:
+		return "the Lodge has no such favour"
+	if favours_owed.has(offered.id):
+		return "already promised for your next descent"
+	if lodge_favour < offered.cost:
+		return "the Lodge owes you %d, and this is %d" % [lodge_favour, offered.cost]
+	return ""
+
+
+func buy_favour(offered: FavourResource) -> bool:
+	if why_not_favour(offered) != "":
+		return false
+	lodge_favour -= offered.cost
+	favours_owed.append(offered.id)
+	_persist()
+	return true
+
+
+## **The favours come down with the party** (ADR-241): items into the stash the
+## floor carries into the bag, and whether the plans came with them. Called by
+## the descent, once; nothing owed is left owed.
+func deliver_favours() -> bool:
+	var planned: bool = false
+	var lodge_now: FactionResource = lodge()
+	for owed: StringName in favours_owed:
+		var given: FavourResource = lodge_now.favour(owed) if lodge_now != null else null
+		if given == null:
+			continue
+		if given.kind == FavourResource.Kind.PLAN:
+			planned = true
+			continue
+		var item: ItemResource = ItemCatalogue.by_id(given.item)
+		if item == null:
+			continue
+		for i: int in given.count:
+			stash.append(ItemInstance.of(item, _next_stash_id()))
+	favours_owed.clear()
+	_persist()
+	return planned
+
+
+## **The run is over, and the Lodge hears how it went** (ADR-241). `met` is
+## every contract key the run answered; the rest failed. Returns how many of
+## each, for the fire to say.
+func settle_contracts(met: PackedStringArray) -> Dictionary:
+	var lodge_now: FactionResource = lodge()
+	var kept: int = 0
+	var broken: int = 0
+	for held: Contract in contracts:
+		if lodge_now == null:
+			break
+		if met.has(held.key()):
+			kept += 1
+			lodge_trust += lodge_now.trust_for(held.grade)
+			lodge_favour += lodge_now.favour_for(held.grade)
+		else:
+			broken += 1
+			lodge_trust = maxi(0, lodge_trust - lodge_now.trust_lost)
+	contracts.clear()
+	_persist()
+	_lodge_heard = "the Lodge heard: %d done, %d not — trust %d, favour %d" % [
+		kept, broken, lodge_trust, lodge_favour]
+	return {"met": kept, "failed": broken}
+
+
+## The Lodge's verdict on the last run, once.
+func take_lodge_heard() -> String:
+	var said: String = _lodge_heard
+	_lodge_heard = ""
+	return said
 
 
 ## **Scar this life** with every wound in `bits` it does not already carry, and
@@ -992,6 +1137,16 @@ func to_dict() -> Dictionary:
 			"hunt_head_start": hunt_head_start,
 			# **The body's Scars** (save v11, ADR-240). An int, a bit a kind.
 			"scars": scars,
+			# **The Lodge** (save v12, ADR-241): two lanes, the work taken, and
+			# what is owed for the next descent.
+			"lodge": {
+				"trust": lodge_trust,
+				"favour": lodge_favour,
+				"contracts": contracts.map(func(held: Contract) -> Dictionary:
+					return held.to_record()),
+				"owed": favours_owed.map(func(id: StringName) -> String:
+					return String(id)),
+			},
 		},
 	}
 
@@ -1064,6 +1219,17 @@ func from_dict(data: Dictionary) -> void:
 	cycle_runs = int(life.get("cycle_runs", 0))
 	hunt_head_start = float(life.get("hunt_head_start", 0.0))
 	scars = int(life.get("scars", 0)) & 0b111
+	var kept_lodge: Dictionary = life.get("lodge", {}) as Dictionary
+	lodge_trust = maxi(0, int(kept_lodge.get("trust", 0)))
+	lodge_favour = maxi(0, int(kept_lodge.get("favour", 0)))
+	contracts.clear()
+	for row: Variant in kept_lodge.get("contracts", []) as Array:
+		var held: Contract = Contract.from_record(row)
+		if held != null:
+			contracts.append(held)
+	favours_owed.clear()
+	for raw: Variant in kept_lodge.get("owed", []) as Array:
+		favours_owed.append(StringName(str(raw)))
 	# **The line that used to end this function was `carried.clear()`**, and it
 	# was correct while nothing wrote the field: a loaded profile could not be
 	# carrying anything, so emptying it was the honest reading. Save v8 writes
@@ -1196,6 +1362,14 @@ func _save_probe() -> void:
 	# **And the body's Scars** (save v11, ADR-240), two of three so a round
 	# trip that dropped or filled one bit reads differently from the truth.
 	scars = (1 << Enums.Wound.BROKEN_ARM) | (1 << Enums.Wound.GASHED_LEG)
+	# **And the Lodge** (save v12, ADR-241): both lanes, one contract taken and
+	# one favour owed, so a round trip that lost any of the four reads wrong.
+	lodge_trust = 4
+	lodge_favour = 2
+	contracts.clear()
+	contracts.append(Contract.of(&"ctr_lodge_survey", 2))
+	favours_owed.clear()
+	favours_owed.append(&"fav_plan")
 	_persist()
 
 	if FileAccess.file_exists(SaveFile.TMP):
@@ -1211,6 +1385,10 @@ func _save_probe() -> void:
 	carried.clear()
 	descents = 1
 	scars = 0
+	lodge_trust = 0
+	lodge_favour = 0
+	contracts.clear()
+	favours_owed.clear()
 	from_dict(SaveFile.read())
 	print("[save] round trip     hoard %d/%d, value %d/%d, stash %d" % [
 		hoard.size(), pile, hoard_value, gave, stash.size()])
@@ -1245,6 +1423,15 @@ func _save_probe() -> void:
 	if scars != (1 << Enums.Wound.BROKEN_ARM) | (1 << Enums.Wound.GASHED_LEG):
 		problems.append(("the body's Scars came back as %d — a Scar that quitting "
 			+ "takes off is a wound with a longer clock, not a mark for life") % scars)
+	var lodge_line: String = "trust %d, favour %d, %s, owed %s" % [lodge_trust,
+		lodge_favour, contracts[0].to_record() if contracts.size() == 1 else "no work",
+		favours_owed]
+	print("[save] the Lodge      %s (want 4, 2, the grade-2 survey, fav_plan)" % lodge_line)
+	if lodge_trust != 4 or lodge_favour != 2 or contracts.size() != 1 \
+			or not contracts[0].same_as(Contract.of(&"ctr_lodge_survey", 2)) \
+			or favours_owed.size() != 1 or favours_owed[0] != &"fav_plan":
+		problems.append(("the Lodge came back as %s — work taken at the fire and "
+			+ "a favour bought there are gone by the time the game is reopened") % lodge_line)
 	# ── **and each came back Scarred** (save v10, ADR-223) ─
 	var item_scars: PackedStringArray = PackedStringArray()
 	item_scars.append("stash %s" % (stash.size() == 1 and stash[0].scarred))
@@ -1465,6 +1652,24 @@ func _save_probe() -> void:
 	if scars != 0 or not _section(v10, "life").has("scars"):
 		problems.append(("a v10 profile came back scarred %d, or with no scars field — "
 			+ "no wound existed to scar when it was written") % scars)
+
+	# **A v11 fixture** (ADR-241), the last format with no Lodge, over a life
+	# that has one — so a load that left the Lodge alone reads wrong.
+	_write_raw('{"meta": {"save_version": 11}, "lineage": {"hoard": [], '
+		+ '"hoard_value": 0, "descents": 2}, "life": {"stash": [], "carried": [], '
+		+ '"worn": {}, "class_id": "huskarl", "scars": 1}}')
+	lodge_trust = 9
+	lodge_favour = 9
+	contracts.append(Contract.of(&"ctr_lodge_cull", 1))
+	favours_owed.append(&"fav_waystone")
+	var v11: Dictionary = SaveFile.read()
+	from_dict(v11)
+	print("[save] v11 fixture   → v%d, trust %d, favour %d, %d contract(s), %d owed, written %s" % [
+		int(_section(v11, "meta").get("save_version", 0)), lodge_trust, lodge_favour,
+		contracts.size(), favours_owed.size(), _section(v11, "life").has("lodge")])
+	if lodge_trust != 0 or lodge_favour != 0 or not contracts.is_empty() \
+			or not favours_owed.is_empty() or not _section(v11, "life").has("lodge"):
+		problems.append("a v11 profile came back with Lodge standing, work or favours it never had")
 
 	SaveFile.wipe()
 	for problem: String in problems:

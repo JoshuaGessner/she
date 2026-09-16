@@ -27,7 +27,7 @@ extends Object
 ## ├── meta     { save_version, engine, created, updated }
 ## ├── lineage  { hoard, hoard_value }          ← survives death, always
 ## └── life     { stash, class_id, worn, boon, boon_progress, taken,
-##                tithe_paid, cycle_runs, hunt_head_start, scars }
+##                tithe_paid, cycle_runs, hunt_head_start, scars, lodge }
 ## ```
 ##
 ## `legacy` is **absent rather than empty**: there are no Legacy slots until
@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 11
+const SAVE_VERSION: int = 12
 
 ## **A `static var`, so a probe can point it somewhere harmless** (ADR-145).
 ##
@@ -100,6 +100,7 @@ static func migrations() -> Dictionary:
 		8: _migrate_8_to_9,
 		9: _migrate_9_to_10,
 		10: _migrate_10_to_11,
+		11: _migrate_11_to_12,
 	}
 
 
@@ -434,5 +435,16 @@ static func _migrate_10_to_11(old: Dictionary) -> Dictionary:
 	var out: Dictionary = old.duplicate(true)
 	var life: Dictionary = out.get("life", {}) as Dictionary
 	life["scars"] = 0
+	out["life"] = life
+	return out
+
+
+## **v12 — the Lodge** (ADR-241). No v11 life ever took work or earned trust,
+## because there was no board to take it from, so every v11 profile is a life
+## the Lodge has not met.
+static func _migrate_11_to_12(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["lodge"] = {"trust": 0, "favour": 0, "contracts": [], "owed": []}
 	out["life"] = life
 	return out

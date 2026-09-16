@@ -42,6 +42,9 @@ var _nodes: Array[AspectNode] = []
 var _classes: Array[ClassResource] = []
 var _tables: Array[LootTable] = []
 var _enemies: Array[EnemyResource] = []
+var _contracts: Array[ContractArchetypeResource] = []
+var _factions: Array[FactionResource] = []
+var _populations: Array[PopulationResource] = []
 ## Taken from the walk rather than from `Config`. This runs as `--script`,
 ## which builds a bare `SceneTree` with **no autoloads registered** — so
 ## `Config.tuning` is not merely empty here, it does not compile. The profile
@@ -71,6 +74,7 @@ func _run() -> void:
 	_check_a_bad_row_is_refused()
 	_check_the_tree_hangs_together()
 	_check_enemies_against_the_profile()
+	_check_contracts_point_at_the_floor()
 
 	# A validator that validated nothing must never report success. This is
 	# the single most important line in the file: every other check here is
@@ -123,6 +127,49 @@ func _check_enemies_against_the_profile() -> void:
 				% [kind.id, kind.attack.reach, _tuning.enemy_vision_dark])
 
 
+## **Every contract has to be answerable on the floor it points at** (`M4-T04`,
+## ADR-241).
+##
+## A contract the floor cannot satisfy is a failure the player was sold, so the
+## questions no single resource can answer about itself are asked here: the
+## faction exists and offers the three kinds, what a favour delivers is an item
+## this build has, and what a Cull hunts is a body **every** population places on
+## every floor — the Bellringer (ADR-237) or the Guardian. The Hall-Warden is a
+## population's only when the floor holds two rooms, so it can never be hunted.
+func _check_contracts_point_at_the_floor() -> void:
+	if _contracts.is_empty() or _factions.is_empty():
+		_fail("no contracts or no faction — the Lodge's board offers nothing")
+		return
+	var item_ids: Array[String] = []
+	for item: ItemResource in _items:
+		item_ids.append(String(item.id))
+	var faction_ids: Array[StringName] = []
+	for group: FactionResource in _factions:
+		faction_ids.append(group.id)
+		for offered: FavourResource in group.favours:
+			if offered != null and offered.kind == FavourResource.Kind.ITEM \
+					and not item_ids.has(String(offered.item)):
+				_fail("%s's favour %s delivers '%s', which this build does not have"
+					% [group.id, offered.id, offered.item])
+	var kinds: Dictionary = {}
+	for work: ContractArchetypeResource in _contracts:
+		if not faction_ids.has(work.faction):
+			_fail("%s is offered by '%s', which is no faction" % [work.id, work.faction])
+		kinds[work.kind] = true
+		for floor_index: int in work.cull.size():
+			for placed: PopulationResource in _populations:
+				if work.cull[floor_index] != placed.ringer \
+						and work.cull[floor_index] != placed.guardian:
+					_fail(("%s hunts '%s' on floor %d, which %s does not place on "
+						+ "every floor — the work could point at nobody")
+						% [work.id, work.cull[floor_index], floor_index, placed.id])
+	if kinds.size() < Enums.ContractKind.size():
+		_fail("the board offers %d of the %d kinds of work" % [kinds.size(),
+			Enums.ContractKind.size()])
+	print("[data] %d contract(s) from %d faction(s) point at what the floor places"
+		% [_contracts.size(), _factions.size()])
+
+
 ## Every `.tres` under `root`, recursively. `DirAccess` rather than a hardcoded
 ## list, so a designer adding a folder gets it checked without editing this.
 func _resource_paths(root: String) -> PackedStringArray:
@@ -162,6 +209,16 @@ func _check(path: String) -> void:
 	var table := resource as LootTable
 	if table != null:
 		_tables.append(table)
+
+	var work := resource as ContractArchetypeResource
+	if work != null:
+		_contracts.append(work)
+	var lodge := resource as FactionResource
+	if lodge != null:
+		_factions.append(lodge)
+	var placed := resource as PopulationResource
+	if placed != null:
+		_populations.append(placed)
 
 	var kind := resource as EnemyResource
 	if kind != null:

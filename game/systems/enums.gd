@@ -50,3 +50,9 @@ enum Slot { NONE, MAIN_HAND, OFF_HAND, ARMS, HEAD, BODY, PACK }
 ## arm is the first one, and a count would be a number the player has to read.
 ## `WardTrait` names one of these for the helm and bracers to turn away.
 enum Wound { BROKEN_ARM, CONCUSSED, GASHED_LEG }
+
+## `DES-007`'s contract archetypes, as far as the slice builds them (`M4-T04`,
+## ADR-241). Escort, Denial and Rival are absent rather than reserved: each
+## needs a system nothing has built — a fragile carried thing, a permanent
+## world scar, a rival Bound — and a name here would promise one.
+enum ContractKind { RETRIEVE, CULL, SURVEY }

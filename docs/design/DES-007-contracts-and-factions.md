@@ -4,7 +4,7 @@ title: Contracts & Factions
 status: accepted
 owner: design
 tags: [quests, contracts, factions, dmz, structure, replayability]
-updated: 2026-08-14
+updated: 2026-09-16
 related: [DES-002, DES-006, DES-008]
 ---
 
@@ -38,6 +38,10 @@ Contract archetypes (keep the list short and recombine heavily — Principle 5):
 - **Denial** — destroy or seal something; often makes the *world* worse permanently (`DES-006` world scars)
 - **Rival** — a competing Bound is after the same prize; get there first
 
+> **Tier 2 built by ADR-241 (`M4-T04`), for the Lodge alone, by the developer's calls.** The board hangs by the Threshold's fire and offers **three — one of each kind — and a life takes two**; the offers are a function of the life and its descent count, so they hold still while you look and turn over when a run is taken. Three archetypes: **Retrieve** (bring up what the Keeper sits on, checked against the bag at the exit), **Cull** (the Bellringer on floors one and two, the Keeper at the bottom — only bodies every population places), and **Survey** (stand beside a Lodge cairn in the deepest room that is not the Prize's, the Shaft's or the Hunter's). A contract's **grade** is its floor: 1 on the first, 3 at the bottom, and deeper work pays more ⟨tune⟩. Met is written the moment it happens; the run's end decides — each met contract pays trust and favour, each unmet one costs 1 trust ⟨tune⟩, and a life that ends takes it all. The arrival brief names each contract on its floor with a bearing in words, and a met one says so once.
+>
+> **Each player's own, and the wire carries none of it.** Every question a contract asks is answered from what that peer already has — its own body's position, a corpse's replicated state, its own bag — so the host never learns what anybody was hired to do. **Party contracts** (`DES-014`) are absent, as are **complications**, Escort, Denial and Rival: each needs a rule or a system nothing has built. Tiers 1 and 3 are `M4-T04`'s next steps.
+
 ### Tier 3 — Whispers (found in-run, opportunistic)
 Discovered mid-descent. Short, sharp, expiring: a sealed door needing a key you just found, a Bound's corpse with a half-finished contract, a Draugr barrow that opens only while the Hunt is active.
 
@@ -67,6 +71,8 @@ They must be **written with dignity, not as a nagging voice.** If they scold, th
 - **Contacts persist to Lineage; standing does not.** A new life can talk to everyone but has to re-earn trust — which is exactly the right split (options persist, power doesn't).
 
 > **DECIDED (ADR-050):** **Both, in separate lanes** — a *threshold* rank gates access to contract tiers, and standing is *spendable* on individual favours. Keeps access legible while leaving an ongoing decision.
+>
+> **Built by ADR-241 as trust and favour.** **Trust** opens the grades of work the board offers (0, 3 and 8 for grades 1–3 ⟨tune⟩) and moves both ways with the work; **favour** is earned beside it and spent at the fire on the Lodge's *tools, not power* — a Waystone (3), two bindings (1) or the plans, which say on arrival where each floor's Prize and Shaft lie (2) ⟨tune⟩. A favour is **owed until the next descent** and delivered then, one of each, so a Waystone never sits in the stash to be bought again past ADR-015's cap. Both lanes are LIFE tier; contacts are absent.
 
 ## Generation
 

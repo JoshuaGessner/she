@@ -478,6 +478,10 @@ const HOST_PEER: int = 1
 ## quiet opening. There is one floor, so it is here — and that is a scoping
 ## consequence recorded in ADR-089, not a design change.
 const HUNTER_POST: Vector3 = Vector3(21.0, 0.1, -25.0)
+## **Where the Lodge's cairn stands on the Deep** (ADR-241): the west branch,
+## the one room the Deep lays nothing in, so a Survey here is a detour and
+## nothing else.
+const SURVEY_AT: Vector3 = Vector3(-9.0, 0.1, -10.0)
 
 ## The field's footprint, a little wider than the room bounds so a doorway on
 ## the outer wall still has a cell on both sides of it.
@@ -516,6 +520,10 @@ var _shaft: Shaft = null
 var _waystone: WaystoneMark = null
 var _party: PartyFrames = null
 var _wound_marks: WoundMarks = null
+## The layer the HUD hangs off, so a contract met mid-floor can say so there.
+var _hud: CanvasLayer = null
+## This floor's contracts (`M4-T04`, ADR-241). Rebuilt with the floor.
+var _ledger: ContractLedger = null
 var _navigation: NavigationRegion3D = null
 ## The floor's own `Environment`, kept so `--light-shot` can sweep the ambient
 ## energy without rebuilding the level between exposures (`M4-T13`).
@@ -741,6 +749,9 @@ func _ready() -> void:
 	var overlays := DebugOverlays.new()
 	_world.add_child(overlays)
 	overlays.show_field(_field)
+	# **The Lodge's work on this floor** (`M4-T04`, ADR-241), before the HUD so
+	# the arrival brief can say it.
+	_open_the_ledger()
 	_build_hud()
 	add_child(PauseMenu.new())
 	# After `_probing` is known and never before it. A probe that inherited a
@@ -856,6 +867,8 @@ func _ready() -> void:
 			_wound_probe()
 		elif arg == "--life-scar-probe":
 			_life_scar_probe()
+		elif arg == "--contract-probe":
+			_contract_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -6199,6 +6212,7 @@ func _build_hud() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 5
 	add_child(layer)
+	_hud = layer
 	# Vignette first, so it sits *behind* the Ear and the Reticle rather than
 	# darkening them. It is the only full-screen element here and the two
 	# readouts have to stay legible while you are being hit — which is exactly
@@ -6239,6 +6253,9 @@ func _build_hud() -> void:
 		# lines are built, and a fourth one added afterwards would arrive under
 		# a label that has already been laid out.
 		brief.sent_early = _she_sent_it_early
+		# What the Lodge wants here, from where the party stands (ADR-241).
+		if _ledger != null and not _floor.spawns().is_empty():
+			brief.notes = _ledger.lines(_floor.spawns()[0])
 		# **Say where this is and what the light does** (`M4-T01`, ADR-187).
 		#
 		# The stages are `DES-015` Layer 2's, not invented here: *moving inward
@@ -7725,6 +7742,28 @@ static func scars_for(wounds: int, carried_out: bool) -> int:
 	return wounds & 0b111
 
 
+## **This floor's contracts, set out** (`M4-T04`, ADR-241). A floor reset is a
+## new floor, so its ledger is new too.
+func _open_the_ledger() -> void:
+	if _ledger != null:
+		_ledger.queue_free()
+	_ledger = ContractLedger.new()
+	_world.add_child(_ledger)
+	_ledger.begin(_floor, _floor_index)
+	_ledger.met.connect(_on_contract_met)
+
+
+## **Said when it happens** (`DES-019` Layer 5's *contract updates*), and
+## never over a probe's screenshot.
+func _on_contract_met(held: Contract) -> void:
+	if _probing or _hud == null:
+		return
+	var notice := ArrivalBrief.new()
+	notice.notice = true
+	notice.notes = PackedStringArray(["the Lodge's work is done: %s" % held.title()])
+	_hud.add_child(notice)
+
+
 ## What this peer walked away with, delivered to the peer it belongs to.
 ##
 ## `GameState` is never networked (`TEC-004`), so the host cannot write another
@@ -7757,6 +7796,11 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = [],
 	# *is* the per-peer sentence — *your run resolved, and here is what it came
 	# to* — delivered to every peer including the host (`TEC-004`: the host
 	# reports, each peer writes). One writer, on the one event, on each machine.
+	#
+	# **What the run answered for the Lodge is read first** (ADR-241): the file
+	# is the only record of the work met on floors this peer has left.
+	var met_on_the_way: PackedStringArray = RunFile.met()
+	var wanted: Dictionary = RunFile.expected()
 	RunFile.clear()
 	# **Marked before anything is settled** (`M3-T08`, `DES-016`). LINEAGE tier,
 	# so a death does not cost them — and awarding *before* `die()` is what makes
@@ -7784,6 +7828,14 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = [],
 			GameState.take_scars(scarring)
 			print("[death] scarred %d — the life now carries %d"
 				% [scarring, GameState.scars])
+		# **And the Lodge hears how it went** (ADR-241): the work met on the
+		# way, and each Retrieve whose item came out in this bag. What was not
+		# answered failed. A life that ended took its contracts with it above.
+		if not GameState.contracts.is_empty():
+			var heard: Dictionary = GameState.settle_contracts(
+				ContractLedger.answered(met_on_the_way, wanted, packed))
+			print("[lodge] the run answered %d contract(s) and failed %d — trust %d, favour %d"
+				% [heard["met"], heard["failed"], GameState.lodge_trust, GameState.lodge_favour])
 		var brought: Array[ItemInstance] = []
 		for row: Variant in packed:
 			brought.append(ItemInstance.from_wire(row as Dictionary))
@@ -8030,6 +8082,7 @@ func _reset_floor() -> void:
 	# floor reset it would forgive a death on the next one, for free.
 	_borne_out.clear()
 	_wounds_out.clear()
+	_open_the_ledger()
 	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
 		node.queue_free()
 	_session.clear_enemies()
@@ -13003,6 +13056,236 @@ func _life_scar_probe() -> void:
 	_session.clear_enemies()
 	print("[life-scar] a wound walked out is a Scar for life, and the life is all it lasts")
 	_report(problems, "life-scar")
+
+
+## **The Lodge's work, on the floor** (`M4-T04`, ADR-241, `DES-007`).
+##
+## The board's rules without the screen (`--board-probe` has that): what it
+## offers at each trust, and what two hands can hold. Then each kind of work on
+## the Deep, against a control that has not done it; the plans; the run's end
+## hearing what was answered and what was not; and a death taking it all.
+func _contract_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var lodge: FactionResource = GameState.lodge()
+	if lodge == null:
+		problems.append("no Lodge in the build")
+		_report(problems, "contract")
+		return
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	if RunFile.PATH == "user://run.active":
+		printerr("[contract] FAIL this probe is pointed at the player's run file")
+		get_tree().quit(1)
+		return
+	RunFile.clear()
+	RunFile.begin(&"huskarl", 1, 31346)
+	GameState.class_id = &"huskarl"
+	GameState.contracts.clear()
+	GameState.favours_owed.clear()
+	GameState.stash.clear()
+
+	# ─ 1. the board: what trust opens, and two hands ─
+	var deepest_new: int = 0
+	var deepest_trusted: int = 0
+	var steady: bool = true
+	var every_kind: bool = true
+	for run: int in 20:
+		var fresh: Array[Contract] = ContractBoard.offers(run, &"huskarl", 0, lodge)
+		var trusted: Array[Contract] = ContractBoard.offers(run, &"huskarl", 8, lodge)
+		var again: Array[Contract] = ContractBoard.offers(run, &"huskarl", 8, lodge)
+		var kinds: Dictionary = {}
+		for i: int in trusted.size():
+			steady = steady and trusted[i].same_as(again[i])
+			kinds[trusted[i].kind()] = true
+			deepest_trusted = maxi(deepest_trusted, trusted[i].grade)
+		for offer: Contract in fresh:
+			deepest_new = maxi(deepest_new, offer.grade)
+		every_kind = every_kind and kinds.size() == ContractBoard.OFFERED
+	print("[contract] the board      deepest grade at no trust %d, at 8 trust %d; the same twice %s; every kind %s (want 1, 3, yes, yes)"
+		% [deepest_new, deepest_trusted, steady, every_kind])
+	if deepest_new != 1:
+		problems.append("a life the Lodge has not met was offered grade %d work" % deepest_new)
+	if deepest_trusted != 3:
+		problems.append("eight trust was never offered the bottom (deepest grade %d)" % deepest_trusted)
+	if not steady or not every_kind:
+		problems.append("the board changed between two looks, or did not offer one of each kind")
+	GameState.lodge_trust = 0
+	var posted: Array[Contract] = GameState.board()
+	var hands: Array[bool] = []
+	for offer: Contract in posted:
+		hands.append(GameState.take_contract(offer))
+	# A hand free, so the only reason left to refuse the same work again is
+	# that it is already held, and the only reason to refuse a stranger is the
+	# board — with both hands full, the full hands answered both first.
+	GameState.drop_contract(posted[1])
+	var twice: String = GameState.why_not_contract(posted[0])
+	var stranger: String = GameState.why_not_contract(Contract.of(&"ctr_lodge_cull", 3))
+	print("[contract] two hands      took %s; a hand free, again: '%s', off the board: '%s'" % [hands, twice, stranger])
+	if hands != [true, true, false] or not twice.contains("yours") or not stranger.contains("board"):
+		problems.append("two hands took %s, and took again or off the board" % [hands])
+
+	# ─ 2. favours: bought, refused, and delivered once ─
+	GameState.favours_owed.clear()
+	var waystone: FavourResource = lodge.favour(&"fav_waystone")
+	var plan: FavourResource = lodge.favour(&"fav_plan")
+	var binding: FavourResource = lodge.favour(&"fav_bindings")
+	# Nothing owed yet, so the only refusal is the price.
+	GameState.lodge_favour = 0
+	var poor: String = GameState.why_not_favour(binding)
+	var bought_poor: bool = GameState.buy_favour(binding)
+	# Six is enough for a second Waystone, so the only refusal is the promise.
+	GameState.lodge_favour = 6
+	var bought: Array[bool] = [GameState.buy_favour(waystone), GameState.buy_favour(waystone),
+		GameState.buy_favour(plan), GameState.buy_favour(binding)]
+	var planned: bool = GameState.deliver_favours()
+	var stashed: int = GameState.stash.size()
+	print("[contract] favours        at none: '%s' (bought %s); at six bought %s, left %d; delivered %d item(s), plans %s, owed %d (want no; [yes, no, yes, yes], 0, 3, yes, 0)"
+		% [poor, bought_poor, bought, GameState.lodge_favour, stashed, planned,
+			GameState.favours_owed.size()])
+	if bought_poor or not poor.contains("owes") or bought != [true, false, true, true] \
+			or GameState.lodge_favour != 0 or stashed != 3 or not planned \
+			or not GameState.favours_owed.is_empty():
+		problems.append("favour bought %s at six (and %s at none), and delivered %d item(s), plans %s"
+			% [bought, bought_poor, stashed, planned])
+	GameState.stash.clear()
+
+	# ─ 3. each kind of work, on the floor it points at ─
+	var survey: Contract = Contract.of(&"ctr_lodge_survey", 1)
+	var cull: Contract = Contract.of(&"ctr_lodge_cull", 1)
+	var fetch: Contract = Contract.of(&"ctr_lodge_retrieve", 1)
+	GameState.contracts.assign([survey, cull, fetch])
+	_stand_on_floor(0)
+	_open_the_ledger()
+	RunFile.note({"plan": true})
+	var said: PackedStringArray = _ledger.lines(_floor.spawns()[0])
+	print("[contract] the brief      %s" % " / ".join(said))
+	if said.size() != 4 or not said[0].contains("cairn") or not said[1].contains("bellringer") \
+			or not said[2].contains("altar") or not said[3].contains("Shaft"):
+		problems.append("the arrival brief said %s for a survey, a cull, a retrieve and the plans" % [said])
+	# The cairn: not found from the entrance, found beside it.
+	var cairn: LodgeCairn = _ledger.cairn_for(survey)
+	player.restore_for_descent()
+	player.teleport(SPAWNS[0], 0.0)
+	await _hold(0.4)
+	var far_met: bool = RunFile.met().has(survey.key())
+	if cairn != null:
+		player.teleport(cairn.global_position + Vector3(1.0, 0.1, 0.0), 0.0)
+	await _hold(0.4)
+	var near_met: bool = RunFile.met().has(survey.key())
+	print("[contract] the cairn      at %s, met from the door %s, beside it %s, lit %s (want %s, no, yes, yes)"
+		% [cairn.global_position if cairn != null else Vector3.INF, far_met, near_met,
+			cairn.found if cairn != null else false, SURVEY_AT])
+	if cairn == null or cairn.global_position.distance_to(SURVEY_AT) > 0.5 or far_met or not near_met:
+		problems.append("the survey's cairn was not where the floor put it, or was met from the door, or not beside it")
+	# The cull: a living Bellringer is not met, a dead one is.
+	_session.spawn_enemy(GUARDIAN_POST, 0.0, &"enm_bellringer")
+	await _hold(0.3)
+	var ringer: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null and body.archetype == &"enm_bellringer":
+			ringer = body
+			body.process_mode = Node.PROCESS_MODE_DISABLED
+	await _hold(0.6)
+	var alive_met: bool = RunFile.met().has(cull.key())
+	if ringer != null:
+		ringer.process_mode = Node.PROCESS_MODE_INHERIT
+		ringer.health.apply_damage(ringer.health.maximum * 4.0)
+	await _hold(0.6)
+	var dead_met: bool = RunFile.met().has(cull.key())
+	print("[contract] the cull       met alive %s, dead %s (want no, yes)" % [alive_met, dead_met])
+	if ringer == null or alive_met or not dead_met:
+		problems.append("the cull was met while its Bellringer stood, or not once it fell")
+	# The retrieve: what the floor laid at the Prize, and a bag with it or not.
+	var wanted: Dictionary = RunFile.expected()
+	var with_it: PackedStringArray = ContractLedger.answered(PackedStringArray(), wanted,
+		[{"item": &"glt_altar_plate"}])
+	var without_it: PackedStringArray = ContractLedger.answered(PackedStringArray(), wanted,
+		[{"item": &"glt_gilt_bead"}])
+	print("[contract] the retrieve   wants %s; met with it %s, without %s (want glt_altar_plate, yes, no)"
+		% [wanted.get(fetch.key(), "nothing"), with_it.has(fetch.key()), without_it.has(fetch.key())])
+	if String(wanted.get(fetch.key(), "")) != "glt_altar_plate" or not with_it.has(fetch.key()) \
+			or without_it.has(fetch.key()):
+		problems.append("the retrieve wanted %s, and a bag with it or without it said otherwise"
+			% wanted.get(fetch.key(), "nothing"))
+	# **And on the generated floors** (ADR-241): a cairn never in a room the
+	# floor already sends you to, and a Prize every Retrieve can name.
+	var badly_placed: PackedStringArray = PackedStringArray()
+	for seed: int in range(1, 11):
+		for depth: int in 3:
+			var made: DelvingsFloor = DelvingsFloor.of(seed, depth)
+			if not made.problems().is_empty():
+				continue
+			var cairn_at: Vector3 = made.survey_point()
+			for claimed: Vector3 in [made.prize(), made.shaft(), made.hunter(), made.spawns()[0]]:
+				if made.room_at(cairn_at) >= 0 and made.room_at(cairn_at) == made.room_at(claimed):
+					badly_placed.append("seed %d floor %d shares a room" % [seed, depth])
+			if made.prize_id() == &"":
+				badly_placed.append("seed %d floor %d names no Prize" % [seed, depth])
+	print("[contract] thirty floors   %d cairn or Prize fault(s) (want 0)" % badly_placed.size())
+	if not badly_placed.is_empty():
+		problems.append("the generated floors placed their work badly: %s" % ", ".join(badly_placed))
+	# Work on another floor raises nothing here — on a fresh run, because the
+	# survey above is already met in this one and would raise nothing anyway.
+	RunFile.begin(&"huskarl", 1, 31346)
+	GameState.contracts.assign([Contract.of(&"ctr_lodge_survey", 2)])
+	_open_the_ledger()
+	var elsewhere: bool = _ledger.cairn_for(GameState.contracts[0]) != null
+	print("[contract] another floor  a cairn raised here %s (want no)" % elsewhere)
+	if elsewhere:
+		problems.append("the second floor's survey raised its cairn on the first")
+
+	# ─ 4. the run's end hears what was answered ─
+	for carried_out: bool in [true, false]:
+		RunFile.begin(&"huskarl", 1, 31346)
+		GameState.lodge_trust = 2
+		GameState.lodge_favour = 0
+		GameState.contracts.assign([Contract.of(&"ctr_lodge_survey", 1),
+			Contract.of(&"ctr_lodge_retrieve", 1)])
+		player.inventory.clear()
+		if carried_out:
+			RunFile.meet("ctr_lodge_survey")
+			RunFile.expect("ctr_lodge_retrieve", &"glt_gilt_bead")
+			player.inventory.add(ItemCatalogue.by_id(&"glt_gilt_bead"))
+		player.restore_for_descent()
+		_stand_on_floor(RunFile.LAST_FLOOR)
+		_going_down = false
+		_on_shaft_claimed(player)
+		await _hold(0.3)
+		var heard: String = GameState.take_lodge_heard()
+		print("[contract] out, %s    trust %d, favour %d, work left %d — '%s'"
+			% ["answered" if carried_out else "unanswered", GameState.lodge_trust,
+				GameState.lodge_favour, GameState.contracts.size(), heard])
+		var want_trust: int = 4 if carried_out else 0
+		var want_favour: int = 2 if carried_out else 0
+		if GameState.lodge_trust != want_trust or GameState.lodge_favour != want_favour \
+				or not GameState.contracts.is_empty() or heard == "":
+			problems.append("a run that %s its two contracts left trust %d and favour %d (want %d, %d)"
+				% ["answered" if carried_out else "failed", GameState.lodge_trust,
+					GameState.lodge_favour, want_trust, want_favour])
+		player.got_out = false
+	_stand_on_floor(0)
+
+	# ─ 5. a life ends, and its standing with it ─
+	GameState.lodge_trust = 6
+	GameState.lodge_favour = 3
+	GameState.contracts.assign([Contract.of(&"ctr_lodge_cull", 1)])
+	GameState.favours_owed.assign([&"fav_plan"])
+	GameState.last_life = {}
+	GameState.die()
+	print("[contract] the life ends  trust %d, favour %d, work %d, owed %d (want 0, 0, 0, 0)"
+		% [GameState.lodge_trust, GameState.lodge_favour, GameState.contracts.size(),
+			GameState.favours_owed.size()])
+	if GameState.lodge_trust != 0 or GameState.lodge_favour != 0 \
+			or not GameState.contracts.is_empty() or not GameState.favours_owed.is_empty():
+		problems.append("a life ended and the Lodge still knew it")
+
+	RunFile.clear()
+	_session.clear_enemies()
+	print("[contract] the Lodge's work is set out on its floor, and heard at the end of the run")
+	_report(problems, "contract")
 
 
 ## A hazard laid on the Deep where a probe wants one, through the constructor the

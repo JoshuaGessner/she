@@ -216,6 +216,10 @@ func prize() -> Vector3:
 	return _anchors.prize()
 
 
+func survey_point() -> Vector3:
+	return _anchors.survey()
+
+
 func hunter() -> Vector3:
 	return _anchors.hunter()
 

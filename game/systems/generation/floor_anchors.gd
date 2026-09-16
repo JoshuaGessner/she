@@ -133,10 +133,30 @@ func prize() -> Vector3:
 ## means hops, not distance: a room two corridors away across a cycle is closer
 ## than the metres suggest.
 func hunter() -> Vector3:
+	return centre_of(_deepest(PackedInt32Array()))
+
+
+## **The Lodge's cairn** (`M4-T04`, ADR-241): the deepest room that is none of
+## the rooms a floor already sends you to — not the entrance, the Prize or the
+## Shaft, and not the Hunter's, which would make the work a walk into its arms.
+func survey() -> Vector3:
+	var skipped := PackedInt32Array([
+		_graph.node_with(MissionGraph.Role.ENTRANCE),
+		_graph.node_with(MissionGraph.Role.PRIZE),
+		_graph.node_with(MissionGraph.Role.SHAFT),
+		_deepest(PackedInt32Array()),
+	])
+	return centre_of(_deepest(skipped))
+
+
+## The room furthest from the entrance in hops, other than `skipped`.
+func _deepest(skipped: PackedInt32Array) -> int:
 	var entrance: int = _graph.node_with(MissionGraph.Role.ENTRANCE)
 	var far: int = entrance
 	var best: int = -1
 	for node: int in _graph.size():
+		if skipped.has(node):
+			continue
 		# **Never in a crawl.** A crawl is 1.4 m and carries no navmesh on
 		# purpose, so a Hunter posted in one is a Hunter that cannot move —
 		# the deepest room on a floor is exactly the kind of place a crawl
@@ -150,7 +170,7 @@ func hunter() -> Vector3:
 		if hops > best:
 			best = hops
 			far = node
-	return centre_of(far)
+	return far
 
 
 ## Where the floor's standing danger posts (`DES-013`, `DES-015` step 6).

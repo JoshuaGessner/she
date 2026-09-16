@@ -43,6 +43,12 @@ var sent_early: float = 0.0
 ## to do it.
 var place: String = "THE DEEP"
 var way_out: bool = true
+## **What the Lodge wants here** (`M4-T04`, ADR-241): a line a contract, said
+## under the rest. Set before this enters the tree, like `place`.
+var notes: PackedStringArray = PackedStringArray()
+## **A notice, not an arrival** (ADR-241): only the notes, said once and faded
+## the same way — `DES-019` Layer 5's *contract updates*.
+var notice: bool = false
 
 
 func _ready() -> void:
@@ -54,6 +60,10 @@ func _ready() -> void:
 	_lines.add_theme_constant_override("separation", 6)
 	_lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_lines)
+	if notice:
+		for note: String in notes:
+			_line(note, MenuStyle.BODY_WARM)
+		return
 
 	# The place, then the job, then the way home — in the order a person needs
 	# them. "Climb out at the light" is doing the most work here: it names the
@@ -80,6 +90,8 @@ func _ready() -> void:
 	# was told it was still true down here.
 	if sent_early > 0.0:
 		_line("she was not paid — the Hunt began without you", MenuStyle.BODY_WARM)
+	for note: String in notes:
+		_line(note, MenuStyle.BODY_TEXT)
 
 
 func _line(text: String, role: StringName) -> void:

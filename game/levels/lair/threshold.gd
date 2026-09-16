@@ -43,6 +43,14 @@ const GROUND: float = 34.0
 const FIRE_AT: Vector3 = Vector3(0.0, 0.0, 0.0)
 const DESCENT_AT: Vector3 = Vector3(0.0, 0.0, -9.0)
 const CHAMBER_AT: Vector3 = Vector3(0.0, 0.0, 7.5)
+## **The Lodge's board** (`M4-T04`, ADR-241), beside its fire and short of the
+## hole — the last thing you pass on the way down, and the first on the way
+## back.
+const BOARD_AT: Vector3 = Vector3(3.4, 0.0, -2.2)
+## How close you have to be to read it.
+const BOARD_REACH: float = 2.4
+## The board's claim on the body, on the Pact tree's terms (ADR-146).
+const LODGE_CLAIM: StringName = &"lodge"
 
 const NIGHT: Color = Color(0.055, 0.06, 0.075)
 const ROCK: Color = Color(0.19, 0.185, 0.19)
@@ -75,6 +83,11 @@ const SPAWNS: Array[Vector3] = [
 
 var _session: CoopSession = null
 var _readout: Label = null
+## The reticle the camp built, so the board can speak through it (the Chamber's
+## pile does the same).
+var _mark: Reticle = null
+## The board, while it is open.
+var _board: LodgeScreen = null
 ## The regions the camp's one column became (`M4-T20`).
 var _place: PanelContainer = null
 var _controls: PanelContainer = null
@@ -106,14 +119,21 @@ func _ready() -> void:
 	_build_ground()
 	_build_fire()
 	_build_doors()
+	_build_board()
 	_spawn_actors()
 	_build_readout()
 	var hud := CanvasLayer.new()
 	hud.layer = 5
 	add_child(hud)
-	hud.add_child(Reticle.new())
+	_mark = Reticle.new()
+	hud.add_child(_mark)
 	add_child(PauseMenu.new())
 	_face_what_happened()
+	# **The Lodge heard how the run went** (ADR-241), and says so once at the
+	# fire — `DES-002`'s Settle beat: *contracts resolve, standing shifts*.
+	var heard: String = GameState.take_lodge_heard()
+	if heard != "":
+		_say(heard)
 	# **A probe must be able to watch the descent without taking it** (ADR-138).
 	# `_descend` is `call_local` and ends in `change_scene_to_file`, so a body
 	# that reaches the hole destroys whatever was watching it — and the two
@@ -140,6 +160,8 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--threshold-shot="):
 			_threshold_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--board-shot="):
+			_board_shot(arg.split("=", true, 1)[1])
 		elif arg == "--threshold-probe":
 			_threshold_probe()
 		elif arg == "--doorway-probe":
@@ -153,6 +175,8 @@ func _ready() -> void:
 			_arrived_from_the_deep()
 		elif arg == "--edges-probe":
 			_edges_probe()
+		elif arg == "--board-probe":
+			_board_probe()
 		elif arg == "--again":
 			_again()
 
@@ -847,6 +871,133 @@ func _hold(seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout
 
 
+## **The Lodge's board** (`M4-T04`, ADR-241): the key opens it where you stand
+## and nowhere else, it takes the body's attention and gives it back, it offers
+## three and lets two be taken, a favour is bought and then refused as already
+## promised, and the door delivers what was bought.
+func _board_probe() -> void:
+	var problems := PackedStringArray()
+	await _hold(0.6)
+	var body: Player = _session.local_player()
+	var lodge: FactionResource = GameState.lodge()
+	if body == null or lodge == null:
+		printerr("[board] FAIL no body at the fire, or no Lodge in the build")
+		get_tree().quit(1)
+		return
+	GameState.class_id = &"huskarl"
+	GameState.contracts.clear()
+	GameState.favours_owed.clear()
+	GameState.stash.clear()
+	GameState.lodge_trust = 0
+	GameState.lodge_favour = 3
+
+	# ─ 1. the key opens the board beside it, and only there ─
+	var opened_far: bool = await _press_interact_at(body, FIRE_AT + Vector3(-3.0, 0.1, 2.0))
+	var board: LodgeScreen = _board
+	var opened_near: bool = board == null and await _press_interact_at(
+		body, BOARD_AT + Vector3(0.0, 0.1, 1.2))
+	board = _board
+	var held: bool = body.attention_claims().has(LODGE_CLAIM)
+	print("[board] the key       away %s, beside it %s, the body held %s (want no, yes, yes)"
+		% [opened_far, opened_near, held])
+	if opened_far or not opened_near or not held:
+		problems.append("the board opened away from it, or did not open beside it, or left the body driving")
+		_report_board(problems)
+		return
+
+	# ─ 2. three on the board, and two hands ─
+	var offers: Array[Contract] = GameState.board()
+	var took: Array[bool] = []
+	for offer: Contract in offers:
+		took.append(board.press_offer(offer))
+		await get_tree().process_frame
+	var holding: int = GameState.contracts.size()
+	var put_back: bool = board.press_offer(offers[0])
+	await get_tree().process_frame
+	var then_third: bool = board.press_offer(offers[2])
+	await get_tree().process_frame
+	print("[board] the offers    %d on the board, took %s, holding %d; put one back %s, took the third %s (want 3, [yes, yes, no], 2, yes, yes)"
+		% [offers.size(), took, holding, put_back, then_third])
+	if offers.size() != ContractBoard.OFFERED or took != [true, true, false] or holding != 2:
+		problems.append("the board offered %d and took %s, holding %d — three on the board, two in hand"
+			% [offers.size(), took, holding])
+	if not put_back or not then_third or GameState.contracts.size() != 2 \
+			or GameState.has_contract(offers[0]):
+		problems.append("putting work back did not free a hand for the third")
+
+	# ─ 3. a favour, then the same favour refused ─
+	var waystone: FavourResource = lodge.favour(&"fav_waystone")
+	var bought: bool = board.press_favour(waystone)
+	await get_tree().process_frame
+	var again: bool = board.press_favour(waystone)
+	print("[board] a favour      bought %s, favour left %d, bought again %s (want yes, 0, no)"
+		% [bought, GameState.lodge_favour, again])
+	if not bought or again or GameState.lodge_favour != 0:
+		problems.append("a Waystone favour was not bought for 3, or was bought twice")
+
+	# ─ 4. closing gives the body back ─
+	board.queue_free()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var released: bool = not body.attention_claims().has(LODGE_CLAIM)
+	print("[board] closed        the body driving again %s (want yes)" % released)
+	if not released:
+		problems.append("the board closed and kept the body's attention")
+
+	# ─ 5. the door keeps the Lodge's word ─
+	_descend(4242)
+	var delivered: int = 0
+	for item: ItemInstance in GameState.stash:
+		if item.definition.id == &"con_waystone":
+			delivered += 1
+	print("[board] the descent   %d Waystone(s) in the stash, %d still owed (want 1, 0)"
+		% [delivered, GameState.favours_owed.size()])
+	if delivered != 1 or not GameState.favours_owed.is_empty():
+		problems.append("the descent delivered %d Waystone(s) and left %d favour(s) owed"
+			% [delivered, GameState.favours_owed.size()])
+	_report_board(problems)
+
+
+## **Photograph the board** (ADR-241), with one contract taken and one favour
+## owed, so every kind of row is on the picture. Windowed only: `_draw` and text
+## layout are what is being looked at (ADR-093).
+func _board_shot(path: String) -> void:
+	await _hold(0.6)
+	GameState.class_id = &"huskarl"
+	GameState.lodge_trust = 3
+	GameState.lodge_favour = 2
+	GameState.contracts.clear()
+	GameState.favours_owed.assign([&"fav_bindings"])
+	GameState.take_contract(GameState.board()[0])
+	open_the_board()
+	for i: int in 4:
+		await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	print("[board] wrote %s" % path)
+	get_tree().quit()
+
+
+## Stand `body` at `at`, press the key for a frame, and say whether a board is
+## open afterwards.
+func _press_interact_at(body: Player, at: Vector3) -> bool:
+	body.teleport(at, 0.0)
+	await _hold(0.3)
+	await get_tree().process_frame
+	Input.action_press("interact")
+	await get_tree().process_frame
+	Input.action_release("interact")
+	await get_tree().process_frame
+	return _board != null
+
+
+func _report_board(problems: PackedStringArray) -> void:
+	for problem: String in problems:
+		printerr("[board] FAIL %s" % problem)
+	print("[board] the Lodge's board offers three, lets two be taken, and keeps its word")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
 func _spawn_actors() -> void:
 	_session = SESSION_SCENE.instantiate() as CoopSession
 	_session.spawn_points = SPAWNS
@@ -937,6 +1088,9 @@ func _process(delta: float) -> void:
 			"stash      %d item(s), %d tribute" % [
 				GameState.stash.size(), GameState.stash_value()],
 			"the hoard  %d" % GameState.hoard_value,
+			"the Lodge  trust %d, favour %d, work %d of %d" % [
+				GameState.lodge_trust, GameState.lodge_favour,
+				GameState.contracts.size(), ContractBoard.TAKEN_MAX],
 			# Who is actually here. The host presses OPEN THE THRESHOLD and then
 			# has no way to tell whether anybody arrived — and descending alone
 			# by accident is a wasted run and a confusing bug report.
@@ -996,6 +1150,7 @@ func _process(delta: float) -> void:
 	# that rule: the menu decides whether a *run* may open, and this decides
 	# whether a *body* may go down. `M2-T15` proved a level can be reached
 	# without passing through the menu at all.
+	_offer_the_board(player)
 	if player.global_position.distance_to(DESCENT_AT) <= 2.0:
 		if may_descend():
 			_ask_to_descend()
@@ -1152,6 +1307,10 @@ func _descend(seed: int) -> void:
 	# A no-op in an unarmed process (ADR-138), so a probe booting this level
 	# directly still cannot open a run in the player's `user://`.
 	RunFile.begin(GameState.class_id, GameState.pact_rank, seed)
+	# **The Lodge keeps its word at the door** (ADR-241): what was bought goes
+	# into the stash the first floor carries down, and the plans into the run.
+	if GameState.deliver_favours():
+		RunFile.note({"plan": true})
 	# **Printed, because a seed nobody can read is not reproducible** —
 	# `TEC-001` wants a run seed loggable and replayable off a bug report, and
 	# this is the one line in the game where an expedition is chosen.
@@ -1280,6 +1439,45 @@ func _build_fire() -> void:
 	light.light_color = FIRE_COLOUR
 	light.light_energy = 2.4
 	add_child(light)
+
+
+## A post and a board, pale in the fire's light (ADR-241).
+func _build_board() -> void:
+	_slab(Vector3(0.18, 2.0, 0.18), BOARD_AT + Vector3(0.0, 1.0, 0.0), ROCK)
+	_slab(Vector3(1.4, 0.9, 0.08), BOARD_AT + Vector3(0.0, 1.5, 0.12),
+		Color(0.46, 0.43, 0.38))
+
+
+## **Stand at the board and be told what it is**, and open it on `interact` —
+## the Chamber's pile, one room over (ADR-164).
+func _offer_the_board(player: Player) -> void:
+	var near: bool = player.global_position.distance_to(BOARD_AT) <= BOARD_REACH
+	if _mark != null and is_instance_valid(_mark):
+		_mark.offer("hold %s — the Lodge's board" % ControlsScreen.glyphs_for("interact")
+			if near and _board == null else "")
+	if near and _board == null and Input.is_action_just_pressed("interact"):
+		open_the_board()
+
+
+## The board, over the camp. Public for `--board-probe`, which opens it the way
+## the key does and then presses its buttons.
+func open_the_board() -> LodgeScreen:
+	if _board != null:
+		return _board
+	_board = LodgeScreen.new()
+	var layer := CanvasLayer.new()
+	layer.layer = 8
+	layer.add_child(_board)
+	add_child(layer)
+	var holder: Player = _session.local_player() if _session != null else null
+	_board.tree_exited.connect(func() -> void:
+		_board = null
+		if holder != null and is_instance_valid(holder):
+			holder.release_attention(LODGE_CLAIM)
+		layer.queue_free())
+	if holder != null:
+		holder.hold_attention(LODGE_CLAIM)
+	return _board
 
 
 func _build_doors() -> void:

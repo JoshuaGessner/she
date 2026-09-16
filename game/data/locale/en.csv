@@ -95,6 +95,16 @@ fallen.up.spent,"Your one way up is spent. Hold on, or go out."
 wound.broken_arm,Broken arm
 wound.concussed,Concussed
 wound.gashed_leg,Gashed leg
+faction.fac_ashen_lodge.name,The Ashen Lodge
+contract.ctr_lodge_retrieve.title,What the Keeper sits on
+contract.ctr_lodge_retrieve.brief,"On {where} there is one thing worth more than the rest, and something sitting on it. Bring it up with you when you come out. We'd like to know the Deep still gives things back."
+contract.ctr_lodge_cull.title,Put it down
+contract.ctr_lodge_cull.brief,"There's a {target} on {where}. It has cost us two crews. We'd sleep better if it stayed down."
+contract.ctr_lodge_survey.title,Find the cairn
+contract.ctr_lodge_survey.brief,"One of ours built a cairn in the deepest room on {where} and didn't come back to say which way it lies. Find it and stand by it a moment. That's all we ask."
+favour.fav_waystone.name,"A Waystone, for your next descent"
+favour.fav_bindings.name,"Two bindings, for your next descent"
+favour.fav_plan.name,"The plans: where each floor's Prize and Shaft lie"
 runover.title,"YOU WENT OUT"
 runover.body,"Your ember is down there, and everything you were carrying is with it. The hoard is untouched — it always is. She is waiting at the fire."
 runover.go,"TO THE FIRE"

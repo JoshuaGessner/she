@@ -8850,5 +8850,46 @@ One of each at most, and none heals; `GameState.die()` clears them. A fresh woun
 - **Three Scars is a hard life**: guarding dear, hearing coarse, walking loud. Whether it is a life worth continuing or one a player abandons is a question for play — the one `GATE M4 COOP` already asks of a newcomer who keeps going down, now with a price that stays.
 - `M4-T14` is closed.
 
+## ADR-241 — The Ashen Lodge posts three pieces of work, a life takes two, and its trust rises and falls with them
+
+**Date:** 2026-09-16 · **Status:** accepted · **Advances `M4-T04`** · **Builds `DES-007`'s tier 2 and ADR-050's two lanes** · **Builds `DES-014`'s contract board** · **Save v12**
+
+**Context:** `M4-T04` is contracts, tiers 1–3, for one faction. Nothing existed but an empty `data/contracts/` and `TEC-006`'s sketch. `DES-007` names concurrency as the essential part of what DMZ got right — *always overcommitted* — and ADR-050 had settled that a faction rewards in two lanes: a threshold that gates the work and standing spent on favours. Three tiers is a whole system, so it is built in steps; this is the first.
+
+### Decision — the developer's three calls
+
+- **The Ashen Lodge, whose favours are tools and never power**, over a Lodge that gives only Waystones and over the Deep-Kin's forge, which would pay in gear. `DES-007`: *real, useful, unglamorous things.* A Waystone for the next descent (3), two bindings (1), or the plans — where each floor's Prize and Shaft lie (2) ⟨tune⟩.
+- **Retrieve, Cull and Survey**, over two kinds and over all six. Each is answered by something every generated floor lays whatever its seed, so the generator did not change.
+- **Three on the board, two taken, a failure costing trust**, over taking everything for free and over a failure that locks a tier. Choosing is the first overcommitment; `DES-007`'s fail-forward costs progress and never the run.
+
+### What was built
+
+- **Data.** `ContractArchetypeResource` (`ctr_`: faction, kind, title and brief keys, and for a Cull what it hunts on each floor), `FactionResource` (`fac_`: the trust each grade needs, what a met contract pays, what a failure costs, and its favours), `FavourResource` (`fav_`: an item and a count, or the plans), `ContractCatalogue`, `Enums.ContractKind`. Three archetypes and the Lodge, voiced as `DES-007` asks — warm, sad about you, and never mentioning her.
+- **The board.** `ContractBoard.offers` deals one of each kind from a seed of the lineage's descent count and the class, so the offers hold still while a player walks away and back and turn over when a run is taken. **A contract's grade is its floor plus one**: grade 1 points at the first floor and grade 3 at the bottom, and trust opens them at 0, 3 and 8 ⟨tune⟩. A met contract pays 1, 2 or 3 trust and as much favour; a failed one costs 1 trust ⟨tune⟩.
+- **Two lanes on the life.** `GameState.lodge_trust` and `lodge_favour`, the contracts taken and the favours owed — LIFE tier, cleared by death, **save v12**. A favour is **owed until the next descent** and delivered by `Threshold._descend`, one of each: a Waystone that could wait in the stash could be bought twice and carried down twice, past ADR-015's one-per-party cap.
+- **The work, on its floor.** A `ContractLedger` per floor, per process: a **Survey** raises a `LodgeCairn` — three stones and a pale lamp — in the deepest room that is not the entrance's, the Prize's, the Shaft's or the Hunter's (`FloorAnchors.survey`; the Deep uses its empty west room), and standing within 2.5 m meets it; a **Cull** is met when a body of its archetype on the floor becomes a corpse; a **Retrieve** records what the floor laid at the Prize and is met at the exit if that item is in the bag. Cull targets are the Bellringer on floors one and two and the Keeper at the bottom — only bodies every population places, which `data_probe` enforces.
+- **No wire at all.** Every question a contract asks is answered from what its own peer already has: its body's position, the corpse state that already reaches every screen, its own bag. The cairn is built by its taker's ledger and replicated to nobody. The host never learns what anybody was hired to do (`TEC-004`).
+- **Said, not listed.** The arrival brief names each contract on the floor — *the Lodge's cairn is ahead and left, near* — bearings in words, and the plans when they came; a met contract is said once in the same fading form. The board, opened with `interact` beside the fire, is where the work is read in full; the camp's panel carries trust, favour and work taken; and the fire says what the Lodge heard when a run comes home.
+- **Decided at the end.** `RunFile` records what was met as it happens (`met`, `retrieve`, `plan`, read with defaults), `_take_the_outcome` reads it before closing the file, and `GameState.settle_contracts` pays or docks.
+
+### Absent, not stubbed
+
+Complications, party contracts, and Escort, Denial and Rival — each needs a rule or a system nothing has built. Tiers 1 (pacts) and 3 (whispers) are `M4-T04`'s next steps.
+
+### Verification
+
+`--contract-probe`, new: the deepest grade offered at no trust is 1 and at eight is 3 across twenty descents, the same board twice, one of each kind; two hands take two of three, and with a hand free the same work is refused as *already yours* and a stranger as *not on the board*; at no favour a binding is refused for its price, and at six a Waystone is bought, refused a second time as promised, and the plans and bindings bought, delivering three items and the plans; on the Deep, the brief names all three contracts and the plans, the cairn stands at the west room and is not met from the door but is beside it, a living Bellringer is not a met Cull and a dead one is, and a Retrieve wants the altar-plate and is met by a bag with it and not without; **thirty generated floors** place no cairn in a room the floor already sends you to and every one names a Prize; the second floor's survey raises nothing on the first; a run out of the bottom with both contracts answered takes trust 2 → 4 and favour 0 → 2, and with neither takes trust 2 → 0; a death takes all four. `--board-probe`, new: the key opens the board beside it and not across the camp, holds the body and gives it back, takes two of three, frees a hand when one is put back, buys a Waystone once, and the descent delivers it. `--save-probe`: the Lodge round-trips and a literal v11 fixture loads with none. `data_probe`: every Cull target is placed on every floor, every favour's item exists. The board and camp were photographed windowed; the camp's panel measured inside its region.
+
+**Planted and failed, one plant per run — all thirty-two**, among them: a new life offered the bottom, a board rolled each look, trust that opens nothing, three hands, work from nowhere, favours that cost nothing, a favour owed forever, plans that never come, the cairn at the Prize, a cairn found from the door, a living target counting, a retrieve that wants nothing or is answered by any bag, every floor's work set out on one, plans never said, met work that pays nothing and failed work that costs nothing, an exit that hears nothing, the run file cleared before it is read, the Lodge outliving the life, a profile that forgets the work or never reads trust, a v11 migration with no Lodge, a door that keeps nothing, a board that opens from anywhere, leaves the body driving or never refuses a hand, a Hall-Warden to hunt, a favour of nothing, and a new life offered nothing.
+
+**Three plants passed the first time, and each was the same fault:** another refusal answered first. *The same work twice* was asked with both hands full; *a favour bought twice* was asked when a second Waystone was unaffordable anyway; *every floor's work set out here* was asked in a run where that survey was already met. Each row now removes the other reason before it asks, and each plant fails it.
+
+### Consequences
+
+- **Every run now starts with a choice at the fire**, and a Survey or Cull on the bottom floor is a promise to go there.
+- **A Retrieve is the greed gate's own question**: the altar-plate is 16 kg, and the Lodge wants it carried out.
+- **Trust takes a new life three met contracts to open the second floor's work** ⟨tune⟩. Whether that reads as a through-line or a grind is for play.
+- `M4-T04` stays open for whispers and pacts.
+
 *Entries below to be added as design decisions are signed off.*
 

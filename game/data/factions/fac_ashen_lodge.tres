@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="FactionResource" load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://systems/contracts/faction_resource.gd" id="1_faction"]
+[ext_resource type="Script" path="res://systems/contracts/favour_resource.gd" id="2_favour"]
+
+[sub_resource type="Resource" id="Resource_waystone"]
+script = ExtResource("2_favour")
+id = &"fav_waystone"
+name_key = &"favour.fav_waystone.name"
+cost = 3
+kind = 0
+item = &"con_waystone"
+count = 1
+
+[sub_resource type="Resource" id="Resource_bindings"]
+script = ExtResource("2_favour")
+id = &"fav_bindings"
+name_key = &"favour.fav_bindings.name"
+cost = 1
+kind = 0
+item = &"con_linen_binding"
+count = 2
+
+[sub_resource type="Resource" id="Resource_plan"]
+script = ExtResource("2_favour")
+id = &"fav_plan"
+name_key = &"favour.fav_plan.name"
+cost = 2
+kind = 1
+
+[resource]
+script = ExtResource("1_faction")
+id = &"fac_ashen_lodge"
+name_key = &"faction.fac_ashen_lodge.name"
+grade_trust = PackedInt32Array(0, 3, 8)
+trust_for_grade = PackedInt32Array(1, 2, 3)
+favour_for_grade = PackedInt32Array(1, 2, 3)
+trust_lost = 1
+favours = Array[ExtResource("2_favour")]([SubResource("Resource_waystone"), SubResource("Resource_bindings"), SubResource("Resource_plan")])

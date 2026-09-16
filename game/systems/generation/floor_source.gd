@@ -109,6 +109,21 @@ extends RefCounted
 @abstract func hunter() -> Vector3
 
 
+## **Where a Survey contract's cairn stands** (`M4-T04`, ADR-241): a room deep
+## enough to be a detour, and never the Prize's, the Shaft's or the Hunter's —
+## the work has to send you somewhere the floor would not already take you.
+@abstract func survey_point() -> Vector3
+
+
+## **What the Guardian sits on** (ADR-241), for the Retrieve contract: the
+## fixture laid at `prize()`, or nothing if the floor lays none there.
+func prize_id() -> StringName:
+	for fixture: Array in fixtures():
+		if (fixture[1] as Vector3).distance_to(prize()) <= 0.5:
+			return StringName(fixture[0])
+	return &""
+
+
 ## The things that are on the floor whatever the party size (`M2-T17`,
 ## ADR-110): the Prize and the way out that is not the Shaft. Rows of
 ## `[StringName, Vector3]`.

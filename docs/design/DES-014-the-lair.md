@@ -4,7 +4,7 @@ title: The Lair
 status: accepted
 owner: design
 tags: [hub, lair, retention, social, co-op, ui, progression, networking]
-updated: 2026-09-02
+updated: 2026-09-16
 related: [DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004]
 ---
 
@@ -75,7 +75,7 @@ Putting the Ashen Lodge in the *shared* space means **your friends are standing 
 | Chamber | **Local scene. Never replicated.** Zero sync cost. |
 | Threshold | Networked; player avatars, presence, ready-state, chat/ping |
 | Threshold visual state | **Follows the host's lineage** — joining a veteran shows a fuller, older camp. One rule, legible, aspirational. |
-| Contract board | Shows *your* contracts. Party contracts are proposed and accepted by the party (`DES-007`). |
+| Contract board | Shows *your* contracts. Party contracts are proposed and accepted by the party (`DES-007`). *(Built by ADR-241: a post and board beside the Lodge's fire, opened with `interact`; the Lodge's three offers, two taken, and its favours. Party contracts are absent — each player's board is their own.)* |
 | Expedition select | Party vote; host breaks ties |
 | Host disconnect | Party dissolves back to solo Thresholds. No run state at risk — nothing is simulated here. |
 | Late join (ADR-016) | The waiting player is **in the Threshold**, and opens the gate from there |

@@ -92,6 +92,8 @@ Mid-run state lives in a separate `user://run.active` file so a crash or quit mi
 > **`wounds` and `dazed` added at `M4-T14`** (ADR-239), beside `health`, and **without a version bump**: they are read with defaults, and a run file written before wounds existed carries none, which is true of it. Dropping a live run for a field that has an honest default would cost a player the run to learn nothing.
 >
 > **The profile's `life.scars` added at `M4-T14`** (ADR-240, **save v11**) — a bit per wound the life carried out of the Deep. `_migrate_10_to_11` writes `0`, because no wound existed to scar when a v10 profile was written; `--save-probe` round-trips two of the three bits and loads a literal v10 fixture over a life dirtied with all three.
+>
+> **The profile's `life.lodge` added at `M4-T04`** (ADR-241, **save v12**): trust, favour, the contracts taken as `{archetype, grade}` rows, and the favours owed. `_migrate_11_to_12` writes an empty Lodge, because no board existed to take work from. The run file gains `met`, `retrieve` and `plan` beside the wounds, on the same default-reading rule and with the same reason: a run a contract was met in keeps the answer through a quit.
 
 ## Caches (`DES-005`)
 
