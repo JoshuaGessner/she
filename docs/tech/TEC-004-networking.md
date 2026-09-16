@@ -4,7 +4,7 @@ title: Networking Architecture
 status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-08-28
+updated: 2026-09-16
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
@@ -146,6 +146,8 @@ The Lair is two scenes with opposite networking postures, and getting this right
 | Contains | Her, hoard, skill tree, stash, Legacy screen | Bound camp, Lodge, contract board, forge, Descent |
 | Simulation | None worth the name | None worth the name |
 | Replicated | Nothing | Avatars, presence, ready-state, pings |
+
+> **Pings, built by ADR-244 — and in the Deep too.** A ping is one reliable RPC from the pinging body's `Pinger` to every peer, `call_local`, carrying a kind, a point and the path of what it marks. **The host adjudicates nothing**, because a mark changes nothing in the world; the one guard is `TEC-004`'s on every `@rpc` — the sender must be the body's own peer, and a pinger made in the body's `_ready` is handed that authority explicitly. Each peer ages and follows its own copies. The two-process smoke asserts a client's spot reaches the host and the host's gesture reaches the client, each where its sender put it.
 
 **Implementation notes:**
 - The Chamber is a **fully local scene**. It does not exist on other peers. No spawner, no synchronizer, no RPCs.

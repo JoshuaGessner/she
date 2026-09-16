@@ -31,6 +31,8 @@ What the smoke actually asserts, and why each one is a real property:
                                         exactly once, and reported back
     the host heard the client's body    clamor is derived host-side for a body
                                         the host is not playing
+    each peer's ping reached the other  a mark is said to every peer, at the
+                                        place its sender put it (ADR-244)
 
 Loopback only. Latency, jitter and loss are M4-T07's question, and this harness
 does not pretend otherwise.
@@ -445,6 +447,24 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         and seen.get("bindings", 1) == 0,
         f"client {seen.get('health', 0.0):.1f} hp, "
         f"{seen.get('bindings', 1)} binding(s)"))
+
+    # Pings (`M4-T05`, ADR-244). A mark changes nothing in the world, so the
+    # only question is whether it reached the other peer: the client's spot on
+    # the host, the host's gesture on the client, and each at the same place.
+    host_body = f"player_{host['peer']}"
+    aimed = host.get("ping_at", [0.0, 0.0, 0.0])
+    for report, who, body, kind in ((host, "host", client_body, "spot"),
+                                    (client, "client", host_body, "danger")):
+        mark = report.get("pings", {}).get(body, {})
+        where = mark.get("at", [math.inf, math.inf, math.inf])
+        if kind == "spot":
+            off = distance(where, aimed)
+        else:
+            off = distance(where, report["positions"].get(body, where))
+        rows.append(check(
+            f"the other peer's ping reached the {who}",
+            mark.get("kind") == kind and off <= POSITION_TOLERANCE,
+            f"{mark.get('kind', 'nothing')} {off:.2f} m off"))
 
     return rows
 

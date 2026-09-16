@@ -112,6 +112,8 @@ Interaction prompts, contract updates, the ping wheel (`DES-012`), a reticle **o
 
 > **Contract updates, built by ADR-241.** The arrival brief names each contract on the floor below its own lines — *the Lodge's cairn is ahead and left, near* — with bearings in words and never a number, and a contract met mid-floor is said once in the same fading form. No persistent quest list: `DES-019` is hostile to one, and the board at the fire is where the work is read in full.
 >
+> **The ping wheel, built by ADR-244.** Held, four gestures — go up, danger right, stop down, regroup left — ring the centre over a dark ground, each a shape and a word, the aimed one lit; the look steers it and the view holds still. It is Layer 5's only occupant of the centre, and only while the key is held. The marks themselves are world-anchored rather than a region: a shape over the thing, the pinger's name under it, and an arrow at the screen's edge when it is behind you. Your own gesture is not drawn on your own screen — it stands over your head, for the others.
+>
 > **Whispers, built by ADR-242**, use the same fading form: a barrow that wakes says which way it lies *from where the reader is facing*, then that it is closing, then that it has shut. A barrow found already spent on a resumed floor says nothing.
 
 ## Rules

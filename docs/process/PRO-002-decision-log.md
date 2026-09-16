@@ -8980,5 +8980,53 @@ The sealed door that needs a key, the dead Bound's unfinished work, and the barr
 - **Tribute is the only Boon**, so a Lodge run earns no power — `DES-007`'s *legitimate, viable run* is now a claim about favours and trust, for play to test.
 - **`M4-T04` is done**: tiers 1, 2 and 3 for one faction.
 
+---
+
+## ADR-244 — The party marks what it sees and says four things, and the dungeon hears none of it
+
+**Date:** 2026-09-16 · **Status:** accepted · **Advances `M4-T05`** · **Builds `DES-012`'s ping system and silent gestures** · **Moves a pad binding (ADR-137's rule)**
+
+**Context:** `DES-012` calls the ping system *essential; build early* — mark loot, enemies, routes, extraction — and ADR-050 (Q84) made the ping wheel and the silent gestures stop / go / danger / regroup **one system**. Nothing was built: no action, no mark, and the Vörðr's *scout and mark* (Q62) was absent because of it. It is the one part of `M4-T05` that is not art.
+
+### Decision — the developer's three calls
+
+- **Tap to mark, hold for gestures**, over marks alone (half of ADR-050's one system) and over a wheel for everything (slow exactly when it matters). Apex Legends is the reference: one context-sensitive press covers almost everything a squad needs to say.
+- **Silent to the dungeon**, over a faint whistle the Gold-Sick hear (which charges the player with no microphone for talking) and over a loud *danger* only. `DES-012` will not punish voice chat, so the silent channel must not be the expensive one.
+- **A mark in the world and an arrow at the edge, 10 s**, over a world mark only (a mark behind you is a word nobody heard) and over marks that last until replaced (stale marks everywhere).
+
+### What was built
+
+- **One key**, `ping`: Z and middle mouse, and **d-pad right** on a pad. The pad had no free input; by ADR-137's argument a third time, the diagnostic overlay gave its d-pad button up and now **shares Back with the ink view** — both debug views, turned over together, which `bind_gamepad.py` records as sharing on purpose. The controls screen names it under SIGNALLING.
+- **`Pinger`** (`actors/player/pinger.gd`), a child of every body at one path. On the owner it reads the key: released before 0.25 s ⟨tune⟩ is a **tap**, which marks the nearest enemy, loot or Shaft within a 5° ⟨tune⟩ cone and 40 m ⟨tune⟩ that nothing solid hides — a corpse is not an enemy — or else the point the look lands on, or nothing; held longer opens the **wheel**, which the mouse or the right stick steers while the view holds still, and the release sends go, danger, stop or regroup (up, right, down, left), or nothing from the centre. A gesture stands over the body that made it.
+- **One mark a player, said to every peer.** One reliable `call_local` RPC carries the kind, the point and the path of what is marked; the only guard is the body's own peer, and the pinger is handed its body's authority explicitly because a child made in `_ready` does not inherit it. The host adjudicates nothing — a mark changes nothing in the world. Every peer ages its copies: 10 s ⟨tune⟩, following an enemy, gone with its loot.
+- **Silent.** No `ClamorSource`, no field; the chime — two soft falling notes, new in `Foley` — is on the interface bus.
+- **`PingLayer`**, on the Deep's HUD: each mark as a shape — ring, diamond, wedge, chevron; arrow, bar, warning triangle, four dots — warm only for enemy and danger, the pinger's name under it, and, when it is behind you, off-screen or on your own camera's plane, an arrow at the edge pointing the way to turn. The wheel draws round the centre on a dark ground, shape and word, the aimed one lit. Your own gesture is not drawn for you.
+- **The Vörðr marks**: a spent body still drives, and the ping asks only that the body is driving and its bag is shut.
+- `Player.face_toward` — the look, set as the mouse would set it — so the probe aims through the real camera.
+
+### Found on the way
+
+- **A point on the camera's own plane has no projection.** The host's gesture stands over the host's head; `unproject_position` failed on it every frame, and the error spam slowed both smoke processes enough to fail three rows about nothing to do with pings — which first looked like the new phase's timing and was moved, wrongly, before the log was read. `PingLayer.place` now points along the camera's own axes at anything not in front of it, and the probe asks for such a point.
+- **The smoke's client left on a half-second timer** — ADR-239's recorded flake, *party visible on both peers* — and failed two runs in three while this was built. The client now waits for the host to say it has written its report; five smokes in five passed after.
+
+### Absent, not stubbed
+
+Shared map marks (there is no map), ping-to-ping replies, and marks in the Threshold.
+
+### Verification
+
+`--ping-probe`, new, on the Deep, every tap pressed through the input map and aimed through the body's own camera: at the bog iron it marks **loot** on that item for 10 s, and picking the iron up ends the mark; at a spawned enemy it marks **enemy** and the mark follows it 2 m, 0.00 m behind; killed, the same aim marks a spot; at the Shaft it marks **the way**; at the floor, a **spot** 0.00 m from the aim; with nothing inside a half-metre reach it leaves the mark alone; and the seax behind the entrance wall is a spot on the wall. Held, the wheel opens, and pushed up, right, down and left it names **go, danger, stop, regroup**, each over the body; let go from the centre it sends nothing; the stick names danger and the view turns 0.000. A spent body — a Vörðr — marks a spot. Three pings make **0 noise events** and leave the field at 0.00; a mark at its end is gone; a teammate body's pinger, told to mark by this peer, marks nothing. Drawn at 1152×648, a point ahead is on the screen, a point behind and to the right is an arrow at the edge pointing right, and a point on the camera's own plane is an arrow pointing up. Windowed, the mouse names stop and the view turns 0.000. `--ping-shot` photographs three teammates' loot, enemy and way marks with their names, a regroup behind the player as an arrow at the bottom edge, and the wheel open on danger. **The co-op smoke** now carries the client's spot to the host and the host's danger to the client, each 0.00 m from where it was put, and passed five runs in five. The menu, data, HUD, barrow, ember, Vörðr, exit, bag, lair, Threshold and stalker probes pass; `bind_gamepad.py --check` binds all 27 actions.
+
+**Planted and failed, one plant per run — all twenty-nine**: a tap that marks nothing; a blind cone; loot seen through walls; enemies called loot; corpses called enemies; the Shaft not the way; a spot where the look lands on nothing; marks that follow nothing; a mark that outlives its loot; marks that never fade; a mark for a second; a wheel that never opens; a wheel turned a quarter; a centre that sends a gesture; a gesture over nobody; pings the dungeon hears; anyone speaking for anyone; the stick or the mouse turning the view; points behind projected; points ahead pinned to the edge; a pinger left with the host's authority; a ping that never crosses the wire; a client that leaves before it is counted; the ping missing from the controls screen or from the pad; a hold that is a tap; a cone as wide as the room; and the dead unable to mark.
+
+**One plant passed, and it was the probe's.** *A spot where the look lands on nothing* was asked by looking at the sky, and the Deep has something up there, so the empty path was never walked. The row now cuts the reach to half a metre across open floor, and the plant fails it.
+
+### Consequences
+
+- **A party can coordinate without a microphone**, and the Vörðr has a use (`DES-012`'s *a dead player is still playing*).
+- **The pad is fully spent**, now with two debug views on one button. `M4-T06`'s rebinding is where a player who wants them apart gets that.
+- **The mouse half of the wheel is asserted only in a window**: a headless display will not capture a pointer, so the sweep asks the stick and a windowed run asks the mouse.
+- `M4-T05` stays open for the art, the audio and the type scale.
+
 *Entries below to be added as design decisions are signed off.*
 

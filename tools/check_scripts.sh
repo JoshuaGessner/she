@@ -755,6 +755,22 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The ping** (`M4-T05`, ADR-244, `DES-012`). A tap through the real camera
+	# marks the loot, the enemy, the way or the spot it is aimed at, and never a
+	# thing behind a wall; marks follow, die with their loot and fade; a hold
+	# opens the wheel, holds the view and names four gestures by the push; no
+	# ping makes a sound the dungeon hears; a pinger speaks only for its own
+	# peer; and a mark behind you, or over a head, is an arrow at the edge. The
+	# wire half is the co-op smoke's.
+	ping="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --ping-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$ping" \
+			|| ! grep -q "^\[ping\] the party can mark what it sees and say four things" <<<"$ping"; then
+		echo "FAIL the party has to be able to mark what it sees and say four things, silently" >&2
+		printf '%s\n' "$ping" | grep -E '\[ping\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

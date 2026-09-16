@@ -882,6 +882,10 @@ func _ready() -> void:
 			_barrow_probe()
 		elif arg.begins_with("--barrow-shot="):
 			_barrow_shot(arg.split("=", true, 1)[1])
+		elif arg == "--ping-probe":
+			_ping_probe()
+		elif arg.begins_with("--ping-shot="):
+			_ping_shot(arg.split("=", true, 1)[1])
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -6203,6 +6207,8 @@ const PROBE_TAKE_FROM: Vector3 = Vector3(9.4, 0.1, -6.8)
 ## happens here so it measures the revive rather than the fight around it.
 const PROBE_RESCUE_AT: Vector3 = PROBE_WALK_FROM
 const PROBE_TIMEOUT_MSEC: int = 15000
+## Where the client's ping lands in the two-process probe (ADR-244).
+const PROBE_PING_AT: Vector3 = Vector3(0.0, 0.0, -22.0)
 
 ## Where the loop goes when it ends badly. Extraction goes to the Chamber to
 ## sort a haul; death has no haul to sort, so it lands at the fire.
@@ -6233,6 +6239,8 @@ func _build_hud() -> void:
 	layer.add_child(WoundVignette.new())
 	layer.add_child(Ear.new())
 	layer.add_child(Reticle.new())
+	# The party's marks and the gesture wheel (`M4-T05`, ADR-244).
+	layer.add_child(PingLayer.new())
 	# **What is happening to you, while it happens** (`M3-T14`, `DES-012`).
 	# Not gated on `_probing`, unlike the arrival brief below: it draws nothing
 	# at all unless the body holding the camera is down or loose, so it cannot
@@ -6326,8 +6334,12 @@ var _probe_revived: Dictionary = {}
 ## A client's binding halfway and after (`M4-T32`, ADR-221).
 var _probe_binding_mid: Dictionary = {}
 var _probe_binding_done: Dictionary = {}
+## Body name → the mark this peer holds for it (ADR-244).
+var _probe_pings: Dictionary = {}
 var _probe_connect_seconds: float = 0.0
 var _probe_ending: bool = false
+## Client-side: the host has written its report (ADR-244).
+var _probe_host_wrote: bool = false
 var _probe_damage_events: int = 0
 
 
@@ -6587,6 +6599,21 @@ func _coop_probe(out: String) -> void:
 	await _hold(3.0)
 	_probe_binding_done = _probe_binding_state()
 
+	# 8. **A ping crosses the wire both ways** (`M4-T05`, ADR-244). The client
+	#    marks a spot, then the host gestures over itself, and each peer writes
+	#    down every mark it holds — so a mark that reached only its sender is
+	#    one process agreeing with itself. The host's gesture stands over the
+	#    host's own head, on its camera's plane — which is where `PingLayer`
+	#    once asked for a projection that does not exist, every frame, and the
+	#    error spam slowed both processes enough to fail three unrelated rows.
+	if not host:
+		mine.pinger.send(Pinger.Kind.SPOT, PROBE_PING_AT, NodePath())
+	await _hold(0.6)
+	if host:
+		mine.pinger.send(Pinger.Kind.DANGER, mine.global_position, mine.get_path())
+	await _hold(0.8)
+	_probe_pings = _probe_ping_state()
+
 	# **Last, and only now** (ADR-199). Everything above wants an empty floor,
 	# so this is the one phase that puts a body back — and it does it after the
 	# rest have finished rather than fighting them for the same enemies.
@@ -6595,12 +6622,20 @@ func _coop_probe(out: String) -> void:
 	if host:
 		await _await_probe_end()
 		_probe_write(out, _probe_report(true))
+		_host_wrote.rpc()
+		await _hold(0.2)
 	else:
 		_probe_write(out, _probe_report(false))
 		_end_probe.rpc_id(HOST_PEER)
-		# Long enough for the host to sample while this peer is still in its
-		# party, and short enough that a stalled host does not hang CI.
-		await _hold(0.5)
+		# **Until the host has counted us, not for a fixed half second**
+		# (ADR-244). The host samples the party when it writes, and a client
+		# that left on a timer was sometimes gone first — the flake ADR-239
+		# recorded, which failed two smokes in three while pings were built.
+		# Bounded, so a stalled host still cannot hang CI.
+		var began: int = Time.get_ticks_msec()
+		while not _probe_host_wrote \
+				and Time.get_ticks_msec() - began < PROBE_TIMEOUT_MSEC:
+			await get_tree().physics_frame
 	get_tree().quit()
 
 
@@ -6608,6 +6643,13 @@ func _coop_probe(out: String) -> void:
 func _end_probe() -> void:
 	if multiplayer.is_server():
 		_probe_ending = true
+
+
+## The host has written its report, so a client may leave (ADR-244).
+@rpc("authority", "reliable")
+func _host_wrote() -> void:
+	if multiplayer.get_remote_sender_id() == HOST_PEER:
+		_probe_host_wrote = true
 
 
 ## Waits for the client's word, but not forever. On a timeout the host writes
@@ -6674,6 +6716,8 @@ func _probe_report(host: bool) -> Dictionary:
 		"revived": _probe_revived,
 		"binding_mid": _probe_binding_mid,
 		"binding_done": _probe_binding_done,
+		"pings": _probe_pings,
+		"ping_at": [PROBE_PING_AT.x, PROBE_PING_AT.y, PROBE_PING_AT.z],
 		"binding_restores": (ItemCatalogue.by_id(&"con_linen_binding")
 			.first_trait(MendingTrait) as MendingTrait).restores,
 		# The numbers the damage assertion is made of, carried in the report
@@ -6776,6 +6820,20 @@ func _probe_binding_state() -> Dictionary:
 			"health": player.health.current,
 			"maximum": player.health.maximum,
 			"bindings": linen,
+		}
+	return out
+
+
+## Every mark this peer holds, by the body it belongs to (ADR-244).
+func _probe_ping_state() -> Dictionary:
+	var out: Dictionary = {}
+	for player: Player in _session.players():
+		if player.pinger == null or player.pinger.mark.is_empty():
+			continue
+		var at: Vector3 = player.pinger.mark["at"]
+		out[player.name] = {
+			"kind": Pinger.NAMES[int(player.pinger.mark["kind"])],
+			"at": [at.x, at.y, at.z],
 		}
 	return out
 
@@ -13393,6 +13451,358 @@ func _toward_the_barrow(metres: float) -> Vector3:
 	var along: Vector3 = (Vector3(8.0, 0.0, -20.7) - SHAFT_AT)
 	along.y = 0.0
 	return SHAFT_AT + along.normalized() * metres + Vector3(0.0, 0.1, 0.0)
+
+
+## A tap of the ping key, pressed and released a frame apart, as a hand does.
+func _tap_ping() -> void:
+	Input.action_press("ping")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("ping")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+
+
+## The ping key held past a tap, the wheel pushed one way, and let go.
+func _gesture_ping(player: Player, push: Vector2) -> bool:
+	Input.action_press("ping")
+	await _hold(Config.tuning.ping_hold_seconds + 0.15)
+	var opened: bool = player.pinger.wheel_open
+	player.pinger.steer(push)
+	await get_tree().physics_frame
+	Input.action_release("ping")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	return opened
+
+
+## A mark's kind by name, or `none`, for the probe's lines.
+func _ping_name(pinger: Pinger) -> String:
+	return "none" if pinger.mark.is_empty() else Pinger.NAMES[int(pinger.mark["kind"])]
+
+
+## **`--ping-probe`** (`M4-T05`, ADR-244, `DES-012`). A tap marks the loot, the
+## enemy, the way or the spot the real camera is aimed at — never a thing
+## behind a wall, and nothing at all when the look lands on nothing; a mark
+## follows its enemy, dies with its loot and fades on time; a hold opens the
+## wheel, holds the view still, and names each of four gestures by the push,
+## by mouse or stick, and nothing from the centre; the dungeon hears none of
+## it; a body's pinger speaks only for its own peer; and a mark behind you is
+## an arrow at the edge pointing the way to turn.
+func _ping_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var tuning: TuningProfile = Config.tuning
+	var pinger: Pinger = player.pinger if player != null else null
+	if pinger == null:
+		problems.append("the body has no pinger")
+		_report(problems, "ping")
+		return
+	await _hold(0.3)
+
+	# ─ 1. a tap at loot marks the loot ─
+	var iron: WorldItem = WorldItem.nearest(self, Vector3(-9.4, 0.1, -6.0), 0.5)
+	player.teleport(Vector3(-10.4, 0.1, -3.0), 0.0)
+	await _hold(0.2)
+	if iron != null:
+		player.face_toward(iron.global_position + Vector3.UP * 0.5)
+	await _tap_ping()
+	var loot_ok: bool = iron != null and _ping_name(pinger) == "loot" \
+		and pinger.mark["target"] == iron.get_path()
+	print("[ping] loot           marked %s, on the bog iron %s, for %.1f s (want loot, yes, %.1f)"
+		% [_ping_name(pinger), loot_ok, float(pinger.mark.get("left", 0.0)), tuning.ping_seconds])
+	if not loot_ok:
+		problems.append("a tap aimed at loot did not mark that loot")
+	if absf(float(pinger.mark.get("left", 0.0)) - tuning.ping_seconds) > 0.5:
+		problems.append("a new mark does not stand for ping_seconds")
+
+	# ─ 2. and a mark on loot dies with it ─
+	player.teleport(iron.global_position + Vector3(0.8, 0.0, 0.0) if iron != null
+		else Vector3(-9.4, 0.1, -5.0), 0.0)
+	await _hold(0.15)
+	if iron != null:
+		player.reach_for(iron)
+	await _hold(0.3)
+	print("[ping] taken          the mark on picked-up loot is %s (want none)" % _ping_name(pinger))
+	if not pinger.mark.is_empty():
+		problems.append("a mark outlived the loot it pointed at — it marks a thing in somebody's bag")
+	player.inventory.clear()
+
+	# ─ 3. a tap at an enemy marks it, and the mark follows ─
+	_session.spawn_enemy(Vector3(10.5, 0.1, -11.0))
+	await _hold(0.1)
+	var foe: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		foe = node as Enemy
+	if foe != null:
+		foe.process_mode = Node.PROCESS_MODE_DISABLED
+	player.teleport(Vector3(10.5, 0.1, -4.0), 0.0)
+	await _hold(0.2)
+	if foe != null:
+		player.face_toward(foe.global_position + Vector3.UP * 0.5)
+	await _tap_ping()
+	var enemy_marked: bool = foe != null and _ping_name(pinger) == "enemy" \
+		and pinger.mark["target"] == foe.get_path()
+	if foe != null:
+		foe.global_position += Vector3(-2.0, 0.0, 0.0)
+	await _hold(0.1)
+	var followed: float = INF
+	if foe != null and not pinger.mark.is_empty():
+		followed = (pinger.mark["at"] as Vector3).distance_to(foe.global_position)
+	print("[ping] enemy          marked %s, on it %s, %.2f m behind it after it moved (want enemy, yes, 0)"
+		% [_ping_name(pinger), enemy_marked, followed])
+	if not enemy_marked:
+		problems.append("a tap aimed at an enemy did not mark that enemy")
+	if followed > 0.05:
+		problems.append("a mark on an enemy stayed where the enemy was")
+	# A corpse is not a threat to point at.
+	var corpse_mark: String = "no body"
+	if foe != null:
+		foe.process_mode = Node.PROCESS_MODE_INHERIT
+		foe.health.apply_damage(foe.health.maximum * 4.0)
+		await _hold(0.3)
+		player.face_toward(foe.global_position + Vector3.UP * 0.5)
+		await _tap_ping()
+		corpse_mark = _ping_name(pinger)
+	print("[ping] a corpse       marked %s (want anything but enemy)" % corpse_mark)
+	if foe == null or corpse_mark == "enemy":
+		problems.append("a tap at a corpse marked an enemy")
+	_session.clear_enemies()
+	await _hold(0.1)
+
+	# ─ 4. the way, and a spot on the floor ─
+	player.teleport(Vector3(0.0, 0.1, -20.0), 0.0)
+	await _hold(0.2)
+	player.face_toward(SHAFT_AT + Vector3.UP * 0.5)
+	await _tap_ping()
+	var way_ok: bool = _ping_name(pinger) == "way"
+	var floor_point := Vector3(0.0, 0.0, -23.0)
+	player.face_toward(floor_point)
+	await _tap_ping()
+	var spot_off: float = INF if pinger.mark.is_empty() \
+		else (pinger.mark["at"] as Vector3).distance_to(floor_point)
+	print("[ping] way and spot   the Shaft marked %s; the floor marked %s, %.2f m from the aim (want yes, spot, 0)"
+		% [way_ok, _ping_name(pinger), spot_off])
+	if not way_ok:
+		problems.append("a tap aimed at the Shaft did not mark the way")
+	if _ping_name(pinger) != "spot" or spot_off > 0.3:
+		problems.append("a tap at the floor did not mark the spot the look landed on")
+
+	# ─ 5. nothing, and nothing behind a wall ─
+	#
+	# **Nothing inside the reach**, made certain: the reach cut to half a metre
+	# and the look straight across the open junction. A look at the sky was the
+	# first draft, and the Deep has something up there — planting the empty
+	# path passed it.
+	var reach: float = tuning.ping_range
+	tuning.ping_range = 0.5
+	player.face_toward(player.global_position + Vector3(0.0, 1.6, -5.0))
+	await _tap_ping()
+	tuning.ping_range = reach
+	var after_sky: String = _ping_name(pinger)
+	var seax: WorldItem = WorldItem.nearest(self, Vector3(-10.2, 0.1, -14.5), 0.5)
+	player.teleport(Vector3(-3.0, 0.1, 5.0), 0.0)
+	await _hold(0.2)
+	if seax != null:
+		player.face_toward(seax.global_position + Vector3.UP * 0.5)
+	await _tap_ping()
+	var through: String = _ping_name(pinger)
+	print("[ping] unseen         nothing in reach left the mark %s; the seax behind a wall marked %s (want spot, spot)"
+		% [after_sky, through])
+	if after_sky != "spot":
+		problems.append("a tap at nothing changed the mark")
+	if seax == null or through != "spot":
+		problems.append("a tap marked loot through a wall")
+
+	# ─ 6. the wheel: held, it opens, holds the view, and names four gestures ─
+	var words: PackedStringArray = PackedStringArray()
+	var opened_every: bool = true
+	var gestured: bool = true
+	for push: Vector2 in [Vector2(0, -60), Vector2(60, 0), Vector2(0, 60), Vector2(-60, 0)]:
+		var opened: bool = await _gesture_ping(player, push)
+		opened_every = opened_every and opened
+		words.append(_ping_name(pinger))
+		gestured = gestured and not pinger.mark.is_empty() \
+			and pinger.mark["target"] == player.get_path()
+	var before_centre: String = _ping_name(pinger)
+	pinger.mark = {}
+	await _gesture_ping(player, Vector2.ZERO)
+	var from_centre: String = _ping_name(pinger)
+	# The stick: pushed right while the wheel is open, the view does not turn.
+	var yaw_before: float = player.rotation.y
+	Input.action_press("ping")
+	await _hold(tuning.ping_hold_seconds + 0.15)
+	Input.action_press("look_right", 1.0)
+	await _hold(0.3)
+	var yaw_after: float = player.rotation.y
+	Input.action_release("ping")
+	await get_tree().physics_frame
+	Input.action_release("look_right")
+	await _hold(0.1)
+	var by_stick: String = _ping_name(pinger)
+	print("[ping] the wheel      opened %s; up, right, down, left named %s, over the body %s; the centre named %s; the stick named %s and the view turned %.3f (want yes, go danger stop regroup, yes, none, danger, 0)"
+		% [opened_every, " ".join(words), gestured, from_centre, by_stick,
+			absf(yaw_after - yaw_before)])
+	if not opened_every or " ".join(words) != "go danger stop regroup" or not gestured:
+		problems.append("the gesture wheel did not name each gesture by its push, over the body that made it")
+	if from_centre != "none":
+		problems.append("a hold let go from the centre sent '%s'" % from_centre)
+	if before_centre == "none":
+		problems.append("the gestures left no mark to replace")
+	if by_stick != "danger" or absf(yaw_after - yaw_before) > 0.001:
+		problems.append("the stick did not steer the wheel, or turned the view while it was open")
+	# The mouse, through the body's own input handler: with the wheel open a
+	# motion steers the wheel and turns nothing.
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	if Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		var mouse_yaw: float = player.rotation.y
+		Input.action_press("ping")
+		await _hold(tuning.ping_hold_seconds + 0.15)
+		var motion := InputEventMouseMotion.new()
+		motion.relative = Vector2(0.0, 60.0)
+		player._unhandled_input(motion)
+		await get_tree().physics_frame
+		Input.action_release("ping")
+		await _hold(0.1)
+		var by_mouse: String = _ping_name(pinger)
+		print("[ping] the mouse      named %s and the view turned %.3f (want stop, 0)"
+			% [by_mouse, absf(player.rotation.y - mouse_yaw)])
+		if by_mouse != "stop" or absf(player.rotation.y - mouse_yaw) > 0.001:
+			problems.append("the mouse did not steer the wheel, or turned the view while it was open")
+	else:
+		print("[ping] the mouse      not asked: this display will not capture a pointer")
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+	# ─ 6b. the Vörðr marks too (Q62: *scout and mark*) ─
+	player.spent = true
+	await _hold(0.2)
+	pinger.mark = {}
+	var ground: Vector3 = player.global_position + Vector3(0.0, -0.1, -3.0)
+	player.face_toward(ground)
+	await _tap_ping()
+	var ghost: String = _ping_name(pinger)
+	player.spent = false
+	await _hold(0.2)
+	print("[ping] the Vörðr      a spent body marked %s (want spot)" % ghost)
+	if ghost != "spot":
+		problems.append("a Vörðr could not mark — scouting is the dead player's whole use")
+
+	# ─ 7. silent to the dungeon ─
+	#
+	# Counted as noise **events** from a body that has stood still long enough
+	# to make none, because a level that is still decaying from the walk here
+	# would hide a ping's small addition.
+	player.clamor.silence()
+	await _hold(0.5)
+	var noises: Array[float] = []
+	var count_noise := func(amount: float, _level: float) -> void: noises.append(amount)
+	player.clamor.made_noise.connect(count_noise)
+	var heard_before: float = _field.level_at(player.global_position)
+	for push: Vector2 in [Vector2(0, -60), Vector2(60, 0)]:
+		await _gesture_ping(player, push)
+	await _tap_ping()
+	var heard_after: float = _field.level_at(player.global_position)
+	player.clamor.made_noise.disconnect(count_noise)
+	print("[ping] silence        %d noise event(s) from three pings; the field %.2f -> %.2f (want 0, no louder)"
+		% [noises.size(), heard_before, heard_after])
+	if not noises.is_empty() or heard_after > heard_before + 0.01:
+		problems.append("pinging made noise — the dungeon heard the party talk")
+
+	# ─ 8. it fades on time ─
+	await _tap_ping()
+	pinger.mark["left"] = 0.2
+	await _hold(0.35)
+	print("[ping] fading         a mark at its end is %s (want none)" % _ping_name(pinger))
+	if not pinger.mark.is_empty():
+		problems.append("a mark outlived ping_seconds")
+
+	# ─ 9. a body's pinger speaks only for its own peer ─
+	var friend: Player = _session.spawn_player(TEAMMATE_PEER, Vector3(2.0, 0.1, -20.0))
+	await _hold(0.3)
+	var spoofed: bool = true
+	if friend != null:
+		friend.pinger.send(Pinger.Kind.DANGER, friend.global_position, NodePath())
+		await _hold(0.1)
+		spoofed = not friend.pinger.mark.is_empty()
+	print("[ping] the guard      another peer's pinger took this peer's word %s (want no)" % spoofed)
+	if friend == null or spoofed:
+		problems.append("a mark was placed for a body by a peer that is not its own")
+
+	# ─ 10. where it is drawn: ahead on the screen, behind at the edge ─
+	var eye: Camera3D = get_viewport().get_camera_3d()
+	var screen := Vector2(1152.0, 648.0)
+	var ahead: Dictionary = {}
+	var behind: Dictionary = {}
+	var overhead: Dictionary = {}
+	if eye != null:
+		var forward: Vector3 = -eye.global_transform.basis.z
+		var right: Vector3 = eye.global_transform.basis.x
+		ahead = PingLayer.place(eye, eye.global_position + forward * 6.0, screen)
+		behind = PingLayer.place(eye, eye.global_position - forward * 6.0 + right * 3.0, screen)
+		# On the camera's own plane — a gesture over a head — which has no
+		# projection at all.
+		overhead = PingLayer.place(eye, eye.global_position
+			+ eye.global_transform.basis.y * 0.7, screen)
+	var overhead_ok: bool = not overhead.is_empty() and bool(overhead["edge"]) \
+		and (overhead["toward"] as Vector2).y < 0.0
+	var ahead_ok: bool = not ahead.is_empty() and not bool(ahead["edge"]) \
+		and Rect2(Vector2.ZERO, screen).has_point(ahead["at"])
+	var behind_ok: bool = not behind.is_empty() and bool(behind["edge"]) \
+		and (behind["toward"] as Vector2).x > 0.0 \
+		and Rect2(Vector2.ZERO, screen).has_point(behind["at"])
+	print("[ping] drawn          ahead %s, behind-right at the edge pointing right %s, overhead at the edge pointing up %s (want yes, yes, yes)"
+		% [ahead_ok, behind_ok, overhead_ok])
+	if not overhead_ok:
+		problems.append("a mark on the camera's own plane was not pointed at from the edge")
+	if not ahead_ok or not behind_ok:
+		problems.append("a mark ahead was not drawn on it, or one behind was not an arrow at the edge pointing the way to turn")
+
+	print("[ping] the party can mark what it sees and say four things, and the dungeon hears none of it")
+	_report(problems, "ping")
+
+
+## **`--ping-shot=PATH`** (ADR-244): every kind of mark at once — three bodies'
+## marks ahead, one behind at the edge, and the wheel held open pointing at
+## danger. Shapes are a claim about seeing (ADR-093).
+func _ping_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	player.teleport(Vector3(0.0, 0.1, -19.0), 0.0)
+	await _hold(0.4)
+	player.face_toward(Vector3(0.0, 1.0, -26.0))
+	var others: Array[Player] = []
+	for seat: int in 3:
+		var other: Player = _session.spawn_player(TEAMMATE_PEER + seat,
+			Vector3(-6.0 + 6.0 * seat, 0.1, -24.0))
+		if other != null:
+			others.append(other)
+	await _hold(0.4)
+	var left: float = Config.tuning.ping_seconds
+	var marks: Array = [
+		[player.pinger, Pinger.Kind.SPOT, Vector3(-3.0, 0.0, -23.0)],
+	]
+	var kinds: Array = [Pinger.Kind.LOOT, Pinger.Kind.ENEMY, Pinger.Kind.WAY]
+	var spots: Array = [Vector3(-5.0, 0.0, -24.5), Vector3(3.0, 0.0, -24.5), SHAFT_AT]
+	for index: int in others.size():
+		marks.append([others[index].pinger, kinds[index], spots[index]])
+	for row: Array in marks:
+		(row[0] as Pinger).mark = {"kind": row[1], "at": row[2],
+			"target": NodePath(), "left": left}
+	# One behind, at the edge, from a fourth body.
+	var behind: Player = _session.spawn_player(TEAMMATE_PEER + 3, Vector3(0.0, 0.1, -15.0))
+	await _hold(0.3)
+	if behind != null:
+		behind.pinger.mark = {"kind": Pinger.Kind.REGROUP, "at": behind.global_position,
+			"target": NodePath(), "left": left}
+	player.pinger.wheel_open = true
+	player.pinger.steer(Vector2(60.0, 0.0))
+	await _hold(0.2)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	print("[ping] every mark, the edge and the wheel, photographed — %s" % path.get_file())
+	get_tree().quit()
 
 
 ## **`--barrow-shot=PATH`** (ADR-242): the Deep's barrow open, from where a body

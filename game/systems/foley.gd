@@ -47,6 +47,7 @@ enum Sound {
 	EMBER,      # a life on the floor
 	CLICK,      # interface
 	GRIND,      # stone dragged over stone: a barrow opening (ADR-242)
+	PING,       # a mark placed for the party (ADR-244) — interface, never world
 }
 
 ## How far a one-shot carries by default: roughly the Deep's scale, audible
@@ -120,6 +121,7 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 		Sound.EMBER: seconds = 0.9
 		Sound.CLICK: seconds = 0.08
 		Sound.GRIND: seconds = 1.6
+		Sound.PING: seconds = 0.3
 	var frames: int = int(float(RATE) * seconds)
 	var data := PackedByteArray()
 	data.resize(frames * 2)
@@ -194,6 +196,12 @@ static func _sample(sound: Sound, at_second: float, seconds: float) -> float:
 			var stutter: float = 0.6 + 0.4 * absf(sin(TAU * 7.0 * at_second))
 			return (sin(TAU * 52.0 * at_second) * 0.4
 				+ _noise(at_second * 0.5) * 0.45) * stutter * sin(PI * progress)
+		Sound.PING:
+			# Two soft falling notes: a word for the party, clearly not a
+			# thing in the world noticing you (which rises, `NOTICED`).
+			var note: float = 880.0 if progress < 0.4 else 660.0
+			return sin(TAU * note * at_second) * 0.22 \
+				* exp(-fmod(at_second, 0.12) * 18.0)
 	return 0.0
 
 

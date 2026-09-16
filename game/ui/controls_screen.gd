@@ -101,6 +101,11 @@ const GROUPS: Array = [
 	["LEAVING", [
 		["Spend a Waystone", "waystone", ["use_waystone"]],
 	]],
+	# **Talking without a voice** (ADR-244, `DES-012`): the party's one silent
+	# channel, and the dungeon never hears it.
+	["SIGNALLING", [
+		["Mark what you see — hold for stop, go, danger, regroup", "ping", ["ping"]],
+	]],
 ]
 
 ## Xbox names, because they are the ones printed on the majority of pads sold

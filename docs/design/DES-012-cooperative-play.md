@@ -163,6 +163,8 @@ Because Clamor is the central system, **voice comms are diegetically interesting
 - **Silent gestures** for stop / go / danger / regroup.
 - **Shared map marks** feeding the Lineage cartography.
 
+> **Both built by ADR-244 (`M4-T05`), as one key, by the developer's calls.** **Tap** to mark what you are looking at — the nearest enemy, loot or Shaft inside a 5° ⟨tune⟩ cone that nothing solid hides, else the point the look lands on — and **hold** past 0.25 s ⟨tune⟩ for a wheel of the four gestures, pushed by the mouse or the right stick and sent on release (nothing from the centre). A gesture stands over the body that made it. **Silent to the dungeon**: a ping touches no Clamor, and its chime is on the interface bus, so the player with no microphone is not the one who pays for talking. **One mark a player**, standing 10 s ⟨tune⟩ — a small mark over the thing, its shape saying what it is, the pinger's name under it, and an arrow at the screen's edge when it is behind you or off-screen. A mark follows its enemy and dies with its loot. The Vörðr marks like anyone (Q62's *scout and mark*). **Shared map marks** are absent: there is no map.
+
 ## Session model
 
 - **Private lobbies and friend invites first.** Drop-in matchmaking is a much larger problem (`TEC-004`) and can follow.

@@ -22,6 +22,8 @@ This is not a polish task. A visual language for Clamor cannot be bolted on at t
 
 > **The barrow's grind has three twins** (ADR-242). It is a world event rather than a Hunt channel, so it is paired where it happens: a gold light in the barrow while it is open that gutters as it closes, a stone of a darker grey once it has shut, and a fading notice that says which way it lies from the body reading it — *stone grinds open behind, near* — then that it is closing, then that it has shut. `--barrow-probe` asserts all three are drawn from the one replicated state, in that order.
 
+> **A ping is a mark with a chime** (ADR-244): two soft falling notes on the interface bus — a word for the party, never a thing in the world noticing you, which rises — and a mark whose **shape** says what it is: a ring for a spot, a diamond for loot, a downward wedge for an enemy, a raised chevron for the way, and an arrow, a bar, a warning triangle and four dots for go, stop, danger and regroup. Warm reinforces the two that mean *look out*; it never carries them alone.
+
 **This makes the game better for everyone.** A continuous visible Clamor readout serves Principle 4 directly — you can *see* how loud you were being, so you can explain your death in one sentence instead of guessing.
 
 ---

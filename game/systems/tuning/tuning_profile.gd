@@ -162,6 +162,18 @@ extends Resource
 ## prize is, so the Gold-Sick walk towards what you would walk back for.
 @export var barrow_grind_clamor: float = 24.0
 
+@export_group("Ping")
+## **How long a ping stands** ⟨tune⟩ (`M4-T05`, ADR-244). Long enough to be seen
+## by someone looking elsewhere, short enough that a floor does not fill with
+## stale marks.
+@export var ping_seconds: float = 10.0
+## How far a ping reaches ⟨tune⟩ — across a great room, not across the floor.
+@export var ping_range: float = 40.0
+## Seconds the key is held before the gesture wheel opens instead of a mark ⟨tune⟩.
+@export var ping_hold_seconds: float = 0.25
+## How far off the aim a thing may be and still be what was marked ⟨tune⟩.
+@export var ping_cone_degrees: float = 5.0
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a
@@ -889,6 +901,15 @@ func validate() -> PackedStringArray:
 	if barrow_grind_clamor <= 0.0:
 		problems.append("barrow_grind_clamor is %.1f — a barrow that opens in silence costs nothing to go back for"
 			% barrow_grind_clamor)
+	if ping_seconds <= 0.0 or ping_range <= 0.0:
+		problems.append("ping_seconds %.1f and ping_range %.1f must both be positive — a mark nobody can place or see says nothing"
+			% [ping_seconds, ping_range])
+	if ping_hold_seconds <= 0.0 or ping_hold_seconds >= ping_seconds:
+		problems.append("ping_hold_seconds is %.2f — a tap has to be told from a hold, and a hold cannot outlast the mark"
+			% ping_hold_seconds)
+	if ping_cone_degrees <= 0.0 or ping_cone_degrees > 30.0:
+		problems.append("ping_cone_degrees is %.1f — a mark has to be about what you are looking at, not beside it"
+			% ping_cone_degrees)
 	if heavy_block_stamina_multiplier < 1.0:
 		problems.append("heavy_block_stamina_multiplier is %.2f — a heavy blow cannot be cheaper to take than a cut"
 			% heavy_block_stamina_multiplier)

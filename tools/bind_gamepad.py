@@ -101,7 +101,16 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # The diagnostic overlay (`M2-T13`, ADR-105). Beside the other two debug
     # keys, because it is one: vision cones and the clamor field are for tuning,
     # and they were drawn in every session including a playtester's.
-    "debug_overlays": [(BUTTON, DPAD_RIGHT, 0.0)],
+    #
+    # **It shares `BACK` with `debug_ink` now** (ADR-244): the ping took
+    # `DPAD_RIGHT`, on ADR-137's argument a third time — a debug toggle does not
+    # hold a button a gameplay verb needs. Both are views of what the screen
+    # draws, so on a pad they turn over together; the keyboard keeps them apart.
+    "debug_overlays": [(BUTTON, BACK, 0.0)],
+    # **The ping** (`M4-T05`, ADR-244, `DES-012`) — tap to mark, hold for the
+    # four gestures. On the d-pad beside the shutter, the other thing you do
+    # with a full hand, and never a face button a fight needs.
+    "ping": [(BUTTON, DPAD_RIGHT, 0.0)],
     "interact": [(BUTTON, X, 0.0)],
     # **Hold and Snare** (`M3-T02`, `M3-T11`, `DES-011`) — the class verb, on
     # the face button every shooter puts a class ability on.
@@ -150,6 +159,11 @@ SHARED_OK: dict[frozenset[str], str] = {
     frozenset({"verb", "use_item"}):
         "disjoint by the bag: `_hold` and `_snare` both require `_bag <= 0.0`, "
         "and `use_item` is only read by BagScreen while it is open",
+    # Not disjoint — together, on purpose (ADR-244). Neither is a verb a player
+    # needs, and both are views of what the screen draws for tuning.
+    frozenset({"debug_ink", "debug_overlays"}):
+        "together by design: two debug views that a pad turns over at once, "
+        "so the ping can have the d-pad (ADR-244, ADR-137's rule)",
 }
 
 JOY_BUTTON = ('Object(InputEventJoypadButton,"resource_local_to_scene":false,'

@@ -505,6 +505,8 @@ var _reviving: bool = false
 ## than in `player.tscn`, because it holds no scene state of its own and the
 ## body configures it the moment it knows whose life this is.
 var equipment: Equipment = null
+## This body's one mark and the key that places it (`M4-T05`, ADR-244).
+var pinger: Pinger = null
 @onready var health: Health = $Health
 @onready var weapon: MeleeWeapon = $Head/Weapon
 ## A bow, or null (`M3-T11`). Built in `_ready` only when the class carries
@@ -663,6 +665,14 @@ func _ready() -> void:
 	equipment = Equipment.new()
 	equipment.name = "Equipment"
 	add_child(equipment)
+	# **The ping** (`M4-T05`, ADR-244), at one path on every peer. Its RPC is
+	# guarded by the body's own peer, and a child made here does not inherit
+	# the authority the spawn set — so it is handed over explicitly.
+	pinger = Pinger.new()
+	pinger.name = "Pinger"
+	pinger.set_multiplayer_authority(get_multiplayer_authority())
+	add_child(pinger)
+	pinger.serve(self, _camera)
 	equipment.changed.connect(_on_equipment_changed)
 	_redress()
 	# **The tree configures the components** (`M3-T01`, `TEC-006`). Calls down,
@@ -946,7 +956,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	# Looking is suspended while the bag is open. You are looking at your bag —
 	# that is the vulnerability `DES-019` is buying, and a player who can still
 	# scan the room while rummaging is not paying for it.
-	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED \
+			and pinger.wheel_open:
+		# **The look steers the gesture wheel while it is open** (ADR-244), and
+		# the view holds still — a wheel you aim by turning is one you miss.
+		pinger.steer((event as InputEventMouseMotion).relative)
+	elif event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
 		var motion := event as InputEventMouseMotion
 		var tuning: TuningProfile = Config.tuning
 		var limit: float = deg_to_rad(tuning.pitch_limit_degrees)
@@ -2181,6 +2196,20 @@ func _return_from_the_void() -> void:
 	velocity = Vector3.ZERO
 
 
+## **Turn the view to look at a point** (ADR-244), as the mouse would — yaw on
+## the body, pitch on the head, clamped the same. Owner-side, and public
+## because the ping probe aims through the real camera rather than around it.
+func face_toward(point: Vector3) -> void:
+	if not _is_local:
+		return
+	var toward: Vector3 = point - _camera.global_position
+	_yaw = atan2(-toward.x, -toward.z)
+	rotation.y = _yaw
+	var limit: float = deg_to_rad(Config.tuning.pitch_limit_degrees)
+	_pitch = clampf(atan2(toward.y, Vector2(toward.x, toward.z).length()), -limit, limit)
+	_head.rotation.x = _pitch
+
+
 func teleport(to: Vector3, yaw: float) -> void:
 	if _is_local:
 		_apply_teleport(to, yaw)
@@ -2245,6 +2274,10 @@ func _apply_stick_look(delta: float, tuning: TuningProfile) -> void:
 	if bag_is_open():
 		return
 	var look := Input.get_vector("look_left", "look_right", "look_up", "look_down")
+	# And the stick points the gesture wheel while it is open (ADR-244).
+	if pinger.wheel_open:
+		pinger.point(look)
+		return
 	if look.length_squared() <= 0.0:
 		return
 	var magnitude: float = minf(look.length(), 1.0)
@@ -2313,6 +2346,10 @@ func _physics_process(delta: float) -> void:
 
 	if _is_local:
 		_shutter_cooling = maxf(0.0, _shutter_cooling - delta)
+		# A ping needs a body that is acting on the world: not rummaging, not
+		# behind a menu. Down or a Vörðr, it still speaks — `DES-012`'s dead
+		# player is still playing, and marking is the Vörðr's whole use.
+		pinger.tick(delta, _driving and not bag_is_open())
 		_update_bag(delta)
 		_update_reach()
 		_drive(delta, tuning)
