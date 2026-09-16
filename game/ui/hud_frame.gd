@@ -161,8 +161,10 @@ static func rect_of(region: Region, screen: Vector2) -> Rect2:
 			# Deep and Lair both. It was 0.15 tall and the Chamber's Tithe panel
 			# — a heading and three rows — did not fit, so it grew off the
 			# bottom of the window on the first screenshot. A region sized to
-			# what it holds, rather than to what looked right empty.
-			return Rect2(w * 0.72, h * 0.78, w * 0.28 - MARGIN, h * 0.22 - MARGIN)
+			# what it holds, rather than to what looked right empty. And 0.26
+			# since her demand took a fourth row (ADR-243) — upward, into a
+			# column nothing else uses below the Ear.
+			return Rect2(w * 0.72, h * 0.74, w * 0.28 - MARGIN, h * 0.26 - MARGIN)
 		Region.REFERENCE:
 			# The left column, below `PLACE` and down to the floor. Lair only:
 			# the camp's control card is ten lines and the camp has no body or

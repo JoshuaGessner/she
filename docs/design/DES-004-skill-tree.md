@@ -4,7 +4,7 @@ title: Skill Tree — The Dragon's Aspects
 status: accepted
 owner: design
 tags: [skill-tree, builds, meta, balance, progression]
-updated: 2026-08-14
+updated: 2026-09-16
 related: [DES-003, DES-007, DES-008]
 ---
 
@@ -40,6 +40,7 @@ Five is chosen deliberately: enough for identity, few enough to actually balance
 - **Greater nodes (~4 per Aspect).** Meaningful mechanical additions — a new verb, a new tool, a new tradeoff.
 - **Lesser nodes (~8 per Aspect).** Small enablers, *never* flat stat sticks. Prefer "your throws stagger" over "+5% throw damage."
 - **Pact nodes (locked behind Pact Rank).** Gate the loudest effects behind Tithe obligation, so top-end power always costs risk (`DES-003`).
+  > **And behind her demand** (ADR-243, `DES-007` tier 1): a pact node needs the rank *and* the life's demand met — the glitter she named at the oath, given at the hoard. Still bought with Boon, so the Tithe still rises. A pact node kept through Legacy stays bought, as it already skips its rank.
 
 ### Path rules
 
@@ -86,6 +87,8 @@ Eat anything: corpses, potions, cursed items, gear. Each grants its property for
 > The deciding argument was contract-system viability rather than class balance: if contracts pay no progression, nobody runs them and `DES-007`'s whole three-tier structure is decoration. Tribute stays dominant so keep-or-give remains the spine of progression (Pillar P1).
 >
 > **Watch for:** a contract-farming strategy that skips looting entirely. If it appears, cut contract Boon before touching tribute rates.
+>
+> **AMENDED (ADR-243), by the developer's call: no contract pays Boon.** When contracts were built, the Lodge's work paid trust and favour — tools, never power, as `DES-007` requires of it — and her demand pays in opened pact nodes. ADR-030's worry was that work paying no progression is work nobody runs; the Lodge's favours are the progression (a Waystone is the only early exit), and her demand opens the tree's top. **Tribute is the only Boon**, so keep-or-give is the whole of the spine, and the farming risk above cannot arise.
 
 ## Anti-bloat rules
 

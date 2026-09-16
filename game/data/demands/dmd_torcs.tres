@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="DemandResource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/contracts/demand_resource.gd" id="1_demand"]
+
+[resource]
+script = ExtResource("1_demand")
+id = &"dmd_torcs"
+named_key = &"demand.dmd_torcs.named"
+met_key = &"demand.dmd_torcs.met"
+item = &"glt_gilded_torc"
+count = 3

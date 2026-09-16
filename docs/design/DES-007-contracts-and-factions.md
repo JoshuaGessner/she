@@ -27,6 +27,8 @@ What we're *not* taking: DMZ's opaque unlock chains, its dependence on other pla
 The dragon's own agenda. Multi-run objectives that advance Pact Rank and unlock Aspect nodes (`DES-004`).
 *"Bring me nine crowns of the Dvergar kings."* — spans many runs, tracks in the Lair, gives a life its through-line.
 
+> **Tier 1 built by ADR-243 (`M4-T04`) as her demand, by the developer's call.** Rank is what the tree cost (ADR-125), so a demand cannot advance it; it **opens** instead. At the oath she names a count of one glitter — three gilded torcs, four hoard-coins, three raw gemstones or one altar-plate ⟨tune⟩ — and each of that kind given at the hoard counts toward it, across as many runs as it takes. Met, it opens her **pact nodes** (`DES-004`), which still need their rank and are still bought with Boon, so the Tithe still rises. The Chamber tracks it beside the Tithe and she says it when she names it and when it is met. LIFE tier: a death forgets it and the next oath asks anew. **No contract pays Boon** (ADR-243 amends ADR-030): the Lodge pays in tools and her demand in opened nodes.
+
 ### Tier 2 — Contracts (accepted in the Lair, resolve this run)
 Chosen before descent, 2–4 active ⟨tune⟩. From factions (below). This is where concurrency bites: three contracts pointing at three different parts of the floor, and you cannot do all of them and leave on time.
 

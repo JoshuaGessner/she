@@ -72,6 +72,9 @@ func _export_probe() -> void:
 	# Every enemy's numbers are its archetype's (ADR-231): a pack without them
 	# boots and spawns bodies that cannot resolve what they are.
 	print("[export] enemies packed %d" % EnemyCatalogue.all().size())
+	# The Lodge's work and her demands (ADR-241, ADR-243): a pack without them
+	# boots with an empty board and a tree whose loudest nodes never open.
+	print("[export] contract work %d" % ContractCatalogue.count())
 	print("[export] tuning loaded %s" % (tuning != null))
 	# The interface theme is reached by a project setting and nothing else
 	# (ADR-216), so a pack without it boots, loads, and draws every menu in the

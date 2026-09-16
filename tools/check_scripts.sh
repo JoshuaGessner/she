@@ -347,6 +347,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Her demand** (`M4-T04`, ADR-243, `DES-007` tier 1). The oath names one,
+	# steadily and every one over lives; death forgets it; her loudest nodes
+	# wait on it and an ordinary one does not; only the named kind counts;
+	# given at the pile the row and her voice follow it; and met, the node is
+	# pressed and the Tithe still rises.
+	demand="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 6000 \
+		levels/lair/chamber.tscn -- --demand-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$demand" \
+			|| ! grep -q "^\[demand\] she names what she wants of a life, and her loudest gifts wait on it" <<<"$demand"; then
+		echo "FAIL her demand has to be named, counted, and open only her loudest gifts" >&2
+		printf '%s\n' "$demand" | grep -E '\[demand\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **She settles before the floor is built** (`M3-T04`, ADR-124). The soft
 	# fail shipped at `M3-T04` and never once reached the floor it was written
 	# for: `settle_cycle()` ran seventeen lines *after* `_build_hunt()`, so

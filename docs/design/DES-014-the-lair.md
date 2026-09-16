@@ -90,6 +90,8 @@ Unchanged, and now unambiguously **in your Chamber where it belongs**.
 
 She sits on everything you have ever given her, and it is physically there. Tribute a crown, and that crown is in the pile. Come back at rank 8 and walk through gold up to your chest.
 
+> **What she asks for by name** (ADR-243, `DES-007` tier 1). The first time a life comes before her she names her demand — *She wants three gilded torcs* — and the Tithe's corner carries it as a fourth row, *Gilded Torc — 2 of 3*, beside the other thing she is owed. Each of that kind given at the pile counts, and when the last one lands she says so and her pact nodes open.
+
 **The hoard is LINEAGE tier. It never wipes.** Your stash is gone, your tree is gone, your rank is gone — but the mountain of gold your last eleven lives paid for is still there, and she is still lying on it.
 
 - A **permanent physical monument to every life you have lost**, which turns ADR-004's harshness into something you can walk on.

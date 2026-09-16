@@ -69,6 +69,8 @@ const PLACE_REACH: float = 2.6
 ## read while walking away from the pile, short enough not to become furniture
 ## (`DES-019` is hostile to persistent UI).
 const REFUSAL_SECONDS: float = 5.0
+## How long she is heard when she names or grants a demand ⟨tune⟩.
+const SPEECH_SECONDS: float = 9.0
 ## The Pact tree's claim on the body (ADR-146), on the same terms as the
 ## Legacy screen's: the pause menu can open over this and must give back
 ## only what it took.
@@ -125,6 +127,10 @@ func _ready() -> void:
 		# worth of gold reads as a mountain you can walk on.
 		if arg.begins_with("--chamber-shot="):
 			GameState.hoard_value = 2400
+			# And her longest demand, part given, so the row is photographed
+			# at the widest it runs (ADR-243).
+			GameState.demand = &"dmd_gems"
+			GameState.demand_given = 2
 	_build_room()
 	_build_her()
 	_build_hoard()
@@ -155,6 +161,11 @@ func _ready() -> void:
 			_legacy_probe()
 		elif arg == "--pact-probe":
 			_pact_probe()
+		elif arg == "--demand-probe":
+			_demand_probe()
+	# **She names her demand when a life first comes before her** (ADR-243),
+	# and says when it is met — in the one voice this room has.
+	_she_says(GameState.take_demand_heard())
 
 
 ## A body, instantiated rather than spawned. See the class note: the absence of
@@ -204,6 +215,7 @@ func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 		_rebuild_hoard()
 		print("[lair] gave %s — the hoard is worth %d" % [
 			item.definition.display(), GameState.hoard_value])
+		_she_says(GameState.take_demand_heard())
 		_settle()
 		return
 	if at.distance_to(global_position + STASH_AT) <= PLACE_REACH:
@@ -226,6 +238,32 @@ func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 	# binary — give, or keep — so anything else is a mis-drop, and the answer to
 	# a mis-drop is to hand it back rather than to invent a third state for it.
 	_hand_it_back(item, "")
+
+
+## **Her voice, held long enough to read** (ADR-243). The refusal line's
+## channel — the one place in this room she speaks — for longer, because what
+## she names is a life's through-line and not a shrug.
+func _she_says(line: String) -> void:
+	if line == "":
+		return
+	_refusal = line
+	_refusal_left = SPEECH_SECONDS
+	print("[lair] she said '%s'" % line)
+
+
+## What she wants of this life, and how far it has come — beside the Tithe,
+## because it is the other thing she is owed.
+func _the_demand() -> String:
+	var named: DemandResource = GameState.her_demand()
+	if named == null:
+		return "nothing named"
+	# The thing and a tally, as `paid` above it reads: her sentence is in her
+	# voice, and a row that wraps is a panel that outgrows its corner.
+	var thing: ItemResource = named.wanted()
+	var called: String = thing.display() if thing != null else String(named.item)
+	if GameState.demand_met():
+		return "%s — met" % called
+	return "%s — %d of %d" % [called, GameState.demand_given, named.count]
 
 
 ## Back into the bag, exactly as it was.
@@ -502,6 +540,7 @@ func _process(delta: float) -> void:
 	_set_row("scars", WoundMarks.named(GameState.scars))
 	_set_row("aspects", _the_offer())
 	_fill_the_tithe()
+	_set_row("demand", _the_demand())
 	# **Absent, not blank** (`M4-T20`). It was held as an empty line so nothing
 	# below it moved; with a region of its own there is nothing below it.
 	_speech.visible = _refusal != ""
@@ -708,6 +747,9 @@ func _build_readout() -> void:
 	tithe_body.add_child(_rows["paid"])
 	_rows["cycle"] = MenuStyle.row("cycle", "")
 	tithe_body.add_child(_rows["cycle"])
+	# **What she asked of this life** (ADR-243): the other thing she is owed.
+	_rows["demand"] = MenuStyle.row("demand", "")
+	tithe_body.add_child(_rows["demand"])
 	_tithe.add_child(tithe_body)
 	layer.add_child(_tithe)
 	HudFrame.place(_tithe, HudFrame.Region.BURDEN, screen)
@@ -787,8 +829,17 @@ func layout_faults() -> PackedStringArray:
 	# rather than through `_refusal`, because `_process` is what copies that
 	# across and it returns early when there is no player — which is exactly the
 	# case in `--chamber-shot`. Done in the caller it measured 0×0 and passed.
-	_speech.text = ("the check asks her something and she declines at length, "
-		+ "which is the longest this region is ever asked to hold")
+	# **The longest thing she actually says** (ADR-243): a demand named or met
+	# is longer than any refusal, so the region is measured against whichever
+	# of her lines is longest rather than against a sentence written for it.
+	var longest: String = ("the check asks her something and she declines at "
+		+ "length, which is the longest a refusal runs")
+	for asked: DemandResource in ContractCatalogue.demands():
+		for key: StringName in [asked.named_key, asked.met_key]:
+			var line: String = tr(String(key))
+			if line.length() > longest.length():
+				longest = line
+	_speech.text = longest
 	_speech.visible = true
 	var screen: Vector2 = HudFrame.REFERENCE
 	await relayout(screen)
@@ -1489,6 +1540,165 @@ func _pact_probe() -> void:
 		problems.append("the cycle's conversion headroom survived a death, so "
 			+ "a new life would inherit a spent cap")
 	_report_pact(problems)
+
+
+## **`--demand-probe`** (`M4-T04`, ADR-243, `DES-007` tier 1). The oath names one
+## demand, the same for the same lineage and class, and over lives every one;
+## death forgets it; her loudest nodes wait on it and nothing else does; only
+## the named kind counts, never Scarred and never past the count; met, the node
+## is bought and the Tithe still rises; and the room says all of it — the row,
+## her voice through the pile, the tree's reason.
+func _demand_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var asked: Array[DemandResource] = ContractCatalogue.demands()
+	if asked.is_empty():
+		problems.append("no demands in the build — she asks nothing of any life")
+		_report_demand(problems)
+		return
+
+	# ─ 1. the oath names one, steadily, and every one is named over lives ─
+	GameState.die()
+	GameState.descents = 7
+	GameState.take_the_oath(&"huskarl")
+	var first: StringName = GameState.demand
+	var heard: String = GameState.take_demand_heard()
+	var twice: String = GameState.take_demand_heard()
+	GameState.forget_the_last_life()
+	GameState.die()
+	var forgot: bool = GameState.demand == &"" and GameState.demand_given == 0
+	GameState.forget_the_last_life()
+	GameState.descents = 7
+	GameState.take_the_oath(&"huskarl")
+	var again: StringName = GameState.demand
+	var named: Dictionary = {}
+	for life: int in 40:
+		GameState.forget_the_last_life()
+		GameState.die()
+		GameState.forget_the_last_life()
+		GameState.descents = 1 + life
+		GameState.take_the_oath(&"huskarl" if life % 2 == 0 else &"veidimadr")
+		named[GameState.demand] = true
+	print("[demand] the oath          named %s, again %s; said '%s', then '%s'; death forgets %s; %d of %d named over forty lives (want the same, a line, nothing, yes, all)"
+		% [first, again, heard, twice, forgot, named.size(), asked.size()])
+	if first == &"" or first != again:
+		problems.append("the same oath named '%s' and then '%s'" % [first, again])
+	if heard == "" or twice != "":
+		problems.append("naming a demand said nothing, or said it twice")
+	if not forgot:
+		problems.append("a death kept her demand — the next life is asked anew")
+	if named.size() != asked.size():
+		problems.append("forty lives were asked for %d of %d demands" % [named.size(), asked.size()])
+
+	# ─ 2. her loudest nodes wait on it, and nothing else does ─
+	GameState.forget_the_last_life()
+	GameState.die()
+	GameState.forget_the_last_life()
+	GameState.take_the_oath(&"huskarl")
+	GameState.take_demand_heard()
+	GameState.demand = &"dmd_torcs"
+	GameState.demand_given = 0
+	GameState.boon = 40
+	# Fourteen Boon of ordinary nodes is rank 4 with Her Reckoning's path taken,
+	# two short of rank 5 — so buying it crosses a rank and the Tithe has to
+	# move. The keystone, whose path is taken too, is kept back as the control.
+	var climb: Array[StringName] = [&"hrd_coin_sense", &"hrd_quiet_hands",
+		&"hrd_sure_grip", &"hrd_steady_step", &"hrd_ballast", &"hrd_long_haul",
+		&"hrd_tally", &"hrd_scavenger", &"hrd_ready_hand", &"hrd_tribute_in_kind",
+		&"hrd_close_the_lid"]
+	for id: StringName in climb:
+		GameState.take_node(id)
+	var loud: StringName = &"hrd_her_reckoning"
+	var waiting: String = GameState.why_not(loud)
+	var control: String = GameState.why_not(&"hrd_weight_of_kings")
+	print("[demand] the loud node     rank %d, refused '%s'; the keystone refused '%s' (want 4+, she wants three torcs, nothing)"
+		% [GameState.pact_rank, waiting, control])
+	if GameState.pact_rank < 4 or not GameState.has_taken(&"hrd_quiet_hands"):
+		problems.append("the setup never reached rank 4 with the path taken, so the refusal below is not about her demand")
+	if not waiting.contains("she wants") or not waiting.contains("Gilded Torc"):
+		problems.append("Her Reckoning at rank 4 was refused for '%s', not for her demand" % waiting)
+	if control != "":
+		problems.append("an ordinary node was refused for '%s' — her demand gated more than her loudest gifts"
+			% control)
+
+	# ─ 3. the tree says why, and will not take it ─
+	var layer := CanvasLayer.new()
+	add_child(layer)
+	var screen := PactScreen.new()
+	layer.add_child(screen)
+	await get_tree().process_frame
+	var said_in_tree: bool = false
+	for child: Node in screen.find_children("*", "Label", true, false):
+		said_in_tree = said_in_tree or (child as Label).text == waiting
+	var pressed_early: bool = screen.press(loud)
+	print("[demand] the tree          says why %s, pressed %s (want yes, no)" % [said_in_tree, pressed_early])
+	if not said_in_tree or pressed_early:
+		problems.append("the tree did not say what she wants, or let the node be taken")
+
+	# ─ 4. only the named kind counts, never Scarred, never past the count ─
+	var torc: ItemResource = ItemCatalogue.by_id(&"glt_gilded_torc")
+	var coin: ItemResource = ItemCatalogue.by_id(&"glt_hoard_coin")
+	GameState.tribute(ItemInstance.of(coin, 1))
+	var after_coin: int = GameState.demand_given
+	var marked: ItemInstance = ItemInstance.of(torc, 1)
+	marked.scarred = true
+	GameState.tribute(marked)
+	var after_scar: int = GameState.demand_given
+	GameState.tribute(ItemInstance.of(torc, 1))
+	GameState.tribute(ItemInstance.of(torc, 1))
+	var two_of_three: String = GameState.why_not(loud)
+	print("[demand] the giving        a coin %d, a Scarred torc %d, two torcs %d, still refused '%s' (want 0, 0, 2, she wants)"
+		% [after_coin, after_scar, GameState.demand_given, two_of_three])
+	if after_coin != 0 or after_scar != 0 or GameState.demand_given != 2:
+		problems.append("the wrong thing counted toward her demand")
+	if two_of_three == "":
+		problems.append("two of three opened her loudest gifts")
+
+	# ─ 5. the last one, given at the pile the way a player gives it ─
+	var row_before: String = _the_demand()
+	var last: ItemInstance = _player.inventory.add(torc)
+	_player.global_position = global_position + HOARD_AT + Vector3(0.0, 0.0, 1.5)
+	_player.ask_to_drop_instance(last.instance_id)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var row_line := _rows["demand"] as HBoxContainer
+	var row_after: String = (row_line.get_child(1) as Label).text
+	var voice: String = _refusal
+	GameState.tribute(ItemInstance.of(torc, 1))
+	print("[demand] met at the pile   row '%s' -> '%s'; she said '%s'; a fourth counts %s (want 2 of 3, met, pleased, no)"
+		% [row_before, row_after, voice, GameState.demand_given != 3])
+	if not row_before.contains("2 of 3") or not row_after.contains("met"):
+		problems.append("the Chamber's row did not follow her demand from given to met")
+	if not voice.contains("pleased"):
+		problems.append("her demand was met at the pile and she said nothing — the row is not the only twin")
+	if GameState.demand_given != 3 or not GameState.demand_met():
+		problems.append("her demand was not met by the third torc, or counted past it")
+
+	# ─ 6. met, it is bought with Boon, and the Tithe still rises ─
+	var owed_before: int = GameState.tithe_due()
+	var rank_before: int = GameState.pact_rank
+	screen._redraw()
+	await get_tree().process_frame
+	var pressed: bool = screen.press(loud)
+	print("[demand] the loud node     pressed %s, taken %s, rank %d -> %d, she expects %d -> %d (want yes, yes, 5, more)"
+		% [pressed, GameState.has_taken(loud), rank_before, GameState.pact_rank,
+			owed_before, GameState.tithe_due()])
+	if not pressed or not GameState.has_taken(loud):
+		problems.append("her demand was met and her loudest gift still could not be taken")
+	if GameState.tithe_due() <= owed_before:
+		problems.append("her loudest gift came without raising the Tithe — a demand met must open an option, never a free number")
+	layer.queue_free()
+
+	GameState.forget_the_last_life()
+	GameState.die()
+	GameState.forget_the_last_life()
+	print("[demand] she names what she wants of a life, and her loudest gifts wait on it")
+	_report_demand(problems)
+
+
+func _report_demand(problems: PackedStringArray) -> void:
+	for problem: String in problems:
+		printerr("[demand] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 func _report_pact(problems: PackedStringArray) -> void:

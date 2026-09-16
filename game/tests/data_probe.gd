@@ -45,6 +45,7 @@ var _enemies: Array[EnemyResource] = []
 var _contracts: Array[ContractArchetypeResource] = []
 var _factions: Array[FactionResource] = []
 var _populations: Array[PopulationResource] = []
+var _demands: Array[DemandResource] = []
 ## Taken from the walk rather than from `Config`. This runs as `--script`,
 ## which builds a bare `SceneTree` with **no autoloads registered** — so
 ## `Config.tuning` is not merely empty here, it does not compile. The profile
@@ -219,6 +220,9 @@ func _check(path: String) -> void:
 	var placed := resource as PopulationResource
 	if placed != null:
 		_populations.append(placed)
+	var asked := resource as DemandResource
+	if asked != null:
+		_demands.append(asked)
 
 	var kind := resource as EnemyResource
 	if kind != null:
@@ -425,6 +429,17 @@ func _check_every_item_has_a_source() -> void:
 				% item.id)
 	print("[data] %d item(s) have a source: %d loot table(s), %d kit(s)"
 		% [_items.size(), _tables.size(), _classes.size()])
+	# **Her demands can be met** (ADR-243): what she asks for has to be something
+	# a floor deals, or a life is asked for a thing no run can bring home.
+	if _demands.is_empty():
+		_fail("no demands found — she asks nothing, and her loudest nodes never open")
+	for asked: DemandResource in _demands:
+		var dealt: bool = false
+		for table: LootTable in _tables:
+			dealt = dealt or table.entry_for(asked.item) != null
+		if not dealt:
+			_fail("%s wants '%s', which no loot table deals — no run can meet it"
+				% [asked.id, asked.item])
 	# **Every floor keeps a barrow** (ADR-242), so every depth needs something a
 	# barrow may hold. A table that dealt none to a depth would build that floor
 	# with no whisper and say nothing about it.

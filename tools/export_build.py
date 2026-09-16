@@ -90,6 +90,12 @@ def repo_enemy_count() -> int:
     return len(list((GAME / "data" / "enemies").glob("*.tres")))
 
 
+def repo_work_count() -> int:
+    """ADR-243: the Lodge's work, its faction and her demands, all counted."""
+    return sum(len(list((GAME / "data" / folder).glob("*.tres")))
+               for folder in ("contracts", "factions", "demands"))
+
+
 def repo_theme_types() -> int:
     """How many types `ui/interface_theme.tres` declares, read off the file."""
     text = (GAME / "ui" / "interface_theme.tres").read_text(encoding="utf-8")
@@ -147,6 +153,14 @@ def probe(binary: Path) -> tuple[bool, list[str]]:
     say("every enemy is in the pack",
         enemy_count == repo_enemy_count() and enemy_count > 0,
         f"{enemy_count} packed, {repo_enemy_count()} in repo")
+
+    # ADR-241 and ADR-243. The board and her demands are found by folder scan,
+    # so a pack that lost them boots with an empty board and a shut tree top.
+    work = re.search(r"\[export\] contract work\s+(\d+)", log)
+    work_count = int(work.group(1)) if work else -1
+    say("the Lodge and her demands",
+        work_count == repo_work_count() and work_count > 0,
+        f"{work_count} packed, {repo_work_count()} in repo")
 
     # ADR-216. A project setting is the theme's only reference, so a pack that
     # lost it would boot and draw every menu in the engine's defaults.

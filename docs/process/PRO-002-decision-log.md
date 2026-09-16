@@ -324,7 +324,7 @@ Reward 1 is also deliberately double-edged — **you saved them into continuing.
 ---
 
 ## ADR-030 — Boon is tribute-primary, with real contract income
-**Date:** 2026-08-13 · **Status:** accepted · **Closes Q5**
+**Date:** 2026-08-13 · **Status:** accepted · **Closes Q5** · **Amended by ADR-243: no contract pays Boon — the Lodge pays in tools, her demand in opened nodes, and tribute is the only Boon**
 **Decision:** ~**70% of Boon from tribute** ⟨tune⟩, the remainder a meaningful secondary income from **contracts**. Exploration pays **Lineage only**, never Boon.
 **Rationale:** The deciding argument is not class balance but **contract-system viability**: if contracts pay no progression, nobody runs them, and `DES-007`'s entire three-tier DMZ structure becomes decoration. Tribute must stay dominant so the keep-or-give decision remains the spine of progression (Pillar P1). Exploration is excluded because ADR-006 already pays it in Lineage — adding Boon would double-dip.
 **Consequences:** Contract Boon rewards need tuning against tribute value so contracts are attractive but never the efficient path. Watch for a "contract-farming" degenerate strategy that skips looting entirely; if it appears, cut contract Boon before touching tribute.
@@ -8936,6 +8936,49 @@ The sealed door that needs a key, the dead Bound's unfinished work, and the barr
 - **The Hunter's route on the way out changes**: a party at the Shaft has just called it towards the barrow, which is behind them. Whether that reads as a gift or a trap is for play.
 - **The altar-plate is floor 2's only barrow find** — 16 kg, which is a question of its own.
 - `M4-T04` stays open for pacts.
+
+---
+
+## ADR-243 — She names what she wants of a life, and her loudest gifts wait on it
+
+**Date:** 2026-09-16 · **Status:** accepted · **Closes `M4-T04`** · **Builds `DES-007`'s tier 1** · **Amends ADR-030** · **Save v13**
+
+**Context:** `DES-007`'s tier 1 is *"the dragon's own agenda — multi-run objectives that advance Pact Rank and unlock Aspect nodes"*, the thing that gives a life its through-line. Rank cannot be advanced from outside: it **is** what the tree cost (ADR-125), so a second way to raise it is a second source of truth and a number going up (ADR-058). What a long demand can honestly do is **open** something, and `DES-004` already has the thing — **pact nodes**, *locked behind Pact Rank*, the loudest effects in the tree; today, Her Reckoning and Swift Seal. Building the gate also turned up that no contract pays Boon, which ADR-030 assumed they would.
+
+### Decision — the developer's two calls
+
+- **A named glitter opens her loudest nodes**, over a named glitter paying the Tithe (a discount — a number, and a second Tithe) and over a named feat (overlapping `DES-016`'s deeds, and needing tracking nothing has). Once a life she names a count of one glitter; given at the hoard across as many runs as it takes, it opens every node with a rank requirement, which is still bought with Boon, so the Tithe still rises. An option opened, never a number raised; power that still costs risk (principle 2).
+- **No contract pays Boon; ADR-030 is amended**, over the Lodge's work paying Boon (a power path through the one faction `DES-007` says must never give power, and ADR-030's own farming risk) and over her demand paying a lump of it. ADR-030's worry was that work paying no progression is work nobody runs; the Lodge's favours are progression — a Waystone is the only early exit — and her demand opens the tree's top. **Tribute is the only Boon.**
+
+### What was built
+
+- **`DemandResource`** (`dmd_`, `data/demands/`): the glitter, the count, and her line when she names it and when it is met, narrated in her third person. Four ⟨tune⟩: three gilded torcs, four hoard-coins, three raw gemstones, one altar-plate. `ContractCatalogue` finds them beside the Lodge's work. `validate` refuses a demand for nothing, for something that does not glitter, or with no words; `data_probe` refuses one for a thing no loot table deals.
+- **Named at the oath** (`GameState._name_the_demand`), drawn from the lineage's descents and the class sworn, so one oath names the same thing on every machine and a new life is likely asked something new. LIFE tier: `die()` forgets it. **Met is derived** — given against the count — for rank's reason.
+- **Counted at the pile** (`GameState.tribute`): only the named kind, never a Scarred one (the pile already refuses those, and a Legacy item counting here would carry a demand across a death), never past the count. The gift still pays the Tithe and Boon as any gift does.
+- **The gate** (`GameState.why_not`): a node with a rank requirement needs the rank **and** her demand met — *she wants three Gilded Torcs first* — and no other node is touched. The rank refusal is said first, being the nearer one.
+- **Said in the Chamber**: a fourth row on the Tithe's corner — *Raw Gemstone — 2 of 3*, then *— met* — beside the other thing she is owed, in the tally form `paid` uses, because her full sentence wrapped the row out of its corner. Her voice on the speech line when she names it (the first time a life comes before her) and when it is met at the pile, held 9 s ⟨tune⟩. The tree's own refusal line says what she wants. The Tithe's region grew from 0.22 to 0.26 of the screen, upward into a column nothing uses below the Ear, and the Chamber's layout check now measures the speech region against her longest real line rather than a stand-in.
+- **Save v13**: `life.demand = {id, given}`. `_migrate_12_to_13` writes it empty, and **a life already sworn is asked on load** rather than left with its pact nodes shut behind a question nobody put to it. A demand this build lacks is dropped with a warning.
+- **The export census counts the contract work** — the Lodge's archetypes, its faction and her demands — and `export_build.py` holds it to the repo. ADR-241 shipped a board the census never counted; a pack without those folders boots with an empty board and a shut tree top.
+
+### Unchanged, on purpose
+
+**A pact node kept through Legacy stays bought** whether or not the new life has met her demand: `draw_on_legacy` appends to the tree without asking, which is already how a kept node skips its rank. Her Reckoning worn as Ótr's pelt (ADR-226) needs neither.
+
+### Verification
+
+`--demand-probe`, new, in the Chamber: the oath names *three Gilded Torcs* and the same oath names it again; it is said once and then not; death forgets it; forty lives over two classes are asked all four. At rank 4 with its path taken, Her Reckoning is refused *she wants three Gilded Torcs first* while the Hoard keystone is not; the tree shows that sentence and will not take the node. A coin counts 0 and a Scarred torc 0; two torcs count 2 and the node is still refused. The third, dropped at the pile through the body, turns the row from *Gilded Torc — 2 of 3* to *— met*, and she says *Three torcs. She is pleased, and the deepest of her gifts are yours to buy.*; a fourth counts nothing. Pressed, the node is taken, rank goes 4 → 5 and she expects 200 → 260. `--save-probe` round-trips *dmd_coin, 2 given* and loads a sworn v12 fixture asked anew — the plate, from nothing — over a life that held the torcs. `--chamber-shot` draws the four-row Tithe corner at 300×128 inside its region, and her longest line in the speech region, with no overlap or escape. The export census, judged by `export_build.probe` against the editor, reads *8 packed, 8 in repo*. The pact, tithe, respec, legacy, lair, deeds, chamber, HUD and data probes pass.
+
+**Planted and failed, one plant per run — all twenty-six**: an oath that names nothing, every life asked the same, a demand named in silence or said twice, a death that keeps it, pact nodes open without it, every node waiting on it, any glitter counting, a Scarred one counting, counting past the count, a demand met in silence, a pile that never speaks, a row that never follows, *met* never shown, a tree that never says why, demands for a seax, for nothing, with no words, and for a thing no floor deals, the Tithe's corner at its old height, a profile that forgets the demand, never reads what was given, a v12 migration without one, an old sworn life never asked, a load that keeps the demand it replaced, and a census that forgets the contract work.
+
+**One plant passed, and it was a dead line.** Turning off the speech label's wrap changed nothing, because `HudFrame.place` already wraps every label it places; the line was removed rather than kept. **One fixture was a coincidence**: the v12 life's oath names the plate, and the probe had preset the plate, so a load that kept the old demand was caught by its count alone — the preset is the torcs now, and planting that load fails both fields.
+
+### Consequences
+
+- **Every life has a through-line from the oath**, and it points at floor 1 and floor 2 gold — `GATE M4 GREED`'s question, asked for by name.
+- **The loudest nodes arrive later in a life than rank alone made them.** Whether that reads as a goal or a wall is for play; the counts are ⟨tune⟩.
+- **The plate demand is one item from the bottom of the Delvings, 16 kg** — the shortest demand and the heaviest.
+- **Tribute is the only Boon**, so a Lodge run earns no power — `DES-007`'s *legitimate, viable run* is now a claim about favours and trust, for play to test.
+- **`M4-T04` is done**: tiers 1, 2 and 3 for one faction.
 
 *Entries below to be added as design decisions are signed off.*
 

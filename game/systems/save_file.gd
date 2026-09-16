@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 12
+const SAVE_VERSION: int = 13
 
 ## **A `static var`, so a probe can point it somewhere harmless** (ADR-145).
 ##
@@ -101,6 +101,7 @@ static func migrations() -> Dictionary:
 		9: _migrate_9_to_10,
 		10: _migrate_10_to_11,
 		11: _migrate_11_to_12,
+		12: _migrate_12_to_13,
 	}
 
 
@@ -446,5 +447,17 @@ static func _migrate_11_to_12(old: Dictionary) -> Dictionary:
 	var out: Dictionary = old.duplicate(true)
 	var life: Dictionary = out.get("life", {}) as Dictionary
 	life["lodge"] = {"trust": 0, "favour": 0, "contracts": [], "owed": []}
+	out["life"] = life
+	return out
+
+
+## **v13 — her demand** (ADR-243). No v12 life was asked for anything, so the
+## field is written empty; `GameState.from_dict` has her name one for a life
+## already sworn, rather than leave its loudest nodes behind a question nobody
+## put to it.
+static func _migrate_12_to_13(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["demand"] = {"id": "", "given": 0}
 	out["life"] = life
 	return out

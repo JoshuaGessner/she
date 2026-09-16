@@ -208,6 +208,17 @@ var favours_owed: Array[StringName] = []
 ## is a sentence about a moment, and the moment is the walk back up.
 var _lodge_heard: String = ""
 
+## **Her demand** (`M4-T04`, ADR-243, `DES-007` tier 1): what she named when this
+## life was sworn, and how many of it have been given. LIFE tier. Met is derived
+## — given against the count — for the reason rank is: a stored copy could
+## disagree with what was given.
+const DEMAND_STAGE: int = 13
+var demand: StringName = &""
+var demand_given: int = 0
+## What she said about it last, for the Chamber to say once. Not saved, like
+## `_lodge_heard`: a sentence about a moment.
+var _demand_heard: String = ""
+
 ## Whether a profile has been opened. See the header: nothing is written back
 ## to a file that was never read.
 var _live: bool = false
@@ -238,6 +249,7 @@ func bring_home(items: Array[ItemInstance]) -> void:
 ## her and never gives any of it back.
 func tribute(item: ItemInstance) -> void:
 	hoard.append(item.definition.id)
+	_answer_the_demand(item)
 	# **Scarred is worth nothing** (`M3-T05`, ADR-003). A Legacy slot carries a
 	# head start across death and never value — otherwise it launders a hoard
 	# through a life you were going to lose, which is raw Boon arriving through
@@ -527,6 +539,10 @@ func die() -> void:
 	lodge_favour = 0
 	contracts.clear()
 	favours_owed.clear()
+	# And what she asked of it (ADR-243): the next life is asked anew.
+	demand = &""
+	demand_given = 0
+	_demand_heard = ""
 	tithe_paid = 0
 	cycle_runs = 0
 	boon_converted = 0
@@ -765,6 +781,13 @@ func why_not(id: StringName) -> String:
 			return "your keystone is already in the %s" % already
 	if node.rank_required > pact_rank:
 		return "pact rank %d" % node.rank_required
+	# **Her loudest gifts wait on her demand** (ADR-243): a pact node needs the
+	# rank and what she asked for — both, because the rank is what makes it cost
+	# and the demand is what makes it hers to give.
+	if node.rank_required > 0 and not demand_met():
+		var named: DemandResource = her_demand()
+		return "she wants %s first" % (named.display() if named != null
+			else "something she has not named")
 	for needed: StringName in node.requires:
 		if not has_taken(needed):
 			var before: AspectNode = AspectCatalogue.by_id(needed)
@@ -1067,8 +1090,57 @@ func take_the_oath(id: StringName) -> bool:
 			push_error("GameState: %s carries '%s', which is not an item" % [id, item])
 			continue
 		stash.append(ItemInstance.of(carried_item, 0))
+	_name_the_demand()
 	_persist()
 	return true
+
+
+## **She names what she wants of this life** (ADR-243): one demand, drawn by the
+## lineage's descents and the class sworn, so the same oath names the same thing
+## on every machine and a new life is likely to be asked for something new.
+func _name_the_demand() -> void:
+	var asked: Array[DemandResource] = ContractCatalogue.demands()
+	if asked.is_empty():
+		return
+	var pick: int = MissionGraph._mix(descents * 7919 + String(class_id).hash()
+		+ DEMAND_STAGE)
+	var named: DemandResource = asked[posmod(pick, asked.size())]
+	demand = named.id
+	demand_given = 0
+	_demand_heard = tr(String(named.named_key))
+	print("[demand] she named %s" % named.display())
+
+
+## The demand this life was given, or null.
+func her_demand() -> DemandResource:
+	return ContractCatalogue.demand(demand) if demand != &"" else null
+
+
+## Whether she has what she asked for.
+func demand_met() -> bool:
+	var named: DemandResource = her_demand()
+	return named != null and demand_given >= named.count
+
+
+## What she said about her demand, once.
+func take_demand_heard() -> String:
+	var said: String = _demand_heard
+	_demand_heard = ""
+	return said
+
+
+## **Given at the pile, counted toward what she asked** (ADR-243). Only the
+## named kind, and never a Scarred one — the pile refuses those already, and a
+## Legacy item counting here would carry a demand across a death.
+func _answer_the_demand(item: ItemInstance) -> void:
+	var named: DemandResource = her_demand()
+	if named == null or demand_met() or item.scarred \
+			or item.definition.id != named.item:
+		return
+	demand_given += 1
+	print("[demand] %d of %s given" % [demand_given, named.display()])
+	if demand_met():
+		_demand_heard = tr(String(named.met_key))
 
 
 ## The class this life is, or `null` before one is chosen and after a death.
@@ -1147,6 +1219,9 @@ func to_dict() -> Dictionary:
 				"owed": favours_owed.map(func(id: StringName) -> String:
 					return String(id)),
 			},
+			# **Her demand** (save v13, ADR-243): what she named, and how many
+			# of it this life has given.
+			"demand": {"id": String(demand), "given": demand_given},
 		},
 	}
 
@@ -1230,6 +1305,19 @@ func from_dict(data: Dictionary) -> void:
 	favours_owed.clear()
 	for raw: Variant in kept_lodge.get("owed", []) as Array:
 		favours_owed.append(StringName(str(raw)))
+	var asked: Variant = life.get("demand", {})
+	var kept_demand: Dictionary = asked if typeof(asked) == TYPE_DICTIONARY else {}
+	demand = StringName(str(kept_demand.get("id", "")))
+	demand_given = maxi(0, int(kept_demand.get("given", 0)))
+	_demand_heard = ""
+	# A demand this build does not have is no demand; and **a life sworn before
+	# she made demands** is asked now, rather than left with her loudest nodes
+	# shut behind a question nobody put to it.
+	if demand != &"" and ContractCatalogue.demand(demand) == null:
+		push_warning("GameState: demand '%s' is not in this build" % demand)
+		demand = &""
+	if demand == &"" and class_id != &"":
+		_name_the_demand()
 	# **The line that used to end this function was `carried.clear()`**, and it
 	# was correct while nothing wrote the field: a loaded profile could not be
 	# carrying anything, so emptying it was the honest reading. Save v8 writes
@@ -1370,6 +1458,9 @@ func _save_probe() -> void:
 	contracts.append(Contract.of(&"ctr_lodge_survey", 2))
 	favours_owed.clear()
 	favours_owed.append(&"fav_plan")
+	# **And her demand** (save v13, ADR-243), part given.
+	demand = &"dmd_coin"
+	demand_given = 2
 	_persist()
 
 	if FileAccess.file_exists(SaveFile.TMP):
@@ -1389,6 +1480,8 @@ func _save_probe() -> void:
 	lodge_favour = 0
 	contracts.clear()
 	favours_owed.clear()
+	demand = &""
+	demand_given = 0
 	from_dict(SaveFile.read())
 	print("[save] round trip     hoard %d/%d, value %d/%d, stash %d" % [
 		hoard.size(), pile, hoard_value, gave, stash.size()])
@@ -1432,6 +1525,11 @@ func _save_probe() -> void:
 			or favours_owed.size() != 1 or favours_owed[0] != &"fav_plan":
 		problems.append(("the Lodge came back as %s — work taken at the fire and "
 			+ "a favour bought there are gone by the time the game is reopened") % lodge_line)
+	print("[save] her demand     %s, %d given (want dmd_coin, 2)" % [demand, demand_given])
+	if demand != &"dmd_coin" or demand_given != 2:
+		problems.append(("her demand came back as %s with %d given — what she asked "
+			+ "of a life, and how far it got, cannot be something quitting forgets")
+			% [demand, demand_given])
 	# ── **and each came back Scarred** (save v10, ADR-223) ─
 	var item_scars: PackedStringArray = PackedStringArray()
 	item_scars.append("stash %s" % (stash.size() == 1 and stash[0].scarred))
@@ -1670,6 +1768,27 @@ func _save_probe() -> void:
 	if lodge_trust != 0 or lodge_favour != 0 or not contracts.is_empty() \
 			or not favours_owed.is_empty() or not _section(v11, "life").has("lodge"):
 		problems.append("a v11 profile came back with Lodge standing, work or favours it never had")
+
+	# **A v12 fixture** (ADR-243), the last format with no demand, of a life
+	# already sworn — which she asks now, from nothing given — over a life with a
+	# demand half met, so a load that kept the old one reads wrong.
+	_write_raw('{"meta": {"save_version": 12}, "lineage": {"hoard": [], '
+		+ '"hoard_value": 0, "descents": 3}, "life": {"stash": [], "carried": [], '
+		+ '"worn": {}, "class_id": "huskarl", "scars": 0, "lodge": {"trust": 0, '
+		+ '"favour": 0, "contracts": [], "owed": []}}}')
+	# Not the demand this fixture's oath names (the plate), so a load that kept
+	# it reads wrong on both fields.
+	demand = &"dmd_torcs"
+	demand_given = 1
+	var v12: Dictionary = SaveFile.read()
+	from_dict(v12)
+	print("[save] v12 fixture   → v%d, demand %s, %d given, written %s (want v%d, named, 0, yes)" % [
+		int(_section(v12, "meta").get("save_version", 0)), demand, demand_given,
+		_section(v12, "life").has("demand"), SaveFile.SAVE_VERSION])
+	if demand == &"" or demand == &"dmd_torcs" or demand_given != 0 \
+			or not _section(v12, "life").has("demand"):
+		problems.append(("a sworn v12 life came back asked for '%s' with %d given — it "
+			+ "was never asked, so she asks it now, from nothing") % [demand, demand_given])
 
 	SaveFile.wipe()
 	for problem: String in problems:

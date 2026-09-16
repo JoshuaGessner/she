@@ -161,6 +161,8 @@ class_name ComplicationResource extends Resource
 
 **Complications get the authoring effort** — ~20 good ones generate more perceived variety than 100 hand-written quests.
 
+> **Her demands, ADR-243.** `DemandResource` (`dmd_`, in `data/demands/`) carries `id`, `named_key` and `met_key` (her line when she names it and when it is met), `item` (a glitter) and `count`. `ContractCatalogue` finds the folder beside the Lodge's; `validate` refuses a demand for nothing, for something that does not glitter, or with no words, and `data_probe` refuses one for an item no loot table deals. The export census counts the three contract folders together.
+>
 > **Built by ADR-241, narrower than sketched.** `ContractArchetypeResource` carries `id` (`ctr_`), `faction`, `kind` (`Enums.ContractKind`: RETRIEVE, CULL, SURVEY), `title_key`, `brief_key` (with `{where}` and `{target}`) and, for a Cull, `cull` — what it hunts on each floor. **`text_variants` became one locale key per archetype and `objective_tags` is absent**: one faction has one voice, and nothing reads a tag. `ComplicationResource` is absent until a complication is written. **`FactionResource`** (`fac_`, in `data/factions/`) holds the grade thresholds, what a met contract pays by grade, what a failed one costs, and its **`FavourResource`s** (`fav_`) — an item and a count, or the plans. `ContractCatalogue` finds both folders. A taken contract is a `Contract` (archetype and grade; the grade is the floor plus one), saved as `{archetype, grade}`. `data_probe` holds every Cull target to a body every population places on every floor, every favour's item to one the build has, and the board to one archetype of each kind.
 
 ## Loot tables
@@ -185,7 +187,7 @@ The greed gradient (`DES-008`) is a `Curve`, so it is tunable in the editor with
 game/data/items/…   enemies/…   skills/…   contracts/…   loot/…   biomes/…
 ```
 
-**ID prefixes:** `wpn_` `arm_` `con_` `glt_` `rlc_` `mat_` `tol_` · `enm_` `mod_` · `skl_` `rit_` · `ctr_` `cmp_` `fac_` `fav_` · `lut_`
+**ID prefixes:** `wpn_` `arm_` `con_` `glt_` `rlc_` `mat_` `tol_` · `enm_` `mod_` · `skl_` `rit_` · `ctr_` `cmp_` `fac_` `fav_` `dmd_` · `lut_`
 
 > `tol_` (tools) joined at `M4-T13` for the lantern (ADR-188). `DES-008`'s gear category reads *"weapons, armour, **tools**"* and the first two already had a prefix; a lantern under `con_` would claim it is spent by using it, and under `arm_` that it is worn. Enforced by `ItemResource.PREFIXES`.
 

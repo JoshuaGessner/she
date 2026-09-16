@@ -95,6 +95,8 @@ Mid-run state lives in a separate `user://run.active` file so a crash or quit mi
 >
 > **The profile's `life.lodge` added at `M4-T04`** (ADR-241, **save v12**): trust, favour, the contracts taken as `{archetype, grade}` rows, and the favours owed. `_migrate_11_to_12` writes an empty Lodge, because no board existed to take work from. The run file gains `met`, `retrieve` and `plan` beside the wounds, on the same default-reading rule and with the same reason: a run a contract was met in keeps the answer through a quit.
 >
+> **The profile's `life.demand` added at `M4-T04`** (ADR-243, **save v13**): `{id, given}` — what she named at the oath and how many of it this life has given; met is derived. `_migrate_12_to_13` writes it empty, and `GameState.from_dict` has her name one for a life already sworn, so an old life is not left with its pact nodes shut behind a question nobody asked. A demand this build lacks is dropped with a warning.
+>
 > **`barrow` added at `M4-T04`** (ADR-242), per floor like `stripped` and cleared by `descend()`: whether this floor's barrow has woken. A run quit after the barrow opened resumes onto a barrow that is spent — dark, silent and empty — rather than sealed and full again. Read with a default, no version bump.
 
 ## Caches (`DES-005`)
