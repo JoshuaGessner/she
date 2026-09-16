@@ -18,6 +18,10 @@ extends Control
 ## `PartyFrames` draws the same shapes, smaller, so a teammate learned from the
 ## inside is recognised on somebody else.
 ##
+## **A Scar is the same shape, faint and unnamed** (ADR-240). It is a fact of
+## the life rather than of this fight, so it is there to be recognised and not
+## read; the Chamber names it. A fresh wound on a scarred limb shows the wound.
+##
 ## No number anywhere (`DES-019` rule 2). The concussion's clock is a line
 ## under its name that shortens — `FallenReadout`'s vocabulary for a window
 ## running out — because *it will pass* is a fact worth a glance and *23 s* is
@@ -31,6 +35,11 @@ const KEYS: Dictionary = {
 	Enums.Wound.BROKEN_ARM: "wound.broken_arm",
 	Enums.Wound.CONCUSSED: "wound.concussed",
 	Enums.Wound.GASHED_LEG: "wound.gashed_leg",
+}
+const PLACES: Dictionary = {
+	Enums.Wound.BROKEN_ARM: "arm",
+	Enums.Wound.CONCUSSED: "head",
+	Enums.Wound.GASHED_LEG: "leg",
 }
 ## One mark's height in pixels ⟨tune⟩.
 const ROW: float = 24.0
@@ -85,16 +94,35 @@ func shown() -> Array[Enums.Wound]:
 	return marks
 
 
+## The Scars the local body's life carries and no wound covers, in `ORDER`.
+func scars_shown() -> Array[Enums.Wound]:
+	var marks: Array[Enums.Wound] = []
+	if _body == null or not is_instance_valid(_body):
+		return marks
+	for kind: Enums.Wound in ORDER:
+		if _body.has_scar(kind) and not _body.has_wound(kind):
+			marks.append(kind)
+	return marks
+
+
 func _draw() -> void:
 	var marks: Array[Enums.Wound] = shown()
-	if marks.is_empty():
+	var old: Array[Enums.Wound] = scars_shown()
+	if marks.is_empty() and old.is_empty():
 		return
 	var ink: Color = MenuStyle.tone(self, MenuStyle.TEXT)
 	var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
 	var font: Font = get_theme_default_font()
 	# Bottom-anchored, like the region: the last mark sits on the floor of it.
-	var top: float = size.y - ROW * float(marks.size())
-	for kind: Enums.Wound in marks:
+	var top: float = size.y - ROW * float(marks.size() + old.size())
+	for kind: Enums.Wound in ORDER:
+		if old.has(kind):
+			draw_glyph(self, kind, Rect2(0.0, top + (ROW - GLYPH) * 0.5, GLYPH, GLYPH),
+				faint, STROKE * 0.75)
+			top += ROW
+			continue
+		if not marks.has(kind):
+			continue
 		var fresh: float = float(_fresh.get(kind, 0.0))
 		var box := Rect2(0.0, top + (ROW - GLYPH) * 0.5, GLYPH, GLYPH)
 		draw_glyph(self, kind, box, ink, STROKE + 2.0 * fresh)
@@ -106,6 +134,16 @@ func _draw() -> void:
 			var share: float = clampf(_body.dazed / whole, 0.0, 1.0)
 			draw_rect(Rect2(name_at.x, top + ROW - 3.0, 90.0 * share, 2.0), faint)
 		top += ROW
+
+
+## **Scars by where they are**, for the Chamber's row: `arm · head · leg`, or
+## `none`. Places rather than wound names, because a Scar is not the wound.
+static func named(bits: int) -> String:
+	var places: PackedStringArray = PackedStringArray()
+	for kind: Enums.Wound in ORDER:
+		if (bits & (1 << kind)) != 0:
+			places.append(PLACES[kind])
+	return " · ".join(places) if not places.is_empty() else "none"
 
 
 ## **One wound's silhouette, inside `box`** — shared with `PartyFrames` so the

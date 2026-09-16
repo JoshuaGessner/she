@@ -4,7 +4,7 @@ title: Persistence & Meta-Progression
 status: accepted
 owner: design
 tags: [persistence, meta, balance, death, skill-tree, economy]
-updated: 2026-09-14
+updated: 2026-09-16
 related: [DES-002, DES-004, DES-008, TEC-003]
 ---
 
@@ -49,7 +49,7 @@ The pact itself. This is what the user described.
 | Skill tree (Boon spent into Aspects — `DES-004`) | ✅ all of it |
 | Pact Rank & Tithe obligation | ✅ resets to 1 |
 | Stash (banked gear, currency, materials) | ✅ except Legacy (below) |
-| Scars accumulated this life | ✅ |
+| Scars accumulated this life *(built, ADR-240: a wound carried out of the Deep, one of each kind, each its wound made milder)* | ✅ |
 | Faction standing (this life's reputation) | ✅ mostly — Lineage keeps *contacts*, loses *rank* |
 
 ### Tier 3 — LEGACY (the bridge across death)

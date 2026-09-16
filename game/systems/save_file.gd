@@ -27,7 +27,7 @@ extends Object
 ## ├── meta     { save_version, engine, created, updated }
 ## ├── lineage  { hoard, hoard_value }          ← survives death, always
 ## └── life     { stash, class_id, worn, boon, boon_progress, taken,
-##                tithe_paid, cycle_runs, hunt_head_start }
+##                tithe_paid, cycle_runs, hunt_head_start, scars }
 ## ```
 ##
 ## `legacy` is **absent rather than empty**: there are no Legacy slots until
@@ -49,7 +49,7 @@ extends Object
 
 ## Bumped by **any** change to the shape written below, with a migration added
 ## in the same commit. Never edit a shipped migration; never delete one.
-const SAVE_VERSION: int = 10
+const SAVE_VERSION: int = 11
 
 ## **A `static var`, so a probe can point it somewhere harmless** (ADR-145).
 ##
@@ -99,6 +99,7 @@ static func migrations() -> Dictionary:
 		7: _migrate_7_to_8,
 		8: _migrate_8_to_9,
 		9: _migrate_9_to_10,
+		10: _migrate_10_to_11,
 	}
 
 
@@ -421,5 +422,17 @@ static func _migrate_9_to_10(old: Dictionary) -> Dictionary:
 	for slot: Variant in was:
 		worn[slot] = {"id": str(was[slot]), "scarred": false}
 	life["worn"] = worn
+	out["life"] = life
+	return out
+
+
+## **v11 — the body's Scars** (ADR-240). A bit per `Enums.Wound` the life has
+## carried out of the Deep. **Zero for every v10 profile**: no wound existed to
+## scar before this build, so a life saved by one carries none — the state it
+## was genuinely in, not a guess at what is missing.
+static func _migrate_10_to_11(old: Dictionary) -> Dictionary:
+	var out: Dictionary = old.duplicate(true)
+	var life: Dictionary = out.get("life", {}) as Dictionary
+	life["scars"] = 0
 	out["life"] = life
 	return out

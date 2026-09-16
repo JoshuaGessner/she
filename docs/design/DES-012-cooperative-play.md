@@ -4,7 +4,7 @@ title: Cooperative Play
 status: accepted
 owner: design
 tags: [co-op, multiplayer, scaling, social, networking, retention]
-updated: 2026-08-17
+updated: 2026-09-16
 related: [DES-002, DES-003, DES-011, TEC-001, TEC-004]
 ---
 
@@ -65,6 +65,8 @@ The hardest problem co-op creates: ADR-004 wipes your LIFE on death, and in co-o
 1. **Downed.** Taken to zero health, you go down — crawling, bleeding, unable to fight. A teammate can revive you in the field at a real cost (time, exposure, noise).
 2. **Ember.** Bleed out and you die *for the run* — but your **ember**, the piece of her fire she gave you, drops where you fell. A teammate can carry it. **It is heavy and it is loud.**
 3. **Carried out.** If your ember reaches an extraction point, **your LIFE survives.** You lose the run, your carried loot, and take a Scar — but your skill tree, stash, and Pact Rank are intact. If nobody carries it out, you die properly and the Legacy screen follows.
+
+   > **The Scar, built by ADR-240.** A rescue scars every wound the ember carried — and the **head** when it carried none, from the fall that put it on the floor, so a rescue always costs one (the developer's call). Scars are drawn faint on the rescued player's party frame, so the rescuer sees what was paid.
 
 > **BUILT AT `M2-T05` (ADR-092), and the ember is an `ItemResource`.** Not a special-cased object with hand-tuned penalties — `con_ember` goes in the bag, so the sacrifice **falls out of systems already built**: it costs 2×3 squares against the grid, 12 kg against `CarriedWeight`, and 5.5 clamor against the carried floor. Measured on a rescuer: **3.40 → 2.94 m/s, and silent → audible from 2.2 m standing still.**
 >

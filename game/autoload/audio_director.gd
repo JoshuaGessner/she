@@ -47,6 +47,9 @@ const BUSES: Array[String] = ["score", "ambience", "diegetic", "ui"]
 const MUFFLED: Array[String] = ["ambience", "diegetic"]
 ## Where a muffled bus loses its highs, in Hz ⟨tune⟩.
 const MUFFLE_CUTOFF_HZ: float = 700.0
+## Where a **scarred** head's world loses them (ADR-240) ⟨tune⟩: the concussion's
+## muffle, worn down to a dullness that never lifts.
+const SCARRED_CUTOFF_HZ: float = 2500.0
 
 ## Seconds a layer takes to reach a new target volume ⟨tune⟩. `DES-018`:
 ## *"transitions are crossfades, not cuts — the player should feel the room
@@ -118,9 +121,17 @@ func _muffle_slot(bus: int) -> int:
 ## Whether the world's sounds are muffled right now. Public because a headless
 ## check has no speakers, and the filter being on is what can be asserted.
 func muffled() -> bool:
+	return muffle_hz() > 0.0
+
+
+## Where the world is being cut, in Hz, or 0 while it is clear — so a check can
+## tell a ringing head from a scarred one.
+func muffle_hz() -> float:
 	var bus: int = AudioServer.get_bus_index(MUFFLED[0])
 	var slot: int = _muffle_slot(bus)
-	return slot != -1 and AudioServer.is_bus_effect_enabled(bus, slot)
+	if slot == -1 or not AudioServer.is_bus_effect_enabled(bus, slot):
+		return 0.0
+	return (AudioServer.get_bus_effect(bus, slot) as AudioEffectLowPassFilter).cutoff_hz
 
 
 func _process(delta: float) -> void:
@@ -201,13 +212,27 @@ func _read_world() -> void:
 	# whether the Hunter is here both survive: they are the score's, not the
 	# room's.
 	var ringing: bool = player != null and player.has_wound(Enums.Wound.CONCUSSED)
+	# **And a head that rang once** (ADR-240): the same two, milder and for
+	# life — a bearing in the Ear's quarters rather than its eighths, and a
+	# world that is dull rather than drowned.
+	var scarred: bool = player != null and player.has_scar(Enums.Wound.CONCUSSED)
 	if ringing:
 		mix.bearing = NAN
+	elif scarred and mix.has_bearing():
+		var span: float = TAU / float(maxi(1, tuning.scarred_head_bearing_sectors))
+		mix.bearing = round(mix.bearing / span) * span
+	var cutoff: float = MUFFLE_CUTOFF_HZ if ringing \
+		else (SCARRED_CUTOFF_HZ if scarred else 0.0)
 	for name: String in MUFFLED:
 		var bus: int = AudioServer.get_bus_index(name)
 		var slot: int = _muffle_slot(bus)
-		if slot != -1 and AudioServer.is_bus_effect_enabled(bus, slot) != ringing:
-			AudioServer.set_bus_effect_enabled(bus, slot, ringing)
+		if slot == -1:
+			continue
+		var filter := AudioServer.get_bus_effect(bus, slot) as AudioEffectLowPassFilter
+		if cutoff > 0.0 and not is_equal_approx(filter.cutoff_hz, cutoff):
+			filter.cutoff_hz = cutoff
+		if AudioServer.is_bus_effect_enabled(bus, slot) != (cutoff > 0.0):
+			AudioServer.set_bus_effect_enabled(bus, slot, cutoff > 0.0)
 
 
 ## `DES-013`'s ladder as a scalar. Discrete underneath — the enemy really is in

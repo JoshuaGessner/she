@@ -77,7 +77,14 @@ const GUARD_SECONDS: float = 0.22  # ⟨tune⟩
 ## guard is brief, so it reads as neither: `DES-009`'s *blurred edges*, drawn as
 ## a haze that swims in from every side and back.
 const DAZE: Color = Color(0.70, 0.70, 0.72)
-const DAZE_STRENGTH: float = 0.30  # ⟨tune⟩
+const DAZE_STRENGTH: float = 0.24  # ⟨tune⟩
+## How far in from each edge the haze reaches, as a share of the half-screen
+## ⟨tune⟩. The first shot reached 0.8 and greyed the whole view: a concussion
+## that hides the room is a blindness, and `DES-009` asked for blurred *edges*.
+const DAZE_REACH: float = 0.45
+## Bands for the haze. A pale wash shows its steps where a dark one does not,
+## and the first shot was striped at eight.
+const DAZE_STEPS: int = 24
 ## Seconds over which the haze thins before a concussion ends ⟨tune⟩, so its
 ## end is seen coming rather than arriving as a cut.
 const DAZE_FADE: float = 5.0
@@ -198,11 +205,11 @@ func _draw() -> void:
 ## a frame, and `ART-005`'s ink pass is the only shader this project has agreed
 ## to pay for.
 func _draw_sides(screen: Vector2, left: bool, right: bool, spread: float,
-		strength: float, tone: Color = SHADOW) -> void:
+		strength: float, tone: Color = SHADOW, steps: int = STEPS) -> void:
 	var band: float = screen.x * spread * 0.5
-	var thickness: float = band / float(STEPS)
-	for step: int in range(STEPS):
-		var through: float = float(step) / float(STEPS)
+	var thickness: float = band / float(steps)
+	for step: int in range(steps):
+		var through: float = float(step) / float(steps)
 		# Squared, so the darkness gathers at the very edge instead of washing
 		# evenly across the screen — which would read as fog rather than as a
 		# frame closing in.
@@ -218,11 +225,12 @@ func _draw_sides(screen: Vector2, left: bool, right: bool, spread: float,
 
 ## Top and bottom, for the standing wound and a concussion's haze. A hit never
 ## draws these: a flash on all four edges is indistinguishable from the wound.
-func _draw_caps(screen: Vector2, strength: float, tone: Color = SHADOW) -> void:
-	var band: float = screen.y * 0.5
-	var thickness: float = band / float(STEPS)
-	for step: int in range(STEPS):
-		var through: float = float(step) / float(STEPS)
+func _draw_caps(screen: Vector2, strength: float, tone: Color = SHADOW,
+		reach: float = 1.0, steps: int = STEPS) -> void:
+	var band: float = screen.y * 0.5 * reach
+	var thickness: float = band / float(steps)
+	for step: int in range(steps):
+		var through: float = float(step) / float(steps)
 		var alpha: float = strength * (1.0 - through) * (1.0 - through)
 		var colour := Color(tone.r, tone.g, tone.b, alpha)
 		draw_rect(Rect2(Vector2(0.0, through * band),
@@ -239,8 +247,9 @@ func _draw_daze(screen: Vector2) -> void:
 		return
 	var fading: float = clampf(_body.dazed / DAZE_FADE, 0.0, 1.0)
 	var strength: float = DAZE_STRENGTH * fading * (0.7 + 0.3 * sin(_swim * 1.7))
-	_draw_sides(screen, true, true, 0.8 + 0.1 * sin(_swim * 1.1), strength, DAZE)
-	_draw_caps(screen, strength * 0.8, DAZE)
+	var reach: float = DAZE_REACH + 0.05 * sin(_swim * 1.1)
+	_draw_sides(screen, true, true, reach, strength, DAZE, DAZE_STEPS)
+	_draw_caps(screen, strength * 0.8, DAZE, reach, DAZE_STEPS)
 
 
 ## A blow the guard took the weight of (`M3-T02`, `DES-009`).

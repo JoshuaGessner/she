@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-09-15
+updated: 2026-09-16
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -216,7 +216,17 @@ In order, per Swink:
 >
 > **They go down the stairs with you** — arm and leg whole, the concussion with the seconds it had (ADR-037: a staircase shakes nothing) — and are shown in `DES-019`'s `BODY` region and on every party frame, in the same three shapes.
 
-Wounds are **run-scoped**; extracting while wounded converts one into a **Scar** (life-scoped, `DES-003`) ⟨tune⟩. That gives the "extract wounded" outcome in `DES-002` real teeth.
+Wounds are **run-scoped**; extracting while wounded converts ~~one~~ **each** into a **Scar** (life-scoped, `DES-003`) ~~⟨tune⟩~~. That gives the "extract wounded" outcome in `DES-002` real teeth.
+
+> **Built by ADR-240, by the developer's calls: every wound carried out becomes its Scar**, one of each kind at most, so tying the binding or waiting out the ringing is a decision made before the exit. A rescue scars the ember's wounds, or the head when it carried none (`DES-012`). **A Scar is its wound, milder, for the rest of the life**, and none of them heals:
+>
+> | Scar | Costs ⟨tune⟩ |
+> |---|---|
+> | Arm | A guard costs ×1.5 the stamina — you still guard, and still two-hand |
+> | Head | The Ear places attention in 4 sectors rather than 8, and the world is dulled at 2.5 kHz |
+> | Leg | Footsteps ×1.25 as loud — no loss of pace or breath |
+>
+> Drawn faint and unnamed in `BODY` and on every party frame, and named in the Chamber. The next life starts without them.
 
 **No hunger clock.** Barony has one; for a 20-minute run it would be friction that generates no decisions. Cut.
 

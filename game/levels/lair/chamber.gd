@@ -499,6 +499,7 @@ func _process(delta: float) -> void:
 	_set_row("descent", str(GameState.descents))
 	_set_row("stash", "%d item(s) · %d tribute" % [
 		GameState.stash.size(), GameState.stash_value()])
+	_set_row("scars", WoundMarks.named(GameState.scars))
 	_set_row("aspects", _the_offer())
 	_fill_the_tithe()
 	# **Absent, not blank** (`M4-T20`). It was held as an empty line so nothing
@@ -676,6 +677,10 @@ func _build_readout() -> void:
 	place_body.add_child(_rows["descent"])
 	_rows["stash"] = MenuStyle.row("stash", "")
 	place_body.add_child(_rows["stash"])
+	# **What this life carries on its body** (ADR-240). The Deep draws a Scar
+	# faint and unnamed; this is where it is named.
+	_rows["scars"] = MenuStyle.row("scars", "")
+	place_body.add_child(_rows["scars"])
 	place_body.add_child(MenuStyle.rule())
 	# **The door to the tree, named where you can see it** (ADR-164, TEC-009
 	# §5.3). It was line thirteen of fifteen and it is the only thing on screen
@@ -987,6 +992,16 @@ func _lair_probe() -> void:
 				+ "and went nowhere — this room spawns no world item, so the "
 				+ "floor is a deletion with a cheerful line about it, and "
 				+ "`_leave()` rebuilds what comes home from the bag alone"))
+
+	# ─ **the Chamber names the body's Scars** (ADR-240) ─
+	GameState.scars = (1 << Enums.Wound.BROKEN_ARM) | (1 << Enums.Wound.GASHED_LEG)
+	await get_tree().process_frame
+	var named: String = ((_rows["scars"] as HBoxContainer).get_child(1) as Label).text
+	print("[lair] the Scars   the Chamber reads '%s' (want 'arm · leg')" % named)
+	if named != "arm · leg":
+		problems.append(("a life scarred on the arm and the leg is read as '%s' — "
+			+ "the Deep draws a Scar unnamed, and this is where it is named") % named)
+	GameState.scars = 0
 
 	# Death. `DES-008`'s great reset, and the one thing it must not touch.
 	var hoard_before_death: int = GameState.hoard_value

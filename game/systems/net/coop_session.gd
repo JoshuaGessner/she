@@ -192,7 +192,7 @@ func _ready() -> void:
 		# solely at connect would be a declaration the floor never sees.
 		declare_descent.rpc_id(HOST_PEER, _my_rank(),
 			String(GameState.class_id), _my_effects(), _my_worn(),
-			_my_bag(), _my_health(), _my_wounds(), _my_dazed())
+			_my_bag(), _my_health(), _my_wounds(), _my_dazed(), _my_scars())
 		if multiplayer.is_server():
 			# **Re-applied on every session, because the peer outlives them and
 			# the flag does too.** A doorway is exactly where this has to be
@@ -221,7 +221,7 @@ func _ready() -> void:
 			_log("solo — offline peer, id %d" % multiplayer.get_unique_id())
 			declare_descent(_my_rank(), String(GameState.class_id),
 				_my_effects(), _my_worn(), _my_bag(), _my_health(), _my_wounds(),
-				_my_dazed())
+				_my_dazed(), _my_scars())
 			spawn_player(HOST_PEER)
 
 
@@ -405,7 +405,7 @@ func _start_host() -> void:
 	_log("hosting on %d, up to %d client(s), input=%s" % [_port, MAX_CLIENTS, _device])
 	declare_descent(_my_rank(), String(GameState.class_id),
 		_my_effects(), _my_worn(), _my_bag(), _my_health(), _my_wounds(),
-		_my_dazed())
+		_my_dazed(), _my_scars())
 	spawn_player(HOST_PEER)
 
 
@@ -449,7 +449,7 @@ func _on_connected() -> void:
 	# it, which is the opposite of what ADR-010 is for.
 	declare_descent.rpc_id(HOST_PEER, _my_rank(),
 			String(GameState.class_id), _my_effects(), _my_worn(),
-			_my_bag(), _my_health(), _my_wounds(), _my_dazed())
+			_my_bag(), _my_health(), _my_wounds(), _my_dazed(), _my_scars())
 	# **Connecting is not arriving** (`M3-T36`, ADR-157).
 	#
 	# This cleared the deadline, and that is a claim the client is in no
@@ -572,6 +572,10 @@ var _sworn: Dictionary = {}
 ## Peer id → the effect tags that peer's tree has switched on (`M3-T01`).
 ## Per scene like `_ranks`, and it dies with the floor.
 var _effects: Dictionary = {}
+## Peer id → the Scars that peer's life carries, as `GameState.scars` bits
+## (`M4-T14`, ADR-240). `_effects`' trip and its reason: a Scar is a rule this
+## life lives under, and the host builds the body that lives under it.
+var _scars: Dictionary = {}
 ## Peer id → slot name → item id (`M3-T07`). Per scene, and it dies with the
 ## floor like everything else here.
 var _worn: Dictionary = {}
@@ -703,7 +707,7 @@ func everyone_declared() -> bool:
 @rpc("any_peer", "call_local", "reliable")
 func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 		worn: Dictionary, bag: Array, hurt: float, wounds: int,
-		dazed: float) -> void:
+		dazed: float, scars: int) -> void:
 	if not multiplayer.is_server():
 		return
 	var who: int = multiplayer.get_remote_sender_id()
@@ -737,6 +741,9 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 	# never networked"* honest — no Boon, no spend, no tree, and the host stores
 	# none of it past the floor.
 	_effects[id] = effects
+	# **And the Scars that life carries** (ADR-240), for the tree's reason: the
+	# host builds four bodies and only one life is its own.
+	_scars[id] = scars & 0b111
 	# **What that peer is wearing** (`M3-T07`). Same reason as the two above:
 	# the host dresses four bodies and only one of the wardrobes is its own.
 	_worn[id] = worn
@@ -758,6 +765,7 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 		# the ceiling (`M4-T20`, ADR-199's clamp).
 		body.rank = _ranks[id]
 		body.effects = effects
+		body.scars = _scars[id]
 		body.wearing = worn
 		_hand_down(body, id)
 	_log("peer %d descends at rank %d as '%s' — the floor is rank %d" % [
@@ -855,6 +863,7 @@ func _forget(peer: int) -> void:
 	_ranks.erase(peer)
 	_sworn.erase(peer)
 	_effects.erase(peer)
+	_scars.erase(peer)
 	_worn.erase(peer)
 	_bags.erase(peer)
 	_hurt.erase(peer)
@@ -903,6 +912,7 @@ func _build_player(payload: Dictionary) -> Node:
 	player.sworn = StringName(payload.get("class", ""))
 	player.rank = int(payload.get("rank", 1))
 	player.effects = payload.get("effects", PackedStringArray()) as PackedStringArray
+	player.scars = int(payload.get("scars", 0))
 	player.wearing = (payload.get("worn", {}) as Dictionary).duplicate()
 	# Before `add_child`, so `_ready` already knows whether it is looking at
 	# its own body. Deciding afterwards means one frame of a remote player
@@ -1016,6 +1026,8 @@ func spawn_player(peer: int, at: Vector3 = NO_PLACE) -> Player:
 		# beside the class and for the same reason: every peer derives the same
 		# body from the same payload.
 		"effects": effects_of(peer),
+		# Beside the tree, and for its reason (ADR-240).
+		"scars": int(_scars.get(peer, 0)),
 		# Beside the class, and replicated as well for the same reason it is
 		# (`M4-T20`): `DES-019` Layer 4 wants a teammate's standing on the party
 		# frame, and the rank lived host-side in `_ranks` where no client could
@@ -1306,11 +1318,11 @@ func redeclare() -> void:
 	if multiplayer.is_server():
 		declare_descent(_my_rank(), String(GameState.class_id),
 			_my_effects(), _my_worn(), _my_bag(), _my_health(), _my_wounds(),
-			_my_dazed())
+			_my_dazed(), _my_scars())
 	else:
 		declare_descent.rpc_id(HOST_PEER, _my_rank(),
 			String(GameState.class_id), _my_effects(), _my_worn(),
-			_my_bag(), _my_health(), _my_wounds(), _my_dazed())
+			_my_bag(), _my_health(), _my_wounds(), _my_dazed(), _my_scars())
 
 
 ## **Put back what this peer carried down** (`M4-T01`, ADR-185).
@@ -1364,6 +1376,10 @@ func _my_wounds() -> int:
 
 func _my_dazed() -> float:
 	return RunFile.dazed()
+
+
+func _my_scars() -> int:
+	return GameState.scars
 
 
 func _my_effects() -> PackedStringArray:

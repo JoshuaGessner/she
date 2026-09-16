@@ -137,6 +137,16 @@ extends Resource
 @export var gashed_leg_clamor_multiplier: float = 1.6
 ## What a sprint drains from a gashed leg, as a multiple of `sprint_drain` ⟨tune⟩.
 @export var gashed_leg_drain_multiplier: float = 1.5
+## **What a Scar costs** (`M4-T14`, ADR-240): each wound, milder, for the rest of
+## the life. A scarred arm still guards, at this multiple of a guard's stamina
+## ⟨tune⟩ — the broken arm's *no guard* worn down to *a dearer one*.
+@export var scarred_arm_guard_multiplier: float = 1.5
+## How many sectors a scarred head's Ear places attention in, of the Ear's eight
+## ⟨tune⟩ — the concussion's *no bearing* worn down to *a rougher one*.
+@export var scarred_head_bearing_sectors: int = 4
+## How loud a scarred leg's footsteps are, as a multiple ⟨tune⟩ — the gash's
+## limp without its pace or its breath.
+@export var scarred_leg_clamor_multiplier: float = 1.25
 
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
@@ -844,6 +854,18 @@ func validate() -> PackedStringArray:
 	if gashed_leg_drain_multiplier < 1.0:
 		problems.append("gashed_leg_drain_multiplier is %.2f — a gash never makes running cheaper"
 			% gashed_leg_drain_multiplier)
+	if scarred_arm_guard_multiplier < 1.0:
+		problems.append("scarred_arm_guard_multiplier is %.2f — a scarred arm never guards cheaper than a whole one"
+			% scarred_arm_guard_multiplier)
+	# The Ear draws eight sectors, so a coarser bearing has to land on its
+	# sectors or a scarred head would be drawn finer than it hears.
+	if scarred_head_bearing_sectors < 1 or scarred_head_bearing_sectors >= 8 \
+			or 8 % scarred_head_bearing_sectors != 0:
+		problems.append("scarred_head_bearing_sectors is %d — a scarred head hears in fewer of the Ear's eight sectors, and a number that divides them"
+			% scarred_head_bearing_sectors)
+	if scarred_leg_clamor_multiplier < 1.0 or scarred_leg_clamor_multiplier > gashed_leg_clamor_multiplier:
+		problems.append("scarred_leg_clamor_multiplier is %.2f — a Scar is louder than a whole leg and milder than the gash it was"
+			% scarred_leg_clamor_multiplier)
 	if heavy_block_stamina_multiplier < 1.0:
 		problems.append("heavy_block_stamina_multiplier is %.2f — a heavy blow cannot be cheaper to take than a cut"
 			% heavy_block_stamina_multiplier)

@@ -540,6 +540,10 @@ var _ending: bool = false
 ## Peers whose ember reached an exit in somebody's bag (`M3-T33`, `DES-012`).
 ## Per floor, and cleared with it: a rescue is about this run and nothing else.
 var _borne_out: Dictionary = {}
+## Peer → the Scars that peer's life takes when the run resolves (`M4-T14`,
+## ADR-240), decided **at the exit** — a concussion that walked out and wore off
+## while its owner waited for the party still walked out. Cleared with the floor.
+var _wounds_out: Dictionary = {}
 ## Set when somebody presses TO THE FIRE, which ends the wipe window early
 ## (ADR-151). The wait is a floor rather than a fixed price.
 var _skip_the_wait: bool = false
@@ -850,6 +854,8 @@ func _ready() -> void:
 			_shield_probe()
 		elif arg == "--wound-probe":
 			_wound_probe()
+		elif arg == "--life-scar-probe":
+			_life_scar_probe()
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -4945,6 +4951,9 @@ func _ember_probe() -> void:
 		ItemCatalogue.by_id(&"glt_hoard_coin"), 1))
 	var rank_before: int = GameState.pact_rank
 	var floor_before_rescue: int = _descent
+	# **Unwounded and unscarred** (ADR-240), so the Scar a rescue takes is the
+	# fall's: the head.
+	GameState.scars = 0
 
 	# The host goes out, so its ember is on the floor for the helper.
 	player.health.apply_damage(player.health.maximum * 2.0)
@@ -5007,6 +5016,14 @@ func _ember_probe() -> void:
 	if not GameState.last_life.is_empty():
 		problems.append(("a rescued life left a death record, so the fire will "
 			+ "open the Legacy screen over somebody who was carried home"))
+	# **And took a Scar** (`DES-012`, ADR-240) — the head, since it was carried
+	# out with no wound to scar.
+	print("[ember] the Scar     the rescued life carries %s (want head)"
+		% WoundMarks.named(GameState.scars))
+	if GameState.scars != 1 << Enums.Wound.CONCUSSED:
+		problems.append(("a rescued life carries %s — `DES-012` says it takes a "
+			+ "Scar, and an ember with no wound is scarred on the head")
+			% WoundMarks.named(GameState.scars))
 	# **The token is spent at the exit**, sampled at the instant the rescue was
 	# announced rather than afterwards — `_on_extracted` consumes it, marks the
 	# body out and resolves the run in one call stack, so anything read later is
@@ -7655,6 +7672,7 @@ func _end_the_run() -> void:
 	var my_haul: Array = []
 	var my_loss: bool = false
 	var my_deeds: Array = []
+	var my_scars: int = 0
 	var mine_found: bool = false
 	for body: Player in _session.players():
 		var peer: int = body.get_multiplayer_authority()
@@ -7666,11 +7684,16 @@ func _end_the_run() -> void:
 		# the run and the bag that stayed with it, and keeps the tree, the
 		# stash and the rank.
 		var gone: bool = body.spent and not _borne_out.has(peer)
+		# A life that ends takes no Scar; it has nowhere to carry one.
+		# **Read off the exit, never off the body now** (ADR-240): every body
+		# not gone went out through `_on_extracted`, which wrote it down.
+		var scarring: int = 0 if gone else int(_wounds_out.get(peer, 0))
 		if peer == CoopSession.HOST_PEER:
 			# Held, not taken. Taking it here is what detached the node.
 			my_haul = packed
 			my_loss = gone
 			my_deeds = _deeds_for(body)
+			my_scars = scarring
 			mine_found = true
 			continue
 		# **A body outlives its peer by a frame** (`M2-T16`). `_on_peer_disconnected`
@@ -7685,10 +7708,21 @@ func _end_the_run() -> void:
 		if body.spent and not gone:
 			print("[death] %s went out and was carried home — the life survives"
 				% body.name)
-		_take_the_outcome.rpc_id(peer, packed, gone, _deeds_for(body))
+		_take_the_outcome.rpc_id(peer, packed, gone, _deeds_for(body), scarring)
 	# Last, because this is the one that takes the floor out from under us.
 	if mine_found:
-		_take_the_outcome(my_haul, my_loss, my_deeds)
+		_take_the_outcome(my_haul, my_loss, my_deeds, my_scars)
+
+
+## **Which Scars a life takes from how it left** (`M4-T14`, ADR-240, the
+## developer's two calls). Every wound carried out becomes its Scar. A rescue
+## scars the same wounds — and the head when the ember carried none, from the
+## fall that put it on the floor, so `DES-012`'s *take a Scar* is always true and
+## a rescuer can see what the rescue cost.
+static func scars_for(wounds: int, carried_out: bool) -> int:
+	if carried_out and wounds == 0:
+		return 1 << Enums.Wound.CONCUSSED
+	return wounds & 0b111
 
 
 ## What this peer walked away with, delivered to the peer it belongs to.
@@ -7697,7 +7731,8 @@ func _end_the_run() -> void:
 ## player's progression — it can only tell them what happened and let them
 ## write their own.
 @rpc("any_peer", "reliable")
-func _take_the_outcome(packed: Array, lost: bool, earned: Array = []) -> void:
+func _take_the_outcome(packed: Array, lost: bool, earned: Array = [],
+		scarring: int = 0) -> void:
 	# Sender 0 is the host calling this on itself, which is not an RPC at all.
 	var from: int = multiplayer.get_remote_sender_id()
 	if from != 0 and from != CoopSession.HOST_PEER:
@@ -7743,6 +7778,12 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = []) -> void:
 		print("[death] the great reset — carried and stash gone, hoard intact "
 			+ "at %d" % GameState.hoard_value)
 	else:
+		# **The Scars this life takes home** (ADR-240), written by the peer whose
+		# life it is — the host decided them and cannot write them (`TEC-004`).
+		if scarring != 0:
+			GameState.take_scars(scarring)
+			print("[death] scarred %d — the life now carries %d"
+				% [scarring, GameState.scars])
 		var brought: Array[ItemInstance] = []
 		for row: Variant in packed:
 			brought.append(ItemInstance.from_wire(row as Dictionary))
@@ -7861,6 +7902,10 @@ func _on_extracted(player: Player) -> void:
 		_descent, player.name, player.carried.kilograms,
 		player.inventory.total_tribute(),
 		"· ".join(carried) if carried.size() > 0 else "(nothing)"])
+	# **Every wound carried out becomes its Scar** (ADR-240, the developer's
+	# call), so tying the binding or waiting out the ringing is a decision made
+	# before the exit and not after it.
+	_wounds_out[player.get_multiplayer_authority()] = scars_for(player.wounds, false)
 
 	# **Bear my ember out** (`DES-012`, and `M3-T33` is where it became true).
 	#
@@ -7883,6 +7928,7 @@ func _on_extracted(player: Player) -> void:
 		print("[death] %s carried %s's ember out — their LIFE survives" % [
 			player.name, who])
 		_borne_out[peer] = true
+		_wounds_out[peer] = scars_for(saved.wounds if saved != null else 0, true)
 		# **Delivered, so it is spent.** Left in the bag it rides home in
 		# `carried`, turns up in the Chamber as a thing you can put on the pile,
 		# and the pile is one-way (`DES-014`) — so the token for a life that has
@@ -7983,6 +8029,7 @@ func _reset_floor() -> void:
 	# A rescue belongs to the run it happened in (`M3-T33`). Carried past a
 	# floor reset it would forgive a death on the next one, for free.
 	_borne_out.clear()
+	_wounds_out.clear()
 	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
 		node.queue_free()
 	_session.clear_enemies()
@@ -8755,8 +8802,20 @@ func _party_shot(path: String) -> void:
 		# Down, not dead: `bleeding` is the host-side window and setting it is
 		# what `_go_down` does, so this is the state a teammate actually sees.
 		mate.bleeding = Config.tuning.bleed_out_seconds * 0.6
+		# A broken arm and an old head, for the frame's marks (ADR-239, ADR-240).
+		mate.wound(Enums.Wound.BROKEN_ARM)
+		mate.scars = 1 << Enums.Wound.CONCUSSED
+	# **And yours**: a gash and a ringing head, over an old arm — so `BODY`
+	# is photographed holding a Scar under two wounds, and measured doing it.
+	player.wound(Enums.Wound.GASHED_LEG)
+	player.wound(Enums.Wound.CONCUSSED)
+	player.scars = 1 << Enums.Wound.BROKEN_ARM
 	for i: int in range(8):
 		await get_tree().process_frame
+	if _wound_marks.shown().size() != 2 or _wound_marks.scars_shown().size() != 1:
+		problems.append(("the body marks show %s and Scars %s, for a gash and a "
+			+ "concussion over a scarred arm") % [_wound_marks.shown(),
+			_wound_marks.scars_shown()])
 
 	# ─ 1. the empty mark, which is the one with the consequence ─
 	if _waystone.carried():
@@ -9592,7 +9651,7 @@ func _rank_probe() -> void:
 
 	# ── the highest rank present is the floor (ADR-010) ──────────────────
 	_session.declare_descent(1, "", PackedStringArray(), {}, [], RunFile.UNHURT,
-		0, 0.0)
+		0, 0.0, 0)
 	var alone: int = _session.floor_rank()
 	_session._ranks[9001] = 8
 	var with_veteran: int = _session.floor_rank()
@@ -12769,6 +12828,183 @@ func _one_sprint(player: Player, tuning: TuningProfile) -> float:
 	return before - player.stamina.current
 
 
+## **The body's Scars** (`M4-T14`, ADR-240, `DES-009`, `DES-012`).
+##
+## Which Scars each way of leaving takes; a wounded body walking out of the
+## bottom of the Deep and the life that comes home; what the declaration carries
+## to the host; what each Scar costs against the same body whole; and that the
+## next life starts without them. The rescue's end to end is `--ember-probe`'s.
+func _life_scar_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var tuning: TuningProfile = Config.tuning
+	var arm: int = 1 << Enums.Wound.BROKEN_ARM
+	var head: int = 1 << Enums.Wound.CONCUSSED
+	var leg: int = 1 << Enums.Wound.GASHED_LEG
+
+	# ─ 1. what each way out leaves ─
+	var ways: Array = [
+		["walked out whole", 0, false, 0],
+		["walked out gashed and ringing", leg | head, false, leg | head],
+		["carried out whole", 0, true, head],
+		["carried out with a broken arm", arm, true, arm],
+	]
+	for way: Array in ways:
+		var took: int = scars_for(int(way[1]), bool(way[2]))
+		print("[life-scar] %-30s scars %s (want %s)" % [way[0],
+			WoundMarks.named(took), WoundMarks.named(int(way[3]))])
+		if took != int(way[3]):
+			problems.append("%s scarred %s where it should scar %s" % [way[0],
+				WoundMarks.named(took), WoundMarks.named(int(way[3]))])
+
+	# ─ 2. a gashed leg walks out of the bottom, and the life is scarred ─
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	if RunFile.PATH == "user://run.active":
+		printerr("[life-scar] FAIL this probe is pointed at the player's run file")
+		get_tree().quit(1)
+		return
+	RunFile.clear()
+	RunFile.begin(&"huskarl", 1, 31346)
+	GameState.class_id = &"huskarl"
+	GameState.scars = 0
+	player.restore_for_descent()
+	player.wound(Enums.Wound.GASHED_LEG)
+	_stand_on_floor(RunFile.LAST_FLOOR)
+	_going_down = false
+	_on_shaft_claimed(player)
+	await _hold(0.3)
+	print("[life-scar] out of the bottom, gashed    the life carries %s, got out %s (want leg, yes)"
+		% [WoundMarks.named(GameState.scars), player.got_out])
+	if not player.got_out:
+		problems.append("the body never walked out, so the Scar row is about nothing")
+	elif GameState.scars != leg:
+		problems.append("a gashed leg walked out and the life carries %s" % WoundMarks.named(GameState.scars))
+	player.got_out = false
+	_stand_on_floor(0)
+	player.restore_for_descent()
+	player.teleport(GUARDIAN_POST, 0.0)
+	await _hold(0.3)
+
+	# ─ 3. the declaration carries them to the body the host builds ─
+	_session.declare_descent(1, "huskarl", PackedStringArray(), {}, [],
+		RunFile.UNHURT, 0, 0.0, arm | leg)
+	var declared: int = player.scars
+	_session.declare_descent(1, "huskarl", PackedStringArray(), {}, [],
+		RunFile.UNHURT, 0, 0.0, 0)
+	print("[life-scar] declared arm and leg          the body carries %s (want arm · leg), and %s after (want none)"
+		% [WoundMarks.named(declared), WoundMarks.named(player.scars)])
+	if declared != arm | leg or player.scars != 0:
+		problems.append("a declaration of arm and leg built a body scarred %s, then %s"
+			% [WoundMarks.named(declared), WoundMarks.named(player.scars)])
+
+	# ─ 4. what each Scar costs, against the same body whole ─
+	# The arm: a guard on a cut, facing it.
+	var line: Vector3 = _keeper_ground(GUARDIAN_POST)
+	if line == Vector3.ZERO:
+		problems.append("no clear line from the Guardian's post")
+		_report(problems, "life-scar")
+		return
+	var away: float = atan2(-line.x, -line.z)
+	_session.spawn_enemy(GUARDIAN_POST + line * 2.0, away)
+	await _hold(0.3)
+	var cut: Hitbox = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null:
+			body.process_mode = Node.PROCESS_MODE_DISABLED
+			cut = body.get("_hitbox") as Hitbox
+	if cut == null:
+		problems.append("no Wretch to strike with")
+		_report(problems, "life-scar")
+		return
+	var hurtbox := player.get_node("Hurtbox") as Hurtbox
+	var guard_cost: Array[float] = []
+	for scarred: bool in [false, true]:
+		player.scars = arm if scarred else 0
+		player.restore_for_descent()
+		player.teleport(GUARDIAN_POST, away)
+		Input.action_press("block")
+		await _hold(0.15)
+		player.stamina.refill()
+		var breath: float = player.stamina.current
+		hurtbox.receive(cut.damage, cut.damage_type, cut)
+		guard_cost.append(breath - player.stamina.current)
+	Input.action_release("block")
+	# The marks: an old arm under no wound, drawn faint in `BODY`.
+	player.scars = arm
+	await get_tree().process_frame
+	var faint: Array[Enums.Wound] = _wound_marks.scars_shown()
+	print("[life-scar] a scarred arm, marked        %s (want [0])" % [faint])
+	if faint.size() != 1 or faint[0] != Enums.Wound.BROKEN_ARM:
+		problems.append("the body's marks show Scars %s for an old arm" % [faint])
+	# The leg: one step.
+	player.scars = 0
+	var step_whole: float = _one_step(player, tuning)
+	player.scars = leg
+	var step_scarred: float = _one_step(player, tuning)
+	# The head: a Hunter half a radian off, then the same with the head scarred,
+	# then scarred and ringing.
+	var bearings: Array[float] = []
+	var cutoffs: Array[float] = []
+	if _hunter == null:
+		problems.append("no Hunter on the floor to place")
+	else:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+		_hunter.global_position = player.global_position + Vector3(sin(0.5), 0.0, cos(0.5)) * 8.0
+		for state: int in [0, head, -head]:
+			player.restore_for_descent()
+			player.scars = absi(state)
+			if state < 0:
+				player.wound(Enums.Wound.CONCUSSED)
+			await _hold(0.2)
+			bearings.append(AudioDirector.mix.bearing)
+			cutoffs.append(AudioDirector.muffle_hz())
+		player.restore_for_descent()
+	player.scars = 0
+	print("[life-scar] a scarred arm                 a guarded cut cost %.1f, scarred %.1f (want x%.2f)"
+		% [guard_cost[0], guard_cost[1], tuning.scarred_arm_guard_multiplier])
+	print("[life-scar] a scarred leg                 a step x%.2f (want x%.2f)"
+		% [step_scarred / maxf(step_whole, 0.001), tuning.scarred_leg_clamor_multiplier])
+	if guard_cost[0] <= 0.0:
+		problems.append("a whole arm's guard cost nothing, so the scarred row is about nothing")
+	elif absf(guard_cost[1] / guard_cost[0] - tuning.scarred_arm_guard_multiplier) > 0.01:
+		problems.append("a scarred arm's guard cost x%.2f of a whole one's" % (guard_cost[1] / guard_cost[0]))
+	if step_whole <= 0.0:
+		problems.append("a whole leg's step made no noise, so the scarred row is about nothing")
+	elif absf(step_scarred / step_whole - tuning.scarred_leg_clamor_multiplier) > 0.01:
+		problems.append("a scarred leg's step was x%.2f as loud" % (step_scarred / step_whole))
+	if bearings.size() == 3:
+		print("[life-scar] a scarred head                bearing %.2f, %.2f, %s; cut at %.0f, %.0f, %.0f Hz (want 0.50, 0.00, nan; 0, %.0f, %.0f)"
+			% [bearings[0], bearings[1], bearings[2], cutoffs[0], cutoffs[1], cutoffs[2],
+				AudioDirector.SCARRED_CUTOFF_HZ, AudioDirector.MUFFLE_CUTOFF_HZ])
+		if absf(bearings[0] - 0.5) > 0.05:
+			problems.append("a clear head placed the Hunter at %.2f, not 0.50, so the scarred row is about nothing" % bearings[0])
+		if absf(bearings[1]) > 0.01:
+			problems.append("a scarred head placed the Hunter at %.2f — its Ear hears in quarters" % bearings[1])
+		if not is_nan(bearings[2]):
+			problems.append("a scarred head, ringing, still placed the Hunter — the wound is worse than its Scar")
+		if cutoffs[0] != 0.0 or not is_equal_approx(cutoffs[1], AudioDirector.SCARRED_CUTOFF_HZ) \
+				or not is_equal_approx(cutoffs[2], AudioDirector.MUFFLE_CUTOFF_HZ):
+			problems.append("the world was cut at %.0f, %.0f and %.0f Hz — clear, scarred, ringing"
+				% [cutoffs[0], cutoffs[1], cutoffs[2]])
+
+	# ─ 5. the life ends, and its Scars with it ─
+	GameState.scars = arm | head | leg
+	GameState.last_life = {}
+	GameState.die()
+	print("[life-scar] the life ends                 the next carries %s (want none)"
+		% WoundMarks.named(GameState.scars))
+	if GameState.scars != 0:
+		problems.append("a life ended and the next one carries %s" % WoundMarks.named(GameState.scars))
+
+	RunFile.clear()
+	_session.clear_enemies()
+	print("[life-scar] a wound walked out is a Scar for life, and the life is all it lasts")
+	_report(problems, "life-scar")
+
+
 ## A hazard laid on the Deep where a probe wants one, through the constructor the
 ## floor builder uses.
 func _lay_hazard(of: HazardResource, centre: Vector3, span: Vector2) -> HazardZone:
@@ -13656,7 +13892,7 @@ func _descent_probe() -> void:
 	# Full health and no wounds — the body a floor below is built as.
 	body.restore_for_descent()
 	_session.declare_descent(1, "huskarl", PackedStringArray(), {},
-		RunFile.bag(), RunFile.health(), RunFile.wounds(), RunFile.dazed())
+		RunFile.bag(), RunFile.health(), RunFile.wounds(), RunFile.dazed(), 0)
 	await _hold(0.2)
 	print("[descent] handed back     %d item(s), %.0f hp, wounds %d (want %d, %.0f, %d)" % [
 		body.inventory.count(), body.health.current, body.wounds, put_in,

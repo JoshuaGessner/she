@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-15
+updated: 2026-09-16
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -8774,6 +8774,81 @@ A whole arm raises a guard and a broken one does not; a guard the host is told i
 - **The Veiðimaðr's bow is a two-hander**, so a broken arm leaves them the throw and the seax they do not carry. Worth watching in play.
 - **Concussion is the one wound sound-off players already feel.** Everything it takes from the ears it takes from the Ear.
 - `M4-T14` stays open for the Scar.
+
+## ADR-240 — Every wound carried out becomes its Scar, the wound made milder, for the life
+
+**Date:** 2026-09-16 · **Status:** accepted · **Closes `M4-T14`** · **Builds `DES-009`'s and `DES-012`'s Scar** · **Amends `DES-009`: each wound scars, not one** · **Save v11**
+
+**Context:** ADR-239 built the wounds and settled that a Scar is the wound, milder, for life, one per kind, visible to everyone. Two rules were still open. `DES-009` says extracting wounded *converts one* ⟨tune⟩ and does not say which. `DES-012` says a rescued life *takes a Scar* and a rescued ember may carry no wound at all.
+
+### Decision — the developer's three calls
+
+- **Every wound carried out becomes its Scar**, over one by a fixed order or one chosen at the fire. Treating a wound turns into a decision made before the exit — tie the binding, or wait out the ringing near the way out — which is Darkest Dungeon's untreated quirk locking in, and the wound you could not treat (the arm) is the one the bracers were for.
+- **A rescue scars the ember's wounds, or the head when it carried none**, from the fall that put it on the floor — over scarring only wounds, which would let a rescue cost nothing, and over a fixed next Scar unrelated to what happened. `DES-012`'s *take a Scar* stays true, and the rescuer can see its price.
+- **The costs as listed**, over noise alone or a cosmetic mark (which would be a stub):
+
+| Scar | The wound it was | What it costs ⟨tune⟩ |
+|---|---|---|
+| Arm | no guard, no two-hander | a guard costs ×1.5 the stamina |
+| Head | no bearing, a drowned world | the Ear places attention in 4 sectors, not 8; the world is dulled at 2.5 kHz |
+| Leg | slower, louder, dearer to run | footsteps ×1.25 as loud |
+
+One of each at most, and none heals; `GameState.die()` clears them. A fresh wound on a scarred limb is both — a gashed scarred leg steps at ×1.6 × ×1.25 — and a ringing head is the wound, not the Scar: no bearing, cut at 700 Hz.
+
+### Built
+
+- **`GameState.scars`**, LIFE tier, a bit a kind; `take_scars()` writes the profile. **Save v11**: `life.scars`, `_migrate_10_to_11` writes 0, because no wound existed to scar when a v10 profile was written.
+- **Decided at the exit.** `_on_extracted` records `scars_for(wounds, carried_out)` for the body walking out and for every ember in its bag, and `_end_the_run` reads only that record — a concussion that walked out and wore off while its owner waited for the party still walked out. `_take_the_outcome` carries the bits, and each peer writes its own profile (`TEC-004`).
+- **The body carries them.** `declare_descent` takes the life's `scars`, the spawn payload carries them beside `effects`, and `Player.scars` is on the host's state sync, `ON_CHANGE`. The arm's price is in `_on_hurt`, the leg's in the footstep, and the head's in `AudioDirector` — the bearing rounded to the Ear's quarters and the low-pass at `SCARRED_CUTOFF_HZ`, with `muffle_hz()` for a check to read.
+- **Seen.** Faint and unnamed in `BODY` under any wound; faint on every party frame; named on the Chamber's `PLACE` panel (`scars  arm · leg`). The windowed `--party-shot` now photographs two wounds over a Scar on the body and a wound beside a Scar on a teammate, and measured all three regions inside their claims.
+- **The concussion haze was pulled back from the whole screen.** ADR-239's first photograph reached 0.8 of the half-screen from every side in eight pale bands and greyed the view in stripes; it reaches 0.45 in twenty-four, and the centre is clear.
+
+### Verification
+
+`--life-scar-probe`, new and required:
+
+| Row | Result |
+|---|---|
+| walked out whole / gashed and ringing | none / head · leg |
+| carried out whole / with a broken arm | head / arm |
+| a gashed leg out of the bottom of the Deep | the life carries leg |
+| a declaration of arm and leg | the body carries arm · leg, then none |
+| an old arm under no wound | marked faint |
+| a guarded cut, whole and scarred | 22.0 and 33.0 stamina |
+| a step, whole and scarred | ×1.25 |
+| a Hunter at 0.50 rad — clear, scarred, ringing | 0.50, 0.00, no bearing; cut at 0, 2500, 700 Hz |
+| the life ends | the next carries none |
+
+`--ember-probe`: a rescued, unwounded life carries head. `--save-probe`: arm and leg round-trip, and a literal v10 fixture loads at v11 with no Scars over a life dirtied with all three. `--lair-probe`: the Chamber reads `arm · leg`.
+
+**Planted and failed, one plant per run — all twenty:**
+
+| Plant | Caught by |
+|---|---|
+| a clean rescue costs nothing | the table, and `--ember-probe` end to end |
+| no wound scars | the table and the walk out |
+| the exit writes nothing down | the walk out |
+| the life never takes them | the walk out |
+| a rescue scars a clean life on the leg | `--ember-probe` |
+| the next life keeps them | the death row |
+| the profile forgets them / never reads them | `--save-probe`'s round trip (and the v10 fixture) |
+| v10 migrates without a field | the v10 fixture |
+| the host never dresses the body in them | the declaration row |
+| a scarred arm guards cheap / a scarred leg is quiet | the guard and step rows (×1.00) |
+| a scarred head hears in eighths | the bearing row (0.50) |
+| a scarred head hears as a ringing one / is never dulled | the cutoff row |
+| the marks never show a Scar | the marks row |
+| the Chamber never names them | `--lair-probe` |
+| a head that hears in thirds / a Scar louder than its gash | `data_probe` |
+
+**Found while planting:** the first draft of `_end_the_run` fell back to the body's wounds at the end of the run when the exit had recorded nothing, so deleting the record passed — the fallback was answering for it. Every body not gone has been through `_on_extracted`, so the record is the only source now, and the plant fails.
+
+### Consequences
+
+- **A Warden fight can cost a life something permanent**, and the two things that prevent it — the shield and the bracers — are the Húskarl's and the floor's.
+- **Waiting at the exit is now a choice** a concussed player can make, and the binding is worth tying before the Shaft rather than after.
+- **Three Scars is a hard life**: guarding dear, hearing coarse, walking loud. Whether it is a life worth continuing or one a player abandons is a question for play — the one `GATE M4 COOP` already asks of a newcomer who keeps going down, now with a price that stays.
+- `M4-T14` is closed.
 
 *Entries below to be added as design decisions are signed off.*
 

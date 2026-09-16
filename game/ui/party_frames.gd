@@ -172,12 +172,19 @@ func _draw_frame(body: Player, top: float, loudest: float) -> void:
 	# broken arm is somebody who cannot guard the doorway you were counting on.
 	# Full ink even on a teammate who is up: the row goes quiet when nothing is
 	# wrong, and a wound is something wrong.
+	# **And their Scars, faint** (ADR-240): what a rescue cost them, and what
+	# the life will carry from here — `DES-012`'s price, on the frame of the
+	# person who paid it.
 	var mark_x: float = 70.0
 	for kind: Enums.Wound in WoundMarks.ORDER:
-		if not body.has_wound(kind):
+		if body.has_wound(kind):
+			WoundMarks.draw_glyph(self, kind, Rect2(mark_x, top + 17.0, 12.0, 12.0),
+				MenuStyle.tone(self, MenuStyle.TEXT), 1.5)
+		elif body.has_scar(kind):
+			WoundMarks.draw_glyph(self, kind, Rect2(mark_x, top + 17.0, 12.0, 12.0),
+				faint, 1.0)
+		else:
 			continue
-		WoundMarks.draw_glyph(self, kind, Rect2(mark_x, top + 17.0, 12.0, 12.0),
-			MenuStyle.tone(self, MenuStyle.TEXT), 1.5)
 		mark_x += 16.0
 
 	var run: float = size.x * BAR_SHARE

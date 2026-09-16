@@ -183,6 +183,16 @@ var class_id: StringName = &""
 ## somebody else, which is the trap ADR-121 and ADR-126 both had to avoid.
 var worn: Dictionary = {}
 
+## **The Scars this life carries** (`M4-T14`, ADR-240, `DES-009`): a bit per
+## `Enums.Wound`, one of each at most. A wound walked out of the Deep becomes
+## its Scar, and a rescue scars the wounds the ember carried — or the head,
+## from the fall, when it carried none.
+##
+## LIFE tier, and `die()` clears it: a Scar is the record of how this life went,
+## and the next one did not go that way. **Not an item's Scar** — that is
+## `ItemInstance.scarred`, a Legacy item's one mark (ADR-223). This is the body.
+var scars: int = 0
+
 ## Whether a profile has been opened. See the header: nothing is written back
 ## to a file that was never read.
 var _live: bool = false
@@ -495,6 +505,8 @@ func die() -> void:
 	# Gear goes with the life. `DES-008` makes it a record of where you have
 	# been, and `DES-002` is what makes that record worth anything.
 	worn.clear()
+	# The body's Scars go with the body (ADR-240).
+	scars = 0
 	tithe_paid = 0
 	cycle_runs = 0
 	boon_converted = 0
@@ -503,6 +515,15 @@ func die() -> void:
 	# sequence must never produce a half-wiped profile. It cannot, because
 	# `SaveFile.write` renames a complete file over the old one — either the
 	# life ended or it did not, and there is no third state on disk.
+	_persist()
+
+
+## **Scar this life** with every wound in `bits` it does not already carry, and
+## write it down — a Scar that did not reach disk would come off by quitting.
+func take_scars(bits: int) -> void:
+	if (bits & ~scars) == 0:
+		return
+	scars |= bits
 	_persist()
 
 
@@ -969,6 +990,8 @@ func to_dict() -> Dictionary:
 			"tithe_paid": tithe_paid,
 			"cycle_runs": cycle_runs,
 			"hunt_head_start": hunt_head_start,
+			# **The body's Scars** (save v11, ADR-240). An int, a bit a kind.
+			"scars": scars,
 		},
 	}
 
@@ -1040,6 +1063,7 @@ func from_dict(data: Dictionary) -> void:
 	tithe_paid = int(life.get("tithe_paid", 0))
 	cycle_runs = int(life.get("cycle_runs", 0))
 	hunt_head_start = float(life.get("hunt_head_start", 0.0))
+	scars = int(life.get("scars", 0)) & 0b111
 	# **The line that used to end this function was `carried.clear()`**, and it
 	# was correct while nothing wrote the field: a loaded profile could not be
 	# carrying anything, so emptying it was the honest reading. Save v8 writes
@@ -1169,6 +1193,9 @@ func _save_probe() -> void:
 	# at all — the camp went back to sounding empty on every relaunch and
 	# nothing in the sweep could see it.
 	descents = 5
+	# **And the body's Scars** (save v11, ADR-240), two of three so a round
+	# trip that dropped or filled one bit reads differently from the truth.
+	scars = (1 << Enums.Wound.BROKEN_ARM) | (1 << Enums.Wound.GASHED_LEG)
 	_persist()
 
 	if FileAccess.file_exists(SaveFile.TMP):
@@ -1183,6 +1210,7 @@ func _save_probe() -> void:
 	worn.clear()
 	carried.clear()
 	descents = 1
+	scars = 0
 	from_dict(SaveFile.read())
 	print("[save] round trip     hoard %d/%d, value %d/%d, stash %d" % [
 		hoard.size(), pile, hoard_value, gave, stash.size()])
@@ -1212,12 +1240,17 @@ func _save_probe() -> void:
 		problems.append(("what was worn did not survive a round trip — "
 			+ "`DES-020` puts the class kit in slots, so a life that reloads "
 			+ "unarmed has lost the thing `M3-T02` swore it to"))
+	print("[save] the body       scars %d (want %d)" % [scars,
+		(1 << Enums.Wound.BROKEN_ARM) | (1 << Enums.Wound.GASHED_LEG)])
+	if scars != (1 << Enums.Wound.BROKEN_ARM) | (1 << Enums.Wound.GASHED_LEG):
+		problems.append(("the body's Scars came back as %d — a Scar that quitting "
+			+ "takes off is a wound with a longer clock, not a mark for life") % scars)
 	# ── **and each came back Scarred** (save v10, ADR-223) ─
-	var scars: PackedStringArray = PackedStringArray()
-	scars.append("stash %s" % (stash.size() == 1 and stash[0].scarred))
-	scars.append("haul %s" % (carried.size() == 1 and carried[0].scarred))
-	scars.append("worn %s" % (hand != null and hand.scarred))
-	print("[save] the Scars      %s (want all true)" % ", ".join(scars))
+	var item_scars: PackedStringArray = PackedStringArray()
+	item_scars.append("stash %s" % (stash.size() == 1 and stash[0].scarred))
+	item_scars.append("haul %s" % (carried.size() == 1 and carried[0].scarred))
+	item_scars.append("worn %s" % (hand != null and hand.scarred))
+	print("[save] the Scars      %s (want all true)" % ", ".join(item_scars))
 	if stash.size() != 1 or not stash[0].scarred \
 			or carried.size() != 1 or not carried[0].scarred \
 			or hand == null or not hand.scarred:
@@ -1225,7 +1258,7 @@ func _save_probe() -> void:
 			+ "item quit and reloaded comes back at full power and worth its "
 			+ "whole value to her, which is `DES-003`'s Scar and ADR-003's "
 			+ "laundering refusal both undone by closing the game")
-			% ", ".join(scars))
+			% ", ".join(item_scars))
 
 	# ── a scratch file left by an earlier crash ──────────────────────────
 	var litter := FileAccess.open(SaveFile.TMP, FileAccess.WRITE)
@@ -1417,6 +1450,21 @@ func _save_probe() -> void:
 			or v9_hand == null or v9_hand.definition.id != &"wpn_ash_spear":
 		problems.append(("a v9 profile lost its stash, its haul or its gear on the "
 			+ "way to records — the ids were all there, and v10 only has to wrap them"))
+
+	# **A v10 fixture** (ADR-240), the last format with no body to scar. The
+	# life is dirtied first, so a load that left `scars` alone reads wrong.
+	_write_raw('{"meta": {"save_version": 10}, "lineage": {"hoard": [], '
+		+ '"hoard_value": 0, "descents": 2}, "life": {"stash": [], "carried": [], '
+		+ '"worn": {}, "class_id": "huskarl"}}')
+	scars = 0b111
+	var v10: Dictionary = SaveFile.read()
+	from_dict(v10)
+	print("[save] v10 fixture   → v%d, scars %d, written %s (want v%d, 0, yes)" % [
+		int(_section(v10, "meta").get("save_version", 0)), scars,
+		_section(v10, "life").has("scars"), SaveFile.SAVE_VERSION])
+	if scars != 0 or not _section(v10, "life").has("scars"):
+		problems.append(("a v10 profile came back scarred %d, or with no scars field — "
+			+ "no wound existed to scar when it was written") % scars)
 
 	SaveFile.wipe()
 	for problem: String in problems:

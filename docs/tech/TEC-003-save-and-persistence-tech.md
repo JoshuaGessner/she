@@ -4,7 +4,7 @@ title: Save System & Persistence Implementation
 status: accepted
 owner: tech
 tags: [save, persistence, serialization, migration, tech-debt]
-updated: 2026-09-02
+updated: 2026-09-16
 related: [DES-003, DES-015, TEC-001, TEC-002, TEC-004]
 ---
 
@@ -88,6 +88,10 @@ Mid-run state lives in a separate `user://run.active` file so a crash or quit mi
 > **The host rolls the seed and the descent RPC carries it.** Every peer builds its own floor geometry, so the number they derive it from must be agreed; `Threshold._descend` is already `authority`/`call_local`, so this cost no new wire (ADR-184 Decision 3).
 >
 > **No migration path, deliberately, and this file is the exception to the rule above.** `read()` drops a run file whose version it does not know. Keeping an unreadable one blocks every future descent; dropping it costs a single run. The profile takes the opposite decision for the opposite reason — a lineage is not replaceable (ADR-117).
+>
+> **`wounds` and `dazed` added at `M4-T14`** (ADR-239), beside `health`, and **without a version bump**: they are read with defaults, and a run file written before wounds existed carries none, which is true of it. Dropping a live run for a field that has an honest default would cost a player the run to learn nothing.
+>
+> **The profile's `life.scars` added at `M4-T14`** (ADR-240, **save v11**) — a bit per wound the life carried out of the Deep. `_migrate_10_to_11` writes `0`, because no wound existed to scar when a v10 profile was written; `--save-probe` round-trips two of the three bits and loads a literal v10 fixture over a life dirtied with all three.
 
 ## Caches (`DES-005`)
 

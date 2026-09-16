@@ -4,7 +4,7 @@ title: Data Schemas
 status: accepted
 owner: tech
 tags: [data, resources, godot, tres, schema, tooling]
-updated: 2026-09-15
+updated: 2026-09-16
 related: [TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007]
 ---
 
@@ -119,6 +119,8 @@ class_name AttackResource extends Resource
 > **The shield (ADR-238).** `ShieldTrait`, with no fields — what a shield does is that it is one, and a number on it would be a better shield. `ClassResource.carried`: items a class starts with in the bag rather than worn, so which of two off-hand items is held is said in the data rather than by the order of `kit`.
 
 > **Wounds (ADR-239).** `Enums.Wound` names the three. `WardTrait.wards` names the one wound an item turns away, and `WardTrait.worn_on(wound)` is the one table saying where that ward is read — `ItemResource.validate()` refuses a ward authored in any other slot, so a helm that keeps an arm whole cannot be written. `TuningProfile`'s *Wounds* group: `concussion_seconds`, and the gashed leg's speed, clamor and drain multipliers. The run file carries `wounds` (bits) and `dazed` (seconds) beside `health`, read with defaults so an older file carries none.
+>
+> **Scars (ADR-240).** Three more in the *Wounds* group — `scarred_arm_guard_multiplier`, `scarred_head_bearing_sectors` (refused unless it is fewer than the Ear's eight and divides them) and `scarred_leg_clamor_multiplier` (refused above the gash's own). `GameState.scars` is save v11's `life.scars`.
 
 **Modifiers** (`GildedModifier`, `SilentModifier`, `RousedModifier`…) are separate resources that mutate an enemy at spawn. ~8 modifiers × ~12 archetypes is where variety comes from — not from 40 hand-authored enemies.
 

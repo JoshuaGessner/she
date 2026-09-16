@@ -698,6 +698,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The body's Scars** (`M4-T14`, ADR-240, `DES-009`, `DES-012`). Which
+	# Scars each way out leaves, a gashed leg walking out of the bottom and the
+	# life that comes home scarred, the declaration that dresses the body, each
+	# Scar's price against the same body whole, and the next life without them.
+	# The rescue end to end is `--ember-probe`'s; the save, `--save-probe`'s.
+	lifescar="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --life-scar-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$lifescar" \
+			|| ! grep -q "^\[life-scar\] a wound walked out is a Scar for life" <<<"$lifescar"; then
+		echo "FAIL a wound carried out has to become a Scar, and the Scar has to cost something" >&2
+		printf '%s\n' "$lifescar" | grep -E '\[life-scar\]|\[death\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

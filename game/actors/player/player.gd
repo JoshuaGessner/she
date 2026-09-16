@@ -229,6 +229,10 @@ const STATE_PROPERTIES: Dictionary = {
 	# because every peer writes its own run file at the descent, and a clock
 	# only the host could read would leave a client's concussion on the stairs.
 	".:dazed": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# **The life's Scars** (ADR-240), beside `effects` and for its reason: the
+	# host builds the body from a declaration, and every teammate's frame draws
+	# them — a rescue is a decision, and its price has to be visible.
+	".:scars": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 }
 
 ## Which seat in the party this body took, 0-3. Assigned once by `CoopSession`
@@ -447,6 +451,10 @@ var wounds: int = 0
 ## Seconds of concussion left, or 0. Host-authored; the bit is what the rules
 ## read, and this is what the Ear, the vignette and the run file read.
 var dazed: float = 0.0
+## **The Scars this body's life carries** (`M4-T14`, ADR-240): `GameState.scars`
+## as its owner declared it, a bit per `Enums.Wound`. Each is its wound, milder,
+## and none of them heals.
+var scars: int = 0
 
 ## Seconds of bleeding left, or 0 when up. **Replicated**, because `DES-012`
 ## makes the window itself the decision — *"a visible, shortening window; your
@@ -813,8 +821,12 @@ func _on_hurt(amount: float, from: Node) -> void:
 	if raised and guardable and not has_wound(Enums.Wound.BROKEN_ARM) \
 			and stamina.current >= Config.tuning.block_stamina_minimum:
 		var tuning: TuningProfile = Config.tuning
+		# **A scarred arm guards dearer** (ADR-240): the broken arm's *no guard*,
+		# worn down to a price.
 		stamina.spend(tuning.block_stamina_cost
-			* (tuning.heavy_block_stamina_multiplier if heavy else 1.0))
+			* (tuning.heavy_block_stamina_multiplier if heavy else 1.0)
+			* (tuning.scarred_arm_guard_multiplier
+				if has_scar(Enums.Wound.BROKEN_ARM) else 1.0))
 		var through: float = amount * (1.0 - tuning.block_damage_fraction)
 		blocked.emit(amount - through, from)
 		health.apply_damage(through, from)
@@ -860,6 +872,11 @@ func _arm_holds() -> bool:
 		return true
 	var held: ItemInstance = equipment.in_slot(Enums.Slot.MAIN_HAND)
 	return held == null or not held.definition.two_handed
+
+
+## Whether this body's life is scarred by `kind`. Every peer: `scars` travels.
+func has_scar(kind: Enums.Wound) -> bool:
+	return (scars & (1 << kind)) != 0
 
 
 ## Whether this body carries `kind`. Every peer can ask: `wounds` travels.
@@ -2420,6 +2437,10 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 	# on loose stone is louder than either.
 	if has_wound(Enums.Wound.GASHED_LEG):
 		amount *= tuning.gashed_leg_clamor_multiplier
+	# **And an old one** (ADR-240): the gash's limp without its pace, for life.
+	# A fresh gash on a scarred leg is both.
+	if has_scar(Enums.Wound.GASHED_LEG):
+		amount *= tuning.scarred_leg_clamor_multiplier
 	clamor.add(amount * carried.scale_by_load(tuning.clamor_footstep_at_capacity))
 	_footfall(1.0 if stance <= 0.5 else 1.22)
 
