@@ -4,7 +4,7 @@ title: Legibility & Accessibility
 status: accepted
 owner: design
 tags: [accessibility, ui, hud, audio, legibility, clamor]
-updated: 2026-09-06
+updated: 2026-09-16
 related: [DES-005, DES-013, DES-017, ART-001, PRO-005]
 ---
 
@@ -19,6 +19,8 @@ This is not a polish task. A visual language for Clamor cannot be bolted on at t
 > **DECIDED (ADR-036): every channel has a twin.** Everything the audio tells you, the screen also tells you. Everything the screen tells you, the audio also tells you. Designed together, from the start.
 
 > **BUILT AT `M2-T03`, and made structural (ADR-090).** The twin is not a convention anyone has to remember. `AudioDirector` computes **one `HuntMix`** per frame; the score is driven from it and the Ear renders **the same object**. There are not two readings of the world to keep in step, so the only way the guarantee can break is a channel nobody draws — and `--ear-probe` refuses exactly that, in both directions, in the pre-commit sweep. Planting a fifth channel fails the build.
+
+> **The barrow's grind has three twins** (ADR-242). It is a world event rather than a Hunt channel, so it is paired where it happens: a gold light in the barrow while it is open that gutters as it closes, a stone of a darker grey once it has shut, and a fading notice that says which way it lies from the body reading it — *stone grinds open behind, near* — then that it is closing, then that it has shut. `--barrow-probe` asserts all three are drawn from the one replicated state, in that order.
 
 **This makes the game better for everyone.** A continuous visible Clamor readout serves Principle 4 directly — you can *see* how loud you were being, so you can explain your death in one sentence instead of guessing.
 

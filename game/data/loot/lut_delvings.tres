@@ -43,31 +43,31 @@ deals = 2
 script = ExtResource("2_entry")
 item = &"glt_gilt_bead"
 from_floor = 0
-deals = 5
+deals = 13
 
 [sub_resource type="Resource" id="Resource_gemstone"]
 script = ExtResource("2_entry")
 item = &"glt_raw_gemstone"
 from_floor = 1
-deals = 5
+deals = 13
 
 [sub_resource type="Resource" id="Resource_coin"]
 script = ExtResource("2_entry")
 item = &"glt_hoard_coin"
 from_floor = 1
-deals = 5
+deals = 13
 
 [sub_resource type="Resource" id="Resource_torc"]
 script = ExtResource("2_entry")
 item = &"glt_gilded_torc"
 from_floor = 1
-deals = 5
+deals = 13
 
 [sub_resource type="Resource" id="Resource_altar"]
 script = ExtResource("2_entry")
 item = &"glt_altar_plate"
 from_floor = 2
-deals = 5
+deals = 13
 
 [sub_resource type="Resource" id="Resource_regin"]
 script = ExtResource("2_entry")

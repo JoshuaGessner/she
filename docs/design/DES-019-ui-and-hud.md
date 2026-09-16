@@ -111,6 +111,8 @@ Three compact frames: name, class, health, downed/Vörðr state, and a **small C
 Interaction prompts, contract updates, the ping wheel (`DES-012`), a reticle **only when a ranged weapon is drawn**.
 
 > **Contract updates, built by ADR-241.** The arrival brief names each contract on the floor below its own lines — *the Lodge's cairn is ahead and left, near* — with bearings in words and never a number, and a contract met mid-floor is said once in the same fading form. No persistent quest list: `DES-019` is hostile to one, and the board at the fire is where the work is read in full.
+>
+> **Whispers, built by ADR-242**, use the same fading form: a barrow that wakes says which way it lies *from where the reader is facing*, then that it is closing, then that it has shut. A barrow found already spent on a resumed floor says nothing.
 
 ## Rules
 

@@ -47,6 +47,8 @@ Discovered mid-descent. Short, sharp, expiring: a sealed door needing a key you 
 
 **Whispers are the "one more room" engine.** They should fire *precisely* when the player has decided to leave. That's not accidental — it's the design job of this tier.
 
+> **Tier 3 built by ADR-242 (`M4-T04`) as one whisper, the barrow, by the developer's calls.** Every floor keeps a grave sealed under a low capstone in a room already walked through, about two rooms short of the Shaft and never in a room the floor otherwise claims. **The first time anybody comes within 10 m ⟨tune⟩ of the Shaft** — the decision to leave, made visible — it grinds open on one glitter of the floor's deepest band, lit gold, and says which way it lies. **Loud, and it shuts:** the grind is laid in the Clamor field where the barrow is, so the Gold-Sick walk towards what you would walk back for; after 90 s ⟨tune⟩ it shuts on whatever it still holds, having warned for the last 15 ⟨tune⟩. Once a floor, spent on a resumed one. The find is the world's, so the host lays and frees it and every peer sees the same barrow — unlike a contract, a whisper is the party's. The sealed door, the dead Bound's unfinished work and the Hunt-only barrow above are absent.
+
 ## Factions
 
 Three, each wanting a different behaviour from the player, so faction choice implies playstyle:

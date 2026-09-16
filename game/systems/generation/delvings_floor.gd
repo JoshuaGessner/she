@@ -41,6 +41,9 @@ const LOOT: LootTable = preload("res://data/loot/lut_delvings.tres")
 
 ## `TEC-007` step 7, population: the stage this draws its one choice from.
 const STAGE: int = 7
+## The barrow's draw (ADR-242), outside the pipeline's 1–8 like
+## `FloorAnchors.STAGE`, so it shares no stream with any stage.
+const BARROW_STAGE: int = 11
 
 ## **Who stands where** (ADR-237): the Delvings' archetypes by room and depth.
 ## The Deep reads the same file, as floor one.
@@ -218,6 +221,43 @@ func prize() -> Vector3:
 
 func survey_point() -> Vector3:
 	return _anchors.survey()
+
+
+func barrow() -> Array:
+	var find: ItemResource = barrow_item()
+	if find == null:
+		return []
+	return [find.id, _anchors.barrow()]
+
+
+## Rooms between the rooms two points stand in, or -1 — for the probe that asks
+## whether the barrow lies behind you (ADR-242).
+func hops_between(a: Vector3, b: Vector3) -> int:
+	var from: int = room_at(a)
+	var to: int = room_at(b)
+	if from < 0 or to < 0:
+		return -1
+	return _anchors.hops(from, to)
+
+
+## **What the barrow opens on** (ADR-242): a glitter of the deepest band this
+## floor opens that a table lets a barrow hold, drawn by the seed like the
+## Prize — so the whisper is worth what the floor is, and one seed tempts every
+## machine with the same thing.
+func barrow_item() -> ItemResource:
+	var deepest: int = -1
+	for entry: LootEntry in LOOT.entries:
+		if entry.can(LootEntry.Deal.BARROW) and entry.from_floor <= _depth:
+			deepest = maxi(deepest, entry.from_floor)
+	var candidates: Array[ItemResource] = []
+	for item: ItemResource in LOOT.items_at(_depth, LootEntry.Deal.BARROW):
+		if LOOT.entry_for(item.id).from_floor == deepest:
+			candidates.append(item)
+	if candidates.is_empty():
+		return null
+	var pick: int = MissionGraph._mix(
+		MissionGraph.stage_seed(_seed, _depth) + BARROW_STAGE)
+	return candidates[posmod(pick, candidates.size())]
 
 
 func hunter() -> Vector3:

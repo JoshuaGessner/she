@@ -67,6 +67,10 @@ func survey_point() -> Vector3:
 	return RoomSet.SURVEY_AT
 
 
+func barrow() -> Array:
+	return RoomSet.BARROW
+
+
 func fixtures() -> Array:
 	return RoomSet.FIXTURES
 

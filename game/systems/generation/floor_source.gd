@@ -115,6 +115,12 @@ extends RefCounted
 @abstract func survey_point() -> Vector3
 
 
+## **The floor's barrow** (`M4-T04`, ADR-242): `[item id, position]` — what it
+## opens on and where it lies, in a room already walked through a little way
+## back from the Shaft. Sealed until somebody reaches the way on.
+@abstract func barrow() -> Array
+
+
 ## **What the Guardian sits on** (ADR-241), for the Retrieve contract: the
 ## fixture laid at `prize()`, or nothing if the floor lays none there.
 func prize_id() -> StringName:

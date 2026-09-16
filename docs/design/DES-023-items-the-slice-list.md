@@ -4,7 +4,7 @@ title: Items — the Slice's List
 status: accepted
 owner: design
 tags: [items, loot, gear, weapons, armour, consumables, taxonomy]
-updated: 2026-09-15
+updated: 2026-09-16
 related: [DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004]
 ---
 
@@ -129,6 +129,7 @@ A floor dealt its loot from **the entire item folder**, sorted by worth and cut 
 | **Machine gear** | Gear and consumables by depth band — never glitter | A fixture: the decision a situation poses must exist solo (ADR-192) |
 | **Vista bait** | The cheapest glitter the depth holds | ADR-215, unchanged |
 | **Filler** | Glitter, bindings, bog iron | Party-scaled, dearest into the rooms that cost the most to reach (ADR-032) |
+| **The barrow** | One glitter of the deepest band the floor opens — the bead, then the gem, coin or torc, then the altar-plate — by the seed | ADR-242: laid when the barrow wakes, freed if it is still there when it shuts. Glitter only, which `LootTable.validate` enforces: the whisper is greed's |
 | **Never on a floor** | The Ember, a second Waystone | `DES-012`, ADR-015 |
 
 **Depth bands**, as the *Source* column above lists them: floor 0 is light gear and the bead, so its best find stays in single figures as ADR-193 measured it; floor 1 opens the hammer, the axe, the shield, the frame, the helm, the bracers, the rune, and the coin, the gem and the torc; floor 2 holds plate, both relics, the altar-plate and the coin-chest. The climb ADR-193 measured — 6 → 55 → 140 — becomes roughly 6 → 70 → 220, and **that is an economy change `GATE M4 GREED` has to be run against**, not a number to trust from here. *Measured by ADR-226 with the chest and the pelt in: the best find climbs 8 → 70 → 220 over forty seeds, floor 2 lays 15% more tribute than before, and its four Prizes are guarded 9, 9, 10 and 12 times in forty.* The bands are the greed gradient `DES-015` Layer 4 asks for, authored instead of cut — ⟨tune⟩.

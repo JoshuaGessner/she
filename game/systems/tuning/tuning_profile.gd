@@ -148,6 +148,20 @@ extends Resource
 ## limp without its pace or its breath.
 @export var scarred_leg_clamor_multiplier: float = 1.25
 
+@export_group("Barrow")
+## **How near the way on a body must come to wake the floor's barrow** ⟨tune⟩
+## (`M4-T04`, ADR-242). `DES-007` wants a whisper to fire when the player has
+## decided to leave, and walking up to the Shaft is that decision made visible.
+@export var barrow_wake_reach: float = 10.0
+## Seconds a woken barrow stays open ⟨tune⟩ — long enough to walk two rooms back
+## and take what is in it, short enough that it is a choice made now.
+@export var barrow_open_seconds: float = 90.0
+## Seconds before it shuts that it starts to close, and says so ⟨tune⟩.
+@export var barrow_warning_seconds: float = 15.0
+## Clamor per second while it grinds open ⟨tune⟩: the price, laid where the
+## prize is, so the Gold-Sick walk towards what you would walk back for.
+@export var barrow_grind_clamor: float = 24.0
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a
@@ -866,6 +880,15 @@ func validate() -> PackedStringArray:
 	if scarred_leg_clamor_multiplier < 1.0 or scarred_leg_clamor_multiplier > gashed_leg_clamor_multiplier:
 		problems.append("scarred_leg_clamor_multiplier is %.2f — a Scar is louder than a whole leg and milder than the gash it was"
 			% scarred_leg_clamor_multiplier)
+	if barrow_wake_reach <= 0.0:
+		problems.append("barrow_wake_reach is %.1f — a barrow nobody can wake is no whisper at all"
+			% barrow_wake_reach)
+	if barrow_warning_seconds <= 0.0 or barrow_warning_seconds >= barrow_open_seconds:
+		problems.append("barrow_warning_seconds is %.1f of %.1f open — a barrow has to be open before it closes, and say so before it shuts"
+			% [barrow_warning_seconds, barrow_open_seconds])
+	if barrow_grind_clamor <= 0.0:
+		problems.append("barrow_grind_clamor is %.1f — a barrow that opens in silence costs nothing to go back for"
+			% barrow_grind_clamor)
 	if heavy_block_stamina_multiplier < 1.0:
 		problems.append("heavy_block_stamina_multiplier is %.2f — a heavy blow cannot be cheaper to take than a cut"
 			% heavy_block_stamina_multiplier)

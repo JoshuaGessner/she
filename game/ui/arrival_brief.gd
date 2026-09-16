@@ -26,6 +26,8 @@ extends Control
 
 const HOLD_SECONDS: float = 4.5   # ⟨tune⟩
 const FADE_SECONDS: float = 1.2   # ⟨tune⟩
+## Metres past which a bearing says *far* ⟨tune⟩ (ADR-241).
+const FAR: float = 24.0
 
 var _lines: VBoxContainer
 var _elapsed: float = 0.0
@@ -92,6 +94,20 @@ func _ready() -> void:
 		_line("she was not paid — the Hunt began without you", MenuStyle.BODY_WARM)
 	for note: String in notes:
 		_line(note, MenuStyle.BODY_TEXT)
+
+
+## **Which way, in words a body can use** (ADR-241): eight directions and near
+## or far, never a number — the Ear's rule that a readout reports and never
+## aims. `facing` is the body's yaw; an arriving party faces −Z, which is 0.
+## A notice mid-floor turns with whoever reads it (ADR-242).
+static func bearing(from: Vector3, to: Vector3, facing: float = 0.0) -> String:
+	var offset: Vector3 = to - from
+	offset.y = 0.0
+	var turn: float = atan2(offset.x, -offset.z) + facing
+	var names: Array[String] = ["ahead", "ahead and right", "right", "behind and right",
+		"behind", "behind and left", "left", "ahead and left"]
+	var sector: int = posmod(int(round(turn / (TAU / 8.0))), 8)
+	return "%s, %s" % [names[sector], "far" if offset.length() >= FAR else "near"]
 
 
 func _line(text: String, role: StringName) -> void:

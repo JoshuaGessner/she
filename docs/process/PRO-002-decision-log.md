@@ -8891,5 +8891,51 @@ Complications, party contracts, and Escort, Denial and Rival — each needs a ru
 - **Trust takes a new life three met contracts to open the second floor's work** ⟨tune⟩. Whether that reads as a through-line or a grind is for play.
 - `M4-T04` stays open for whispers and pacts.
 
+---
+
+## ADR-242 — A barrow opens behind you when you reach the way on, loudly, and shuts on what it still holds
+
+**Date:** 2026-09-16 · **Status:** accepted · **Advances `M4-T04`** · **Builds `DES-007`'s tier 3** · **Fixes an ADR-241 placement**
+
+**Context:** `DES-007` gives whispers one design job — *fire precisely when the player has decided to leave* — and calls them the "one more room" engine. The run already asks when to leave; nothing on a floor asked it back at the moment of leaving. `GATE M4 GREED` wants a tester to abandon loot to survive and talk about it, and until now that could only happen by accident.
+
+### Decision — the developer's three calls
+
+- **A barrow opens behind you**, over a dead Bound's unfinished work (a Lodge job found in-run, which changes a route early rather than tempting you back from the door) and over both. Dead Cells' timed doors are the reference: a real prize, a real clock, and the only way to it is back. About a week, as costed.
+- **Loud, and it shuts**, over a quiet timer (going back is only a walk, so the answer is nearly always yes) and over loud but open until the floor is left (loses *short, sharp, expiring*). The grind is laid in the Clamor field where the barrow is, so the Gold-Sick walk towards what you would walk back for, and the clock stops a party waiting the Hunt out.
+- **Pacts: a named glitter opens her loudest nodes** — decided in the same exchange and built by the next ADR.
+
+### What was built
+
+- **`Barrow`** (`actors/barrow.gd`): a capstone 0.14 m high over a dark pit, with no collision, like the Shaft and the cairn. Nobody stands inside it when it shuts, so ADR-015's no-trapping rule holds by construction. Its one replicated value is `state` — sealed, open, closing, shut, or **spent** (shut and found that way on a resumed floor). Built on every peer at one path, like the Shaft; waking it, laying and freeing its find and counting it down are the host's, and every peer draws the slab, the gold light and the sound from the state.
+- **Where it lies** (`FloorAnchors.barrow`): the room scoring best on *hops off the entrance-to-Shaft route* plus *distance from `BARROW_HOPS` = 2 rooms short of the Shaft* ⟨tune⟩, with **each room nearer than that costing ten** — a side room two back beats a route room one back, because one room from the Shaft is no turning back at all. Never the entrance, the Prize, the Shaft, the Hunter's or the Lodge cairn's room, never a crawl. Scored rather than searched, so every floor has one. The Deep's is hand-placed in the east corridor, holding a torc.
+- **What it holds** (`DelvingsFloor.barrow_item`): one glitter of the deepest band the floor opens that the table marks **Barrow** — a new `LootEntry.Deal` flag — drawn by the seed as the Prize is. `LootTable.validate` refuses a barrow find that does not glitter, and `data_probe` refuses a table that leaves any depth nothing to bury.
+- **When it wakes:** the first standing body within `barrow_wake_reach` (10 m ⟨tune⟩) of the Shaft — on the bottom floor, the Deep Gate's mechanism. It grinds for 2.5 s at `barrow_grind_clamor` (24 a second ⟨tune⟩), stays open `barrow_open_seconds` (90 ⟨tune⟩), gutters for the last `barrow_warning_seconds` (15 ⟨tune⟩), then shuts and the host frees the find if it is still lying there. Once a floor. `RunFile` keeps `barrow` per floor, beside `stripped`, so a quit cannot re-seal it.
+- **Said, three ways** (`DES-018`): the grind carries 70 m; a gold light shows while it is open; and a fading notice says *stone grinds open behind, near — a barrow, and it will not stay open* in words that turn with the body reading it, then *the barrow is closing*, then *the barrow has shut*. `ArrivalBrief.bearing` took the Lodge's bearing helper and a `facing`, because a notice mid-floor is read facing anywhere.
+- **The party's, not a player's.** Unlike a contract, a barrow is the world's, so every peer sees the same one and whoever reaches it first takes the find.
+
+### Found on the way
+
+**The Deep's Lodge cairn stood inside the west barricade** for all of ADR-241: `SURVEY_AT` was the barricade landmark's own coordinate, and nothing asked whether a body could stand at a thing with no collision. It moved to the room's north end, and `--sight-probe`'s body check now holds the cairn and the barrow; planting the old coordinate fails it.
+
+### Absent, not stubbed
+
+The sealed door that needs a key, the dead Bound's unfinished work, and the barrow that opens only during the Hunt. Barrows on the Barrow-Fields are the biome's, not this.
+
+### Verification
+
+`--barrow-probe`, new, on the Deep: **a step short of the reach** (11.5 m) the barrow stays sealed, lays nothing and writes nothing, and the Hunter, on a floor silenced first, drifts 0.97 m in 1.5 s; **at the way on** (8 m) it opens on the torc, lit, the field at it 0 → 5.6 and the run file says so; **said** *behind* facing into the floor and *ahead* turned round; **the grind** is the loudest thing on the floor, 0.6 m from the barrow, and the Hunter covers 3.20 m towards it in 1.5 s; **its time** — it closes with the find still in it, then shuts, the find freed and the light out, drawn OPEN, CLOSING, SHUT in that order, and both late notices say something; **back at the way on** it stays shut and lays nothing; **taken in time** a torc picked up before the shut stays in the bag; **resumed** it is spent, says nothing, lays nothing, and the floor below remembers no barrow. **Ninety generated floors** keep one each, in a room nothing else claims, of their band's glitter — the bead on floor 0, the gem, coin or torc on floor 1, the altar-plate on floor 2 — between 12.4 and 84.5 m from the Shaft (median 27.7), never within the wake; **86 lie exactly two rooms back and 4 three**, none nearer, and 13 of 90 are one room aside of the way — the rule's answer when the way holds no free room — with none further; **nine built floors** let a body stand at all eighteen barrow and cairn spots. `--barrow-shot` photographs the open barrow from where a body that walked back stands: the slab aside, the torc in the pit under the gold light, *stone grinds open ahead, near*. `--sight-probe` holds 0 of 22 authored spots blocked. The contract, data, exit, descent, scaling, route, prize, toll, HUD, Delvings, ember, machine and save probes all pass with a barrow on every floor.
+
+**Planted and failed, one plant per run — all thirty-one**: a barrow woken from anywhere, one that never wakes, one that opens on nothing, a run file that forgets it woke, a resumed floor that seals it again, a silent grind, a barrow that never shuts, never warns, or shuts and leaves its find, one that opens twice and a spent one that wakes, a reseal that does not, no light, a light left on, nothing drawn from the state, a spent barrow announced, a closing one that says nothing, words that never turn, a floor below that inherits the barrow, a barrow in a claimed room, beside the Shaft, three back, off the way, a nearer room scored no worse than one aside, a shallower band's find, the Deep's cairn back in the barricade, the Deep's barrow under the pillar (in the sight probe and in its own), a barrow of iron, a first floor with nothing to bury, a warning longer than the barrow is open, and a barrow nobody can wake.
+
+**Two plants passed first, and each was a question the probe had not asked.** *Beside the Shaft* and *off the way* changed where barrows lie, and the probe checked only that they were not in a claimed room and not within the wake — true of both. It now measures, per floor, the rooms back and the rooms aside. Measuring found the rule itself wrong on six floors in ninety, which chose a route room one back over a side room two back; the nearer-room cost is that fix. A third plant missed its anchor because the probe writes the same line.
+
+### Consequences
+
+- **Every floor now asks the greed question at the door**, on purpose, and it is loud: `GATE M4 GREED` has something to observe that is not an accident.
+- **The Hunter's route on the way out changes**: a party at the Shaft has just called it towards the barrow, which is behind them. Whether that reads as a gift or a trap is for play.
+- **The altar-plate is floor 2's only barrow find** — 16 kg, which is a question of its own.
+- `M4-T04` stays open for pacts.
+
 *Entries below to be added as design decisions are signed off.*
 

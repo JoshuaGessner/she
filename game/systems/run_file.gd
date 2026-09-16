@@ -212,6 +212,7 @@ static func begin(class_id: StringName, rank: int, seed: int) -> void:
 		"retrieve": {},
 		"plan": false,
 		"stripped": false,
+		"barrow": false,
 	})
 
 
@@ -228,7 +229,7 @@ static func descend() -> int:
 	if run.is_empty():
 		return 0
 	var next: int = clampi(int(run.get("floor", 0)) + 1, 0, LAST_FLOOR)
-	note({"floor": next, "stripped": false})
+	note({"floor": next, "stripped": false, "barrow": false})
 	return next
 
 
@@ -319,6 +320,14 @@ static func expected() -> Dictionary:
 ## Whether the Lodge's plans came down with this run (`FavourResource.PLAN`).
 static func planned() -> bool:
 	return bool(read().get("plan", false))
+
+
+## **Whether this floor's barrow has woken** (`M4-T04`, ADR-242). Per floor like
+## `stripped`, and for its reason: a run quit and resumed after the barrow
+## opened must not find it sealed and full again. A file from before barrows
+## says no, which is true of it.
+static func barrow_woke() -> bool:
+	return bool(read().get("barrow", false))
 
 
 ## How old the Hunt already is. ADR-037: *"the Hunt persists across floors.

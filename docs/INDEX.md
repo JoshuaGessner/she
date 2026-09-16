@@ -30,11 +30,11 @@ _What the game is._
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-13 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
-| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-06 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
+| `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-16 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
 | `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-09-16 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-09-13 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
-| `DES-023` | [Items — the Slice's List](design/DES-023-items-the-slice-list.md) | ✔ accepted | 2026-09-15 | DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004 |
+| `DES-023` | [Items — the Slice's List](design/DES-023-items-the-slice-list.md) | ✔ accepted | 2026-09-16 | DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004 |
 
 ## Technical
 

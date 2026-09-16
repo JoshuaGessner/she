@@ -479,9 +479,15 @@ const HOST_PEER: int = 1
 ## consequence recorded in ADR-089, not a design change.
 const HUNTER_POST: Vector3 = Vector3(21.0, 0.1, -25.0)
 ## **Where the Lodge's cairn stands on the Deep** (ADR-241): the west branch,
-## the one room the Deep lays nothing in, so a Survey here is a detour and
-## nothing else.
-const SURVEY_AT: Vector3 = Vector3(-9.0, 0.1, -10.0)
+## the bypass, so a Survey here is a detour and nothing else. At the room's
+## north end, clear of the barricade — it stood inside it at `(-9, -10)` until
+## ADR-242 added it to the sight probe's body check.
+const SURVEY_AT: Vector3 = Vector3(-8.4, 0.1, -15.6)
+## **The Deep's barrow** (`M4-T04`, ADR-242): `[item, position]`. In the east
+## corridor, two rooms back from the Shaft on the way the held route comes, and
+## not the west, which keeps the cairn — so the walk back to it is past the
+## posts. A torc, because the Deep stands in for floor one.
+const BARROW: Array = [&"glt_gilded_torc", Vector3(11.0, 0.1, -3.6)]
 
 ## The field's footprint, a little wider than the room bounds so a doorway on
 ## the outer wall still has a cell on both sides of it.
@@ -524,6 +530,8 @@ var _wound_marks: WoundMarks = null
 var _hud: CanvasLayer = null
 ## This floor's contracts (`M4-T04`, ADR-241). Rebuilt with the floor.
 var _ledger: ContractLedger = null
+## This floor's barrow (`M4-T04`, ADR-242), or null on a floor that has none.
+var _barrow: Barrow = null
 var _navigation: NavigationRegion3D = null
 ## The floor's own `Environment`, kept so `--light-shot` can sweep the ambient
 ## energy without rebuilding the level between exposures (`M4-T13`).
@@ -746,6 +754,7 @@ func _ready() -> void:
 	GameState.settle_cycle()
 	_build_hunt()
 	_build_shaft()
+	_build_barrow()
 	var overlays := DebugOverlays.new()
 	_world.add_child(overlays)
 	overlays.show_field(_field)
@@ -869,6 +878,10 @@ func _ready() -> void:
 			_life_scar_probe()
 		elif arg == "--contract-probe":
 			_contract_probe()
+		elif arg == "--barrow-probe":
+			_barrow_probe()
+		elif arg.begins_with("--barrow-shot="):
+			_barrow_shot(arg.split("=", true, 1)[1])
 		elif arg == "--rank-probe":
 			_rank_probe()
 		elif arg == "--scaling-probe":
@@ -7382,6 +7395,85 @@ func _light_what_is_under(at: Vector3) -> void:
 func _physics_process(delta: float) -> void:
 	if _shaft != null:
 		_shaft.advance(delta)
+	# **The barrow wakes when somebody reaches the way on** (ADR-242), and the
+	# level decides it because the level knows where the way on is.
+	if _barrow != null and multiplayer.is_server():
+		_barrow.advance(delta)
+		if _barrow.is_sealed() and _someone_at_the_way_on():
+			_wake_the_barrow()
+
+
+## **The barrow behind you** (`M4-T04`, ADR-242, `DES-007` tier 3).
+##
+## Built on every peer at one path, like the Shaft, because it is the floor's
+## and never moves; what it does is the host's. A floor resumed after its barrow
+## woke finds it spent, for `stripped`'s reason: quitting must not re-seal it.
+func _build_barrow() -> void:
+	var row: Array = _floor.barrow()
+	if row.is_empty():
+		return
+	_barrow = Barrow.new()
+	_barrow.name = "Barrow"
+	_barrow.position = row[1] as Vector3
+	_barrow.configure_replication()
+	_world.add_child(_barrow)
+	_barrow.changed.connect(_on_barrow_changed)
+	if not multiplayer.is_server():
+		return
+	_barrow.hear_with(_field)
+	# A probe measures the floor as built, never as resumed (`M3-T15`).
+	if not _probing:
+		_settle_the_barrow()
+
+
+## Host: a floor whose barrow the run file says already woke keeps it spent.
+func _settle_the_barrow() -> void:
+	if _barrow != null and RunFile.barrow_woke():
+		_barrow.spend()
+
+
+## A standing body within `barrow_wake_reach` of the Shaft. A spent body lying
+## there has decided nothing.
+func _someone_at_the_way_on() -> bool:
+	var reach: float = Config.tuning.barrow_wake_reach
+	for player: Player in _session.players():
+		if player.spent:
+			continue
+		var offset: Vector3 = player.global_position - _floor.shaft()
+		offset.y = 0.0
+		if offset.length() <= reach:
+			return true
+	return false
+
+
+## Host: lay the find, open the slab, and write it down so a resumed floor
+## remembers.
+func _wake_the_barrow() -> void:
+	var row: Array = _floor.barrow()
+	var find: WorldItem = _session.spawn_world_item(row[0] as StringName,
+		row[1] as Vector3)
+	_barrow.open(find)
+	RunFile.note({"barrow": true})
+	print("[barrow] floor %d woke — %s lies open at %.0f, %.0f for %.0f s" % [
+		_floor_index, row[0], (row[1] as Vector3).x, (row[1] as Vector3).z,
+		Config.tuning.barrow_open_seconds])
+
+
+## Every peer says what its barrow did, from where its own body stands.
+func _on_barrow_changed(now: int) -> void:
+	if _probing or _hud == null or _barrow == null:
+		return
+	var body: Player = _session.local_player()
+	if body == null:
+		return
+	var told: String = Barrow.said(now, body.global_position, body.rotation.y,
+		_barrow.global_position)
+	if told.is_empty():
+		return
+	var notice := ArrivalBrief.new()
+	notice.notice = true
+	notice.notes = PackedStringArray([told])
+	_hud.add_child(notice)
 
 
 func _watch(player: Player) -> void:
@@ -8083,6 +8175,8 @@ func _reset_floor() -> void:
 	_borne_out.clear()
 	_wounds_out.clear()
 	_open_the_ledger()
+	if _barrow != null:
+		_barrow.reseal()
 	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
 		node.queue_free()
 	_session.clear_enemies()
@@ -8370,8 +8464,12 @@ func _sight_probe() -> void:
 	# disagree with the shape. A sphere the size of a body, dropped at every
 	# authored position, asks the only question that matters — *can anything
 	# stand here?* — and it asks the geometry rather than the intent.
+	# The cairn and the barrow have no collision, and are here for the same
+	# reason as everything else: a body has to be able to stand at them. The
+	# cairn stood inside the barricade for all of ADR-241 because it was not.
 	var occupied: Dictionary = {"the Shaft": SHAFT_AT, "the Hunter": HUNTER_POST,
-		"the Guardian": GUARDIAN_POST, "the Prize": PRIZE_AT}
+		"the Guardian": GUARDIAN_POST, "the Prize": PRIZE_AT,
+		"the Lodge's cairn": SURVEY_AT, "the barrow": BARROW[1] as Vector3}
 	for index: int in range(ENEMY_POSTS.size()):
 		occupied["enemy post %d" % index] = ENEMY_POSTS[index]
 	for index: int in range(SPAWNS.size()):
@@ -13286,6 +13384,344 @@ func _contract_probe() -> void:
 	_session.clear_enemies()
 	print("[contract] the Lodge's work is set out on its floor, and heard at the end of the run")
 	_report(problems, "contract")
+
+
+## Where `--barrow-probe` stands a body, `metres` from the Shaft, in the Deep's
+## junction: along the line from the Shaft towards the east door, which stays
+## inside the room for any reach the probe asks about at the default tuning.
+func _toward_the_barrow(metres: float) -> Vector3:
+	var along: Vector3 = (Vector3(8.0, 0.0, -20.7) - SHAFT_AT)
+	along.y = 0.0
+	return SHAFT_AT + along.normalized() * metres + Vector3(0.0, 0.1, 0.0)
+
+
+## **`--barrow-shot=PATH`** (ADR-242): the Deep's barrow open, from where a body
+## that walked back for it stands, with the words that body is given. A slab, a
+## pit and a light are a claim about seeing (ADR-093).
+func _barrow_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var at: Vector3 = BARROW[1] as Vector3
+	player.teleport(_toward_the_barrow(Config.tuning.barrow_wake_reach - 2.0), 0.0)
+	await _hold(0.5)
+	var stand: Vector3 = at + Vector3(-3.6, 0.0, -1.2)
+	var look: Vector3 = at - stand
+	player.teleport(stand, atan2(-look.x, -look.z))
+	await _hold(Barrow.GRIND_SECONDS + 0.4)
+	var notice := ArrivalBrief.new()
+	notice.notice = true
+	notice.notes = PackedStringArray([Barrow.said(Barrow.State.OPEN, stand,
+		player.rotation.y, at)])
+	_hud.add_child(notice)
+	await _hold(0.3)
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	print("[barrow] open, photographed — %s" % path.get_file())
+	get_tree().quit()
+
+
+## **`--barrow-probe`** (`M4-T04`, ADR-242, `DES-007` tier 3). The barrow sleeps
+## until somebody reaches the way on, and not a step before; wakes loud on its
+## find and says where; turns the Hunter; warns, then shuts on what it still
+## holds; opens once a floor; lets a find taken in time be carried; lies spent
+## on a resumed floor; and every generated floor keeps one — its band's
+## glitter, in a room nothing else claims, past the wake, where a body can
+## stand.
+func _barrow_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var tuning: TuningProfile = Config.tuning
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	if RunFile.PATH == "user://run.active":
+		printerr("[barrow] FAIL this probe is pointed at the player's run file")
+		get_tree().quit(1)
+		return
+	RunFile.clear()
+	RunFile.begin(&"huskarl", 1, 31346)
+	if _barrow == null or _hunter == null or player == null:
+		problems.append("the Deep built no barrow, or no Hunter to hear it, or no body")
+		_report(problems, "barrow")
+		return
+	var at: Vector3 = BARROW[1] as Vector3
+	var seen: Array[int] = []
+	_barrow.changed.connect(func(now: int) -> void: seen.append(now))
+	var short: Vector3 = _toward_the_barrow(tuning.barrow_wake_reach + 1.5)
+	var near: Vector3 = _toward_the_barrow(tuning.barrow_wake_reach - 2.0)
+
+	# ─ 1. sealed and empty, and a step short of the way on wakes nothing ─
+	#
+	# **A silent floor first**, so the Hunter's quiet reading is a control: the
+	# party arrived by the entrance, and the entrance lies past the barrow from
+	# the Hunter's room — so a Hunter still walking to the arrival would read as
+	# drawn to a barrow that had not made a sound.
+	player.teleport(short, 0.0)
+	player.clamor.silence()
+	var heard_area: AABB = _floor.field()
+	_field.configure(heard_area.position, heard_area.end)
+	_hunter.global_position = HUNTER_POST
+	await _hold(0.5)
+	var hunter_from: Vector3 = _hunter.global_position
+	await _hold(1.5)
+	var drift: float = hunter_from.distance_to(at) - _hunter.global_position.distance_to(at)
+	var short_laid: bool = WorldItem.nearest(self, at, 0.6) != null
+	var stands: bool = _open_floor_at(at)
+	print("[barrow] a step short     %s, a find laid %s, the Hunter drew %.2f m nearer, a body can stand at it %s (want SEALED, no, a control, yes)"
+		% [Barrow.State.keys()[_barrow.state], short_laid, drift, stands])
+	if not _barrow.is_sealed() or short_laid or RunFile.barrow_woke():
+		problems.append("the barrow woke, or held something, before anybody reached the way on")
+	if not stands:
+		problems.append("nobody can stand at the Deep's barrow")
+
+	# ─ 2. at the way on it wakes: open, on its find, loud where it lies ─
+	var heard_before: float = _field.level_at(at)
+	hunter_from = _hunter.global_position
+	player.teleport(near, 0.0)
+	await _hold(0.4)
+	var laid: WorldItem = _barrow.find()
+	var laid_id: StringName = laid.item_id if laid != null else &""
+	var laid_off: float = laid.global_position.distance_to(at) if laid != null else INF
+	var heard: float = _field.level_at(at)
+	var glow := _barrow.get_node_or_null("Glow") as OmniLight3D
+	var lit: bool = glow != null and glow.visible
+	print("[barrow] at the way on    %s on %s %.2f m from it, lit %s, the field there %.1f -> %.1f, written down %s (want OPEN, %s, 0, yes, louder, yes)"
+		% [Barrow.State.keys()[_barrow.state], laid_id, laid_off, lit, heard_before, heard,
+			RunFile.barrow_woke(), BARROW[0]])
+	if not _barrow.is_open() or laid_id != BARROW[0] or laid_off > 0.5:
+		problems.append("reaching the way on did not open the barrow on its find")
+	if not lit:
+		problems.append("a woken barrow shows no gold light")
+	if heard < heard_before + 1.0:
+		problems.append("the barrow opened in silence — going back for it costs nothing")
+	if not RunFile.barrow_woke():
+		problems.append("the run file forgot the barrow woke, so a resumed floor would seal it again")
+
+	# ─ 3. said in words, which turn with the body ─
+	var told: String = Barrow.said(Barrow.State.OPEN, player.global_position, 0.0, at)
+	var turned: String = Barrow.said(Barrow.State.OPEN, player.global_position, PI, at)
+	print("[barrow] said             '%s'; turned round, '%s' (want behind, then ahead)" % [told, turned])
+	if not told.contains("grinds open") or not told.contains("behind") \
+			or not turned.contains("ahead"):
+		problems.append("the barrow's notice did not say which way it lies from the body reading it")
+
+	# ─ 4. the grind turns the Hunter ─
+	await _hold(1.1)
+	var loudest: Vector2i = _field.loudest()
+	var loudest_off: float = INF
+	if loudest.x >= 0:
+		var centre: Vector3 = _field.cell_centre(loudest.x, loudest.y)
+		loudest_off = Vector2(centre.x - at.x, centre.z - at.z).length()
+	var drawn: float = hunter_from.distance_to(at) - _hunter.global_position.distance_to(at)
+	print("[barrow] the grind heard  the floor is loudest %.1f m from it; the Hunter drew %.2f m nearer in 1.5 s, against %.2f m in 1.5 s of quiet (want < 2, > 1.5, a metre more than quiet)"
+		% [loudest_off, drawn, drift])
+	if loudest_off > ClamorField.CELL_METRES * 1.5:
+		problems.append("the grind is not the loudest thing on the floor — the Gold-Sick follow the loudest")
+	if drawn < 1.5 or drawn < drift + 1.0:
+		problems.append("the Gold-Sick did not turn towards the grind — the barrow is a prize with no price")
+	# Parked, so nothing it does from here is about the barrow.
+	_hunter.global_position = HUNTER_POST
+	_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+
+	# ─ 5. it warns, then shuts on what it still holds ─
+	_barrow.advance(_barrow.seconds_left() - tuning.barrow_warning_seconds + 0.05)
+	await _hold(0.15)
+	var warned: bool = _barrow.state == Barrow.State.CLOSING
+	var still_there: bool = _barrow.find() != null
+	_barrow.advance(tuning.barrow_warning_seconds)
+	await _hold(0.25)
+	var gone: bool = not is_instance_valid(laid) or laid.is_queued_for_deletion()
+	var dark: bool = glow == null or not glow.visible
+	var heard_states: PackedStringArray = PackedStringArray()
+	for state: int in seen:
+		heard_states.append(Barrow.State.keys()[state])
+	print("[barrow] its time runs out closing %s with the find in it %s, then %s, the find gone %s, dark %s, drawn %s (want yes, yes, SHUT, yes, yes, OPEN CLOSING SHUT)"
+		% [warned, still_there, Barrow.State.keys()[_barrow.state], gone, dark,
+			" ".join(heard_states)])
+	if not warned or not still_there:
+		problems.append("the barrow never warned before it shut")
+	if _barrow.state != Barrow.State.SHUT or not gone:
+		problems.append("the barrow's time ran out and it kept its find, or stayed open")
+	if not dark:
+		problems.append("a shut barrow still shows its light")
+	if seen != [Barrow.State.OPEN, Barrow.State.CLOSING, Barrow.State.SHUT]:
+		problems.append("every peer draws the barrow from its state, and this one saw %s"
+			% " ".join(heard_states))
+	if Barrow.said(Barrow.State.CLOSING, near, 0.0, at).is_empty() \
+			or Barrow.said(Barrow.State.SHUT, near, 0.0, at).is_empty():
+		problems.append("the barrow closing or shut says nothing — the grind's twin is missing")
+
+	# ─ 6. once a floor ─
+	player.teleport(short, 0.0)
+	await _hold(0.2)
+	player.teleport(near, 0.0)
+	await _hold(0.3)
+	var twice: bool = not _barrow.is_shut() or WorldItem.nearest(self, at, 0.6) != null
+	print("[barrow] back at the way  %s, a find laid %s (want SHUT, no)"
+		% [Barrow.State.keys()[_barrow.state], twice])
+	if twice:
+		problems.append("a shut barrow opened again — a whisper a floor, not one a visit")
+
+	# ─ 7. taken in time, it is carried ─
+	_barrow.reseal()
+	player.teleport(short, 0.0)
+	await _hold(0.2)
+	player.teleport(near, 0.0)
+	await _hold(0.3)
+	var taken: WorldItem = _barrow.find()
+	player.teleport(at + Vector3(0.8, 0.1, 0.0), 0.0)
+	await _hold(0.15)
+	player.reach_for(taken)
+	await _hold(0.2)
+	_barrow.advance(tuning.barrow_open_seconds)
+	await _hold(0.2)
+	var carried: bool = false
+	for held: ItemInstance in player.inventory.items():
+		carried = carried or held.definition.id == BARROW[0]
+	print("[barrow] taken in time    %s, carried %s (want SHUT, yes)"
+		% [Barrow.State.keys()[_barrow.state], carried])
+	if not _barrow.is_shut() or not carried:
+		problems.append("a find taken before the barrow shut did not stay in the bag")
+	player.inventory.clear()
+
+	# ─ 8. a floor resumed after it woke: spent, dark, silent, and it stays so ─
+	_barrow.reseal()
+	await _hold(0.1)
+	RunFile.note({"barrow": true})
+	seen.clear()
+	_settle_the_barrow()
+	await _hold(0.2)
+	player.teleport(short, 0.0)
+	await _hold(0.2)
+	player.teleport(near, 0.0)
+	await _hold(0.3)
+	var spent_told: String = Barrow.said(Barrow.State.SPENT, near, 0.0, at)
+	var spent_laid: bool = WorldItem.nearest(self, at, 0.6) != null
+	var next_floor: int = RunFile.descend()
+	print("[barrow] resumed          %s, said '%s', a find laid %s; floor %d below remembers a barrow %s (want SPENT, nothing, no, 1, no)"
+		% [Barrow.State.keys()[_barrow.state], spent_told, spent_laid, next_floor,
+			RunFile.barrow_woke()])
+	if _barrow.state != Barrow.State.SPENT or seen != [Barrow.State.SPENT] \
+			or not spent_told.is_empty() or spent_laid:
+		problems.append("a resumed floor's barrow was not spent, quietly and for good")
+	if RunFile.barrow_woke():
+		problems.append("the floor below inherited the barrow above")
+
+	# ─ 9. every generated floor keeps one, of its band, behind the Shaft ─
+	var faults: PackedStringArray = PackedStringArray()
+	var gaps: Array[float] = []
+	var finds: Dictionary = {}
+	var back_hops: Dictionary = {}
+	var off_the_way: int = 0
+	for run_seed: int in range(1, 31):
+		for depth: int in RunFile.LAST_FLOOR + 1:
+			var made: DelvingsFloor = DelvingsFloor.of(run_seed, depth)
+			if not made.problems().is_empty():
+				continue
+			var row: Array = made.barrow()
+			if row.size() != 2:
+				faults.append("seed %d floor %d has no barrow" % [run_seed, depth])
+				continue
+			var find_id: StringName = row[0] as StringName
+			var entry: LootEntry = DelvingsFloor.LOOT.entry_for(find_id)
+			var band: int = -1
+			for other: LootEntry in DelvingsFloor.LOOT.entries:
+				if other.can(LootEntry.Deal.BARROW) and other.from_floor <= depth:
+					band = maxi(band, other.from_floor)
+			if entry == null or not entry.can(LootEntry.Deal.BARROW) or entry.from_floor != band:
+				faults.append("seed %d floor %d opens on %s, not its band's glitter"
+					% [run_seed, depth, find_id])
+			finds["%d %s" % [depth, find_id]] = true
+			var where: Vector3 = row[1] as Vector3
+			var room: int = made.room_at(where)
+			if room < 0:
+				faults.append("seed %d floor %d lays it in no room" % [run_seed, depth])
+			for claimed: Vector3 in [made.prize(), made.shaft(), made.hunter(),
+					made.spawns()[0], made.survey_point()]:
+				if made.room_at(claimed) == room:
+					faults.append("seed %d floor %d lays it in a claimed room" % [run_seed, depth])
+			# **Behind you**: `BARROW_HOPS` short of the Shaft, and on a shortest
+			# way from the arrival to it — a room the party has walked through.
+			var back: int = made.hops_between(where, made.shaft())
+			var route: int = made.hops_between(made.spawns()[0], made.shaft())
+			var detour: int = made.hops_between(made.spawns()[0], where) + back - route
+			back_hops[back] = int(back_hops.get(back, 0)) + 1
+			if back < FloorAnchors.BARROW_HOPS:
+				faults.append("seed %d floor %d lays it %d room(s) from the Shaft"
+					% [run_seed, depth, back])
+			if detour != 0:
+				off_the_way += 1
+			# One door aside is a detour of two — in, and back out.
+			if detour > 2:
+				faults.append("seed %d floor %d lays it %d hop(s) off the way"
+					% [run_seed, depth, detour])
+			var gap: float = Vector2(where.x - made.shaft().x, where.z - made.shaft().z).length()
+			gaps.append(gap)
+			if gap <= tuning.barrow_wake_reach:
+				faults.append("seed %d floor %d lays it where it wakes (%.1f m)" % [run_seed, depth, gap])
+	gaps.sort()
+	var kinds: Array = finds.keys()
+	kinds.sort()
+	print("[barrow] ninety floors    %d fault(s); %.1f to %.1f m from the Shaft, median %.1f; finds %s (want 0)"
+		% [faults.size(), gaps[0] if not gaps.is_empty() else 0.0,
+			gaps[-1] if not gaps.is_empty() else 0.0,
+			gaps[gaps.size() / 2] if not gaps.is_empty() else 0.0,
+			", ".join(PackedStringArray(kinds))])
+	var spread: PackedStringArray = PackedStringArray()
+	var counted: Array = back_hops.keys()
+	counted.sort()
+	for back: int in counted:
+		spread.append("%d back ×%d" % [back, back_hops[back]])
+	print("[barrow] behind you       %s; a room aside %d of %d (want none nearer than %d, none further aside than one, most on the way)"
+		% [", ".join(spread), off_the_way, gaps.size(), FloorAnchors.BARROW_HOPS])
+	# **A room aside is the rule's answer when the way holds nothing free**, and
+	# a side door you walked past is still behind you; most must be on the way.
+	if off_the_way * 5 > gaps.size():
+		faults.append("%d of %d barrows are off the way from the arrival to the Shaft"
+			% [off_the_way, gaps.size()])
+	# The rule aims at `BARROW_HOPS`; missing it should be the exception.
+	var exact: int = int(back_hops.get(FloorAnchors.BARROW_HOPS, 0))
+	if exact * 5 < gaps.size() * 4:
+		faults.append("only %d of %d barrows lie %d rooms back"
+			% [exact, gaps.size(), FloorAnchors.BARROW_HOPS])
+	# And one room back is no turning back, whatever the tuning says.
+	if FloorAnchors.BARROW_HOPS < 2:
+		faults.append("BARROW_HOPS is %d — a barrow beside the Shaft asks nobody to turn round"
+			% FloorAnchors.BARROW_HOPS)
+	if not faults.is_empty():
+		problems.append("the generated floors laid their barrows badly: %s" % ", ".join(faults))
+
+	# ─ 10. and a body can stand at it — and at the cairn — on the built floor ─
+	var blocked: PackedStringArray = PackedStringArray()
+	var stood: int = 0
+	for run_seed: int in [3, 17, 29]:
+		for depth: int in RunFile.LAST_FLOOR + 1:
+			var made: DelvingsFloor = DelvingsFloor.of(run_seed, depth)
+			if not made.problems().is_empty():
+				continue
+			var root := Node3D.new()
+			root.position = WALK_LIFT
+			add_child(root)
+			made.build(root)
+			await get_tree().physics_frame
+			await get_tree().physics_frame
+			var spots: Dictionary = {"barrow": made.barrow()[1] as Vector3,
+				"cairn": made.survey_point()}
+			for what: String in spots:
+				stood += 1
+				if not _open_floor_at((spots[what] as Vector3) + WALK_LIFT):
+					blocked.append("seed %d floor %d %s" % [run_seed, depth, what])
+			root.queue_free()
+			await get_tree().physics_frame
+	print("[barrow] built floors     %d of %d spots blocked (want 0)" % [blocked.size(), stood])
+	if not blocked.is_empty() or stood == 0:
+		problems.append("a barrow or cairn stands where nobody can: %s" % ", ".join(blocked))
+
+	_hunter.process_mode = Node.PROCESS_MODE_INHERIT
+	RunFile.clear()
+	print("[barrow] a barrow opens behind you, loud, and shuts on what it holds")
+	_report(problems, "barrow")
 
 
 ## A hazard laid on the Deep where a probe wants one, through the constructor the

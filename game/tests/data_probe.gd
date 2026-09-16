@@ -425,6 +425,13 @@ func _check_every_item_has_a_source() -> void:
 				% item.id)
 	print("[data] %d item(s) have a source: %d loot table(s), %d kit(s)"
 		% [_items.size(), _tables.size(), _classes.size()])
+	# **Every floor keeps a barrow** (ADR-242), so every depth needs something a
+	# barrow may hold. A table that dealt none to a depth would build that floor
+	# with no whisper and say nothing about it.
+	for table: LootTable in _tables:
+		for depth: int in RunFile.LAST_FLOOR + 1:
+			if table.items_at(depth, LootEntry.Deal.BARROW).is_empty():
+				_fail("%s gives a floor %d barrow nothing to hold" % [table.id, depth])
 
 
 ## **The tree has to be walkable** (`M3-T01`, `TEC-006`).

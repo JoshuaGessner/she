@@ -46,15 +46,22 @@ enum Sound {
 	CHANNEL,    # a Waystone or a Shaft, working
 	EMBER,      # a life on the floor
 	CLICK,      # interface
+	GRIND,      # stone dragged over stone: a barrow opening (ADR-242)
 }
+
+## How far a one-shot carries by default: roughly the Deep's scale, audible
+## across a room and gone across the floor.
+const REACH: float = 28.0
 
 static var _cache: Dictionary = {}
 
 
 ## A one-shot at a place in the world. 3D so it carries direction and distance,
 ## which is most of what makes a diegetic cue *information*.
+## `reach` is how far it carries; only a sound meant to be heard across the
+## floor passes more than `REACH`.
 static func at(where: Node3D, sound: Sound, pitch: float = 1.0,
-		volume_db: float = 0.0) -> void:
+		volume_db: float = 0.0, reach: float = REACH) -> void:
 	if where == null or not where.is_inside_tree():
 		return
 	var player := AudioStreamPlayer3D.new()
@@ -62,9 +69,8 @@ static func at(where: Node3D, sound: Sound, pitch: float = 1.0,
 	player.bus = "diegetic"
 	player.pitch_scale = clampf(pitch, 0.4, 2.4)
 	player.volume_db = volume_db
-	# Roughly the Deep's scale: audible across a room, gone across the floor.
-	player.unit_size = 6.0
-	player.max_distance = 28.0
+	player.unit_size = 6.0 * reach / REACH
+	player.max_distance = reach
 	where.add_child(player)
 	player.play()
 	player.finished.connect(player.queue_free)
@@ -113,6 +119,7 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 		Sound.CHANNEL: seconds = 0.5
 		Sound.EMBER: seconds = 0.9
 		Sound.CLICK: seconds = 0.08
+		Sound.GRIND: seconds = 1.6
 	var frames: int = int(float(RATE) * seconds)
 	var data := PackedByteArray()
 	data.resize(frames * 2)
@@ -181,6 +188,12 @@ static func _sample(sound: Sound, at_second: float, seconds: float) -> float:
 				* exp(-at_second * 2.2)
 		Sound.CLICK:
 			return _noise(at_second) * exp(-at_second * 90.0) * 0.3
+		Sound.GRIND:
+			# A slab dragged a hand's width at a time: low rumble under coarse
+			# noise, stuttering, swelling in and dying out — a weight moving.
+			var stutter: float = 0.6 + 0.4 * absf(sin(TAU * 7.0 * at_second))
+			return (sin(TAU * 52.0 * at_second) * 0.4
+				+ _noise(at_second * 0.5) * 0.45) * stutter * sin(PI * progress)
 	return 0.0
 
 

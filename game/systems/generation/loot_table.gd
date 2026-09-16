@@ -86,6 +86,10 @@ func validate() -> PackedStringArray:
 				and not item.tags.has(&"relic"):
 			problems.append("'%s' is a Prize and neither glitters nor is a relic"
 				% entry.item)
+		# A barrow is the whisper that tempts you back from the door (ADR-242),
+		# and what tempts a Bound back is gold.
+		if entry.can(LootEntry.Deal.BARROW) and not glitters:
+			problems.append("'%s' lies in a barrow and does not glitter" % entry.item)
 		# The body's own token and the one-per-party way out are never loot
 		# (`DES-012`, ADR-015); the Waystone is laid by rule instead.
 		if item.tags.has(&"bound") or item.has_trait(ExtractionTrait):

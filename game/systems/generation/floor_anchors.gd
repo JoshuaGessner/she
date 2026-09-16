@@ -52,6 +52,13 @@ const LIGHT_HEIGHT: float = 2.6
 ## Metres of padding around the floor's own extent for the Clamor field, so a
 ## sound made at the edge of the last room still has field to fall off in.
 const FIELD_MARGIN: float = 6.0
+## Rooms between a barrow and the Shaft ⟨tune⟩ (ADR-242): one is a step back,
+## three is most of a floor, and two is the walk the whisper asks for.
+const BARROW_HOPS: int = 2
+## What each room too near the Shaft adds to a barrow room's score — more than
+## any detour a floor this size can hold, so nearer is chosen only when nothing
+## further exists.
+const NEARER_COST: int = 10
 
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
@@ -149,6 +156,50 @@ func survey() -> Vector3:
 	return centre_of(_deepest(skipped))
 
 
+## **The barrow** (`M4-T04`, ADR-242): a room you already walked through,
+## `BARROW_HOPS` short of the Shaft. `DES-007`'s whisper fires when you have
+## decided to leave, so what it offers has to lie **behind** you — on the way
+## you came, and far enough back that turning round is a decision.
+##
+## Scored rather than searched, so every floor has one: rooms off the
+## entrance-to-Shaft route pay for the detour, rooms nearer or further than
+## `BARROW_HOPS` pay for the difference, and ties go to the lower node id
+## (`TEC-007` §1). Never a room the floor already sends you to, and never the
+## Lodge's cairn's.
+func barrow() -> Vector3:
+	var entrance: int = _graph.node_with(MissionGraph.Role.ENTRANCE)
+	var shaft_node: int = _graph.node_with(MissionGraph.Role.SHAFT)
+	var claimed := PackedInt32Array([entrance, shaft_node,
+		_graph.node_with(MissionGraph.Role.PRIZE), _deepest(PackedInt32Array())])
+	var cairn: int = _deepest(claimed)
+	claimed.append(cairn)
+	var route: int = hops(entrance, shaft_node)
+	var best: int = entrance
+	var best_score: int = 1 << 30
+	for node: int in _graph.size():
+		if claimed.has(node):
+			continue
+		var module: RoomModule = RoomCatalogue.by_id(_plan.module_of(node))
+		if module != null and module.volume == RoomModule.Volume.CRAWL:
+			continue
+		var back: int = hops(node, shaft_node)
+		var out: int = hops(entrance, node)
+		if back < 0 or out < 0:
+			continue
+		var detour: int = out + back - route
+		var score: int = detour + absi(back - BARROW_HOPS)
+		# **Nearer is worse than aside.** A barrow one room from the Shaft is no
+		# turning back at all, so a side room two back beats a route room one
+		# back — measured over ninety floors, the plain score chose the
+		# second six times.
+		if back < BARROW_HOPS:
+			score += NEARER_COST * (BARROW_HOPS - back)
+		if score < best_score:
+			best_score = score
+			best = node
+	return centre_of(best)
+
+
 ## The room furthest from the entrance in hops, other than `skipped`.
 func _deepest(skipped: PackedInt32Array) -> int:
 	var entrance: int = _graph.node_with(MissionGraph.Role.ENTRANCE)
@@ -164,11 +215,11 @@ func _deepest(skipped: PackedInt32Array) -> int:
 		var module: RoomModule = RoomCatalogue.by_id(_plan.module_of(node))
 		if module != null and module.volume == RoomModule.Volume.CRAWL:
 			continue
-		var hops: int = _hops(entrance, node)
+		var away: int = hops(entrance, node)
 		# Ties broken by node id, so the choice cannot depend on the order the
 		# graph happens to return neighbours in (`TEC-007` §1).
-		if hops > best:
-			best = hops
+		if away > best:
+			best = away
 			far = node
 	return far
 
@@ -310,7 +361,7 @@ func _within(node: int) -> Vector3:
 
 
 ## Hops from `from` to `to` across the graph, or -1 if unreachable.
-func _hops(from: int, to: int) -> int:
+func hops(from: int, to: int) -> int:
 	if from == to:
 		return 0
 	var seen: Dictionary = {from: 0}

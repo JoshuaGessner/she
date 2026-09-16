@@ -726,6 +726,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The barrow behind you** (`M4-T04`, ADR-242, `DES-007` tier 3). Sealed
+	# until somebody reaches the way on and not a step before; open on its find,
+	# loud enough to be the loudest thing on the floor and to turn the Hunter
+	# against a quiet control; a warning, then shut on what it holds; once a
+	# floor; a find taken in time carried; spent on a resumed floor; and ninety
+	# generated floors keeping one of their band, where a body can stand.
+	barrow="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
+		levels/room_set/room_set.tscn -- --barrow-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$barrow" \
+			|| ! grep -q "^\[barrow\] a barrow opens behind you, loud, and shuts on what it holds" <<<"$barrow"; then
+		echo "FAIL a barrow has to open behind you when you reach the way on, loudly, and shut on its find" >&2
+		printf '%s\n' "$barrow" | grep -E '\[barrow\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **How a floor escalates** (`M4-T02` step 4, ADR-234). Every body on one
 	# generated floor is shown the player in turn: only a Bellringer may call,
 	# a Bellringer that holds the player does, and the floor has one to call.

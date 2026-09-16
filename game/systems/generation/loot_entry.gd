@@ -17,6 +17,7 @@ enum Deal {
 	PRIZE = 1,   ## The one thing the Guardian sits on. Glitter or a relic.
 	GEAR = 2,    ## A machine's contents: what the fallen carried. Never glitter.
 	FILLER = 4,  ## Quantity, scaled by the party. Glitter, bindings, materials.
+	BARROW = 8,  ## What a barrow opens on (ADR-242). Glitter: it is greed's whisper.
 }
 
 ## The item's stable id (`TEC-006` principle 3), never a path.
@@ -26,7 +27,7 @@ enum Deal {
 ## below as well: depth opens a band, it does not close the one above.
 @export var from_floor: int = 0
 
-@export_flags("Prize", "Gear", "Filler") var deals: int = 0
+@export_flags("Prize", "Gear", "Filler", "Barrow") var deals: int = 0
 
 
 ## Whether a floor may deal this in the given way.
