@@ -56,6 +56,8 @@ Alarms are *threshold* signals — they fire or they don't. Clamor is *continuou
 
 **Architecture:** vertical-remix from day one (`ART-001`), driven by `AudioDirector`. Stems authored together; one-shot cues cannot be retrofitted into this. **`AudioDirector` is a core system, not a budget line.**
 
+> **Occlusion does not touch the twin (ADR-247).** `M4-T12` muffles what is behind stone, and the Ear is driven by the `HuntMix` — so a cue the player cannot hear through a wall is still drawn, and the mute-completable rule is unaffected by anything the acoustics do.
+
 ## Channel B — Visual: the Ear
 
 A persistent, quiet on-screen cue reporting exactly what the mix reports.

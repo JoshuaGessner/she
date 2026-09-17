@@ -186,6 +186,33 @@ extends Resource
 ## How far a stick or trigger must travel to be the input a rebind meant ⟨tune⟩.
 @export var rebind_axis_threshold: float = 0.6
 
+@export_group("Acoustics")
+## **Where a clear sound is cut** ⟨tune⟩ (`M4-T12`, `TEC-005`): the engine's own
+## default, so a source nothing stands in front of sounds as it always has.
+@export var muffle_clear_hz: float = 5000.0
+## Where a sound behind a wall is cut ⟨tune⟩. `TEC-005`'s figure: low enough to
+## be *through stone* rather than *further away*.
+@export var muffle_blocked_hz: float = 400.0
+## And how much quieter ⟨tune⟩ — the filter alone reads as distance.
+@export var muffle_blocked_db: float = -6.0
+## Seconds a source takes to travel between muffled and clear ⟨tune⟩, so a
+## doorway is a sound opening rather than a switch.
+@export var muffle_travel_seconds: float = 0.1
+## A room this wide, in metres, is as tight as a room gets ⟨tune⟩ — a corridor.
+@export var reverb_tight_metres: float = 4.0
+## And this wide is as vast as one gets ⟨tune⟩ — her Chamber.
+@export var reverb_vast_metres: float = 30.0
+## How much of a tight room comes back ⟨tune⟩, and how much of a vast one.
+@export var reverb_wet_tight: float = 0.1
+@export var reverb_wet_vast: float = 0.42
+## The reverb's own size at each end ⟨tune⟩.
+@export var reverb_room_tight: float = 0.15
+@export var reverb_room_vast: float = 0.85
+## Seconds the room's sound takes to become the next room's ⟨tune⟩. `DES-018`
+## asks for crossfades rather than cuts, and a hall that becomes a corridor in
+## one frame is the same fault as a mix that does.
+@export var reverb_fade_seconds: float = 1.2
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a
@@ -931,6 +958,21 @@ func validate() -> PackedStringArray:
 	if rebind_axis_threshold <= 0.2 or rebind_axis_threshold >= 1.0:
 		problems.append("rebind_axis_threshold is %.2f — a resting stick must not be taken, and a full push must be"
 			% rebind_axis_threshold)
+	if muffle_blocked_hz >= muffle_clear_hz or muffle_blocked_hz <= 0.0:
+		problems.append("muffle_blocked_hz is %.0f against a clear %.0f — a wall has to take the highs, not add them"
+			% [muffle_blocked_hz, muffle_clear_hz])
+	if muffle_blocked_db > 0.0:
+		problems.append("muffle_blocked_db is %.1f — stone does not make a sound louder"
+			% muffle_blocked_db)
+	if reverb_tight_metres >= reverb_vast_metres or reverb_tight_metres <= 0.0:
+		problems.append("a tight room is %.1f m and a vast one %.1f m — a hall has to be the bigger number"
+			% [reverb_tight_metres, reverb_vast_metres])
+	if reverb_wet_vast <= reverb_wet_tight or reverb_wet_vast > 1.0:
+		problems.append("a vast room returns %.2f against a tight room's %.2f — the hall is the one that rings"
+			% [reverb_wet_vast, reverb_wet_tight])
+	if reverb_fade_seconds <= 0.0:
+		problems.append("reverb_fade_seconds is %.2f — DES-018 asks for a crossfade, and a cut is not one"
+			% reverb_fade_seconds)
 	if heavy_block_stamina_multiplier < 1.0:
 		problems.append("heavy_block_stamina_multiplier is %.2f — a heavy blow cannot be cheaper to take than a cut"
 			% heavy_block_stamina_multiplier)

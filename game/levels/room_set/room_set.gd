@@ -591,6 +591,10 @@ signal rescued(saved_peer: int, by: Player)
 ## being handed a different source. Defaults to the Deep, which is what keeps
 ## this level and the thirty probes that measure it behaving exactly as before.
 var _floor: FloorSource = AuthoredFloor.new()
+## Seconds between asking which room the ear is in ⟨tune-free⟩: a body crosses
+## a doorway in longer than this, and the reverb crossfades anyway.
+const ROOM_ASKED_EVERY: float = 0.2
+var _room_asked: float = 0.0
 
 
 func _ready() -> void:
@@ -895,6 +899,8 @@ func _ready() -> void:
 			_saving_probe()
 		elif arg == "--pad-menu-probe":
 			_pad_menu_probe()
+		elif arg == "--acoustics-probe":
+			_acoustics_probe()
 		elif arg.begins_with("--ping-shot="):
 			_ping_shot(arg.split("=", true, 1)[1])
 		elif arg == "--rank-probe":
@@ -7474,6 +7480,7 @@ func _light_what_is_under(at: Vector3) -> void:
 ## the one clock that can end a run. `Shaft.advance` is host-guarded, so this
 ## costs a client nothing.
 func _physics_process(delta: float) -> void:
+	_sound_of_the_room(delta)
 	if _shaft != null:
 		_shaft.advance(delta)
 	# **The barrow wakes when somebody reaches the way on** (ADR-242), and the
@@ -7482,6 +7489,23 @@ func _physics_process(delta: float) -> void:
 		_barrow.advance(delta)
 		if _barrow.is_sealed() and _someone_at_the_way_on():
 			_wake_the_barrow()
+
+
+## **The room the ear is standing in** (`M4-T12`, `TEC-005`), handed to the
+## director a few times a second.
+##
+## The level asks, rather than the director reaching in: only the floor knows
+## its rooms, and `AudioDirector` is an autoload that would otherwise have to
+## know what a floor is (`TEC-002`: signals up, calls down).
+func _sound_of_the_room(delta: float) -> void:
+	_room_asked -= delta
+	if _room_asked > 0.0:
+		return
+	_room_asked = ROOM_ASKED_EVERY
+	var body: Player = _session.local_player()
+	if body == null:
+		return
+	AudioDirector.room_is(_floor.room_across(body.global_position))
 
 
 ## **The barrow behind you** (`M4-T04`, ADR-242, `DES-007` tier 3).
@@ -13555,6 +13579,248 @@ func _pad_press(button: JoyButton) -> void:
 		event.button_index = button
 		event.pressed = down
 		get_viewport().push_input(event)
+
+
+## **`--acoustics-probe`** (`M4-T12`, `TEC-005`): what the stone does to a
+## sound, asked of the hand-built Deep, whose rooms and doorways are constants
+## this check can stand a sound in.
+##
+## Headless has no speakers and that is not what is being asserted: a filter's
+## cutoff and a bus effect's wet are numbers, and they are the whole of what
+## this system sets.
+func _acoustics_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var tuning: TuningProfile = Config.tuning
+	var body: Player = _session.local_player()
+	if body == null:
+		printerr("[sound] FAIL nobody is standing in the Deep to hear it")
+		get_tree().quit(1)
+		return
+	var ear: Vector3 = body.global_position
+
+	# ─ 1. in the open, and measured before it is heard ─
+	var open: AudioStreamPlayer3D = _a_sound_at(ear + Vector3(0.0, 0.0, -3.0))[1]
+	var open_hz: float = open.attenuation_filter_cutoff_hz
+	var open_db: float = open.volume_db
+	print("[sound] in the open      %.0f Hz at %.1f dB (want %.0f, 0.0)"
+		% [open_hz, open_db, tuning.muffle_clear_hz])
+	if absf(open_hz - tuning.muffle_clear_hz) > 1.0 or absf(open_db) > 0.01:
+		problems.append("a sound in the same room as the ear was muffled")
+
+	# ─ 1b. and on the floor it is played on ─
+	#
+	# A world sound is played at the emitter's own origin, which is something's
+	# feet: a ray that ends on the slab can hit the slab, and then every
+	# footstep in the game is behind a wall.
+	var underfoot: AudioStreamPlayer3D = _a_sound_at(
+		Vector3(ear.x, 0.0, ear.z - 3.0))[1]
+	print("[sound] at its feet      blocked %.2f (want 0.00)"
+		% Acoustics.blocked(underfoot))
+	if Acoustics.blocked(underfoot) > 0.01:
+		problems.append("a sound standing on the floor was muffled by the floor")
+
+	# ─ 2. behind stone ─
+	var away: AudioStreamPlayer3D = _a_sound_at(Vector3(-9.0, 1.0, -10.0))[1]
+	var away_hz: float = away.attenuation_filter_cutoff_hz
+	var away_db: float = away.volume_db
+	print("[sound] behind stone     %.0f Hz at %.1f dB, blocked %.2f (want %.0f, %.1f, 1.00)"
+		% [away_hz, away_db, Acoustics.blocked(away), tuning.muffle_blocked_hz,
+			tuning.muffle_blocked_db])
+	if absf(away_hz - tuning.muffle_blocked_hz) > 1.0 \
+			or absf(away_db - tuning.muffle_blocked_db) > 0.01:
+		problems.append("a sound behind a wall arrived clear")
+
+	# ─ 3. gradient, across a doorframe ─
+	#
+	# Five rays rather than one is the whole of `TEC-005`'s refinement, and the
+	# way to ask for it without writing a doorframe's measurements down is to
+	# walk a sound across one: somewhere on that line a sound is part hidden,
+	# and with a single ray nothing ever is.
+	var walk: PackedFloat32Array = PackedFloat32Array()
+	var partly: int = 0
+	var clearest: float = 1.0
+	var deafest: float = 0.0
+	for step: int in 13:
+		var probe: AudioStreamPlayer3D = _a_sound_at(
+			Vector3(-7.0, 1.0, -2.0 - float(step) * 0.25))[1]
+		var shut: float = Acoustics.blocked(probe)
+		walk.append(shut)
+		clearest = minf(clearest, shut)
+		deafest = maxf(deafest, shut)
+		if shut > 0.01 and shut < 0.99:
+			partly += 1
+		probe.queue_free()
+	print("[sound] across the frame %s; part hidden at %d of %d (want 0 to 1, at least one)"
+		% [walk, partly, walk.size()])
+	if partly == 0 or clearest > 0.01 or deafest < 0.99:
+		problems.append("a sound crossing a doorframe was never partly hidden — "
+			+ "occlusion is a switch, not a gradient")
+
+	# ─ 4. bodies are not walls ─
+	#
+	# Asked with an **enemy** rather than a teammate: a body is a body to a
+	# ray, and a peer's body is replicated from its owner — a second player
+	# spawned in one process sits at the origin whatever it is told, so the row
+	# that used one was measuring an empty line and passing.
+	var line: Vector3 = ear + Vector3(0.0, 0.0, -1.5)
+	_session.spawn_enemy(line + Vector3(0.0, 0.1, 0.0), 0.0)
+	for i: int in 8:
+		await get_tree().physics_frame
+	# The nearest body to where one was asked for, rather than the floor's
+	# first: this room already has three, and freeing one of those at the end
+	# of the row would be the check editing the level it is measuring.
+	var between: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+		var standing := node as Enemy
+		if standing == null:
+			continue
+		if between == null or standing.global_position.distance_to(line) \
+				< between.global_position.distance_to(line):
+			between = standing
+	var in_the_way: bool = between != null \
+		and between.global_position.distance_to(line) < 1.2
+	var through_a_body: float = Acoustics.blocked(open)
+	# **The same ray, twice.** A row that only says *the body did not muffle it*
+	# passes just as well when the body is not raycastable at all, which is how
+	# this one first passed with the mask widened. So the check casts the same
+	# line itself, once including bodies — which must hit the body — and asks
+	# the system for its own answer, which must not.
+	var eye: Camera3D = get_viewport().get_camera_3d()
+	var bodies_too := PhysicsRayQueryParameters3D.create(eye.global_position,
+		open.global_position, CollisionLayers.WORLD | CollisionLayers.ENEMY_BODY)
+	var would_hit: Dictionary = _world.get_world_3d().direct_space_state \
+		.intersect_ray(bodies_too)
+	var hit_the_body: bool = would_hit.get("collider") == between
+	print("[sound] through a body   a body at %s, in the line %s, blocked %.2f (want in the way, yes, 0.00)"
+		% ["nobody" if between == null else str(between.global_position.round()),
+			hit_the_body, through_a_body])
+	if not in_the_way or not hit_the_body:
+		problems.append("no body stood in the line the ray takes, so nothing "
+			+ "was asked about bodies at all")
+	if through_a_body > 0.01:
+		problems.append("a body standing in the way muffled a sound")
+	if between != null:
+		between.queue_free()
+		# Gone before the next row, which needs the line clear: `queue_free`
+		# lands at the end of the frame and the ray is cast in this one.
+		await get_tree().process_frame
+		await get_tree().physics_frame
+
+	# ─ 5. travel, not a switch ─
+	var made: Array = _a_sound_at(Vector3(-9.0, 1.0, -10.0))
+	var carried := made[0] as Node3D
+	var moving := made[1] as AudioStreamPlayer3D
+	moving.stream = Foley.looping_stream_for(Foley.Sound.CHANNEL)
+	moving.play()
+	carried.global_position = ear + Vector3(0.0, 0.0, -3.0)
+	# Waited for its turn rather than for a fixed two frames: the refresh is
+	# staggered, so *when* a source is re-measured depends on how many others
+	# are sounding — which is the system working, and a row that assumed a
+	# frame count would fail on a noisy floor and pass on a quiet one.
+	var partway: float = moving.attenuation_filter_cutoff_hz
+	for i: int in 12:
+		await get_tree().process_frame
+		partway = moving.attenuation_filter_cutoff_hz
+		if partway > tuning.muffle_blocked_hz + 1.0:
+			break
+	await _hold(tuning.muffle_travel_seconds * 6.0)
+	var arrived: float = moving.attenuation_filter_cutoff_hz
+	# And its volume is its own again. That is the claim that a muffle is
+	# applied to what the caller asked for rather than to last frame's answer:
+	# a few hundred frames of compounding is silence.
+	var loudness: float = moving.volume_db
+	print("[sound] travel           %.0f Hz on its turn, %.0f Hz at %.1f dB after %.1f s (want started but not arrived, %.0f, 0.0)"
+		% [partway, arrived, loudness, tuning.muffle_travel_seconds * 6.0,
+			tuning.muffle_clear_hz])
+	if partway <= tuning.muffle_blocked_hz + 1.0 \
+			or partway >= tuning.muffle_clear_hz - 1.0 \
+			or arrived < tuning.muffle_clear_hz - 100.0 or absf(loudness) > 0.2:
+		problems.append("a sound coming out from behind stone cut rather than opened")
+
+	# ─ 6. the raycast budget ─
+	#
+	# `TEC-005` budgets the refresh at *"~20–30 audible sources, staggered
+	# across frames"*, and a system that measured all of them every frame would
+	# pass every row above while spiking on a loud floor.
+	# Twenty sounds that are **still sounding** when the frame is counted: the
+	# first draft used one-shots, which end in a fifth of a second, so the
+	# budget was measured against a group that had mostly gone quiet — and the
+	# plant that measured every source every frame passed.
+	var crowd: Array[Node3D] = []
+	for i: int in 20:
+		var made_one: Array = _a_sound_at(ear + Vector3(float(i) * 0.3, 0.0, -4.0))
+		var kept := made_one[1] as AudioStreamPlayer3D
+		kept.stream = Foley.looping_stream_for(Foley.Sound.CHANNEL)
+		kept.play()
+		crowd.append(made_one[0] as Node3D)
+	# `process_frame` is emitted **before** the tree processes, so one await
+	# lands at the head of a frame and the next is a frame of work between them.
+	await get_tree().process_frame
+	var before: int = Acoustics.rays()
+	await get_tree().process_frame
+	var cast: int = Acoustics.rays() - before
+	# Written out rather than read off `Acoustics.PER_FRAME`: a row that asks a
+	# constant what its own budget is agrees with any value it is given, and
+	# that is how this one first passed with the stagger deleted. `TEC-005`
+	# budgets ~20–30 sources refreshed at ~10 Hz, which at 60 fps is four
+	# sources — twenty rays — in a frame.
+	var budget: int = 20
+	print("[sound] the budget       %d ray(s) in a frame with %d source(s) (want at most %d)"
+		% [cast, crowd.size(), budget])
+	if cast > budget:
+		problems.append("every source was measured in one frame — the refresh is not staggered")
+	for host: Node3D in crowd:
+		host.queue_free()
+
+	# ─ 7. the room's own sound, by standing in it ─
+	#
+	# The body is moved rather than the director told: what is being asked is
+	# whether the level hands over the room the ear is in, and a check that
+	# called `room_is` itself would be overwritten by the level a fifth of a
+	# second later — which is how this row first passed while saying nothing.
+	var hall_at := Vector3(0.0, ear.y, -22.0)
+	var small_at := Vector3(0.0, ear.y, -29.0)
+	var hall: float = _floor.room_across(hall_at)
+	var small: float = _floor.room_across(small_at)
+	body.teleport(hall_at, 0.0)
+	await _hold(ROOM_ASKED_EVERY + tuning.reverb_fade_seconds * 4.0)
+	var rings: Dictionary = AudioDirector.room_sound()
+	body.teleport(small_at, 0.0)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var partway_room: float = AudioDirector.room_across()
+	await _hold(ROOM_ASKED_EVERY + tuning.reverb_fade_seconds * 4.0)
+	var close: Dictionary = AudioDirector.room_sound()
+	print("[sound] the room         a hall %.1f m across returns %.2f wet at %.2f, a small room %.1f m returns %.2f at %.2f (want the hall wetter)"
+		% [hall, rings.get("wet", 0.0), rings.get("room_size", 0.0),
+			small, close.get("wet", 0.0), close.get("room_size", 0.0)])
+	if hall <= small or float(rings.get("wet", 0.0)) <= float(close.get("wet", 0.0)) \
+			or float(rings.get("room_size", 0.0)) <= float(close.get("room_size", 0.0)):
+		problems.append("a hall and a small room ring alike")
+
+	# ─ 8. and it crossfades ─
+	print("[sound] the crossfade    %.1f m two frames after walking out of a %.1f m hall into a %.1f m room (want between)"
+		% [partway_room, hall, small])
+	if partway_room <= small + 0.01 or partway_room >= hall:
+		problems.append("the room's sound cut to the next room instead of fading")
+
+	for problem: String in problems:
+		printerr("[sound] FAIL %s" % problem)
+	print("[sound] the stone takes the highs, and each room rings as itself")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## One `Foley` one-shot at a point, kept long enough to be measured — the real
+## path a world sound takes, so what is measured is what a player hears. The
+## node it hangs on comes back with it: a source that had to find its own host
+## would be reaching up a tree it does not own (`TEC-001`).
+func _a_sound_at(where: Vector3) -> Array:
+	var host := Node3D.new()
+	_world.add_child(host)
+	host.global_position = where
+	Foley.at(host, Foley.Sound.CLINK)
+	return [host, host.get_child(0) as AudioStreamPlayer3D]
 
 
 ## A tap of the ping key, pressed and released a frame apart, as a hand does.

@@ -115,6 +115,9 @@ func _ready() -> void:
 	# whatever the Deep had left playing, which scored the quietest place in
 	# the game with the Hunt.
 	AudioDirector.enter("chamber")
+	# **Her hall is the vast end of the scale** (`M4-T12`): the one room in the
+	# game whose size is the point of it.
+	AudioDirector.room_is(Config.tuning.reverb_vast_metres)
 	# Seeded **before** anything is built, so the probe exercises the real
 	# arrival path rather than reaching past it. Launched on its own this scene
 	# has nothing to sort, because nobody extracted into it.
@@ -970,6 +973,19 @@ func _seed_a_haul() -> void:
 func _lair_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	await get_tree().process_frame
+
+	# **Her hall is the vast end of it** (`M4-T12`): the room whose size is the
+	# point of the room, and the one place the reverb is allowed to be obvious.
+	await _hold(Config.tuning.reverb_fade_seconds * 4.0)
+	var hall: Dictionary = AudioDirector.room_sound()
+	print("[lair] her hall    %.1f m across, %.2f wet (want %.1f, %.2f)" % [
+		AudioDirector.room_across(), hall.get("wet", 0.0),
+		Config.tuning.reverb_vast_metres, Config.tuning.reverb_wet_vast])
+	# Within a metre and a hundredth: the fade is an approach, so "there" is as
+	# close as a crossfade gets rather than the number itself.
+	if absf(AudioDirector.room_across() - Config.tuning.reverb_vast_metres) > 1.0 \
+			or absf(float(hall.get("wet", 0.0)) - Config.tuning.reverb_wet_vast) > 0.03:
+		problems.append("her hall does not ring — the one room whose size is the point of it")
 
 	print("[lair] arrived    carrying %d item(s) worth %d" % [
 		_player.inventory.count(), _player.inventory.total_tribute()])

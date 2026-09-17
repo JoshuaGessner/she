@@ -73,6 +73,8 @@ static func at(where: Node3D, sound: Sound, pitch: float = 1.0,
 	player.unit_size = 6.0 * reach / REACH
 	player.max_distance = reach
 	where.add_child(player)
+	# Measured before it is heard, not on the next tick (`M4-T12`).
+	Acoustics.heard(player)
 	player.play()
 	player.finished.connect(player.queue_free)
 

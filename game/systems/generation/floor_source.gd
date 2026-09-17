@@ -142,6 +142,14 @@ func prize_id() -> StringName:
 
 
 ## The bounds the Clamor field covers. Noise made outside it lands nowhere.
+## **How wide the room at a point is**, in metres, for the sound of it
+## (`M4-T12`, `TEC-005`). The square root of the room's footprint rather than
+## either side of it: a long hall and a square one of the same area ring alike,
+## and the number a reverb wants is a volume, not a wall. A corridor is
+## whatever the floor calls tight.
+@abstract func room_across(point: Vector3) -> float
+
+
 @abstract func field() -> AABB
 
 

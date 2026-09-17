@@ -79,6 +79,19 @@ func filler() -> Array:
 	return RoomSet.FILLER
 
 
+## The hand-built Deep's rooms are a table of rects, so this is the same
+## question asked of `ROOMS` (`M4-T12`). Between them is a doorway, and a
+## doorway is as tight as this floor gets.
+func room_across(point: Vector3) -> float:
+	for name: String in RoomSet.ROOMS:
+		var rect: Array = RoomSet.ROOMS[name]
+		if point.x >= float(rect[0]) and point.x <= float(rect[1]) \
+				and point.z >= float(rect[2]) and point.z <= float(rect[3]):
+			return sqrt((float(rect[1]) - float(rect[0]))
+				* (float(rect[3]) - float(rect[2])))
+	return FloorBuilder.CELL
+
+
 func field() -> AABB:
 	return AABB(RoomSet.FIELD_FROM, RoomSet.FIELD_TO - RoomSet.FIELD_FROM)
 

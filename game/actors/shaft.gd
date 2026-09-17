@@ -333,6 +333,7 @@ func _build_beacon() -> void:
 	hum.pitch_scale = 0.55
 	hum.autoplay = true
 	add_child(hum)
+	Acoustics.heard(hum)
 
 
 ## The nearest Shaft within reach of a point, or `null`.

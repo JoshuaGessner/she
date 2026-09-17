@@ -9110,5 +9110,52 @@ A second lineage slot — the abandoned one, renamed back by hand, is the only w
 - **`M4-T06` is done.** The settings screen was built at `M2-T10`; the accessibility options are `M4-T11`'s.
 - An old build is safe to open beside a new one's profile, and says so.
 
+## ADR-247 — The stone takes the highs, and each room rings as its own size
+
+**Date:** 2026-09-17 · **Status:** accepted · **Advances `M4-T12`** · **Builds `TEC-005`'s occlusion and reverb**
+
+**Context:** ADR-099 split this out of the adaptive score because `TEC-005` was reading as fully implemented while *"the half of it that makes the Deep sound like stone was neither built nor planned"*. `ART-002` costed occlusion at a week and named the diegetic layer the most important sound work in the game; `TEC-005` corrected the reverb half — Godot does it natively — and settled the occlusion half: no built-in feature, but `AudioStreamPlayer3D.attenuation_filter_cutoff_hz` is a per-source low-pass settable at runtime, so occlusion is **a raycast and a lerp**.
+
+### Decision — how, given the spec
+
+- **Five rays, not one.** `TEC-005` asks for gradient occlusion as the first refinement and calls it cheap; binary occlusion is what makes a doorway sound like a switch. The emitter's own point and four around it at 0.6 m ⟨tune⟩.
+- **Four sources a frame, in turn.** The doc budgets *"~20–30 audible sources, staggered across frames at ~10 Hz"*, which at 60 fps is four — twenty-four sources each refreshed ten times a second, and a louder moment degrading into a slower refresh rather than a frame spike. Every source travels toward its last answer every frame, so the stagger is never audible as a step.
+- **Reverb is the listener's room, not the source's.** `TEC-005` says *"`Area3D` reverb driven by the player's current cell"*, and Godot's `Area3D` is the other reading of that sentence: it reverberates a source by where **it** stands, which would need an area authored around every generated room and would still put a corridor's footstep on a hall's tail. One `AudioEffectReverb` in line on the world's two buses, driven by the room the **ear** is in, is the same sentence read the way a player hears it — and it is one call rather than a floor full of areas.
+- **The level says which room; the director never learns what a floor is.** `FloorSource.room_across` answers in metres (the square root of the room's footprint, because a reverb wants a volume rather than a wall), the Deep asks it five times a second for the body's position, and the Lair's two rooms answer with constants. `TEC-002`: signals up, calls down.
+
+### What was built
+
+- **`Acoustics`** (`systems/acoustics.gd`): `heard()` where a 3D source is made — measured **before it is played**, because a footstep that arrives clear and muffles a tenth of a second later has already told the lie — and `tick()` from `AudioDirector`, which is the node that already ticks for audio. Blocked sources lose their highs (5000 → 400 Hz ⟨tune⟩) and 6 dB ⟨tune⟩, over a tenth of a second ⟨tune⟩.
+- **The room's own sound**: `AudioDirector.room_is(across)`, crossfaded over 1.2 s ⟨tune⟩ — `DES-018` asks for crossfades rather than cuts — mapping a room 4 m across to a 0.10 tail and one 30 m across to 0.42 ⟨tune⟩. **Outdoors is a real answer rather than a small room**: the camp returns nothing at all, because a tail there would put the fire underground. Her hall is the vast end of the scale, which is the one room whose size is the point of it.
+- **Occlusion is a readout, never a consequence.** What an *enemy* hears is `ClamorField`, host-authoritative, and it knows nothing about this file: a sound muffled on one screen was heard by the dungeon at full strength. That is what keeps a client's audio from being a stealth advantage, and it is why this runs per peer (`TEC-004`).
+
+### Found on the way
+
+- **A ray that ends on the floor hits the floor.** A world sound is played at the emitter's own origin, which is something's feet, and a sound sitting **exactly** on the slab measures as fully behind a wall. Nobody would have heard it yet — a body settles a hair above the floor and measures clear — but the first emitter placed at exactly zero would have been silently muffled forever. The five points are lifted 0.4 m, and a row asks that question directly.
+- **Four rows that passed while asserting nothing**, all four found by planting rather than by reading:
+  - `SceneTree.process_frame` is emitted **before** the tree processes, so the ray-budget row was measuring a frame that had not happened and reported zero rays.
+  - That row then asked `Acoustics.PER_FRAME` what the budget was — a constant agreeing with itself, which passes whatever the plant sets it to. `TEC-005`'s number is written out now.
+  - Its twenty sources were one-shots, which end in a fifth of a second, so the budget was counted against a group that had gone quiet. They loop now.
+  - And *bodies are not walls* stood a **second player** in the line, whose position is its owner's to replicate — with no such peer it sits at the origin, so the row measured an empty line. It uses an enemy, which the host owns, and casts the same ray twice: once including bodies, which must hit, and once as the system does, which must not.
+- **The row that asked whether rooms ring differently told the director which room it was in**, and the level overwrites that a fifth of a second later — so both halves read the same number and it would have passed with the wiring deleted. It stands the body in the two rooms now.
+
+### Absent, not stubbed
+
+**The Hunter's own sound, and the portals it would come through** — `TEC-005` scopes portal propagation to the Gullsjúkr alone, and the Gullsjúkr has no diegetic sound to propagate: its header has said since `M2-T03` that *"every tell it has today is visual… and owes the other half."* That is the rest of `M4-T12` and the task stays open for it. Also absent: material-aware transmission (one float per material, near-free, and nothing asks for it yet) and per-source reverb sends.
+
+### Verification
+
+`--acoustics-probe`, new, on the hand-built Deep, whose rooms and doorways are constants a check can stand a sound in. A sound in the room with you is 5000 Hz at its own volume; one two rooms away is 400 Hz at −6 dB and fully blocked; walked across a doorframe in 25 cm steps it reads 0.0, 0.2, 0.4, 0.6, 0.8 and 1.0 blocked, so gradient occlusion is measured rather than asserted; a body standing in the line — an enemy, on the same ray cast twice — does not muffle it; carried out from behind stone it is 719 Hz on its turn and 4993 Hz at its own volume after six tenths of a second — an opening, not a switch, and not compounding. With twenty sources standing, **one frame casts twenty rays**, which is the budget. Standing in a 13.9 m hall the world returns 0.22 wet at 0.41 room size and in a 6.0 m room 0.13 at 0.21, and two frames after walking out of the hall the room is 13.8 m across — a fade. At the camp: 0.0 m across and no tail. In her hall: 29.5 m and 0.41 wet, a metre and a hundredth off the vast end after four fades. `--menu-probe`, the data probe, `check_project.py` and `check_dead.py` pass; the full sweep is green.
+
+**Planted and failed, one plant per run — all twenty-one**: nothing ever in the way; one ray instead of five; the floor as a wall; a body as a wall; stone that only quietens; stone that only muffles; a muffle that compounds on itself; a measurement taken on the next tick instead of before the sound plays; a switch instead of a travel; every source measured every frame; a room's sound that cuts; every room ringing alike; a level that never says which room; a small room reported as a hall; outdoors as a small room; a camp with a tail; her hall as any room; a wall that adds highs; stone that makes a sound louder; a hall drier than a corridor; and a crossfade of no length.
+
+**Three plants reported nothing, and the runs had not happened.** The re-plant script was missing the path to the engine, so three plants launched an empty command and their silence read as *the check caught it*. A plant that cannot fail is worth less than no plant, because it is believed — the same shape as ADR-098's dead names, in a harness. Fixed, all three fail; and chasing them is what found three of the four hollow rows above.
+
+### Consequences
+
+- **The Deep sounds like stone**, and a footstep behind a wall is information rather than absence.
+- **`M4-T12` stays open** for the Hunter's voice and its portals, which is the half a player acts on.
+- Every number here is ⟨tune⟩ and none has been heard through speakers by anybody yet: this is a system with a probe, not a mix.
+
 *Entries below to be added as design decisions are signed off.*
 

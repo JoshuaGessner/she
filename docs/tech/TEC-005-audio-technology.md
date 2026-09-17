@@ -52,6 +52,13 @@ Straightforward, and cheaper than it sounds because the primitive already exists
 
 Cell-based generation (`DES-015`, ADR-014) helps here — doorways between cells are known, so portals are already in the level graph rather than needing to be authored.
 
+> **BUILT AT `M4-T12` (ADR-247), and two corrections to the recipe above.**
+>
+> 1. **Lift the sample points off the floor.** A world sound is played at the emitter's own origin, which is something's feet, and a ray that ends on the slab hits the slab: a sound sitting exactly on the floor measures as fully behind a wall. A body settles a hair above it and measures clear, so nothing in play was muffled by this — but any emitter placed at exactly zero would have been, silently. The five points sit 0.4 m up.
+> 2. **Reverb is the listener's room, not the source's.** `Area3D.reverb_bus_*` reverberates a source by where *it* stands, which needs an area authored around every generated room and still puts a corridor's footstep on a hall's tail. One `AudioEffectReverb` in line on `ambience` and `diegetic`, driven by the room the ear is in, is *"driven by the player's current cell"* read the way a player hears it. `FloorSource.room_across` answers in metres — the square root of the room's footprint, because a reverb wants a volume rather than a wall.
+>
+> Occlusion is **a readout, never a consequence**: `ClamorField` is what an enemy hears, it is host-authoritative, and it knows nothing about any of this. A sound muffled on one screen was heard by the dungeon at full strength.
+
 ## Middleware — the better answer
 
 **Recommendation: FMOD Studio.**

@@ -359,6 +359,15 @@ func vista_reason() -> String:
 
 ## Which room a point stands in, or -1 for a corridor — `FloorVista`'s answer,
 ## for the probe that checks it.
+## A generated room's footprint, or a corridor's own width (`M4-T12`).
+func room_across(point: Vector3) -> float:
+	var room: int = room_at(point)
+	if room < 0:
+		return FloorBuilder.CELL
+	var rect: Rect2i = _plan.rect_of(room)
+	return sqrt(float(rect.size.x * rect.size.y)) * FloorBuilder.CELL
+
+
 func room_at(point: Vector3) -> int:
 	return FloorVista.room_of(_plan, _graph, point)
 

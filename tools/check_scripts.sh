@@ -1061,6 +1061,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The stone takes the highs** (`M4-T12`, ADR-247). Occlusion is five rays
+	# and a lerp, so what a player hears is a number and this can ask for it
+	# with no speakers: clear in the open, cut behind a wall, part cut across a
+	# doorframe, never cut by a teammate, opening rather than switching, and
+	# staggered inside its ray budget — and each room ringing as its own size.
+	sound="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 4000 \
+		levels/room_set/room_set.tscn -- --acoustics-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$sound" \
+			|| ! grep -q "^\[sound\] the stone takes the highs" <<<"$sound"; then
+		echo "FAIL the Deep has to muffle what is behind stone and ring as the room it is" >&2
+		printf '%s\n' "$sound" | grep -E '\[sound\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Does each place sound like itself (`M2-T09`)? `ART-002`'s three sonic
 	# worlds are three pieces, and the rule worth automating is the absolute
 	# one: **the Hunter's instrument is used exactly once, anywhere, ever.**

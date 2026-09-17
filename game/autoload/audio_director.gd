@@ -45,6 +45,11 @@ const BUSES: Array[String] = ["score", "ambience", "diegetic", "ui"]
 ## anything in the room — so the Hunter's note stays true (`ART-002`), and the
 ## Ear keeps its twin of it.
 const MUFFLED: Array[String] = ["ambience", "diegetic"]
+## And what a room rings with (`M4-T12`): the same two, because reverb belongs
+## to the world rather than to the score — `ART-002`'s stems are written to
+## sound like themselves, and a tail on them would make the Deep's mix muddy
+## everywhere the Chamber is loud.
+const REVERBED: Array[String] = MUFFLED
 ## Where a muffled bus loses its highs, in Hz ⟨tune⟩.
 const MUFFLE_CUTOFF_HZ: float = 700.0
 ## Where a **scarred** head's world loses them (ADR-240) ⟨tune⟩: the concussion's
@@ -72,6 +77,9 @@ var _players: Dictionary = {}
 var _targets: Dictionary = {}
 var _levels: Dictionary = {}
 var _ready_to_mix: bool = false
+## How far across the room the ear is in, and the room it is walking into.
+var _room_is: float = 0.0
+var _room_wants: float = 0.0
 
 
 func _ready() -> void:
@@ -109,6 +117,16 @@ func _build_buses() -> void:
 		filter.cutoff_hz = MUFFLE_CUTOFF_HZ
 		AudioServer.add_bus_effect(bus, filter)
 		AudioServer.set_bus_effect_enabled(bus, _muffle_slot(bus), false)
+	for name: String in REVERBED:
+		var bus: int = AudioServer.get_bus_index(name)
+		if _reverb_slot(bus) != -1:
+			continue
+		var reverb := AudioEffectReverb.new()
+		# Dry stays whole: this is one effect in line rather than a send, so the
+		# sound itself must arrive unchanged and the tail is added to it.
+		reverb.dry = 1.0
+		reverb.wet = 0.0
+		AudioServer.add_bus_effect(bus, reverb)
 
 
 func _muffle_slot(bus: int) -> int:
@@ -116,6 +134,64 @@ func _muffle_slot(bus: int) -> int:
 		if AudioServer.get_bus_effect(bus, slot) is AudioEffectLowPassFilter:
 			return slot
 	return -1
+
+
+## **The room the ear is standing in** (`M4-T12`), as how far it is across in
+## metres — 0 for outdoors, where nothing comes back.
+##
+## Driven by the **listener's** room rather than by each source's, which is
+## `TEC-005`'s *"driven by the player's current cell"* read the way a player
+## experiences it: you hear the room you are in. Godot's `Area3D` reverb is the
+## other reading — a source reverberating by where *it* stands — and it would
+## need an area authored around every generated room to say what one call says
+## here, then still put the corridor's sound on a hall's tail.
+func room_is(across: float) -> void:
+	_room_wants = maxf(across, 0.0)
+
+
+## How far across the room the mix is currently playing, in metres.
+func room_across() -> float:
+	return _room_is
+
+
+## What the reverb is set to right now — for a check with no speakers.
+func room_sound() -> Dictionary:
+	var bus: int = AudioServer.get_bus_index(REVERBED[0])
+	var slot: int = _reverb_slot(bus)
+	if slot == -1:
+		return {}
+	var reverb := AudioServer.get_bus_effect(bus, slot) as AudioEffectReverb
+	return {"across": _room_is, "wet": reverb.wet, "room_size": reverb.room_size}
+
+
+func _reverb_slot(bus: int) -> int:
+	for slot: int in AudioServer.get_bus_effect_count(bus):
+		if AudioServer.get_bus_effect(bus, slot) is AudioEffectReverb:
+			return slot
+	return -1
+
+
+## Toward the room we are in, never straight to it.
+func _drive_room(delta: float) -> void:
+	var tuning: TuningProfile = Config.tuning
+	var step: float = clampf(delta / maxf(tuning.reverb_fade_seconds, 0.001), 0.0, 1.0)
+	_room_is = lerpf(_room_is, _room_wants, step)
+	# Outdoors is a real answer, not a small room: the camp has a fire, a cliff
+	# and no ceiling, and a tail on it would put the player back underground.
+	var reach: float = clampf(inverse_lerp(tuning.reverb_tight_metres,
+		tuning.reverb_vast_metres, _room_is), 0.0, 1.0)
+	var wet: float = lerpf(tuning.reverb_wet_tight, tuning.reverb_wet_vast, reach)
+	var size: float = lerpf(tuning.reverb_room_tight, tuning.reverb_room_vast, reach)
+	if _room_is <= 0.01:
+		wet = 0.0
+	for name: String in REVERBED:
+		var bus: int = AudioServer.get_bus_index(name)
+		var slot: int = _reverb_slot(bus)
+		if slot == -1:
+			continue
+		var reverb := AudioServer.get_bus_effect(bus, slot) as AudioEffectReverb
+		reverb.wet = wet
+		reverb.room_size = size
 
 
 ## Whether the world's sounds are muffled right now. Public because a headless
@@ -139,6 +215,11 @@ func _process(delta: float) -> void:
 		return
 	_read_world()
 	_drive_layers(delta)
+	_drive_room(delta)
+	# Occlusion is per source and per frame, and it is here because this is
+	# the node that already ticks for audio (`TEC-001`: no autoload for a job
+	# an autoload already has).
+	Acoustics.tick(get_tree(), delta)
 	mixed.emit(mix)
 
 

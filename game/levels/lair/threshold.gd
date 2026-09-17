@@ -116,6 +116,9 @@ func _ready() -> void:
 	# The only safe sound in the game (`M2-T09`, `ART-002`). Declared before
 	# anything is built, so the first frame here already sounds like here.
 	AudioDirector.enter("threshold")
+	# **Outdoors is a real answer** (`M4-T12`), not a small room: a tail on the
+	# camp would put the player back underground.
+	AudioDirector.room_is(0.0)
 	_build_ground()
 	_build_fire()
 	_build_doors()
@@ -745,6 +748,14 @@ func _threshold_probe() -> void:
 				reserved.append("%s/%s" % [piece, layer])
 	print("[camp] reserved     %s plays %s" % [
 		AudioDirector.RESERVED_VOICE, ", ".join(reserved)])
+
+	# **The camp has no ceiling** (`M4-T12`). Outdoors is a room of no size and
+	# a tail of nothing; a reverb here would put the fire underground.
+	var outdoors: Dictionary = AudioDirector.room_sound()
+	print("[camp] outdoors     %.1f m across, %.2f wet (want 0.0, 0.00)"
+		% [AudioDirector.room_across(), outdoors.get("wet", 0.0)])
+	if AudioDirector.room_across() > 0.01 or float(outdoors.get("wet", 0.0)) > 0.001:
+		problems.append("the camp rings like a room — it is outdoors, and ART-002 gives it a fire and a cliff")
 	# Spelt out rather than compared against a literal array: `x != [y] as
 	# Array[T]` binds the cast to the comparison, not the literal, and is a
 	# parse error rather than the check you meant to write.
@@ -1803,6 +1814,8 @@ func _open_the_chamber() -> void:
 	get_tree().root.add_child(_chamber)
 	visible = false
 	AudioDirector.enter("chamber")
+	# Her hall, opened from the camp: the same room and the same sound of it.
+	AudioDirector.room_is(Config.tuning.reverb_vast_metres)
 
 
 func _close_the_chamber() -> void:
@@ -1811,6 +1824,7 @@ func _close_the_chamber() -> void:
 	_take_down_the_chamber()
 	visible = true
 	AudioDirector.enter("threshold")
+	AudioDirector.room_is(0.0)
 	_ask_to_rejoin_the_world()
 
 
