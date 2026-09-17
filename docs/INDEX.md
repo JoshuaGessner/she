@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-17 · 44 documents_
+_Regenerated 2026-09-17 · 45 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -59,13 +59,14 @@ _How we work, what we decided, what we must not do._
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
 | `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-16 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-16 | DES-001, DES-003, PRO-001 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-17 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
 | `PRO-006` | [Monetization](process/PRO-006-monetization.md) | ✔ accepted | 2026-08-14 | PRO-005, DES-014, DES-016, DES-001 |
 | `PRO-007` | [Pre-Mortem — How This Fails](process/PRO-007-premortem.md) | ✔ accepted | 2026-09-04 | PRO-001, DES-009, ART-005, TEC-004, DES-001 |
 | `PRO-008` | [Vertical Slice Polish Sweep](process/PRO-008-polish-sweep.md) | ✔ accepted | 2026-09-17 | PRO-001, TEC-008, ART-004, ART-005, DES-019 |
+| `PRO-009` | [Playtest Protocol — The Questions Only A Session Answers](process/PRO-009-playtest-protocol.md) | ◆ proposed | 2026-09-17 | PRO-001, DES-005, DES-009, DES-019, DES-022, ART-001 |
 
 ## Art & Audio
 
@@ -169,16 +170,18 @@ _Visual and audio direction._
 - **north-star** — DES-001
 - **occlusion** — TEC-005
 - **onboarding** — DES-010
+- **open-questions** — PRO-009
 - **pacing** — DES-002, DES-005, DES-010, DES-015
 - **persistence** — DES-003, TEC-003
 - **pillars** — DES-001
 - **pipeline** — ART-004, PRO-006
 - **planning** — PRO-001
+- **playtest** — PRO-009
 - **polish** — PRO-008
 - **power** — DES-022
 - **premortem** — PRO-007
 - **pressure** — DES-005, DES-017
-- **process** — PRO-002
+- **process** — PRO-002, PRO-009
 - **procgen** — DES-015, TEC-007, TEC-008
 - **production** — ART-004, PRO-001, PRO-007
 - **progression** — DES-004, DES-011, DES-014, DES-016, DES-022
@@ -222,7 +225,7 @@ _Visual and audio direction._
 - **tres** — TEC-006
 - **trophies** — DES-016
 - **ui** — DES-014, DES-018, DES-019, PRO-008, TEC-009
-- **verification** — PRO-008
+- **verification** — PRO-008, PRO-009
 - **vision** — DES-001
 - **visual** — DES-020
 - **vitals** — DES-009

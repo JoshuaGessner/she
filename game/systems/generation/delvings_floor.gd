@@ -422,13 +422,14 @@ func _standing() -> Array:
 	var guarded: ItemResource = prize_item()
 	if guarded != null:
 		out.append([guarded.id, _anchors.prize()])
-	# In a held room if the floor has one, and otherwise wherever is deepest —
-	# never in the bypass, which is what would make the safe route the paying
-	# one and invert ADR-032.
-	for spot: Dictionary in _anchors.loot():
-		if spot["tag"] == &"held":
-			out.append([WAYSTONE, spot["at"] as Vector3])
-			break
+	# In the guarded half, never in the bypass — `FloorAnchors.way_out()` owns
+	# that rule and the probe asks it the same question, so there is one copy
+	# of it rather than two. The old line here read the `held` tag directly and
+	# so laid nothing on the 145 floors of 360 whose held span is the Prize's
+	# room alone (ADR-186, and the reason that matters).
+	var way_out: Vector3 = _anchors.way_out()
+	if way_out != FloorAnchors.NOWHERE:
+		out.append([WAYSTONE, way_out])
 	# **A machine's gear is a fixture, not filler** (`DES-015` Layer 3,
 	# ADR-192). *"Their gear is still on the floor. So is what killed them"* is
 	# a question the player answers with an action, and ADR-110's rule is that a

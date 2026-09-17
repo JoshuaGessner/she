@@ -2644,6 +2644,8 @@ func _plan_probe() -> void:
 	var crawl_rooms: int = 0
 	var no_held: int = 0
 	var no_bypass: int = 0
+	var no_waystone: int = 0
+	var no_posts: int = 0
 	var cramped: int = 0
 	for i: int in trials:
 		for depth: int in 3:
@@ -2696,6 +2698,23 @@ func _plan_probe() -> void:
 					held_rooms += 1
 			no_held += 1 if held_rooms == 0 else 0
 			no_bypass += 1 if open_rooms == 0 else 0
+			# **And a way off the floor.** ADR-186 made the Shaft the way
+			# *down*, so a Waystone is the only extraction above the bottom
+			# floor — a floor without one cannot be left early at all, and
+			# `DES-005`'s whole *"can I leave?"* question has no answer on it.
+			#
+			# Asks `way_out()`, which is the function `DelvingsFloor` lays the
+			# Waystone from — not a second copy of the rule that could agree
+			# with a broken original. Measured at **145 of 360** when the rule
+			# read the `held` tag alone.
+			no_waystone += 1 if anchor.way_out() == FloorAnchors.NOWHERE else 0
+			# **And something standing on it.** The other half of the same
+			# question, and the half that turned out to be fine: `posts()`
+			# reads `is_held()` off the graph rather than the `loot()` tag, so
+			# the Prize's room counts as held there even on the floors where
+			# the tag does not exist. Asserted so that the two never quietly
+			# diverge again.
+			no_posts += 1 if anchor.posts().is_empty() else 0
 			# And a four-stack has to fit inside its own front door. Measured on
 			# the points that come **out**, not on the room they came from: the
 			# room is a proxy, and the property is that no two players are spawned
@@ -2758,16 +2777,33 @@ func _plan_probe() -> void:
 			+ "a crawl off the only way in has swallowed the mechanic instead "
 			+ "of shaping it, and `DES-009`'s crouch verb has nowhere to matter")
 
-	# `no_held` is **reported, not asserted**. Only two of the five cycle types
-	# hold a span at all (`DANGER_DETOUR` and `LOCK_AND_KEY`, ADR-171), so a
-	# foldback or a shortcut floor having nothing held is the catalogue working,
-	# not a fault — and a row asserting it would be inventing a promise the
-	# design never made. It is printed because it is the number that decides
-	# whether posts can be derived from held rooms alone, which is `M4-T02`'s
-	# question and not this file's.
+	# `no_held` counts floors with no room **tagged** `held`, and it is still
+	# **reported rather than asserted** — but not for the reason that used to
+	# be written here (ADR-251). The old note said only two of the five cycle
+	# types hold a span at all, so 145 floors of 360 having nothing held was
+	# "the catalogue working". That stopped being true at ADR-171, which draws
+	# the held span in *every* cycle type; the number survived the change
+	# because its cause had moved. **Every floor has a held span.** What 145
+	# floors have is a span exactly one room wide — and that room is the
+	# Prize's, which `loot()` tags `prize` before it asks whether it is held.
+	#
+	# So the tag count is a fact about tags, and the two things anybody
+	# actually wanted from it are asserted directly below instead.
 	print("[plan] anchors     %d floor(s) of %d with nothing held, %d with no "
 		% [no_held, trials * 3, no_bypass]
 		+ "bypass, %d that would spawn a party inside itself" % cramped)
+	print("[plan] the way out %d floor(s) of %d with no Waystone, %d with "
+		% [no_waystone, trials * 3, no_posts] + "nothing standing on them")
+	if no_waystone > 0:
+		problems.append(("%d floor(s) of %d lay no Waystone — ADR-186 made the "
+			+ "Shaft the way *down*, so those floors have no early exit at "
+			+ "all, and `DES-005`'s whole \"can I leave?\" question has no "
+			+ "answer on them") % [no_waystone, trials * 3])
+	if no_posts > 0:
+		problems.append(("%d floor(s) of %d post no standing danger — the floor "
+			+ "carries nothing but the Hunt, and `DES-013`'s standing threat "
+			+ "is absent from a corpus that reads as healthy everywhere else")
+			% [no_posts, trials * 3])
 	if no_bypass > 0:
 		problems.append(("%d floor(s) have no unheld room — every payoff is "
 			+ "behind a guard, so the bypass ADR-032 exists to protect is not "

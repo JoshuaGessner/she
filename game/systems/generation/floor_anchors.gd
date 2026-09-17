@@ -59,6 +59,10 @@ const BARROW_HOPS: int = 2
 ## any detour a floor this size can hold, so nearer is chosen only when nothing
 ## further exists.
 const NEARER_COST: int = 10
+## No such place. Returned by `way_out()` when a floor has no room fit to carry
+## the Waystone, which a floor is never supposed to have — the assertion is what
+## says so, rather than a comment.
+const NOWHERE := Vector3.INF
 
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
@@ -314,6 +318,33 @@ func loot() -> Array[Dictionary]:
 			tag = &"held"
 		out.append({"at": _within(node), "tag": tag, "node": node})
 	return out
+
+
+## **Where the Waystone stands — the floor's only early exit** (ADR-186).
+##
+## In the guarded half, never in the bypass: a way out on the safe route would
+## make the safe route the paying one and invert ADR-032.
+##
+## **The Prize's own room is guarded too, and that is the whole of this
+## function.** The held span is the spine between the arm's two ends and the
+## Prize is drawn *inside* it, so on a floor whose span is one room wide that
+## room is the Prize's — and `loot()` tags it `prize` before it ever asks
+## whether it is held. Reading the tag alone therefore found nothing on **145
+## floors of 360**, and laid no Waystone on any of them: 40% of the corpus with
+## no way off the floor but down.
+##
+## Lives here rather than in `DelvingsFloor` so that the floor and the probe
+## that checks the floor ask the *same* function. The census used to rebuild a
+## whole `DelvingsFloor` to find out, which is both slower and a second copy of
+## the rule to drift.
+func way_out() -> Vector3:
+	var guarded: Vector3 = NOWHERE
+	for spot: Dictionary in loot():
+		if spot["tag"] == &"held":
+			return spot["at"] as Vector3
+		if spot["tag"] == &"prize":
+			guarded = spot["at"] as Vector3
+	return guarded
 
 
 ## `count` points inside one room, for a machine's contents (`DES-015` step 6).

@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-16
+updated: 2026-09-17
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -9275,6 +9275,51 @@ The joiner is called down, opens a run on **seed 31346, floor 0**, builds that f
 - **`M4-T15` is closed**, and `TEC-004`'s *"AS BUILT: refused, not supported"* is a description of the past.
 - **`GATE M4 COOP` can be run with a latecomer**, which is how a session of four people actually assembles.
 - The reconnect is invisible in play — it happens while the gate opens — but it is a real disconnect, so a host that dies during it is a joiner that lands at the menu rather than in the Deep. That is the correct failure, and it is the one a join has always had.
+
+## ADR-251 — Forty percent of floors had no way off them, and the number that said so had been reported for a month
+
+**Date:** 2026-09-17 · **Status:** accepted · **Closes** `OPEN-QUESTIONS` *"where does standing danger go on a floor with no held arm?"* · **Corrects ADR-181** · **Sharpens ADR-186**
+
+**Context:** The open question asked where standing danger goes on the **145 floors of 360** that have "nothing held", and named `M4-T02` as its owner. Going to answer it turned up a different fault behind the same number, and a worked example of how a measurement outlives the thing it measured.
+
+### What the number actually meant
+
+ADR-181 recorded *"145 of 360 do not [have a held room], and they are not faults: only two of the five cycle types hold a span at all (`DANGER_DETOUR` and `LOCK_AND_KEY`, ADR-171)."* That reading was **already wrong on the day it was written**. ADR-171 draws the held span in *every* cycle type — `for node in range(leave + 1, rejoin)`, unconditional, above the `match` — and `rejoin ≥ leave + 2`, so **every floor has a held span and none of them is empty**. The commit that made that true is an ancestor of the commit that recorded the explanation.
+
+The number survived because **its cause had moved without its value changing**. What 145 floors have is a held span exactly **one room wide**, and that room is the Prize's, because `MissionGraph.build` draws the Prize *inside* the span. `FloorAnchors.loot()` tags a room `prize` before it asks whether it is `held`, so those floors carry a held room and no `held` tag.
+
+### The fault that was hiding behind it
+
+`DelvingsFloor._standing()` laid the Waystone in *"the first room `loot()` tags `held`"*. On 145 floors of 360 there is no such room, so **it laid no Waystone at all** — and ADR-186 made the Shaft the way *down*, so a Waystone is the only extraction above the bottom floor. **Two floors in five had no early exit of any kind.** `DES-005`'s entire *"can I leave?"* proposition had no answer on 40% of the corpus.
+
+The comment above that line claimed a fallback — *"In a held room if the floor has one, and otherwise wherever is deepest"* — **that was never written.** A promise in a comment is not a promise, and this is the second time on this project that a sentence describing an `else` branch outlived the absence of one.
+
+### Decision
+
+- **The Prize's room is a held room, and that is where the Waystone goes when it is the only one.** Minimal: it changes no topology, invalidates no seed, moves no fingerprint, and keeps the rule the old comment was reaching for — *in the guarded half, never in the bypass*, which is what stops the safe route becoming the paying one and inverting ADR-032.
+- **The rule lives in `FloorAnchors.way_out()`**, not in `DelvingsFloor`. The floor lays the Waystone from it and the probe asks it the same question, so there is **one copy of the rule rather than two** — the census first written for this ADR rebuilt an entire `DelvingsFloor` to find out, which is both slower than the budget allows and a second copy free to agree with a broken original.
+
+**Rejected:** widening the held span so it is never one room (`rejoin ≥ leave + 3`) — it changes every floor's topology and every digest to fix a placement bug, and a one-room guarded span is a perfectly good short paid route. And *"wherever is deepest"*, the comment's own suggestion — the deepest room is often on the bypass, which is the one place ADR-032 forbids.
+
+### Verification
+
+`--plan-probe` gains two rows over the 360-floor corpus, both asserted rather than reported:
+
+| | before | after |
+|---|---|---|
+| floors with no Waystone | **145 of 360** | **0** |
+| floors posting no standing danger | 0 | 0 |
+
+**The open question's own premise was half wrong.** It supposed those floors *"would carry no standing danger at all beyond the Hunt"*. They never did: `posts()` reads `is_held()` off the graph rather than the `loot()` tag, so the Prize's room counts as held there even where the tag does not exist. Standing danger was fine; the way out was not. Both are now asserted so the two readings cannot silently diverge again.
+
+**Planted and failed, one plant per run:** the `prize` fallback removed → *145 floors of 360 lay no Waystone*, exit 1; and `posts()` made to skip the Prize's room → *145 floors of 360 post no standing danger*, exit 1. **The same 145 floors both times**, which is the mechanism named rather than described.
+
+### Consequences
+
+- **`M4-T02` inherits a smaller question than it was given.** "Where does standing danger go" is answered — it goes in the held span, which every floor has. What is left for it is enemy *variety*, which is what the task was always about.
+- **"Is one early exit enough?" is now a fair question.** It could not be asked before: on 40% of floors the answer was *there are none*, and any playtest of ADR-186 run before today would have been measuring that rather than the drop rate. The `OPEN-QUESTIONS` row is annotated accordingly.
+- **A reported number is a number nobody is holding to account.** `no_held` was printed every sweep for a month with a paragraph explaining why it was fine. The explanation aged out and the print went on being green. Both replacements assert.
+- **Left alone deliberately: `_filler()` reads the same tags.** It deals the dearest filler into `held` rooms and the cheapest into `bypass` ones, so on those 145 floors it deals **no held filler at all** and the whole pool goes to the bypass. That is *not* the same fault: the guarded room on those floors is the Prize's, and the Prize is already the payoff ADR-032 asks the held arm to carry. Changing it would be a balance decision rather than a correction, and `PRO-009` block B is what should decide it — noted here because the root cause is shared and the next reader will ask.
 
 *Entries below to be added as design decisions are signed off.*
 
