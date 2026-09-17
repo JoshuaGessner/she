@@ -48,9 +48,13 @@ extends CharacterBody3D
 ## empties would be a lie told to a playtester.
 ##
 ## **Its audio.** *"You hear it before you see it, always"* is `M2-T03`, which
-## owns the reserved instrument and the adaptive mix. Every tell it has today is
-## visual, which satisfies `DES-018`'s mute-completable rule trivially and owes
-## the other half.
+## owns the reserved instrument and the adaptive mix — and since `M4-T12`
+## (ADR-249) this body has a sound of its own as well: its weight, on the
+## world's bus, muffled by stone like everything else and **placed in the
+## doorway a sound would reach you through** when you cannot see it. The note
+## says *it is on this floor*; the weight says *it is through there*. Its
+## visual twin is the Ear, which already draws the same channel, so
+## `DES-018`'s mute-completable rule is untouched.
 ##
 ## **A second one joining, and the cross-floor Hunt.** Both need floors, and
 ## there is one hand-built floor until `M4-T01`.
@@ -145,6 +149,13 @@ const TINTS: Dictionary = {
 ## hurtbox and the mesh cannot drift apart from the path being planned for them
 ## ⟨tune⟩.
 const NAV_RADIUS: float = 0.55
+## **How loud its own weight is** ⟨tune⟩ (`M4-T12`, ADR-249), how far it
+## carries, and what a metre of going round costs it. The last one is what
+## makes a Hunter two rooms away quieter than one the same distance in the
+## open, without pretending to model anything.
+const VOICE_DECIBELS: float = -4.0
+const VOICE_REACH: float = 34.0
+const VOICE_DB_PER_METRE: float = 0.35
 const NAV_HEIGHT: float = 2.0
 const REPATH_SECONDS: float = 0.25
 ## Inside this, walk straight. Same reasoning as `Enemy.DIRECT_RANGE`: a path
@@ -257,6 +268,7 @@ func _ready() -> void:
 	collision_layer = CollisionLayers.ENEMY_BODY
 	collision_mask = CollisionLayers.WORLD
 	_build_body()
+	_build_voice()
 	_apply_tint()
 	# Every decision it makes is host-side (`TEC-004`: consequences have one
 	# owner). A client's copy is a body that receives a transform and a colour.
@@ -785,6 +797,76 @@ func _build_body() -> void:
 ##
 ## Above that rank there is a fight to have, and it is `M3-T01`'s: health, the
 ## hoard it drops, and the deed. Refusing is what this build does completely.
+## **What it sounds like, in the world** (`M4-T12`, ADR-249, `TEC-005`).
+##
+## `ART-002`: *"you hear it before you see it, always."* The reserved
+## instrument has carried that since `M2-T03` — but a score layer has no
+## direction, so it says *it is on this floor* and never *it is through that
+## door*. This is the other half the header above has owed since then: one
+## slow, low drag of something heavy over stone, looping, on the diegetic bus.
+##
+## **Placed rather than parented.** `top_level` keeps it out of the body's
+## transform so the level can stand it in a doorway — which is what portal
+## propagation is: the sound of a thing you cannot see arriving from the way it
+## would actually reach you, rather than through a metre of rock.
+var _voice: AudioStreamPlayer3D = null
+
+
+func _build_voice() -> void:
+	_voice = AudioStreamPlayer3D.new()
+	_voice.top_level = true
+	_voice.stream = Foley.looping_stream_for(Foley.Sound.STALK)
+	_voice.bus = "diegetic"
+	_voice.volume_db = VOICE_DECIBELS
+	_voice.unit_size = 6.0 * VOICE_REACH / Foley.REACH
+	_voice.max_distance = VOICE_REACH
+	_voice.autoplay = true
+	add_child(_voice)
+	_voice.global_position = global_position
+	Acoustics.heard(_voice)
+
+
+## **Where it is heard from, and how much further it came** (ADR-249). The
+## level works this out, because only the floor knows its doorways; this is
+## where the answer lands. `extra` is the metres the sound travelled around a
+## corner rather than through the wall, and it is spent as distance — a Hunter
+## two rooms away is quieter than one the same metres away in the open.
+func heard_from(point: Vector3, extra: float) -> void:
+	if _voice == null:
+		return
+	_voice.global_position = point
+	# Through `Acoustics`, because the muffle is applied on top of a source's
+	# own volume and setting `volume_db` here would last one frame.
+	Acoustics.its_volume_is(_voice, VOICE_DECIBELS - extra * VOICE_DB_PER_METRE)
+
+
+## Where its sound is standing right now — for the check that asks whether it
+## comes through the door or through the wall.
+func voice_at() -> Vector3:
+	return _voice.global_position if _voice != null else global_position
+
+
+## How loud its sound is in its own right, after whatever the detour cost it —
+## before the muffle, which is the stone's business and not the distance's.
+func voice_loudness() -> float:
+	if _voice == null:
+		return 0.0
+	return float(_voice.get_meta(Acoustics.DRY, VOICE_DECIBELS))
+
+
+## Which bus it is on — the world's, never the score's.
+func voice_bus() -> String:
+	return _voice.bus if _voice != null else ""
+
+
+## Whether its sound is the one it should be: its weight, not its note.
+func voice_is(sound: Foley.Sound) -> bool:
+	if _voice == null:
+		return false
+	var mine := _voice.stream as AudioStreamWAV
+	var wanted := Foley.looping_stream_for(sound)
+	return mine != null and mine.data == wanted.data
+
 func _on_struck(_amount: float, _from: Node) -> void:
 	if killable():
 		# Nothing yet, and deliberately nothing: `M3-T01` gives it the health

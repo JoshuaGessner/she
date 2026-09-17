@@ -594,6 +594,11 @@ var _floor: FloorSource = AuthoredFloor.new()
 ## Seconds between asking which room the ear is in ⟨tune-free⟩: a body crosses
 ## a doorway in longer than this, and the reverb crossfades anyway.
 const ROOM_ASKED_EVERY: float = 0.2
+## How much of the Hunter has to be behind stone before its sound comes through
+## a doorway instead of from where it stands ⟨tune⟩: more than half of it, so a
+## Hunter framed in a doorway is still heard in that doorway rather than jumping
+## to the next one along.
+const HEARD_THROUGH_STONE: float = 0.5
 var _room_asked: float = 0.0
 
 
@@ -901,6 +906,8 @@ func _ready() -> void:
 			_pad_menu_probe()
 		elif arg == "--acoustics-probe":
 			_acoustics_probe()
+		elif arg == "--portal-probe":
+			_portal_probe()
 		elif arg.begins_with("--ping-shot="):
 			_ping_shot(arg.split("=", true, 1)[1])
 		elif arg == "--rank-probe":
@@ -7506,6 +7513,32 @@ func _sound_of_the_room(delta: float) -> void:
 	if body == null:
 		return
 	AudioDirector.room_is(_floor.room_across(body.global_position))
+	_the_hunter_is_heard(body.global_position)
+
+
+## **Where the Hunter's own weight is heard from** (`M4-T12`, ADR-249).
+##
+## `TEC-005` buys portal propagation for this one source and no other, because
+## this is the one where *around the corner* and *through the wall* are
+## different facts a player acts on. Seen, it sounds where it stands; unseen,
+## its sound is put in the doorway a sound would actually reach you through,
+## and what the detour cost is spent as loudness.
+##
+## The level does the placing because only the floor knows its doorways, and
+## the body does the hearing because only the local peer has an ear (`TEC-004`).
+func _the_hunter_is_heard(ear: Vector3) -> void:
+	var hunter := get_tree().get_first_node_in_group(&"hunters") as Gullsjukr
+	if hunter == null:
+		return
+	var at: Vector3 = hunter.global_position
+	if Acoustics.stone_between(get_world_3d(), ear, at) < HEARD_THROUGH_STONE:
+		hunter.heard_from(at, 0.0)
+		return
+	var way: Array = _floor.way_of_sound(ear, at)
+	if way.is_empty():
+		hunter.heard_from(at, 0.0)
+		return
+	hunter.heard_from(way[0] as Vector3, float(way[1]))
 
 
 ## **The barrow behind you** (`M4-T04`, ADR-242, `DES-007` tier 3).
@@ -13821,6 +13854,156 @@ func _a_sound_at(where: Vector3) -> Array:
 	host.global_position = where
 	Foley.at(host, Foley.Sound.CLINK)
 	return [host, host.get_child(0) as AudioStreamPlayer3D]
+
+
+## **`--portal-probe`** (`M4-T12`, ADR-249, `TEC-005`): the Hunter is heard
+## where it stands when you can see it, and through the doorway a sound would
+## reach you by when you cannot.
+##
+## The Hunter is frozen where it is put. It is the one body in the game that
+## moves on its own initiative, and a check that let it walk would be measuring
+## the pathfinder.
+func _portal_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	var hunter := get_tree().get_first_node_in_group(&"hunters") as Gullsjukr
+	if body == null or hunter == null:
+		printerr("[hunt] FAIL no Hunter on the floor to hear")
+		get_tree().quit(1)
+		return
+	hunter.set_physics_process(false)
+	var ear: Vector3 = body.global_position
+
+	# ─ 1. seen: where it stands ─
+	hunter.global_position = ear + Vector3(0.0, 0.0, -5.0)
+	await _hold(ROOM_ASKED_EVERY * 2.0)
+	var seen_at: Vector3 = hunter.voice_at()
+	var seen_db: float = hunter.voice_loudness()
+	print("[hunt] in the room     voice %.1f m from the body it belongs to, at %.1f dB (want 0.0, %.1f)"
+		% [seen_at.distance_to(hunter.global_position), seen_db,
+			Gullsjukr.VOICE_DECIBELS])
+	if seen_at.distance_to(hunter.global_position) > 0.1 \
+			or absf(seen_db - Gullsjukr.VOICE_DECIBELS) > 0.01:
+		problems.append("a Hunter in the room with you is not heard where it stands")
+
+	# ─ 1b. seen through a doorway: still where it stands ─
+	#
+	# The case the line of sight is *for*. Without it, a Hunter framed in a
+	# doorway two metres away would have its sound snapped into that doorway —
+	# and with the check deleted every other row still passed, because they all
+	# stand it behind solid rock.
+	hunter.global_position = Vector3(-7.0, 0.0, -3.0)
+	await _hold(ROOM_ASKED_EVERY * 2.0)
+	var framed: Vector3 = hunter.voice_at()
+	print("[hunt] in the doorway  voice %.1f m from the Hunter standing in it (want 0.0)"
+		% framed.distance_to(hunter.global_position))
+	if framed.distance_to(hunter.global_position) > 0.1:
+		problems.append("a Hunter you can see through a doorway is not heard "
+			+ "where it stands")
+
+	# ─ 2. unseen: through the doorway ─
+	#
+	# The west room, which the entrance opens into by one hole at x = -7. The
+	# sound has to arrive from that hole rather than from the thing itself,
+	# which is through six metres of rock.
+	var lair: Vector3 = Vector3(-9.0, 0.0, -10.0)
+	hunter.global_position = lair
+	await _hold(ROOM_ASKED_EVERY * 2.0)
+	var heard_at: Vector3 = hunter.voice_at()
+	var door: Vector3 = Vector3(-7.0, heard_at.y, -2.0)
+	var quiet_db: float = hunter.voice_loudness()
+	print("[hunt] through a door  voice at %s, %.1f m from the doorway and %.1f m from the Hunter, at %.1f dB (want the doorway, quieter)"
+		% [str(heard_at.round()), heard_at.distance_to(door),
+			heard_at.distance_to(lair), quiet_db])
+	if heard_at.distance_to(door) > 1.5:
+		problems.append("a Hunter behind a wall is heard through the wall rather "
+			+ "than through the doorway a sound would come by")
+	if quiet_db >= Gullsjukr.VOICE_DECIBELS - 0.01:
+		problems.append("going the long way round cost the Hunter's sound nothing")
+
+	# ─ 3. and it is audible there, which is the whole point ─
+	#
+	# Occlusion is measured on the voice where it is placed. Standing it in the
+	# doorway is what turns a Hunter you cannot hear at all into one you can
+	# hear coming — the fact `TEC-005` buys propagation for.
+	var through_the_door: float = Acoustics.stone_between(get_world_3d(), ear, heard_at)
+	var through_the_wall: float = Acoustics.stone_between(get_world_3d(), ear, lair)
+	print("[hunt] and audible    stone to the doorway %.2f, to the Hunter itself %.2f (want less at the doorway, all of it at the Hunter)"
+		% [through_the_door, through_the_wall])
+	if through_the_door >= through_the_wall or through_the_wall < 0.99:
+		problems.append("the doorway is no clearer than the wall, so the sound "
+			+ "is put somewhere that changes nothing")
+
+	# ─ 4. two rooms away: the near doorway, not the far one ─
+	var far: Vector3 = Vector3(0.0, 0.0, -22.0)
+	hunter.global_position = far
+	await _hold(ROOM_ASKED_EVERY * 2.0)
+	var far_at: Vector3 = hunter.voice_at()
+	var near_doors: float = minf(far_at.distance_to(Vector3(-7.0, far_at.y, -2.0)),
+		far_at.distance_to(Vector3(7.0, far_at.y, -2.0)))
+	print("[hunt] two rooms off   voice %.1f m from this room's nearest doorway, %.1f m from the Hunter, at %.2f dB against a nearer room's %.2f (want the doorway, quieter still)"
+		% [near_doors, far_at.distance_to(far), hunter.voice_loudness(), quiet_db])
+	if hunter.voice_loudness() >= quiet_db:
+		problems.append("a longer way round cost the Hunter's sound no more than a shorter one")
+	if near_doors > 1.5:
+		problems.append("a Hunter two rooms away is not heard through the door "
+			+ "of the room you are standing in")
+
+	# ─ 5. its weight, not its instrument ─
+	#
+	# `ART-002` reserves the Hunter's *note* for the score and `--threshold-probe`
+	# fails if a second layer ever uses it. This is the other channel entirely:
+	# a diegetic sound on the world's bus, which is why it can be muffled and
+	# placed at all.
+	print("[hunt] its own sound   bus '%s', its own stream %s (want diegetic, yes)"
+		% [hunter.voice_bus(), hunter.voice_is(Foley.Sound.STALK)])
+	if hunter.voice_bus() != "diegetic" or not hunter.voice_is(Foley.Sound.STALK):
+		problems.append("the Hunter's own sound is not a diegetic sound of its own")
+
+	# ─ 6. and on floors nobody authored ─
+	#
+	# The Deep's six rooms are a table; a generated floor has a plan and a
+	# graph, and the door between two rooms is read off the corridors that join
+	# them. Same question, other implementation — and the one a run actually
+	# walks, since `M4-T01`.
+	var asked: int = 0
+	for run_seed: int in [31346, 7, 990041]:
+		var made: DelvingsFloor = DelvingsFloor.of(run_seed, 0)
+		var from_here: Vector3 = made.spawns()[0]
+		var to_there: Vector3 = made.shaft()
+		if made.room_at(from_here) < 0 or made.room_at(to_there) < 0 \
+				or made.room_at(from_here) == made.room_at(to_there):
+			continue
+		asked += 1
+		var way: Array = made.way_of_sound(from_here, to_there)
+		if way.is_empty():
+			problems.append("a generated floor could not say which doorway a "
+				+ "sound from the way down comes through")
+			continue
+		var through := way[0] as Vector3
+		# On the way to it, not merely somewhere in the corridor system: a
+		# door chosen without matching the corridor that serves both rooms
+		# passes the corridor test and can face the other way entirely.
+		if through.distance_to(to_there) >= from_here.distance_to(to_there):
+			problems.append("the doorway a sound comes through is further from "
+				+ "the Hunter than the listener is — it faces the wrong way")
+		if made.room_at(through) >= 0:
+			problems.append("the doorway a sound comes through is inside a room "
+				+ "rather than in the corridor between two")
+		if float(way[1]) < 0.0:
+			problems.append("going round a generated floor came out shorter "
+				+ "than going straight through its walls")
+	print("[hunt] generated       %d of 3 floor(s) asked, arrival to the way down"
+		% asked)
+	if asked == 0:
+		problems.append("no generated floor was asked at all, so only the "
+			+ "hand-built Deep's answer was checked")
+
+	for problem: String in problems:
+		printerr("[hunt] FAIL %s" % problem)
+	print("[hunt] the Hunter is heard through the door it would come by")
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 ## A tap of the ping key, pressed and released a frame apart, as a hand does.

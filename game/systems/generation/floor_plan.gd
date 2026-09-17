@@ -802,6 +802,24 @@ func holds(cell: Vector2i) -> bool:
 	return _cells.has(cell) or _corridor.has(cell)
 
 
+## No cell at all, for a question about two rooms nothing joins.
+const NO_CELL: Vector2i = Vector2i(-2147483648, -2147483648)
+
+
+## **The corridor cell `a` opens into on its way to `b`** (`M4-T12`), or
+## `NO_CELL`. Matched by corridor rather than by distance: two rooms can face
+## each other across a corridor they do not share, and the door that matters is
+## the one on the route.
+func door_between(a: int, b: int) -> Vector2i:
+	var corridors: Dictionary = {}
+	for door: Vector4i in _doors:
+		if door.z == b:
+			corridors[door.w] = true
+	for door: Vector4i in _doors:
+		if door.z == a and corridors.has(door.w):
+			return Vector2i(door.x, door.y)
+	return NO_CELL
+
 ## The corridor cells that open into `node`, sorted.
 ##
 ## A wall has to be cut where a corridor arrives and nowhere else — a room whose

@@ -9157,5 +9157,43 @@ A second lineage slot — the abandoned one, renamed back by hand, is the only w
 - **`M4-T12` stays open** for the Hunter's voice and its portals, which is the half a player acts on.
 - Every number here is ⟨tune⟩ and none has been heard through speakers by anybody yet: this is a system with a probe, not a mix.
 
+## ADR-249 — The Hunter is heard through the door it would come by
+
+**Date:** 2026-09-17 · **Status:** accepted · **Closes `M4-T12`** · **Buys `TEC-005`'s one special case**
+
+**Context:** `TEC-005` calls sound arriving *around* a corner rather than *through* a wall **the genuinely hard part**, and then refuses to buy it in general: *"gradient occlusion for everything; portal-based propagation only for the Gullsjúkr — the one source where coming around the corner versus through the wall is information the player must act on. One special case, not a general system."* ADR-247 built the general half. This is the special case — and it could not be built until now for a reason nobody had written down: **the Gullsjúkr had no diegetic sound at all.** `ART-002`'s *"you hear it before you see it, always"* was carried entirely by the score's reserved instrument, which has no direction, and the body's own header has said since `M2-T03` that every tell it has is visual and it *"owes the other half."*
+
+### Decision
+
+- **It gets a sound of its own: its weight, not its note.** A slow two-beat drag on the diegetic bus, looping, muffled by stone like everything else. Deliberately **not** the reserved instrument: `ART-002` reserves that note for the score and `--threshold-probe` fails if a second layer ever uses it, *"because breaking it does not produce one bad cue — it retroactively makes every previous time the player heard it a coin-flip."* The note says **it is on this floor**; the weight says **it is through there**.
+- **It sounds like money.** `DES-017`: *"its movement is the sound of a great deal of loose coin being dragged — that is its footstep, its tell, and its whole characterization."* The blockout sample is a low drag with a shimmer of metal on each tread, so it is not the barrow's stone-on-stone.
+- **Seen, it sounds where it stands. Unseen, it sounds in the doorway.** More than half its rays blocked ⟨tune⟩ and its sound is placed in the **doorway on the room-path between you and it**, with the detour spent as loudness — 0.35 dB a metre ⟨tune⟩ — so a Hunter two rooms away is quieter than one the same distance in the open.
+- **One source, and the floor answers.** `FloorSource.way_of_sound` is asked about one sound; there is no general propagation and nothing else calls it.
+
+### What was built
+
+- **`Foley.Sound.STALK`** and the voice on the body: `top_level`, so the level can stand it in a doorway without detaching it from the thing it belongs to.
+- **`FloorSource.way_of_sound(ear, source)`** → the doorway and the metres the detour adds, in both floors: the hand-built Deep reads its `DOORS` table, whose entries are already listed in pairs — the duplication that cuts each hole from both sides *is* the adjacency — and a generated floor walks the **mission graph** breadth-first and asks `FloorPlan.door_between`, which matches the corridor that serves both rooms rather than taking whichever door comes first. Walking the graph rather than the grid is ADR-172's rule applied to hearing: a sound that found its own way through the lattice would be claiming a route the generator never authorised.
+- **`Acoustics.stone_between`**, the same five rays asked about two points, and **`Acoustics.its_volume_is`**, for a source whose own loudness is a fact about the world.
+- The Deep places it five times a second, for the local ear only.
+
+### Found on the way
+
+**A source's own volume belongs to `Acoustics`.** The muffle is applied on top of a baseline kept on the node, so the voice writing `volume_db` itself lasted exactly one frame and the detour was free — the row asserting the detour cost something is what caught it, on the run it was written.
+
+### Verification
+
+`--portal-probe`, new, on the Deep, with the Hunter frozen where it is put (it is the one body that moves on its own initiative, and a check that let it walk would be measuring the pathfinder). In the room with you: its sound is 0.0 m from the body, at its own −4.0 dB. **Standing in a doorway two metres away: still 0.0 m from the body** — the row the line-of-sight test exists for. Through the west wall: the sound is **0.0 m from the doorway and 8.4 m from the Hunter**, at −4.2 dB; and the stone between the ear and that doorway is **0.00 against 1.00** to the Hunter itself, which is the whole point — a Hunter you could not hear at all becomes one you can hear coming. Two rooms off: at this room's nearest doorway, 21.2 m from the Hunter, at −5.01 dB, quieter than the nearer room's −4.16. Its sound is on the `diegetic` bus and is its own stream. And the same question asked of **three generated floors**, arrival to the way down: every answer is a corridor cell between two rooms, on the way to the Hunter rather than facing away.
+
+**Planted and failed, one plant per run — all ten**: heard through the wall; always heard at the door; a detour that costs nothing; a voice whose own volume is overwritten every tick; a voice that never moves; a voice singing the score's note; a voice on the interface bus; the far doorway instead of the near one; a doorway inside a room; and any corridor of the room instead of the one that serves both.
+
+**Three of them passed first, and all three found a row that asserted nothing**: nothing ever stood the Hunter *visible through* a doorway, so deleting the line-of-sight test changed no row; the generated check accepted any corridor cell, so a doorway facing away passed it; and the volume plant was mis-indented, which is its own small lesson — a plant that cannot compile reports a parse error, not a caught fault, and the two look alike in a log.
+
+### Consequences
+
+- **`M4-T12` is closed.** Occlusion, the room's own sound, and the one propagation case `TEC-005` buys.
+- **The Ear is still the visual twin** (`DES-018`): it draws the same channel, so a muted build loses nothing this adds.
+- The sample is blockout (ADR-046) and every number in it is ⟨tune⟩: what ships is the placement, not the sound.
+
 *Entries below to be added as design decisions are signed off.*
 

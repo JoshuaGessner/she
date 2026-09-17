@@ -124,9 +124,9 @@ Escalation on a floor: it gets faster and reads you more accurately the longer y
 ## Presentation
 
 - **Announced diegetically**, never by a UI element: torches guttering out ahead of it, distant collapse, the ambient track thinning to breathing and coin.
-- **You hear it before you see it, always.** The reserved instrument (ADR-035) means only this and is never used decoratively.
+- **You hear it before you see it, always.** The reserved instrument (ADR-035) means only this and is never used decoratively. ***Its body has a voice too, from `M4-T12` (ADR-249)*** — its weight on the diegetic bus, muffled and placed like any world sound, and put in the doorway it would come through when you cannot see it. The note says it is on this floor; the weight says it is through there.
 - **Silhouette reads at any distance** (Principle 6) — huge, lopsided, glittering wrong.
-- **It sounds like money.** Its movement is the sound of a great deal of loose coin being dragged. That is its footstep, its tell, and its whole characterization.
+- **It sounds like money.** Its movement is the sound of a great deal of loose coin being dragged. That is its footstep, its tell, and its whole characterization. **Blockout built at `M4-T12` (ADR-249)**: a slow two-beat drag with a shimmer of metal on each tread, on the diegetic bus — and **placed in the doorway it would come through** when it is out of sight, which is `TEC-005`'s one propagation case and exists for this creature alone.
 - **Visual twin required** for every audio tell (ADR-036, `DES-018`).
 
 ## Scope

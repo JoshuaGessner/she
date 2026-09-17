@@ -150,6 +150,17 @@ func prize_id() -> StringName:
 @abstract func room_across(point: Vector3) -> float
 
 
+## **The way a sound comes when a wall stands in it** (`M4-T12`, ADR-249):
+## the doorway a listener at `ear` would hear something at `source` through,
+## and the metres that path adds over the straight line. Empty when both stand
+## in one room, when either is in a corridor, or when the floor cannot say.
+##
+## One sound asks this, not every source. `TEC-005` scopes propagation to the
+## Gullsjúkr — *"the one source where coming around the corner versus through
+## the wall is information the player must act on"* — and calls a general
+## system the genuinely hard part, which is exactly the part it refuses to buy.
+@abstract func way_of_sound(ear: Vector3, source: Vector3) -> Array
+
 @abstract func field() -> AABB
 
 

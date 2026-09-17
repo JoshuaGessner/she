@@ -48,6 +48,7 @@ enum Sound {
 	CLICK,      # interface
 	GRIND,      # stone dragged over stone: a barrow opening (ADR-242)
 	PING,       # a mark placed for the party (ADR-244) — interface, never world
+	STALK,      # the Hunter's own weight, moving (ADR-249) — never the score's note
 }
 
 ## How far a one-shot carries by default: roughly the Deep's scale, audible
@@ -123,6 +124,7 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 		Sound.EMBER: seconds = 0.9
 		Sound.CLICK: seconds = 0.08
 		Sound.GRIND: seconds = 1.6
+		Sound.STALK: seconds = 2.4
 		Sound.PING: seconds = 0.3
 	var frames: int = int(float(RATE) * seconds)
 	var data := PackedByteArray()
@@ -198,6 +200,24 @@ static func _sample(sound: Sound, at_second: float, seconds: float) -> float:
 			var stutter: float = 0.6 + 0.4 * absf(sin(TAU * 7.0 * at_second))
 			return (sin(TAU * 52.0 * at_second) * 0.4
 				+ _noise(at_second * 0.5) * 0.45) * stutter * sin(PI * progress)
+		Sound.STALK:
+			# **Its weight, not its instrument** (ADR-249). `ART-002` reserves
+			# the Hunter's *note* for the score and this is deliberately not
+			# that: no pitch to recognise, just something heavy dragged and set
+			# down again, slow enough to count. Two beats over the loop, so a
+			# player can tell a Hunter crossing a room from one standing still.
+			var tread: float = absf(sin(TAU * 0.83 * at_second))
+			var weight: float = pow(tread, 6.0)
+			# **It sounds like money** (`DES-017`): *"its movement is the sound
+			# of a great deal of loose coin being dragged — that is its
+			# footstep, its tell, and its whole characterization."* So the
+			# drag carries a shimmer of metal on each tread rather than being
+			# stone on stone, which is what the barrow already is.
+			var coin: float = (_noise(at_second * 9.0) * 0.5
+				+ sin(TAU * 2100.0 * at_second) * 0.25
+				+ sin(TAU * 3300.0 * at_second) * 0.15) * pow(tread, 14.0)
+			return (sin(TAU * 38.0 * at_second) * 0.45
+				+ _noise(at_second * 0.35) * 0.25 + coin * 0.4) * weight
 		Sound.PING:
 			# Two soft falling notes: a word for the party, clearly not a
 			# thing in the world noticing you (which rises, `NOTICED`).

@@ -12,6 +12,12 @@ extends FloorSource
 ## what it reads when nobody has given it anything else — so the Deep, and the
 ## thirty probes that measure it, behave exactly as they did.
 
+## No doorway at all, for a question about two rooms nothing joins (ADR-249).
+const NOWHERE: Vector3 = Vector3(-99999.0, -99999.0, -99999.0)
+## How high in a doorway a sound coming through it stands ⟨tune⟩: head height,
+## because that is where the hole is and where an ear is.
+const DOOR_HEARD_HIGH: float = 1.6
+
 ## Where the geometry is raised, handed over by `build`.
 var _into: Node3D = null
 
@@ -78,6 +84,97 @@ func fixtures() -> Array:
 func filler() -> Array:
 	return RoomSet.FILLER
 
+
+## The hand-built Deep's doorways. `DOORS` lists each one twice, once per room
+## it joins, in pairs — the duplication that cuts the hole from both sides is
+## also the adjacency, so no second table is needed (`M4-T12`, ADR-249).
+func way_of_sound(ear: Vector3, source: Vector3) -> Array:
+	var here: String = _room_named(ear)
+	var there: String = _room_named(source)
+	if here.is_empty() or there.is_empty() or here == there:
+		return []
+	var rooms: PackedStringArray = _rooms_between(here, there)
+	if rooms.size() < 2:
+		return []
+	var door: Vector3 = _doorway(here, rooms[1])
+	if door.is_equal_approx(NOWHERE):
+		return []
+	return [door, ear.distance_to(door) + door.distance_to(source)
+		- ear.distance_to(source)]
+
+
+## Which of the six rooms a point stands in, or empty for a doorway.
+func _room_named(point: Vector3) -> String:
+	for name: String in RoomSet.ROOMS:
+		var rect: Array = RoomSet.ROOMS[name]
+		if point.x >= float(rect[0]) and point.x <= float(rect[1]) \
+				and point.z >= float(rect[2]) and point.z <= float(rect[3]):
+			return name
+	return ""
+
+
+## Rooms from one to the other, nearest first, over the doorways that exist.
+func _rooms_between(from: String, to: String) -> PackedStringArray:
+	var came: Dictionary = {from: from}
+	var queue: PackedStringArray = PackedStringArray([from])
+	while not queue.is_empty():
+		var room: String = queue[0]
+		queue.remove_at(0)
+		if room == to:
+			break
+		for next: String in _joined_to(room):
+			if came.has(next):
+				continue
+			came[next] = room
+			queue.append(next)
+	if not came.has(to):
+		return PackedStringArray()
+	var back := PackedStringArray([to])
+	while back[back.size() - 1] != from:
+		back.append(String(came[back[back.size() - 1]]))
+	back.reverse()
+	return back
+
+
+## The rooms a doorway joins this one to. Read off `DOORS` in pairs: entry `i`
+## and its partner are the two sides of one hole.
+func _joined_to(room: String) -> PackedStringArray:
+	var out := PackedStringArray()
+	for i: int in range(0, RoomSet.DOORS.size(), 2):
+		var near: Array = RoomSet.DOORS[i]
+		var far: Array = RoomSet.DOORS[i + 1]
+		if String(near[0]) == room:
+			out.append(String(far[0]))
+		elif String(far[0]) == room:
+			out.append(String(near[0]))
+	return out
+
+
+## Where the hole between two rooms is, in the world — on the wall itself, so
+## the sound stands in the doorway rather than inside either room.
+func _doorway(from: String, to: String) -> Vector3:
+	for i: int in range(0, RoomSet.DOORS.size(), 2):
+		var near: Array = RoomSet.DOORS[i]
+		var far: Array = RoomSet.DOORS[i + 1]
+		var side: Array = []
+		if String(near[0]) == from and String(far[0]) == to:
+			side = near
+		elif String(far[0]) == from and String(near[0]) == to:
+			side = far
+		if side.is_empty():
+			continue
+		var rect: Array = RoomSet.ROOMS[side[0] as String]
+		var offset: float = float(side[2])
+		match String(side[1]):
+			"n":
+				return Vector3(offset, DOOR_HEARD_HIGH, float(rect[2]))
+			"s":
+				return Vector3(offset, DOOR_HEARD_HIGH, float(rect[3]))
+			"w":
+				return Vector3(float(rect[0]), DOOR_HEARD_HIGH, offset)
+			"e":
+				return Vector3(float(rect[1]), DOOR_HEARD_HIGH, offset)
+	return NOWHERE
 
 ## The hand-built Deep's rooms are a table of rects, so this is the same
 ## question asked of `ROOMS` (`M4-T12`). Between them is a doorway, and a

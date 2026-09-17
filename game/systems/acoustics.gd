@@ -83,6 +83,19 @@ static func heard(player: AudioStreamPlayer3D) -> void:
 	_apply(player, aim)
 
 
+## **What a sound's own volume is**, changed (ADR-249).
+##
+## The muffle is applied *on top of* a source's own loudness, which is kept on
+## the node — so a source that writes `volume_db` itself has it overwritten on
+## the next tick. The Hunter's does write it: going the long way round costs it
+## loudness, and that cost is a fact about where it is rather than a property
+## of the sound. This is where such a source says so.
+static func its_volume_is(player: AudioStreamPlayer3D, db: float) -> void:
+	if player == null:
+		return
+	player.set_meta(DRY, db)
+
+
 ## Every source's turn, in order, a few each frame; and every source moves
 ## toward what it was last told, whether or not this was its turn.
 static func tick(tree: SceneTree, delta: float) -> void:
@@ -118,17 +131,24 @@ static func blocked(player: AudioStreamPlayer3D) -> float:
 	var world: World3D = player.get_world_3d()
 	if ear == null or world == null:
 		return 0.0
+	return stone_between(world, ear.global_position, player.global_position)
+
+
+## **How much stone stands between two points**, from 0 to 1 — the same five
+## rays, asked about a place rather than a source. The Hunter's voice is placed
+## by this (ADR-249): a thing you can see is heard where it is, and a thing you
+## cannot comes through the door.
+static func stone_between(world: World3D, from: Vector3, point: Vector3) -> float:
 	var space: PhysicsDirectSpaceState3D = world.direct_space_state
 	if space == null:
 		return 0.0
-	var from: Vector3 = ear.global_position
-	var at: Vector3 = player.global_position + Vector3(0.0, LIFT, 0.0)
+	var at: Vector3 = point + Vector3(0.0, LIFT, 0.0)
 	var hits: int = 0
 	var points: Array[Vector3] = [at,
 		at + Vector3(SPREAD, 0.0, 0.0), at + Vector3(-SPREAD, 0.0, 0.0),
 		at + Vector3(0.0, 0.0, SPREAD), at + Vector3(0.0, 0.0, -SPREAD)]
-	for point: Vector3 in points:
-		var query := PhysicsRayQueryParameters3D.create(from, point,
+	for sample: Vector3 in points:
+		var query := PhysicsRayQueryParameters3D.create(from, sample,
 			CollisionLayers.WORLD)
 		# Bodies are not walls to sound. A teammate standing between you and a
 		# footstep does not mute it, and `WORLD` is the only layer the level's

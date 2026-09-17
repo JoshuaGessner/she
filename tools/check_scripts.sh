@@ -1075,6 +1075,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Hunter is heard through the door it would come by** (`M4-T12`,
+	# ADR-249). `TEC-005` buys portal propagation for this one source, because
+	# this is the one where *around the corner* and *through the wall* are
+	# different facts a player acts on — and asked of generated floors too,
+	# which is where a run actually hears it.
+	hunt="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 6000 \
+		levels/room_set/room_set.tscn -- --portal-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hunt" \
+			|| ! grep -q "^\[hunt\] the Hunter is heard through the door" <<<"$hunt"; then
+		echo "FAIL the Hunter has to be heard through the doorway a sound would reach you by" >&2
+		printf '%s\n' "$hunt" | grep -E '\[hunt\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Does each place sound like itself (`M2-T09`)? `ART-002`'s three sonic
 	# worlds are three pieces, and the rule worth automating is the absolute
 	# one: **the Hunter's instrument is used exactly once, anywhere, ever.**

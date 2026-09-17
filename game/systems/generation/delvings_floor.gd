@@ -359,6 +359,49 @@ func vista_reason() -> String:
 
 ## Which room a point stands in, or -1 for a corridor — `FloorVista`'s answer,
 ## for the probe that checks it.
+## The generated floor's doorways, walked on the mission graph.
+func way_of_sound(ear: Vector3, source: Vector3) -> Array:
+	var here: int = room_at(ear)
+	var there: int = room_at(source)
+	if here < 0 or there < 0 or here == there:
+		return []
+	var rooms: PackedInt32Array = _rooms_between(here, there)
+	if rooms.size() < 2:
+		return []
+	var cell: Vector2i = _plan.door_between(here, rooms[1])
+	if cell == FloorPlan.NO_CELL:
+		return []
+	var door: Vector3 = FloorBuilder.at(cell) \
+		+ Vector3(FloorBuilder.CELL * 0.5, 0.0, FloorBuilder.CELL * 0.5)
+	return [door, ear.distance_to(door) + door.distance_to(source)
+		- ear.distance_to(source)]
+
+
+## The rooms a sound crosses, nearest first. Breadth-first on the graph rather
+## than on the grid: the graph is what says two rooms are joined, and a sound
+## that found its own way through the lattice would be claiming a route the
+## generator never authorised (ADR-172's rule, applied to hearing).
+func _rooms_between(from: int, to: int) -> PackedInt32Array:
+	var came: Dictionary = {from: from}
+	var queue: PackedInt32Array = PackedInt32Array([from])
+	while not queue.is_empty():
+		var node: int = queue[0]
+		queue.remove_at(0)
+		if node == to:
+			break
+		for next: int in _graph.neighbours(node):
+			if came.has(next):
+				continue
+			came[next] = node
+			queue.append(next)
+	if not came.has(to):
+		return PackedInt32Array()
+	var back := PackedInt32Array([to])
+	while back[back.size() - 1] != from:
+		back.append(int(came[back[back.size() - 1]]))
+	back.reverse()
+	return back
+
 ## A generated room's footprint, or a corridor's own width (`M4-T12`).
 func room_across(point: Vector3) -> float:
 	var room: int = room_at(point)
