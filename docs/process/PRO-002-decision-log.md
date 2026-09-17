@@ -9195,5 +9195,42 @@ A second lineage slot — the abandoned one, renamed back by hand, is the only w
 - **The Ear is still the visual twin** (`DES-018`): it draws the same channel, so a muted build loses nothing this adds.
 - The sample is blockout (ADR-046) and every number in it is ⟨tune⟩: what ships is the placement, not the sound.
 
-*Entries below to be added as design decisions are signed off.*
+## ADR-248 — Visible floors meet cleanly while their collision keeps its lap
 
+**Date:** 2026-09-16 · **Status:** accepted · **Advances M4-T05 and M4-T08**
+
+**Context:** The developer requested a full polish sweep and reported flashing
+at room/hallway intersections. The renderer was drawing the same 0.4 m lap
+that protects Recast from cracks: differently coloured surfaces at precisely
+the same height. Removing that lap from collision would reopen a solved
+traversal fault.
+
+**Decision:** Follow the sweep in PRO-008. Visible flat floors use their exact
+footprints and shared alcove floors have one visible owner. Collision,
+occluders, generation RNG and plan data remain unchanged. Join checks measure
+the collision solids navigation actually consumes; a new visible-surface
+corpus check rejects coplanar overlaps and runs in the script sweep.
+
+The presentation pass also adds compact contextual ink cards, controller focus
+for deeds dismissal, and authored item silhouettes in the bag. Full hover
+names/descriptions and weight information remain available. The shared ink
+shader applies nested world-space analytic hatching to opaque assets, using
+pixel derivatives to avoid distant aliasing. This amends ART-005's proposed
+texture implementation while preserving its world-space, nested-tone rule.
+Art values live in a tuning Resource. It introduces no illumination, combat,
+navigation or content-placement changes.
+
+**Evidence:** Eight seeds at three depths originally produced 4,480 coplanar
+flat-floor overlaps. The corrected render geometry produces zero, with an
+identical complete collider/occluder fingerprint (PRO-008). Forward+ captures
+exercise the real ink pass and contextual prompts. Further integration checks
+are recorded with the sweep; no human/export gate is implied by a headless pass.
+
+**Rejected:** nudging floor heights (changes perceived walkable height and can
+make steps), shrinking collision (risks navmesh cracks), depth bias (hides
+duplicate geometry without removing it), replacement generation (unrelated
+and risks determinism). New bespoke final models remain M4-T10; this pass does
+not mark the whole final-art milestone complete.
+
+
+*Entries below to be added as design decisions are signed off.*

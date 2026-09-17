@@ -10,15 +10,14 @@ extends MeshInstance3D
 ## duplicate would be the parallel path ADR-064 bans, and the two would drift
 ## apart the first time either was tuned.
 ##
-## **What this is not.** Hatching, the paper/ink two-world inversion, and the
-## vertex-colour ink-ID channel are all ART-005 material and all absent, not
-## approximated — they are `M4-T08`. This is steps 1 and 2 only: screen-space
-## edge detection over depth and normals, plus the hand-drawn treatment.
+## World-space hatching is reconstructed from depth so the same treatment
+## reaches every opaque asset, including generated architecture. The two-world
+## inversion and authored vertex-channel treatment still belong to M4-T08.
 ##
 ## Add it as a child of the camera. It draws a full-screen quad in clip space,
 ## so it needs no positioning and must never be frustum-culled.
 
-const SHADER_PATH: String = "res://art/shaders/ink_outline.gdshader"
+const STYLE: ShaderMaterial = preload("res://data/tuning/ink_style.tres")
 
 ## ART-005: "Update that jitter at 8-12 fps, not 60. This is *the* trick."
 const BOIL_FPS: float = 10.0
@@ -60,8 +59,9 @@ func _ready() -> void:
 	noise_texture.width = 256
 	noise_texture.height = 256
 
-	material = ShaderMaterial.new()
-	material.shader = load(SHADER_PATH) as Shader
+	# Each camera owns its settings; toggling one player's boil must not change
+	# another view. Art values live in the shared tuning resource.
+	material = STYLE.duplicate() as ShaderMaterial
 	material.set_shader_parameter("noise_tex", noise_texture)
 	material.set_shader_parameter("falloff_start", FALLOFF_START)
 	material.set_shader_parameter("falloff_end", FALLOFF_END)

@@ -82,6 +82,12 @@ const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_",
 ## quantity — which is why a named relic outvalues its weight in coin.
 @export var tribute_value: int = 0
 
+@export_group("Presentation")
+## The inventory reads as a collection of things, not colour-coded table cells.
+## Each item owns one authored ink silhouette; `BagScreen` draws it directly
+## and deliberately has no category or generated-shape fallback.
+@export var icon: Texture2D
+
 @export_group("Composition")
 ## What it can do. Empty is the common and correct case: glitter and materials
 ## have no utility at all, which is exactly what makes them a pure greed
@@ -190,6 +196,8 @@ func validate() -> PackedStringArray:
 		problems.append("name_key is empty")
 	if String(description_key).is_empty():
 		problems.append("description_key is empty")
+	if icon == null:
+		problems.append("icon is null; every item needs an authored bag silhouette")
 
 	if weight < 0.0:
 		problems.append("weight cannot be negative")

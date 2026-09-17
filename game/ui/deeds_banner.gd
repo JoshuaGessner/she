@@ -44,23 +44,17 @@ func show_these(ids: Array[String]) -> void:
 	column.offset_right = -MARGIN
 	add_child(column)
 
-	var heading := Label.new()
-	heading.text = tr("deeds.title")
-	heading.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	heading.theme_type_variation = MenuStyle.DEEDS_TITLE
+	var heading: Label = MenuStyle.title(tr("deeds.title"), MenuStyle.DEEDS_TITLE)
 	column.add_child(heading)
 
 	for id: String in ids:
 		var mark: DeedResource = DeedCatalogue.by_id(StringName(id))
 		if mark == null:
 			continue
-		var name_label := Label.new()
-		name_label.text = mark.display()
-		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		name_label.theme_type_variation = MenuStyle.DEED_NAME
+		var name_label: Label = MenuStyle.title(mark.display(), MenuStyle.DEED_NAME)
 		column.add_child(name_label)
 
-		var told := Label.new()
+		var told: Label = MenuStyle.line("", MenuStyle.BODY_TEXT)
 		# **The name goes in the text** (ADR-050): *"rescue deeds record who you
 		# carried out."* `%s` in a description that has no name to fill is left
 		# alone rather than formatted, because a stray blank reads as a bug and
@@ -68,13 +62,13 @@ func show_these(ids: Array[String]) -> void:
 		var who: String = String(GameState.deeds.get(id, ""))
 		var body: String = tr(String(mark.description_key))
 		told.text = (body % who) if (who != "" and body.contains("%s")) else body
-		told.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		told.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		column.add_child(told)
 
-	var away := Button.new()
-	away.text = tr("deeds.dismiss")
+	var away: Button = MenuStyle.button(tr("deeds.dismiss"))
 	away.pressed.connect(func() -> void:
 		dismissed.emit()
 		queue_free())
 	column.add_child(away)
+	# The banner is dismissed through this button on both mouse and gamepad.
+	# Without a focus owner, a pad has a visible button but no way to activate it.
+	MenuStyle.focus_first.call_deferred(self)

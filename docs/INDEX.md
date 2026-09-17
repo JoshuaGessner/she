@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-17 · 43 documents_
+_Regenerated 2026-09-17 · 44 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -49,7 +49,7 @@ _How it gets built._
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-01 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-04 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
-| `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-13 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
+| `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-09-17 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
 | `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ✔ accepted | 2026-09-13 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
 
 ## Process
@@ -65,6 +65,7 @@ _How we work, what we decided, what we must not do._
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
 | `PRO-006` | [Monetization](process/PRO-006-monetization.md) | ✔ accepted | 2026-08-14 | PRO-005, DES-014, DES-016, DES-001 |
 | `PRO-007` | [Pre-Mortem — How This Fails](process/PRO-007-premortem.md) | ✔ accepted | 2026-09-04 | PRO-001, DES-009, ART-005, TEC-004, DES-001 |
+| `PRO-008` | [Vertical Slice Polish Sweep](process/PRO-008-polish-sweep.md) | ✔ accepted | 2026-09-17 | PRO-001, TEC-008, ART-004, ART-005, DES-019 |
 
 ## Art & Audio
 
@@ -76,7 +77,7 @@ _Visual and audio direction._
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-09-01 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-09-01 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 | `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-08-26 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
-| `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-09-06 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
+| `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-09-17 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
 
 ## By Tag
 
@@ -85,7 +86,7 @@ _Visual and audio direction._
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
 - **armour** — DES-023
-- **art** — ART-001, ART-004, ART-005
+- **art** — ART-001, ART-004, ART-005, PRO-008
 - **assets** — ART-004
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
 - **balance** — DES-003, DES-004, DES-008, DES-022, PRO-005
@@ -127,7 +128,7 @@ _Visual and audio direction._
 - **first-person** — DES-020
 - **gameplay** — DES-009
 - **gear** — DES-008, DES-020, DES-022, DES-023
-- **generation** — DES-015, TEC-007
+- **generation** — DES-015, PRO-008, TEC-007
 - **geometry** — TEC-008
 - **glossary** — PRO-003
 - **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006, TEC-007, TEC-009
@@ -173,6 +174,7 @@ _Visual and audio direction._
 - **pillars** — DES-001
 - **pipeline** — ART-004, PRO-006
 - **planning** — PRO-001
+- **polish** — PRO-008
 - **power** — DES-022
 - **premortem** — PRO-007
 - **pressure** — DES-005, DES-017
@@ -219,7 +221,8 @@ _Visual and audio direction._
 - **tooling** — TEC-002, TEC-006
 - **tres** — TEC-006
 - **trophies** — DES-016
-- **ui** — DES-014, DES-018, DES-019, TEC-009
+- **ui** — DES-014, DES-018, DES-019, PRO-008, TEC-009
+- **verification** — PRO-008
 - **vision** — DES-001
 - **visual** — DES-020
 - **vitals** — DES-009

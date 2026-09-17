@@ -92,7 +92,7 @@ const CHAMFER_REACH: float = 0.70710678
 const CHAMFER_MIN: float = 0.4
 ## How far a ceiling may drift from its nominal height at full roughness ⟨tune⟩.
 const CEILING_DRIFT: float = 1.0
-## How far every floor slab is grown past its own footprint.
+## How far every floor collider is grown past its own footprint.
 ##
 ## Floors are coplanar and meet edge to edge, and Recast voxelizes at 0.10 m
 ## (ADR-200; it was 0.15 when this was written, and the argument does not depend
@@ -101,7 +101,9 @@ const CEILING_DRIFT: float = 1.0
 ## serves it. The
 ## symptom is a room the route enters and stops inside, and it is intermittent
 ## because it depends where each edge falls against the grid. Overlapping the
-## slabs removes the joint rather than hoping it aligns.
+## collision slabs removes the joint rather than hoping it aligns. The visible
+## flat floor keeps its exact footprint: rendering that lap as well draws two
+## coplanar surfaces at room/corridor and corridor/corridor joins (z-fighting).
 const FLOOR_LAP: float = 0.4
 ## How high a crossing corridor rides over the one beneath. Clears the lower
 ## tunnel's ceiling and its slab, so the two decks never intersect.
@@ -228,6 +230,7 @@ const HAZARD_AIR: float = 2.0
 
 var _into: Node3D = null
 var _slabs: int = 0
+var _visible_floors: Dictionary[AABB, bool] = {}
 var _roughness: float = 0.0
 var _depth: int = 0
 var _alcoves_cut: int = 0
@@ -940,6 +943,12 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 		return
 	var mesh := BoxMesh.new()
 	mesh.size = size
+	# Navigation parses STATIC_COLLIDERS, not rendered meshes. Keep its tested
+	# lap, all occluder arithmetic, and the player's collision unchanged; only
+	# the visible flat floors meet edge to edge. Ramps and ledges retain their
+	# measured joins. Their overlaps are not this coplanar floor seam.
+	if role == "floor":
+		mesh.size -= Vector3(FLOOR_LAP * 2.0, 0.0, FLOOR_LAP * 2.0)
 	var material := StandardMaterial3D.new()
 	material.albedo_color = colour
 	material.roughness = 1.0
@@ -956,6 +965,12 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	# role was therefore reading exactly one slab per floor and reporting it as
 	# the whole population.
 	node.name = "%s_%d" % [role, _slabs]
+	if role == "floor":
+		# Two rooms may recess into the same free cell. Keep both established
+		# collision solids, but give their shared visible surface one owner.
+		var footprint := AABB(centre - mesh.size * 0.5, mesh.size)
+		node.visible = not _visible_floors.has(footprint)
+		_visible_floors[footprint] = true
 	if tilt != Basis():
 		node.basis = tilt
 	else:

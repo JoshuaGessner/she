@@ -29,6 +29,12 @@ const FADE_SECONDS: float = 1.2   # ⟨tune⟩
 ## Metres past which a bearing says *far* ⟨tune⟩ (ADR-241).
 const FAR: float = 24.0
 
+## A brief has to read over both black paper and the lantern's pale strokes.
+## The frame makes it one temporary card rather than pale text that happens to
+## sit over whatever the opening camera sees.  It is deliberately the same
+## quiet frame used by the Lair readouts: this is an announcement, not a new
+## screen.
+var _card: PanelContainer
 var _lines: VBoxContainer
 var _elapsed: float = 0.0
 ## Seconds of Hunt a missed Tithe bought her, handed down by the level. Set
@@ -57,11 +63,15 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	_card = MenuStyle.frame()
+	_card.custom_minimum_size = Vector2(360.0, 0.0)
+	add_child(_card)
+
 	_lines = VBoxContainer.new()
 	_lines.alignment = BoxContainer.ALIGNMENT_CENTER
 	_lines.add_theme_constant_override("separation", 6)
 	_lines.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_lines)
+	_card.add_child(_lines)
 	if notice:
 		for note: String in notes:
 			_line(note, MenuStyle.BODY_WARM)
@@ -123,7 +133,11 @@ func _process(delta: float) -> void:
 	# `CanvasLayer` gets no laid-out size from anchors, which is the bug the Ear
 	# shipped with and the Reticle's comment already warns about.
 	var screen: Vector2 = get_viewport_rect().size
-	_lines.position = Vector2(screen.x * 0.5 - _lines.size.x * 0.5,
+	# Containers under a CanvasLayer have no parent layout to give them their
+	# minimum size.  Read it after the themed labels entered the tree, then hand
+	# that exact box to the frame before centring it.
+	_card.size = _card.get_combined_minimum_size()
+	_card.position = Vector2(screen.x * 0.5 - _card.size.x * 0.5,
 		screen.y * 0.34)
 	if _elapsed < HOLD_SECONDS:
 		return

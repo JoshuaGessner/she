@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://art/ui/items/wpn_bearded_axe.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/wieldable_trait.gd" id="2_wieldable"]
 [ext_resource type="Script" path="res://systems/items/thrown_trait.gd" id="3_thrown"]
 [ext_resource type="Script" path="res://systems/items/item_trait.gd" id="4_trait"]
@@ -33,6 +34,7 @@ description_key = &"item.wpn_bearded_axe.desc"
 weight = 1.9
 clamor = 0.0
 grid_size = Vector2i(1, 3)
+icon = ExtResource("99_icon")
 tribute_value = 0
 traits = Array[ExtResource("4_trait")]([SubResource("Resource_wieldable"), SubResource("Resource_thrown")])
 slot = 1

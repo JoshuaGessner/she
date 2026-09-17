@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://art/ui/items/mat_bog_iron.svg" id="99_icon"]
 
 [resource]
 script = ExtResource("1_item")
@@ -10,5 +11,6 @@ description_key = &"item.mat_bog_iron.desc"
 weight = 1.4
 clamor = 0.0
 grid_size = Vector2i(1, 1)
+icon = ExtResource("99_icon")
 tribute_value = 3
 tags = Array[StringName]([&"material", &"metal"])

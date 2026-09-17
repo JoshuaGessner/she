@@ -1120,6 +1120,16 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Flat render surfaces have one owner; collider laps still feed Recast.
+	surfaces="$("$GODOT_BIN" --headless --path "$GAME" \
+		--script tests/floor_surface_probe.gd 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[surfaces\] PASS' <<<"$surfaces" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$surfaces"; then
+		echo "FAIL generated floors have coplanar render seams" >&2
+		printf '%s\n' "$surfaces" >&2
+		exit 1
+	fi
+
 	# **The place** (`M4-T01`, `TEC-008`, ADR-175). The plan became metres, and
 	# the row no other check can make is that the walls agree with the plan:
 	# every doorway the plan opened is measured *through the wall*, because a

@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-09-06
+updated: 2026-09-17
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -139,6 +139,16 @@ And it matches real hand-drawn practice: **contours are redrawn every frame; fil
 - **A real woodcut's lines describe form.** They are carved to follow the object. Object-space is truer to the reference than screen-space is.
 
 ### The cheap implementation: triplanar, not lapped textures
+
+> **Implementation update, ADR-248:** the existing ink pass now reconstructs
+> world position and normal from the opaque depth/normal buffers and projects
+> nested analytic hatch strokes triplanarly. Darker tones keep the first family
+> and add crossing strokes. Screen derivatives filter the lines and fade them
+> before they become unresolved noise. This replaces the proposed texture stack
+> below for the current shared treatment; it adds no texture/UV requirement.
+> `game/data/tuning/ink_style.tres` owns its density, width and strength. Hatching
+> follows existing illumination and does not reveal unlit space. The authored
+> vertex channels and two-world inversion remain M4-T08 work.
 
 Full TAM requires lapped-texture parametrisation over a curvature-aligned direction field. **That is far too much for a solo project.** The 80% version:
 

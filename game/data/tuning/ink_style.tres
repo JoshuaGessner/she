@@ -1,0 +1,11 @@
+[gd_resource type="ShaderMaterial" script_class="InkStyle" load_steps=3 format=3]
+
+[ext_resource type="Shader" path="res://art/shaders/ink_outline.gdshader" id="1"]
+[ext_resource type="Script" path="res://systems/tuning/ink_style.gd" id="2"]
+
+[resource]
+script = ExtResource("2")
+shader = ExtResource("1")
+shader_parameter/hatch_scale = 14.0
+shader_parameter/hatch_strength = 0.24
+shader_parameter/hatch_width = 0.16

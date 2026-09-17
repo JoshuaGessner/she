@@ -13,14 +13,12 @@ extends Control
 ## suspended because you are looking at your bag. This file is the readout and
 ## the hands.
 ##
-## ## Blockout, and honestly so
+## ## The item is a silhouette (ADR-248)
 ##
-## Coloured rectangles with names on them (ADR-046 — a named production phase
-## with scheduled replacement, not a stub). Every function is complete: you can
-## see everything you carry, move it, turn it, and put it down. What is absent
-## is art, and `M4-T05` is where it arrives with the rest of the HUD. The
-## colours come from `WorldItem.colour_for` rather than a second palette, so a
-## thing is the same colour in your bag as it was on the floor.
+## Each item Resource owns an authored ink icon. Compact cells keep the icon
+## and weight; taller items also show their name, and the hover readout always
+## gives the complete name and description. Packing and rotation still use the
+## item's real footprint, independently of the art fitted inside it.
 ##
 ## ## Numbers are allowed here, and only here
 ##
@@ -567,7 +565,8 @@ func _draw_slots() -> void:
 		var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
 		draw_rect(box, warm if wanted else GRID_LINE, false, 2.0)
 		if item != null:
-			draw_rect(box.grow(-6.0), WorldItem.colour_for(item.definition))
+			draw_rect(box.grow(-6.0), CELL_COLOUR)
+			_draw_icon(item.definition.icon, box.grow(-7.0), 1.0)
 			# The mark stays over a worn item, dark against it. The slot keeps
 			# saying what it is even when it is full, so the row still scans as
 			# a body rather than as six coloured squares.
@@ -725,17 +724,21 @@ func _draw_cells() -> void:
 
 func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	var font: Font = get_theme_default_font()
-	var colour: Color = WorldItem.colour_for(item.definition)
-	# Every ember is the same colour on the floor and the same colour here
-	# (ADR-094) — it is a piece of *her* fire, not a team marker. Whose it is
-	# lives in the **label**, which is where a rescuer with two of them can
-	# read it without anything having to be encoded in hue.
 	var seat: int = -1
 	if item.is_ember():
 		seat = Player.slot_for_peer(self, item.bound_to)
-	colour.a = alpha
-	draw_rect(rect, colour * Color(0.55, 0.55, 0.55, 1.0))
-	draw_rect(rect, colour, false, 2.0)
+	# The bag used coloured rectangles as an M2 blockout.  The art pass replaces
+	# those category colours with authored silhouettes: bone and black ink for
+	# equipment and supplies, gold only for glitter and the ember.  The border
+	# stays quiet so the icon, not a colour patch, is what a hand recognises.
+	draw_rect(rect, Color(CELL_COLOUR, CELL_COLOUR.a * alpha))
+	draw_rect(rect, Color(GRID_LINE, GRID_LINE.a * alpha), false, 2.0)
+	var one_row: bool = item.footprint().y == 1
+	var icon_top: float = 5.0 if one_row else 20.0
+	var icon_bottom: float = 16.0
+	_draw_icon(item.definition.icon,
+		Rect2(rect.position + Vector2(5.0, icon_top),
+			rect.size - Vector2(10.0, icon_top + icon_bottom)), alpha)
 	# **Wearable things carry their slot's mark** (`M4-T20`). Which of these is
 	# gear and which is loot was carried by nothing but the name, and the name
 	# truncates in a one-cell footprint — so *"can I wear this"* was a question
@@ -749,11 +752,13 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 		var badge := Rect2(rect.end - Vector2(26.0, 26.0), Vector2(20.0, 20.0))
 		_slot_mark(badge, item.definition.slot,
 			Color(0.10, 0.09, 0.08, 0.7 * alpha))
-	# Name and weight, clipped to the footprint. A one-cell gemstone gets a
-	# truncated name and its weight; a three-by-three plate gets both in full.
+	# A one-row footprint spends its scarce height on a recognisable silhouette
+	# and its weight.  Hover still gives its complete name and description below;
+	# taller things keep their label above the icon.
 	var text_colour := Color(TEXT_COLOUR, alpha)
-	draw_string(font, rect.position + Vector2(5.0, 16.0), item.label(seat),
-		HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, 13, text_colour)
+	if not one_row:
+		draw_string(font, rect.position + Vector2(5.0, 16.0), item.label(seat),
+			HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, 13, text_colour)
 	# **The unit is dropped in a one-cell footprint** (ADR-140). `0.04 kg` is
 	# 40 px of text in 36 px of cell and rendered as `0.04 k`, which reads as a
 	# rendering bug rather than as a weight. Every number in this panel is
@@ -765,6 +770,17 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	draw_string(font, rect.position + Vector2(5.0, rect.size.y - 6.0),
 		weight, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0,
 		12, Color(DIM_TEXT, alpha))
+
+
+## Fit the SVG's own proportions inside the space left by the item's text and
+## weight.  The resource validator makes a missing icon a content error, so a
+## generic rectangle here would be a deceptive fallback rather than resilience.
+func _draw_icon(icon: Texture2D, available: Rect2, alpha: float) -> void:
+	var source: Vector2 = icon.get_size()
+	var scale: float = minf(available.size.x / source.x, available.size.y / source.y)
+	var drawn: Vector2 = source * scale
+	var destination := Rect2(available.get_center() - drawn * 0.5, drawn)
+	draw_texture_rect(icon, destination, false, Color(1.0, 1.0, 1.0, alpha))
 
 
 ## The item in hand, plus a ghost of where it would land and whether it can.

@@ -118,6 +118,13 @@ Interaction prompts, contract updates, the ping wheel (`DES-012`), a reticle **o
 
 ## Rules
 
+**Presentation pass (ADR-248):** contextual text uses a compact ink ground so
+it remains readable over illuminated stone and gold; an empty prompt draws no
+panel. Arrival announcements share that treatment. Deeds use the shared theme
+and put focus on their dismiss button for a controller. Inventory items gain
+distinct authored ink icons: compact cells prioritise silhouette and weight,
+while the existing hover readout retains the complete name and description.
+
 1. **Nothing lives in the centre.** The centre of the screen is the game.
 2. **No numbers during a run.** Health is not `73/100`; weight is not `42.5kg`. Analog readouts only. Numbers invite spreadsheet optimisation; shapes invite feel, and feel is what Principle 3 is protecting. *(Exception: the inventory screen, where you are deliberately doing arithmetic.)*
 3. **Readable in monochrome.** Shape and motion first, colour second, always (`DES-018`).

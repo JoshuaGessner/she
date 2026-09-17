@@ -1,10 +1,9 @@
 shader_type spatial;
 render_mode unshaded, fog_disabled, depth_draw_never, depth_test_disabled, cull_disabled;
 
-// M1-T09 — the ink shader spike. ART-005 §"Technical approach", steps 1 and 2
-// ONLY: screen-space outlines, and the hand-drawn treatment. No hatching, no
-// two-world inversion — those are separable later additions (ADR-062), and
-// building them now would prejudge a gate that has not been passed.
+// ART-005: contours sit on the page; nested hatching belongs to the world.
+// Reconstruct the visible surface from depth, so generated geometry and
+// authored opaque assets receive the same printmaking treatment.
 //
 // Screen-space edge detection over depth + normals, not inverted hull, because
 // inverted hull cannot produce *interior* creases — and interior creases are
@@ -42,6 +41,9 @@ uniform vec3 ink_color : source_color = vec3(0.05, 0.045, 0.055);
 uniform vec3 paper_color : source_color = vec3(0.93, 0.915, 0.87);
 uniform float paper_mix : hint_range(0.0, 1.0) = 0.0;
 uniform float grain : hint_range(0.0, 0.4) = 0.05;
+uniform float hatch_scale : hint_range(1.0, 40.0) = 14.0;
+uniform float hatch_strength : hint_range(0.0, 1.0) = 0.24;
+uniform float hatch_width : hint_range(0.02, 0.45) = 0.16;
 
 // Set by the capture harness so boil is paced by frame index rather than by
 // wall clock — otherwise a slow render makes the boil look wrong in a recording
@@ -73,6 +75,24 @@ float view_depth(vec2 uv, mat4 inv_proj) {
 
 vec3 view_normal(vec2 uv) {
 	return normalize(texture(normal_tex, uv).xyz * 2.0 - 1.0);
+}
+
+
+// Analytic nested strokes: darker tones retain the first family and add a
+// crossing family. Pixel derivatives soften edges and fade unresolved lines,
+// preventing the distant moire that a hard fract() stripe would produce.
+float hatch_line(float coordinate) {
+	float footprint = max(fwidth(coordinate), 0.0001);
+	float distance_to_line = abs(fract(coordinate) - 0.5);
+	float stroke = 1.0 - smoothstep(hatch_width - footprint, hatch_width + footprint, distance_to_line);
+	return stroke * (1.0 - smoothstep(0.3, 0.8, footprint));
+}
+
+
+float hatch_plane(vec2 point, float shade) {
+	float first = hatch_line((point.x + point.y) * hatch_scale);
+	float crossed = hatch_line((point.x - point.y) * hatch_scale);
+	return max(first * smoothstep(0.15, 0.5, shade), crossed * smoothstep(0.55, 0.85, shade));
 }
 
 
@@ -134,6 +154,21 @@ void fragment() {
 
 	vec3 base = texture(screen_tex, SCREEN_UV).rgb;
 	vec3 ground = mix(base, paper_color, paper_mix);
+	vec3 world_pos = (INV_VIEW_MATRIX * vec4(centre_pos, 1.0)).xyz;
+	vec3 world_normal = normalize(mat3(INV_VIEW_MATRIX) * centre_normal);
+	vec3 weights = pow(abs(world_normal), vec3(4.0));
+	weights /= max(dot(weights, vec3(1.0)), 0.0001);
+	float luminance = dot(base, vec3(0.2126, 0.7152, 0.0722));
+	float shade = 1.0 - clamp(luminance, 0.0, 1.0);
+	float hatch = dot(weights, vec3(
+		hatch_plane(world_pos.yz, shade),
+		hatch_plane(world_pos.xz, shade),
+		hatch_plane(world_pos.xy, shade)));
+	// The drawing never creates light or changes the gold hue. It follows the
+	// existing illumination, and retreats in the deepest dark and the fog.
+	float lit = smoothstep(0.015, 0.08, luminance);
+	float nearby = 1.0 - smoothstep(falloff_start, falloff_end, centre);
+	ground *= 1.0 - hatch * hatch_strength * lit * nearby;
 	vec3 col = mix(ground, ink_color, clamp(edge, 0.0, 1.0));
 
 	// Paper grain. Screen-space on purpose (ART-005's layer table): the page

@@ -48,6 +48,10 @@ var _shaft: Shaft = null
 ## every scene that matters.
 var _offer: String = ""
 var _grown: float = 0.0
+## The interaction line sits on one restrained ink card.  A prompt can appear
+## over lantern-lit stone, pale ink, or a gold item; without a ground of its
+## own the same correct text has three different contrast levels.
+var _prompt: PanelContainer
 var _name: Label
 ## **The visual half of an empty-handed swing** (ADR-140). 1 the instant the
 ## refusal fires, decaying to 0 — `DES-018` requires the build to be completable
@@ -67,10 +71,17 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
+	_prompt = MenuStyle.frame()
+	# `MenuStyle.line` defaults to a menu-column width.  At the reticle that
+	# would make a framed one-line prompt cover a third of the view, so use a
+	# compact measure and let the rare longer offer wrap below itself.
+	_prompt.custom_minimum_size = Vector2(280.0, 0.0)
+	add_child(_prompt)
+
 	_name = MenuStyle.line("", MenuStyle.BODY_TEXT)
-	_name.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+	_name.custom_minimum_size = Vector2(260.0, 0.0)
 	_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_name)
+	_prompt.add_child(_name)
 
 
 ## **A body that has left the tree is not a body to read** (`M2-T16`, ADR-108).
@@ -160,11 +171,19 @@ func _process(delta: float) -> void:
 	else:
 		_name.text = "" if reaching == null or reaching.definition() == null \
 			else _label_for(reaching)
+	# The frame belongs to the prompt, not to the crosshair.  Keeping an empty
+	# 360 px card under the reticle would cover the centre of the screen exactly
+	# when there is no information to present.
+	_prompt.visible = not hidden and not _name.text.is_empty()
 	# Below the dot rather than beside it, so a long item name does not drag
 	# the eye off centre.
-	_name.position = Vector2(
-		get_viewport_rect().size.x * 0.5 - _name.size.x * 0.5,
-		get_viewport_rect().size.y * 0.5 + 22.0)
+	var screen: Vector2 = get_viewport_rect().size
+	# Like the ArrivalBrief, this CanvasLayer child has no layout parent.  Its
+	# frame must use the themed label's measured size or the border can clip a
+	# translated prompt on the right edge.
+	_prompt.size = _prompt.get_combined_minimum_size()
+	_prompt.position = Vector2(screen.x * 0.5 - _prompt.size.x * 0.5,
+		screen.y * 0.5 + 22.0)
 	queue_redraw()
 
 

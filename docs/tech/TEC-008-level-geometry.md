@@ -4,7 +4,7 @@ title: Level Geometry & Spatial Legibility
 status: accepted
 owner: tech
 tags: [levels, geometry, blockout, metrics, legibility, procgen, research]
-updated: 2026-09-13
+updated: 2026-09-17
 related: [DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001]
 ---
 
@@ -320,6 +320,15 @@ and the reverse is the expensive mistake.
 | **Full vertical topology (multi-storey graphs)** | ADR-014 settled this: cells are planar, verticality lives inside rooms. Reopening it changes navmesh, AI traversal and the Clamor field at once |
 
 ---
+
+## Rendered seams (ADR-248)
+
+Flat floor **colliders** retain their 0.4 m overlap for Recast and body traversal.
+Visible flat floors meet at their exact room/cell footprints; drawing the same
+overlap produced coplanar z-fighting at room/hallway joins. Shared alcove cells
+draw their floor only once. The existing join probe measures collision solids,
+and `floor_surface_probe.gd` independently rejects overlapping visible floors.
+Generation, collider sizes and the occluder stream are unchanged.
 
 ## Open questions
 

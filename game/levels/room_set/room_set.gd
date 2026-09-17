@@ -816,6 +816,8 @@ func _ready() -> void:
 			_ground_probe()
 		elif arg.begins_with("--delvings-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--ink-shot="):
+			_delvings_shot(arg.split("=", true, 1)[1], true)
 		elif arg.begins_with("--light-shot="):
 			_light_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--fog-shot="):
@@ -1281,7 +1283,11 @@ func _build_probe() -> void:
 				continue
 			# Through the node's transform: a ramp is tilted, and its
 			# axis-aligned bounds are not its box.
-			floors.append(n.transform * AABB(-b.size * 0.5, b.size))
+			# Recast reads the collider. The visible floor deliberately has no
+			# coplanar lap, otherwise every room/corridor seam z-fights.
+			var collision := n.get_child(0).get_child(0) as CollisionShape3D
+			var solid := collision.shape as BoxShape3D
+			floors.append(n.transform * AABB(-solid.size * 0.5, solid.size))
 		for i: int in floors.size():
 			checked += 1
 			var laps: bool = false
@@ -3561,11 +3567,11 @@ func _sight_shot(path: String) -> void:
 ## every geometry number in the generator is still ⟨tune⟩ and unfelt. Standing
 ## at the entrance looking in, and standing midway looking on, is the smallest
 ## pair that can answer it.
-func _delvings_shot(path: String) -> void:
+func _delvings_shot(path: String, ink: bool = false) -> void:
 	var player: Player = _session.local_player()
 	# Ink off, on `--sight-shot`'s reasoning: `ART-005` is a treatment on top of
 	# the lighting, and what is being judged here is the space.
-	player.show_ink(false)
+	player.show_ink(ink)
 	# **Stand only where the floor put something** (ADR-187).
 	#
 	# The first draft stood at straight-line lerps between anchors — the midpoint
