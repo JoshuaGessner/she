@@ -600,6 +600,8 @@ const ROOM_ASKED_EVERY: float = 0.2
 ## to the next one along.
 const HEARD_THROUGH_STONE: float = 0.5
 var _room_asked: float = 0.0
+## What the field read where somebody came down, for `--late-probe`.
+var _probe_arrival_clamor: float = 0.0
 
 
 func _ready() -> void:
@@ -644,6 +646,24 @@ func _ready() -> void:
 		# exists for survived: every part was checked and the sequence was not.
 		# **A refused profile, before the HUD that has to say so** (ADR-246): a
 		# scratch profile from a newer build, opened the way the menu opens one.
+		if arg.begins_with("--as-run="):
+			# **A real expedition, for a check that is about one** (`M4-T15`).
+			# The call down carries a seed and a floor, and a harness with no
+			# run file on either side carries zeros — a handshake nothing can
+			# be wrong about, which is how the row asserting it first passed
+			# with `RunFile.begin` deleted. Scratch file first, always: a check
+			# may not arm the player's run (ADR-152).
+			RunFile.use_a_scratch_run()
+			RunFile.arm()
+			RunFile.begin(GameState.class_id, 1,
+				int(arg.split("=", true, 1)[1]))
+		if arg == "--under-way":
+			# **The descent has happened** (`M4-T15`, ADR-250). Said by the
+			# harness, because `Threshold._descend` is what says it in a played
+			# game and a process launched straight into the Deep never walked
+			# through that door — so without this a host in a level has an open
+			# door and a knock is an ordinary join rather than a late one.
+			CoopSession.the_party_has_gone_down()
 		if arg == "--saving-probe":
 			SaveFile.plant_a_newer_one()
 			GameState.load_profile()
@@ -910,6 +930,8 @@ func _ready() -> void:
 			_acoustics_probe()
 		elif arg == "--portal-probe":
 			_portal_probe()
+		elif arg.begins_with("--late-probe="):
+			_late_probe(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--ping-shot="):
 			_ping_shot(arg.split("=", true, 1)[1])
 		elif arg == "--rank-probe":
@@ -8482,6 +8504,28 @@ func _spawn_actors() -> void:
 	# the run.
 	_session.player_left.connect(_on_peer_left)
 	_session.floor_rank_changed.connect(_on_floor_rank_changed)
+	# **The way out is the way in** (`M4-T15`, ADR-250, `DES-005` Layer 3b).
+	# The Shaft is where a late arrival steps through, which is a known place
+	# per floor, diegetic, and deliberately inconvenient — the right price for
+	# arriving after the work started.
+	_session.late_arrival = _floor.shaft()
+	_session.came_down_late.connect(_someone_came_down)
+
+
+## **A gate opening is loud** (`M4-T15`, ADR-250).
+##
+## `TEC-004` prices it that way on purpose — *"arrival is diegetically costly
+## and gives the host a natural beat to complete the sync behind"* — so the
+## Deep hears a body arrive at the Shaft the same way it hears a barrow open:
+## a deposit in the Clamor field where it happened, which the Gold-Sick walk
+## toward. Host-side, because the field is (`TEC-001`).
+func _someone_came_down(_peer: int, at: Vector3) -> void:
+	Foley.at(_shaft if _shaft != null else self, Foley.Sound.CHANNEL, 0.7, 0.0,
+		Foley.REACH * 1.5)
+	if _field == null or not multiplayer.is_server():
+		return
+	_field.deposit(at, Config.tuning.late_join_clamor)
+	_probe_arrival_clamor = _field.level_at(at)
 
 
 ## **What you put aside is what you take down** (`M2-T06`, `DES-014`).
@@ -13860,6 +13904,107 @@ func _a_sound_at(where: Vector3) -> Array:
 	host.global_position = where
 	Foley.at(host, Foley.Sound.CLINK)
 	return [host, host.get_child(0) as AudioStreamPlayer3D]
+
+
+## **`--late-probe=PATH`** (`M4-T15`, ADR-250, `TEC-004`).
+##
+## What each peer can see after somebody joins a run that had already started,
+## written by **both** processes: a claim about a join is a claim that two
+## machines agree about it, and a probe that interrogated one of them would
+## pass with the wire unplugged (`--coop-probe`'s own rule, ADR-107).
+##
+## The host is launched into the Deep with the descent declared under way; the
+## joiner is launched at **the fire**, knocks, and has to be called down —
+## which is the path a player takes and the one ADR-157 could not survive.
+func _late_probe(out: String) -> void:
+	var host: bool = multiplayer.is_server()
+	# **Something is already gone before the knock.** `TEC-004`'s delta table
+	# is a list of things that have changed since the floor was generated, and
+	# the question it is really asking is whether an arrival is handed the
+	# floor **as it stands** or as it was rolled. So the host takes one item
+	# off it now, while the joiner is still at the fire, and both peers are
+	# asked what is left.
+	var taken: String = ""
+	if host:
+		await get_tree().process_frame
+		for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+			taken = node.name
+			node.queue_free()
+			break
+		await get_tree().process_frame
+	# **And the floor keeps changing while somebody is on their way.**
+	#
+	# This is the hazard ADR-157 was really about and the one a harness on
+	# loopback will not produce by itself: the host spawns something in the
+	# window where a peer is **between scenes**, so the packet names a path
+	# that peer does not have. Three bodies a second apart guarantee one lands
+	# inside it, and the row below — *the bodies already on it* — is what
+	# notices. Without the visibility gate that row is a coin toss.
+	if host:
+		for i: int in 3:
+			_session.spawn_enemy(_floor.shaft() + Vector3(2.0 + float(i), 0.1, 2.0))
+			await _hold(1.0)
+	var waited: float = await _await_party()
+	var settling: int = Time.get_ticks_msec()
+	while not _session.everyone_declared():
+		await get_tree().physics_frame
+		if Time.get_ticks_msec() - settling > PROBE_TIMEOUT_MSEC:
+			break
+	# Long enough for the arrival to be standing still, so both reports are
+	# about a body rather than about a frame — and the host reads first, because
+	# the joiner writes and quits and a host that sampled after that would be
+	# counting an empty floor.
+	await _hold(1.0 if host else 2.0)
+	var mine: Player = _session.local_player()
+	var carrying: Dictionary = {}
+	for body: Player in _session.players():
+		carrying[body.name] = body.inventory.count()
+	var shaft: Vector3 = _floor.shaft()
+	var report: Dictionary = {
+		"role": "host" if host else "client",
+		"waited_seconds": waited,
+		"players_seen": _session.players().size(),
+		"positions": _probe_positions(),
+		"carrying": carrying,
+		"mine": mine.name if mine != null else "",
+		"shaft": [shaft.x, shaft.y, shaft.z],
+		"seed": RunFile.seed_of(),
+		"floor": _floor_index,
+		"under_way": not CoopSession.taking_arrivals(),
+		"taken": taken,
+		"items": _named_in_group(WorldItem.GROUP),
+		"bodies": _named_in_group(&"enemies"),
+		"arrival_clamor": _probe_arrival_clamor,
+		"godot": Engine.get_version_info()["string"],
+	}
+	# **Sampled while both are here, written once the other has finished.**
+	# Both processes quit when they have written, and the host quitting first
+	# reads on the joiner as *the host closed the session* — an empty report
+	# and a story about a disconnect that never happened. The host therefore
+	# holds after taking its reading, and what it reports is the moment they
+	# were both standing on the floor rather than the moment it gave up.
+	if host:
+		await _hold(4.0)
+	var file := FileAccess.open(out, FileAccess.WRITE)
+	if file == null:
+		printerr("[late] FAIL cannot write %s" % out)
+		get_tree().quit(1)
+		return
+	file.store_string(JSON.stringify(report, "\t"))
+	file.close()
+	print("[late] %s saw %d player(s) after %.1fs" % [
+		report["role"], report["players_seen"], waited])
+	get_tree().quit(0)
+
+
+## What a group holds, by name and in order — so two processes can be compared
+## rather than counted, and a report says *which* thing is missing.
+func _named_in_group(group: StringName) -> PackedStringArray:
+	var out := PackedStringArray()
+	for node: Node in get_tree().get_nodes_in_group(group):
+		out.append(node.name)
+	out.sort()
+	return out
 
 
 ## **`--portal-probe`** (`M4-T12`, ADR-249, `TEC-005`): the Hunter is heard

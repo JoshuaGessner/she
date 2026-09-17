@@ -98,6 +98,8 @@ This is a strict improvement on the old model. It means:
 
 The same mechanism that takes you out lets someone in. A player waiting in the Lair can **open a gate at the party's current position and step through** — no menu, no teleport, they walk out of the dark next to you (`DES-012`).
 
+> **BUILT AT `M4-T15` (ADR-250).** The gate is the **Shaft** — known per floor, diegetic, and deliberately inconvenient, which is the right price for arriving after the work started — and opening it is a Clamor event the Hunt can walk toward. The arrival brings nothing from a run it was not on.
+
 **Opening a gate is a loud Clamor event.** Reinforcements announce themselves to the dungeon. That's the cost, it's diegetic, and it makes "should we call them in *here*, or push to somewhere quieter first?" a genuine tactical question.
 
 ## Counter-play & tools

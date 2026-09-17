@@ -440,6 +440,10 @@ extends Resource
 @export var rank_hunt_seconds: float = 20.0
 
 @export_group("The party")
+## **How loud arriving late is** ⟨tune⟩. `TEC-004` prices the gate as a Clamor
+## event on purpose: the way in is the way out run backwards (`DES-005` Layer
+## 3b), and it should cost the party something that the Hunt can hear.
+@export var late_join_clamor: float = 90.0
 ## Extra enemies per additional player, as a fraction of the base count ⟨tune⟩.
 ## Near-linear (`DES-012`) so combat stays meaningful with four swords in the
 ## room rather than becoming a formality.
@@ -970,6 +974,9 @@ func validate() -> PackedStringArray:
 	if reverb_wet_vast <= reverb_wet_tight or reverb_wet_vast > 1.0:
 		problems.append("a vast room returns %.2f against a tight room's %.2f — the hall is the one that rings"
 			% [reverb_wet_vast, reverb_wet_tight])
+	if late_join_clamor <= 0.0:
+		problems.append("late_join_clamor is %.1f — TEC-004 prices the gate as noise, and silence is not a price"
+			% late_join_clamor)
 	if reverb_fade_seconds <= 0.0:
 		problems.append("reverb_fade_seconds is %.2f — DES-018 asks for a crossfade, and a cut is not one"
 			% reverb_fade_seconds)

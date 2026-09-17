@@ -160,13 +160,13 @@ The Lair is two scenes with opposite networking postures, and getting this right
 
 > **Reverses this document's earlier lean.** Late join is now core, not post-launch.
 
-> **AS BUILT: refused, not supported** (ADR-157, `M3-T36`). None of the section below exists — there is no gate, no world delta, no arrival state. What existed instead was an **ungated connection**: `CoopSession` is built per level and the peer outlives a scene change, so a peer joining mid-run left two processes in different scenes on one connection, and Godot addresses every RPC and spawn by node path. It broke both ends, and it could cost the *host* the run.
+> **AS BUILT at `M4-T15` (ADR-250), and ADR-157's refusal is now the past.**
 >
-> A join is now refused once the descent has begun, with a readable reason. **That is absence rather than reversal** (`ADR-064`): the specification below stands unchanged and is scheduled as `M4-T15`. Building any part of it early — a partial delta, an arrival that half-works — is the stub `ADR-064` bans, and this section is the description of the thing that replaces the refusal.
-
-> **AS BUILT: refused, not supported** (ADR-157, `M3-T36`). None of the section below exists — there is no gate, no world delta, no arrival state. What existed instead was an **ungated connection**: `CoopSession` is built per level and the peer outlives a scene change, so a peer joining mid-run left two processes in different scenes on one connection, and Godot addresses every RPC and spawn by node path. It broke both ends, and it could cost the *host* the run.
+> A knock during a run is answered with a **call down** — the expedition's seed and floor — and no body. The joiner opens a run on those numbers, builds that floor for itself, and **knocks again from it**; only then is a body spawned, at **the Shaft** (`DES-005` Layer 3b), loudly enough for the Hunt to hear. Two sentences cross a `Doorway` node at one path under the tree root, because `CoopSession` is per level and a joiner is in another scene — which is exactly what ADR-157 could not get past.
 >
-> A join is now refused once the descent has begun, with a readable reason. **That is absence rather than reversal** (`ADR-064`): the specification below stands unchanged and is scheduled as `M4-T15`. Building any part of it early — a partial delta, an arrival that half-works — is the stub `ADR-064` bans, and this section is the description of the thing that replaces the refusal.
+> **The walk down is a new connection.** Godot caches node paths per connection: packets the host sends while the joiner is still at the fire are addressed to a scene that does not exist here, and the engine keeps that answer for the life of the connection — `ID 1 not found in cache of peer 1`, on every spawn, forever. That is ADR-157's *"it broke both ends"*, named.
+>
+> **The delta below is mostly not sent by hand.** Everything that changes on a floor is either spawned through the `MultiplayerSpawner` or is a replicated property, and per-peer visibility holds all of it back until a peer says it is standing on the floor — so the frame it does, the engine spawns the world **as it stands**, including the absence of what has been taken. The table is still the description of what must be true, and `run_coop.py --late` asks it: the joiner sees the same items and bodies the host does, one of which was taken off the floor before it knocked.
 
 A player waiting in the Lair opens a gate at the party's position and steps through (`DES-005` Layer 3b). Built on the extraction mechanism run backward, which is why it's affordable — but it is still the most demanding networking feature in the project.
 

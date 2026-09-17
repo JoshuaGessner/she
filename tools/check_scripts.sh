@@ -1582,6 +1582,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		printf '%s\n' "$coop" | sed 's/^/      /' >&2
 		exit 1
 	fi
+
+	# **And somebody who missed the descent** (`M4-T15`, ADR-250). Two
+	# processes again, starting in **different places**: the host on a floor
+	# with the descent declared under way, the joiner at the fire, knocking.
+	# That difference is the whole test — ADR-157 refused this join precisely
+	# because the two ends were in different scenes, and a check that launched
+	# both into the Deep would be asserting the easy half.
+	late="$(GODOT="$GODOT_BIN" python3 "$ROOT/tools/run_coop.py" --late 2>&1)"
+	if [[ $? -ne 0 ]]; then
+		echo "FAIL a late arrival has to reach the party's floor" >&2
+		printf '%s\n' "$late" | sed 's/^/      /' >&2
+		exit 1
+	fi
 	echo "${#scripts[@]} script(s) parse clean, boots, survives teardown, rig intact,"
 	echo "greed costs and dropping it pays, the Hunt tracks noise not transforms,"
 	echo "every mix channel has a visual twin, the way out is never sealed shut,"

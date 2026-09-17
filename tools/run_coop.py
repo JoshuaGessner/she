@@ -6,6 +6,7 @@ Usage:
     python3 tools/run_coop.py --both-devices # no device restriction on either
     python3 tools/run_coop.py --clients 3    # a full four-player party
     python3 tools/run_coop.py --smoke        # headless, and judge it
+    python3 tools/run_coop.py --late         # headless: a knock mid-run, judged
 
 The playtest launch puts the **host on the keyboard and the first client on the
 gamepad**, which ADR-075 asks for by name: it is the cheapest possible
@@ -99,17 +100,25 @@ def find_godot() -> str:
     raise SystemExit(1)
 
 
+# Where somebody who missed the descent is standing (`DES-014`): the fire.
+THRESHOLD = "levels/lair/threshold.tscn"
+# The expedition the late-join mode runs on. A named seed rather than a rolled
+# one: the joiner has to arrive on *the party's* floor, and two processes that
+# both rolled zero would agree for the wrong reason.
+LATE_SEED = 31346
+
+
 def launch(godot: str, role_args: list[str], args: argparse.Namespace,
-           slot: int) -> subprocess.Popen:
+           slot: int, scene: str = "") -> subprocess.Popen:
     command = [godot, "--path", str(GAME)]
-    if args.smoke:
+    if args.smoke or args.late:
         command += ["--headless"]
     else:
         # Side by side, so a solo developer can drive both without hunting for
         # the other window. Godot counts --position from the primary display.
         command += ["--resolution", f"{WINDOW[0]}x{WINDOW[1]}",
                     "--position", f"{40 + slot * (WINDOW[0] + 20)},80"]
-    command += [SCENE, "--"] + role_args
+    command += [scene or SCENE, "--"] + role_args
     # **One `user://` per slot** (ADR-155). Two processes of one project
     # resolve `user://profile.save` and `user://run.active` to the same bytes,
     # so a claim about what *this* peer saved is a claim about whichever peer
@@ -119,8 +128,8 @@ def launch(godot: str, role_args: list[str], args: argparse.Namespace,
     # reach the front door is not the day to remember this.
     return subprocess.Popen(
         command,
-        stdout=subprocess.PIPE if args.smoke else None,
-        stderr=subprocess.STDOUT if args.smoke else None,
+        stdout=subprocess.PIPE if (args.smoke or args.late) else None,
+        stderr=subprocess.STDOUT if (args.smoke or args.late) else None,
         text=True,
         env=own_user_dir.env_for("host" if slot == 0 else f"client{slot - 1}"),
     )
@@ -137,6 +146,12 @@ def device_for(slot: int, args: argparse.Namespace) -> list[str]:
     # There is only one pad on a desk. Beyond the second player the check has
     # already been made, so the rest are unrestricted rather than fabricated.
     return []
+
+
+# How close to the Shaft a late arrival has to land, and how closely the two
+# machines have to agree about where it is standing. Metres.
+ARRIVAL_METRES = 4.0
+AGREE_METRES = 1.0
 
 
 def distance(a: list[float], b: list[float]) -> float:
@@ -469,6 +484,101 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
     return rows
 
 
+def wait_for(procs: list[tuple[str, subprocess.Popen]]) -> dict[str, str]:
+    """Bounded, for the smoke's reason: a probe that hangs is a job that hangs."""
+    logs: dict[str, str] = {}
+    for name, proc in procs:
+        try:
+            logs[name] = (proc.communicate(timeout=SMOKE_TIMEOUT)[0] or "").strip()
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            logs[name] = (proc.communicate()[0] or "").strip()
+            print(f"\n{name} did not finish within {SMOKE_TIMEOUT}s — killed",
+                  file=sys.stderr)
+    return logs
+
+
+def read_report(path: Path) -> dict | None:
+    try:
+        return json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError):
+        return None
+
+
+def judge_late(host: dict, client: dict) -> list[tuple[str, bool]]:
+    """A join that happened is two machines agreeing that it did.
+
+    Every row is a claim one process alone would report happily while the
+    other saw nothing — which is the whole reason this harness exists
+    (ADR-107), and is exactly what ADR-157 refused to build a half of.
+    """
+    rows: list[tuple[str, bool]] = []
+    rows.append(check(
+        "the host was under way when the knock came",
+        bool(host.get("under_way")),
+        "the descent had already begun" if host.get("under_way")
+        else "the door was still open, so this was an ordinary join"))
+    seen = (host.get("players_seen", 0), client.get("players_seen", 0))
+    rows.append(check(
+        "both peers see the whole party",
+        seen == (2, 2), f"host {seen[0]}, joiner {seen[1]} of 2"))
+    rows.append(check(
+        "the joiner built the same floor",
+        host.get("seed") == client.get("seed") == LATE_SEED
+        and host.get("floor") == client.get("floor"),
+        f"host seed {host.get('seed')} floor {host.get('floor')}, "
+        f"joiner seed {client.get('seed')} floor {client.get('floor')}"))
+    # Where the joiner is standing, as each machine has it, against the Shaft
+    # that machine derived for itself.
+    mine = client.get("mine", "")
+    at_host = host.get("positions", {}).get(mine)
+    at_client = client.get("positions", {}).get(mine)
+    shaft = host.get("shaft", [])
+    if at_host and at_client and shaft:
+        near_host = distance(at_host, shaft)
+        near_client = distance(at_client, shaft)
+        apart = distance(at_host, at_client)
+        rows.append(check(
+            "the joiner came in at the Shaft",
+            near_host <= ARRIVAL_METRES and near_client <= ARRIVAL_METRES,
+            f"{near_host:.1f} m from it on the host, {near_client:.1f} m on its own"))
+        rows.append(check(
+            "and both peers put it in the same place",
+            apart <= AGREE_METRES, f"{apart:.2f} m apart"))
+    else:
+        rows.append(check("the joiner came in at the Shaft", False,
+                          "no body for the joiner in one of the reports"))
+    carried = client.get("carrying", {}).get(mine, -1)
+    rows.append(check(
+        "and brought nothing from a run it was not on",
+        carried == 0, f"carrying {carried} item(s)"))
+    # What TEC-004's delta table is really asking: not *did we send a list of
+    # touched IDs*, but *is the arrival standing on the floor as it is now*.
+    taken = host.get("taken", "")
+    host_items = set(host.get("items", []))
+    joiner_items = set(client.get("items", []))
+    rows.append(check(
+        "the joiner sees the floor as it stands",
+        host_items == joiner_items and bool(host_items),
+        f"{len(joiner_items)} item(s) against the host's {len(host_items)}"))
+    rows.append(check(
+        "including the absence of what was taken before it came",
+        bool(taken) and taken not in joiner_items,
+        f"{taken or 'nothing'} was taken and is gone from both"
+        if taken and taken not in joiner_items
+        else f"{taken or 'nothing taken'} — joiner still has it"))
+    rows.append(check(
+        "and the bodies already on it",
+        host.get("bodies") == client.get("bodies"),
+        f"{len(client.get('bodies', []))} against the host's "
+        f"{len(host.get('bodies', []))}"))
+    rows.append(check(
+        "the floor heard it arrive",
+        float(host.get("arrival_clamor", 0.0)) > 0.0,
+        f"clamor {float(host.get('arrival_clamor', 0.0)):.1f} where it came down"))
+    return rows
+
+
 def report_expected_hp(host: dict) -> float:
     return float(host["enemy_max_health"]) - float(host["swing_damage"])
 
@@ -481,6 +591,9 @@ def main() -> int:
     parser.add_argument("--port", type=int, default=47018)
     parser.add_argument("--both-devices", action="store_true",
                         help="do not restrict either instance to one device")
+    parser.add_argument("--late", action="store_true",
+                        help="headless: a peer knocks after the descent began, "
+                             "is called down, and both reports are judged")
     parser.add_argument("--smoke", action="store_true",
                         help="headless, run the co-op probe, judge, exit")
     parser.add_argument("--keep", action="store_true",
@@ -493,6 +606,50 @@ def main() -> int:
     client_outs = [workdir / f"client{i}.json" for i in range(args.clients)]
 
     procs: list[tuple[str, subprocess.Popen]] = []
+
+    if args.late:
+        # **The two processes start in different places, which is the point.**
+        # The host is on a floor with the descent declared under way; the
+        # joiner starts at the fire, exactly where a player who missed the
+        # descent is standing, and has to be called down. Launching it into
+        # the floor directly would skip the handshake this mode exists for.
+        # A generated floor on a named seed, because the call down carries
+        # both numbers and a harness on the hand-built Deep would carry zeros.
+        host_args = ["--host", f"--port={args.port}", "--under-way",
+                     f"--as-run={LATE_SEED}", "--as-class=huskarl",
+                     f"--late-probe={host_out}"]
+        procs.append(("host", launch(godot, host_args, args, 0)))
+        time.sleep(2.0)
+        joiner_args = [f"--join=127.0.0.1", f"--port={args.port}",
+                       "--own-run", "--as-class=huskarl", "--as-rank=8",
+                       f"--late-probe={client_outs[0]}"]
+        procs.append(("joiner", launch(godot, joiner_args, args, 1, THRESHOLD)))
+        logs = wait_for(procs)
+        host = read_report(host_out)
+        joiner = read_report(client_outs[0])
+        if not host or not joiner:
+            print("\nthe late-join probe produced no usable report — engine "
+                  "output follows:", file=sys.stderr)
+            for name, out in logs.items():
+                print(f"\n--- {name} ---\n{out}", file=sys.stderr)
+            return 1
+        print(f"\nGodot {host['godot']} · a knock after the descent began\n")
+        rows = judge_late(host, joiner)
+        for row, _ in rows:
+            print(row)
+        passed = all(ok for _, ok in rows)
+        print("\n" + ("a late arrival comes down to the party at the Shaft — "
+                      "verified" if passed else
+                      "LATE JOIN FAILED — ADR-157's refusal is what this replaced"))
+        if not passed:
+            for name, out in logs.items():
+                print(f"\n--- {name} ---\n{out}", file=sys.stderr)
+        if args.keep:
+            print(f"\nraw reports: {workdir}")
+        else:
+            shutil.rmtree(workdir, ignore_errors=True)
+        return 0 if passed else 2
+
     host_args = ["--host", f"--port={args.port}"] + device_for(0, args)
     if args.smoke:
         host_args.append(f"--coop-probe={host_out}")

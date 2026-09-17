@@ -4283,7 +4283,7 @@ Five rows. The precondition — *one out, one standing, and the floor stayed* �
 
 ## ADR-157 — Nobody joins a descent that has already begun
 
-**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T36`** · **Extends ADR-101, ADR-107**
+**Date:** 2026-08-28 · **Status:** accepted · **Implements `M3-T36`** · **Extends ADR-101, ADR-107** · **Replaced by ADR-250: the door is open again and the gate is what is guarded — and the cause this ADR could name only as a symptom is Godot's per-connection path cache**
 
 **Context:** the third finding of the session-flow sweep, and the only one of the four that was reproduced across two processes *before* being fixed rather than after.
 
@@ -9232,5 +9232,49 @@ duplicate geometry without removing it), replacement generation (unrelated
 and risks determinism). New bespoke final models remain M4-T10; this pass does
 not mark the whole final-art milestone complete.
 
+## ADR-250 — A player who missed the descent comes down at the Shaft, on a new connection
+
+**Date:** 2026-09-17 · **Status:** accepted · **Closes `M4-T15`** · **Replaces ADR-157's refusal** · **Builds `TEC-004`'s join-in-progress**
+
+**Context:** ADR-016 made late join **core, not post-launch**, and `TEC-004` specifies it in full. ADR-157 then refused it at `M3-T36`, and was right to: `CoopSession` is built per level, Godot addresses every RPC by node path, and a peer joining mid-run is in a different scene from the party — *"it broke both ends, and it could cost the host the run."* That refusal was recorded as **absence rather than reversal** (`ADR-064`), with this task named as the thing that replaces it. This is that thing.
+
+### Decision — four moving parts, and nothing else
+
+- **The door is open; the gate is what is guarded.** A knock during a run is answered with a *call down* — the expedition's seed and floor — and **no body**.
+- **The walk down ends one connection and begins another.** Measured rather than foreseen; see below.
+- **One node at one path**, `Doorway`, under the tree root: the same address in every scene, alive for the process, carrying exactly two sentences (*the party is below* and *I am with you*). Not an autoload — `TEC-001` budgets six and names them — and deliberately too small to become a general cross-scene RPC channel, which is how the node-path rule would get quietly abandoned.
+- **A body is earned by answering the knock.** The host knocks at every connection while a descent is under way; a peer standing on the floor answers *I am with you*, and that answer — nothing else — is what spawns a body for anyone who has none, **at the Shaft** — ADR-186's way down, which `DES-005` Layer 3b has always said is also the way in: diegetic, known per floor, deliberately inconvenient, and **loud**, because `TEC-004` prices the gate as a Clamor event the Hunt can walk toward. The ordinary descent runs through the same sentence as a no-op, so there is one path rather than two (`ADR-064`).
+- **The joiner brings no run loot**: a fresh run file on the party's seed and floor, which is what *"arrival state is trivially clean"* means in practice.
+
+### Found on the way
+
+- **Godot caches node paths per connection, and that cache cannot be repaired.** The first build kept the connection through the walk down. Every packet the host had sent while the joiner was still at the fire was addressed to `Threshold/CoopSession` — a path that does not exist on a floor — and the engine remembers that answer for the life of the connection: `ID 1 not found in cache of peer 1`, on **every** spawn, for as long as the peer lived. The joiner stood on an empty floor while the host saw a full one. **That is ADR-157's "it broke both ends", named at last**, and it is why the walk down now makes a new connection in the scene it will live in. A refusal held for a milestone because the cause was known only as a symptom.
+- **Three orderings, each of which looked like a working system until it was run.** The `Doorway` is added to the root *deferred*, because the first session to ask for one is in the middle of its own `_ready` and the root refuses children then — so the first RPC through it was sent from a node not yet in the tree. A level said *I am with you* before its socket had answered, so the sentence had to be remembered and said on connect — machinery that went away when the sentence became a reply to the knock rather than an announcement. And the check's two processes both quit when they have written, so the host quitting first read on the joiner as *the host closed the session*: an empty report and a story about a disconnect that never happened.
+- **Four mechanisms were built, measured, and removed.** Each was written against a hazard that sounded real, and **not one of them changed an outcome anywhere**: per-peer **visibility** holding the world back until a peer reported; a **hang-up** ending a knock a beat after answering it; a **repeated call down** for anyone still upstairs; and the **camp** saying *I am with you* as well as the floor. The visibility gate got the fairest hearing of the four — the late-join check was rewritten to spawn three bodies *into the window while the joiner is between scenes*, which is the exact hazard, and deleting the gate still passed it twice. `ADR-064` bans the parallel path and this is its quieter cousin: **a mechanism kept because the argument for it is good is a mechanism nothing is holding to account.** What is left is four moving parts, each of which a plant can break.
+- **The co-op smoke has a flake, and it is not ADR-239's.** Twice in about a dozen runs today it failed with *a walking teammate is never frozen*, *one client swing, one swing of hp* and *only the host resolved the hit* together — and passed on the next run with nothing changed. It is recorded in `OPEN-QUESTIONS.md` rather than left as folklore: a check that fails one run in six is a check the next person learns to re-run, which is how a real failure gets waved through.
+- **The world delta is mostly not ours to send.** `TEC-004` imagines a compact set of touched IDs — looted containers, dead enemies, opened doors. In this build everything that changes is either **spawned through the `MultiplayerSpawner`** (items, enemies, the Hunter, arrows, snares) or is a **replicated property** (the Shaft's seal, the barrow's state), so a peer that connects is sent the world as it stands, including the absence of what has been taken. The table in `TEC-004` stays as the description of what must be true; the mechanism is the engine's, and the check asks the question the table is really about.
+
+### Absent, not stubbed
+
+Joining **between** floors (the party is mid-descent and the arrival would land on a floor nobody is on yet); a lobby to find a party mid-session, which is `M4-T07`'s; and the delta-discarding for floors the party has left, which `TEC-004` flags as a risk and this build cannot reach, because nothing is sent by hand to grow.
+
+### Verification
+
+`run_coop.py --late`, new, in the sweep beside the smoke it is the other half of. **Two processes that start in different places**, which is the whole test: the host on a **generated floor, seed 31346**, with the descent declared under way; the joiner at the fire, knocking. A harness that launched both into the Deep would be asserting the easy half — and one on the hand-built Deep would carry a seed of zero on both sides, which is a handshake nothing can be wrong about.
+
+The joiner is called down, opens a run on **seed 31346, floor 0**, builds that floor, reconnects, and is spawned **0.1 m from the Shaft** — on the host's report and on its own, the two **0.00 m apart**. It carries **0 items**. It sees **11 world items against the host's 11** and **9 bodies against 9** — including the absence of one item the host took off the floor *before the knock*, and including **three bodies spawned while the joiner was between scenes**, which is what `TEC-004`'s delta table is really asking. The floor **heard it arrive**: 24.0 of Clamor where it came down. The ordinary co-op smoke and the doorway walk pass; so do `check_project.py`, `check_dead.py` and the data probe.
+
+**`run_doorway.py` asks this question where it asked ADR-157's.** Three of its rows were about the refusal — *the host went down and shut the door*, *the one knocking is told why* — and a check that keeps asserting a rule the project has replaced fails on the day the work lands. They now ask that the door stayed open, that the knocker was called down and went, and that **no packets reach a scene a peer is not in *after* the call down**: the engine sends a new peer the world in the frame it connects, before any handler runs, so that window is bounded and measured rather than wished away.
+
+**Planted and failed, one plant per run — all nine, against what is left**: the door shut again; a knock answered with a body; nobody ever called down; a call down carrying this build's own numbers instead of the party's; a joiner that opens no run; the old connection kept through the walk; a knock nobody answers; a body spawned wherever anyone spawns instead of at the Shaft; and a silent arrival. The two most vivid: *the old connection kept* puts the joiner on an empty floor while the host sees a full one, which is ADR-157 reproduced on purpose; and *a joiner that opens no run* leaves the two peers **6.84 m apart on different floors**, agreeing about nothing.
+
+**Earlier rounds planted more, and that is how four mechanisms came to be deleted.** Twelve plants ran against the first design; three passed, and each one was a mechanism nothing needed rather than a check that was too weak. The one that survived scrutiny longest was the visibility gate: the late-join check was rewritten to spawn three bodies into the window it exists for, and deleting it still passed twice.
+
+### Consequences
+
+- **`M4-T15` is closed**, and `TEC-004`'s *"AS BUILT: refused, not supported"* is a description of the past.
+- **`GATE M4 COOP` can be run with a latecomer**, which is how a session of four people actually assembles.
+- The reconnect is invisible in play — it happens while the gate opens — but it is a real disconnect, so a host that dies during it is a joiner that lands at the menu rather than in the Deep. That is the correct failure, and it is the one a join has always had.
 
 *Entries below to be added as design decisions are signed off.*
+

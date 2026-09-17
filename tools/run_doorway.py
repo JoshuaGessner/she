@@ -737,32 +737,47 @@ def main() -> int:
     # The precondition. Without it every row below passes against a host that
     # never got as far as descending, which is the shape of a check that is
     # really asserting that two processes failed to meet.
-    went = "the door is shut" in late["host"]
-    rows.append(("the host went down and shut the door", went,
-                 "shut" if went else "still taking arrivals"))
+    #
+    # **The door is open now** (`M4-T15`, ADR-250). ADR-157 shut it, and this
+    # row used to read "and shut the door"; what is guarded is the gate rather
+    # than the transport, so the precondition is that the host knows it is
+    # under way and would treat a knock as a late join.
+    went = "a knock now is a late join" in late["host"]
+    rows.append(("the host went down, and the door stayed open", went,
+                 "open, under way" if went else "still taking arrivals"))
 
-    # The fault, in the words the engine used for it. Either direction of the
-    # node-path disagreement is the bug: the joiner cannot find the host's
-    # spawner, and the host cannot find the joiner's session.
+    # Told where everyone went, instead of turned away.
+    called = "called down to seed" in late["host"]
+    rows.append(("the one knocking is called down", called,
+                 "told where they went" if called else "left with no reason"))
+    going = "going to them" in late["client0"]
+    rows.append(("and goes to them", going,
+                 "on its way" if going else "stayed at the fire"))
+
+    # **The fault this whole harness is about, bounded rather than absent.**
+    #
+    # Godot sends a newly connected peer everything the spawner has already
+    # made, in the frame it connects and before any handler can object — so a
+    # knock from the fire cannot avoid one burst of packets naming a scene the
+    # knocker is not in. What must not happen is that it *continues*: the host
+    # answers and hangs up, the joiner comes back on a new connection from the
+    # floor, and from that point the paths agree. So the window is measured
+    # rather than wished away: nothing after the call down.
     for who, missing in (("client0", "RoomSet/CoopSession"),
                          ("host", "Threshold/CoopSession")):
-        clean = missing not in late[who]
-        rows.append((f"no packets into a scene the {who} is not in", clean,
-                     "clean" if clean else f"addressed {missing}"))
+        after = late[who].split("called down to seed")[-1] \
+            if "called down to seed" in late[who] else late[who]
+        clean = missing not in after
+        rows.append((f"and no packets into a scene the {who} is not in, after",
+                     clean, "clean" if clean else f"addressed {missing}"))
 
     # A body built for somebody whose process cannot see it is the half that
     # costs the *host* the run: it counts in the party, so the floor scales for
-    # it and `_the_party_is_gone()` waits on it.
+    # it and `_the_party_is_gone()` waits on it. Still true, and now it is the
+    # *report* that earns a body rather than the connection.
     phantom = "joined" in late["host"]
     rows.append(("and no body is built for somebody who is not there",
                  not phantom, "none" if not phantom else "spawned a phantom"))
-
-    # And the person knocking is told something, rather than standing in an
-    # empty camp. The message names all three real causes because a client
-    # cannot tell them apart — see `CoopSession.NO_ANSWER`.
-    told = "gone down without you" in late["client0"]
-    rows.append(("the one knocking is told why", told,
-                 "told" if told else "left with no reason"))
 
     # ── what a client brought, and what it wears (ADR-228) ───────────────
     carried = run_carried(PORT + 8)
