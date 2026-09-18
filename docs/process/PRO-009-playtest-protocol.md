@@ -228,7 +228,7 @@ so nobody expects them back.
 | Item | Why the session does not close it |
 |---|---|
 | **Per-capita *extracted* value at 1/2/4** | `DES-012` already measures per-capita *spawned* value (4.00 / 3.00 / 2.67 / 2.25) and `--scaling-probe` asserts its sign. **Extracted** value waits on `DES-010`'s metrics sink — and **there is no task on the roadmap that builds it.** The question cannot close until something records the number. |
-| **Self-reported growth across runs 11–25** | `DES-022`'s headline metric. Not an evening — a dozen-plus runs by somebody who is not you, over weeks. Needs a decision about whether it gates launch or moves to M5. |
+| **Self-reported growth across runs 11–25** | `DES-022`'s headline metric, and a condition of **`GATE M5 EXIT`** rather than an open question (ADR-253). Not an evening — a dozen-plus runs by somebody who is not you, over weeks. It has the longest lead time of anything on the roadmap, so it is the first thing M5 schedules, not the last thing it checks. |
 | **First-person arm proportions** | `ART-004`. A feel question that needs arms to look at; Q96 is answered and the proportions are an art pass, not an observation. |
 
 ---

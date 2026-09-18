@@ -9318,6 +9318,7 @@ The comment above that line claimed a fallback — *"In a held room if the floor
 
 - **`M4-T02` inherits a smaller question than it was given.** "Where does standing danger go" is answered — it goes in the held span, which every floor has. What is left for it is enemy *variety*, which is what the task was always about.
 - **"Is one early exit enough?" is now a fair question.** It could not be asked before: on 40% of floors the answer was *there are none*, and any playtest of ADR-186 run before today would have been measuring that rather than the drop rate. The `OPEN-QUESTIONS` row is annotated accordingly.
+- **Confirmed by the developer on 2026-09-17**, asked directly whether the Waystone sharing the Prize's room was right: *"the waystone is fine"*. It stands as a decision rather than as the cheapest repair that passed.
 - **A reported number is a number nobody is holding to account.** `no_held` was printed every sweep for a month with a paragraph explaining why it was fine. The explanation aged out and the print went on being green. Both replacements assert.
 - **Left alone deliberately: `_filler()` reads the same tags.** It deals the dearest filler into `held` rooms and the cheapest into `bypass` ones, so on those 145 floors it deals **no held filler at all** and the whole pool goes to the bypass. That is *not* the same fault: the guarded room on those floors is the Prize's, and the Prize is already the payoff ADR-032 asks the held arm to carry. Changing it would be a balance decision rather than a correction, and `PRO-009` block B is what should decide it — noted here because the root cause is shared and the next reader will ask.
 
@@ -9370,6 +9371,30 @@ The phase now waits on the condition: the host waits until it can *see* the clie
 - **`MAX_STILLNESS` is gone.** A bound that cannot be set correctly on an unknown machine is not a bound; ADR-102's finding survives in a form that does not depend on how busy the computer is.
 - **Two harnesses, one lesson.** ADR-250 deleted four mechanisms for being unaccountable; this one deletes a *measurement* for the same reason. A number that moves with the weather is not evidence, however carefully it is compared against a threshold.
 - **Not fixed, because it is not broken:** a body really does sit still when its owner stops sending. That is snapshot interpolation with no extrapolation, and inventing a predictor to flatter a probe would be answering a measurement problem with a gameplay change. If teammates look bad on slow machines in play, that is a `DES-012` question with a real cost, not this one.
+
+## ADR-253 — The growth metric is a gate condition, not an open question, and M4 does not wait on it
+
+**Date:** 2026-09-17 · **Status:** accepted · **Closes** the `OPEN-QUESTIONS` row *"Self-reported growth across runs 11–25"* · **Developer's call**
+
+**Context:** The open-questions pass of 2026-09-17 turned up one row that was a different kind of thing from everything around it. *"Self-reported growth across runs 11–25"* is `DES-022`'s **headline metric** — *"if testers at runs 11–25 say they have stopped feeling growth, no amount of late-game power fixes it"* — and every other row on that page is a question one evening with two or three people can answer. This one is a dozen-plus runs, over weeks, by somebody who is not the developer. Asked whether it blocks launch or belongs to M5, the developer's answer was to pass it.
+
+### It was never an M4 question, and the page was the only thing suggesting it might be
+
+`GATE M5 EXIT` already carries it, in terms: *"all six classes, three biomes and the full enemy roster complete and balanced; `DES-022`'s balance checks pass at every party size; **self-reported growth across runs 11–25 shows no dip** (the headline metric)."*
+
+So the decision changes no sequencing. What it changes is that the metric stops being **written down twice**. A gate condition and a live open question that say the same thing are two copies free to drift, and this project has now been bitten by that shape three times in one day — `no_held` explained by a comment that had aged out (ADR-251), and a stillness bound that measured the machine (ADR-252). The row goes; the gate keeps it.
+
+### Decision
+
+- **The row is deleted from `OPEN-QUESTIONS.md`.** Not deferred, not annotated — the file's own rule is that items live there until they are answered or homed, and this one is homed.
+- **`GATE M5 EXIT` is where it is asked**, unchanged and still `pending`. **It is not marked passed and could not be:** the same gate requires six classes, three biomes and the full enemy roster, none of which exist. Passing a gate is a statement about the game, and there is no version of this one that is true today.
+- **`PRO-009` keeps it in the list of what a session cannot close**, because the next person to run a playtest needs to know why the headline metric is not on their sheet.
+
+### Consequences
+
+- **M4's remaining blockers are the three gates that need people in a room** — `COOP`, `GREED` and `EXIT` — and none of them is this.
+- **The measurement still has to happen before M5 closes**, and it has the longest lead time of anything on the roadmap: weeks of somebody else's runs cannot be started late. `M5` planning should treat it as the first thing scheduled rather than the last thing checked.
+- **`OPEN-QUESTIONS.md` is now eighteen rows, every one of which a single session can reach.** That is the property that makes `PRO-009` a script rather than a wish.
 
 *Entries below to be added as design decisions are signed off.*
 
