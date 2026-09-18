@@ -103,7 +103,23 @@ const ACTION: StringName = &"MenuAction"
 const FIELD: StringName = &"MenuField"
 const TOGGLE: StringName = &"MenuToggle"
 const BINDING: StringName = &"BindingCell"
+## A readout that floats over a live room. See-through ground, thin band.
 const FRAME: StringName = &"Frame"
+## **A surface you are working on**, rather than one you are reading past
+## (`M4-T05`). Opaque, heavier at the corners, and the only ground in the game
+## that carries grain — a stroke drawn over a moving world reads as a scratch
+## on the screen, so `CarvedFrame.hatch` belongs on a panel you cannot see
+## through and nowhere else.
+const SLATE: StringName = &"Slate"
+## A hole in a slate: an inventory cell, an equipment slot. One band and a tick
+## at each corner, because 44 px has no room for furniture.
+const SOCKET: StringName = &"Socket"
+## **The bag's own colours, which are not tones** (`M4-T05`). *Does this fit*
+## has a yes and a no, and the load bar has a full and an over — four answers
+## that are not text and therefore have no `font_color` to live on. They were
+## `const Color` inside `bag_screen.gd`, which put them outside every palette
+## this file exists to make reachable.
+const BAG: StringName = &"Bag"
 const RULE: StringName = &"Rule"
 const BACKDROP: StringName = &"Backdrop"
 ## A backdrop you can still half see through, for a banner laid over a room.
@@ -144,6 +160,28 @@ const LAIR: Theme = preload("res://ui/lair_theme.tres")
 ## than lay out a `Label`, which is the reticle, the marks and the bag.
 static func tone(of: Control, name: StringName) -> Color:
 	return of.get_theme_color(&"font_color", name)
+
+
+## **The ground a carved role paints**, for the same controls — the party
+## frames' empty track, the bag's cells and its panel.
+##
+## It replaced `(get_theme_stylebox(...) as StyleBoxFlat).bg_color`, which was
+## correct for as long as every panel was flat and returned **null** the moment
+## one stopped being, taking the party frames down with it. Asking the role for
+## its ground is the same question without the assumption about how the ground
+## is drawn, and there is one of these rather than one per caller because the
+## cast is exactly the part that was wrong.
+##
+## A role that is not a `CarvedFrame` is a fault in the theme rather than a
+## state to draw around, so it says so and returns a colour nobody would
+## author, instead of quietly painting the wrong thing.
+static func ground(of: Control, role: StringName) -> Color:
+	var carved := of.get_theme_stylebox(&"panel", role) as CarvedFrame
+	if carved == null:
+		push_error("the `%s` role is not a `CarvedFrame`, so it has no " % role
+			+ "ground to read")
+		return Color(1.0, 0.0, 1.0, 1.0)
+	return carved.ground
 
 
 ## Every panel named here that is not drawn on the hub's ground. For

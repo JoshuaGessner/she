@@ -76,7 +76,19 @@ const CELL: float = 44.0
 const GAP: float = 3.0
 const PADDING: float = 18.0
 const HEADER: float = 64.0
-const FOOTER: float = 30.0
+## **Deep enough that the frame does not eat the last prompt** (`M4-T05`).
+##
+## It was 30, which put the second prompt's descender 5 px above the panel
+## edge — clear of the 1 px border it was measured against, and *inside* the
+## carved band that replaced it. The same fault as ADR-140 with a different
+## thing doing the overdrawing, so `overflowing()` now asks the stylebox how
+## thick it is rather than trusting a number written here.
+const FOOTER: float = 40.0
+## Where the first prompt's baseline sits above the panel's bottom edge, and
+## how far the second follows it. Named because the layout check and the
+## drawing both need them, and a remembered number is what ADR-140 was about.
+const FOOTER_BASE: float = 12.0
+const FOOTER_LEAD: float = 13.0
 ## The band between the grid and the prompts, holding whatever the cursor is
 ## over (`M2-T19`, ADR-112). A **name** line and up to **two** wrapped lines of
 ## description, which is three, not two.
@@ -120,17 +132,31 @@ static func footer_lines() -> Array[String]:
 ## Screen pixels per second the gamepad cursor travels at full deflection.
 const CURSOR_RATE: float = 620.0
 
-const PANEL_COLOUR: Color = Color(0.09, 0.085, 0.08, 0.93)
-const CELL_COLOUR: Color = Color(0.20, 0.19, 0.18, 1.0)
-const GRID_LINE: Color = Color(0.31, 0.30, 0.28, 1.0)
-const TEXT_COLOUR: Color = Color(0.86, 0.84, 0.80, 1.0)
-const DIM_TEXT: Color = Color(0.56, 0.54, 0.51, 1.0)
-const LEGAL_GHOST: Color = Color(0.55, 0.78, 0.52, 0.45)
-const ILLEGAL_GHOST: Color = Color(0.82, 0.35, 0.30, 0.45)
-## `DES-019` rule 2 again: over capacity is a *shape and colour* change, not a
-## red number. The bar is the readout; the digits beside it are the arithmetic.
-const LOAD_COLOUR: Color = Color(0.72, 0.68, 0.44, 1.0)
-const OVERLOAD_COLOUR: Color = Color(0.82, 0.35, 0.30, 1.0)
+## **How dense the hatch over an overloaded bar is.** Tighter than a panel's
+## grain, because a 8 px bar with the panel's 7 px pitch would show two strokes
+## and read as a rendering artefact rather than as a mark.
+const OVER_PITCH: float = 4.0
+
+## ## Every colour on this screen comes from the theme (`M4-T05`, ADR-216)
+##
+## Nine of them were `const Color` in this file, and five were *within 0.03* of
+## a theme tone without being equal to one — `TEXT_COLOUR` was `0.86, 0.84,
+## 0.80` where the `Text` tone is `0.87, 0.85, 0.81`. So ADR-216's promise that
+## a palette swap is **"five tones, not twenty-two roles"** held for every
+## screen except the one a player spends the most time inside.
+##
+## Nothing was broken by it, which is exactly why it survived: the near-misses
+## are invisible side by side, and the only symptom is that the bag does not
+## move when the register does. `M4-T11`'s high-contrast palette would have
+## reached every screen in the game and stopped at this one.
+##
+## The four that are genuinely not tones — *this fits*, *this does not*, *full*
+## and *over* — are colours on a `Bag` theme type rather than constants, so a
+## palette reaches them too.
+##
+## Cached and dropped on `NOTIFICATION_THEME_CHANGED`: `_draw` runs every frame
+## the bag is open, and a theme lookup is a walk up the tree.
+var _palette: Dictionary = {}
 
 var _player: Player = null
 var _inventory: Inventory = null
@@ -215,6 +241,24 @@ func first_item_middle() -> Vector2:
 	for item: ItemInstance in _inventory.items():
 		return _cell_rect(item.cell, item.footprint()).get_center()
 	return _grid_origin()
+
+
+## Screen point at the middle of the grid's far corner cell, so `--bag-shot`
+## can put the pointer somewhere nothing larger than one cell can fit without
+## knowing this file's geometry.
+func last_cell_middle() -> Vector2:
+	return _cell_rect(_inventory.grid() - Vector2i.ONE, Vector2i.ONE).get_center()
+
+
+## **Whether what is in hand would be refused where the cursor is** — the
+## question the ghost answers, in code, so a shot can assert it is
+## photographing a refusal rather than assume it staged one. ADR-198's rule:
+## a readout drawing the right shape while saying the wrong thing is the fault
+## a photograph is least able to catch.
+func refusing() -> bool:
+	if _held == null or not _within_grid(_cursor):
+		return false
+	return not _inventory.fits(_held_footprint(), _cursor_cell() - _grab, _held)
 
 
 func hovered() -> ItemInstance:
@@ -465,6 +509,27 @@ func overflowing() -> PackedStringArray:
 		if drawn_at > cell_room:
 			spilled.append("%s's weight is %.0f px in %.0f px: %s" % [
 				item.definition.id, drawn_at, cell_room, weight])
+
+	# **And whether the panel's own frame is drawn over the last line**
+	# (`M4-T05`). Same shape of fault as the blurb above, with the overdrawing
+	# done by the border rather than by other text: the second prompt's
+	# descender sat 5 px above the panel edge, which was clear of a 1 px border
+	# and inside the carved band that replaced it. A screenshot is the only
+	# thing that ever sees this, and only if somebody looks at the corner.
+	#
+	# Asked of the **stylebox**, not of a number copied out of it, so a heavier
+	# frame is a failing row here rather than a clipped prompt on somebody's
+	# screen — which is the whole argument ADR-140 makes about remembered
+	# numbers, applied to the thing that just changed underneath them.
+	var carved := get_theme_stylebox(&"panel", MenuStyle.SLATE) as CarvedFrame
+	if carved != null:
+		var thick: float = carved.band + carved.inset + carved.hairline
+		var clear: float = (FOOTER - FOOTER_BASE - FOOTER_LEAD
+			- font.get_descent(FOOTER_TEXT))
+		if clear < thick:
+			spilled.append(("the last prompt clears the panel edge by %.0f px "
+				+ "and the frame is %.0f px thick, so the band is drawn through "
+				+ "it") % [clear, thick])
 	return spilled
 
 
@@ -560,17 +625,21 @@ func _draw_slots() -> void:
 		# rather than discovered by trying.
 		var wanted: bool = (_held != null
 			and _held.definition.slot == slot)
-		draw_rect(box, PANEL_COLOUR)
-		var warm: Color = MenuStyle.tone(self, MenuStyle.WARM)
-		var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
-		draw_rect(box, warm if wanted else GRID_LINE, false, 2.0)
+		get_theme_stylebox(&"panel", MenuStyle.SOCKET).draw(get_canvas_item(), box)
+		var warm: Color = palette()[&"warm"] as Color
+		var faint: Color = palette()[&"dim"] as Color
+		# Over the socket's own band rather than instead of it, so a lit slot is
+		# the same shape carried heavier — the row never changes its geometry
+		# while you are dragging across it.
+		if wanted:
+			draw_rect(box, warm, false, 2.0)
 		if item != null:
-			draw_rect(box.grow(-6.0), CELL_COLOUR)
+			draw_rect(box.grow(-6.0), palette()[&"cell"] as Color)
 			_draw_icon(item.definition.icon, box.grow(-7.0), 1.0)
 			# The mark stays over a worn item, dark against it. The slot keeps
 			# saying what it is even when it is full, so the row still scans as
 			# a body rather than as six coloured squares.
-			_slot_mark(box, slot, Color(0.10, 0.09, 0.08, 0.75))
+			_slot_mark(box, slot, Color(palette()[&"mark"] as Color, 0.75))
 		else:
 			# Brighter while it is the slot you are dragging toward — the same
 			# signal the border gives, said twice, because `DES-018` will not
@@ -623,6 +692,35 @@ func _held_footprint() -> Vector2i:
 # ── drawing ───────────────────────────────────────────────────────────────
 
 
+## Every colour this screen paints with, resolved from the theme it is under.
+## Public because that is the claim `--bagui-probe` checks: it paints the theme
+## a small number of flat colours and asks whether anything in here is another
+## one, which no amount of reading the file can establish.
+func palette() -> Dictionary:
+	if _palette.is_empty():
+		_palette = {
+			&"text": MenuStyle.tone(self, MenuStyle.TEXT),
+			&"dim": MenuStyle.tone(self, MenuStyle.DIM),
+			&"warm": MenuStyle.tone(self, MenuStyle.WARM),
+			&"line": get_theme_color(&"line", MenuStyle.BAG),
+			&"legal": get_theme_color(&"legal", MenuStyle.BAG),
+			&"illegal": get_theme_color(&"illegal", MenuStyle.BAG),
+			&"load": get_theme_color(&"load", MenuStyle.BAG),
+			&"overload": get_theme_color(&"overload", MenuStyle.BAG),
+			&"scrim": get_theme_color(&"scrim", MenuStyle.BAG),
+			&"mark": get_theme_color(&"mark", MenuStyle.BAG),
+			&"panel": MenuStyle.ground(self, MenuStyle.SLATE),
+			&"cell": MenuStyle.ground(self, MenuStyle.SOCKET),
+		}
+	return _palette
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_THEME_CHANGED:
+		_palette = {}
+		queue_redraw()
+
+
 func _draw() -> void:
 	var panel: Rect2 = _panel_rect()
 	# **The world goes quiet behind it** (`M4-T20`).
@@ -634,9 +732,12 @@ func _draw() -> void:
 	# back exactly the safety the inventory is designed to deny. You can still
 	# see something coming.
 	draw_rect(Rect2(Vector2.ZERO, get_viewport_rect().size),
-		Color(0.04, 0.04, 0.05, 0.45))
-	draw_rect(panel, PANEL_COLOUR)
-	draw_rect(panel, GRID_LINE, false, 2.0)
+		palette()[&"scrim"] as Color)
+	# **The panel is the theme's, not a rectangle that resembles it** (`M4-T05`).
+	# Drawn by the same `CarvedFrame` object the Chamber's readout is laid out
+	# in, so the one screen that paints itself by hand cannot drift from the ones
+	# that do not — which is precisely how it came to be three near-misses away.
+	get_theme_stylebox(&"panel", MenuStyle.SLATE).draw(get_canvas_item(), panel)
 	_draw_header(panel)
 	_draw_slots()
 	_draw_cells()
@@ -645,6 +746,15 @@ func _draw() -> void:
 			_draw_item(item, _cell_rect(item.cell, item.footprint()), 1.0)
 	if _held != null:
 		_draw_held()
+	# A hairline under what you are carrying, above what you are looking at.
+	# Gestalt common region, the argument `MenuStyle.rule()` already makes: a
+	# gap is ambiguous about which group the next line belongs to, and this
+	# panel stacks four of them — numbers, grid, body, readout — with nothing
+	# but space between them.
+	draw_rect(Rect2(panel.position.x + PADDING,
+		panel.position.y + panel.size.y - FOOTER - BLURB - 6.0,
+		panel.size.x - PADDING * 2.0, 1.0),
+		Color(palette()[&"line"] as Color, 0.55))
 	_draw_blurb(panel)
 	_draw_footer(panel)
 
@@ -671,11 +781,11 @@ func _draw_blurb(panel: Rect2) -> void:
 	var top: float = panel.position.y + panel.size.y - FOOTER - BLURB + 11.0
 	draw_string(font, Vector2(panel.position.x + PADDING, top),
 		item.definition.display(), HORIZONTAL_ALIGNMENT_LEFT, width,
-		BLURB_TEXT, TEXT_COLOUR)
+		BLURB_TEXT, palette()[&"text"] as Color)
 	draw_multiline_string(font,
 		Vector2(panel.position.x + PADDING, top + 13.0),
 		item.definition.describe(), HORIZONTAL_ALIGNMENT_LEFT, width,
-		BLURB_TEXT, 2, DIM_TEXT)
+		BLURB_TEXT, 2, palette()[&"dim"] as Color)
 
 
 ## The three numbers the decision is actually made on.
@@ -686,11 +796,10 @@ func _draw_header(panel: Rect2) -> void:
 	# 0.2 kg against 40 while their legs carried 13.5 against 52.
 	var kilograms: float = _player.carried.kilograms
 	var capacity: float = _player.carried.capacity()
-	var grid: Vector2i = _inventory.grid()
 	var at: Vector2 = panel.position + Vector2(PADDING, PADDING + 14.0)
 
 	draw_string(font, at, "BAG", HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT,
-		DIM_TEXT)
+		palette()[&"dim"] as Color)
 	# Through `_header_summary` so the string the panel was *sized* against and
 	# the string actually drawn cannot drift apart, and clipped to the room it
 	# was sized for — belt and braces, because the panel now guarantees the fit
@@ -699,27 +808,40 @@ func _draw_header(panel: Rect2) -> void:
 		_carried_radius())
 	draw_string(font, at + Vector2(HEADER_INSET, 0.0), summary,
 		HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - PADDING * 2.0 - HEADER_INSET,
-		HEADER_TEXT, TEXT_COLOUR)
+		HEADER_TEXT, palette()[&"text"] as Color)
 
 	# The load bar. Encumbrance is what the legs feel, so it is drawn as a
 	# proportion rather than left as a figure to be read — `DES-019` wants
 	# shapes for feel and digits only for arithmetic, and both are here doing
 	# their own job.
 	var track := Rect2(at + Vector2(0.0, 12.0), Vector2(panel.size.x - PADDING * 2.0, 8.0))
-	draw_rect(track, CELL_COLOUR)
+	draw_rect(track, palette()[&"cell"] as Color)
+	draw_rect(track, palette()[&"line"] as Color, false, 1.0)
 	var fraction: float = clampf(kilograms / maxf(capacity, 0.001), 0.0, 1.0)
 	var filled := Rect2(track.position, Vector2(track.size.x * fraction, track.size.y))
 	var over: bool = kilograms >= capacity
-	draw_rect(filled, OVERLOAD_COLOUR if over else LOAD_COLOUR)
+	draw_rect(filled, palette()[&"overload" if over else &"load"] as Color)
+	# **Over capacity is hatched, because the bar has nowhere left to go**
+	# (`DES-018`, `M4-T05`). The fill is clamped at 1.0, so at 39.9 kg and at
+	# 60 kg against a 40 kg capacity the shape is identical and *only the hue*
+	# differed — which is the one thing `DES-018` will not let a signal rest on.
+	# Strokes over the whole trough say *past full* in a mark rather than in a
+	# colour, and they say it at any colour vision and in a photograph.
+	if over:
+		CarvedFrame.hatch_into(get_canvas_item(), track,
+			palette()[&"cell"] as Color, OVER_PITCH, 1.0)
 
 
 func _draw_cells() -> void:
 	var grid: Vector2i = _inventory.grid()
+	# An empty cell is a socket cut into the slate, tick-marked at the corners —
+	# a grid of them reads as a thing built to hold things, where a grid of
+	# outlined rectangles reads as a spreadsheet.
+	var socket: StyleBox = get_theme_stylebox(&"panel", MenuStyle.SOCKET)
+	var into: RID = get_canvas_item()
 	for y: int in range(grid.y):
 		for x: int in range(grid.x):
-			var rect: Rect2 = _cell_rect(Vector2i(x, y), Vector2i.ONE)
-			draw_rect(rect, CELL_COLOUR)
-			draw_rect(rect, GRID_LINE, false, 1.0)
+			socket.draw(into, _cell_rect(Vector2i(x, y), Vector2i.ONE))
 
 
 func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
@@ -731,8 +853,10 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	# those category colours with authored silhouettes: bone and black ink for
 	# equipment and supplies, gold only for glitter and the ember.  The border
 	# stays quiet so the icon, not a colour patch, is what a hand recognises.
-	draw_rect(rect, Color(CELL_COLOUR, CELL_COLOUR.a * alpha))
-	draw_rect(rect, Color(GRID_LINE, GRID_LINE.a * alpha), false, 2.0)
+	var cell: Color = palette()[&"cell"] as Color
+	var line: Color = palette()[&"line"] as Color
+	draw_rect(rect, Color(cell, cell.a * alpha))
+	draw_rect(rect, Color(line, line.a * alpha), false, 2.0)
 	var one_row: bool = item.footprint().y == 1
 	var icon_top: float = 5.0 if one_row else 20.0
 	var icon_bottom: float = 16.0
@@ -751,11 +875,11 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 			and item.footprint().x >= 2 and item.footprint().y >= 2:
 		var badge := Rect2(rect.end - Vector2(26.0, 26.0), Vector2(20.0, 20.0))
 		_slot_mark(badge, item.definition.slot,
-			Color(0.10, 0.09, 0.08, 0.7 * alpha))
+			Color(palette()[&"mark"] as Color, 0.7 * alpha))
 	# A one-row footprint spends its scarce height on a recognisable silhouette
 	# and its weight.  Hover still gives its complete name and description below;
 	# taller things keep their label above the icon.
-	var text_colour := Color(TEXT_COLOUR, alpha)
+	var text_colour := Color(palette()[&"text"] as Color, alpha)
 	if not one_row:
 		draw_string(font, rect.position + Vector2(5.0, 16.0), item.label(seat),
 			HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, 13, text_colour)
@@ -769,7 +893,7 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 		weight = weight.replace(" kg", "")
 	draw_string(font, rect.position + Vector2(5.0, rect.size.y - 6.0),
 		weight, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0,
-		12, Color(DIM_TEXT, alpha))
+		12, Color(palette()[&"dim"] as Color, alpha))
 
 
 ## Fit the SVG's own proportions inside the space left by the item's text and
@@ -791,8 +915,16 @@ func _draw_held() -> void:
 	var target: Vector2i = _cursor_cell() - _grab
 	if _within_grid(_cursor):
 		var legal: bool = _inventory.fits(footprint, target, _held)
-		draw_rect(_cell_rect(target, footprint),
-			LEGAL_GHOST if legal else ILLEGAL_GHOST)
+		var ghost: Color = palette()[&"legal" if legal else &"illegal"] as Color
+		draw_rect(_cell_rect(target, footprint), ghost)
+		# **And a refusal is hatched, not merely red** (`DES-018`). A ghost that
+		# says *this does not fit* in hue alone says nothing to a third of a
+		# colour-blind audience, and this is the one readout in the bag a player
+		# acts on within the same second they read it.
+		if not legal:
+			CarvedFrame.hatch_into(get_canvas_item(),
+				_cell_rect(target, footprint), Color(ghost, 0.9),
+				OVER_PITCH * 2.0, 1.0)
 	var floating := Rect2(_cursor - Vector2(footprint) * (CELL + GAP) * 0.5,
 		Vector2(footprint) * (CELL + GAP) - Vector2(GAP, GAP))
 	_draw_item(_held, floating, 0.85)
@@ -812,12 +944,13 @@ func _draw_footer(panel: Rect2) -> void:
 	var font: Font = get_theme_default_font()
 	var width: float = panel.size.x - PADDING * 2.0
 	var left: float = panel.position.x + PADDING
-	var base: float = panel.position.y + panel.size.y - FOOTER + 12.0
+	var base: float = panel.position.y + panel.size.y - FOOTER + FOOTER_BASE
 	var prompts: Array[String] = footer_lines()
+	var faint: Color = palette()[&"dim"] as Color
 	draw_string(font, Vector2(left, base), prompts[0],
-		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, DIM_TEXT)
-	draw_string(font, Vector2(left, base + 13.0), prompts[1],
-		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, DIM_TEXT)
+		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, faint)
+	draw_string(font, Vector2(left, base + FOOTER_LEAD), prompts[1],
+		HORIZONTAL_ALIGNMENT_LEFT, width, FOOTER_TEXT, faint)
 
 
 ## An item light enough to read as *free* has to say so without looking like a

@@ -150,8 +150,11 @@ func _draw_frame(body: Player, top: float, loudest: float) -> void:
 	var quiet: bool = state == &"up" or state == &"out"
 	var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
 	var ink: Color = faint if quiet else MenuStyle.tone(self, MenuStyle.TEXT)
-	# The bar's empty track is the frame's own fill, so the two can never drift.
-	var track: Color = (get_theme_stylebox(&"panel", MenuStyle.FRAME) as StyleBoxFlat).bg_color
+	# The bar's empty track is the frame's own ground, so the two can never
+	# drift. Asked through `MenuStyle.ground` rather than by casting the
+	# stylebox: this read `bg_color` off a `StyleBoxFlat` and became `null` the
+	# day a panel stopped being flat (ADR-256).
+	var track: Color = MenuStyle.ground(self, MenuStyle.FRAME)
 	var font: Font = get_theme_default_font()
 
 	# The seat, as a standing tick. It is the only part of a frame that never

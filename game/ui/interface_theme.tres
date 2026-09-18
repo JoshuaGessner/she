@@ -1,35 +1,16 @@
 [gd_resource type="Theme" format=3]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action_normal"]
-content_margin_left = 8.0
-content_margin_top = 8.0
-content_margin_right = 8.0
-content_margin_bottom = 8.0
-bg_color = Color(0.11, 0.105, 0.1, 0.96)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.28, 0.26, 0.24, 1)
+[ext_resource type="Script" path="res://ui/carved_frame.gd" id="1_8wi2f"]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action_lit"]
-content_margin_left = 8.0
-content_margin_top = 8.0
-content_margin_right = 8.0
-content_margin_bottom = 8.0
-bg_color = Color(0.11, 0.105, 0.1, 0.96)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.78, 0.55, 0.3, 1)
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action_pressed"]
-content_margin_left = 8.0
-content_margin_top = 8.0
-content_margin_right = 8.0
-content_margin_bottom = 8.0
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_backdrop"]
 bg_color = Color(0.07, 0.065, 0.06, 0.94)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_binding_lit"]
+content_margin_left = 6.0
+content_margin_top = 1.0
+content_margin_right = 6.0
+content_margin_bottom = 1.0
+bg_color = Color(0.11, 0.105, 0.1, 0.96)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -43,12 +24,52 @@ content_margin_right = 6.0
 content_margin_bottom = 1.0
 bg_color = Color(0.11, 0.105, 0.1, 0.5)
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_binding_lit"]
-content_margin_left = 6.0
-content_margin_top = 1.0
-content_margin_right = 6.0
-content_margin_bottom = 1.0
+[sub_resource type="StyleBox" id="StyleBox_rwlvc"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_left = 10.0
+content_margin_top = 10.0
+content_margin_right = 10.0
+content_margin_bottom = 10.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.075, 0.07, 0.065, 0.82)
+ink = Color(0.42, 0.38, 0.32, 1)
+edge = Color(0.24, 0.22, 0.2, 1)
+band = 2.0
+inset = 2.0
+corner = 10.0
+corner_weight = 2.0
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action_lit"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
 bg_color = Color(0.11, 0.105, 0.1, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.78, 0.55, 0.3, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action_normal"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.11, 0.105, 0.1, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.28, 0.26, 0.24, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_action_pressed"]
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
+bg_color = Color(0.07, 0.065, 0.06, 0.94)
 border_width_left = 1
 border_width_top = 1
 border_width_right = 1
@@ -67,97 +88,59 @@ border_width_right = 1
 border_width_bottom = 1
 border_color = Color(0.28, 0.26, 0.24, 1)
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_frame"]
-content_margin_left = 10.0
-content_margin_top = 10.0
-content_margin_right = 10.0
-content_margin_bottom = 10.0
-bg_color = Color(0.09, 0.085, 0.08, 0.72)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.28, 0.26, 0.24, 1)
-
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rule"]
 bg_color = Color(0.28, 0.26, 0.24, 1)
-
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_backdrop"]
-bg_color = Color(0.07, 0.065, 0.06, 0.94)
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_scrim"]
 bg_color = Color(0.07, 0.065, 0.06, 0.86)
 
+[sub_resource type="StyleBox" id="StyleBox_j37ss"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_left = 16.0
+content_margin_top = 16.0
+content_margin_right = 16.0
+content_margin_bottom = 16.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.075, 0.07, 0.065, 0.96)
+ink = Color(0.46, 0.41, 0.34, 1)
+edge = Color(0.26, 0.24, 0.21, 1)
+hatch = Color(0.52, 0.47, 0.4, 0.07)
+band = 5.0
+corner = 34.0
+corner_weight = 5.0
+hatch_pitch = 6.0
+
+[sub_resource type="StyleBox" id="StyleBox_to8it"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.165, 0.155, 0.145, 1)
+ink = Color(0.3, 0.28, 0.25, 1)
+edge = Color(0, 0, 0, 0)
+band = 1.0
+inset = 0.0
+hairline = 0.0
+corner = 5.0
+corner_weight = 1.5
+
 [resource]
-Text/base_type = &"Label"
-Text/colors/font_color = Color(0.87, 0.85, 0.81, 1)
-Dim/base_type = &"Label"
-Dim/colors/font_color = Color(0.55, 0.53, 0.5, 1)
-Warm/base_type = &"Label"
-Warm/colors/font_color = Color(0.78, 0.55, 0.3, 1)
-Debt/base_type = &"Label"
-Debt/colors/font_color = Color(0.72, 0.36, 0.3, 1)
-Fault/base_type = &"Label"
-Fault/colors/font_color = Color(0.82, 0.42, 0.36, 1)
-Title/base_type = &"Text"
-Title/font_sizes/font_size = 44
-ScreenTitle/base_type = &"Text"
-ScreenTitle/font_sizes/font_size = 34
-DialogTitle/base_type = &"Text"
-DialogTitle/font_sizes/font_size = 30
-Heading/base_type = &"Dim"
-Heading/font_sizes/font_size = 11
-FineDim/base_type = &"Dim"
-FineDim/font_sizes/font_size = 12
-CaptionDim/base_type = &"Dim"
-CaptionDim/font_sizes/font_size = 13
-CaptionText/base_type = &"Text"
-CaptionText/font_sizes/font_size = 13
-CaptionWarm/base_type = &"Warm"
-CaptionWarm/font_sizes/font_size = 13
-CaptionDebt/base_type = &"Debt"
-CaptionDebt/font_sizes/font_size = 13
-SmallDim/base_type = &"Dim"
-SmallDim/font_sizes/font_size = 14
-SmallWarm/base_type = &"Warm"
-SmallWarm/font_sizes/font_size = 14
-SmallFault/base_type = &"Fault"
-SmallFault/font_sizes/font_size = 14
-BodyDim/base_type = &"Dim"
-BodyDim/font_sizes/font_size = 15
-BodyText/base_type = &"Text"
-BodyText/font_sizes/font_size = 15
-BodyWarm/base_type = &"Warm"
-BodyWarm/font_sizes/font_size = 15
-LargeDim/base_type = &"Dim"
-LargeDim/font_sizes/font_size = 16
-LargeText/base_type = &"Text"
-LargeText/font_sizes/font_size = 16
-LargeWarm/base_type = &"Warm"
-LargeWarm/font_sizes/font_size = 16
-SubDim/base_type = &"Dim"
-SubDim/font_sizes/font_size = 18
-SubWarm/base_type = &"Warm"
-SubWarm/font_sizes/font_size = 18
-DisplayWarm/base_type = &"Warm"
-DisplayWarm/font_sizes/font_size = 21
+Backdrop/base_type = &"Panel"
+Backdrop/styles/panel = SubResource("StyleBoxFlat_backdrop")
+Bag/base_type = &"Control"
+Bag/colors/illegal = Color(0.82, 0.35, 0.3, 0.45)
+Bag/colors/legal = Color(0.55, 0.78, 0.52, 0.45)
+Bag/colors/line = Color(0.36, 0.34, 0.31, 1)
+Bag/colors/load = Color(0.72, 0.68, 0.44, 1)
+Bag/colors/mark = Color(0.1, 0.09, 0.08, 1)
+Bag/colors/overload = Color(0.82, 0.35, 0.3, 1)
+Bag/colors/scrim = Color(0.04, 0.04, 0.05, 0.45)
 BannerWarm/base_type = &"Warm"
 BannerWarm/font_sizes/font_size = 26
-LegacyTitle/base_type = &"Label"
-LegacyTitle/font_sizes/font_size = 28
-DeedsTitle/base_type = &"Label"
-DeedsTitle/font_sizes/font_size = 26
-DeedName/base_type = &"Label"
-DeedName/font_sizes/font_size = 20
-MenuAction/base_type = &"Button"
-MenuAction/colors/font_color = Color(0.87, 0.85, 0.81, 1)
-MenuAction/colors/font_focus_color = Color(0.78, 0.55, 0.3, 1)
-MenuAction/colors/font_hover_color = Color(0.78, 0.55, 0.3, 1)
-MenuAction/font_sizes/font_size = 18
-MenuAction/styles/focus = SubResource("StyleBoxFlat_action_lit")
-MenuAction/styles/hover = SubResource("StyleBoxFlat_action_lit")
-MenuAction/styles/normal = SubResource("StyleBoxFlat_action_normal")
-MenuAction/styles/pressed = SubResource("StyleBoxFlat_action_pressed")
 BindingCell/base_type = &"Button"
 BindingCell/colors/font_color = Color(0.87, 0.85, 0.81, 1)
 BindingCell/colors/font_focus_color = Color(0.78, 0.55, 0.3, 1)
@@ -167,6 +150,57 @@ BindingCell/styles/focus = SubResource("StyleBoxFlat_binding_lit")
 BindingCell/styles/hover = SubResource("StyleBoxFlat_binding_lit")
 BindingCell/styles/normal = SubResource("StyleBoxFlat_binding_normal")
 BindingCell/styles/pressed = SubResource("StyleBoxFlat_binding_lit")
+BodyDim/base_type = &"Dim"
+BodyDim/font_sizes/font_size = 15
+BodyText/base_type = &"Text"
+BodyText/font_sizes/font_size = 15
+BodyWarm/base_type = &"Warm"
+BodyWarm/font_sizes/font_size = 15
+CaptionDebt/base_type = &"Debt"
+CaptionDebt/font_sizes/font_size = 13
+CaptionDim/base_type = &"Dim"
+CaptionDim/font_sizes/font_size = 13
+CaptionText/base_type = &"Text"
+CaptionText/font_sizes/font_size = 13
+CaptionWarm/base_type = &"Warm"
+CaptionWarm/font_sizes/font_size = 13
+Debt/base_type = &"Label"
+Debt/colors/font_color = Color(0.72, 0.36, 0.3, 1)
+DeedName/base_type = &"Label"
+DeedName/font_sizes/font_size = 20
+DeedsTitle/base_type = &"Label"
+DeedsTitle/font_sizes/font_size = 26
+DialogTitle/base_type = &"Text"
+DialogTitle/font_sizes/font_size = 30
+Dim/base_type = &"Label"
+Dim/colors/font_color = Color(0.55, 0.53, 0.5, 1)
+DisplayWarm/base_type = &"Warm"
+DisplayWarm/font_sizes/font_size = 21
+Fault/base_type = &"Label"
+Fault/colors/font_color = Color(0.82, 0.42, 0.36, 1)
+FineDim/base_type = &"Dim"
+FineDim/font_sizes/font_size = 12
+Frame/base_type = &"PanelContainer"
+Frame/styles/panel = SubResource("StyleBox_rwlvc")
+Heading/base_type = &"Dim"
+Heading/font_sizes/font_size = 11
+LargeDim/base_type = &"Dim"
+LargeDim/font_sizes/font_size = 16
+LargeText/base_type = &"Text"
+LargeText/font_sizes/font_size = 16
+LargeWarm/base_type = &"Warm"
+LargeWarm/font_sizes/font_size = 16
+LegacyTitle/base_type = &"Label"
+LegacyTitle/font_sizes/font_size = 28
+MenuAction/base_type = &"Button"
+MenuAction/colors/font_color = Color(0.87, 0.85, 0.81, 1)
+MenuAction/colors/font_focus_color = Color(0.78, 0.55, 0.3, 1)
+MenuAction/colors/font_hover_color = Color(0.78, 0.55, 0.3, 1)
+MenuAction/font_sizes/font_size = 18
+MenuAction/styles/focus = SubResource("StyleBoxFlat_action_lit")
+MenuAction/styles/hover = SubResource("StyleBoxFlat_action_lit")
+MenuAction/styles/normal = SubResource("StyleBoxFlat_action_normal")
+MenuAction/styles/pressed = SubResource("StyleBoxFlat_action_pressed")
 MenuField/base_type = &"LineEdit"
 MenuField/colors/font_color = Color(0.87, 0.85, 0.81, 1)
 MenuField/font_sizes/font_size = 17
@@ -176,11 +210,29 @@ MenuToggle/base_type = &"CheckBox"
 MenuToggle/colors/font_color = Color(0.87, 0.85, 0.81, 1)
 MenuToggle/colors/font_hover_color = Color(0.78, 0.55, 0.3, 1)
 MenuToggle/font_sizes/font_size = 16
-Frame/base_type = &"PanelContainer"
-Frame/styles/panel = SubResource("StyleBoxFlat_frame")
 Rule/base_type = &"Panel"
 Rule/styles/panel = SubResource("StyleBoxFlat_rule")
-Backdrop/base_type = &"Panel"
-Backdrop/styles/panel = SubResource("StyleBoxFlat_backdrop")
+ScreenTitle/base_type = &"Text"
+ScreenTitle/font_sizes/font_size = 34
 Scrim/base_type = &"Panel"
 Scrim/styles/panel = SubResource("StyleBoxFlat_scrim")
+Slate/base_type = &"PanelContainer"
+Slate/styles/panel = SubResource("StyleBox_j37ss")
+SmallDim/base_type = &"Dim"
+SmallDim/font_sizes/font_size = 14
+SmallFault/base_type = &"Fault"
+SmallFault/font_sizes/font_size = 14
+SmallWarm/base_type = &"Warm"
+SmallWarm/font_sizes/font_size = 14
+Socket/base_type = &"PanelContainer"
+Socket/styles/panel = SubResource("StyleBox_to8it")
+SubDim/base_type = &"Dim"
+SubDim/font_sizes/font_size = 18
+SubWarm/base_type = &"Warm"
+SubWarm/font_sizes/font_size = 18
+Text/base_type = &"Label"
+Text/colors/font_color = Color(0.87, 0.85, 0.81, 1)
+Title/base_type = &"Text"
+Title/font_sizes/font_size = 44
+Warm/base_type = &"Label"
+Warm/colors/font_color = Color(0.78, 0.55, 0.3, 1)

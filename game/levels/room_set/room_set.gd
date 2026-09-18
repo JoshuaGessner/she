@@ -9238,7 +9238,52 @@ func _bag_shot(path: String) -> void:
 	get_viewport().get_texture().get_image().save_png(path)
 	print("[bag] %d item(s) drawn, %.1f kg, wrote %s" % [
 		player.inventory.count(), player.carried.kilograms, path])
-	get_tree().quit()
+
+	# **And the two states this panel has never been photographed in**
+	# (`M4-T05`, ADR-256). Over capacity and a refused placement both stopped
+	# resting on hue this pass and are drawn as hatching — and a hatch is
+	# exactly the kind of mark that either reads or turns to mud depending on
+	# its pitch, which no headless row can tell you. ADR-140's lesson applied to
+	# what just changed: the state that breaks is the state nobody shot.
+	var problems := PackedStringArray()
+	var chest: ItemResource = ItemCatalogue.by_id(&"glt_coin_chest")
+	if chest != null:
+		player.inventory.add(chest)
+	for i: int in range(4):
+		await get_tree().physics_frame
+	if player.carried.kilograms <= player.carried.capacity():
+		problems.append(("the body carries %.1f kg against %.1f and the shot is "
+			+ "of an overloaded bar — it photographed the ordinary state twice")
+			% [player.carried.kilograms, player.carried.capacity()])
+
+	# Grab what is in the bag and carry it to the far corner, where anything
+	# larger than one cell runs off the grid. Through real events, on this
+	# function's own precedent: a `_cursor` assigned from outside would be a
+	# state the mouse cannot produce.
+	var grab := InputEventMouseButton.new()
+	grab.button_index = MOUSE_BUTTON_LEFT
+	grab.pressed = true
+	grab.position = bag.first_item_middle()
+	grab.global_position = grab.position
+	bag.get_viewport().push_input(grab)
+	await get_tree().process_frame
+	var carry := InputEventMouseMotion.new()
+	carry.position = bag.last_cell_middle()
+	bag.get_viewport().push_input(carry)
+	for i: int in range(4):
+		await get_tree().process_frame
+	if not bag.refusing():
+		problems.append("nothing is being refused at the far corner, so the "
+			+ "shot is of a legal placement and the hatched ghost is not in it")
+
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-over.png"))
+	print("[bag] %.1f / %.0f kg over, refusing %s, wrote %s" % [
+		player.carried.kilograms, player.carried.capacity(), bag.refusing(),
+		path.replace(".png", "-over.png")])
+	_report(problems, "bag")
 
 
 ## **Photograph `DES-019` Layers 3 and 4, and measure what was drawn**
@@ -9476,6 +9521,54 @@ func _bagui_probe() -> void:
 			+ "M4-T14's helm would have nowhere to go")
 	if drawn.is_empty():
 		problems.append("the bag drew no slots at all")
+
+	# ─ **every colour the bag draws comes from the theme** (`M4-T05`, ADR-216) ─
+	#
+	# Nine were `const Color` in `bag_screen.gd`, five of them within 0.03 of a
+	# theme tone without equalling one. Nothing looked wrong, which is why it
+	# survived: the only symptom is that the bag does not move when the register
+	# does, and ADR-216's whole claim is that a palette swap is *five tones*.
+	#
+	# Asked by **painting**, because reading the file cannot answer it — a
+	# constant that happens to equal a tone today is still a constant. The theme
+	# is set to three flat colours, one per kind of entry, and anything the bag
+	# reports that is a fourth colour is a value it is carrying itself.
+	#
+	# It bounds what `palette()` reports, not every `draw_*` call in the file.
+	# A literal passed straight to `draw_rect` is still invisible here; what
+	# this makes impossible is the failure that actually happened, which is a
+	# named constant drifting from the tone it was copied from.
+	var painted := Theme.new()
+	var toned := Color(0.90, 0.10, 0.90, 1.0)
+	var named := Color(0.10, 0.90, 0.10, 1.0)
+	var carved := Color(0.10, 0.10, 0.90, 1.0)
+	for role: StringName in [&"Text", &"Dim", &"Warm"]:
+		painted.set_type_variation(role, &"Label")
+		painted.set_color(&"font_color", role, toned)
+	painted.set_type_variation(MenuStyle.BAG, &"Control")
+	for entry: StringName in [&"line", &"legal", &"illegal", &"load",
+			&"overload", &"scrim", &"mark"]:
+		painted.set_color(entry, MenuStyle.BAG, named)
+	for role: StringName in [MenuStyle.SLATE, MenuStyle.SOCKET]:
+		var ground := CarvedFrame.new()
+		ground.ground = carved
+		painted.set_type_variation(role, &"PanelContainer")
+		painted.set_stylebox(&"panel", role, ground)
+	bag.theme = painted
+	await _hold(0.2)
+	var strays: PackedStringArray = PackedStringArray()
+	var swatch: Dictionary = bag.palette()
+	for key: StringName in swatch:
+		var shade: Color = swatch[key]
+		if shade != toned and shade != named and shade != carved:
+			strays.append("%s is %s" % [key, shade])
+	print("[bagui] palette      %d colour(s), %s" % [swatch.size(),
+		"all from the theme" if strays.is_empty()
+			else "%d of its own: %s" % [strays.size(), ", ".join(strays)]])
+	for stray: String in strays:
+		problems.append(("the bag draws `%s` from a value of its own rather "
+			+ "than from the theme, so no palette change can reach it") % stray)
+	bag.theme = null
 
 	_report(problems, "bagui")
 

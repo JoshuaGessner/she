@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-17
+updated: 2026-09-18
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -9471,6 +9471,83 @@ This was known. ADR-107 exists because *"one playtester doing one ordinary thing
 - **`GROUND` is gone**, replaced by a width, a depth and an offset. It was read in exactly three places, all inside `_build_ground`, so nothing else in the build had an opinion about how big the camp was.
 - **Still blockout** (ADR-046). This changes what the hub *reads as*; the real rock and the real creature are `M4-T10`'s.
 - **The fusion is now visible and therefore tunable.** 40 descents is a guess with a reason, and the first person to play twenty runs will have an opinion worth more than the reason.
+
+## ADR-256 — The interface is a carved plate, and the bag was outside the palette it was meant to be inside
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T05`** · **Builds on ADR-216** · **Developer's brief**
+
+**Context:** *"A lot of our UI is still too basic... do a polish pass and just make everything more gamified."* Asked which direction, the developer chose **Darkest Dungeon** — heavy frames, painted panels, strong iconography, grim texture. This is the first screen of that pass, taken as a sample before the rest of the interface follows it.
+
+### The reference needs no style argument, because we already committed to it
+
+Darkest Dungeon's panel and a woodcut plate are the same object seen twice: a hard carved edge with no gradient and no radius, a second line inside the first, and heavier corners where the cutter squared the block. `ART-005` has committed the whole game to **printmaking** since it was written, and `MenuStyle` already carries the rule that falls out of it — *a carved line has no radius.*
+
+So this is not a look borrowed from another game and fitted over ours. It is the interface finally agreeing with the world it floats over, and the reference is useful because it is a shipped, proven example of exactly that agreement.
+
+**`StyleBoxFlat` cannot express it.** It has **one** border, and what makes a frame read as *made* is two lines with ground showing between them. `CarvedFrame extends StyleBox` draws a band, a gap, a hairline, corner furniture and an optional grain — and it is geometry rather than a picture of geometry, so it survives every window size, which an authored nine-patch does not.
+
+**This is not blockout** (ADR-046, ADR-064). A carved frame is the *final* treatment for a woodcut interface. `M4-T10` may lay an authored paper texture under it; the plate stays exactly this.
+
+### Three roles, because a readout and a workbench are not the same panel
+
+| | |
+|---|---|
+| **`Frame`** | A readout floating over a live room. See-through ground, thin band, **no grain** — a stroke drawn over a moving world reads as a scratch on the screen. |
+| **`Slate`** | A surface you are working on. Opaque, heavy at the corners, and the only ground in the game that carries grain. |
+| **`Socket`** | A hole in a slate: an inventory cell, an equipment slot. One band and a tick at each corner, because 44 px has no room for furniture. |
+
+`Frame`'s content margins are **unchanged at 10 px on purpose.** Every HUD region check measures a panel's rect, and a frame that grew would have moved text this pass never intended to move.
+
+### And the bag was drawing nine colours of its own
+
+`bag_screen.gd` held **nine `const Color`**, and five of them were within 0.03 of a theme tone without being equal to one — `TEXT_COLOUR` was `0.86, 0.84, 0.80` where the `Text` tone is `0.87, 0.85, 0.81`.
+
+ADR-216's whole claim is that a palette swap is **"five tones, not twenty-two roles"**. That held for every screen except the one a player spends the most time inside. **Nothing looked wrong, which is exactly why it survived**: near-misses are invisible side by side, and the only symptom is that the bag does not move when the register does. `M4-T11`'s high-contrast palette would have reached every screen in the game and stopped at this one.
+
+The bag now draws its panel with **the same `CarvedFrame` object the Chamber's readout is laid out in**, so the one screen that paints itself by hand cannot drift from the ones that do not — which is precisely how it came to be three near-misses away. The four colours that are genuinely not tones — *this fits*, *this does not*, *full*, *over* — are entries on a `Bag` theme type.
+
+### Two signals stopped resting on hue
+
+`DES-018` will not let a signal be carried by colour alone, and two here were:
+
+- **Over capacity.** The fill is clamped at 1.0, so at 39.9 kg and at 60 kg against a 40 kg capacity the bar is the *same shape* and only the hue differed. The trough is now **hatched** when you are over.
+- **A refusal.** The ghost that says *this does not fit* was a red rectangle beside a green one. It is now hatched as well.
+
+Both use `CarvedFrame.hatch_into`, the same mark as the grain on the panel under them — `ART-005` makes hatching how this game expresses value, so a shape signal was already in the vocabulary and did not need inventing.
+
+### The frame broke the footer, and the check that would not have caught it
+
+The second prompt's descender sat **5 px** above the panel edge. That was clear of the 1 px border it was measured against and **inside** the 9 px carved band that replaced it — ADR-140's fault exactly, with the border rather than other text doing the overdrawing. `FOOTER` is 40.
+
+`overflowing()` now asks the **stylebox** how thick it is rather than trusting a number written beside it, so a heavier frame in the future is a failing row rather than a clipped prompt in somebody's screenshot.
+
+### And it broke the party frames, which is what the sweep is for
+
+`party_frames.gd` read its bar's empty track as `(get_theme_stylebox(…) as StyleBoxFlat).bg_color`, under a comment giving the right reason: *"the bar's empty track is the frame's own fill, so the two can never drift."* The **cast** is what was wrong. It returned `null` the instant a panel stopped being flat, and took the ping probe down with it — eighteen script errors and a `FAIL`, on a screen nothing in this change mentions.
+
+`MenuStyle.ground(control, role)` asks a role for its ground without assuming how that ground is drawn. One of them rather than one per caller, because the assumption is the part that failed.
+
+### The two states nobody had ever photographed
+
+Both of the hue fixes above are **hatching**, and a hatch either reads as a mark or turns to mud depending on its pitch — which no headless row can tell you. `--bag-shot` now takes a second frame: a body 43.4 kg against a 40 kg capacity, holding an Altar-Plate over a corner it cannot fit in.
+
+It **asserts what it staged** rather than assuming it (ADR-198): that the body really is over capacity, and that `refusing()` is true at the cursor. A shot that quietly photographed the ordinary state twice would be worse than no shot, because it would be believed.
+
+### Verification
+
+`--bagui-probe` gains one row and it is asked by **painting**, because reading the file cannot answer it: a constant that happens to equal a tone today is still a constant. The theme is set to three flat colours — one for tones, one for the `Bag` entries, one for carved grounds — and anything the bag reports as a fourth colour is a value it is carrying itself. **12 colours, all from the theme.**
+
+**It bounds what `palette()` reports, not every `draw_*` call in the file.** A literal passed straight to `draw_rect` is still invisible to it. What it makes impossible is the failure that actually happened: a named constant drifting from the tone it was copied from.
+
+**Planted and failed, one plant per run — four.** A tone hard-coded to its historical near-miss (*text is (0.86, 0.84, 0.8, 1)*); a `Bag` colour hard-coded (*legal is (0.55, 0.78, 0.52, 0.45)*); a carved ground hard-coded (*cell is (0.2, 0.19, 0.18, 1)*); and `FOOTER` returned to 30 (*the last prompt clears the panel edge by 1 px and the frame is 9 px thick*).
+
+### Consequences
+
+- **This is one screen of a pass, not the pass.** The buttons, the menus, the pause screen and the HUD instruments are untouched and still draw `StyleBoxFlat` and their own palettes. `MenuAction` is the obvious next one, because it is on every screen outside the world at once.
+- **A refused placement is still drawn where the item would land, including off the grid.** It overruns into the slot row, which is louder now that it is hatched. That is information — it is showing you *how far* past the edge the thing goes — and it was the behaviour before this change, so it is left alone rather than clipped on the way past.
+- **The other instruments keep their own colours by design.** `ear.gd`, `fallen_readout.gd` and `wound_vignette.gd` hold `const Color` deliberately — they are readouts with meanings attached to specific hues, not text on a ground. Whether those belong in the theme is a separate question from this one and was not answered here.
+- **`M4-T11` can now reach the bag.** The accessibility suite is deferred to M5, and the palette it will swap is one file rather than one file and nine constants.
+- **The type scale is still twelve sizes, some one pixel apart.** `MenuStyle` calls that *"an inventory for `M4-T05`'s typography"* and it remains one. Collapsing it is a separate change a person should look at.
 
 *Entries below to be added as design decisions are signed off.*
 

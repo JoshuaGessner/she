@@ -1653,6 +1653,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
 echo "a teammate is a body rather than a capsule, and it walks,"
+echo "every colour the bag draws comes from the theme it is drawn under,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

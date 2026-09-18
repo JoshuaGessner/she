@@ -1,22 +1,28 @@
 [gd_resource type="Theme" format=3]
 
-[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_frame"]
+[ext_resource type="Script" path="res://ui/carved_frame.gd" id="1_fe5ba"]
+
+[sub_resource type="StyleBox" id="StyleBox_tuouy"]
+resource_local_to_scene = false
+resource_name = ""
 content_margin_left = 10.0
 content_margin_top = 10.0
 content_margin_right = 10.0
 content_margin_bottom = 10.0
-bg_color = Color(0.13, 0.11, 0.09, 0.78)
-border_width_left = 1
-border_width_top = 1
-border_width_right = 1
-border_width_bottom = 1
-border_color = Color(0.44, 0.38, 0.3, 1)
+script = ExtResource("1_fe5ba")
+ground = Color(0.115, 0.1, 0.082, 0.85)
+ink = Color(0.6, 0.52, 0.4, 1)
+edge = Color(0.38, 0.33, 0.26, 1)
+band = 2.0
+inset = 2.0
+corner = 10.0
+corner_weight = 2.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rule"]
 bg_color = Color(0.44, 0.38, 0.3, 1)
 
 [resource]
-Text/colors/font_color = Color(0.94, 0.91, 0.85, 1)
 Dim/colors/font_color = Color(0.66, 0.62, 0.57, 1)
-Frame/styles/panel = SubResource("StyleBoxFlat_frame")
+Frame/styles/panel = SubResource("StyleBox_tuouy")
 Rule/styles/panel = SubResource("StyleBoxFlat_rule")
+Text/colors/font_color = Color(0.94, 0.91, 0.85, 1)
