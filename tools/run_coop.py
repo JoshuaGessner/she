@@ -76,6 +76,11 @@ ENEMY_TOLERANCE = 0.60
 # sits — which the old "still on 25% of frames" bound read as broken
 # interpolation and failed one run in six on a busy machine.
 MIN_GLIDE_STEPS = 2.0
+# How far a walking body's foot reaches from its hips before we believe the rig
+# is being posed. `--body-probe` measures 0.63 m with the gait working and
+# 0.35 m with the hips dead and only the knees folding, so this sits between
+# them — the same bound, for the same reason, on the far side of a connection.
+MIN_STRIDE_METRES = 0.45
 MIN_WALK_METRES = 1.0
 # stand 1.80 − crouch 1.15 = 0.65 m. Half of that is unambiguous while leaving
 # room for the crouch blend not being quite finished.
@@ -239,6 +244,16 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
     # is what a tester reports as "a little jittery" and what no probe in the
     # sweep could see. Interpolated, it lands near zero.
     glide = host["glide"]
+    # A teammate is a rigged body, not a capsule, and it is being posed
+    # (ADR-254). Asked on the host about the body it is *not* playing, because
+    # that is the only peer where the wiring exists to break: `--body-probe`
+    # proves the gait moves the legs, and this proves a remote body is handed
+    # to it. Without this row the teammate slides across the floor in a rest
+    # pose and every other assertion here still passes.
+    rows.append(check(
+        "and it is walking, not sliding",
+        glide.get("stride", 0.0) >= MIN_STRIDE_METRES,
+        f"foot reached {glide.get('stride', 0.0):.2f} m from the hips"))
     rows.append(check(
         "a walking teammate glides between packets",
         glide["packets"] > 0 and glide["steps"] >= MIN_GLIDE_STEPS,

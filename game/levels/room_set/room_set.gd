@@ -926,6 +926,8 @@ func _ready() -> void:
 			_saving_probe()
 		elif arg == "--pad-menu-probe":
 			_pad_menu_probe()
+		elif arg == "--body-probe":
+			_body_probe()
 		elif arg == "--acoustics-probe":
 			_acoustics_probe()
 		elif arg == "--portal-probe":
@@ -6830,6 +6832,7 @@ func _glide_per_packet(seconds: float) -> Dictionary:
 	var frames: int = 0
 	var moved: int = 0
 	var packets: int = 0
+	var stride: float = 0.0
 	var was: Vector3 = body.global_position
 	var wired: Vector3 = body.net_position
 	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
@@ -6838,6 +6841,14 @@ func _glide_per_packet(seconds: float) -> Dictionary:
 		if not is_instance_valid(body):
 			break
 		frames += 1
+		# **And the body is walking, not sliding** (`M4-T05`, ADR-254). The
+		# same second, the same remote body, and the only place the question
+		# can be asked: `BodyRig.step` runs for a body this process is *not*
+		# playing, so a probe with one player has no body to watch. If the
+		# wiring is ever cut, the teammate keeps moving across the floor in a
+		# rest pose and every other row in this harness still passes.
+		if body.rig() != null:
+			stride = maxf(stride, body.rig().stride_reach())
 		var now: Vector3 = body.global_position
 		if now.distance_to(was) >= STIRRED:
 			moved += 1
@@ -6849,6 +6860,7 @@ func _glide_per_packet(seconds: float) -> Dictionary:
 	return {
 		"steps": float(moved) / float(maxi(packets, 1)),
 		"moved": moved, "packets": packets, "frames": frames,
+		"stride": stride,
 	}
 
 
@@ -14276,6 +14288,117 @@ func _portal_probe() -> void:
 	for problem: String in problems:
 		printerr("[hunt] FAIL %s" % problem)
 	print("[hunt] the Hunter is heard through the door it would come by")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **A teammate is a body, and the body moves** (`M4-T05`, ADR-254).
+##
+## Every other player was a capsule until now, and the rig that replaced it has
+## existed unused since `M1-T10`. Two different things can go wrong and they
+## need asking separately:
+##
+## - **the rig is there and carries what the pose reaches for** — a re-export
+##   that drops a bone leaves a body that still renders, still walks, and has a
+##   leg that no longer moves, which is precisely the failure `rig_probe.gd`
+##   was written about one tool earlier in the chain;
+## - **stepping it actually moves it** — the arithmetic is all in one file and a
+##   gait that has quietly become a rest pose looks like a T-posing statue
+##   sliding along the floor, which no other check in this sweep can see.
+##
+## The *wiring* — that a remote body is stepped at all — is not asked here and
+## cannot be: `step()` runs only for a body this process is not playing, and a
+## probe with one player has no such body. `run_coop.py` asks it, on the far
+## side of a real connection, which is the only place the question exists.
+func _body_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	if body == null:
+		printerr("[body] FAIL no body on the floor to pose")
+		get_tree().quit(1)
+		return
+	var rig: BodyRig = body.rig()
+	if rig == null or rig.mesh() == null:
+		printerr("[body] FAIL the player has no rig — a teammate is a capsule again")
+		get_tree().quit(1)
+		return
+
+	# ─ 1. the art carries every bone the pose reaches for ─
+	var carried: Array[String] = rig.posed_bones()
+	print("[body] bones        %d of %d posed bone(s) present"
+		% [carried.size(), BodyRig.POSED.size()])
+	if carried.size() != BodyRig.POSED.size():
+		var missing: Array[String] = []
+		for name: String in BodyRig.POSED:
+			if not carried.has(name):
+				missing.append(name)
+		problems.append(("the rig is missing %s — the pose reaches for bones the "
+			+ "art does not have, so those limbs are dead and nothing else says so")
+			% ", ".join(missing))
+
+	# ─ 2. it wears the teammate's value, not the rig's own grey ─
+	#
+	# `ART-005` spends saturated colour on treasure, so a teammate is told apart
+	# from an enemy by **value**; a body still wearing `proxy_grey` sits in the
+	# middle of the enemy range and the distinction is gone.
+	var worn: Material = rig.mesh().get_surface_override_material(0)
+	print("[body] skin         %s" % ("the teammate's" if worn != null
+		else "the rig's own proxy grey"))
+	if worn == null:
+		problems.append("the body wears the rig's proxy material, so a teammate "
+			+ "and an enemy are the same value at a glance")
+
+	# ─ 3. standing still is standing still ─
+	rig.step(0.016, 0.0, Config.tuning.walk_speed, 0.0, 0.0, false)
+	for _i: int in 30:
+		rig.step(0.016, 0.0, Config.tuning.walk_speed, 0.0, 0.0, false)
+	var at_rest: float = rig.stride_reach()
+
+	# ─ 4. walking scissors the legs ─
+	#
+	# Stepped at walking pace for a second of frames, sampling the widest the
+	# feet get. The gait is driven by **distance**, so this is a claim about
+	# metres travelled rather than about time passing — a clock-driven gait
+	# would pass this row and still skate.
+	var widest: float = 0.0
+	for _i: int in 60:
+		rig.step(0.016, Config.tuning.walk_speed, Config.tuning.walk_speed,
+			0.0, 0.0, false)
+		widest = maxf(widest, rig.stride_reach())
+	# **Bounded between a working gait and a partial one, both measured.** A
+	# walking body reaches **0.63 m**; with the hip swing removed and only the
+	# knees folding it still reaches **0.35 m**, which is a visible limp and
+	# ought to fail. A bound that only catches a body which has stopped moving
+	# entirely would have passed that, and did — this number is where it sits
+	# because both ends were measured, not because it looked safe ⟨tune⟩.
+	const STRIDING: float = 0.45
+	print("[body] the gait     stride reaches %.2f m at rest, %.2f m walking (want %.2f m)"
+		% [at_rest, widest, STRIDING])
+	if widest - at_rest <= STRIDING:
+		problems.append(("a walking body's foot reached %.2f m in front of its "
+			+ "hips against %.2f m standing still, short of %.2f m — the legs "
+			+ "are not striding, and a body sliding along in its rest pose is "
+			+ "what that looks like") % [widest, at_rest, STRIDING])
+
+	# ─ 5. a crouch bends it rather than shrinking it ─
+	#
+	# The capsule this replaced crouched by *resizing*, which is why the collider
+	# still does and the body no longer can. If the rig ever stops bending, the
+	# hitbox drops and the silhouette does not.
+	var standing: float = rig.pelvis_height()
+	for _i: int in 30:
+		rig.step(0.016, 0.0, Config.tuning.walk_speed, 1.0, 0.0, false)
+	var crouched: float = rig.pelvis_height()
+	print("[body] the crouch   hips at %.2f m standing, %.2f m crouched"
+		% [standing, crouched])
+	if crouched >= standing - 0.10:
+		problems.append(("crouching moved the hips from %.2f m to %.2f m — the "
+			+ "body is not bending, so a crouched teammate has a short hitbox "
+			+ "and a standing silhouette") % [standing, crouched])
+
+	for problem: String in problems:
+		printerr("[body] FAIL %s" % problem)
+	print("[body] a teammate is a body, and the body moves")
 	get_tree().quit(1 if problems.size() > 0 else 0)
 
 

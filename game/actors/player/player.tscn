@@ -12,6 +12,7 @@
 [ext_resource type="Script" path="res://components/inventory.gd" id="10_inventory"]
 [ext_resource type="Script" path="res://components/lantern.gd" id="11_lantern"]
 [ext_resource type="Script" path="res://components/exposure.gd" id="12_exposure"]
+[ext_resource type="Script" path="res://actors/player/body_rig.gd" id="13_rig"]
 
 ; local_to_scene, and this is load-bearing rather than tidy. `_apply_stance`
 ; mutates this shape every frame a player crouches. Shared across instances —
@@ -19,11 +20,6 @@
 ; silently resizes every other player's collider *and* hurtbox. Invisible in
 ; single-player; arrived the moment `M1-T05` put two bodies in a level.
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_body"]
-resource_local_to_scene = true
-radius = 0.35
-height = 1.8
-
-[sub_resource type="CapsuleMesh" id="CapsuleMesh_body"]
 resource_local_to_scene = true
 radius = 0.35
 height = 1.8
@@ -58,10 +54,12 @@ script = ExtResource("1_player")
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
 shape = SubResource("CapsuleShape3D_body")
 
-[node name="Body" type="MeshInstance3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
-mesh = SubResource("CapsuleMesh_body")
-surface_material_override/0 = SubResource("StandardMaterial3D_body")
+; The rig sits at the body's own origin, feet on the floor — unlike the capsule
+; it replaces, which Godot centres on its origin and which therefore had to ride
+; at half its own height.
+[node name="BodyRig" type="Node3D" parent="."]
+script = ExtResource("13_rig")
+teammate_skin = SubResource("StandardMaterial3D_body")
 
 [node name="Head" type="Node3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.62, 0)

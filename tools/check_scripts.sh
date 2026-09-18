@@ -1358,6 +1358,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Is a teammate a body** (`M4-T05`, ADR-254)? The shared rig existed
+	# unused from `M1-T10` to now, and `rig_probe.gd` one step earlier only
+	# proves the *asset* survived export. This asks whether the game puts it on
+	# a player and moves it: a dropped bone, a lost skin, a gait that has
+	# quietly become a rest pose. The wiring — that a *remote* body is the one
+	# being posed — is `run_coop.py`'s, because it needs two peers to exist.
+	body="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --body-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$body"; then
+		echo "FAIL a teammate is a body" >&2
+		printf '%s\n' "$body" | grep -E '\[body\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Do the rooms ask anything** (`M4-T01` step 6, `DES-015` Layer 3,
 	# ADR-192)? Every check above is about a floor's *shape* and passes cleanly
 	# against one whose rooms are space with loot dealt into it by worth — which
@@ -1638,6 +1652,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	echo "and a party can cross every floor of a run, not just the one we bake,"
 echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
+echo "a teammate is a body rather than a capsule, and it walks,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

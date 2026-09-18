@@ -9396,5 +9396,40 @@ So the decision changes no sequencing. What it changes is that the metric stops 
 - **The measurement still has to happen before M5 closes**, and it has the longest lead time of anything on the roadmap: weeks of somebody else's runs cannot be started late. `M5` planning should treat it as the first thing scheduled rather than the last thing checked.
 - **`OPEN-QUESTIONS.md` is now eighteen rows, every one of which a single session can reach.** That is the property that makes `PRO-009` a script rather than a wish.
 
+## ADR-254 — A teammate is a body, posed in code, and the wire carries nothing new for it
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T05`** · **Uses `M1-T10`'s rig at last**
+
+**Context:** Every other player in this game has been a **capsule** since `M1-T05`. The shared humanoid rig has existed since `M1-T10` — 28 joints, seven gear sockets placed to the millimetre, 1.80 m tall with its eye line at 1.62 — and `rig_probe.gd` has asserted every one of those numbers on every sweep for a month. **Nothing in the game had ever instanced it.** `--body-probe` and `check_dead.py` are both about this exact failure and neither could see it: the asset was alive, correct, exported and unreferenced by anything but its own test.
+
+### Decision — the rig is the body, and the motion is code
+
+- **`BodyRig` owns the body**, not `Player`. `player.gd` is 3,200 lines and the thing it now says about a body is one call. Composition is `TEC-002`'s rule and this is the case it was written for.
+- **The gait is procedural**, by the developer's call. The rig carries **no animation clips at all**, so the alternatives were Blender authoring or a retarget; procedural is a **gate decision rather than a fallback** (`ADR-064`) — when clips arrive they replace this file and nothing outside it changes, because nothing outside it knows more than `step()`.
+- **The gait is driven by distance, not by time.** A cycle advances with metres travelled, so feet keep pace with the ground at any speed. A clock-driven phase is what produces skating, and it is the single most visible tell of a cheap procedural walk.
+- **Nothing is replicated for it.** Every input to `step()` is something the watching peer already has: the position delta it is interpolating anyway, the replicated stance, the replicated pitch. **A party of four animates for exactly the bandwidth a party of four capsules cost**, which is the budget `TEC-004` actually defends.
+- **Bone axes are read from the rig, never assumed.** A limb swings about whichever of its own axes lines up with the body's left-right axis, and on this rig that is not the same axis for every bone: legs and spine are axis-aligned, and the arms rest in a twisted A-pose where `upper_arm_l`'s local X points (0.50, 0.50, 0.71). Measured out of the glTF before a line was written, then derived at load from each bone's own rest basis — so a re-export moves the axes with it instead of silently invalidating a table.
+
+### Found on the way
+
+- **The first observable was wrong, and only a plant found it.** *"The legs are striding"* was measured as the distance between the two feet. With the hip swing zeroed to prove the row could fail, **the knees still folded, the feet still parted by 0.25 m, and the row passed** on a body whose legs were not striding at all. A stride is displacement *along the direction of travel*, so that is what `stride_reach()` measures now. **The check was written, run, and green against broken code** — the plant is the only reason anyone knows.
+- **And then the bound was wrong.** Re-measured: a walking body reaches **0.63 m**; hips dead and knees folding alone reaches **0.35 m**, which is a visible limp and ought to fail. The first bound only caught a body that had stopped moving entirely. It now sits at **0.45 m ⟨tune⟩ — between two measured numbers rather than beside one.**
+- **The crouch changed meaning.** A capsule crouched by *resizing*; a body cannot. The collider still shrinks, because that is the hitbox and `DES-009` prices a crouched silhouette, and the rig now **bends** — hips from 0.87 m to 0.60 m. Those are two different mechanisms for one stance and the probe asserts both ends, because the failure is a short hitbox under a standing silhouette.
+
+### Verification
+
+`--body-probe`, new, in the sweep: 13 of 13 posed bones present, the teammate's skin worn rather than the rig's `proxy_grey`, stride 0.00 m at rest against 0.63 m walking, hips dropping 0.27 m into a crouch.
+
+**The wiring is asked somewhere else, because it cannot be asked there.** `step()` runs only for a body this process is *not* playing, so a probe with one player has no such body. `run_coop.py` asks it on the host, about the body the host is not driving, during the same walk phase the glide row uses: **the foot reached 0.62 m from the hips across a real connection.**
+
+**Planted and failed, one plant per run — five.** A bone the art does not have (*13 of 14*); the skin never applied (*the rig's own proxy grey*); the crouch that does not bend (*hips 0.87 → 0.90*); the hips that stop swinging (*0.35 m, short of 0.45*); and `step()` never called for a remote body (*0.00 m from the hips*). **That last one is the point of the row**: with the call cut, the teammate slid across the floor in a rest pose and *every other assertion in the harness still passed*, including the glide row measuring the same body in the same second.
+
+### Consequences
+
+- **`M4-T05` is advanced, not closed.** What remains there is the art pass, the audio and the type scale.
+- **The mesh is still `proxy_body_mesh` in `proxy_grey`** — blockout, ADR-046, and correct. This changes the *silhouette and the motion*, which is what a capsule was failing at; it does not pretend to be the character art `M4-T10` will bring.
+- **First-person arms are still absent** (`ART-004`). You are inside your own body and never draw it, so this changes what you see of *other people* and nothing about your own hands.
+- **When authored clips land, `BodyRig` is what they replace.** The seam is `step()` and the call site is one line in `_physics_process`.
+
 *Entries below to be added as design decisions are signed off.*
 

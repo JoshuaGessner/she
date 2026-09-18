@@ -496,8 +496,15 @@ var _reviving: bool = false
 @onready var _camera: Camera3D = $Head/Camera3D
 @onready var _collider: CollisionShape3D = $CollisionShape3D
 @onready var _capsule: CapsuleShape3D = _collider.shape as CapsuleShape3D
-@onready var _body: MeshInstance3D = $Body
-@onready var _body_mesh: CapsuleMesh = _body.mesh as CapsuleMesh
+@onready var _rig: BodyRig = $BodyRig
+## The rig's surface, which is what a skin override dresses (`_dress_as_out`).
+## Held separately from the rig because what wears a material is a mesh, and
+## which mesh that is belongs to `BodyRig` rather than to this file.
+@onready var _body: MeshInstance3D = _rig.mesh()
+## Where this body was drawn last frame, for the gait. Not a network value and
+## never sent: it is the difference between two frames of the position this peer
+## has already been given.
+var _drawn_at: Vector3 = Vector3.ZERO
 @onready var stamina: Stamina = $Stamina
 @onready var carried: CarriedWeight = $CarriedWeight
 @onready var inventory: Inventory = $Inventory
@@ -616,8 +623,10 @@ func _ready() -> void:
 		add_to_group("local_player")
 
 	var tuning: TuningProfile = Config.tuning
+	# The collider takes the tuned radius; the rig does not, because a person's
+	# width is the rig author's decision and `body_radius` is a physics figure
+	# the two only ever coincidentally shared.
 	_capsule.radius = tuning.body_radius
-	_body_mesh.radius = tuning.body_radius
 	_camera.fov = tuning.field_of_view
 	_apply_stance()
 	# **The class shapes the body, and it is not a stat block** (`M3-T02`).
@@ -2298,6 +2307,22 @@ func _physics_process(delta: float) -> void:
 		net_pitch = _pitch
 	else:
 		_ease_toward_the_wire(delta)
+		# **The body a teammate actually sees** (`M4-T05`).
+		#
+		# Stepped from the position this peer is *drawing* — the ease above has
+		# just run, so the body is standing where it will be rendered — rather
+		# than from anything sent for the purpose. A gait derived from motion
+		# the peer already receives costs nothing on the wire, which is why a
+		# party of four animates for the bandwidth a party of four capsules
+		# cost (`TEC-004`).
+		#
+		# Only a remote body: the local one is inside your own head and is not
+		# drawn, so posing it would be work nobody can see.
+		var moved: Vector3 = position - _drawn_at
+		_drawn_at = position
+		_rig.step(delta,
+			Vector2(moved.x, moved.z).length() / maxf(delta, 0.0001),
+			tuning.walk_speed, stance, _pitch, is_downed())
 
 	# The weapon runs on every peer. On the owner it is the swing they asked
 	# for; on the host it is the swing whose hitbox decides damage; elsewhere
@@ -2658,11 +2683,11 @@ func _apply_stance() -> void:
 	var tuning: TuningProfile = Config.tuning
 	var height: float = lerpf(tuning.stand_height, tuning.crouch_height, stance)
 	_capsule.height = height
-	_body_mesh.height = height
 	# Godot centres a capsule on its origin, so the collider rides at half
-	# height to keep the feet at y = 0.
+	# height to keep the feet at y = 0. **The rig does not**: it is authored
+	# with its feet at its own origin, and it crouches by bending rather than
+	# by shrinking, which is `BodyRig`'s job and not this one's.
 	_collider.position.y = height * 0.5
-	_body.position.y = height * 0.5
 	_head.position.y = height - tuning.eye_drop
 
 
@@ -2683,6 +2708,11 @@ func planar_speed() -> float:
 ## would give both bodies the same number and nobody a reason to look.
 func capsule_height() -> float:
 	return _capsule.height
+
+
+## The body a teammate sees, for the checks that it is a body (`M4-T05`).
+func rig() -> BodyRig:
+	return _rig
 
 
 ## **Hold** (`M3-T02`, `DES-011`) — the Húskarl's verb, and only theirs.
