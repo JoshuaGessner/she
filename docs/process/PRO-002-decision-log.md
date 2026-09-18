@@ -9549,5 +9549,52 @@ It **asserts what it staged** rather than assuming it (ADR-198): that the body r
 - **`M4-T11` can now reach the bag.** The accessibility suite is deferred to M5, and the palette it will swap is one file rather than one file and nine constants.
 - **The type scale is still twelve sizes, some one pixel apart.** `MenuStyle` calls that *"an inventory for `M4-T05`'s typography"* and it remains one. Collapsing it is a separate change a person should look at.
 
+## ADR-257 — The carved frame reaches every control, and the type scale is nine steps instead of fourteen
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T05`** · **Completes ADR-256's pass** · **Developer's brief**
+
+**Context:** ADR-256 built `CarvedFrame` and proved it on one screen. Asked whether to carry it across the rest, the developer said yes; that the HUD instruments should keep their own colours; and left the type scale to judgement.
+
+### Every control, at the weight its job deserves
+
+| | |
+|---|---|
+| **`MenuAction`** | Band, gap, hairline, corner furniture and a faint grain. **One geometry, three palettes** — a button whose band or corner changed on hover would move its own text, and a control that twitches under the pointer reads as broken however good the frame is. |
+| **`BindingCell`** | **Socket weight, not button weight.** Twenty verbs in two columns is a dense table and a double line around forty cells is noise. One band and a tick at each corner is enough to read as a key cap — and 1 px is exactly what the lit state already drew, so it needed no room it did not have. |
+| **`MenuField`** | A **darker** ground than anything near it, because a thing you type into should read as cut *into* the screen rather than raised off it. The one place the two lines are doing depth rather than decoration. |
+| **`Backdrop`, `Scrim`** | Paper tooth. `ART-005` puts grain in **screen space** and argues it explicitly — the page genuinely is fixed in front of you — and a backdrop is the largest page in the game. Wider pitch and a third of a panel's alpha: at panel density a full-screen hatch reads as stripes. |
+
+**Every content margin is unchanged, deliberately.** Nine screens lay out against them, and the controls screen carries a `fits()` check that is the only thing between twenty verbs and a BACK button off the bottom of the viewport. Band, gap and hairline are sized into the room that was already there, so this pass is a repaint and not a reflow.
+
+### The type scale
+
+`MenuStyle` described itself honestly: *"Twelve sizes on five tones, some of them one pixel apart doing the same job... an inventory for `M4-T05`'s typography."* The inventory was **11, 12, 13, 14, 15, 16** — six steps inside five pixels, on screens where three of them appear in one readout. A hierarchy nobody can see is not a hierarchy.
+
+Nine steps: **11 · 13 · 15 · 18 · 21 · 26 · 30 · 34 · 44.** No two closer than 13%, and the only pair under 15% — `DialogTitle` and `ScreenTitle` — never appear together, because one is a question asked *over* the other.
+
+**`Small*` and `Large*` are deleted rather than merged.** Collapsing 14 into 13 and 16 into 15 would have left `SmallDim` and `CaptionDim` byte-identical, which turns twenty-two call sites into a coin flip between two names for one thing — worse than the sizes were. They are also relative words with no referent: they came from *whatever this screen happened to draw*. `Caption` and `Body` say what the text is. Twenty-eight call sites across ten files moved; `SmallFault` kept its job under the name `CaptionFault`.
+
+**`Heading` and `FineDim` share 11 on purpose.** A heading is uppercase and letter-spaced, a fine line is a sentence, so they are never mistaken for each other — and a footnote sitting *under* a column of `Caption` rows has to be quieter than them, which 13 would not be.
+
+**The bag's drawn sizes came onto the scale too.** `draw_string` takes a number rather than a role, and this screen's were **16, 13, 12 and 12** — two of them on no scale at all. That is the same drift as ADR-256's nine hard-coded colours, in the same file, found the same way. They stay constants rather than theme lookups because the panel's geometry is measured against them: `BLURB` and `FOOTER` are pixel bands sized to fit these lines, and moving a size without moving its band is the ADR-140 fault again. Both bands grew, and `overflowing()` is what said by how much.
+
+### What was deliberately not done
+
+- **The HUD instruments keep their own colours**, as asked. `ear.gd`, `fallen_readout.gd` and `wound_vignette.gd` attach *meanings* to specific hues; a palette able to swap them is a palette able to break a signal.
+- **Sliders and checkboxes are still the engine's**, and it shows — round grabbers in a game whose stated rule is that a carved line has no radius. Fixing them needs a **grabber texture**, and a texture bakes its colour: it would be the first thing in the interface outside the palette, one commit after establishing that everything is inside it. That is `M4-T10`'s call with real assets, not a theme change.
+- **No plate behind the menu columns.** It would be chrome that the real art replaces; what the main menu is missing now is a picture, not more furniture.
+
+### Verification
+
+The full sweep, which is what caught ADR-256's `StyleBoxFlat` cast. `--menu-probe` counts the buttons on every screen and `ControlsScreen.fits()` asserts the generated table still lands inside the configured window — the one check that a smaller font could have silently satisfied while a larger one broke it. `--menu-shot` photographs all six menu screens, `--bagui-probe` re-measures every band against the font, and `--bag-shot` takes both bag states.
+
+`--bagui-probe`'s palette row is unchanged and still green, which matters here for a second reason: the type pass touched the same file and did not knock a colour back out of the theme.
+
+### Consequences
+
+- **A palette swap and a type swap are both one file now.** `M4-T11`'s high-contrast mode and UI scaling, deferred to M5, have nothing left to miss.
+- **`MenuStyle` no longer describes itself as an inventory.** It states the scale as a table, and the next person to add a size has to argue with it.
+- **What is left between here and an authored interface is art**, not chrome: the item icons, the menu's background, the slider parts. That is `M4-T10`.
+
 *Entries below to be added as design decisions are signed off.*
 

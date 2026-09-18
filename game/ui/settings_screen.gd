@@ -39,7 +39,7 @@ func _ready() -> void:
 	column.add_child(MenuStyle.title("SETTINGS", MenuStyle.SCREEN_TITLE))
 	column.add_child(MenuStyle.line(
 		"Changes apply as you make them and are kept when you quit.",
-		MenuStyle.SMALL_DIM))
+		MenuStyle.CAPTION_DIM))
 
 	column.add_child(_gap(8))
 	column.add_child(MenuStyle.line("SOUND", MenuStyle.CAPTION_WARM))
@@ -71,7 +71,7 @@ func _volume_row(bus: String) -> HBoxContainer:
 	row.add_theme_constant_override("separation", 10)
 
 	var name_label: Label = MenuStyle.line(String(BUS_LABELS[bus]),
-		MenuStyle.LARGE_TEXT)
+		MenuStyle.BODY_TEXT)
 	name_label.custom_minimum_size = Vector2(110.0, 0.0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(name_label)
@@ -101,7 +101,7 @@ func _sensitivity_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 
-	var name_label: Label = MenuStyle.line("sensitivity", MenuStyle.LARGE_TEXT)
+	var name_label: Label = MenuStyle.line("sensitivity", MenuStyle.BODY_TEXT)
 	name_label.custom_minimum_size = Vector2(110.0, 0.0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(name_label)

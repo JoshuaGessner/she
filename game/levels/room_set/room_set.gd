@@ -6362,7 +6362,7 @@ func _build_hud() -> void:
 	# Deep does not use, for as long as it is true — every descent under it is
 	# thrown away, and a player owed that sentence is owed it all the way down.
 	if GameState.refused_a_profile():
-		_not_saving = MenuStyle.line("not being saved — see the menu", MenuStyle.SMALL_FAULT)
+		_not_saving = MenuStyle.line("not being saved — see the menu", MenuStyle.CAPTION_FAULT)
 		_not_saving.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		layer.add_child(_not_saving)
 	_relayout_hud()

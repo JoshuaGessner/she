@@ -166,7 +166,7 @@ func _show_root() -> void:
 	if not NetPlan.last_error.is_empty():
 		_column.add_child(_gap(14))
 		_column.add_child(MenuStyle.line(NetPlan.last_error,
-			MenuStyle.SMALL_FAULT))
+			MenuStyle.CAPTION_FAULT))
 		NetPlan.last_error = ""
 
 
@@ -263,7 +263,7 @@ func _show_host() -> void:
 
 	_column.add_child(MenuStyle.title("HOST", MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line("On this network, join at",
-		MenuStyle.SMALL_DIM))
+		MenuStyle.CAPTION_DIM))
 	var shown: Label = MenuStyle.line("%s : %d" % [address, NetPlan.DEFAULT_PORT],
 		MenuStyle.BANNER_WARM)
 	_column.add_child(shown)
@@ -303,12 +303,12 @@ func _show_join() -> void:
 	_column.add_child(MenuStyle.title("JOIN", MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line(
 		"The host's address. Port %d is assumed if you leave it off."
-			% NetPlan.DEFAULT_PORT, MenuStyle.SMALL_DIM))
+			% NetPlan.DEFAULT_PORT, MenuStyle.CAPTION_DIM))
 
 	var field: LineEdit = MenuStyle.field("192.168.1.20  or  1.2.3.4:47018")
 	_column.add_child(field)
 
-	var problem: Label = MenuStyle.line("", MenuStyle.SMALL_FAULT)
+	var problem: Label = MenuStyle.line("", MenuStyle.CAPTION_FAULT)
 	_column.add_child(problem)
 
 	var go: Button = MenuStyle.button("JOIN")
@@ -336,15 +336,15 @@ static func lineage_line(standing: Dictionary) -> Array:
 		"readable":
 			return ["your lineage: %d descent%s · a hoard worth %d" % [
 				int(standing["descents"]), "" if int(standing["descents"]) == 1 else "s",
-				int(standing["hoard_value"])], MenuStyle.SMALL_DIM]
+				int(standing["hoard_value"])], MenuStyle.CAPTION_DIM]
 		"newer":
 			return [("your lineage was saved by a newer version of SHE — this one "
 				+ "will not open it, and nothing you do here will be saved"),
-				MenuStyle.SMALL_FAULT]
+				MenuStyle.CAPTION_FAULT]
 		"unreadable":
 			return [("your lineage could not be read — this build will not write "
 				+ "over it, and nothing you do here will be saved"),
-				MenuStyle.SMALL_FAULT]
+				MenuStyle.CAPTION_FAULT]
 	return []
 
 
@@ -369,7 +369,7 @@ func _show_abandon() -> void:
 		+ "the deeds, the lives — is set aside, and your next descent begins a new "
 		+ "lineage. The old one is kept on disk under another name. Hold the "
 		+ "button for %d seconds to confirm.")
-		% roundi(Config.tuning.abandon_hold_seconds), MenuStyle.SMALL_DIM)
+		% roundi(Config.tuning.abandon_hold_seconds), MenuStyle.CAPTION_DIM)
 	told.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_column.add_child(told)
 	_abandon = MenuStyle.button(ABANDON_LABEL)
@@ -831,7 +831,7 @@ func _lineage_probe() -> void:
 				said[0] if not said.is_empty() else "", abandon_offered, opened,
 				camp[0] if not camp.is_empty() else "nothing", untouched, kind])
 		if String(SaveFile.standing()["state"]) != kind or said.is_empty() \
-				or said[1] != MenuStyle.SMALL_FAULT or abandon_offered:
+				or said[1] != MenuStyle.CAPTION_FAULT or abandon_offered:
 			problems.append("a %s profile was not said plainly, or was offered for abandoning" % kind)
 		if opened or not GameState.refused_a_profile() or camp.is_empty() \
 				or not camp[0].begins_with("NOT BEING SAVED"):

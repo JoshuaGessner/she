@@ -56,11 +56,48 @@ const WARM: StringName = &"Warm"
 ## Named by size step and tone rather than by what they are for, because the
 ## same pair is used for different jobs and the same job at different sizes.
 ## Pretending otherwise would name a distinction the screens do not make.
+##
+## ## The scale, and why there are nine steps rather than fourteen (`M4-T05`)
+##
+## This block read *"Twelve sizes on five tones, some of them one pixel apart
+## doing the same job... an inventory for `M4-T05`'s typography"*, and it was
+## an honest inventory: **11, 12, 13, 14, 15, 16** — six steps inside five
+## pixels, on screens where three of them appear in the same readout. A
+## hierarchy nobody can see is not a hierarchy; it is a list of numbers that
+## happened.
+##
+## | px | roles |
+## |---|---|
+## | **11** | `Heading`, `FineDim` |
+## | **13** | `Caption*` |
+## | **15** | `Body*` |
+## | **18** | `Sub*` |
+## | **21** | `DisplayWarm`, `DeedName` |
+## | **26** | `BannerWarm`, `DeedsTitle`, `LegacyTitle` |
+## | **30** | `DialogTitle` |
+## | **34** | `ScreenTitle` |
+## | **44** | `Title` |
+##
+## **No two steps are closer than 13%**, and the only pair under 15% —
+## `DialogTitle` and `ScreenTitle` — never appear together, because one is a
+## question asked *over* the other.
+##
+## **`Small*` and `Large*` are gone rather than merged.** Collapsing 14 into 13
+## and 16 into 15 would have left `SmallDim` and `CaptionDim` byte-identical,
+## which turns twenty-two call sites into a coin flip between two names for one
+## thing — worse than the sizes were. `Small` and `Large` are also relative
+## words with no referent; they came from *whatever this screen happened to
+## draw*. `Caption` and `Body` say what the text is.
+##
+## **`Heading` and `FineDim` share 11 on purpose.** A heading is uppercase and
+## letter-spaced and a fine line is a sentence, so they are never mistaken for
+## each other — and a footnote that sits *under* a column of `Caption` rows has
+## to be quieter than them, which 13 would not be.
 const TITLE: StringName = &"Title"  ## 44, the first screen of a flow.
 const SCREEN_TITLE: StringName = &"ScreenTitle"  ## 34.
 const DIALOG_TITLE: StringName = &"DialogTitle"  ## 30, a question asked over a screen.
 const HEADING: StringName = &"Heading"  ## 11, the name of a region.
-const FINE_DIM: StringName = &"FineDim"  ## 12.
+const FINE_DIM: StringName = &"FineDim"  ## 11, a footnote under a column of rows.
 const CAPTION_DIM: StringName = &"CaptionDim"  ## 13.
 const CAPTION_TEXT: StringName = &"CaptionText"
 const CAPTION_WARM: StringName = &"CaptionWarm"
@@ -71,15 +108,11 @@ const CAPTION_WARM: StringName = &"CaptionWarm"
 ## for a debt that is about to come due. Anything using it must also say so in
 ## shape or word, never in hue alone (`DES-018`).
 const CAPTION_DEBT: StringName = &"CaptionDebt"
-const SMALL_DIM: StringName = &"SmallDim"  ## 14.
-const SMALL_WARM: StringName = &"SmallWarm"
-const SMALL_FAULT: StringName = &"SmallFault"  ## Something went wrong and you can act on it.
+## Something went wrong and you can act on it. Was `SmallFault` at 14.
+const CAPTION_FAULT: StringName = &"CaptionFault"
 const BODY_DIM: StringName = &"BodyDim"  ## 15, and what `line()` draws unless told.
 const BODY_TEXT: StringName = &"BodyText"
 const BODY_WARM: StringName = &"BodyWarm"
-const LARGE_DIM: StringName = &"LargeDim"  ## 16.
-const LARGE_TEXT: StringName = &"LargeText"
-const LARGE_WARM: StringName = &"LargeWarm"
 const SUB_DIM: StringName = &"SubDim"  ## 18.
 const SUB_WARM: StringName = &"SubWarm"
 const DISPLAY_WARM: StringName = &"DisplayWarm"  ## 21.
@@ -91,9 +124,9 @@ const BANNER_WARM: StringName = &"BannerWarm"  ## 26.
 ## sizes they already set, so the theme draws them exactly as before, and
 ## bringing them into the register is `M4-T05`'s — it is a visible change a
 ## person should look at, not a side effect of moving numbers into a file.
-const LEGACY_TITLE: StringName = &"LegacyTitle"
-const DEEDS_TITLE: StringName = &"DeedsTitle"
-const DEED_NAME: StringName = &"DeedName"
+const LEGACY_TITLE: StringName = &"LegacyTitle"  ## 26.
+const DEEDS_TITLE: StringName = &"DeedsTitle"  ## 26.
+const DEED_NAME: StringName = &"DeedName"  ## 21.
 
 ## ## Controls
 ##

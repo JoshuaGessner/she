@@ -832,7 +832,7 @@ func _build_readout() -> void:
 	# (`chamber.gd:471`) — a layout workaround for having no layout. With a
 	# region of its own it can simply be absent when she is not speaking.
 	_speech = Label.new()
-	_speech.theme_type_variation = MenuStyle.LARGE_WARM
+	_speech.theme_type_variation = MenuStyle.BODY_WARM
 	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speech.visible = false
 	layer.add_child(_speech)

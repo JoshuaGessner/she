@@ -59,9 +59,9 @@ func _redraw() -> void:
 		tr(String(lodge.name_key)).to_upper() if lodge != null else "THE LODGE"))
 	_column.add_child(MenuStyle.line("trust %d · favour %d · work taken %d of %d" % [
 		GameState.lodge_trust, GameState.lodge_favour, GameState.contracts.size(),
-		ContractBoard.TAKEN_MAX], MenuStyle.LARGE_WARM))
+		ContractBoard.TAKEN_MAX], MenuStyle.BODY_WARM))
 	_column.add_child(MenuStyle.line(
-		"Take what you can carry back. We'd rather see you again.", MenuStyle.SMALL_DIM))
+		"Take what you can carry back. We'd rather see you again.", MenuStyle.CAPTION_DIM))
 	if lodge == null:
 		return
 
@@ -71,7 +71,7 @@ func _redraw() -> void:
 
 	_column.add_child(MenuStyle.line("FAVOURS", MenuStyle.SUB_DIM))
 	_column.add_child(MenuStyle.line(
-		"Given at your next descent, one of each.", MenuStyle.SMALL_DIM))
+		"Given at your next descent, one of each.", MenuStyle.CAPTION_DIM))
 	for offered: FavourResource in lodge.favours:
 		_column.add_child(_favour_row(offered))
 
@@ -100,7 +100,7 @@ func _offer_row(offer: Contract, lodge: FactionResource) -> Control:
 	take.disabled = refused != ""
 	take.pressed.connect(func() -> void: _toggle(offer))
 	row.add_child(take)
-	row.add_child(MenuStyle.line(offer.brief(), MenuStyle.SMALL_DIM))
+	row.add_child(MenuStyle.line(offer.brief(), MenuStyle.CAPTION_DIM))
 	if held:
 		row.add_child(MenuStyle.line("taken — failing it costs %d trust" % lodge.trust_lost,
 			MenuStyle.CAPTION_WARM))

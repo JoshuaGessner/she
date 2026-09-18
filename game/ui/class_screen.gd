@@ -67,7 +67,7 @@ func _ready() -> void:
 	# player discovers on their first death is a different game from the one
 	# they agreed to play.
 	column.add_child(MenuStyle.line(
-		"Chosen once, and kept until you die.", MenuStyle.LARGE_WARM))
+		"Chosen once, and kept until you die.", MenuStyle.BODY_WARM))
 
 	var sworn: Array[ClassResource] = ClassCatalogue.all()
 	for entry: ClassResource in sworn:
@@ -81,7 +81,7 @@ func _ready() -> void:
 		push_error("ClassScreen: the catalogue is empty; no life can begin")
 		column.add_child(MenuStyle.line(
 			"No classes are in this build. That is a packaging fault, not a choice.",
-			MenuStyle.LARGE_WARM))
+			MenuStyle.BODY_WARM))
 
 
 ## One class, led by how it gets out (`DES-011`).
@@ -98,7 +98,7 @@ func _card(entry: ClassResource) -> Control:
 	if entry.description_key != &"":
 		card.add_child(MenuStyle.line(tr(String(entry.description_key))))
 	if entry.exit_key != &"":
-		card.add_child(MenuStyle.line(tr(String(entry.exit_key)), MenuStyle.SMALL_DIM))
+		card.add_child(MenuStyle.line(tr(String(entry.exit_key)), MenuStyle.CAPTION_DIM))
 	return card
 
 

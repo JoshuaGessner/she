@@ -83,12 +83,12 @@ const HEADER: float = 64.0
 ## carved band that replaced it. The same fault as ADR-140 with a different
 ## thing doing the overdrawing, so `overflowing()` now asks the stylebox how
 ## thick it is rather than trusting a number written here.
-const FOOTER: float = 40.0
+const FOOTER: float = 44.0
 ## Where the first prompt's baseline sits above the panel's bottom edge, and
 ## how far the second follows it. Named because the layout check and the
 ## drawing both need them, and a remembered number is what ADR-140 was about.
 const FOOTER_BASE: float = 12.0
-const FOOTER_LEAD: float = 13.0
+const FOOTER_LEAD: float = 14.0
 ## The band between the grid and the prompts, holding whatever the cursor is
 ## over (`M2-T19`, ADR-112). A **name** line and up to **two** wrapped lines of
 ## description, which is three, not two.
@@ -101,12 +101,34 @@ const FOOTER_LEAD: float = 13.0
 ## and the footer and never looked at this band at all, and every bag
 ## screenshot ever taken had **nothing under the cursor**, so the one region
 ## that draws variable-height text had never appeared in a photograph.
-const BLURB: float = 60.0
-const BLURB_TEXT: int = 12
+const BLURB: float = 68.0
+## The name line's baseline inside the blurb band, and how far the wrapped
+## description starts below it. Both grew with `BLURB_TEXT`; named for the same
+## reason the footer's are, which is that `overflowing()` has to compute the
+## band's height from the same numbers the band is drawn with.
+const BLURB_BASE: float = 12.0
+const BLURB_LEAD: float = 16.0
+## ## The sizes here are the theme's scale, in a control that paints (`M4-T05`)
+##
+## `draw_string` takes a number, not a role, so this screen names its steps as
+## constants — but they are **the nine steps `MenuStyle` defines**, not a
+## private set. They were 16, 13, 12 and 12: two of those are not on the scale
+## at all, which is the same drift as the nine hard-coded colours above and
+## found the same way.
+##
+## They stay constants rather than theme lookups because this panel's whole
+## geometry is measured against them — `BLURB` and `FOOTER` are pixel bands
+## sized to fit these lines, and `overflowing()` checks that fit every run. A
+## size that moved without its band moving is the ADR-140 fault again.
+const BLURB_TEXT: int = 13
 ## The header line sits to the right of the word BAG; this is that gap.
 const HEADER_INSET: float = 46.0
-const HEADER_TEXT: int = 16
-const FOOTER_TEXT: int = 12
+const HEADER_TEXT: int = 15
+const FOOTER_TEXT: int = 13
+## An item's own name and weight, inside its cell.
+const CELL_TEXT: int = 13
+## The word under a slot, and the smallest thing this screen draws.
+const SLOT_TEXT: int = 11
 ## A radius wide enough that no real bag exceeds it, used to size the panel to
 ## its worst case rather than to whatever it holds right now.
 const WIDEST_RADIUS: float = 99.9
@@ -481,7 +503,7 @@ func overflowing() -> PackedStringArray:
 	# raising `BLURB_TEXT` or allowing a third description line fails here
 	# instead of on somebody's screen.
 	var line_height: float = font.get_height(BLURB_TEXT)
-	var needed: float = 11.0 + 13.0 + line_height * 2.0
+	var needed: float = BLURB_BASE + BLURB_LEAD + line_height * 2.0
 	if needed > BLURB:
 		spilled.append(("the blurb needs %.0f px and has %.0f — a name line and "
 			+ "two wrapped lines, and the overflow lands in the prompts")
@@ -505,7 +527,7 @@ func overflowing() -> PackedStringArray:
 		if item.footprint().x <= 1:
 			weight = weight.replace(" kg", "")
 		var drawn_at: float = font.get_string_size(
-			weight, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+			weight, HORIZONTAL_ALIGNMENT_LEFT, -1, CELL_TEXT).x
 		if drawn_at > cell_room:
 			spilled.append("%s's weight is %.0f px in %.0f px: %s" % [
 				item.definition.id, drawn_at, cell_room, weight])
@@ -648,7 +670,7 @@ func _draw_slots() -> void:
 				warm if wanted else Color(faint, 0.55))
 		var font: Font = get_theme_default_font()
 		draw_string(font, box.position + Vector2(4.0, box.size.y + 12.0),
-			String(SLOT_LABEL[slot]), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, faint)
+			String(SLOT_LABEL[slot]), HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_TEXT, faint)
 
 
 func _grid_origin() -> Vector2:
@@ -778,12 +800,12 @@ func _draw_blurb(panel: Rect2) -> void:
 		return
 	var font: Font = get_theme_default_font()
 	var width: float = panel.size.x - PADDING * 2.0
-	var top: float = panel.position.y + panel.size.y - FOOTER - BLURB + 11.0
+	var top: float = panel.position.y + panel.size.y - FOOTER - BLURB + BLURB_BASE
 	draw_string(font, Vector2(panel.position.x + PADDING, top),
 		item.definition.display(), HORIZONTAL_ALIGNMENT_LEFT, width,
 		BLURB_TEXT, palette()[&"text"] as Color)
 	draw_multiline_string(font,
-		Vector2(panel.position.x + PADDING, top + 13.0),
+		Vector2(panel.position.x + PADDING, top + BLURB_LEAD),
 		item.definition.describe(), HORIZONTAL_ALIGNMENT_LEFT, width,
 		BLURB_TEXT, 2, palette()[&"dim"] as Color)
 
@@ -882,7 +904,7 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	var text_colour := Color(palette()[&"text"] as Color, alpha)
 	if not one_row:
 		draw_string(font, rect.position + Vector2(5.0, 16.0), item.label(seat),
-			HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, 13, text_colour)
+			HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, CELL_TEXT, text_colour)
 	# **The unit is dropped in a one-cell footprint** (ADR-140). `0.04 kg` is
 	# 40 px of text in 36 px of cell and rendered as `0.04 k`, which reads as a
 	# rendering bug rather than as a weight. Every number in this panel is
@@ -893,7 +915,7 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 		weight = weight.replace(" kg", "")
 	draw_string(font, rect.position + Vector2(5.0, rect.size.y - 6.0),
 		weight, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0,
-		12, Color(palette()[&"dim"] as Color, alpha))
+		CELL_TEXT, Color(palette()[&"dim"] as Color, alpha))
 
 
 ## Fit the SVG's own proportions inside the space left by the item's text and

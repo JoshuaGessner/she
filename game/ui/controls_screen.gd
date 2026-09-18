@@ -299,7 +299,7 @@ func capture(event: InputEvent) -> bool:
 	if refused != "":
 		_capture = {}
 		_fill()
-		_say(refused, MenuStyle.SMALL_FAULT)
+		_say(refused, MenuStyle.CAPTION_FAULT)
 		return true
 	var moved: String = Bindings.last_note
 	_capture["index"] = int(_capture["index"]) + 1

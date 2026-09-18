@@ -93,12 +93,12 @@ func _redraw() -> void:
 	_column.add_child(MenuStyle.line(
 		"%d boon unspent · rank %d · she expects %d a cycle" % [
 			GameState.boon, GameState.pact_rank, GameState.tithe_due()],
-		MenuStyle.LARGE_WARM))
+		MenuStyle.BODY_WARM))
 	# The coupling said out loud, on the screen where it is chosen. `DES-003`'s
 	# whole argument is that power costs obligation, and a tree that showed only
 	# the power would be teaching the opposite of the game.
 	_column.add_child(MenuStyle.line(
-		"Everything you take raises what she expects of you.", MenuStyle.SMALL_DIM))
+		"Everything you take raises what she expects of you.", MenuStyle.CAPTION_DIM))
 	if viewing:
 		# Said once, at the top, rather than repeated under every disabled row.
 		# `DES-003`'s coupling is the reason and it is worth stating as one.
@@ -161,7 +161,7 @@ func _row(node: AspectNode) -> Control:
 	row.add_child(take)
 
 	if node.description_key != &"":
-		row.add_child(MenuStyle.line(tr(String(node.description_key)), MenuStyle.SMALL_DIM))
+		row.add_child(MenuStyle.line(tr(String(node.description_key)), MenuStyle.CAPTION_DIM))
 	if owned:
 		row.add_child(MenuStyle.line("taken", MenuStyle.CAPTION_WARM))
 		# **Respec** (`M3-T13`, `DES-004`). On the node itself rather than

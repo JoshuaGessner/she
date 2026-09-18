@@ -88,7 +88,7 @@ func _rebuild() -> void:
 		return
 	_column.add_child(MenuStyle.title("PAUSED", MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line(
-		"The Deep does not stop while this is open.", MenuStyle.SMALL_DIM))
+		"The Deep does not stop while this is open.", MenuStyle.CAPTION_DIM))
 	_column.add_child(_gap(14))
 
 	var resume: Button = MenuStyle.button("BACK TO IT")
@@ -156,7 +156,7 @@ func _build_confirmation() -> void:
 		"This ends the life. The tree, the stash, what you are wearing and "
 		+ "everything you are carrying go with it."))
 	_column.add_child(MenuStyle.line(
-		"The hoard is untouched. It always is.", MenuStyle.SMALL_WARM))
+		"The hoard is untouched. It always is.", MenuStyle.CAPTION_WARM))
 	_column.add_child(_gap(14))
 
 	_way_out = MenuStyle.button("END IT")

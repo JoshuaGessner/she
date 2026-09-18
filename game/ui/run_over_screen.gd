@@ -47,7 +47,7 @@ func _ready() -> void:
 	var column: VBoxContainer = MenuStyle.column(14)
 	centre.add_child(column)
 	column.add_child(MenuStyle.title(tr("runover.title"), MenuStyle.SCREEN_TITLE))
-	column.add_child(MenuStyle.line(tr("runover.body"), MenuStyle.LARGE_DIM))
+	column.add_child(MenuStyle.line(tr("runover.body"), MenuStyle.BODY_DIM))
 
 	var go: Button = MenuStyle.button(tr("runover.go"))
 	go.pressed.connect(func() -> void: leave_now.emit())
