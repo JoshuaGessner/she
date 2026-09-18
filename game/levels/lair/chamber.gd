@@ -50,8 +50,17 @@ const FLOOR_COLOUR: Color = Color(0.22, 0.21, 0.20)
 ## largest concentration of it anywhere, which is the point.
 const GOLD: Color = Color(0.86, 0.67, 0.22)
 ## She is barely distinguishable from the rock, and gets less so — ADR-050:
-## *"further fused into the stone with each lineage."*
+## *"further fused into the stone with each lineage."* **The far end of that**:
+## a hair off `STONE`, which is where she arrives rather than where she starts.
 const HER: Color = Color(0.20, 0.19, 0.18)
+## Where she starts (ADR-255): warmer and lighter than the rock, because a
+## living thing in a dim hall is told from the wall by **value** first — and
+## `ART-005` spends saturated colour on treasure, so she may not be gold.
+const HER_NEW: Color = Color(0.32, 0.26, 0.22)
+## Descents until she is stone ⟨tune⟩. Long-horizon on purpose: `DES-022` watches
+## self-reported growth across runs 11–25, so the change has to be visible
+## across that window without finishing inside it.
+const FUSED_AFTER: int = 40
 const STASH_COLOUR: Color = Color(0.38, 0.33, 0.26)
 
 ## Raised when you walk back out. The Threshold opened this room and is the
@@ -424,14 +433,63 @@ func _build_room() -> void:
 	add_child(environment)
 
 
-## Her, at blockout (ADR-046). Enormous, low, and **barely separable from the
-## rock she is fused into** — `DES-014` and ADR-050 make that fusion progress
-## across a lineage, so she is the same colour as the wall on purpose. The
-## shape is a long mass behind the hoard, not a creature standing in a room.
+## Her, at blockout (ADR-046). Enormous, low, and **fusing into the rock over a
+## lineage rather than starting fused** (ADR-255).
+##
+## ## What was here before, and why it was wrong
+##
+## Three slabs in a single colour a hair off the wall's, under a comment saying
+## she was the same colour as the wall *on purpose*, citing ADR-050. ADR-050
+## says something else:
+##
+## > **Yes** — further fused into the stone **with each lineage**, a long-horizon
+## > signal of what the pact is doing to her as well as to you.
+##
+## *Further* fused, *with each lineage*. The old `_build_her` took no arguments
+## and read no state, so she shipped at the fully-fused end of a progression
+## from the first run — and a signal with nothing to progress *from* is not a
+## signal. The decided mechanic had never been built, and what a player saw
+## instead was an indistinct grey mass they could walk past without registering.
+##
+## ## So she starts plainly there
+##
+## Warmer and lighter than the stone at descent one, arriving at the old colour
+## by `FUSED_AFTER`. `DES-022`'s headline metric watches runs 11–25, so the
+## change has to be legible across that window without completing inside it.
+##
+## **Shape carries more of this than colour does**, which is `DES-018`'s rule
+## about hue everywhere else in the build and true here for the same reason: a
+## silhouette reads in one glance and at any colour vision. She has a neck, a
+## head that comes forward over the hoard, and a tail around one side — so what
+## you walk into is a creature the room is built around, rather than three boxes
+## against a wall.
 func _build_her() -> void:
-	_slab(Vector3(11.0, 3.2, 3.0), HOARD_AT + Vector3(0.0, 1.6, -2.4), HER)
-	_slab(Vector3(4.0, 2.0, 2.4), HOARD_AT + Vector3(-3.4, 1.0, -0.6), HER)
-	_slab(Vector3(4.0, 2.0, 2.4), HOARD_AT + Vector3(3.4, 1.0, -0.6), HER)
+	var skin: Color = her_colour(GameState.descents)
+	# The long mass, half in the back wall.
+	_slab(Vector3(11.0, 3.2, 3.0), HOARD_AT + Vector3(0.0, 1.6, -2.4), skin)
+	# Forelimbs, set wide enough that the hoard between them stays reachable.
+	_slab(Vector3(4.0, 2.0, 2.4), HOARD_AT + Vector3(-3.4, 1.0, -0.6), skin)
+	_slab(Vector3(4.0, 2.0, 2.4), HOARD_AT + Vector3(3.4, 1.0, -0.6), skin)
+	# Neck and head. The head sits **above a standing body's eye line** so it
+	# looms rather than blocks: the walk to the hoard is unchanged and the thing
+	# you are giving to is over you while you do it.
+	_slab(Vector3(2.0, 3.0, 2.0), HOARD_AT + Vector3(0.0, 2.9, -1.4), skin)
+	_slab(Vector3(2.4, 1.4, 3.2), HOARD_AT + Vector3(0.0, 3.6, 0.4), skin)
+	# The snout, tipped down over the pile she is owed.
+	_slab(Vector3(1.6, 0.8, 1.6), HOARD_AT + Vector3(0.0, 3.0, 1.6), skin)
+	# A tail around one side, which is what stops the room reading as symmetrical
+	# furniture and gives the eye somewhere to travel.
+	_slab(Vector3(2.2, 1.5, 5.0), HOARD_AT + Vector3(-5.2, 0.75, 1.0), skin)
+
+
+## **What a lineage has done to her**, as a colour (ADR-050, ADR-255).
+##
+## Held apart from `_build_her` so the progression can be asserted without
+## standing a room up — and so the one place it is decided is the one place it
+## is read.
+static func her_colour(descents: int) -> Color:
+	var gone: float = clampf(float(descents) / float(FUSED_AFTER), 0.0, 1.0)
+	return HER_NEW.lerp(HER, gone)
 
 
 func _build_hoard() -> void:
@@ -1107,6 +1165,50 @@ func _lair_probe() -> void:
 	# ─ **and both panels are on the hub's ground** (ADR-216) ─
 	problems.append_array(MenuStyle.off_the_lair_ground("lair",
 		{"PLACE": _place, "TITHE": _tithe}))
+
+	# ─ **she is there at first, and becomes the wall** (ADR-050, ADR-255) ─
+	#
+	# The mechanic is a *difference over a lineage*, so both ends have to be
+	# asserted: a build that starts her fused has no signal, and one that never
+	# fuses her has no mechanic. The old code failed the first of those for
+	# months while every check in this sweep passed.
+	var first: Color = Chamber.her_colour(1)
+	var last: Color = Chamber.her_colour(FUSED_AFTER)
+	var apart_now: float = Vector3(first.r - STONE.r, first.g - STONE.g,
+		first.b - STONE.b).length()
+	var apart_then: float = Vector3(last.r - STONE.r, last.g - STONE.g,
+		last.b - STONE.b).length()
+	print("[lair] she is there  %.3f from the stone at descent 1, %.3f after %d"
+		% [apart_now, apart_then, FUSED_AFTER])
+	# A tenth of the colour cube is about where a mass stops reading as the wall
+	# it is in front of, at this room's light ⟨tune⟩.
+	if apart_now < 0.10:
+		problems.append(("she is %.3f from the stone on the first descent — "
+			+ "she ships fused, which is the end of a progression rather than "
+			+ "the start of one, and ADR-050's signal has nothing to move from")
+			% apart_now)
+	if apart_then >= apart_now:
+		problems.append(("a lineage brought her from %.3f to %.3f off the "
+			+ "stone — she is not fusing, so what the pact costs her is not "
+			+ "being shown") % [apart_now, apart_then])
+
+	# ─ **and the pile is still reachable** ─
+	#
+	# She gained a neck, a head and a tail, and the head comes forward over the
+	# hoard on purpose. A mass that also comes *down* far enough would wall off
+	# the one interaction this room exists for, and nothing else here would say
+	# so — the tithe probe places from a body already standing at the pile.
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var walk := PhysicsRayQueryParameters3D.create(
+		SPAWN_AT + Vector3(0.0, 1.0, 0.0), HOARD_AT + Vector3(0.0, 1.0, 0.0))
+	walk.collision_mask = CollisionLayers.WORLD
+	var blocked: Dictionary = space.intersect_ray(walk)
+	print("[lair] and reachable  the walk from the door to the hoard is %s"
+		% ("clear" if blocked.is_empty() else "BLOCKED"))
+	if not blocked.is_empty():
+		problems.append("something stands between the door and the hoard at "
+			+ "body height — she has been given a mass that walls off the one "
+			+ "thing this room is for")
 
 	for problem: String in problems:
 		printerr("[lair] FAIL %s" % problem)

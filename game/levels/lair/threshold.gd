@@ -39,7 +39,31 @@ extends Node3D
 ## hour — so a Threshold that is a fire and a doorway is not a placeholder for
 ## a bigger one. It is the first hour.
 
-const GROUND: float = 34.0
+## **The camp is a room, not a plain** (ADR-255).
+##
+## It was a 34 x 34 m slab with walls around the Descent end only — so every
+## metre forward of the fire and everything beyond x = ±8 was an open edge you
+## could walk off. ADR-107 made that *survivable*, because a playtester did it:
+## a 400 m drop puts you back. Survivable is not the same as enclosed, and a
+## camp you can fall out of is not a place.
+##
+## Shrunk before it was closed. The furthest thing from the fire is the Chamber
+## door at 7.5 m and the Descent at 9 m behind it, so 17 m of the old slab in
+## every direction was rock nobody had a reason to walk on — and empty ground
+## is the most expensive thing to dress with real art later (`M4-T10`).
+const GROUND_WIDE: float = 20.0
+const GROUND_DEEP: float = 22.0
+## Pushed back rather than centred on the fire, because the Descent end needs
+## more room than the Chamber end: z runs from -12 to +10.
+const GROUND_AT: float = -1.0
+const WALL_HIGH: float = 9.0
+const WALL_THICK: float = 0.8
+## Where the mountain closes in on the Descent ⟨tune⟩. Wide enough that the
+## hole is approached rather than squeezed into, narrow enough that the walk
+## down reads as going *into* something.
+const THROAT_HALF: float = 5.5
+## How far in front of the Descent the throat opens ⟨tune⟩.
+const THROAT_FROM: float = -5.0
 const FIRE_AT: Vector3 = Vector3(0.0, 0.0, 0.0)
 const DESCENT_AT: Vector3 = Vector3(0.0, 0.0, -9.0)
 const CHAMBER_AT: Vector3 = Vector3(0.0, 0.0, 7.5)
@@ -405,6 +429,60 @@ func _edges_probe() -> void:
 		problems.append("the Chamber is still parented to the root after its "
 			+ "level left — it is a sibling, so a scene change does not take "
 			+ "it, and its private MultiplayerAPI stays registered too")
+
+	# ─ 4. **and there is no edge to walk off in the first place** (ADR-255) ─
+	#
+	# Rows 1 to 3 are all about surviving having left the camp, because that is
+	# what a playtester did and the fix was a way back. This asks the question
+	# underneath them: a camp with a wall on every side is a camp nobody falls
+	# out of, and the recovery becomes a backstop rather than the answer.
+	#
+	# Cast outward at body height rather than walked, because a walk finds the
+	# gap it happens to aim at and a sweep of bearings finds any of them. Eighty
+	# is finer than the narrowest thing that could be missing — a wall is at
+	# least 11 m of arc from the middle of the camp at this size.
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var from := Vector3(0.0, 1.0, GROUND_AT)
+	var reach: float = maxf(GROUND_WIDE, GROUND_DEEP)
+	var open_bearings: int = 0
+	var worst: float = 0.0
+	for step: int in 80:
+		var angle: float = TAU * float(step) / 80.0
+		var to: Vector3 = from + Vector3(cos(angle), 0.0, sin(angle)) * reach
+		var query := PhysicsRayQueryParameters3D.create(from, to)
+		query.collision_mask = CollisionLayers.WORLD
+		var hit: Dictionary = space.intersect_ray(query)
+		if hit.is_empty():
+			open_bearings += 1
+			continue
+		worst = maxf(worst, from.distance_to(hit["position"] as Vector3))
+	print("[edges] the camp is closed  %d of 80 bearing(s) open, furthest wall %.1f m"
+		% [open_bearings, worst])
+	if open_bearings > 0:
+		problems.append(("%d of 80 bearings out of the camp meet no wall at "
+			+ "all — that is an edge, and a body that walks off it is relying "
+			+ "on the recovery above rather than on the level") % open_bearings)
+
+	# And everything the camp is *for* is inside it, so shrinking the ground can
+	# never quietly strand the thing a player came here to use.
+	var half_wide: float = GROUND_WIDE * 0.5
+	var half_deep: float = GROUND_DEEP * 0.5
+	var named: Dictionary = {
+		"the fire": FIRE_AT, "the Descent": DESCENT_AT,
+		"the Chamber door": CHAMBER_AT, "the board": BOARD_AT,
+	}
+	for i: int in SPAWNS.size():
+		named["spawn %d" % i] = SPAWNS[i]
+	var outside := PackedStringArray()
+	for what: String in named:
+		var at: Vector3 = named[what]
+		if absf(at.x) > half_wide or at.z < GROUND_AT - half_deep \
+				or at.z > GROUND_AT + half_deep:
+			outside.append("%s at %s" % [what, str(at.round())])
+	print("[edges] and holds its own  %d thing(s) outside the ground" % outside.size())
+	if outside.size() > 0:
+		problems.append(("the camp does not contain %s — the ground was shrunk "
+			+ "past something a player has to reach") % ", ".join(outside))
 
 	_report_edges(problems)
 
@@ -1408,11 +1486,29 @@ func _again() -> void:
 
 
 func _build_ground() -> void:
-	_slab(Vector3(GROUND, 0.4, GROUND), Vector3(0.0, -0.2, 0.0), ROCK)
-	# The mountain, closing in behind the Descent.
-	_slab(Vector3(GROUND, 9.0, 0.8), Vector3(0.0, 4.5, -13.0), ROCK)
-	_slab(Vector3(0.8, 9.0, 12.0), Vector3(-8.0, 4.5, -7.0), ROCK)
-	_slab(Vector3(0.8, 9.0, 12.0), Vector3(8.0, 4.5, -7.0), ROCK)
+	_slab(Vector3(GROUND_WIDE, 0.4, GROUND_DEEP),
+		Vector3(0.0, -0.2, GROUND_AT), ROCK)
+
+	# **Closed on all four sides.** The three walls this replaces enclosed the
+	# Descent end and nothing else, which is why the camp had an edge at all.
+	var half_wide: float = GROUND_WIDE * 0.5
+	var half_deep: float = GROUND_DEEP * 0.5
+	var mid: float = WALL_HIGH * 0.5
+	var across := Vector3(GROUND_WIDE + WALL_THICK * 2.0, WALL_HIGH, WALL_THICK)
+	var along := Vector3(WALL_THICK, WALL_HIGH, GROUND_DEEP + WALL_THICK * 2.0)
+	_slab(across, Vector3(0.0, mid, GROUND_AT - half_deep - WALL_THICK * 0.5), ROCK)
+	_slab(across, Vector3(0.0, mid, GROUND_AT + half_deep + WALL_THICK * 0.5), ROCK)
+	_slab(along, Vector3(-half_wide - WALL_THICK * 0.5, mid, GROUND_AT), ROCK)
+	_slab(along, Vector3(half_wide + WALL_THICK * 0.5, mid, GROUND_AT), ROCK)
+
+	# The mountain, closing in behind the Descent. Kept from the old shape
+	# because it is the one part that was doing work: the hole reads as a throat
+	# you go *into* rather than a pit in the middle of a yard.
+	var throat: float = THROAT_FROM - (GROUND_AT - half_deep)
+	var seam := Vector3(WALL_THICK, WALL_HIGH, throat)
+	var at_z: float = THROAT_FROM - throat * 0.5
+	_slab(seam, Vector3(-THROAT_HALF, mid, at_z), ROCK)
+	_slab(seam, Vector3(THROAT_HALF, mid, at_z), ROCK)
 
 	var environment := WorldEnvironment.new()
 	var world := Environment.new()

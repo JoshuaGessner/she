@@ -9431,5 +9431,46 @@ So the decision changes no sequencing. What it changes is that the metric stops 
 - **First-person arms are still absent** (`ART-004`). You are inside your own body and never draw it, so this changes what you see of *other people* and nothing about your own hands.
 - **When authored clips land, `BodyRig` is what they replace.** The seam is `step()` and the call site is one line in `_physics_process`.
 
+## ADR-255 — The Lair is a place you are in: the camp is closed, and she is there before she is stone
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T05`** · **Builds ADR-050's fusion at last** · **Developer's brief**
+
+**Context:** Asked for a polish pass on the hub, the developer named two things: *"improve the blockout of the starter area so there's no falloffs on the side"*, and *"the dragon needs to be more apparent."* Both turned out to be less a matter of taste than of something decided and not built.
+
+### The camp had an edge, and the fix for that had been a safety net
+
+`_build_ground` laid a **34 × 34 m** slab and put walls around the **Descent end only** — a pocket 16 m wide between z −13 and −1. Everything forward of the fire, and everything beyond x ±8, was open ground ending in a drop.
+
+This was known. ADR-107 exists because *"one playtester doing one ordinary thing: walking off the edge of the camp, letting the fall run, abandoning, and descending again to a grey screen."* The three faults that found were fixed and the **edge itself was left**, with a recovery behind it: a body 400 m down is put back. **Survivable is not enclosed**, and a camp you can fall out of is not a place.
+
+**Shrunk before it was closed.** The furthest thing from the fire is the Chamber door at 7.5 m, with the Descent 9 m the other way — so 17 m in every direction was rock nobody had a reason to walk on, and empty ground is the most expensive thing to dress with real art (`M4-T10`). It is now **20 × 22**, walled on four sides, keeping the one part of the old shape that was doing work: the mountain narrowing to a throat around the hole, so the Descent reads as something you go *into*.
+
+### She was fused from the first run, which is the end of a mechanic rather than the start of one
+
+`_build_her` drew three slabs in `HER` — a hair off the wall's `STONE` — under a comment saying she was the same colour as the wall **on purpose**, citing ADR-050. ADR-050 says:
+
+> **Yes** — further fused into the stone **with each lineage**, a long-horizon signal of what the pact is doing to her as well as to you.
+
+*Further* fused, *with each lineage*. **`_build_her` took no arguments and read no state.** She shipped at the fully-fused end of a progression from the first descent, so the signal had nothing to move from — and what a player met instead was an indistinct grey mass they could walk past without registering. This is the third time in two days that a decided mechanic turned out to be a constant standing where a progression should be (ADR-251, ADR-253).
+
+**She now starts plainly there and arrives at the wall.** `her_colour()` reads `GameState.descents` — the same LINEAGE-tier number ADR-050 already uses to fill the camp out — and lerps from a warmer, lighter `HER_NEW` to `HER` over **40 descents ⟨tune⟩**. Long-horizon on purpose: `DES-022` watches self-reported growth across runs 11–25, so the change has to be legible across that window without completing inside it.
+
+**And shape carries more of it than colour does.** Three boxes against a wall is not a silhouette. She has a neck, a head that comes forward **above a standing body's eye line** so it looms over the hoard rather than blocking it, a snout tipped down over the pile she is owed, and a tail around one side so the room stops reading as symmetrical furniture. That is `DES-018`'s rule about hue, applied where it was never an accessibility question: a silhouette reads in one glance and at any colour vision.
+
+### Verification
+
+`--edges-probe` gains the question underneath its own first three rows. It has always asked whether a body that left the camp can get back; it now asks **whether it can leave at all**: 80 bearings cast outward at body height, **0 open**, furthest wall 14.5 m. And that the camp still contains what it is for — the fire, the Descent, the board, the Chamber door and all four spawns — so shrinking the ground can never quietly strand something a player has to reach.
+
+`--lair-probe` asserts **both ends of the fusion**, because a build that starts her fused has no signal and one that never fuses her has no mechanic: **0.183 off the stone at descent 1, 0.044 after 40**. And that the walk from the door to the hoard is still clear, because she was given a head that comes forward over it and nothing else in this sweep would notice a mass that came down too far — the tithe probe starts from a body already standing at the pile.
+
+**Planted and failed, one plant per run — five.** The front wall never built (*17 of 80 bearings open*); the ground shrunk past its own contents (*the Descent and the Chamber door outside*); `HER_NEW` set to `HER` so she ships fused (*0.044 on the first descent*, and the fusing row with it); the lerp zeroed so she never fuses (*0.187 to 0.187*, with the first row correctly still passing); and her head dropped to body height (*the walk from the door to the hoard is BLOCKED*).
+
+### Consequences
+
+- **ADR-107's recovery becomes a backstop rather than the answer.** It stays: a level is not the only way a body can end up somewhere it should not be, and the rows that assert it are untouched.
+- **`GROUND` is gone**, replaced by a width, a depth and an offset. It was read in exactly three places, all inside `_build_ground`, so nothing else in the build had an opinion about how big the camp was.
+- **Still blockout** (ADR-046). This changes what the hub *reads as*; the real rock and the real creature are `M4-T10`'s.
+- **The fusion is now visible and therefore tunable.** 40 descents is a guess with a reason, and the first person to play twenty runs will have an opinion worth more than the reason.
+
 *Entries below to be added as design decisions are signed off.*
 
