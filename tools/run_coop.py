@@ -67,9 +67,15 @@ SMOKE_TIMEOUT = 180
 POSITION_TOLERANCE = 0.35
 ENEMY_TOLERANCE = 0.60
 # The client walks for a second at ⟨tune⟩ 3.4 m/s from a standstill.
-# Stepped 20 Hz motion sits near 0.67 — two frames in three with no
-# movement at all. Anything under this is carrying the gap smoothly.
-MAX_STILLNESS = 0.25
+#
+# Positions arrive at 20 Hz and physics runs at 60, so an interpolated body
+# spends about three frames covering each packet's gap and a body written
+# straight onto the transform spends exactly one. Two is the midpoint, and it
+# is a ratio rather than a share of still frames on purpose (ADR-252): a client
+# that stalls under load sends fewer packets, so the host's copy arrives and
+# sits — which the old "still on 25% of frames" bound read as broken
+# interpolation and failed one run in six on a busy machine.
+MIN_GLIDE_STEPS = 2.0
 MIN_WALK_METRES = 1.0
 # stand 1.80 − crouch 1.15 = 0.65 m. Half of that is unambiguous while leaving
 # room for the crouch blend not being quite finished.
@@ -232,11 +238,12 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
     # straight onto the transform left it frozen on two frames in three, which
     # is what a tester reports as "a little jittery" and what no probe in the
     # sweep could see. Interpolated, it lands near zero.
-    stillness = host["stillness"]
+    glide = host["glide"]
     rows.append(check(
-        "a walking teammate is never frozen",
-        0.0 <= stillness <= MAX_STILLNESS,
-        f"still on {stillness * 100:.0f}% of frames"))
+        "a walking teammate glides between packets",
+        glide["packets"] > 0 and glide["steps"] >= MIN_GLIDE_STEPS,
+        f"{glide['steps']:.1f} frame(s) per packet, "
+        f"{glide['moved']}/{glide['frames']} moved, {glide['packets']} packet(s)"))
 
     # Positions. Missing keys must fail rather than skip: an absent body is the
     # loudest possible failure and the easiest one to accidentally ignore.
@@ -324,6 +331,20 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
             gap >= MIN_CROUCH_DELTA,
             f"{heights.get(client_body, 0.0):.2f} vs "
             f"{heights.get(host_body, 0.0):.2f} m"))
+
+    # The strike phase's handshake, asserted on both peers before anything
+    # about the swing is (ADR-252). The host reports whether it saw the client
+    # reach the strike post; the client reports whether the enemy reached it.
+    # Without this row a starved peer fails three rows further down and the
+    # report reads as a broken authority split, which is where a day went.
+    for report, who, what in (
+            (host, "host", "saw the client reach the post"),
+            (client, "client", "saw the enemy arrive")):
+        rows.append(check(
+            f"the {who} {what}",
+            bool(report.get("in_place", False)),
+            "yes" if report.get("in_place", False) else
+            "timed out — the machine may be too loaded to measure this"))
 
     # The client swung once. Its own hitbox is inert, so any damage at all was
     # the host's decision — and *exactly* one swing of it means the host

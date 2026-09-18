@@ -75,20 +75,3 @@ Not questions. The answer to *"what now."*
 3. **The M1 networking spike** — 4 peers, ~150 synchronised entities. Go/no-go on the engine (`TEC-004`).
 
 Then M1 proper, whose only job is: **two people who aren't you play for ten minutes and ask to keep playing.**
-
-### The co-op smoke fails about one run in six (`M4-T15`, ADR-250)
-
-Twice in about a dozen runs on 2026-09-17 `run_coop.py --smoke` failed with three
-rows together — *a walking teammate is never frozen* (28 % of frames), *one client
-swing, one swing of hp* (60 against 45) and *only the host resolved the hit* (no
-damage events at all) — and passed on the next run with nothing changed. It is a
-different signature from ADR-239's, which was fixed at ADR-244.
-
-**Why it matters more than it looks.** The smoke runs before every commit. A check
-that fails one run in six teaches the next person to re-run it, and a re-run that
-passes is how a real failure gets waved through — the same shape as a stale
-dashboard, in a harness.
-
-**Where to start:** all three rows are about the strike phase, and the first
-question is whether the swing is arriving before the enemy it is aimed at has
-finished spawning.

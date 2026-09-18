@@ -9321,5 +9321,55 @@ The comment above that line claimed a fallback — *"In a held room if the floor
 - **A reported number is a number nobody is holding to account.** `no_held` was printed every sweep for a month with a paragraph explaining why it was fine. The explanation aged out and the print went on being green. Both replacements assert.
 - **Left alone deliberately: `_filler()` reads the same tags.** It deals the dearest filler into `held` rooms and the cheapest into `bypass` ones, so on those 145 floors it deals **no held filler at all** and the whole pool goes to the bypass. That is *not* the same fault: the guarded room on those floors is the Prize's, and the Prize is already the payoff ADR-032 asks the held arm to carry. Changing it would be a balance decision rather than a correction, and `PRO-009` block B is what should decide it — noted here because the root cause is shared and the next reader will ask.
 
+## ADR-252 — The co-op smoke was measuring the machine, and a check that fails one run in six is a check nobody believes
+
+**Date:** 2026-09-17 · **Status:** accepted · **Closes** the `OPEN-QUESTIONS` entry filed by ADR-250 · **Amends ADR-102**
+
+**Context:** ADR-250 recorded, rather than chased, an intermittent failure: *"twice in about a dozen runs today it failed with `a walking teammate is never frozen`, `one client swing, one swing of hp` and `only the host resolved the hit` together — and passed on the next run with nothing changed."* It was filed on the grounds that **a check that fails one run in six is a check the next person learns to re-run, which is how a real failure gets waved through.** This is that debt paid.
+
+### Reproduced before it was touched
+
+12 runs on an idle machine: **12 passed**. The same 12 runs with ten busy-loop processes on ten cores: **one failed in six, and one in eight** — the rate originally reported. The flake is **load**, and it was self-inflicted: the failures were seen on a day this session was running sweeps and harnesses concurrently.
+
+Under load it is **two** faults wearing one report, and they were separated by making the machine reliably slow rather than waiting for luck.
+
+### Fault one — a starved interpolator looks exactly like an absent one
+
+ADR-102 added *"a walking teammate is never frozen"*: count physics frames on which the watched body has not moved, fail past **25%**. The instinct is right — positions arrive at 20 Hz and writing them straight onto the transform leaves a body frozen on two frames in three — but the denominator measures the wrong thing.
+
+`_ease_toward_the_wire` carries a third of the remaining gap per tick. When the **client process stalls** and stops sending, the host's copy eases onto the last point it was told about and legitimately sits there. Measured at **27% still on a loaded machine with nothing wrong**, against 0% idle. There is no bound on a stillness ratio that separates "nothing is interpolating" from "nothing has arrived to interpolate toward".
+
+**The ratio does separate them.** Interpolation spends several frames covering each packet's gap; a direct write spends exactly one. Fewer packets arrive under load, fewer frames move, and the ratio holds. `_glide_per_packet` counts both — frames moved, and changes in what the wire last said, which is the only thing this side of it a packet is — and the row asserts **≥ 2 frames per packet**.
+
+Measured: **3.1 idle** on 17 packets; **8.0 under load** on 6 packets — the client stalling plainly, the interpolation plainly still working, and the row passing where the old one failed.
+
+### Fault two — the setup raced, and the assertion took the blame
+
+The strike phase spawned the enemy, teleported the client 12 m to the strike post, and waited a fixed `_hold(0.6)`. **The host resolves the swing against its own copy of the client's hitbox.** A copy still standing at the walk post swings at nothing — so the enemy takes no damage, both peers agree it is at full health, and the report says *`one client swing, one swing of hp`* and *`only the host resolved the hit`* have failed while *`the damage reached the client`* passes.
+
+**That last row passing is the whole tell**, and it is what a day of reading the other two as an authority bug would have missed: the peers agreed perfectly. Nothing was wrong with the authority split. The body had not arrived.
+
+The phase now waits on the condition: the host waits until it can *see* the client at the post and only then spawns the enemy; the client waits for the enemy count to **rise**. Downstream arrival therefore proves upstream arrival happened first, so the handshake is built out of replication the build already does rather than an RPC written for the test. The client waits for an increase rather than for any enemy at all, because a handshake that passes on a leftover from an earlier phase proves nothing — which is the failure a waiting check has instead of a racing one.
+
+**Waiting on the setup does not weaken the assertion.** What is asserted after the wait is unchanged and still strict. What went away is a race in the arrangement, and the timeout is **reported as its own row on both peers** rather than swallowed, so a peer that genuinely never arrives fails saying so instead of impersonating a missed swing.
+
+### Verification
+
+| | idle | under load (10 burners, 10 cores) |
+|---|---|---|
+| before | 12 / 12 passed | **1 failed in 6**, and 1 in 8 |
+| after | passes | **12 / 12 passed** |
+
+**Planted and failed, one plant per run.** `_ease_toward_the_wire` returned to a direct write → *1.0 frame(s) per packet, 16/61 moved, 16 packet(s)*, FAIL — exactly the 1.0 the arithmetic predicts, so the number names the fault rather than merely exceeding a bound. And the host's arrival test made unsatisfiable → *the host saw the client reach the post — timed out; the machine may be too loaded to measure this*, FAIL, while the rest of the phase still ran.
+
+`run_coop.py --late` shares `_probe_report` and is unaffected.
+
+### Consequences
+
+- **The smoke is worth believing again**, which is the only property that matters in a check somebody is going to be tempted to re-run.
+- **`MAX_STILLNESS` is gone.** A bound that cannot be set correctly on an unknown machine is not a bound; ADR-102's finding survives in a form that does not depend on how busy the computer is.
+- **Two harnesses, one lesson.** ADR-250 deleted four mechanisms for being unaccountable; this one deletes a *measurement* for the same reason. A number that moves with the weather is not evidence, however carefully it is compared against a threshold.
+- **Not fixed, because it is not broken:** a body really does sit still when its owner stops sending. That is snapshot interpolation with no extrapolation, and inventing a predictor to flatter a probe would be answering a measurement problem with a gameplay change. If teammates look bad on slow machines in play, that is a `DES-012` question with a real cost, not this one.
+
 *Entries below to be added as design decisions are signed off.*
 

@@ -6417,7 +6417,20 @@ var _rank_in_the_hunt: int = 1
 var _fixtures_placed: bool = false
 
 var _probe_floor: Dictionary = {}
-var _probe_stillness: float = -1.0
+var _probe_glide: Dictionary = {}
+var _probe_in_place: bool = false
+## How near the strike post the host must see the client's body before the
+## phase goes on. A body's own radius, so "arrived" means arrived rather than
+## within a swing of it.
+const IN_PLACE: float = 0.4
+## How long either peer waits for the other's half of the strike-phase
+## handshake. Generous, because the whole point is that a slow machine should
+## still measure the right thing — and the wait is reported, so a peer that
+## never arrives fails loudly rather than reading as a missed swing.
+const PROBE_ARRIVES_WITHIN: float = 5.0
+## Half a millimetre: below this a body has arrived rather than moved, and a
+## float that walked a metre is not going to land on an exact repeat anyway.
+const STIRRED: float = 0.0005
 var _probe_enemies_seen: int = 0
 var _probe_enemy_hp: Dictionary = {}
 var _probe_enemy_at: Dictionary = {}
@@ -6535,8 +6548,8 @@ func _coop_probe(out: String) -> void:
 		Input.action_press("move_forward")
 	if host:
 		# Watched from the host, on the body it is not driving. See
-		# `_stillness_of` — this is the jitter measurement.
-		_probe_stillness = await _stillness_of(1.0)
+		# `_glide_per_packet` — this is the jitter measurement.
+		_probe_glide = await _glide_per_packet(1.0)
 	else:
 		await _hold(1.0)
 	if not host:
@@ -6563,11 +6576,37 @@ func _coop_probe(out: String) -> void:
 	#    client's own hitbox is inert; if the enemy loses exactly one swing of
 	#    health on both peers, the host resolved it, resolved it once, and told
 	#    the client.
-	if host:
-		_session.spawn_enemy(PROBE_STRIKE_AT)
+	#    **The enemy is spawned as the acknowledgement, not on a timer**
+	#    (ADR-252). The host resolves the swing against *its* copy of the
+	#    client's hitbox, so the one thing this phase needs is for that copy to
+	#    have arrived at the strike post before the swing lands. A fixed wait
+	#    assumed a 12 m update crosses the wire inside 600 ms and it does not on
+	#    a loaded machine — measured, one run in six, and it failed claiming
+	#    the authority split was broken.
+	#
+	#    So the host waits until it can *see* the client in place and only then
+	#    spawns the enemy; the client waits until the enemy appears. Downstream
+	#    arrival therefore proves upstream arrival happened first, and the
+	#    handshake is built out of replication the build already does rather
+	#    than an RPC written for the test.
 	if not host:
 		mine.teleport(PROBE_STRIKE_FROM, 0.0)
-	await _hold(0.6)
+	if host:
+		_probe_in_place = await _hold_until(func() -> bool:
+			var them: Player = _client_body()
+			return them != null and them.global_position.distance_to(
+				PROBE_STRIKE_FROM) <= IN_PLACE, PROBE_ARRIVES_WITHIN)
+		_session.spawn_enemy(PROBE_STRIKE_AT)
+	else:
+		# An **increase**, not "any enemy at all": the phase clears the floor
+		# first, but a handshake that passes on a leftover from an earlier
+		# phase proves nothing, and that is the failure mode a waiting check
+		# has instead of a racing one.
+		var stood: int = get_tree().get_nodes_in_group("enemies").size()
+		_probe_in_place = await _hold_until(func() -> bool:
+			return get_tree().get_nodes_in_group("enemies").size() > stood,
+			PROBE_ARRIVES_WITHIN)
+	await _hold(0.3)
 
 	# Count damage *events on this peer*, which is the only thing that can tell
 	# host-authoritative damage from damage that merely agrees.
@@ -6761,35 +6800,56 @@ func _await_probe_end() -> void:
 		await get_tree().physics_frame
 
 
-## **How often a remote body is standing perfectly still while it walks.**
+## **How many frames a remote body spends gliding for each packet it is sent.**
 ##
 ## Positions arrive at `REPLICATION_HZ` and used to be written straight onto
 ## the transform, so at 60 fps a teammate held one spot for three frames and
 ## then jumped to the next — moving on one frame in three and frozen on the
 ## other two. That is what "a little jittery" is, and it is measurable without
-## anybody having to look at it: count the frames on which a body that is
-## definitely walking did not move at all.
+## anybody having to look at it.
 ##
-## Stepped motion lands near 0.67. Interpolated motion lands near zero, because
-## every frame carries a little of the gap.
-func _stillness_of(seconds: float) -> float:
+## **This counted still frames until ADR-252, and that measured the machine as
+## much as the build.** The old ratio failed past 25% still, which is the right
+## instinct and the wrong denominator: a **starved** interpolator is
+## indistinguishable from an absent one. `_ease_toward_the_wire` carries a third
+## of the remaining gap per tick, so when the client process stalls under load
+## and stops sending, the host's copy converges onto the last point it was told
+## about and legitimately sits there. Measured at **27% still on a loaded
+## machine with nothing wrong**, against 0% idle — one run in six, which is a
+## check the next person learns to re-run.
+##
+## The ratio is what separates them. Interpolation spends **several frames
+## covering each packet's gap**; a direct write spends exactly one. Under load
+## fewer packets arrive and fewer frames move, and the ratio holds — so this
+## asserts the interpolation rather than the delivery. A packet is a change in
+## what the wire last said, which is the only thing this side of it a packet is.
+func _glide_per_packet(seconds: float) -> Dictionary:
 	var body: Player = _client_body()
 	if body == null:
-		return 1.0
+		return {"steps": 0.0, "moved": 0, "packets": 0, "frames": 0}
 	var frames: int = 0
-	var still: int = 0
+	var moved: int = 0
+	var packets: int = 0
 	var was: Vector3 = body.global_position
+	var wired: Vector3 = body.net_position
 	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
 	while Time.get_ticks_msec() < until:
 		await get_tree().physics_frame
 		if not is_instance_valid(body):
 			break
-		var now: Vector3 = body.global_position
 		frames += 1
-		if now.distance_to(was) < 0.0005:
-			still += 1
+		var now: Vector3 = body.global_position
+		if now.distance_to(was) >= STIRRED:
+			moved += 1
 		was = now
-	return float(still) / float(maxi(frames, 1))
+		var wire: Vector3 = body.net_position
+		if wire.distance_to(wired) >= STIRRED:
+			packets += 1
+		wired = wire
+	return {
+		"steps": float(moved) / float(maxi(packets, 1)),
+		"moved": moved, "packets": packets, "frames": frames,
+	}
 
 
 func _probe_report(host: bool) -> Dictionary:
@@ -6800,7 +6860,8 @@ func _probe_report(host: bool) -> Dictionary:
 		"players_seen": _session.players().size(),
 		"enemies_seen": _probe_enemies_seen,
 		"floor": _probe_floor,
-		"stillness": _probe_stillness,
+		"glide": _probe_glide,
+		"in_place": _probe_in_place,
 		"wire_motion": _probe_motion,
 		"positions": _probe_positions(),
 		"walked": _probe_walked,
@@ -6854,6 +6915,31 @@ func _hold(seconds: float) -> void:
 		for player: Player in _session.players():
 			_probe_clamor_peak[player.name] = maxf(
 				float(_probe_clamor_peak.get(player.name, 0.0)), player.clamor.level)
+
+
+## Advance real time until `test` passes, or until `seconds` runs out. Returns
+## whether it passed. Samples clamor as `_hold` does, so a phase that waits on a
+## condition does not quietly stop measuring noise.
+##
+## **Setup waits on the condition; the assertion still waits on nothing**
+## (ADR-252). The strike phase used a fixed `_hold(0.6)` between the client's
+## teleport and its swing, which assumes a 12 m position update crosses the wire
+## inside 600 ms of wall clock. On a busy machine it does not: the host resolves
+## the swing against *its* copy of the client's hitbox, so a copy still standing
+## at the walk post swings at nothing, and the run fails claiming the authority
+## split is broken. Waiting for the body to arrive does not weaken what is
+## asserted afterwards — it removes a race from the setup, and the timeout is
+## reported rather than swallowed so a genuine never-arrives still fails.
+func _hold_until(test: Callable, seconds: float) -> bool:
+	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
+	while Time.get_ticks_msec() < until:
+		if test.call():
+			return true
+		await get_tree().physics_frame
+		for player: Player in _session.players():
+			_probe_clamor_peak[player.name] = maxf(
+				float(_probe_clamor_peak.get(player.name, 0.0)), player.clamor.level)
+	return test.call()
 
 
 func _on_probe_damage(_amount: float, _remaining: float, _from: Node) -> void:
