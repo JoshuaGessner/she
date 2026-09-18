@@ -194,6 +194,22 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 			exit 1
 		fi
 	fi
+	# **Every delivered model against `ART-004`** (`M4-T10`, ADR-258). The rig
+	# check above asks whether *that* rig is right; this asks what is true of
+	# every asset — metres, applied transforms, vertex colours, hard edges, the
+	# 2 m grid, a pivot at the base and collision that survived import.
+	#
+	# It exists because none of that had ever been checked, and because the
+	# next assets to arrive are a purchased kit, which fails most of it
+	# silently: no vertex colours, everything smooth-shaded, transforms
+	# unapplied and a width that does not tile. Cheap here, expensive later.
+	art="$("$GODOT_BIN" --headless --path "$GAME" --script tests/art_probe.gd 2>&1)"
+	if grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$art"; then
+		echo "FAIL the delivered art against ART-004" >&2
+		printf '%s\n' "$art" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Every authored resource, loaded and validated (`M2-T08`, TEC-006
 	# principle 4). Data rots the way a rig does — silently, and three tools
 	# away from the symptom — and the rules it enforces are design rules that
@@ -1654,6 +1670,7 @@ echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
 echo "a teammate is a body rather than a capsule, and it walks,"
 echo "every colour the bag draws comes from the theme it is drawn under,"
+echo "every model delivered is measured against the spec it was authored to,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

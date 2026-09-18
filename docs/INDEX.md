@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-18 · 45 documents_
+_Regenerated 2026-09-18 · 46 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -77,8 +77,9 @@ _Visual and audio direction._
 | `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✔ accepted | 2026-09-03 | DES-001, DES-005, DES-006 |
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-09-01 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-09-01 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
-| `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-08-26 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
+| `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-09-18 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
 | `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-09-17 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
+| `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-09-18 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020 |
 
 ## By Tag
 
@@ -87,14 +88,14 @@ _Visual and audio direction._
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
 - **armour** — DES-023
-- **art** — ART-001, ART-004, ART-005, PRO-008
-- **assets** — ART-004
+- **art** — ART-001, ART-004, ART-005, ART-006, PRO-008
+- **assets** — ART-004, ART-006
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
 - **balance** — DES-003, DES-004, DES-008, DES-022, PRO-005
 - **biomes** — DES-006
-- **blender** — ART-004
+- **blender** — ART-004, ART-006
 - **blockout** — TEC-008
-- **brief** — ART-003
+- **brief** — ART-003, ART-006
 - **budget** — ART-001, ART-002
 - **builds** — DES-004, DES-011
 - **business** — PRO-006
@@ -132,6 +133,7 @@ _Visual and audio direction._
 - **generation** — DES-015, PRO-008, TEC-007
 - **geometry** — TEC-008
 - **glossary** — PRO-003
+- **gltf** — ART-006
 - **godot** — ART-002, ART-004, ART-005, TEC-001, TEC-002, TEC-004, TEC-005, TEC-006, TEC-007, TEC-009
 - **greed** — DES-008
 - **handoff** — ART-003
@@ -160,6 +162,7 @@ _Visual and audio direction._
 - **middleware** — TEC-005
 - **migration** — TEC-003
 - **milestones** — PRO-001
+- **modelling** — ART-006
 - **monetization** — PRO-006
 - **movement** — DES-009
 - **multiplayer** — DES-012, TEC-004
@@ -209,7 +212,7 @@ _Visual and audio direction._
 - **slots** — DES-020
 - **social** — DES-012, DES-014
 - **sound-design** — ART-002, ART-003
-- **specs** — ART-003, ART-004
+- **specs** — ART-003, ART-004, ART-006
 - **structure** — DES-002, DES-007, TEC-002
 - **style** — ART-001, ART-005
 - **systems** — DES-013, TEC-001

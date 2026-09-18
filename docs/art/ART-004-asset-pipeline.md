@@ -4,7 +4,7 @@ title: Asset Pipeline & Production Schedule
 status: accepted
 owner: art
 tags: [art, assets, pipeline, blender, godot, production, specs]
-updated: 2026-08-26
+updated: 2026-09-18
 related: [ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017]
 ---
 
@@ -44,6 +44,14 @@ For a solo project this is the highest-leverage art decision available, and it m
 
 Cheap to author, requires no texture work in Phases 1–2 — but **every model must carry vertex colours from the start.** Retrofitting them across a finished library is miserable, which is why this is the one art decision that cannot wait.
 
+> ### ⚠️ **Nothing reads these channels today, and the pass that exists cannot** (ADR-258)
+>
+> Measured before starting `M4-T10`: `ink_outline.gdshader` is a **full-screen quad** (`POSITION = vec4(VERTEX.xy, 1.0, 1.0)`) sampling the screen, depth, normal-roughness and noise textures, and nothing else. Per-vertex attributes are not in any of those buffers, so **R, G and B are unreadable by construction** — not unimplemented, unreachable. Nothing else in the build reads them either; the only `vertex_color_use_as_albedo` in the project is on a debug overlay.
+>
+> **The consequence that matters is not cosmetic.** `ART-005` names its own readability risk — *"outlining everything at 150 agents in a cluttered dungeon is visual noise"* — and lists **outline suppression on unimportant props via the R channel** as a mandatory control. That control is not built, and it is the set dressing arriving in `M4-T10` that needs it.
+>
+> **Keep authoring them anyway.** Flat `RGB(1, 0.5, 0)` costs one operation per object and the retrofit argument above is correct. What changes is the *urgency*: a purchased kit with no vertex colours is functionally identical today to one carrying the flat default, so the channels are a deposit against a pass that does not exist yet rather than something currently doing work. **Q113 asks the prior question first — whether a dressed room reads as noise at all** — because `ART-005` called suppression mandatory without ever having a dressed room to look at, and `M4-T10` is the first time there will be one.
+
 ---
 
 ## Technical specifications
@@ -59,7 +67,11 @@ Cheap to author, requires no texture work in Phases 1–2 — but **every model 
 | **Orientation** | **Y-up, −Z forward** (Godot convention; set this on export from Blender) |
 | **Scale** | Apply all transforms before export. No inherited scale. |
 | **Pivots** | Props: **base centre**. Characters: **between the feet**. Doors: **on the hinge**. |
-| **Naming** | `env_delvings_pillar_a.glb`, `chr_huskarl.glb`, `prp_coinpile_03.glb`, `wpn_hammer.glb` |
+| **Naming** | **The folder is the category; the filename is the thing.** `environment/delvings_pillar_a.glb`, `characters/huskarl.glb`, `props/coinpile_03.glb`, `weapons/hammer.glb` |
+
+> **This row said `chr_huskarl.glb` and the delivery section said "drop `.glb` files into `game/art/<category>/`"** — two conventions for one fact, in one document, and the only asset that exists followed the second (ADR-258). The folder wins because the engine, `check_project.py` and `TEC-002` already agree on it, and because a prefix that repeats the folder is a second place to be wrong. `art_probe.gd` now reads the category off the folder, so an asset in an unknown one fails rather than being silently uncategorised.
+
+**The category folders are `characters`, `enemies`, `heroes`, `environment`, `props`, `weapons`**, and their poly ceilings are the table below.
 
 ### Poly budgets ⟨tune⟩
 
@@ -213,6 +225,8 @@ ASSET REQUEST
 ```
 
 **Delivery:** drop `.glb` files into `game/art/<category>/` — e.g. `game/art/characters/`, which is where `humanoid_rig.glb` already lives. Godot imports on focus.
+
+**And the sweep then measures it** (ADR-258). `tests/art_probe.gd` runs on every commit and fails the build naming the number that is wrong: metres, applied transforms, vertex colours on every surface, split normals on anything cut rather than grown, the 2 m grid, a pivot at the base, and collision that survived import. A purchased kit fails most of those on arrival, which is exactly why the check exists before the kit does.
 
 > **This said `game/assets/` until ADR-137**, and no such directory exists. `TEC-002` fixes the layout as `game/art/`, `check_project.py` lists `art` in `REQUIRED_DIRS` and would not have created the other one — so the first asset delivered by following this sentence would have landed outside the tree the project checks, on the one page a person is reading *because* they do not yet know where things go. Found while costing the M3 asset list against the gate; the schedule below is the part of this document that gets read, and the instruction underneath it had never been walked. If something imports wrong, the fix is almost always transform, scale, or orientation — check those three before anything else.
 

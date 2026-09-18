@@ -9596,5 +9596,71 @@ The full sweep, which is what caught ADR-256's `StyleBoxFlat` cast. `--menu-prob
 - **`MenuStyle` no longer describes itself as an inventory.** It states the scale as a table, and the next person to add a size has to argue with it.
 - **What is left between here and an authored interface is art**, not chrome: the item icons, the menu's background, the slider parts. That is `M4-T10`.
 
+## ADR-258 — `ART-004` is five pages of specification that nothing had ever read, and the channels it calls mandatory are unreachable
+
+**Date:** 2026-09-18 · **Status:** accepted · **Opens `M4-T10`** · **Opens Q113** · **Reopens nothing — ADR-051 stands until Q113 is answered**
+
+**Context:** Asked to help start adding real assets. Before requesting or ingesting anything, the two things that decide whether that goes well were measured: **what the build actually checks about an asset**, and **what the shader actually reads from one.** Both came back lower than the documents say.
+
+### Nothing checked anything
+
+`ART-004` specifies units, orientation, pivots, naming, poly budgets, collision suffixes, vertex-colour channels *"mandatory from Phase 1"*, hard edges *"art-critical"*, and a scale rule `ART-005` upgrades to **"a visual bug rather than a tidiness issue"**. The word `glb` appeared in **no tool in the repository**. The entire spec was a document assets were supposed to have been authored against, verified by looking at them.
+
+That was survivable while the library was **one asset** — `humanoid_rig.glb`, authored by hand against the spec, and `rig_probe.gd` checks its sockets. It stops being survivable the moment a **purchased kit** arrives, because a kit fails most of the spec silently and all at once: no vertex colours, everything smooth-shaded, transforms unapplied, and a module width that does not tile. None of those look wrong in isolation.
+
+**The one asset we have is good**, which is worth saying because it means the spec is followable: 1.800 m exactly, pivot between the feet, vertex colours present, split normals present, 2,224 triangles.
+
+### `art_probe.gd`
+
+Every `.glb` under `res://art`, against what is true of *every* asset — the rig's own sockets, height and eye line stay in `rig_probe.gd`, because two validators for one rig is the duplicate ADR-064 bans.
+
+- **Metres.** The longest side is between 2 cm and 120 m, which brackets the centimetre and inch import errors without having an opinion about any particular asset.
+- **Transforms applied.** No node carries a scale. This is the failure a kit brings in every time and the one `ART-005` made visual: triplanar hatching is world-space at fixed density, so a scaled node gets the wrong hatch density and reads as the wrong size even when its bounds are right.
+- **Vertex colours on every surface** (see below for the part that is now honest about why).
+- **Split normals**, on categories whose forms are cut rather than grown. A fully smooth model gives the outline pass nothing to detect.
+- **The 2 m grid** (ADR-054), for environment: each footprint axis is a multiple of 2 m, *or under 2 m* — a 2 m wall and a 4 m floor tile, a 0.6 m pillar is placed rather than tiled and has no business being padded out to satisfy a check.
+- **Pivot at the base**, and **collision that survived import**, for anything stood on.
+- **Poly ceilings**, not ranges. `ART-004` says in the same breath that its budgets are *"generous rather than tight — the target is readable, not cheap"*, so failing an asset for being economical would produce a check nobody trusts by its third run. The rig is 2,224 against a 4,000–10,000 row and passes.
+
+**The category is the folder.** `ART-004` carried two conventions for that — a `chr_huskarl.glb` naming row and a *"drop `.glb` files into `game/art/<category>/`"* delivery line — and the only asset that exists followed the second. The folder wins; the doc is corrected. A prefix that repeats the folder is a second place to be wrong, which is the same shape of fault as that delivery line once pointing at `game/assets/`, a directory that has never existed.
+
+### The channels ART-004 calls mandatory are unreadable by construction
+
+`ink_outline.gdshader` is a **full-screen quad** — `POSITION = vec4(VERTEX.xy, 1.0, 1.0)` — sampling `hint_screen_texture`, `hint_depth_texture`, `hint_normal_roughness_texture` and a noise texture. Per-vertex attributes are in none of those buffers.
+
+So ADR-051's **R** (outline weight), **G** (hatch density bias) and **B** (ink ID) are read by nothing, and cannot be by the pass that exists. Not unimplemented — **unreachable**. The only `vertex_color_use_as_albedo` in the project is on a debug overlay.
+
+**This is the fourth time in three days that a decided mechanic turned out to be unbuilt** (ADR-251, ADR-253, ADR-255), and the first where the cost lands on work that has not started yet: `ART-004` is the page a person reads *before* authoring, and it tells them this is *"the one art decision that cannot wait."*
+
+**The consequence is not cosmetic.** `ART-005` names its own readability risk — *"outlining everything at 150 agents in a cluttered dungeon is visual noise, and Principle 6 says legibility beats realism"* — and lists outline suppression via R as a **mandatory** control. The control is not built, and `M4-T10`'s set dressing is exactly what needs it.
+
+**Authoring them stays correct; the urgency was misplaced.** Flat `RGB(1, 0.5, 0)` is one operation per object and the retrofit argument is right. But a kit with no vertex colours is functionally identical *today* to one carrying the flat default, so the channels are a deposit against a pass that does not exist rather than something currently doing work. That distinction is the difference between a spec and a ritual.
+
+**Q113 asks the prior question first**, and it is filed as a prototype question because that is what it is: *does a dressed room actually read as noise without suppression?* `ART-005` called the control **mandatory** without ever having a dressed room to look at, and `M4-T10` is the first time there will be one. **The lean is to ship without it and look** — Principle: prototype beats debate, and prefer subtraction.
+
+If the noise is real, the cheap route is **material roughness**: the alpha of `hint_normal_roughness_texture`, a buffer the pass *already samples*, in a look whose lighting is quantised to hatch bands so roughness is barely doing anything else — a weekend, per-material rather than per-vertex. The expensive route is an attribute pass writing R/G/B into a buffer of their own, which is *a whole system* and the only one that also delivers G and B. Either reopens ADR-051's *"nothing else is read: no mask texture, no palette atlas, no material IDs"*, so either is a decision for the developer rather than a commit.
+
+### Verification
+
+The probe passes the real library — the rig, every row green. Every row was then shown to fail against **six generated fixtures**, written as real `.glb` files through `GLTFDocument` so they go through the same import path a purchased asset would:
+
+| fixture | rows it fails |
+|---|---|
+| `plant_good` | none — **and its `-col` node produced collision**, so `ART-004`'s promise that the suffix gives collision free survives a round trip |
+| `plant_offgrid` | a 2.5 m wall does not tile |
+| `plant_kit` | no vertex colours · everything smooth · pivoted through its middle · no collision |
+| `plant_centimetres` | a scale left on the node |
+| `plant_millimetres` | geometry a thousandth of its claimed size, with the transform cleanly applied |
+| `plant_dense` | 3,528 triangles against a 3,000 ceiling |
+
+The fixtures ran in one pass rather than one per run, because the probe reports **per file**: two of them cannot mask each other the way two plants in one assertion can. `plant_centimetres` passing the metre row while failing the transform row is the division of labour working — the transform row is the precise diagnosis, and the metre row is the backstop for a wrong scale that *was* applied, which `plant_millimetres` demonstrates.
+
+### Consequences
+
+- **The gate exists before the assets do**, which is the only order in which a gate is cheap. An asset that fails now fails in the sweep, named, with the number that is wrong.
+- **`ART-004` is now checkable rather than aspirational.** Anything added to it that nothing can check should be added knowing that.
+- **Empty is a failure.** The probe fails with zero models, because ADR-099's census reported success over an empty set for four commits.
+- **The Delvings kit is still the recommended first target** — most minutes played, most reuse, and triplanar hatching means no UV work — but nothing should be bought until Q113 is answered, because the answer changes whether every kit piece needs a per-object material or nothing at all.
+
 *Entries below to be added as design decisions are signed off.*
 
