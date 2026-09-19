@@ -9724,5 +9724,32 @@ That is how printmaking actually works — a woodcut's surface detail is carved 
 - **It sharpens Q113 rather than answering it.** More lines on screen makes outline suppression matter more, not less — and `normal_threshold` is a single global scalar, so there is no way to say *this* surface is rough and *that* one is quiet without the per-object channel that nothing reads yet.
 - **Production wiring is not done.** Every surface in the game is still flat. Putting normal maps on the real materials — the generated floors, the Lair, the props — is the next step, and it carries its own choice about which noise suits stone against timber against metal.
 
+## ADR-260 — The accessibility suite and Steam integration move to M5, and the board says so
+
+**Date:** 2026-09-18 · **Status:** accepted · **`M4-T11` becomes `M5-T09`, `M4-T07` becomes `M5-T10`** · **Developer's call**
+
+**Context:** Both were deferred out loud, in conversation, and neither move was written down. The roadmap went on showing them as M4 work for the rest of the session. **A deferral nobody records is not a deferral; it is a task quietly not being done**, and this project's own standing rule is that a stale dashboard is worse than no dashboard because it gets believed.
+
+### `M4-T11` — the accessibility suite
+
+Deferred on: *"Let's just save all that for later work at the end of M5 or something. We need to focus on getting the game playable."*
+
+**That is the right call and it is worth saying why**, because "accessibility later" is usually the wrong one. What made it right here is that the suite is **eight deliverables with one thing in common** — colour-blind support, UI scaling, a dyslexia-friendly font, high contrast, per-bus volumes, mono output, and independent shake / blur / head-bob / FOV — and every one of them is a *swap over an interface that has to exist first*. ADR-216 made the look a `Theme` and ADR-257 collapsed the type scale precisely so those swaps are one file rather than forty hand-set styles. **The groundwork went in ahead of the feature, which is the only ordering that makes deferring it cheap.**
+
+**What does not defer, and has not:** `DES-018`'s rule that no information may be carried by hue alone. That is an architectural constraint, not an option, and it is enforced as the game is built — ADR-256 hatched the load bar and the refusal ghost for exactly this reason, in the same session this was deferred. **Deferring the settings panel is not deferring the discipline.**
+
+### `M4-T07` — Steam networking
+
+Deferred on: *"I have been able to test with players over the internet just by forwarding the port and giving them a domain that hits my IP to use in game connection screen."*
+
+The task's own note says *"before any external playtest"*, and the premise underneath it — that external playtesting needs Steam — turned out to be false in practice. A forwarded port and a domain is doing the job today. The GodotSteam work, the App ID and the Datagram Relay remain the right answer for **shipping**, and none of it is on the path to a vertical slice.
+
+### Consequences
+
+- **`GATE M4` no longer waits on either.** Both were blocking a milestone they are not needed for, which is the sequencing fault `status.py --check` exists to catch and could not, because nothing had told it.
+- **Neither is cancelled.** They are M5 tasks with the same IDs — IDs are permanent — and both keep their notes.
+- **They are renumbered, and that is forced.** `status.py` derives a task's milestone from its ID prefix and calls anything else `task-misfiled`, so a cross-milestone deferral cannot keep its number. **ADR-061 set the precedent** when it moved the remaining four classes out of M4 — they arrived in M5 with M5 numbers and a note naming the ADR that moved them. `M4-T11` and `M4-T07` are retired and never reused, which is the half of the permanent-ID rule that still holds.
+- **The pattern is worth naming.** Three deferrals this session were decided in conversation and only one reached the board unprompted. Conversation is not storage; the board is, and it is the thing a person reads to decide what to do next.
+
 *Entries below to be added as design decisions are signed off.*
 
