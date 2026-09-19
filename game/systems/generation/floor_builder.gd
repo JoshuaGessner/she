@@ -228,7 +228,30 @@ const FALLEN_WANDER: float = 0.55
 ## standing in and not as a ceiling.
 const HAZARD_AIR: float = 2.0
 
+## What an opening in a wall line is, in `_gaps_along`'s third component.
+const GAP_ALCOVE: float = 0.0
+const GAP_DOOR: float = 1.0
+
+## Which slabs are clad, and as what (ADR-263).
+##
+## A ramp and a ledge are floors as far as the kit is concerned — both are a
+## surface you walk on, one of them tilted — and the kit is laid in the slab's
+## own frame, so a climbing corridor is paved rather than painted. The roles
+## missing from this table are the ones with no surface to lay: `slab` is the
+## default nothing uses, and evidence on the floor is `_mark`'s, not this.
+const SURFACES: Dictionary = {
+	"floor": DelvingsKit.FLOOR,
+	"ledge_floor": DelvingsKit.FLOOR,
+	"ramp": DelvingsKit.FLOOR,
+	"ledge_ramp": DelvingsKit.FLOOR,
+	"ceiling": DelvingsKit.CEILING,
+	"wall": DelvingsKit.WALL,
+	"chamfer": DelvingsKit.CHAMFER,
+}
+
 var _into: Node3D = null
+## Where the cladding that belongs to no one slab hangs — see `_trim_shelf`.
+var _trim: Node3D = null
 var _slabs: int = 0
 var _visible_floors: Dictionary[AABB, bool] = {}
 var _roughness: float = 0.0
@@ -357,10 +380,10 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 	# recessed, and nowhere else.
 	var doors: Array[Vector2i] = plan.doors_of(node)
 	var alcoves: Array[Vector2i] = _alcoves(plan, rect, rng)
-	_wall_x(rect, doors, alcoves, height, true)
-	_wall_x(rect, doors, alcoves, height, false)
-	_wall_z(rect, doors, alcoves, height, true)
-	_wall_z(rect, doors, alcoves, height, false)
+	_wall_x(plan, rect, doors, alcoves, height, true)
+	_wall_x(plan, rect, doors, alcoves, height, false)
+	_wall_z(plan, rect, doors, alcoves, height, true)
+	_wall_z(plan, rect, doors, alcoves, height, false)
 	for cell: Vector2i in alcoves:
 		_alcove(rect, cell)
 
@@ -402,8 +425,15 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 				continue
 			var spot := origin + Vector3(corner.x * span.x, height * 0.5,
 				corner.y * span.z)
+			# **The square's yaw is free**: four quarter turns give the same
+			# diamond, the same collider and the same occluder. So it is spent
+			# pointing the one face that shows — a cut corner buries three
+			# sides in the rock it was cut from — and `_clad` can then face the
+			# chamfer without being told which corner it is standing on.
+			var inward := Vector3(1.0 if low_x else -1.0, 0.0,
+				1.0 if low_z else -1.0).normalized()
 			_slab(Vector3(here, height, here), spot, RUBBLE[_depth],
-				PI * 0.25, "chamfer")
+				atan2(inward.x, inward.z), "chamfer")
 
 	# A great room gets somewhere to see it from before you are in it.
 	if module != null and module.volume == RoomModule.Volume.GREAT:
@@ -623,26 +653,35 @@ static func _door_at_end(strip: Array[Vector2i], doors: Array[Vector2i],
 	return doors.has(strip[strip.size() - 1] + run)
 
 
-## Every opening in one wall line, as (centre, width) along the wall's own axis:
-## a doorway is `DOOR_WIDTH`, an alcove mouth is narrower.
+## Every opening in one wall line, as (centre, width, kind) along the wall's
+## own axis: a doorway is `DOOR_WIDTH` and kind `GAP_DOOR`, an alcove mouth is
+## narrower and kind `GAP_ALCOVE`.
+##
+## **The kind is carried rather than inferred from the width**, because the two
+## readers that care now want opposite things from it: a doorway is framed with
+## jambs and a lintel, and an alcove mouth is closed above its own ceiling. A
+## reader that told them apart by measuring would be one ⟨tune⟩ edit away from
+## silently framing every alcove in the Delvings.
 ##
 ## **Shared with the corner chamfer on purpose.** The cut corner and the wall
 ## opening are two things written into the same metre of wall by different code,
 ## and while only the wall knew where the doors were, the chamfer closed them —
 ## see `_room` and ADR-200. One reader, one answer.
 static func _gaps_along(doors: Array[Vector2i], alcoves: Array[Vector2i],
-		line: int, along_x: bool) -> Array[Vector2]:
-	var gaps: Array[Vector2] = []
+		line: int, along_x: bool) -> Array[Vector3]:
+	var gaps: Array[Vector3] = []
 	for cell: Vector2i in doors:
 		var on: int = cell.y if along_x else cell.x
 		if on == line:
 			var at_cell: int = cell.x if along_x else cell.y
-			gaps.append(Vector2(at_cell * CELL + CELL * 0.5, DOOR_WIDTH))
+			gaps.append(Vector3(at_cell * CELL + CELL * 0.5, DOOR_WIDTH,
+				GAP_DOOR))
 	for cell: Vector2i in alcoves:
 		var on: int = cell.y if along_x else cell.x
 		if on == line:
 			var at_cell: int = cell.x if along_x else cell.y
-			gaps.append(Vector2(at_cell * CELL + CELL * 0.5, ALCOVE_MOUTH))
+			gaps.append(Vector3(at_cell * CELL + CELL * 0.5, ALCOVE_MOUTH,
+				GAP_ALCOVE))
 	gaps.sort()
 	return gaps
 
@@ -656,9 +695,9 @@ static func _gaps_along(doors: Array[Vector2i], alcoves: Array[Vector2i],
 ## from a corner reaches past the corner itself, and a caller that clamped here
 ## instead of at the far end would not be able to tell that apart from a corner
 ## with no room to spare.
-static func _clear_run(gaps: Array[Vector2], from: float, ahead: bool) -> float:
+static func _clear_run(gaps: Array[Vector3], from: float, ahead: bool) -> float:
 	var room: float = CHAMFER
-	for gap: Vector2 in gaps:
+	for gap: Vector3 in gaps:
 		var near: float = (gap.x - gap.y * 0.5) - from
 		if not ahead:
 			near = from - (gap.x + gap.y * 0.5)
@@ -667,10 +706,10 @@ static func _clear_run(gaps: Array[Vector2], from: float, ahead: bool) -> float:
 
 
 ## A wall running along X, on the near (`low`) or far side in Z.
-func _wall_x(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
-		height: float, low: bool) -> void:
+func _wall_x(plan: FloorPlan, rect: Rect2i, doors: Array[Vector2i],
+		alcoves: Array[Vector2i], height: float, low: bool) -> void:
 	var z: int = rect.position.y - 1 if low else rect.end.y
-	var gaps: Array[Vector2] = _gaps_along(doors, alcoves, z, true)
+	var gaps: Array[Vector3] = _gaps_along(doors, alcoves, z, true)
 	var edge: float = rect.position.y * CELL if low \
 		else rect.end.y * CELL
 	# Inside the rect, so the wall never stands in the corridor cell beyond it.
@@ -680,14 +719,16 @@ func _wall_x(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
 		func(from: float, to: float) -> void:
 			_slab(Vector3(to - from, height, WALL_THICK),
 				Vector3((from + to) * 0.5, height * 0.5, centre),
-				STONE[_depth], 0.0, "wall"))
+				STONE[_depth], 0.0, "wall", Basis(), false))
+	_face(plan, gaps, rect.position.x * CELL, rect.end.x * CELL, true, z,
+		centre, height)
 
 
 ## A wall running along Z, on the near (`low`) or far side in X.
-func _wall_z(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
-		height: float, low: bool) -> void:
+func _wall_z(plan: FloorPlan, rect: Rect2i, doors: Array[Vector2i],
+		alcoves: Array[Vector2i], height: float, low: bool) -> void:
 	var x: int = rect.position.x - 1 if low else rect.end.x
-	var gaps: Array[Vector2] = _gaps_along(doors, alcoves, x, false)
+	var gaps: Array[Vector3] = _gaps_along(doors, alcoves, x, false)
 	var edge: float = rect.position.x * CELL if low else rect.end.x * CELL
 	# Inside the rect, so the wall never stands in the corridor cell beyond it.
 	var centre: float = edge + WALL_THICK * 0.5 if low \
@@ -696,16 +737,106 @@ func _wall_z(rect: Rect2i, doors: Array[Vector2i], alcoves: Array[Vector2i],
 		func(from: float, to: float) -> void:
 			_slab(Vector3(WALL_THICK, height, to - from),
 				Vector3(centre, height * 0.5, (from + to) * 0.5),
-				STONE[_depth], 0.0, "wall"))
+				STONE[_depth], 0.0, "wall", Basis(), false))
+	_face(plan, gaps, rect.position.y * CELL, rect.end.y * CELL, false, x,
+		centre, height)
+
+
+## **The visible wall, laid as a kit rather than as the solids behind it**
+## (ADR-263).
+##
+## A room's wall is one line of masonry with openings in it, and the pieces that
+## carry an opening are not the pieces that carry the solid: `_run` emits a
+## 1.8 m stub of collision either side of a 2.4 m doorway, while the kit frames
+## that doorway with a module two cells wide. Driving both from one set of
+## boundaries is what would force the collision to change, so they are driven
+## from two — the solids from `_run` above, the surface from here, off the same
+## gaps.
+func _face(plan: FloorPlan, gaps: Array[Vector3], start: float, stop: float,
+		along_x: bool, line: int, centre: float, height: float) -> void:
+	if _into == null:
+		return
+	var trim: Node3D = _trim_shelf()
+	var yaw: float = 0.0 if along_x else PI * 0.5
+	var spot := func(pos: float, base: float) -> Vector3:
+		return Vector3(pos, base, centre) if along_x \
+			else Vector3(centre, base, pos)
+	var cursor: float = start
+	for gap: Vector3 in gaps:
+		var framed: bool = gap.z == GAP_DOOR \
+			and _frame_fits(plan, gap.x, start, stop, along_x, line)
+		var half: float = DelvingsKit.FRAME_WIDE * 0.5 if framed \
+			else gap.y * 0.5
+		var opening: float = gap.x - half
+		if opening > cursor:
+			DelvingsKit.masonry(trim, spot.call((cursor + opening) * 0.5, 0.0),
+				yaw, opening - cursor, height, WALL_THICK)
+		if framed:
+			DelvingsKit.doorway(trim, spot.call(gap.x, 0.0), yaw)
+			if height > DelvingsKit.FRAME_HIGH:
+				DelvingsKit.masonry(trim,
+					spot.call(gap.x, DelvingsKit.FRAME_HIGH), yaw,
+					DelvingsKit.FRAME_WIDE, height - DelvingsKit.FRAME_HIGH,
+					WALL_THICK)
+		elif gap.z == GAP_ALCOVE and height > ALCOVE_CEILING:
+			# An alcove's mouth is a full-height slot in the collision, because
+			# the recess needs no lintel to hold the rock up. Above the
+			# alcove's own ceiling that slot is a view into the dark over it —
+			# 2.2 m up, out of reach of a 1.8 m body at the top of a 0.49 m
+			# jump, so closing it closes a sight of nothing rather than a way
+			# through anything.
+			DelvingsKit.masonry(trim, spot.call(gap.x, ALCOVE_CEILING), yaw,
+				gap.y, height - ALCOVE_CEILING, WALL_THICK)
+		cursor = maxf(cursor, gap.x + half)
+	if stop > cursor:
+		DelvingsKit.masonry(trim, spot.call((cursor + stop) * 0.5, 0.0), yaw,
+			stop - cursor, height, WALL_THICK)
+
+
+## May a framed doorway stand here?
+##
+## The kit's doorway is **two cells wide** — a 2.4 m opening cannot be jambed
+## inside one 2 m cell — so it reaches half a cell past the door's own cell on
+## each side. Inside this wall that is fine; past its end it is only fine if the
+## plan holds nothing there, because rock hides an overhang and a corridor does
+## not. Where it does not fit the opening is left unframed, which reads as a
+## rough cut rather than as a missing piece.
+func _frame_fits(plan: FloorPlan, middle: float, start: float, stop: float,
+		along_x: bool, line: int) -> bool:
+	var cell: int = int(floor(middle / CELL))
+	var first: int = int(round(start / CELL))
+	var last: int = int(round(stop / CELL))
+	for side: int in [-1, 1]:
+		var beside: int = cell + side
+		if beside >= first and beside < last:
+			continue
+		var probe: Vector2i = Vector2i(beside, line) if along_x \
+			else Vector2i(line, beside)
+		if plan.holds(probe):
+			return false
+	return true
+
+
+## Where the pieces that belong to no one slab hang.
+##
+## A framed doorway and the masonry over an alcove mouth both cover an
+## *opening*, so there is no solid under them to be a child of. Made once, on
+## first use, so a floor with no such piece does not gain an empty node.
+func _trim_shelf() -> Node3D:
+	if _trim == null:
+		_trim = Node3D.new()
+		_trim.name = "trim"
+		_into.add_child(_trim)
+	return _trim
 
 
 ## Emit wall segments from `start` to `stop`, leaving a hole at each gap. Each
 ## gap is (centre, width): a doorway is `DOOR_WIDTH`, an alcove mouth narrower.
 ## A gap wider than the wall it sits in simply removes the wall.
-func _run(start: float, stop: float, gaps: Array[Vector2], height: float,
+func _run(start: float, stop: float, gaps: Array[Vector3], height: float,
 		emit: Callable) -> void:
 	var at_pos: float = start
-	for gap: Vector2 in gaps:
+	for gap: Vector3 in gaps:
 		var opening: float = gap.x - gap.y * 0.5
 		if opening > at_pos:
 			emit.call(at_pos, opening)
@@ -931,9 +1062,13 @@ func _mark(size: Vector3, centre: Vector3, colour: Color, yaw: float) -> void:
 
 ## One box of world, with collision, in `room_set.gd`'s shape so generated and
 ## hand-built geometry sit on the same layer and take the same light.
+##
+## `clad` is false where the caller lays the surface itself — see `_face`, which
+## is the only one that does, because only a whole wall line knows where its
+## doorways are.
 func _slab(size: Vector3, centre: Vector3, colour: Color,
 		yaw: float = 0.0, role: String = "slab",
-		tilt: Basis = Basis()) -> void:
+		tilt: Basis = Basis(), clad: bool = true) -> void:
 	# Recorded whether or not it is laid, from the same numbers the node gets:
 	# a tilt replaces the yaw, exactly as `node.basis` does below.
 	var turned: Basis = tilt if tilt != Basis() else Basis(Vector3.UP, yaw)
@@ -984,6 +1119,16 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	box.size = size
 	shape.shape = box
 	body.add_child(shape)
+	# **Before the cladding**, because two probes reach for this slab's collider
+	# as `get_child(0).get_child(0)` and a module hung in front of it would
+	# answer instead — with an ArrayMesh where a `BoxShape3D` was expected.
 	node.add_child(body)
+	if SURFACES.has(role):
+		if clad:
+			DelvingsKit.clad(node, SURFACES[role])
+		elif SURFACES[role] == DelvingsKit.WALL:
+			# The caller lays this wall's surface itself — see `_face` — but
+			# the box still has to move out from under it.
+			DelvingsKit.recess(node)
 	_into.add_child(node)
 	_slabs += 1

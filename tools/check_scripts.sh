@@ -210,6 +210,23 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The kit is laid, and the solids underneath it did not move**
+	# (`M4-T10`, ADR-263). Cladding is a rendering change by construction —
+	# every module hangs on a box that already existed and no module brings a
+	# collider — and the whole safety of it rests on that staying true. One
+	# `PackedScene.instantiate()` in place of a `Mesh` and every piece in the
+	# Delvings arrives with its `-colonly` proxy, handing Recast a second and
+	# finer-grained copy of the world. The floor would still look right; it
+	# would bake differently, and the symptom would surface three sessions
+	# later as a room the Hunt cannot enter. So the solids are compared
+	# against `FloorBuilder.occluders` — the same pass with no nodes made.
+	kit="$("$GODOT_BIN" --headless --path "$GAME" --script tests/kit_probe.gd 2>&1)"
+	if grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$kit"; then
+		echo "FAIL the Delvings kit" >&2
+		printf '%s\n' "$kit" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **`DES-010`'s notebook adds up** (`M4-T10`, ADR-261). The six retention
 	# metrics it asks for are rates, and a rate that is quietly wrong is worse
 	# than no rate at all — somebody tunes the game against it. Also the one

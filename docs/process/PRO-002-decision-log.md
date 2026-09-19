@@ -9862,5 +9862,109 @@ how one line of output replaced an afternoon.
 - **Set dressing is delivered and has nowhere to go.** There is no scatter or decoration system in the generator at all. That is a feature, not a seam.
 - **The smallest items are authored small.** A raw gemstone is a few centimetres and reads as a speck on the floor; its glimmer light is what finds it. Whether that is legible in play or a Principle 6 failure is a question for a session rather than a screenshot.
 
+## ADR-263 — The Delvings are built out of the kit, and the navmesh never noticed
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T10`** · **Retires ADR-046's blockout for architecture** · **Developer's brief**
+
+**Context:** ADR-262 landed 47 models and used 25 of them — every carried item stopped being a box. The other 22, the whole architecture kit and the set dressing, were delivered and unused, and the cost of using the kit was written down as *"a day, with real risk to floor traversal."* This is that day, and the risk turned out to be avoidable rather than survivable.
+
+### The change that makes it safe is refusing to tile the collision
+
+The obvious reading of "use the kit" is to replace the generator's boxes with 2 m modules. **That is the expensive answer and also the worse one.**
+
+Every wall, floor and ceiling in this game is a box with a `BoxShape3D` in it, and **Recast bakes from those shapes, not from anything rendered**. Tiling modules as collision would replace one room-length solid with ten, putting a butt joint every two metres into the exact rasteriser that `FLOOR_LAP` exists to keep joints out of — and this project has lost a floor to Recast three times (ADR-180's ramp angle, ADR-200's voxel size, ADR-213's turning ramps). Fewer, longer colliders are a **better** navmesh input than a grid of small ones, not merely a cheaper one to keep.
+
+So `DelvingsKit` hangs modules on boxes that already exist and makes no collider at all. **The kit is what you see; the slab is what you stand on.** Measured rather than asserted: the bake before and after is 627 vertices, `--build-probe`'s ledge, join, ramp and coverage rows are unchanged to the number, and `--kit-probe` compares every solid in nine floors against `FloorBuilder.occluders` — the same pass with no nodes made — and finds 5,523 of 5,523.
+
+A day became an afternoon because the risky half was the half not worth doing.
+
+### Scaling a module costs nothing here, and that is the whole reason three heights are enough
+
+A kit normally forbids scaling because it stretches the texture. **These modules have no texture and no UVs at all** — `build_delvings.py` exports with `export_texcoords=False`, because ADR-259 puts surface detail in the ink pass in world space. Nothing stretches when a module does. All that changes is the modelled course height, and courses varying between rooms is something a mason does.
+
+That is what lets three panel heights clad a generator whose ceilings drift continuously, and it **dissolves the Lair question I had escalated**: the camp wall is 9.0 m and the tallest panel is 7.0 m, which I had written up as needing a design decision about stacking. It needs none. It is the 7 m panel at 1.29, and the bigger courses are the coursing a nine-metre rampart ought to have.
+
+### Four callers, one kit
+
+`FloorBuilder`, `AuthoredFloor`, the Threshold and her Chamber all raise geometry through a local `_slab` of the same shape, so all four take the same one-word opt-in. It is an **opt-in rather than a role guess** because the Chamber raises the dragon through that function too, and a dragon clad in masonry is the argument for naming it at the call site.
+
+Two things stay blockout on purpose. The **landmarks** in the hand-built Deep are ADR-046's named production phase with a replacement scheduled, and a cairn clad as a wall would be a stub wearing masonry. The **ember** keeps its sphere, as ADR-262 already settled: it is an instrument, not a prop.
+
+### Three rules, because the roles genuinely differ
+
+- **A floor is paved on top**, a centimetre proud of the walking plane the collider promises. Coplanar faces z-fight and every module is exactly as thick as the slab it covers, so one of the two has to move.
+- **A wall's box is pulled back** a centimetre instead, and stays. Behind the stone it seals the joint where two runs meet, so a tiling fault can show a dark course and never a hole through the world.
+- **A ceiling's box stops being drawn.** A ceiling module is 0.38 m of crossbeam, plank and slab against a 0.3 m solid, and any overlap at all hides the carpentry inside the box — there is no offset that leaves both visible. It hangs by its slab rather than its soffit, so only 8 cm of beam drops below the collision plane and the 1.4 m crawl still clears a crouched body at 1.32 m.
+
+### A wall line is clad by the line, not by its slabs
+
+`_run` emits a 1.8 m stub of collision either side of a 2.4 m doorway. The kit frames that doorway with a module **two cells wide** — a 2.4 m opening cannot be jambed inside one 2 m cell — so the two sets of boundaries cannot be the same set. Driving both from one is what would have forced the collision to change, so they are driven from two, off the same gaps.
+
+**The frame is never scaled.** Scaling it with its wall would shrink the opening with it, and at the 2.2 m minimum room height that is a 1.2 m hole, which is to say a wall. And it is **not placed where its overhang would stand in a cell the plan holds**: rock hides an overhang and a corridor does not. Those doorways stay unframed, which reads as a rough cut rather than as a missing piece.
+
+### The screenshot caught it again — the fifth time
+
+`--kit-probe` passed every row while **every room wall in the Delvings shimmered.** A room's wall is clad by the wall line rather than by `clad`, and that path never pulled the box back, so core and panel were both 0.3 m thick on the same centre — the same plane twice, in a fine scatter of z-fighting quads. Nothing headless saw it. A picture did, at a glance, from forty metres up (ADR-093).
+
+So the invariant got an assertion this time rather than a fix: a wall box with stone in front of it is recessed, measured against its **collider**, which keeps the size the box was built at. Planted, it reports 549.
+
+### The probe that was measuring itself
+
+The flagstone row asserted that the stones finish at `box top + PROUD` — which is where `PROUD` had just put them. A plant that set `PROUD` to −0.05 sank every floor in the game five centimetres below the surface the collider says you walk on, **and the row passed.** An expectation computed from the thing it is checking cannot fail.
+
+Rewritten as the physical claim: the stones finish above the walking plane and inside one navmesh voxel of it. That holds whatever `PROUD` is set to, and it is the property that actually matters.
+
+**Seven plants, seven caught**: modules off their stated size; the kit bringing its own collision (15,398 shapes for 5,523 slabs); nothing clad at all; flagstones sunk; a ceiling hung below its collision plane (1.02 m against a 1.15 m crouch); a faced wall left flush; and the variant draw rolled instead of derived.
+
+### Five clean runs, and the sweep failed the same probe on the same tree
+
+`mesh_of` took the **first** `MeshInstance3D` out of a module and called it the
+module. Godot's glTF importer splits a multi-material mesh into one node per
+material — `delvings_floor_2x2_dark_stone`, `_pale_stone`, `_stone` — so that
+took a flagstone's *bed* and left the flags behind, and the ceiling came back as
+its iron straps with no slab and no beams.
+
+It passed five times before the sweep caught it, and the difference was not the
+code. **Those runs read a stale `.godot/imported/` cache** still holding the
+single merged mesh an older import had produced; the sweep re-imports first, so
+it was the only one reading what actually ships.
+
+> **A probe run against a warm cache is a probe run against a different build.**
+> That is the same shape as ADR-104's lesson about CI — a green local tree and a
+> green clean checkout are different claims — arriving one layer down, in the
+> importer instead of in `actions/checkout`.
+
+Every surface is merged into one mesh now, which is also what the placement
+wants: one node per piece rather than one per material, on a floor that lays
+nine thousand of them. The merge **refuses a node whose transform is not
+identity** rather than baking it in, because `ART-004` requires applied
+transforms and `art_probe` already fails a module that ships without them —
+quietly compensating here would hide a delivery fault.
+
+### Which stands where is derived from the position, not rolled
+
+`TEC-004` has every peer build the floor from a seed rather than receive it, so a client that alternated its flagstones differently would be a desync nobody could see until two players disagreed about a wall. The draw is a hash of the piece's own position to the centimetre — no stream, and therefore nothing the order slabs happen to be laid in can reach (`TEC-007` §1).
+
+### Six modules are on the shelf, and the row that says so recounts it every sweep
+
+`ART-006`'s piece list was written against an architecture the generator does not build, and the honest place to record that is a measured row rather than a claim in a document that rots. `--kit-probe` reports **8 of 14 in use**. The six, with the specific reason each does not fit:
+
+| Module | Why it does not fit what we build |
+|---|---|
+| `corner_inner` | Assumes walls that **stop a cell short** of their corners; ours run to the rect edge and overlap there. Usable, but it re-plans every wall line for a neater quoin. |
+| `corner_chamfer` | A diagonal **band across a corner cell**. Our chamfer is a solid diamond centred on the corner point, showing one face — which a plain panel already covers. |
+| `alcove` | A **0.6 m niche with a back wall**. Our alcove is a whole 2 m cell you walk into; its back would seal the recess. |
+| `ledge_edge` | The fascia for a ledge on a **solid plinth**. Ours is cantilevered on purpose — the space under it is Appleton's refuge (`TEC-008` §3.3.1) — so a fascia there would be a solid you can walk through. |
+| `ramp_2x25` | A **solid wedge**, and its 5 m slope matches ours exactly. Placing it visually would fill a space you can currently stand in; placing it with collision is a navmesh change and belongs in its own task with the traversal probes run against it. |
+| `pillar` | Wants a **pillared hall** the plan has no concept of, and a pillar is either a collider the navmesh bakes around or a post you walk through. |
+
+Four of those six describe a *different building* rather than a worse one — walls that stop short, shallow niches, plinth-backed ledges, solid ramps. That is the feedback `ART-006` earns from its first use, and it is worth more than six unused files are worth.
+
+### Consequences
+
+- **The generated floors, the hand-built Deep, the camp and her Chamber are all stone**, out of one kit, with nothing in the collision changed anywhere.
+- **The set dressing is still delivered and unused.** There is no scatter system in the generator at all; that is a feature, not a seam, and it is the next one.
+- **Cost.** 9,453 pieces over 5,523 slabs across nine floors — roughly 1,050 extra draw calls on a busy floor, all frustum-cullable, LODs generated on import. Not measured against a frame budget yet, and the first thing to look at if one bites.
+
 *Entries below to be added as design decisions are signed off.*
 

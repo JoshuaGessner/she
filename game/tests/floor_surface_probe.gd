@@ -28,7 +28,11 @@ func _initialize() -> void:
 			solids.append(census["occluders"])
 			var surfaces: Array[AABB] = []
 			for child: Node in shell.get_children():
+				# A floor root holds the trim that belongs to no slab as
+				# well as the slabs themselves (ADR-263).
 				var slab := child as MeshInstance3D
+				if slab == null:
+					continue
 				if not slab.visible or not String(slab.name).begins_with("floor_"):
 					continue
 				var bounds: AABB = slab.transform * slab.mesh.get_aabb()

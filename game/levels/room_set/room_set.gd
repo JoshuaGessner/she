@@ -1115,7 +1115,11 @@ func _build_probe() -> void:
 	var lowest: float = 999.0
 	for root: Node3D in raised:
 		for child: Node in root.get_children():
+			# A floor root holds the trim that belongs to no slab as well as the
+			# slabs themselves (ADR-263). The cast is the test for which is which.
 			var node := child as MeshInstance3D
+			if node == null:
+				continue
 			var box := node.mesh as BoxMesh
 			# **Asked by name, not by shape.** The first version called any thin
 			# slab above half a metre a ceiling, which was true until corridors
@@ -1289,7 +1293,11 @@ func _build_probe() -> void:
 		FloorBuilder.build(p, g, pick.x, pick.y, shelf)
 		var floors: Array[AABB] = []
 		for child: Node in shelf.get_children():
+			# A floor root holds the trim that belongs to no slab as well as the
+			# slabs themselves (ADR-263). The cast is the test for which is which.
 			var n := child as MeshInstance3D
+			if n == null:
+				continue
 			var b := n.mesh as BoxMesh
 			var role: String = String(n.name)
 			# **A corridor ramp tilts about one wall's axis or it is a wall**
@@ -8844,12 +8852,23 @@ func _sight_probe() -> void:
 		shape_query.collision_mask = CollisionLayers.WORLD
 		shape_query.transform = Transform3D(Basis.IDENTITY,
 			Vector3(point.x, BODY_RADIUS + 0.05, point.z))
-		if space.intersect_shape(shape_query, 1).size() > 0:
+		# **Named, not guessed.** This row used to say "landmarks are solid",
+		# which was true when landmarks were the only solid thing that could
+		# be in the way and is a bisect waiting to happen now that they are
+		# not. The query already knows what it hit.
+		var against: Array[Dictionary] = space.intersect_shape(shape_query, 4)
+		if against.size() > 0:
 			blocked_count += 1
+			var blocking: PackedStringArray = PackedStringArray()
+			for hit: Dictionary in against:
+				var solid := hit["collider"] as Node
+				var owner: Node = solid.get_parent()
+				blocking.append("%s/%s" % [owner.name if owner != null else "?",
+					solid.name])
 			problems.append(("%s is inside solid geometry at %.1f, %.1f — "
-				+ "landmarks are solid, and one standing on an authored "
-				+ "position makes something unreachable somewhere else")
-				% [what, point.x, point.z])
+				+ "standing in %s. Something on an authored position makes "
+				+ "something else unreachable")
+				% [what, point.x, point.z, ", ".join(blocking)])
 	print("[sight] authored spots blocked  %d of %d" % [
 		blocked_count, occupied.size()])
 

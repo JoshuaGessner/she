@@ -402,16 +402,21 @@ func _she_refuses(id: StringName, scarred: bool,
 
 
 func _build_room() -> void:
-	_slab(Vector3(ROOM.x, 0.4, ROOM.y), Vector3(0.0, -0.2, 0.0), FLOOR_COLOUR)
+	# Her hall is worked stone, not a cave. She took somewhere that was
+	# already built — the room lands on the kit's grid exactly (16 x 14 m of
+	# 2 m module, 6 m of the 7 m panel) because it was sized in body-multiples
+	# long before there was a kit to size it against.
+	_slab(Vector3(ROOM.x, 0.4, ROOM.y), Vector3(0.0, -0.2, 0.0), FLOOR_COLOUR,
+		DelvingsKit.FLOOR)
 	var half: Vector2 = ROOM * 0.5
 	_slab(Vector3(ROOM.x, WALL_HEIGHT, 0.6),
-		Vector3(0.0, WALL_HEIGHT * 0.5, -half.y), STONE)
+		Vector3(0.0, WALL_HEIGHT * 0.5, -half.y), STONE, DelvingsKit.WALL)
 	_slab(Vector3(0.6, WALL_HEIGHT, ROOM.y),
-		Vector3(-half.x, WALL_HEIGHT * 0.5, 0.0), STONE)
+		Vector3(-half.x, WALL_HEIGHT * 0.5, 0.0), STONE, DelvingsKit.WALL)
 	_slab(Vector3(0.6, WALL_HEIGHT, ROOM.y),
-		Vector3(half.x, WALL_HEIGHT * 0.5, 0.0), STONE)
+		Vector3(half.x, WALL_HEIGHT * 0.5, 0.0), STONE, DelvingsKit.WALL)
 	_slab(Vector3(ROOM.x, WALL_HEIGHT, 0.6),
-		Vector3(0.0, WALL_HEIGHT * 0.5, half.y), STONE)
+		Vector3(0.0, WALL_HEIGHT * 0.5, half.y), STONE, DelvingsKit.WALL)
 
 	var lamp := OmniLight3D.new()
 	lamp.position = Vector3(0.0, 4.2, -1.0)
@@ -970,7 +975,11 @@ func hud_claims() -> Dictionary:
 	}
 
 
-func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
+## One box of world. `clad` names what the kit should lay over it, or nothing
+## at all — the Chamber raises the dragon through this function too, and the
+## kit has no module for her.
+func _slab(size: Vector3, centre: Vector3, colour: Color,
+		clad: StringName = &"") -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var node := MeshInstance3D.new()
@@ -986,6 +995,8 @@ func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
 	shape.shape = box
 	body.add_child(shape)
 	node.add_child(body)
+	if clad != &"":
+		DelvingsKit.clad(node, clad)
 	add_child(node)
 
 

@@ -1486,8 +1486,12 @@ func _again() -> void:
 
 
 func _build_ground() -> void:
+	# Paved, because this is the one place in the game somebody built and
+	# kept (`DES-014`). The camp uses the Delvings kit rather than one of its
+	# own: the Threshold *is* the mouth of the Delvings, and a hub with its own
+	# architecture would read as a different game's level.
 	_slab(Vector3(GROUND_WIDE, 0.4, GROUND_DEEP),
-		Vector3(0.0, -0.2, GROUND_AT), ROCK)
+		Vector3(0.0, -0.2, GROUND_AT), ROCK, DelvingsKit.FLOOR)
 
 	# **Closed on all four sides.** The three walls this replaces enclosed the
 	# Descent end and nothing else, which is why the camp had an edge at all.
@@ -1496,10 +1500,18 @@ func _build_ground() -> void:
 	var mid: float = WALL_HIGH * 0.5
 	var across := Vector3(GROUND_WIDE + WALL_THICK * 2.0, WALL_HIGH, WALL_THICK)
 	var along := Vector3(WALL_THICK, WALL_HIGH, GROUND_DEEP + WALL_THICK * 2.0)
-	_slab(across, Vector3(0.0, mid, GROUND_AT - half_deep - WALL_THICK * 0.5), ROCK)
-	_slab(across, Vector3(0.0, mid, GROUND_AT + half_deep + WALL_THICK * 0.5), ROCK)
-	_slab(along, Vector3(-half_wide - WALL_THICK * 0.5, mid, GROUND_AT), ROCK)
-	_slab(along, Vector3(half_wide + WALL_THICK * 0.5, mid, GROUND_AT), ROCK)
+	# **Nine metres of wall out of a seven metre panel**, and that needs no
+	# decision: the kit has no texture to stretch (ADR-263), so the panel goes
+	# up at 1.29 and its courses come out at 0.64 m — which is the coursing a
+	# nine metre rampart ought to have anyway.
+	_slab(across, Vector3(0.0, mid, GROUND_AT - half_deep - WALL_THICK * 0.5),
+		ROCK, DelvingsKit.WALL)
+	_slab(across, Vector3(0.0, mid, GROUND_AT + half_deep + WALL_THICK * 0.5),
+		ROCK, DelvingsKit.WALL)
+	_slab(along, Vector3(-half_wide - WALL_THICK * 0.5, mid, GROUND_AT), ROCK,
+		DelvingsKit.WALL)
+	_slab(along, Vector3(half_wide + WALL_THICK * 0.5, mid, GROUND_AT), ROCK,
+		DelvingsKit.WALL)
 
 	# The mountain, closing in behind the Descent. Kept from the old shape
 	# because it is the one part that was doing work: the hole reads as a throat
@@ -1507,8 +1519,8 @@ func _build_ground() -> void:
 	var throat: float = THROAT_FROM - (GROUND_AT - half_deep)
 	var seam := Vector3(WALL_THICK, WALL_HIGH, throat)
 	var at_z: float = THROAT_FROM - throat * 0.5
-	_slab(seam, Vector3(-THROAT_HALF, mid, at_z), ROCK)
-	_slab(seam, Vector3(THROAT_HALF, mid, at_z), ROCK)
+	_slab(seam, Vector3(-THROAT_HALF, mid, at_z), ROCK, DelvingsKit.WALL)
+	_slab(seam, Vector3(THROAT_HALF, mid, at_z), ROCK, DelvingsKit.WALL)
 
 	var environment := WorldEnvironment.new()
 	var world := Environment.new()
@@ -1768,7 +1780,11 @@ func hud_claims() -> Dictionary:
 
 
 
-func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
+## One box of world. `clad` names what the kit should lay over it, or nothing
+## at all — the Chamber raises the dragon through this function too, and the
+## kit has no module for her.
+func _slab(size: Vector3, centre: Vector3, colour: Color,
+		clad: StringName = &"") -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var material := StandardMaterial3D.new()
@@ -1787,6 +1803,8 @@ func _slab(size: Vector3, centre: Vector3, colour: Color) -> void:
 	shape.shape = box
 	body.add_child(shape)
 	node.add_child(body)
+	if clad != &"":
+		DelvingsKit.clad(node, clad)
 	add_child(node)
 
 

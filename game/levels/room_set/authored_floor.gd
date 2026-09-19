@@ -232,7 +232,11 @@ func build(into: Node3D) -> void:
 
 
 
-func _slab(size: Vector3, centre: Vector3, colour: Color, yaw: float = 0.0) -> void:
+## One box of world. `clad` names what the kit lays over it, or nothing —
+## the landmarks are raised through here too, and they are blockout by
+## decision (ADR-046) rather than by omission.
+func _slab(size: Vector3, centre: Vector3, colour: Color, yaw: float = 0.0,
+		clad: StringName = &"") -> void:
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	var material := StandardMaterial3D.new()
@@ -252,6 +256,8 @@ func _slab(size: Vector3, centre: Vector3, colour: Color, yaw: float = 0.0) -> v
 	shape.shape = box
 	body.add_child(shape)
 	node.add_child(body)
+	if clad != &"":
+		DelvingsKit.clad(node, clad)
 	_into.add_child(node)
 
 
@@ -292,7 +298,10 @@ func _wall(room: String, side: String, fixed: float, from: float, to: float,
 			else Vector3(RoomSet.WALL_THICK, RoomSet.WALL_HEIGHT, length))
 		var centre: Vector3 = (Vector3(middle, RoomSet.WALL_HEIGHT * 0.5, fixed) if horizontal
 			else Vector3(fixed, RoomSet.WALL_HEIGHT * 0.5, middle))
-		_slab(size, centre, RoomSet.WALL_COLOUR)
+		# `WALL_HEIGHT` is 4.0 m, which is the kit's middle panel at exactly
+		# 1.0 — the hand-built rooms were laid out in body-multiples years
+		# before `ART-006` specified the modules, and they agree.
+		_slab(size, centre, RoomSet.WALL_COLOUR, 0.0, DelvingsKit.WALL)
 
 
 ## One thing per room that is not a box, so the rooms can be told apart and
@@ -388,7 +397,8 @@ func _build_room(name: String) -> void:
 	var max_z: float = float(rect[3])
 
 	_slab(Vector3(max_x - min_x, 0.5, max_z - min_z),
-		Vector3((min_x + max_x) * 0.5, -0.25, (min_z + max_z) * 0.5), RoomSet.FLOOR_COLOUR)
+		Vector3((min_x + max_x) * 0.5, -0.25, (min_z + max_z) * 0.5),
+		RoomSet.FLOOR_COLOUR, 0.0, DelvingsKit.FLOOR)
 
 	_wall(name, "n", min_z, min_x, max_x, true)
 	_wall(name, "s", max_z, min_x, max_x, true)

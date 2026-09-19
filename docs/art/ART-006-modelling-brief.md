@@ -5,7 +5,7 @@ status: accepted
 owner: art
 tags: [art, assets, brief, modelling, specs, blender, gltf]
 updated: 2026-09-18
-related: [ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020]
+related: [ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002]
 ---
 
 # Modelling Brief
@@ -24,12 +24,16 @@ The game is rendered as **hand-inked printmaking** — a woodcut you can walk th
 
 Four consequences, and they invert normal low-poly habits:
 
-**① Texture detail is invisible. Silhouette and edge flow are the entire art.**
-There are no textures in this game. None. A surface's value comes from hatch density driven by lighting. If a form is not present in the **geometry**, it does not exist on screen. Carve it or lose it.
+**① Silhouette and edge flow are the art. Colour textures do not exist.**
+There are **no albedo textures, no colour maps, no baked lighting and no ambient occlusion** in this game. A surface's value comes from hatch density driven by lighting. If a **form** is not present in the geometry, it does not exist on screen — carve it or lose it.
 
-> **⚠️ This rule is under active review and may loosen in one specific direction.** The ink pass reads Godot's normal-roughness buffer, and a **normal map** perturbs exactly that data — so normal-mapped detail would be drawn as ink line by the edge detector *and* shift hatch density through the lighting, with no shader change. If that measures out, the rule becomes "no albedo or colour textures, no baked lighting" plus **one shared tileable triplanar normal map per material family**, coarse, not authored per asset.
->
-> **Nothing in this brief changes if it lands.** Geometry still carries silhouette and form; a normal map would only add surface. Model to the rule as written and keep going.
+**Surface detail is the one exception, and it is not yours to author** (ADR-259). The engine applies **one shared tileable triplanar normal map per material family**, so stone reads as rough stone and timber reads as grain without anyone texturing a single asset. Measured: the ink pass draws roughly twice as much line with it as without.
+
+What that means for you, in one line:
+
+> **Model the form. The surface arrives on its own.**
+
+Do not model pitting, grain, pebbling or wear as geometry — the normal map does it, at every scale, for free. **Do** model anything that changes the silhouette or is a real cut in the material: courses of masonry, chamfers, rebates, the step of a plinth, a broken edge. Those are form.
 
 **② Hard edges are functional, not stylistic.**
 The outline pass reads the **normal buffer**. A model exported fully smooth-shaded produces weak or missing interior lines — the shader has nothing to detect, and the object reads as a blurry lump with a rim. **Split normals on everything with a defined form:** masonry, plate, timber, blades, cut stone, worked metal. Smooth only what is genuinely soft — cloth folds, flesh, organic growth, fungus.
@@ -48,7 +52,7 @@ Triplanar projection means architecture, props and set dressing are never unwrap
 
 Base palette is black, bone-white and greys — ink and paper. Warm gold is reserved for treasure, the player's ember, and her fire; it is the only genuinely saturated colour that exists. One cold accent per biome, used sparingly — the Delvings get a **cold mineral blue-green**. Blood is desaturated almost to black.
 
-Materials are **flat colour only**. No textures, no gradients, and **no baked lighting or ambient occlusion** — lighting is dynamic and the shader owns it, because darkness is a game mechanic here.
+Materials are **flat colour only**. No colour textures, no gradients, and **no baked lighting or ambient occlusion** — lighting is dynamic and the shader owns it, because darkness is a game mechanic here. The shared normal map in ① is applied by the engine and is not part of what you deliver.
 
 ---
 
@@ -309,6 +313,25 @@ Run through this per asset. Every line is something the build will otherwise rej
 10. Exported as `.glb`, Y-up, −Z forward, into the right folder.
 
 ---
+
+## 6a. What the first delivery taught this brief (ADR-263)
+
+Band 1 went in: the generated floors, the hand-built Deep, the camp and her Chamber are all built out of it. **Eight of the fourteen modules are standing in the game; six are on the shelf**, and `--kit-probe` prints which every sweep, so this table cannot quietly go stale.
+
+None of the six is wrong as a model. Four of them describe a *different building* from the one the generator makes, which is a fault in §5 rather than in the work:
+
+| Module | What it assumes | What we build |
+|---|---|---|
+| `corner_inner` | Walls stop a cell short of their corners, and this closes the return | Walls run to the rect edge and overlap there |
+| `corner_chamfer` | A diagonal band across a whole corner cell | A solid diamond on the corner point, showing one face a plain panel covers |
+| `alcove` | A 0.6 m niche with a back wall | A whole 2 m cell you walk into; the back would seal it |
+| `ledge_edge` | A ledge on a solid plinth | A cantilevered deck — the space under it is refuge, so a fascia there is a solid you can walk through |
+| `ramp_2x25` | A solid ramp | A cantilevered slab; the slope matches exactly, the wedge under it does not |
+| `pillar` | A pillared hall | No plan concept of one yet |
+
+**The lesson for §5 is to state the construction, not only the piece.** "Alcove, 2.0 × 0.6 × 2.2" was met exactly and still does not fit, because the number nobody wrote down was how deep the recess is in the level.
+
+**And one thing the delivery got right that this brief had missed**: the kit's collision proxies are not wanted. The game hangs the *render mesh* on solids it already has, because ten short colliders where there was one long one is a worse navmesh input, not a neutral one. Keep shipping the `-colonly` proxies — `art_probe` requires them and the Lair and prop pipelines use them — but know that the architecture modules' proxies are discarded on placement.
 
 ## 7. When this brief is wrong
 
