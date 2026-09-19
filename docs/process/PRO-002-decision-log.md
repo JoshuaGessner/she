@@ -9796,5 +9796,71 @@ The question co-op has to answer is *is a bigger party worth joining*, and a par
 - **The file is bounded at 2,000 rows.** Every question here is a rate or a recent trend rather than a lifetime total, so the oldest rows are the ones worth losing.
 - **It is not migrated across versions.** `SaveFile` migrates because losing a profile costs a lineage; losing measurements costs measurements, and a migration path per version would be ceremony over something nobody is owed. An unreadable book is replaced and says so.
 
+## ADR-262 — The first delivered art, the eight pivots the gate caught, and items stop being boxes
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T10`** · **First use of ADR-258's gate** · **Developer's brief**
+
+**Context:** 47 models arrived — the Delvings kit, 25 items, set dressing, and the Blender sources that generate them. This is the first delivery `ART-006` was written for and the first time `art_probe` had anything to measure.
+
+### The gate earned itself on the first run
+
+**Eight of 47 failed, all the same fault**: pivoted 2 to 7.5 cm off their own base, every one of them a carried item in `props/`. An asset pivoted 7.5 cm above its base floats wherever the game puts it; one at −2.7 cm sinks. Mixed signs, so not a convention — imprecision.
+
+**Fixed at source rather than in the `.glb`.** `build_items.py` snaps each item's base to zero from `obj.data.vertices`, which is the *unevaluated* mesh: it does not contain the unapplied `BEVEL` modifier that `cube(bevel=…)` adds, and for the bindings and cords — built as curves with a `bevel_depth` — it does not contain the geometry at all. The export applies both (`export_apply=True`), so eight props were measured against geometry that is not the geometry that ships.
+
+One `bpy.ops.object.convert(target="MESH")` before the measurement makes both read the same vertices. **47 of 47 pass.** Fixing the generator rather than its output means a regeneration cannot undo it, and it fixes every future asset rather than these eight.
+
+> **This is the whole argument for building the gate before the assets.** Every one of those eight would have shipped, and the symptom — a lantern hovering four centimetres above the floor — is the kind of thing a person stops seeing after a week.
+
+### The delivery found a fault in the spec I wrote
+
+`ink_asset_import.gd` arrived with the art: an `EditorScenePostImport` that disables `vertex_color_use_as_albedo` on every imported model. Godot's glTF importer enables vertex tint on any surface carrying colours, and `ART-006` §2.3 requires vertex colours on **every** surface — so the B channel's material IDs would have been *painted onto the models*, turning stone yellow and gold grey. A real trap in the convention I specified, found by building to it.
+
+**And `check_dead.py` reported its only function as dead**, because it has never read `.import` files — where 46 of 47 assets name that script in `import_script/path`. A reference the tool cannot see is worse than no check: it teaches a reader to ignore the output. `.import` is now in its scan list, and `_post_import` is a listed engine entry point so the next one is honest before any asset opts in.
+
+### Items stop being boxes
+
+`WorldItem` drew every item as a coloured box sized from `grid_size`, so bulk read honestly and that was the whole of it — a 3×3 altar-plate was a shield-sized slab and a 1×1 gemstone was nothing. `ItemResource` gains a `model`, all 25 are wired, and the box path is **deleted rather than kept**.
+
+**No fallback, deliberately.** An item without a model fails `--data-probe` instead of quietly getting a box, on the same argument the `icon` field already makes. A generated stand-in is the parallel path ADR-064 bans, and its failure mode is that nobody ever notices the art is missing.
+
+Two details the swap turned on:
+
+- **The model's collision is discarded.** A `WorldItem` is an `Area3D` with its own pick-up shape; the `-col` body a kit piece carries would put a solid object in the room that a player could walk into and shove around. The mesh comes for the look, the physics is already there.
+- **Glitter glows by its light, not its surface.** The box had one material this file owned; an authored model has its own, and reaching into delivered art to overwrite them makes the art depend on what this function happens to do to it. ADR-204 put the magnitude on the light anyway — *how much it pours is what it is worth* — and a gold model standing in a pool of gold light reads as treasure without the mesh emitting anything.
+- **The ember keeps its sphere.** It is a light going out rather than a prop, and its emission *is* `DES-012`'s rescue window — an instrument, like the HUD instruments that keep their own palettes.
+
+### Postscript: the collision was not actually discarded
+
+The bullet above says the model's collision is thrown away because a
+`WorldItem` is an `Area3D` with its own pick-up shape. That was the intent and
+not the behaviour. `queue_free()` was called **after** `add_child`, which is two
+mistakes in one line: the body had already registered with the physics server,
+and the free was deferred to the end of the frame. So every authored item was a
+solid object in the room — the thing the comment beside it said it was
+preventing.
+
+Found by `--sight-probe` a day later: *"the Prize is inside solid geometry at
+20.3, −21.0"*, and all three authored loot spots with it. Fixed by ordering
+rather than by a stronger free — the bodies are stripped **before** `built`
+enters the tree, so they never register and there is no window to reason about.
+
+> **This one had a second cost that nothing reported.** Recast bakes from the
+> colliders, so for as long as it lasted the navmesh was being cut around every
+> item lying on the floor. No probe failed, because the floors those probes bake
+> are laid before any loot is dealt.
+
+And the row that found it was reporting a **guess**. It said *"landmarks are
+solid"* — true when landmarks were the only solid thing that could be in the
+way, and a bisect waiting to happen once they were not. The query already knew
+what it had hit and was throwing it away; it now names the collider, which is
+how one line of output replaced an afternoon.
+
+### What is not done, and what it costs
+
+- **The architecture kit is delivered and unused.** `floor_builder` generates walls and floors as `BoxMesh` slabs of arbitrary length; using 2 m modules means tiling them along generated runs and re-deriving collision — and **collision is what the navmesh bakes from**. This project has been bitten there three times (ADR-180's ramp angle, ADR-200's voxel size, ADR-213's turning ramps). Honest cost: **a day**, with real risk to floor traversal, which every probe in the suite guards.
+- **Set dressing is delivered and has nowhere to go.** There is no scatter or decoration system in the generator at all. That is a feature, not a seam.
+- **The smallest items are authored small.** A raw gemstone is a few centimetres and reads as a speck on the floor; its glimmer light is what finds it. Whether that is legible in play or a Principle 6 failure is a question for a session rather than a screenshot.
+
 *Entries below to be added as design decisions are signed off.*
 

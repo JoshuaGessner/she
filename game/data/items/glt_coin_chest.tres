@@ -1,7 +1,8 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/glt_coin_chest.svg" id="99_icon"]
+[ext_resource type="PackedScene" uid="uid://c1by7k80lwma3" path="res://art/props/coin_chest.glb" id="100_model"]
 
 [resource]
 script = ExtResource("1_item")
@@ -12,5 +13,6 @@ weight = 26.0
 clamor = 6.0
 grid_size = Vector2i(3, 3)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 220
 tags = Array[StringName]([&"glitter", &"dvergar", &"metal"])

@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/tol_horn_lantern.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/light_trait.gd" id="2_light"]
+[ext_resource type="PackedScene" uid="uid://ddy504dt0miqw" path="res://art/props/horn_lantern.glb" id="100_model"]
 
 [sub_resource type="Resource" id="Resource_light"]
 script = ExtResource("2_light")
@@ -21,6 +22,7 @@ weight = 1.2
 clamor = 0.0
 grid_size = Vector2i(1, 2)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 2
 slot = 2
 traits = Array[ExtResource("2_light")]([SubResource("Resource_light")])

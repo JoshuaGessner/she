@@ -87,6 +87,18 @@ const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_",
 ## Each item owns one authored ink silhouette; `BagScreen` draws it directly
 ## and deliberately has no category or generated-shape fallback.
 @export var icon: Texture2D
+## **What it looks like on the floor** (`M4-T10`, ADR-262).
+##
+## `WorldItem` drew every item as a coloured box sized from `grid_size` — a
+## blockout that read bulk honestly and said nothing else. Each item now owns
+## an authored model, and there is **no fallback**: an item without one fails
+## `--data-probe`, on the same argument the line above makes about icons. A
+## generated box standing in for a missing model is the parallel path ADR-064
+## bans, and the moment one exists nobody notices the missing art.
+##
+## The **ember is the exception and keeps its sphere** — it is a light going
+## out rather than a prop, and its emission *is* `DES-012`'s rescue window.
+@export var model: PackedScene
 
 @export_group("Composition")
 ## What it can do. Empty is the common and correct case: glitter and materials
@@ -198,6 +210,13 @@ func validate() -> PackedStringArray:
 		problems.append("description_key is empty")
 	if icon == null:
 		problems.append("icon is null; every item needs an authored bag silhouette")
+	# **And what it is on the floor** (`M4-T10`, ADR-262). `WorldItem` has no
+	# box to fall back to any more, so this is the check that turns a missing
+	# model into a named failure in the sweep rather than an item that cannot
+	# be dropped without taking the run down with it.
+	if model == null:
+		problems.append("model is null; every item needs an authored world "
+			+ "model, and `WorldItem` deliberately has no generated fallback")
 
 	if weight < 0.0:
 		problems.append("weight cannot be negative")

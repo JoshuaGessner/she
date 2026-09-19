@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/arm_mail_byrnie.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/wearable_trait.gd" id="2_wearable"]
+[ext_resource type="PackedScene" uid="uid://c6ba2wrsgp8v" path="res://art/props/mail_byrnie.glb" id="100_model"]
 
 [sub_resource type="Resource" id="Resource_wearable"]
 script = ExtResource("2_wearable")
@@ -17,6 +18,7 @@ weight = 11.0
 clamor = 1.6
 grid_size = Vector2i(3, 3)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 8
 slot = 5
 traits = Array[ExtResource("2_wearable")]([SubResource("Resource_wearable")])

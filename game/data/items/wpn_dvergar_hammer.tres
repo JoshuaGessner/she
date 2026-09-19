@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/wpn_dvergar_hammer.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/wieldable_trait.gd" id="2_wieldable"]
+[ext_resource type="PackedScene" uid="uid://ecq3kcwi2nn1" path="res://art/weapons/dvergar_hammer.glb" id="100_model"]
 
 [sub_resource type="Resource" id="Resource_wieldable"]
 script = ExtResource("2_wieldable")
@@ -26,6 +27,7 @@ weight = 6.4
 clamor = 0.0
 grid_size = Vector2i(2, 3)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 0
 traits = Array[ExtResource("2_wieldable")]([SubResource("Resource_wieldable")])
 slot = 1

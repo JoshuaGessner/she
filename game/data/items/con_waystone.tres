@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/con_waystone.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/extraction_trait.gd" id="2_extraction"]
+[ext_resource type="PackedScene" uid="uid://uhvw1bl7b135" path="res://art/props/waystone.glb" id="100_model"]
 
 [sub_resource type="Resource" id="Resource_extraction"]
 script = ExtResource("2_extraction")
@@ -19,6 +20,7 @@ weight = 0.9
 clamor = 0.0
 grid_size = Vector2i(1, 2)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 0
 traits = Array[ExtResource("2_extraction")]([SubResource("Resource_extraction")])
 tags = Array[StringName]([&"gear", &"extraction", &"stone"])

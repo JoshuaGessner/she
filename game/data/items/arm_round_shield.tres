@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/arm_round_shield.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/shield_trait.gd" id="2_shield"]
+[ext_resource type="PackedScene" uid="uid://bagxq70bfc7mc" path="res://art/props/round_shield.glb" id="100_model"]
 
 [sub_resource type="Resource" id="Resource_shield"]
 script = ExtResource("2_shield")
@@ -16,6 +17,7 @@ weight = 6.0
 clamor = 0.4
 grid_size = Vector2i(2, 2)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 4
 slot = 2
 traits = Array[ExtResource("2_shield")]([SubResource("Resource_shield")])

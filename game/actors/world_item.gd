@@ -37,11 +37,6 @@ extends Node3D
 
 const GROUP: StringName = &"world_items"
 
-## Metres per grid cell when blocking out the mesh. An item's `grid_size` is
-## its bulk (`DES-019`), so reading bulk off the floor before you pick it up is
-## free and it is the information the decision actually needs.
-const METRES_PER_CELL: float = 0.28
-const MINIMUM_EXTENT: float = 0.18
 
 ## Blockout colours by tag (ADR-046 — a named production phase, not a stub).
 ## Data names a tag and code reacts, which is `TEC-006` principle 1: the
@@ -326,24 +321,38 @@ func _rest_below(space: PhysicsDirectSpaceState3D) -> Vector3:
 	return (ground["position"] as Vector3) + Vector3.UP * 0.02
 
 
-## Bulk, as a box. A 3x3 altar-plate is visibly a shield-sized slab and a 1x1
-## gemstone is visibly nothing, so the weight-versus-space trade is legible
-## from across the room rather than only once it is in the bag.
+## **The authored model, and nothing else** (`M4-T10`, ADR-262).
+##
+## This drew a coloured box sized from `grid_size`, so that *"a 3x3
+## altar-plate is visibly a shield-sized slab and a 1x1 gemstone is visibly
+## nothing"* — bulk read honestly and that was the whole of it. The models now
+## carry that reading themselves: `ART-006` gives the modeller each item's bag
+## footprint and weight precisely so proportion survives the swap, and
+## `art_probe` asserts every one of them is honest about metres.
+##
+## **No fallback.** An item without a model fails `--data-probe` rather than
+## quietly getting a box, because a box that stands in for missing art is the
+## parallel path ADR-064 bans — and the failure mode is that nobody ever
+## notices the art is missing.
 func _build_mesh() -> void:
-	var footprint: Vector2i = _definition.grid_size
-	var mesh := BoxMesh.new()
-	mesh.size = Vector3(
-		maxf(footprint.x * METRES_PER_CELL, MINIMUM_EXTENT),
-		maxf(minf(footprint.x, footprint.y) * METRES_PER_CELL, MINIMUM_EXTENT),
-		maxf(footprint.y * METRES_PER_CELL, MINIMUM_EXTENT))
-	_material = StandardMaterial3D.new()
-	_material.albedo_color = _colour()
-	_material.roughness = 0.4
-	_mesh = MeshInstance3D.new()
-	_mesh.mesh = mesh
-	_mesh.material_override = _material
-	_mesh.position.y = mesh.size.y * 0.5
-	add_child(_mesh)
+	var built: Node3D = _definition.model.instantiate() as Node3D
+	built.name = "look"
+	# **The collision the model carries is not this item's collision.** A
+	# `WorldItem` is an `Area3D` with its own shape for the pick-up test, and a
+	# second body from the `-col` suffix would put a solid object in the room
+	# that a player can walk into and shove around. The mesh comes for the
+	# look; the physics is already here.
+	#
+	# **Stripped before it enters the tree, and freed rather than queued.** The
+	# first version did this after `add_child` with `queue_free`, which is two
+	# mistakes in one line: the body had already registered with the physics
+	# server, and the free was deferred to the end of the frame. Every authored
+	# item was a solid obstacle, and `--sight-probe` found all three of them —
+	# "inside solid geometry, standing in `look/collision`". Outside the tree
+	# there is no registration and no window to reason about.
+	for node: Node in built.find_children("*", "PhysicsBody3D", true, false):
+		node.free()
+	add_child(built)
 	_build_glimmer()
 
 
@@ -365,9 +374,13 @@ func _build_mesh() -> void:
 func _build_glimmer() -> void:
 	if not _definition.tags.has(&"glitter"):
 		return
-	_material.emission_enabled = true
-	_material.emission = _colour()
-	_material.emission_energy_multiplier = 0.55
+	# **The light, not the surface** (ADR-262). The box glowed because it had
+	# one material this file owned; an authored model has its own, and reaching
+	# into a delivered asset to overwrite them would make the art depend on
+	# what this function happens to do to it. ADR-204 put the magnitude on the
+	# light in the first place — *how much it pours is what it is worth* — and
+	# a gold model standing in its own pool of gold light reads as treasure
+	# without the mesh being asked to emit anything.
 	var glow := OmniLight3D.new()
 	# Declares itself as treasure rather than being recognised by what it hangs
 	# off. `--sight-probe` asserts that gold is spent only here, and its first

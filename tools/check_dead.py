@@ -67,6 +67,11 @@ ENGINE_VIRTUALS = {
     # A `--script` entry point. Godot instances the script as its MainLoop and
     # calls this; there is no call site anywhere and there cannot be one.
     "_initialize", "_iteration", "_finalize",
+    # `EditorScenePostImport`. The importer calls this on every asset whose
+    # `.import` names the script, and a `.glb.import` is not a file this tool
+    # read until the first one arrived (ADR-262). Listed as well as read, so
+    # the entry point is honest even before any asset opts into it.
+    "_post_import",
 }
 
 
@@ -83,7 +88,13 @@ def scripts() -> list[Path]:
 
 def scenes_and_data() -> list[Path]:
     out: list[Path] = []
-    for suffix in ("*.tscn", "*.tres", "*.godot", "*.cfg"):
+    # **`.import` counts, and it did not until assets arrived** (ADR-262). An
+    # `.import` file can name a script — `import_script/path="res://…"` — and
+    # 46 of them named one the moment the first delivered art landed, while
+    # this tool reported the script's only function as dead. A reference this
+    # tool cannot see is worse than no check: it teaches a reader to ignore
+    # the output.
+    for suffix in ("*.tscn", "*.tres", "*.godot", "*.cfg", "*.import"):
         out += [p for p in GAME.rglob(suffix) if ".godot" not in p.parts]
     # The build tooling counts as a reader. `CollisionLayers` names five
     # physics layers that no *game* code looks up — the scenes set the raw

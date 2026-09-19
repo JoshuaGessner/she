@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/arm_iron_bracers.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/ward_trait.gd" id="2_ward"]
+[ext_resource type="PackedScene" uid="uid://by83ce7koyqmo" path="res://art/props/iron_bracers.glb" id="100_model"]
 
 [sub_resource type="Resource" id="Resource_ward"]
 script = ExtResource("2_ward")
@@ -17,6 +18,7 @@ weight = 1.6
 clamor = 0.6
 grid_size = Vector2i(2, 1)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 4
 slot = 3
 traits = Array[ExtResource("2_ward")]([SubResource("Resource_ward")])

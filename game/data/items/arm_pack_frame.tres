@@ -1,8 +1,9 @@
-[gd_resource type="Resource" script_class="ItemResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ItemResource" load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
 [ext_resource type="Texture2D" path="res://art/ui/items/arm_pack_frame.svg" id="99_icon"]
 [ext_resource type="Script" path="res://systems/items/pack_trait.gd" id="2_pack"]
+[ext_resource type="PackedScene" uid="uid://cdeaiir6dvle4" path="res://art/props/pack_frame.glb" id="100_model"]
 
 [sub_resource type="Resource" id="Resource_pack"]
 script = ExtResource("2_pack")
@@ -17,6 +18,7 @@ weight = 4.5
 clamor = 2.0
 grid_size = Vector2i(2, 4)
 icon = ExtResource("99_icon")
+model = ExtResource("100_model")
 tribute_value = 5
 slot = 6
 traits = Array[ExtResource("2_pack")]([SubResource("Resource_pack")])
