@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-09-17
+updated: 2026-09-18
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -201,7 +201,13 @@ If lighting is quantised and value comes from screen-space hatching, **models ne
 | **G** | Hatch density bias |
 | **B** | Ink / material ID (stone, metal, cloth, flesh, gold) |
 
-Cheap to author, no texture work in Phase 1 or 2, and outline suppression is essential — see below.
+Cheap to author, and outline suppression is essential — see below.
+
+> **"No texture work" is amended in one direction (ADR-259).** Still no albedo or colour textures, still no baked lighting or ambient occlusion. Added: **one shared tileable triplanar normal map per material family**, coarse, not authored per asset.
+>
+> The reason is that this pass was already reading one. The outline stage calls an edge wherever the normal-roughness buffer changes, and in Forward+ that buffer is written *after* a material perturbs its normal — so a normal map here is a **drawing instruction**, not a lighting trick. Measured on the spike: the pass drew **2.97 %** of the frame with flat materials and **5.94 %** at `normal_scale` 0.50 ⟨tune⟩, with no shader change at all. At 1.00 it drew 28.90 %, which is this document's own scribble failure.
+>
+> **Detail becomes drawn line; value stays hatch.** That is how printmaking works — carved line for detail, hatching for tone — so the two layers stop competing. Triplanar and world-space, so `ART-004`'s no-UV windfall survives.
 
 ## The readability risk, and the fix
 

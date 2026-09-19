@@ -9662,5 +9662,67 @@ The fixtures ran in one pass rather than one per run, because the probe reports 
 - **Empty is a failure.** The probe fails with zero models, because ADR-099's census reported success over an empty set for four commits.
 - **The Delvings kit is still the recommended first target** — most minutes played, most reuse, and triplanar hatching means no UV work — but nothing should be bought until Q113 is answered, because the answer changes whether every kit piece needs a per-object material or nothing at all.
 
+## ADR-259 — Surface detail is a normal map, because the ink pass already reads one
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T10`** · **Amends `ART-005` and `ART-006`** · **Developer's brief**
+
+**Context:** *"Is there any way we can still have texture detail that falls into the specs of our shader system? I would like details and texture to be seen as a sort of crosshatching type style."*
+
+`ART-004` and `ART-006` both said there are no textures in this game at all, and that a form absent from the geometry does not exist on screen. That was true of the *build* and it turned out to be an overstatement of the *constraint*.
+
+### The pass was already looking; nothing was giving it anything
+
+`ink_outline.gdshader` calls an edge wherever Godot's normal-roughness buffer changes fast enough:
+
+```glsl
+float normal_delta = length(na - nb) + length(nc - nd);
+float normal_edge = smoothstep(normal_threshold * 0.4, normal_threshold, normal_delta);
+```
+
+In Forward+ that buffer is written during the opaque pass, **after** a material has perturbed its own normal. So a normal map is not a lighting trick here — it is a **drawing instruction**, and the question was only whether Godot actually writes the perturbed normal rather than the geometric one.
+
+**It does.** Not one material in the game had a normal map — every surface was a flat `StandardMaterial3D` with a colour and a roughness — so the capability had been present and unused since the pass was written.
+
+Three things then happen, none of which needed a shader change:
+
+1. **Detail is drawn as ink line** by the edge detector.
+2. **Hatch density follows it**, because `shade` is derived from screen luminance and a normal map changes how a surface catches light.
+3. **The hatch projection bends around it**, because the triplanar weights come from the same buffer normal.
+
+### Measured
+
+`ink_spike` gains `--normals=<scale>` and reports the share of the frame that is ink-dark, **for the frame with the pass and the same frame without it**. Only the difference is the pass's own work: a normal map darkens shading as well as drawing lines, and quoting the inked figure alone would let shading masquerade as linework.
+
+| `normal_scale` | the pass drew |
+|---|---|
+| 0.00 — what ships today | **2.97 %** |
+| 0.15 | 3.04 % |
+| 0.30 | 3.52 % |
+| **0.50** | **5.94 %** |
+| 1.00 | **28.90 %** |
+
+**The response has a knee, and that is the shader's threshold showing.** `normal_threshold` is 0.7, so perturbation has to clear a bar before it inks at all; below 0.3 almost nothing happens and above 0.5 it runs away. At 1.00 the frame is the scribble `ART-005` names as its own readability risk — every surface dissolving into noise, which is Principle 6 violated by the thing meant to serve it.
+
+**0.50 ⟨tune⟩** is adopted: roughly double the flat baseline, which is texture rather than noise. Signed off from the photographs rather than the number.
+
+### What this buys, and what it costs
+
+> **Detail becomes drawn line. Value stays hatch.**
+
+That is how printmaking actually works — a woodcut's surface detail is carved line and hatching is reserved for tone — so the two systems stop competing for the same pixels instead of layering two kinds of stroke on one surface.
+
+**Triplanar and world-space**, so `ART-004`'s production windfall survives intact: environment assets are still never unwrapped. A normal map that needed UVs would have spent the single largest saving in the pipeline and would not have been worth this.
+
+**No texture files.** The test used a `NoiseTexture2D` in normal-map mode over cellular noise — a real tileable normal map generated at load with nothing to author. Whether the six material families ship as six noise configurations or six authored images is left open; the configurations are cheaper and the images are more controllable, and there is no need to decide before there are assets to try them on.
+
+**The cost is not measured and is not claimed.** The ink pass does identical work, so the post-process is unchanged, but triplanar sampling is three texture fetches per surface instead of one and the opaque pass gets slightly more expensive. `ink_spike --bench` exists for when that matters.
+
+### Consequences
+
+- **`ART-005`'s "no texture work in Phases 1–2" is amended, in one direction only.** Still no albedo or colour textures, still no baked lighting or ambient occlusion. Added: one shared tileable triplanar normal map per material family, coarse, not authored per asset.
+- **Nothing in `ART-006` changes for the modeller.** Geometry still carries silhouette and form; hard edges are still functional; the normal map only adds surface. The brief's warning note becomes the rule.
+- **It sharpens Q113 rather than answering it.** More lines on screen makes outline suppression matter more, not less — and `normal_threshold` is a single global scalar, so there is no way to say *this* surface is rough and *that* one is quiet without the per-object channel that nothing reads yet.
+- **Production wiring is not done.** Every surface in the game is still flat. Putting normal maps on the real materials — the generated floors, the Lair, the props — is the next step, and it carries its own choice about which noise suits stone against timber against metal.
+
 *Entries below to be added as design decisions are signed off.*
 

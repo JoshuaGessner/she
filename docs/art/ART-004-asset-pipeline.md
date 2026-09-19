@@ -42,7 +42,7 @@ For a solo project this is the highest-leverage art decision available, and it m
 | **G** | Hatch density bias |
 | **B** | Ink / material ID (stone, metal, cloth, flesh, gold) |
 
-Cheap to author, requires no texture work in Phases 1–2 — but **every model must carry vertex colours from the start.** Retrofitting them across a finished library is miserable, which is why this is the one art decision that cannot wait.
+Cheap to author, requires no *colour* texture work in any phase — one shared triplanar normal map per material family is the single exception, and the engine applies it (ADR-259) — but **every model must carry vertex colours from the start.** Retrofitting them across a finished library is miserable, which is why this is the one art decision that cannot wait.
 
 > ### ⚠️ **Nothing reads these channels today, and the pass that exists cannot** (ADR-258)
 >

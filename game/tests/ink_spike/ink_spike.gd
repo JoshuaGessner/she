@@ -51,6 +51,20 @@ var _bench: bool = false
 var _amplify_copies: int = 0
 var _amplified: Array[MeshInstance3D] = []
 
+## **Does a normal map reach the ink pass?** (`M4-T10`, ADR-259 — it does.)
+##
+## The pass samples `hint_normal_roughness_texture` and calls an edge wherever
+## that buffer changes fast enough. In Forward+ the buffer is written during the
+## opaque pass, *after* the material has perturbed its normal — so the question
+## is whether normal-mapped detail is drawn as **ink line** without the shader
+## changing at all. If it is, surface detail is authorable as a normal map and
+## `ART-005`'s "no texture work" rule loosens in exactly one direction.
+##
+## 0 leaves every material flat, which is what the build ships today and what
+## the comparison needs as its control.
+var _normal_strength: float = 0.0
+var _normal_map: NoiseTexture2D = null
+
 @onready var _world: Node3D = $World
 @onready var _post: InkPass = $PostQuad
 
@@ -86,6 +100,8 @@ func _parse_args() -> void:
 				_bench = int(pair[1]) != 0
 			"amplify":
 				_amplify_copies = int(pair[1])
+			"normals":
+				_normal_strength = float(pair[1])
 
 
 # ── the grey box ──────────────────────────────────────────────────────────
@@ -107,7 +123,42 @@ func _grey_material() -> StandardMaterial3D:
 	mat.albedo_color = GREY
 	mat.roughness = 1.0
 	mat.metallic = 0.0
+	if _normal_strength > 0.0:
+		# **Triplanar and world-space**, because that is the only form this could
+		# ship in: `ART-004`'s production windfall is that environment assets are
+		# never unwrapped, and a normal map that needed UVs would spend it.
+		#
+		# Generated rather than authored — a `NoiseTexture2D` in normal-map mode
+		# is a real tileable normal map with no file to make, which keeps this
+		# test about the renderer rather than about somebody's texture.
+		mat.normal_enabled = true
+		mat.normal_texture = _stone_normal()
+		mat.normal_scale = _normal_strength
+		mat.uv1_triplanar = true
+		mat.uv1_world_triplanar = true
+		# One tile per 2 m, so features land near the scale of a masonry joint
+		# rather than sandpaper. Fine detail would be the readability risk
+		# `ART-005` already names, committed on purpose.
+		mat.uv1_scale = Vector3(0.5, 0.5, 0.5)
 	return mat
+
+
+## One shared normal map for every grey surface, built once.
+func _stone_normal() -> NoiseTexture2D:
+	if _normal_map != null:
+		return _normal_map
+	var noise := FastNoiseLite.new()
+	noise.noise_type = FastNoiseLite.TYPE_CELLULAR
+	noise.frequency = 0.02
+	noise.cellular_return_type = FastNoiseLite.RETURN_DISTANCE2_SUB
+	_normal_map = NoiseTexture2D.new()
+	_normal_map.width = 256
+	_normal_map.height = 256
+	_normal_map.seamless = true
+	_normal_map.as_normal_map = true
+	_normal_map.bump_strength = 8.0
+	_normal_map.noise = noise
+	return _normal_map
 
 
 func _build_room() -> void:
@@ -281,19 +332,60 @@ func _process(delta: float) -> void:
 # ── capture ───────────────────────────────────────────────────────────────
 
 
-func _save_frame(path: String) -> void:
+## Anything darker than this counts as ink. The pass draws in
+## `(0.05, 0.045, 0.055)` — luminance about 0.05 — against a 0.62 grey, so the
+## threshold sits well clear of both and the comparison does not depend on
+## where exactly it is put.
+const INK_LUMA: float = 0.25
+
+
+func _save_frame(path: String) -> Image:
 	await RenderingServer.frame_post_draw
 	var image: Image = get_viewport().get_texture().get_image()
 	image.save_png(path)
+	return image
+
+
+## The share of a frame that is ink-dark.
+##
+## Reported for the pass **and** for the same frame without it, because a normal
+## map darkens shading as well as drawing lines: only the difference between the
+## two is the pass's own work, and quoting the inked figure alone would let
+## shading masquerade as linework.
+static func _ink_share(image: Image) -> float:
+	var dark: int = 0
+	for y: int in range(image.get_height()):
+		for x: int in range(image.get_width()):
+			if image.get_pixel(x, y).get_luminance() < INK_LUMA:
+				dark += 1
+	return float(dark) / float(image.get_width() * image.get_height())
 
 
 func _run_capture() -> void:
+	# **A `NoiseTexture2D` generates on a worker thread**, so the first frames
+	# after startup are drawn against a blank normal map. Capturing those would
+	# photograph the control twice and report that normal maps do nothing.
+	if _normal_strength > 0.0:
+		for i: int in range(30):
+			await RenderingServer.frame_post_draw
+
 	# Stills first: one per treatment, identical viewpoint, so the comparison
 	# isolates the treatment and nothing else.
+	var without_pass: float = 0.0
+	var with_pass: float = 0.0
 	for mode: Mode in [Mode.RAW, Mode.CLEAN, Mode.WOBBLE, Mode.INK]:
 		_apply_mode(mode)
 		await RenderingServer.frame_post_draw  # let the parameter change land
-		await _save_frame("%s/still_%s.png" % [_capture_dir, MODE_NAMES[mode]])
+		var shot: Image = await _save_frame(
+			"%s/still_%s.png" % [_capture_dir, MODE_NAMES[mode]])
+		if mode == Mode.RAW:
+			without_pass = _ink_share(shot)
+		elif mode == Mode.INK:
+			with_pass = _ink_share(shot)
+	print(("[ink_spike] normal_scale %.2f — dark pixels: %.2f%% without the "
+		+ "pass, %.2f%% with it, the pass drew %.2f%%") % [_normal_strength,
+		without_pass * 100.0, with_pass * 100.0,
+		(with_pass - without_pass) * 100.0])
 
 	# The same frame on paper ground, to see the linework without grey fill
 	# competing with it.
