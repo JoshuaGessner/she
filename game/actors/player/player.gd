@@ -1371,6 +1371,16 @@ func _ask_to_drop(thrown: bool) -> void:
 ## is dragged out of the grid — the same gesture as setting something on a
 ## table, and the same path the panic dump takes.
 func ask_to_drop_instance(instance_id: int, thrown: bool = false) -> void:
+	# **Counted here, on the peer whose decision it was** (`DES-010`, ADR-261).
+	#
+	# This runs on the owner either way — the host drops directly, a client asks
+	# — so each machine counts its own player's abandonment into its own run
+	# file, which is the same per-peer rule `TEC-004` applies to everything
+	# else. Un-authoritative on purpose: this is a local notebook, and a player
+	# who wanted to lie to it would be lying to nobody.
+	var given_up: ItemInstance = inventory.find(instance_id)
+	if given_up != null and given_up.definition != null:
+		RunFile.note_left_behind(given_up.definition.tribute_value)
 	if multiplayer.is_server():
 		_put_down(instance_id, thrown)
 	else:

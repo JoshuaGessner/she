@@ -4,7 +4,7 @@ title: Retention, Session Hooks & Churn Points
 status: accepted
 owner: design
 tags: [retention, hooks, session, onboarding, churn, pacing]
-updated: 2026-08-14
+updated: 2026-09-18
 related: [DES-002, DES-003, DES-007, PRO-001]
 ---
 
@@ -78,6 +78,10 @@ The retention model here is that **the loop is good and the pact is a relationsh
 ## Metrics to instrument at M2 ⟨tune⟩
 
 Instrument early — retention questions are unanswerable from vibes:
+
+> **Built at `M4-T10`, not M2 (ADR-261).** `RunLedger` writes one row per resolved run and reports every rate below; `--ledger-probe` asserts the arithmetic and is planted four ways. **It is a local notebook and nothing in it leaves the machine** — no network call, no identifier, no upload. `PRO-005` makes this project's ethics load-bearing, and a retention instrument that phones home is how one becomes a reason to make the game worse.
+>
+> Two of the six need a reading rather than a recording: *deaths per session* wants a session boundary the rows do not draw yet, though they carry timestamps; and the extraction-rate target below is only meaningful once somebody has played enough runs for it to be a rate.
 
 - Deaths per session, and **run number of first death**
 - **Session-end reason**: extracted / died / quit mid-run (quit-after-death is the churn signal that matters most)

@@ -9751,5 +9751,50 @@ The task's own note says *"before any external playtest"*, and the premise under
 - **They are renumbered, and that is forced.** `status.py` derives a task's milestone from its ID prefix and calls anything else `task-misfiled`, so a cross-milestone deferral cannot keep its number. **ADR-061 set the precedent** when it moved the remaining four classes out of M4 — they arrived in M5 with M5 numbers and a note naming the ADR that moved them. `M4-T11` and `M4-T07` are retired and never reused, which is the half of the permanent-ID rule that still holds.
 - **The pattern is worth naming.** Three deferrals this session were decided in conversation and only one reached the board unprompted. Conversation is not storage; the board is, and it is the thing a person reads to decide what to do next.
 
+## ADR-261 — `DES-010`'s six metrics exist, two milestones after it asked for them, and nothing leaves the machine
+
+**Date:** 2026-09-18 · **Status:** accepted · **Advances `M4-T10`** · **Implements `DES-010` §"Metrics to instrument at M2"** · **Answers a `DES-012` question**
+
+**Context:** `DES-010` names six metrics under the heading *"Instrument early — retention questions are unanswerable from vibes"*, and asks for them **at M2**. None of them were ever instrumented. The document has been asking a question the build could not answer for two milestones, and `DES-012`'s per-capita extracted value has sat in `OPEN-QUESTIONS` the whole time with nothing capable of measuring it.
+
+### This is a notebook, not telemetry
+
+**Nothing written here leaves the machine it was written on.** No network call, no identifier, no upload, and no code path that could grow one without being obvious in a 200-line file. It is a local record a developer reads after playing, and a player who never looks at it is never affected by it.
+
+That is a decision rather than an omission. `PRO-005` makes this project's ethics load-bearing rather than decorative, and a retention instrument that phones home is precisely the kind of thing that becomes a reason to make the game worse.
+
+### One row per resolved run, on the machine it resolved for
+
+`_take_the_outcome` is the single point where a run resolves *per peer* — the host reports and each peer writes its own, which is the rule `TEC-004` already applies to everything else. Two more hooks cover what does not happen there: the pause menu's abandon, and `settle_cycle` where the Tithe verdict is actually reached.
+
+**Three outcomes, because `DES-010` asks for three.** *Extracted*, *died*, and *abandoned* — and the document is explicit that the third is the one that matters most: *"quit-after-death is the churn signal."* A run nobody finished is a different event from one the floor resolved.
+
+**The Tithe is recorded per cycle, not per run.** A tithe is owed per cycle; writing it on each descent would count one debt three times and call two of them defaults. And it is broken out **by Pact Rank**, because a flat rate hides the thing `DES-003` actually fears — that the Tithe becomes unpayable somewhere up the ladder.
+
+### Two things the implementation had to get right
+
+**Abandonment is counted in the run file, not on the body.** `DES-010` calls loot voluntarily abandoned *"the single best proxy for whether the core tension is working"*, so it is the metric most worth getting right — and descending **reloads the scene**, so a body does not survive a floor and neither would a counter kept on one. `RunFile` does, and is already per-run and per-peer. Counted on the peer whose decision it was, un-authoritative on purpose: this is a local notebook and a player lying to it would be lying to nobody.
+
+**Nothing arms the ledger**, and that is the opposite of `RunFile`'s design on purpose. A run file is *state a player is in*, so a process that has not opened one must not resume it. A notebook is a side effect of playing, and the only thing it must never do is record a run nobody played — so instead of five `arm()` calls kept in step with five `RunFile.arm()` calls, it asks `RunFile.a_check_is_running()`, which is the one question that matters and already exists. **That function became public rather than being copied**: two lists of harness flags would disagree the first time one was extended, and the symptom would be a probe quietly writing into a player's files, which is exactly the ADR-152 incident.
+
+### Verification
+
+`--ledger-probe` builds a notebook of known runs and asserts the rates come back right — arithmetic, not plumbing, because a rate that is quietly wrong is worse than no rate: somebody tunes the game against it. Its **first** assertion is that a check does *not* write the real ledger, so the protection is asserted rather than trusted.
+
+**Planted and failed, one per run — four.** The guard forced open (*`writing()` returned true under `--ledger-probe`*); per-capita not divided by party (*4: 200.0*); abandonment not summed (*0*); and abandoning recorded as a death (*abandoned 0, died 2*).
+
+### The probe corrected the design, not the other way round
+
+It asserted that a solo run bringing home 100 reports **100** per head, and that was wrong. Three solo runs carried 100 between them, so the answer is **33.3** — and including the runs that brought nothing home is the *measure*, not an accident of it.
+
+The question co-op has to answer is *is a bigger party worth joining*, and a party that hauls more per head while dying twice as often is not better off. It is expected value per head **per run attempted**. The assertion was rewritten and the reasoning recorded in both files, because the wrong reading is the intuitive one and somebody will reach for it again.
+
+### Consequences
+
+- **`DES-012`'s per-capita question is now measurable** rather than merely open. It still needs runs at two and four players to answer, which is a playtest, not a build.
+- **Six metrics, one of which needs a session to mean anything.** *Deaths per session* needs a session boundary the ledger does not currently draw; the rows carry timestamps, so it is a reading question rather than a recording one.
+- **The file is bounded at 2,000 rows.** Every question here is a rate or a recent trend rather than a lifetime total, so the oldest rows are the ones worth losing.
+- **It is not migrated across versions.** `SaveFile` migrates because losing a profile costs a lineage; losing measurements costs measurements, and a migration path per version would be ceremony over something nobody is owed. An unreadable book is replaced and says so.
+
 *Entries below to be added as design decisions are signed off.*
 

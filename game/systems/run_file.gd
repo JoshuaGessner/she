@@ -123,7 +123,7 @@ static func arm() -> void:
 	# Loud rather than silent: refusing leaves `exists()` false, so the probe
 	# that did it fails its own assertions by name instead of quietly working
 	# on somebody's save.
-	if PATH == "user://run.active" and _a_check_is_running():
+	if PATH == "user://run.active" and a_check_is_running():
 		push_error("RunFile: a check tried to arm the player's run file. Call "
 			+ "`use_a_scratch_run()` first — a check that writes to `user://` "
 			+ "names its own file (ADR-145, ADR-152).")
@@ -150,7 +150,13 @@ static func arm() -> void:
 ## check that needed one was written. A guard whose coverage depends on a
 ## naming convention is a guard that expires the first time somebody names a
 ## flag well.
-static func _a_check_is_running() -> bool:
+##
+## **Public, and shared with `RunLedger`** (ADR-261). That class needs exactly
+## this question and a second copy of it would be the duplicate ADR-064 bans —
+## worse here than usual, because the two would disagree the first time a
+## harness flag was added to one list and not the other, and the symptom would
+## be a probe quietly writing into the player's files.
+static func a_check_is_running() -> bool:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.contains("probe") or arg.contains("shot"):
 			return true
@@ -303,6 +309,29 @@ static func meet(key: String) -> void:
 
 static func met() -> PackedStringArray:
 	return PackedStringArray(read().get("met", []) as Array)
+
+
+## **What this peer gave up on purpose, this run** (`DES-010`, ADR-261).
+##
+## `DES-010` calls loot voluntarily abandoned *"the single best proxy for
+## whether the core tension is working"*, and it has to be counted across the
+## whole run rather than the current floor — descending reloads the scene, so a
+## body does not survive a floor and neither would a counter kept on one. The
+## run file does, and it is already per-run and per-peer.
+static func note_left_behind(value: int) -> void:
+	var run: Dictionary = read()
+	note({
+		"left_value": int(run.get("left_value", 0)) + maxi(value, 0),
+		"left_count": int(run.get("left_count", 0)) + 1,
+	})
+
+
+static func left_behind() -> int:
+	return int(read().get("left_value", 0))
+
+
+static func left_count() -> int:
+	return int(read().get("left_count", 0))
 
 
 ## What a Retrieve contract was asked to bring up, recorded on the floor that

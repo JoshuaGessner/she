@@ -376,6 +376,10 @@ func keep_in_legacy(kind: String, id: StringName) -> bool:
 	if why_not_keep(kind, id) != "":
 		return false
 	legacy.append({"kind": kind, "id": String(id)})
+	# **Which slot a player actually spends** (`DES-010`, ADR-261) — the item
+	# against node ratio, which is what validates ADR-003's claim that both are
+	# worth keeping. If one of them is never chosen, one of them is not a choice.
+	RunLedger.record(RunLedger.LEGACY, {"slot": kind, "id": String(id)})
 	_persist()
 	return true
 
@@ -975,6 +979,13 @@ func settle_cycle() -> bool:
 	print("[tithe] rank %d owed %d, paid %d — %s" % [
 		pact_rank, owed, tithe_paid,
 		"settled" if met else "short, and she has sent for it"])
+	# **`DES-010` asks for the default rate by Pact Rank** (ADR-261), and this is
+	# the only place the verdict exists. A tithe is owed per *cycle*, so
+	# recording it on each descent would count one debt three times and call two
+	# of them defaults.
+	RunLedger.record(RunLedger.TITHE, {
+		"rank": pact_rank, "owed": owed, "paid": tithe_paid, "met": met,
+	})
 	# **The slate clears.** Unpaid value does not carry (ADR-118): ADR-029's
 	# running-debt alternative self-stabilised through node reclamation, and
 	# node reclamation is `M3-T01`, so carrying a debt here could only spiral

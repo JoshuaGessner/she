@@ -210,6 +210,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **`DES-010`'s notebook adds up** (`M4-T10`, ADR-261). The six retention
+	# metrics it asks for are rates, and a rate that is quietly wrong is worse
+	# than no rate at all — somebody tunes the game against it. Also the one
+	# assertion that protects a player: a check must not write into the real
+	# ledger, and this asserts the refusal rather than trusting it.
+	ledger="$("$GODOT_BIN" --headless --path "$GAME" \
+		--script tests/ledger_probe.gd -- --ledger-probe 2>&1)"
+	if grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$ledger"; then
+		echo "FAIL the run ledger" >&2
+		printf '%s\n' "$ledger" | grep -E 'FAIL|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Every authored resource, loaded and validated (`M2-T08`, TEC-006
 	# principle 4). Data rots the way a rig does — silently, and three tools
 	# away from the symptom — and the rules it enforces are design rules that
@@ -1671,6 +1684,7 @@ echo "a body walks out of every room without sticking to it,"
 echo "a teammate is a body rather than a capsule, and it walks,"
 echo "every colour the bag draws comes from the theme it is drawn under,"
 echo "every model delivered is measured against the spec it was authored to,"
+echo "and what a run came to is written down where a person can read it,"
 	echo "two players over localhost host-authoritative ($("$GODOT_BIN" --version))"
 else
 	echo "${#scripts[@]} script(s) parse clean, no main scene yet ($("$GODOT_BIN" --version))"

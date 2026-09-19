@@ -50,7 +50,6 @@ _None. Sequencing is clean._
 
 | Check | Note |
 |---|---|
-| `adr-missing` | ADR-261 is cited by DES-010 but has no entry |
 | `adr-missing` | ADR-263 is cited by ART-006 but has no entry |
 | `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30, M3-T31, M3-T34, M3-T35, M3-T38, M3-T39, M4-T16) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33, M3-T37, M3-T38, M3-T42, M4-T33) but still has 6 ⟨tune⟩ marker(s) |
@@ -196,6 +195,6 @@ _None. Sequencing is clean._
 
 ---
 
-_46 docs (45 accepted) · 260 ADRs · 0 open questions · 265 ⟨tune⟩ markers._
+_46 docs (45 accepted) · 261 ADRs · 0 open questions · 265 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

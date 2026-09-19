@@ -205,6 +205,21 @@ func take_what_leaving_costs() -> void:
 	# the run resolved for this peer, so this peer's run file closes.
 	# Abandoning **is** the run resolving — it is the only one you pay for on
 	# purpose — and it now closes the same way.
+	#
+	# **And it is the churn signal `DES-010` cares about most** (ADR-261):
+	# *"quit-after-death is the churn signal that matters most"*. A run nobody
+	# finished is a different event from one the floor resolved, and it is the
+	# only one of the three that is a person deciding to stop.
+	RunLedger.record(RunLedger.ABANDONED, {
+		"descent": GameState.descents,
+		"class": String(GameState.class_id),
+		"rank": GameState.pact_rank,
+		"floor": RunFile.floor_index(),
+		"party": 1,
+		"extracted_value": 0,
+		"abandoned_value": RunFile.left_behind(),
+		"abandoned_count": RunFile.left_count(),
+	})
 	RunFile.clear()
 
 

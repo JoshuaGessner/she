@@ -8193,6 +8193,20 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = [],
 	# is the only record of the work met on floors this peer has left.
 	var met_on_the_way: PackedStringArray = RunFile.met()
 	var wanted: Dictionary = RunFile.expected()
+	# **`DES-010`'s notebook, read before the run file goes** (ADR-261). Every
+	# field here is either about to be cleared or about to be changed by the
+	# settlement below, so the row is gathered now and written once the outcome
+	# has actually been applied.
+	var left_value: int = RunFile.left_behind()
+	var left_count: int = RunFile.left_count()
+	var reached: int = RunFile.floor_index()
+	var haul: int = 0
+	for row: Variant in packed:
+		# `from_wire`, matching how the same array is read below. `packed` is
+		# `Inventory.pack()`'s output and `from_record` reads the other shape.
+		var came_home: ItemInstance = ItemInstance.from_wire(row as Dictionary)
+		if came_home != null and came_home.definition != null:
+			haul += came_home.definition.tribute_value
 	RunFile.clear()
 	# **Marked before anything is settled** (`M3-T08`, `DES-016`). LINEAGE tier,
 	# so a death does not cost them — and awarding *before* `die()` is what makes
@@ -8232,6 +8246,27 @@ func _take_the_outcome(packed: Array, lost: bool, earned: Array = [],
 		for row: Variant in packed:
 			brought.append(ItemInstance.from_wire(row as Dictionary))
 		GameState.bring_home(brought)
+
+	# **The notebook, written once the outcome has been applied** (`DES-010`,
+	# ADR-261). Four of the six metrics `DES-010` asks for are in this one row,
+	# and so is the per-capita question `DES-012` has been carrying since M3 —
+	# a four-player run bringing home four times as much is not co-op paying
+	# off, it is four bags.
+	#
+	# `lost` is the whole outcome vocabulary this path can produce. A run
+	# abandoned from the pause menu resolves somewhere else and records itself
+	# there, which is why the ledger has three kinds and this writes two.
+	RunLedger.record(RunLedger.DIED if lost else RunLedger.EXTRACTED, {
+		"descent": GameState.descents,
+		"class": String(GameState.class_id),
+		"rank": GameState.pact_rank,
+		"floor": reached,
+		"party": maxi(_session.players().size(), 1),
+		"extracted_value": 0 if lost else haul,
+		"abandoned_value": left_value,
+		"abandoned_count": left_count,
+	})
+
 	# The probes measure this floor rather than the loop leaving it, so they
 	# put it back instead of walking out of the scene they are measuring.
 	if _probing:
