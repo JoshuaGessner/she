@@ -705,6 +705,8 @@ func _ready() -> void:
 	# the ink pass is a clip-space quad that would composite over everyone
 	# else's view if a teammate's copy kept one.
 	_body.visible = not _is_local
+	# And never your own helm: it would stand where the camera is.
+	_rig.show_gear(not _is_local)
 	_ink.visible = _is_local
 	set_process_unhandled_input(_is_local)
 	if _is_local:
@@ -2925,7 +2927,8 @@ func _on_equipment_changed() -> void:
 	var in_hand: ItemInstance = equipment.in_slot(Enums.Slot.MAIN_HAND)
 	# `weakened`, not `scarred`: an enduring relic keeps its Scar's tribute
 	# refusal and not its loss of power (ADR-223).
-	weapon.wield(swung, in_hand != null and in_hand.weakened())
+	weapon.wield(swung, in_hand != null and in_hand.weakened(),
+		in_hand.definition if in_hand != null and swung != null else null)
 	if drawn != null and ranged == null:
 		ranged = RangedWeapon.new()
 		ranged.name = "Bow"
@@ -2935,7 +2938,8 @@ func _on_equipment_changed() -> void:
 	if ranged != null:
 		if drawn == null:
 			ranged.cancel()
-		ranged.equip(drawn)
+		ranged.equip(drawn,
+			in_hand.definition if in_hand != null and drawn != null else null)
 		ranged.visible = drawn != null
 	# **The off hand, which is the contested one** (`M4-T13`, `DES-020`). A
 	# two-hander clears `OFF_HAND` inside `Equipment.equip`, so drawing the bow
@@ -2948,6 +2952,16 @@ func _on_equipment_changed() -> void:
 	var coat := equipment.trait_in(Enums.Slot.BODY, WearableTrait) as WearableTrait
 	_hurtbox.armour = (coat.armour_class if coat != null
 		else Enums.ArmourClass.UNARMOURED)
+	# **What a teammate sees you wearing** (`DES-020`, ADR-265): the helm, the
+	# shield or lantern and the pack, each on its own socket of the rig. Every
+	# peer dresses every body from its own copy of the slots, which `wearing`
+	# already carries, so a party of four in full kit costs no more bandwidth
+	# than four bodies in nothing.
+	var on_the_body: Dictionary = {}
+	for slot: Enums.Slot in BodyRig.SOCKETS:
+		var worn: ItemInstance = equipment.in_slot(slot)
+		on_the_body[slot] = worn.definition if worn != null else null
+	_rig.wear(on_the_body)
 	var carried_light := equipment.trait_in(
 		Enums.Slot.OFF_HAND, LightTrait) as LightTrait
 	lantern.carry(carried_light)

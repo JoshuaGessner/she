@@ -70,6 +70,8 @@ var _scarred: bool = false
 ## Whether the swing now recovering glanced off the world, so it recoils from
 ## where it was raised rather than from a strike that never happened.
 var _glancing: bool = false
+## Whose model is in the hand — see `_show`.
+var _shown: ItemResource = null
 
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _model: Node3D = $Model
@@ -92,11 +94,17 @@ func _ready() -> void:
 ## Scarred blade that also swung slower would be two penalties for one sentence,
 ## and `DES-009`'s timings are what a player reads a fight by. It hits softer;
 ## it does not handle like a different weapon.
-func wield(blade: WieldableTrait, scarred: bool = false) -> void:
-	if _held == blade and _scarred == scarred:
+##
+## `item` is what the blade **looks** like, and it is separate from `blade`
+## because the two answer different questions: the trait is the numbers a swing
+## is made of, the item is the thing a teammate reads the wind-up from.
+func wield(blade: WieldableTrait, scarred: bool = false,
+		item: ItemResource = null) -> void:
+	if _held == blade and _scarred == scarred and _shown == item:
 		return
 	_scarred = scarred
 	_held = blade
+	_show(item)
 	# A weapon that leaves your hand mid-swing takes the swing with it. The
 	# alternative is a hitbox armed by a blade nobody is holding.
 	if _phase != Phase.IDLE:
@@ -106,6 +114,39 @@ func wield(blade: WieldableTrait, scarred: bool = false) -> void:
 
 func held() -> WieldableTrait:
 	return _held
+
+
+## **The weapon in the hand is the weapon's own model** (`M4-T10`, ADR-265).
+##
+## Until the art arrived every blade in the game was one 0.85 m box, so a hammer
+## wound up looking exactly like a seax — and `DES-009`'s whole attack anatomy
+## is that the wind-up is *read*. A hammer is 0.85 m of haft with a head on it
+## and a spear is two metres of ash; a teammate across a room can now tell
+## which is about to land from the silhouette alone, which is `DES-018`'s
+## visual twin for a swing that makes no sound until it hits.
+##
+## Hung at the pose node's origin with no offset: `ART-006` pivots every weapon
+## at its grip pointing −Z, and the poses above were always of a hand, never of
+## a box — the box was the thing standing 0.35 m ahead of it.
+##
+## **No box when there is no model.** `--data-probe` fails any item without
+## one, so a missing model is a build that does not ship rather than a weapon
+## that quietly turns back into blockout (ADR-262).
+func shown() -> ItemResource:
+	return _shown
+
+
+func _show(item: ItemResource) -> void:
+	if item == _shown:
+		return
+	_shown = item
+	for child: Node in _model.get_children():
+		child.free()
+	if item == null:
+		return
+	var look: Node3D = item.look()
+	if look != null:
+		_model.add_child(look)
 
 
 ## Reach is a weapon stat (`DES-009`: *"space is a weapon stat"*), so the hitbox

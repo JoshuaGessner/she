@@ -335,24 +335,12 @@ func _rest_below(space: PhysicsDirectSpaceState3D) -> Vector3:
 ## parallel path ADR-064 bans — and the failure mode is that nobody ever
 ## notices the art is missing.
 func _build_mesh() -> void:
-	var built: Node3D = _definition.model.instantiate() as Node3D
-	built.name = "look"
 	# **The collision the model carries is not this item's collision.** A
 	# `WorldItem` is an `Area3D` with its own shape for the pick-up test, and a
 	# second body from the `-col` suffix would put a solid object in the room
-	# that a player can walk into and shove around. The mesh comes for the
-	# look; the physics is already here.
-	#
-	# **Stripped before it enters the tree, and freed rather than queued.** The
-	# first version did this after `add_child` with `queue_free`, which is two
-	# mistakes in one line: the body had already registered with the physics
-	# server, and the free was deferred to the end of the frame. Every authored
-	# item was a solid obstacle, and `--sight-probe` found all three of them —
-	# "inside solid geometry, standing in `look/collision`". Outside the tree
-	# there is no registration and no window to reason about.
-	for node: Node in built.find_children("*", "PhysicsBody3D", true, false):
-		node.free()
-	add_child(built)
+	# that a player can walk into and shove around. `look()` throws it away,
+	# and says why it has to happen before the tree sees the model.
+	add_child(_definition.look())
 	_build_glimmer()
 
 

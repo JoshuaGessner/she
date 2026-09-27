@@ -117,6 +117,21 @@ const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_",
 ## slots — no lantern, no shield, no map without stowing."* Only meaningful on
 ## a `MAIN_HAND` item, and `validate()` says so.
 @export var two_handed: bool = false
+## **How it sits in the socket that holds it** (`DES-020`, ADR-265), in that
+## socket's own frame — whose −Z is where the thing points and whose +Y is up.
+##
+## `DES-020` settled this before anything was worn: *"the socket stays single,
+## and each item carries its own offset in its `.tres`"*, because `sock_hand_l`
+## carries a shield strapped to the forearm and a lantern hanging from a fist,
+## and no one transform flatters both. So grip is a property of the object, set
+## by a designer, and the rig every other slot depends on is never touched to
+## make a new helm sit right.
+##
+## Identity for a weapon: `ART-006` pivots every weapon at its grip, pointing
+## −Z, which is exactly the socket's convention — so nothing has to be said.
+## Worn gear was modelled to lie on a floor, pivoted at its base, and this is
+## the difference between where it lies and where it is worn ⟨tune⟩.
+@export var grip: Transform3D = Transform3D()
 ## Free-form classifiers systems react to — `"glitter"`, `"dvergar"`,
 ## `"metal"`, `"grave_good"`. DES-008's five loot categories live here rather
 ## than as an enum, because an item is routinely more than one of them.
@@ -156,6 +171,34 @@ func first_trait(type: Script) -> ItemTrait:
 		if is_instance_of(item_trait, type):
 			return item_trait
 	return null
+
+
+## **The model as something to look at, and never as something to bump into**
+## (ADR-262, ADR-265). Null if there is no model.
+##
+## One function for every place an item is drawn — on the floor, in the hand,
+## on a teammate's back — because each of them has to throw the same thing
+## away. The `-col` body a delivered prop carries belongs to the prop lying in a
+## room; a `WorldItem` already has its own pick-up shape, and a helm riding a
+## head or a blade in a hand with a solid in it would shove the body carrying it.
+##
+## **Stripped before it enters the tree, and freed rather than queued.** The
+## first version did this after `add_child` with `queue_free`, which is two
+## mistakes in one line: the body had already registered with the physics
+## server, and the free was deferred to the end of the frame. Every authored
+## item was a solid obstacle, and `--sight-probe` found all three of them —
+## "inside solid geometry, standing in `look/collision`". Outside the tree
+## there is no registration and no window to reason about.
+func look() -> Node3D:
+	if model == null:
+		return null
+	var built := model.instantiate() as Node3D
+	if built == null:
+		return null
+	for node: Node in built.find_children("*", "PhysicsBody3D", true, false):
+		node.free()
+	built.name = "look"
+	return built
 
 
 func validate() -> PackedStringArray:

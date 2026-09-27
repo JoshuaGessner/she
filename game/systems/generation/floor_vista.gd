@@ -160,7 +160,14 @@ func offers(point: Vector3) -> bool:
 ## came first, so the answer is a function of the plan and nothing else
 ## (`TEC-007` §1). Never the entrance, which the walk starts inside, and never
 ## a crawl, which `FloorAnchors.loot` refuses for the reason it gives.
-func best(avoid: Array[Vector3], keep: float) -> Dictionary:
+##
+## Never inside `refused` either: the set dressing's footprints, grown by a
+## body's reach (ADR-265), which are what every other drawn point on the floor
+## is kept out of by `FloorAnchors.keep_out`. The solid pieces also stand in
+## the occluders, but that only stops a spot a cart would *hide*; a glint laid
+## in a coil of rope is hidden by nothing and is still lying in it.
+func best(avoid: Array[Vector3], keep: float,
+		refused: Array[Rect2] = []) -> Dictionary:
 	var entrance: int = _graph.node_with(MissionGraph.Role.ENTRANCE)
 	var found: Dictionary = {}
 	var top := Vector2.ZERO
@@ -177,7 +184,7 @@ func best(avoid: Array[Vector3], keep: float) -> Dictionary:
 			while z <= room.end.z + 0.001:
 				var at := Vector3(x, room.position.y, z)
 				z += STEP
-				if _crowded(at, avoid, keep):
+				if _crowded(at, avoid, keep) or _refused(at, refused):
 					continue
 				var floor_glint := Vector3(at.x, GLINT, at.z)
 				if not clear(floor_glint, floor_glint + Vector3.UP * HEADROOM):
@@ -216,6 +223,13 @@ func clear(from: Vector3, to: Vector3) -> bool:
 			if _crosses(index, from, to):
 				return false
 	return true
+
+
+func _refused(at: Vector3, refused: Array[Rect2]) -> bool:
+	for rect: Rect2 in refused:
+		if rect.has_point(Vector2(at.x, at.z)):
+			return true
+	return false
 
 
 func _crowded(at: Vector3, avoid: Array[Vector3], keep: float) -> bool:

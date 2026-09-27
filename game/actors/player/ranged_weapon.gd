@@ -45,6 +45,8 @@ enum Phase { IDLE, DRAWING, RECOVERY }
 ## so an enemy can read one — so it has to be visible as travel, not as a state.
 const POSE_REST: Array = [Vector3(0.34, -0.30, -0.66), Vector3(4, -8, -6)]
 const POSE_DRAWN: Array = [Vector3(0.16, -0.16, -0.48), Vector3(-2, -26, -2)]
+## How far behind the grip the nocked arrow's middle sits, metres ⟨tune⟩.
+const NOCK_BACK: float = 0.2
 
 var _phase: Phase = Phase.IDLE
 var _remaining: float = 0.0
@@ -52,6 +54,9 @@ var _duration: float = 0.0
 var _model: Node3D = null
 var _nock: MeshInstance3D = null
 var _kit: RangedTrait = null
+## The bow in the hand, and whose model it is — see `equip`.
+var _stave: ItemResource = null
+var _shown: Node3D = null
 
 
 func _ready() -> void:
@@ -59,19 +64,14 @@ func _ready() -> void:
 	_model.name = "Model"
 	add_child(_model)
 
-	# The stave, bent the wrong way round on purpose: a straight box reads as a
-	# stick, and the point of a blockout mesh is that it is unmistakable at a
-	# glance (`DES-009` legibility, ADR-046).
-	var stave := MeshInstance3D.new()
-	var arc := TorusMesh.new()
-	arc.inner_radius = 0.30
-	arc.outer_radius = 0.33
-	stave.mesh = arc
-	stave.rotation_degrees = Vector3(0.0, 90.0, 0.0)
-	_model.add_child(stave)
-
 	# The nocked arrow, present only while drawn. Without it, a drawn bow and a
 	# spent one are the same silhouette and the recovery is invisible.
+	#
+	# **Still blockout, and it is the arrow's own**: `Arrow` flies as the same
+	# shaft, and no arrow was in `ART-006`'s piece list, so the stave is real
+	# and what it looses is not yet (ADR-046's named phase, not a stand-in for
+	# a model that exists). It rests on the stave at the grip and runs back to
+	# the string, which is where the model puts the string.
 	_nock = MeshInstance3D.new()
 	var shaft := CylinderMesh.new()
 	shaft.top_radius = 0.012
@@ -79,6 +79,7 @@ func _ready() -> void:
 	shaft.height = 0.62
 	_nock.mesh = shaft
 	_nock.rotation_degrees.x = 90.0
+	_nock.position.z = NOCK_BACK
 	_model.add_child(_nock)
 
 	_pose(POSE_REST, POSE_REST, 0.0)
@@ -88,8 +89,23 @@ func _ready() -> void:
 ## Give it a bow. A body that cannot shoot has no `RangedWeapon` at all rather
 ## than an unarmed one — see the header — so this is called exactly once, by
 ## `Player._arm_from_kit`, with something real.
-func equip(bow: RangedTrait) -> void:
+##
+## `item` is the stave you see, for `MeleeWeapon.wield`'s reason: the trait is
+## the numbers, the item is the silhouette. The torus that stood here was bent
+## the wrong way round on purpose so a blockout bow could not read as a stick;
+## the yew bow's own model needs no such help (ADR-265).
+func equip(bow: RangedTrait, item: ItemResource = null) -> void:
 	_kit = bow
+	if item == _stave:
+		return
+	_stave = item
+	if _shown != null:
+		_shown.free()
+		_shown = null
+	if item != null and _model != null:
+		_shown = item.look()
+		if _shown != null:
+			_model.add_child(_shown)
 
 
 func kit() -> RangedTrait:

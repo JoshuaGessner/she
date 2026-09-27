@@ -237,6 +237,9 @@ const WALK_LIFT: Vector3 = Vector3(0.0, 1000.0, 0.0)
 ## between a *room centre* and the mesh, and a corner the body only ever gets
 ## 1.4 m from is a corner it did not turn. One body-width and a little ⟨tune⟩.
 const WALK_ARRIVE: float = 1.2
+## Close enough to a corner to call it reached from any side — a body standing
+## on it. See `_turned` for why `WALK_ARRIVE` alone is not a test of arrival.
+const WALK_TOUCH: float = 0.3
 ## Physics frames one leg of a route may take before it is called stalled.
 ##
 ## Generous on purpose, and it costs nothing when the leg is walked in fifty —
@@ -928,6 +931,8 @@ func _ready() -> void:
 			_pad_menu_probe()
 		elif arg == "--body-probe":
 			_body_probe()
+		elif arg.begins_with("--body-shot="):
+			_body_shot(arg.split("=", true, 1)[1])
 		elif arg == "--acoustics-probe":
 			_acoustics_probe()
 		elif arg == "--portal-probe":
@@ -1387,6 +1392,10 @@ func _build_probe() -> void:
 	var navroot := Node3D.new()
 	add_child(navroot)
 	FloorBuilder.build(bake_plan, bake, BAKE_SEED, 0, navroot)
+	# **And the clutter on it** (ADR-265). The pieces are solid and the navmesh
+	# bakes around them, so a bake without them is a bake of a floor nobody
+	# plays on.
+	DelvingsFloor.of(BAKE_SEED, 0).dress(navroot)
 	navroot.add_to_group(GENERATED_NAV_GROUP)
 
 	# `nav_settings` rather than a second list of the same assignments, so this
@@ -1828,6 +1837,10 @@ func _reach_probe() -> void:
 			navroot.position = WALK_LIFT
 			add_child(navroot)
 			FloorBuilder.build(plan, graph, run_seed, depth, navroot)
+			# The set dressing is solid (ADR-265), so the walk crosses the
+			# floor with it laid — a cart that closed a room would be found
+			# here, by a body stopping against it, and nowhere else.
+			DelvingsFloor.of(run_seed, depth).dress(navroot)
 			navroot.add_to_group(GENERATED_NAV_GROUP)
 			var mesh := nav_settings(NavigationMesh.new())
 			mesh.geometry_source_group_name = GENERATED_NAV_GROUP
@@ -2050,6 +2063,8 @@ func _hunter_fit() -> void:
 				navroot.position = WALK_LIFT
 				add_child(navroot)
 				FloorBuilder.build(plan, graph, run_seed, depth, navroot)
+				# With the dressing, for `--reach-probe`'s reason (ADR-265).
+				DelvingsFloor.of(run_seed, depth).dress(navroot)
 				navroot.add_to_group(GENERATED_NAV_GROUP)
 				var mesh := nav_settings(NavigationMesh.new())
 				mesh.agent_radius = shape.x
@@ -2327,7 +2342,7 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 					_yaw_toward(player.global_position, target))
 				player.velocity = carried
 			await get_tree().physics_frame
-			if _planar_gap(player.global_position, target) <= WALK_ARRIVE:
+			if _turned(player.global_position, route[corner - 1], target):
 				arrived = true
 				break
 			# Read while forward is still held: once it is released the body
@@ -2355,6 +2370,32 @@ func _walk_route(player: Player, route: PackedVector3Array) -> Dictionary:
 
 	result["arrived"] = true
 	return result
+
+
+## **Has the body turned this corner, or only come near it?** (ADR-265)
+##
+## Near was the test, within `WALK_ARRIVE` of the corner, and 1.2 m of *near* is
+## a corner cut by up to 1.2 m. At a wall's end the mesh leaves a 0.35 m
+## capsule about a tenth of a metre of slack, so a body that arrived early on
+## the wall's side then walked the next leg straight into the wall's end face —
+## seed 78901 floor 2, *"stopped against `wall_37`"*, on a route that passes the
+## wall 0.47 m clear. It had passed on every run before only because the body
+## happened to come in from the open side; laying the set dressing moved an
+## earlier leg, and it came in from the other.
+##
+## So a corner counts once the body has **reached the line across the leg at
+## the corner**, within `WALK_ARRIVE` of it sideways, or once it is touching
+## it. That is how a person follows a route: they walk to the turn and then
+## turn, and they never turn early into stone.
+static func _turned(at: Vector3, from: Vector3, corner: Vector3) -> bool:
+	if _planar_gap(at, corner) <= WALK_TOUCH:
+		return true
+	var leg := Vector2(corner.x - from.x, corner.z - from.z)
+	if leg.length() < 0.001:
+		return true
+	var along: Vector2 = leg.normalized()
+	var off := Vector2(at.x - corner.x, at.z - corner.z)
+	return off.dot(along) >= 0.0 and absf(off.cross(along)) <= WALK_ARRIVE
 
 
 ## The yaw that points a body's front at `to`.
@@ -3660,6 +3701,11 @@ func _delvings_shot(path: String, ink: bool = false) -> void:
 		["shaft", _floor.shaft(), _nearest_door_light(_floor.shaft())],
 		["prize", _floor.prize(), _nearest_door_light(_floor.prize())],
 	]
+	# And the clutter (ADR-265), from the middle of the room that has most.
+	var dressed := _floor as DelvingsFloor
+	if dressed != null and not dressed.dressing_view().is_empty():
+		views.append(["dressing", dressed.dressing_view()["at"],
+			dressed.dressing_view()["look"]])
 	for view: Array in views:
 		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
 		var look: Vector3 = view[2] as Vector3
@@ -14543,10 +14589,272 @@ func _body_probe() -> void:
 			+ "body is not bending, so a crouched teammate has a short hitbox "
 			+ "and a standing silhouette") % [standing, crouched])
 
+	# ─ 5b. and it bends the way a body bends, facing the way it looks ─
+	#
+	# **Asked in the body's own frame, where forward is −Z** (ADR-265). Every
+	# row above measures a size — a stride, a drop — and a size is the same on
+	# a rig turned round; this one was, for as long as it existed, and the
+	# knees folded forward under a teammate who walked backwards. A crouch puts
+	# the knees in front of the hips and the chest over them, and the eyes are
+	# on the side the body looks.
+	var frame: Transform3D = rig.global_transform.affine_inverse()
+	var hips: Vector3 = frame * rig.bone_at("pelvis")
+	var knee_ahead: float = hips.z - maxf((frame * rig.bone_at("calf_l")).z,
+		(frame * rig.bone_at("calf_r")).z)
+	var chest_ahead: float = hips.z - (frame * rig.bone_at("neck")).z
+	var eyes_ahead: float = (frame * rig.bone_at("neck")).z \
+		- (frame * rig.socket_at(Enums.Slot.HEAD)).z
+	print("[body] the fold     knees %.2f m and chest %.2f m ahead of the hips, "
+		% [knee_ahead, chest_ahead] + "eyes %.2f m ahead of the neck" % eyes_ahead)
+	if knee_ahead < 0.15:
+		problems.append(("a crouched body's knees are %.2f m in front of its hips "
+			+ "— knees that fold backwards are a bird's, and they are what a body "
+			+ "facing the wrong way does") % knee_ahead)
+	if chest_ahead < 0.05:
+		problems.append(("a crouched body's chest is %.2f m in front of its hips, "
+			+ "so it leans back from what it is crouching at") % chest_ahead)
+	if eyes_ahead < 0.05:
+		problems.append(("the eyes are %.2f m in front of the neck — the face is "
+			+ "on the side of the body away from where it looks") % eyes_ahead)
+
+	# Stood back up, so the rows below measure a body at rest rather than one
+	# folded over its own knees.
+	for _i: int in 60:
+		rig.step(0.016, 0.0, Config.tuning.walk_speed, 0.0, 0.0, false)
+	problems.append_array(await _body_wears(body))
+
 	for problem: String in problems:
 		printerr("[body] FAIL %s" % problem)
 	print("[body] a teammate is a body, and the body moves")
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **What the body wears, and where it lands** (`DES-020`, ADR-265) — the half
+## of `--body-probe` that asks about gear.
+##
+## Asked of **where the model ended up**, in the rig's own space, and never of
+## the transform that was asked for. A grip is item data and the item is art
+## that is still being revised, so a helm re-exported at a new height keeps its
+## old grip and floats — and a row that read the grip back would pass it. The
+## claims are the physical ones: a helm covers the crown, a lantern hangs from
+## the fist, a pack is on the back, and what is in the hand is the weapon's own
+## model rather than the box every weapon used to be.
+##
+## Measured in the body's frame, where forward is −Z like every gameplay node,
+## so behind it is +Z.
+func _body_wears(body: Player) -> PackedStringArray:
+	var problems := PackedStringArray()
+	var rig: BodyRig = body.rig()
+	var into: Transform3D = rig.global_transform.affine_inverse()
+	var helm: ItemResource = ItemCatalogue.by_id(&"arm_spangen_helm")
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	var shield: ItemResource = ItemCatalogue.by_id(&"arm_round_shield")
+	var frame: ItemResource = ItemCatalogue.by_id(&"arm_pack_frame")
+	var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+	var bow: ItemResource = ItemCatalogue.by_id(&"wpn_yew_bow")
+	for item: ItemResource in [helm, lamp, shield, frame, seax, bow]:
+		if item == null:
+			problems.append("an item the gear rows dress the body in is not in "
+				+ "the catalogue, so nothing below measured anything")
+			return problems
+	var gear: Equipment = body.equipment
+	gear.clear()
+	gear.equip(ItemInstance.of(seax, 9500))
+	gear.equip(ItemInstance.of(helm, 9501))
+	gear.equip(ItemInstance.of(lamp, 9502))
+	gear.equip(ItemInstance.of(frame, 9503))
+	# Two frames, because a `BoneAttachment3D` follows its bone on the
+	# skeleton's own update and not on the frame it was made.
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	# ─ 6. the helm covers the crown ─
+	var crown: float = 1.80
+	var head_at: Vector3 = into * rig.socket_at(Enums.Slot.HEAD)
+	var on_head: AABB = _worn_bounds(rig, Enums.Slot.HEAD, into)
+	print("[body] the helm     %.2f..%.2f m up, centred %.2f m behind the eyes"
+		% [on_head.position.y, on_head.end.y,
+			on_head.get_center().z - head_at.z])
+	if not on_head.has_volume():
+		problems.append("the helm is in the slot and nothing is on the head")
+	elif on_head.position.y >= crown or on_head.end.y <= crown \
+			or absf(on_head.get_center().x - head_at.x) > 0.05 \
+			or on_head.get_center().z < head_at.z:
+		problems.append(("the helm stands %.2f..%.2f m up and %.2f m aside, "
+			+ "and a helm has to cover a %.2f m crown and sit behind the eyes — "
+			+ "its grip no longer fits its model") % [on_head.position.y,
+				on_head.end.y, on_head.get_center().x - head_at.x, crown])
+
+	# ─ 7. a lantern hangs from the fist ─
+	var fist: Vector3 = into * rig.socket_at(Enums.Slot.OFF_HAND)
+	var lit: AABB = _worn_bounds(rig, Enums.Slot.OFF_HAND, into)
+	print("[body] the lantern  top %.2f m against a fist at %.2f m, foot %.2f m"
+		% [lit.end.y, fist.y, lit.position.y])
+	if not lit.has_volume():
+		problems.append("the lantern is in the off hand and nothing is in it")
+	elif absf(lit.end.y - fist.y) > 0.15 or lit.position.y > fist.y - 0.2:
+		problems.append(("the lantern's top is at %.2f m and its foot at %.2f m "
+			+ "for a fist at %.2f m — a lantern carried by its handle hangs "
+			+ "below the hand, and this one is floating or buried in the arm")
+			% [lit.end.y, lit.position.y, fist.y])
+
+	# ─ 8. a pack is on the back ─
+	var back: Vector3 = into * rig.socket_at(Enums.Slot.PACK)
+	var packed: AABB = _worn_bounds(rig, Enums.Slot.PACK, into)
+	print("[body] the pack     %.2f..%.2f m deep against a back at %.2f m"
+		% [packed.position.z, packed.end.z, back.z])
+	if not packed.has_volume():
+		problems.append("the pack frame is worn and nothing is on the back")
+	elif packed.position.z < back.z - 0.05 or packed.position.y > back.y \
+			or packed.end.y < back.y:
+		problems.append(("the pack spans z %.2f..%.2f and y %.2f..%.2f for a "
+			+ "back at z %.2f, y %.2f — it is inside the body or off it")
+			% [packed.position.z, packed.end.z, packed.position.y,
+				packed.end.y, back.z, back.y])
+
+	# ─ 9. a shield is on the arm, face forward ─
+	gear.equip(ItemInstance.of(shield, 9504))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var guarded: AABB = _worn_bounds(rig, Enums.Slot.OFF_HAND, into)
+	print("[body] the shield   %.2f m thick, fist %s inside it"
+		% [guarded.size.z, "is" if guarded.grow(0.1).has_point(fist) else "is not"])
+	if not guarded.grow(0.1).has_point(fist) or guarded.size.z > 0.3:
+		problems.append(("the shield spans %s for a fist at %s — a shield on "
+			+ "the arm has the hand inside it and its face to the front")
+			% [guarded, fist])
+
+	# ─ 10. the hand holds the weapon, not a box ─
+	var blade: Node = body.weapon.get_node("Model")
+	print("[body] the hand     %s, %d node(s) under the grip"
+		% [body.weapon.shown().id if body.weapon.shown() != null else "empty",
+			blade.get_child_count()])
+	if body.weapon.shown() != seax or blade.get_child_count() != 1 \
+			or blade.find_children("*", "MeshInstance3D", true, false).is_empty():
+		problems.append("the seax is in the main hand and the hand is not "
+			+ "drawing the seax's own model")
+	gear.equip(ItemInstance.of(bow, 9505))
+	await get_tree().process_frame
+	var stave: Node = body.ranged.get_node("Model") if body.ranged != null else null
+	var stave_high: float = 0.0
+	if stave != null:
+		for node: Node in stave.find_children("*", "MeshInstance3D", true, false):
+			stave_high = maxf(stave_high,
+				(node as MeshInstance3D).get_aabb().size.y)
+	print("[body] the bow      a stave %.2f m tall" % stave_high)
+	if stave_high < 1.0:
+		problems.append(("the bow is drawn and the tallest thing in the hand is "
+			+ "%.2f m — that is not a 1.65 m yew stave, and the torus that stood "
+			+ "in for one is gone") % stave_high)
+
+	# ─ 11. nothing in a hand or on a back is solid ─
+	var solid: int = rig.find_children("*", "PhysicsBody3D", true, false).size() \
+		+ body.weapon.find_children("*", "PhysicsBody3D", true, false).size()
+	if body.ranged != null:
+		solid += body.ranged.find_children("*", "PhysicsBody3D", true, false).size()
+	# ─ 12. and your own gear is never drawn over your own eyes ─
+	var drawn: bool = rig.gear_shown()
+	print("[body] carried      %d solid(s) on the body, own gear %s"
+		% [solid, "drawn" if drawn else "hidden"])
+	if solid > 0:
+		problems.append(("%d collision bod(ies) rode in on worn and held models "
+			+ "— a helm with a solid in it shoves the head it is on") % solid)
+	if drawn:
+		problems.append("the body this process plays is drawing its own gear, "
+			+ "and its helm stands where its camera is")
+	gear.clear()
+	return problems
+
+
+## **`--body-shot=PATH`** (ADR-265): a dressed teammate, seen by you.
+##
+## Three frames — the teammate facing you in helm, pack and lantern with an axe
+## in hand; turned side-on with the shield, so the pack and the arm both show;
+## and your own view with the bow up. Every row in `--body-probe` is a claim
+## about bounding boxes, and whether a helm reads as a helm is not one of them
+## (ADR-093: a picture has caught what a probe could not five times).
+func _body_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var ahead: Vector3 = -player.global_transform.basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var mate: Player = _session.spawn_player(2,
+		player.global_position + ahead * 2.4)
+	if mate == null:
+		printerr("[body] FAIL no teammate could be spawned to photograph")
+		get_tree().quit(1)
+		return
+	for _i: int in 6:
+		await get_tree().physics_frame
+	# Placed rather than trusted: a spawn is free to shuffle a body clear of
+	# another, and at six metres a helm is four pixels.
+	#
+	# **A remote body goes where the wire says**, so it is turned by writing
+	# the wire: `face_toward` is the owner's and a teammate's copy eases back to
+	# `net_yaw` whatever is done to it directly.
+	mate.net_position = player.global_position + ahead * 2.0
+	mate.global_position = mate.net_position
+	mate.net_yaw = atan2(ahead.x, ahead.z)
+	player.face_toward(mate.global_position + Vector3.UP * 1.2)
+	var gear: Equipment = mate.equipment
+	gear.clear()
+	for id: StringName in [&"wpn_bearded_axe", &"arm_spangen_helm",
+			&"tol_horn_lantern", &"arm_pack_frame"]:
+		gear.equip(ItemInstance.of(ItemCatalogue.by_id(id), 9600))
+	mate.lit = true
+	player.equipment.clear()
+	player.equipment.equip(ItemInstance.of(
+		ItemCatalogue.by_id(&"wpn_seax"), 9610))
+	# Your own lamp, so the teammate is lit from the side you stand on rather
+	# than drawn as a silhouette against the room's.
+	player.equipment.equip(ItemInstance.of(
+		ItemCatalogue.by_id(&"tol_horn_lantern"), 9612))
+	player.lit = true
+	await _hold(0.4)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-hand.png"))
+	# Then drawn in close, because the claim is about a helm and a fist.
+	var eye := player.get_node("Head/Camera3D") as Camera3D
+	eye.fov = 42.0
+	player.face_toward(mate.global_position + Vector3.UP * 1.1)
+	await _hold(0.2)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+
+	# Side-on, left side to you, so the shield's face and the pack both show.
+	mate.net_yaw = atan2(ahead.x, ahead.z) - PI * 0.5
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_round_shield"), 9601))
+	await _hold(0.4)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-side.png"))
+
+	player.equipment.equip(ItemInstance.of(
+		ItemCatalogue.by_id(&"wpn_yew_bow"), 9611))
+	eye.fov = 75.0
+	await _hold(0.4)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-bow.png"))
+	print("[body] shot %s" % path)
+	get_tree().quit(0)
+
+
+## The rig-space bounds of whatever rides `slot`, or an empty box.
+func _worn_bounds(rig: BodyRig, slot: Enums.Slot, into: Transform3D) -> AABB:
+	var look: Node3D = rig.worn_on(slot)
+	var out := AABB()
+	if look == null:
+		return out
+	var first: bool = true
+	for node: Node in look.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		var box: AABB = into * (mesh.global_transform * mesh.get_aabb())
+		out = box if first else out.merge(box)
+		first = false
+	return out
 
 
 ## A tap of the ping key, pressed and released a frame apart, as a hand does.

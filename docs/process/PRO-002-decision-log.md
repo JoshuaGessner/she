@@ -9966,5 +9966,77 @@ Four of those six describe a *different building* rather than a worse one — wa
 - **The set dressing is still delivered and unused.** There is no scatter system in the generator at all; that is a feature, not a seam, and it is the next one.
 - **Cost.** 9,453 pieces over 5,523 slabs across nine floors — roughly 1,050 extra draw calls on a busy floor, all frustum-cullable, LODs generated on import. Not measured against a frame budget yet, and the first thing to look at if one bites.
 
+## ADR-265 — Everything delivered is in the game, and a teammate stops walking backwards
+
+**Date:** 2026-09-25 · **Status:** accepted · **Advances `M4-T10`** · **Implements `DES-020`'s grip and sockets** · **Developer's brief**
+
+**Context:** ADR-262 used the 25 item models on the floor and ADR-263 stood eight kit modules up as architecture. What was left was every model that was delivered and seen by nobody: the weapons in a hand, the gear on a body, and all seven pieces of set dressing. The brief was *get them all set and being used in game, thoroughly, on the patterns we have.*
+
+### The hand holds the weapon's own model
+
+Every blade in the game was one 0.85 m box, so a hammer wound up looking exactly like a seax — and `DES-009`'s attack anatomy is that the wind-up is **read**. `MeleeWeapon` and `RangedWeapon` now hang the held item's model at the pose node, with no offset, because `ART-006` pivots every weapon at its grip pointing −Z and the poses were always of a hand. The box is **deleted** from `player.tscn` and the bow's torus with it (ADR-064, on ADR-262's argument). The nocked arrow stays a cylinder: no arrow was in the piece list, and `Arrow` flies as the same shaft.
+
+`ItemResource.look()` is now the one place a model becomes something to look at, collision stripped before it enters the tree. The floor, the hand and the back all called it, and ADR-262's postscript is why that rule must not be written three times.
+
+### A teammate wears what their slots hold
+
+`DES-020` decided the offsets before anything was worn: *"the socket stays single, and each item carries its own offset in its `.tres`."* That is now `ItemResource.grip`, set on the helm, the shield, the lantern and both packs. `BodyRig.wear` hangs them on `sock_head`, `sock_hand_l` and `sock_back` on every peer, from the equipment the wire already carries, so four bodies in full kit cost the bandwidth four bodies in nothing did.
+
+**Three rows of `DES-020`'s table are not on the rig, each for a stated reason:**
+
+- **Main hand** — the weapon a teammate sees is the one in front of the head, because that copy runs the phase machine and its wind-up is the telegraph. A second blade on `sock_hand_r` would hang still while the first one struck. Recorded as **Q114**.
+- **Body and arms** — `DES-020` makes both *skinned*. What was delivered for them are props modelled to lie on a floor; bolted to a bone, a mail shirt is a sandwich board. They wait for skinned meshes, which `ART-006` §5.4 asks before starting.
+- **Hips** — nothing is *stowed*. A weapon not in the hand is in the bag.
+
+### Hanging the first helm found two faults in the rig that were already there
+
+`--body-probe` measured stride and crouch as **distances**, and a distance is the same on a body turned round. So when gear went on and the probe asked *where* it had landed:
+
+1. **Every pose threw the arms out.** `_turn` set a bone's pose to the swing alone, which is its rest pose only if its rest rotation is identity — true of the legs, false of the arms, which rest in a twisted A-pose. Every teammate's fist stood at **1.54 m** instead of 1.07 m. Fixed by composing the swing onto the rest.
+2. **Every teammate walked backwards.** glTF assets face **+Z** and every gameplay node faces −Z — `humanoid_rig_measurements.md` says so in as many words — and the rig was never turned. A teammate's face was on the far side from where they looked, with their blade hanging behind them. The swing axis had been taken as skeleton +X, which on a +Z-facing rig is its **left**, so the pose signs were written against a body that did not exist: knees folded forward, and looking up nodded down. The rig is turned to −Z, swings about its own right, and the three signs that depended on the old frame are corrected.
+
+Neither was visible to any existing row. The probe now asks the physical claims — a crouch puts the knees in front of the hips, the chest leans over them, the eyes are on the side the body looks — along with where each piece lands: **a helm covers the crown, a lantern hangs from the fist, a pack is on the back, a shield has the fist inside it, and your own gear is never drawn over your own eyes.** `--body-shot` photographs a dressed teammate, which is how the second fault was found: a pack on the wrong side of a body.
+
+**Five plants, five caught**: the rig unturned; the pose replacing the rest; your own gear drawn; the hand showing nothing; the grip ignored.
+
+### The set dressing is laid against the walls, solid
+
+`FloorDressing` is the scatter ADR-263 named as *"a feature, not a seam."* One piece per wall cell drawn from the position (`DelvingsKit._draw`, so every peer lays the same carts, `TEC-004`), long side along the wall, back to the stone.
+
+**Solid, because an ore cart you walk through is Principle 6 failed by a prop.** `FloorBuilder._mark` lays the fallen with no collision because you step over a body; a metre of iron is not stepped over. Every piece keeps its `-colonly` proxy and the navmesh bakes around it, except the one a body *can* step over — the rope coil at 8 cm, under the player's 0.10 m climb — because as a solid it would stop a walking body dead on the flat.
+
+So the rules are all about **passage**, and they read the solids the builder laid rather than a second copy of where it puts openings:
+
+- **Stone behind the whole width**, which is what keeps a piece out of every doorway and alcove mouth without either being named.
+- Not within 2.2 m of a doorway cell's middle, so the threshold and the step in are clear. Not within 1.0 m of a ledge, its ramp, a cut corner or a crossing ramp, and never under a deck (the refuge `TEC-008` §3.3.1 built it for).
+- Only in rooms three cells across both ways — two pieces on facing walls still leave 2.7 m, three body-widths.
+- **Never in a machine's room**, which is a sentence, or a crawl. ⟨tune⟩ throughout.
+
+### The anchors were drawing a new floor every time they were asked
+
+The first version kept the dressing clear of every point the floor places — spawns, posts, coins, the Waystone — by asking the functions `RoomSet` places from. The probe then found things lying inside pieces, and the reason is a fault in how the floor is described rather than in the dressing: **`FloorAnchors._within` draws from a shared stream, so every call to `posts()` or `loot()` returns different points.** Asking for them to keep clear of them moved every post and coin on the floor, and the list kept clear was a list of points the floor then did not use.
+
+So the order is the other way round. The dressing is laid in `DelvingsFloor.of`, **before anything is drawn**, from only the points that come off no stream — the room centres, the spawn grid, the Warden's doorway post, the machines' rings — and `FloorAnchors.keep_out` makes every drawn point draw again if it lands within a body's reach of a piece. An undressed room reads the stream exactly as it did. The vista refuses the same ground, and sees the solid pieces as occluders, so a cart between the walk and a glint is a sight that is not there.
+
+> The draw-per-call shape is not new and is not fixed here: it predates this ADR, every peer runs the same calls in the same order, and `TEC-004` holds. But it means **the order `DelvingsFloor`'s questions are asked in is part of the floor** — which is a hazard worth naming for the next thing that asks one.
+
+### Measured
+
+`dressing_probe` (a scene, because `DelvingsFloor` reaches actors that read `Config`, and a `--script` probe has no autoloads): **301 pieces over 27 floors**, none bare; **0** inside a solid, **0** without stone behind them, **0** in a threshold, **0** things placed on purpose under one, **0** in a machine's room; solidity right on all 301; one seed laid twice identically; **7 of 7 pieces in use**. Each row asks the physical claim and never reads the placement's constants — ADR-263 found a row that measured itself. **Six plants, six caught**: no stone behind a piece; every piece solid; the anchors ignoring the dressing; machines' rooms dressed; ledges and ramps ignored; and the doorway rule removed — which the doorway row first **passed**, because it measured the opening alone and the stone-behind rule keeps a piece out of the opening by itself. It now measures the opening and a body either side of it, and catches 98.
+
+`--build-probe` bakes its floor with the dressing: every room on the mesh, 5 of 5 ledges reachable. **627 vertices bare — ADR-263's number exactly — and 686 dressed.** That is a real change in what Recast is handed, and it is the point: the pieces are solids, so the mesh goes round them. `--hunter-fit` lays the same pieces: **24 of 24 floors** route entrance to Shaft for a 0.55 × 2.00 m Hunter. `--reach-probe` lays them too and walks them: **24 floors routed, 0 refused; 9 of 9 crossed by the player capsule, 491 legs.**
+
+**The walk found a fault in itself on the way.** With the dressing laid, seed 78901 floor 2 stopped against `wall_37` fifteen legs in — on a route that passes that wall's end 0.47 m clear, identical with and without the dressing (no piece within 8 m). The probe counted a corner reached anywhere within **1.2 m** of it, and at a wall's end the mesh leaves a 0.35 m capsule about a tenth of a metre of slack, so a body that "arrived" early on the wall's side walked the next leg straight into the end face. It had passed on every run before because the body happened to come in from the open side; the dressing moved an earlier leg and it came in from the other. A corner now counts once the body has reached **the line across the leg at the corner** (or is standing on it) — which is how a person follows a route — and the floor walks 80 of 80.
+
+### What is still not used, and why
+
+- **Six kit modules**, for ADR-263's reasons — each describes a different building, and `--kit-probe` still recounts them. Nothing here changed that.
+- **The Deep and the Lair are undressed.** The Deep is hand-built with its landmarks in ADR-046's blockout phase, and the camp is her ground, not a mine.
+- **Q113 can now be answered by looking.** There is a dressed room; the first shots read as clutter against a wall rather than scribble, but that is a screenshot and not a session.
+
+### Cost
+
+About a day. Per floor, roughly 10–15 extra scene instances with a trimesh collider each, frustum-cullable; not measured against a frame budget, alongside ADR-263's 1,050 draw calls.
+
 *Entries below to be added as design decisions are signed off.*
 

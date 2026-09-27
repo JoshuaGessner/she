@@ -260,7 +260,7 @@ var _alcoves_cut: int = 0
 var _ledges_raised: int = 0
 var _fallen_laid: int = 0
 var _hazards_laid: int = 0
-## Every solid slab laid, as `[Transform3D, size]` — see `occluders`.
+## Every solid slab laid, as `[Transform3D, size, role]` — see `occluders`.
 var _occluders: Array = []
 
 
@@ -318,7 +318,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 	}
 
 
-## **The same floor as data**: every solid slab as `[Transform3D, size]`, with no
+## **The same floor as data**: every solid slab as `[Transform3D, size, role]`, with no
 ## node made (`M4-T28`, ADR-215).
 ##
 ## For `FloorVista`, which has to know what a sightline crosses before a single
@@ -1072,7 +1072,9 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	# Recorded whether or not it is laid, from the same numbers the node gets:
 	# a tilt replaces the yaw, exactly as `node.basis` does below.
 	var turned: Basis = tilt if tilt != Basis() else Basis(Vector3.UP, yaw)
-	_occluders.append([Transform3D(turned, centre), size])
+	# The role rides along third, for `FloorDressing`: a piece stands against a
+	# wall and keeps off a ledge, and a box alone cannot say which it is.
+	_occluders.append([Transform3D(turned, centre), size, role])
 	if _into == null:
 		_slabs += 1
 		return

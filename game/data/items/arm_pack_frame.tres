@@ -21,5 +21,6 @@ icon = ExtResource("99_icon")
 model = ExtResource("100_model")
 tribute_value = 5
 slot = 6
+grip = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.6, 0.19)
 traits = Array[ExtResource("2_pack")]([SubResource("Resource_pack")])
 tags = Array[StringName]([&"gear", &"wood", &"hide"])

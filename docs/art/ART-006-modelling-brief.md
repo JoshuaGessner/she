@@ -4,7 +4,7 @@ title: Modelling Brief — for an Agent Building Assets
 status: accepted
 owner: art
 tags: [art, assets, brief, modelling, specs, blender, gltf]
-updated: 2026-09-18
+updated: 2026-09-25
 related: [ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002]
 ---
 
@@ -332,6 +332,20 @@ None of the six is wrong as a model. Four of them describe a *different building
 **The lesson for §5 is to state the construction, not only the piece.** "Alcove, 2.0 × 0.6 × 2.2" was met exactly and still does not fit, because the number nobody wrote down was how deep the recess is in the level.
 
 **And one thing the delivery got right that this brief had missed**: the kit's collision proxies are not wanted. The game hangs the *render mesh* on solids it already has, because ten short colliders where there was one long one is a worse navmesh input, not a neutral one. Keep shipping the `-colonly` proxies — `art_probe` requires them and the Lair and prop pipelines use them — but know that the architecture modules' proxies are discarded on placement.
+
+## 6b. What the rest of the delivery taught it (ADR-265)
+
+Everything else went in. **The weapons are in the hand**: the first-person blade and bow are the weapon's own model, pivoted at the grip exactly as §2.1 asks, so no weapon needs an offset. **Worn gear is on the rig**: a teammate's helm rides `sock_head`, a shield or lantern `sock_hand_l`, a pack `sock_back`. **The set dressing is laid**: `FloorDressing` stands pieces against the walls of generated rooms, solid, and the navmesh bakes around them. `dressing_probe` recounts which of the seven are in use every sweep.
+
+Three things the brief should now say, because each was a guess at delivery time:
+
+| | What was delivered | What the game needed |
+|---|---|---|
+| **Worn gear's pivot** | Base centre, like any prop — right for the model lying on a floor | A second transform, where it is *worn*. That is item data (`ItemResource.grip`, `DES-020`), not a second export, so keep delivering base-centre pivots — but **know that re-exporting a helm at a new height moves it on the head**, and `--body-probe` is what says so. |
+| **Set dressing's footprint** | Pieces up to 1.75 × 1.35 m | Every piece is laid **long side along a wall**, back to the stone. A piece more than ~1.4 m deep takes too much of a 6 m room; a piece meant to stand free of a wall has nowhere to go. |
+| **Height is solidity** | Collision on everything | A piece a body could step over (under 0.10 m — the rope coil) is laid **without** its collision, because a solid 8 cm coil stops a walking body dead. Everything taller is solid. |
+
+**Body and arms armour are not on the rig**, and cannot be from what was delivered: `DES-020` makes those two slots *skinned*, and the byrnie and bracers are props modelled to lie on a floor. They need meshes weighted to `humanoid_rig.glb` — which is §5.4, part of `M4-T10`, and asks first.
 
 ## 7. When this brief is wrong
 

@@ -91,6 +91,24 @@ const POSED: Array[String] = [
 	"upper_arm_l", "upper_arm_r", "forearm_l", "forearm_r",
 ]
 
+## **Which socket each worn slot rides** (`DES-020`'s attachment table,
+## ADR-265).
+##
+## Three of the table's rows. The other three are absent on purpose rather than
+## waiting: **the main hand** is already drawn, by `MeleeWeapon` and
+## `RangedWeapon` in front of the head, because that copy is the one that swings
+## and a teammate reads the wind-up off it — a second blade on `sock_hand_r`
+## would hang still while the first one struck. **Body and arms** are *skinned*
+## in `DES-020`, deforming with the torso and forearm, and what was delivered
+## for them is a mail shirt and a pair of bracers modelled to lie on a floor;
+## bolted rigidly to a bone they would be a coat of mail worn as a sandwich
+## board. They wait for skinned meshes on this rig, which is `ART-006` §5.4.
+const SOCKETS: Dictionary = {
+	Enums.Slot.HEAD: &"sock_head",
+	Enums.Slot.OFF_HAND: &"sock_hand_l",
+	Enums.Slot.PACK: &"sock_back",
+}
+
 ## What a living teammate is made of. Kept in the scene rather than here
 ## because it is the one value on this body a designer would argue about:
 ## lighter than every enemy state (0.20–0.52) and darker than the telegraph
@@ -109,10 +127,22 @@ var _rest_y: float = 0.0
 var _phase: float = 0.0
 var _gait: float = 0.0
 var _breath: float = 0.0
+## Slot -> the `BoneAttachment3D` carrying it, and slot -> whose model it is.
+var _sockets: Dictionary = {}
+var _worn: Dictionary = {}
+var _gear_shown: bool = true
 
 
 func _ready() -> void:
-	var body: Node = RIG.instantiate()
+	var body := RIG.instantiate() as Node3D
+	# **Turned round to face the way the body faces** (ADR-265). glTF assets
+	# face +Z and every gameplay node faces −Z (`humanoid_rig_measurements.md`
+	# says so in as many words), so an unturned rig walks backwards: a
+	# teammate's face on the side away from where they look, their blade
+	# hanging behind them and their pack on their chest. Nothing measured it —
+	# the stride is fore-and-aft either way — until gear went on the sockets
+	# and a picture showed a pack on the wrong side of a body.
+	body.rotation.y = PI
 	add_child(body)
 	_skeleton = _find_skeleton(body)
 	if _skeleton == null:
@@ -133,8 +163,15 @@ func _ready() -> void:
 		# skeleton space, so its inverse carries the body's left-right axis the
 		# other way — which is the axis a hip or a shoulder actually turns on,
 		# whatever pose the rig was exported in.
+		#
+		# **The rig's own right, which is skeleton −X.** The rig faces +Z, so
+		# its right hand is at −X (`sock_hand_r` is at x −0.46); taking +X
+		# called its left hand its right and turned every sign in `step()`
+		# over. About the right-hand side, a positive turn swings a hanging
+		# limb *forward* and tips an upright one *back* — which is the one
+		# convention every sign below is written in.
 		var rest: Basis = _skeleton.get_bone_global_rest(index).basis
-		_swing[name] = (rest.inverse() * Vector3.RIGHT).normalized()
+		_swing[name] = (rest.inverse() * Vector3.LEFT).normalized()
 	if _bone.has("pelvis"):
 		_rest_y = _skeleton.get_bone_global_rest(_bone["pelvis"]).origin.y
 
@@ -182,6 +219,100 @@ func pelvis_height() -> float:
 	return _skeleton.get_bone_global_pose(_bone["pelvis"]).origin.y
 
 
+## **Put on what the slots hold** (`DES-020`, ADR-265): slot -> `ItemResource`
+## or null, for the slots in `SOCKETS`.
+##
+## Called down by the body on every change to its equipment, on every peer, so
+## a remote teammate's helm arrives with the slot that says they wear one and
+## goes with it. Only a slot whose item *changed* is rebuilt — equipment changes
+## for reasons that have nothing to do with the head, and instancing the helm
+## again every time the bag reshuffles would be a model built per pick-up.
+##
+## Each model rides its socket at the item's own `grip`. A socket the rig does
+## not have is skipped with a warning rather than a crash, for `_turn`'s reason:
+## a re-export that drops a bone should lose that gear, not the body.
+func wear(items: Dictionary) -> void:
+	if _skeleton == null:
+		return
+	for slot: Enums.Slot in SOCKETS:
+		var item: ItemResource = items.get(slot, null) as ItemResource
+		if _worn.get(slot, null) == item:
+			continue
+		_worn[slot] = item
+		var socket: BoneAttachment3D = _socket(slot)
+		if socket == null:
+			continue
+		for child: Node in socket.get_children():
+			child.free()
+		if item == null:
+			continue
+		var look: Node3D = item.look()
+		if look == null:
+			continue
+		look.transform = item.grip
+		socket.add_child(look)
+
+
+## Draw the gear or not. Off for the body you are inside, for the reason its
+## skin is: your own helm stands where your camera is.
+func show_gear(on: bool) -> void:
+	_gear_shown = on
+	for slot: Enums.Slot in _sockets:
+		(_sockets[slot] as Node3D).visible = on
+
+
+## Where a bone's head is now, in world space — for the checks that ask which
+## way a knee went, which `stride_reach` cannot, since it measures a distance.
+func bone_at(name: String) -> Vector3:
+	if _skeleton == null:
+		return global_position
+	var index: int = _skeleton.find_bone(name)
+	if index < 0:
+		return global_position
+	return _skeleton.global_transform * _skeleton.get_bone_global_pose(index).origin
+
+
+func gear_shown() -> bool:
+	return _gear_shown
+
+
+## Where the socket for `slot` is now, in world space — posed, not at rest, so
+## a check against it measures the body a teammate is actually looking at.
+func socket_at(slot: Enums.Slot) -> Vector3:
+	if _skeleton == null or not SOCKETS.has(slot):
+		return global_position
+	var index: int = _skeleton.find_bone(SOCKETS[slot])
+	if index < 0:
+		return global_position
+	return _skeleton.global_transform * _skeleton.get_bone_global_pose(index).origin
+
+
+## The model riding `slot`, or null — for `--body-probe`, which asks where it
+## actually landed rather than what was asked for.
+func worn_on(slot: Enums.Slot) -> Node3D:
+	var socket: BoneAttachment3D = _sockets.get(slot, null) as BoneAttachment3D
+	if socket == null or socket.get_child_count() == 0:
+		return null
+	return socket.get_child(0) as Node3D
+
+
+## The attachment for one slot, made the first time it is asked for.
+func _socket(slot: Enums.Slot) -> BoneAttachment3D:
+	if _sockets.has(slot):
+		return _sockets[slot]
+	var bone: StringName = SOCKETS[slot]
+	if _skeleton.find_bone(bone) < 0:
+		push_warning("BodyRig: the rig has no socket '%s'" % bone)
+		return null
+	var socket := BoneAttachment3D.new()
+	socket.name = String(bone)
+	socket.bone_name = bone
+	socket.visible = _gear_shown
+	_skeleton.add_child(socket)
+	_sockets[slot] = socket
+	return socket
+
+
 ## The surface a skin override is applied to — the faint teammate, the Vörðr and
 ## the body that got out all dress this (`Player._dress_as_out`).
 func mesh() -> MeshInstance3D:
@@ -220,16 +351,20 @@ func step(delta: float, speed: float, of_walking: float, stance: float,
 	# that reads as a puppet rather than as a person.
 	_turn("upper_arm_l", -swing * (ARM_SWING / THIGH_SWING))
 	_turn("upper_arm_r", swing * (ARM_SWING / THIGH_SWING))
-	_turn("forearm_l", -absf(swing) * 0.35)
-	_turn("forearm_r", -absf(swing) * 0.35)
+	# Elbows bend forward, which for a hanging forearm is the positive sense.
+	_turn("forearm_l", absf(swing) * 0.35)
+	_turn("forearm_r", absf(swing) * 0.35)
 
+	# An upright segment tips *back* on a positive turn, so a body folding
+	# forward over its knees is a negative one.
 	var lean: float = stance * 0.28 + (DOWNED_PITCH if downed else 0.0)
-	_turn("spine_01", lean * 0.45)
-	_turn("chest", lean * 0.35 + sin(_breath) * BREATH_RADIANS * (1.0 - _gait))
+	_turn("spine_01", -lean * 0.45)
+	_turn("chest", -lean * 0.35 + sin(_breath) * BREATH_RADIANS * (1.0 - _gait))
 	# The head keeps looking where the eyes are while the spine folds under it,
-	# so the two have to cancel rather than compound.
-	_turn("neck", pitch * NECK_PITCH_SHARE - lean * 0.4)
-	_turn("head", pitch * HEAD_PITCH_SHARE - lean * 0.4)
+	# so the two have to cancel rather than compound. Tipping back is looking
+	# up, which is the sense `pitch` already has.
+	_turn("neck", pitch * NECK_PITCH_SHARE + lean * 0.4)
+	_turn("head", pitch * HEAD_PITCH_SHARE + lean * 0.4)
 
 	if _bone.has("pelvis"):
 		var index: int = _bone["pelvis"]
@@ -243,11 +378,20 @@ func step(delta: float, speed: float, of_walking: float, stance: float,
 ## Rotate one bone about its own swing axis. A bone this rig does not have is
 ## skipped rather than crashing: a re-export that drops a bone should lose that
 ## bone's motion, not the body.
+##
+## **About the rest pose, not in place of it** (ADR-265). This set the pose to
+## the swing alone, which is the rest pose only for a bone whose rest rotation is
+## identity — true of the legs and spine, and false of the arms, which rest in a
+## twisted A-pose. So every teammate's arms were thrown up and out towards a T,
+## the fist at 1.54 m instead of 1.07 m, and nothing saw it until something was
+## hung in the hand and `--body-probe` asked where it was.
 func _turn(name: String, radians: float) -> void:
 	if not _bone.has(name):
 		return
-	_skeleton.set_bone_pose_rotation(_bone[name],
-		Quaternion(_swing[name], radians))
+	var index: int = _bone[name]
+	_skeleton.set_bone_pose_rotation(index,
+		_skeleton.get_bone_rest(index).basis.get_rotation_quaternion()
+			* Quaternion(_swing[name], radians))
 
 
 func _find_skeleton(node: Node) -> Skeleton3D:

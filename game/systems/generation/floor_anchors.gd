@@ -64,9 +64,14 @@ const NEARER_COST: int = 10
 ## says so, rather than a comment.
 const NOWHERE := Vector3.INF
 
+## How many times a drawn point may land on dressing before the room's middle
+## is used instead — see `_within`.
+const DRAWS: int = 8
+
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
 var _rng: RandomNumberGenerator = null
+var _kept_out: Array[Rect2] = []
 
 
 ## Read the anchors of `plan`. Deterministic in `run_seed` and `floor_index`,
@@ -384,11 +389,43 @@ func spots_in(node: int, count: int) -> Array[Vector3]:
 	return out
 
 
+## **Where no point may be drawn** (ADR-265): the set dressing's footprints,
+## each already grown by the room a body needs beside one.
+##
+## Set once, by `DelvingsFloor`, before anything is drawn. The dressing is laid
+## from the points on this floor that do not come off `_rng` — the centres, the
+## spawns, the rings — and this is what keeps the ones that do out of it. The
+## other way round was tried first and cannot work: every call to `posts()` or
+## `loot()` draws again, so a list of drawn points gathered to keep the dressing
+## clear of them is a list of points the floor then does not use, and taking it
+## moved every post and coin on the floor.
+func keep_out(rects: Array[Rect2]) -> void:
+	_kept_out = rects
+
+
 ## A drawn point inside a room, on its floor.
+##
+## Drawn again when it lands on a piece of dressing, up to `DRAWS` times, and
+## the middle of the room after that. The middle is safe, not merely likely:
+## only a room at least `FloorDressing.MIN_ROOM_CELLS` across is dressed, every
+## piece stands against a wall, and none reaches halfway across. On a floor
+## where nothing is in the way the stream is read exactly as it always was, so
+## an undressed room draws the points it always drew.
 func _within(node: int) -> Vector3:
 	var room: AABB = inside_of(node)
-	return room.position + Vector3(
-		_rng.randf() * room.size.x, 0.0, _rng.randf() * room.size.z)
+	for _attempt: int in DRAWS:
+		var drawn: Vector3 = room.position + Vector3(
+			_rng.randf() * room.size.x, 0.0, _rng.randf() * room.size.z)
+		if _is_open(drawn):
+			return drawn
+	return room.position + Vector3(room.size.x * 0.5, 0.0, room.size.z * 0.5)
+
+
+func _is_open(point: Vector3) -> bool:
+	for rect: Rect2 in _kept_out:
+		if rect.has_point(Vector2(point.x, point.z)):
+			return false
+	return true
 
 
 ## Hops from `from` to `to` across the graph, or -1 if unreachable.

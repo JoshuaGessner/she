@@ -1,4 +1,4 @@
-[gd_scene load_steps=17 format=3]
+[gd_scene load_steps=15 format=3]
 
 [ext_resource type="Script" path="res://actors/player/player.gd" id="1_player"]
 [ext_resource type="Script" path="res://components/stamina.gd" id="2_stamina"]
@@ -39,12 +39,6 @@ roughness = 1.0
 resource_local_to_scene = true
 radius = 1.1
 
-[sub_resource type="BoxMesh" id="BoxMesh_blade"]
-size = Vector3(0.07, 0.07, 0.85)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blade"]
-albedo_color = Color(0.78, 0.78, 0.8, 1)
-
 [node name="Player" type="CharacterBody3D"]
 collision_layer = 2
 collision_mask = 1
@@ -72,12 +66,11 @@ script = ExtResource("9_ink")
 [node name="Weapon" type="Node3D" parent="Head"]
 script = ExtResource("6_weapon")
 
+; Empty in the scene: `MeleeWeapon._dress` hangs whatever the main hand holds
+; here, from the item's own model (ADR-265). The blockout box that stood here
+; was the seax for every weapon, and a hammer that looks like a knife is a
+; wind-up nobody can read.
 [node name="Model" type="Node3D" parent="Head/Weapon"]
-
-[node name="Blade" type="MeshInstance3D" parent="Head/Weapon/Model"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -0.35)
-mesh = SubResource("BoxMesh_blade")
-surface_material_override/0 = SubResource("StandardMaterial3D_blade")
 
 [node name="Hitbox" type="Area3D" parent="Head/Weapon"]
 collision_layer = 0

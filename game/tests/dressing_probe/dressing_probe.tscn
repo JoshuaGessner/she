@@ -1,0 +1,9 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://tests/dressing_probe/dressing_probe.gd" id="1_probe"]
+
+; A scene rather than a `--script` probe: `DelvingsFloor` reaches `Player` and
+; the actors, which read the `Config` autoload, and a `SceneTree` script runs
+; with no autoloads at all.
+[node name="DressingProbe" type="Node"]
+script = ExtResource("1_probe")

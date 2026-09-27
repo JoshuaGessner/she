@@ -65,6 +65,10 @@ var _depth: int = 0
 var _vista: Array = []
 var _vista_asked: bool = false
 var _vista_why: String = ""
+var _solids: Array = []
+var _dressing: Array[Dictionary] = []
+## The dressing's footprints grown by a body's reach: where nothing is drawn.
+var _kept_out: Array[Rect2] = []
 
 
 ## Roll a floor. Deterministic in `run_seed` and `floor_index` end to end, so
@@ -98,6 +102,15 @@ static func of(run_seed: int, floor_index: int) -> DelvingsFloor:
 	# stand in. It draws nothing, so no stream is spent on it (ADR-237).
 	floor_at._population = FloorPopulation.of(
 		floor_at._plan, floor_at._graph, floor_index, POPULATION)
+	# The set dressing (ADR-265), **before anything is drawn**: it is laid from
+	# the points that do not come off the anchors' stream, and then the points
+	# that do are kept out of it. See `FloorAnchors.keep_out` for why the
+	# order cannot be the other way round.
+	floor_at._dressing = floor_at._dress_the_rooms()
+	for piece: Dictionary in floor_at._dressing:
+		floor_at._kept_out.append((piece["footprint"] as Rect2).grow(
+			FloorDressing.POINT_CLEAR))
+	floor_at._anchors.keep_out(floor_at._kept_out)
 	return floor_at
 
 
@@ -147,6 +160,28 @@ func machine_views() -> Array:
 	return out
 
 
+## Somewhere to stand to see the dressing, for `--delvings-shot` (ADR-265):
+## `{"at", "look"}` from the middle of the most thickly dressed room, looking
+## at its first piece. Clutter is a claim about seeing — whether a room reads
+## as worked-out or as a storeroom — and ADR-093 photographs those.
+func dressing_view() -> Dictionary:
+	var count: Dictionary = {}
+	for piece: Dictionary in _dressing:
+		count[piece["room"]] = int(count.get(piece["room"], 0)) + 1
+	var best: int = -1
+	for room: int in count:
+		if best < 0 or int(count[room]) > int(count[best]) \
+				or (int(count[room]) == int(count[best]) and room < best):
+			best = room
+	if best < 0:
+		return {}
+	for piece: Dictionary in _dressing:
+		if int(piece["room"]) == best:
+			return {"at": _anchors.centre_of(best),
+				"look": (piece["at"] as Transform3D).origin}
+	return {}
+
+
 ## Whatever stopped this floor being buildable, or an empty list. A caller that
 ## gets rows here has a floor it must not descend into.
 ##
@@ -161,6 +196,66 @@ func problems() -> PackedStringArray:
 
 func build(into: Node3D) -> void:
 	FloorBuilder.build(_plan, _graph, _seed, _depth, into, _machines)
+	dress(into)
+
+
+## **The clutter, stood up** (`M4-T10`, ADR-265) — `FloorDressing.raise` over
+## `dressing()`. Its own call, after the architecture and before anything bakes
+## a navmesh, so a check that builds the bare geometry itself can lay the same
+## pieces on it and walk the floor a party walks.
+func dress(into: Node3D) -> Node3D:
+	return FloorDressing.raise(dressing(), into)
+
+
+## **Where every piece of set dressing stands** (ADR-265), as data — decided
+## once, in `of`, and the same answer every time it is asked.
+func dressing() -> Array[Dictionary]:
+	return _dressing
+
+
+## The rooms dressed, and the points they keep clear of.
+##
+## Machines' rooms and crawls are left bare for `FloorDressing`'s reasons. The
+## points are **only the ones that come off no stream**: the room centres the
+## Shaft, the Prize, the Hunter, the cairn and the barrow stand on, the spawn
+## grid, the Hall-Warden's doorway post and the machines' rings. Everything the
+## anchors *draw* — a post in a held room, a coin, the Waystone — is drawn after
+## this and kept out of it by `FloorAnchors.keep_out`, because asking for those
+## here would draw them, and the floor would then place different ones.
+##
+## The Shaft is a hole 1.6 m across and the barrow a slab that slides aside, so
+## those two keep their own size clear as well as a body's reach.
+func _dress_the_rooms() -> Array[Dictionary]:
+	var skipped := PackedInt32Array()
+	for node: int in _graph.size():
+		var module: RoomModule = RoomCatalogue.by_id(_plan.module_of(node))
+		if _machines.at(node) != null or (module != null
+				and module.volume == RoomModule.Volume.CRAWL):
+			skipped.append(node)
+	var reach: float = FloorDressing.POINT_CLEAR
+	var clear: Array = []
+	for at: Vector3 in spawns():
+		clear.append([at, reach])
+	for at: Vector3 in machine_posts():
+		clear.append([at, reach])
+	for at: Vector3 in _anchors.landmarks():
+		clear.append([at, reach])
+	if _population.door_index() >= 0:
+		clear.append([door_post(_population.door_node()), reach])
+	clear.append([shaft(), Shaft.RADIUS + reach])
+	clear.append([prize(), reach])
+	clear.append([hunter(), reach])
+	clear.append([survey_point(), reach])
+	clear.append([_anchors.barrow(), Barrow.SLAB.z + reach])
+	return FloorDressing.plan_for(_plan, _graph, _occluders(), clear, skipped)
+
+
+## `FloorBuilder.occluders` for this floor, built once — the vista and the
+## dressing both reason about the same solids.
+func _occluders() -> Array:
+	if _solids.is_empty():
+		_solids = FloorBuilder.occluders(_plan, _graph, _seed, _depth)
+	return _solids
 
 
 func spawns() -> Array[Vector3]:
@@ -311,8 +406,13 @@ func vista() -> Array:
 		return _vista
 	_vista_asked = true
 	var standing: Array = _standing()
+	# **With the carts in it** (ADR-265): a metre of ore cart between the walk
+	# and a glint is a sight that is not there, and a bait laid where the walk
+	# sees best must not be laid inside one.
+	var seen_through: Array = _occluders().duplicate()
+	seen_through.append_array(FloorDressing.as_occluders(_dressing))
 	var walk: FloorVista = FloorVista.of(_plan, _graph, _anchors,
-		FloorBuilder.occluders(_plan, _graph, _seed, _depth), spawns()[0])
+		seen_through, spawns()[0])
 	for row: Array in standing:
 		var item: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
 		if item == null or not item.tags.has(&"glitter"):
@@ -338,7 +438,7 @@ func vista() -> Array:
 	avoid.append_array(enemy_posts())
 	avoid.append_array(machine_posts())
 	avoid.append(hunter())
-	var spot: Dictionary = walk.best(avoid, FloorAnchors.SPREAD)
+	var spot: Dictionary = walk.best(avoid, FloorAnchors.SPREAD, _kept_out)
 	if spot.is_empty():
 		_vista_why = "no spot on this floor is a vista from the walk"
 		return _vista

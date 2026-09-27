@@ -227,6 +227,24 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The set dressing is laid, and it is in nobody's way** (`M4-T10`,
+	# ADR-265). The pieces are solid, so every row is about passage — stone
+	# behind each one, nothing in a doorway, nothing the floor placed on
+	# purpose underneath one — asked as the physical claim rather than by
+	# reading the placement's own constants. A scene rather than `--script`:
+	# `DelvingsFloor` reaches actors that read `Config`, and a script probe has
+	# no autoloads. Asserted on PASS, because a probe that dies on a parse
+	# error in a scene sits idle and prints no FAIL at all.
+	dressing="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
+		tests/dressing_probe/dressing_probe.tscn 2>&1)"
+	if ! grep -q '^\[dressing\] PASS' <<<"$dressing" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$dressing"; then
+		echo "FAIL the set dressing" >&2
+		printf '%s\n' "$dressing" | grep -E '\[dressing\]|ERROR' \
+			| sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **`DES-010`'s notebook adds up** (`M4-T10`, ADR-261). The six retention
 	# metrics it asks for are rates, and a rate that is quietly wrong is worse
 	# than no rate at all — somebody tunes the game against it. Also the one
