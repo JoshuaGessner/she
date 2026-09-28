@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-18
+updated: 2026-09-28
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -10153,6 +10153,24 @@ The Waystone takes `M2-T13`'s pale — the colour every doorway is lit with — 
 - **The arm.** Things are held in first person by nothing; there are no first-person arms (Q96's proportions are still a feel question), and a teammate's weapon still floats before their face (Q114).
 - **The nocked arrow** is a cylinder, for ADR-265's reason.
 - **`DES-009`'s impact layers** — hitstop, sound, kick — wait for the protocol, in its order.
+
+## ADR-268 — No FMOD: the audio stack is Godot's own
+
+**Date:** 2026-09-28 · **Status:** accepted · **Developer's call** · **Closes ADR-167's `M4-T09` precondition** · **Amends `TEC-005`, ADR-050**
+
+**Context:** ADR-050 chose raw Godot audio first and left one door open — *"migrating to FMOD when the musician is onboarded and their workflow becomes the deciding factor"* — and ADR-167 turned the licensing question behind that door into a precondition of `M4-T09`: *confirm current FMOD indie terms before a single bank enters the repo.* The developer has closed the door: **FMOD will not be used.**
+
+**Decision:** The audio stack is Godot's own buses, players and effects, as built. `M4-T09` loses its precondition: there is no licence to check because there is no dependency to take, and the composer delivers **stems** to `ART-003`'s brief — one tempo, one key — for the vertical-remixing driver `M2-T03` already built (ADR-090). **Nothing replaces FMOD.** `TEC-005`'s table still ranks Wwise as the stronger middleware for this project, and that stays a recorded fact rather than a plan: if a composer's workflow ever does become the deciding factor, adopting anything is a new ADR, not a default this one hands on.
+
+**Why it costs nothing:** `TEC-005`'s own correction at `M2-T03` already found that raw Godot was not a compromise for this design. `ART-002` chose **vertical** remixing — layers in sync at independent volumes, which Godot does natively — and rejects the thing middleware is actually for, horizontal re-sequencing (*"crossfades, not cuts"*, *"never stingers"*). The occlusion and reverb middleware would have supplied are built (`M4-T12`, ADR-247, ADR-249). And FMOD's Godot integration is a community GDExtension with per-platform native binaries, which ADR-086's export pipeline would have had to carry across every Godot release.
+
+**What it gives up:** the composer-facing authoring tool — a composer retuning the Clamor ramp in their own software without a programmer. The stems-plus-driver handoff puts the mix in this repo instead. That is the cost ADR-050 already accepted for the first version, now accepted for good.
+
+**Consequences:**
+
+- `M4-T09` is unblocked by the missing licence check and remains blocked by the thing it always was: a composer.
+- `TEC-005` records the decision where its FMOD recommendation stood.
+- `AudioDirector`'s header no longer promises a migration.
 
 *Entries below to be added as design decisions are signed off.*
 

@@ -19,7 +19,7 @@ extends Node
 ## playing in sync with independent volumes, which Godot does natively; the
 ## expensive thing middleware buys is *horizontal* re-sequencing — musically
 ## quantised jumps between sections — and `ART-002` explicitly does not want
-## that (ADR-050: raw Godot first, FMOD when a musician is onboarded).
+## that (ADR-050, and ADR-268: no FMOD — Godot's own audio is the stack).
 ##
 ## ## The layers are blockout (ADR-046)
 ##

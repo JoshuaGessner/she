@@ -4,7 +4,7 @@ title: Audio Technology
 status: accepted
 owner: tech
 tags: [audio, occlusion, middleware, godot, engine, risk]
-updated: 2026-09-01
+updated: 2026-09-28
 related: [ART-002, ART-003, TEC-001, TEC-004, DES-018]
 ---
 
@@ -64,6 +64,8 @@ Cell-based generation (`DES-015`, ADR-014) helps here — doorways between cells
 > Occlusion is **a readout, never a consequence**: `ClamorField` is what an enemy hears, it is host-authoritative, and it knows nothing about any of this. A sound muffled on one screen was heard by the dungeon at full strength.
 
 ## Middleware — the better answer
+
+> **SUPERSEDED (ADR-268): FMOD will not be used.** The audio stack is Godot's own, as built; nothing is adopted in its place, and the composer delivers stems for the vertical-remixing driver (`M2-T03`, ADR-090). What follows is the original recommendation, kept for its reasoning — and the table's ranking of Wwise stays a recorded fact, not a plan.
 
 **Recommendation: FMOD Studio.**
 
@@ -131,3 +133,5 @@ Deciding now means guessing. Deciding at M1 means knowing.
 > ADR-050 already decided the thing that matters: **raw Godot first**, migrating to FMOD only when the musician is onboarded and their workflow becomes the deciding factor. So there is no adoption pending, no dependency taken, and nothing blocked on the answer.
 
 > The verification moves to where the adoption happens. `M4-T09` carries it as a precondition: **confirm current FMOD indie terms before a single bank enters the repo**, and if they have moved, `TEC-005`'s own table already names Wwise as the strong second choice. **Closes Q92.**
+
+> **DECIDED (ADR-268): no FMOD, and so no precondition.** The developer's call. There is no licence to check because no dependency is taken; `M4-T09` hands the composer `ART-003`'s brief and receives stems. Adopting any middleware later — Wwise included — is a new ADR, never a default.
