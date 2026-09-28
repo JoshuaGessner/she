@@ -24,7 +24,8 @@ PALETTE = {
     # nearly neutral, never a warm game-asset brown.
     "timber": ((0.25, 0.245, 0.225, 1.0), 0.2),
     "metal": ((0.19, 0.21, 0.20, 1.0), 0.4),
-    "rope": ((0.41, 0.36, 0.27, 1.0), 0.6),
+    "rope": ((0.48, 0.465, 0.435, 1.0), 0.6),
+    "wax": ((0.73, 0.71, 0.65, 1.0), 0.6),
 }
 MATS = {}
 LOW_OUTLINE = 0.32
@@ -87,7 +88,7 @@ def cube(name, loc, size, kind, bevel=0.0, outline=LOW_OUTLINE):
     return finish(obj, name, kind, outline)
 
 
-def cylinder(name, loc, radius, depth, kind, vertices=10, rotation=None,
+def cylinder(name, loc, radius, depth, kind, vertices=20, rotation=None,
              radius_top=None, outline=LOW_OUTLINE):
     bpy.ops.mesh.primitive_cone_add(
         vertices=vertices, radius1=radius,
@@ -98,7 +99,7 @@ def cylinder(name, loc, radius, depth, kind, vertices=10, rotation=None,
     return obj
 
 
-def torus(name, loc, major, minor, kind, major_segments=12, minor_segments=4,
+def torus(name, loc, major, minor, kind, major_segments=24, minor_segments=8,
           rotation=None, outline=LOW_OUTLINE):
     bpy.ops.mesh.primitive_torus_add(
         major_radius=major, minor_radius=minor, major_segments=major_segments,
@@ -123,7 +124,7 @@ def pipe(name, points, radius, kind="rope", outline=LOW_OUTLINE):
     curve.dimensions = "3D"
     curve.resolution_u = 1
     curve.bevel_depth = radius
-    curve.bevel_resolution = 0
+    curve.bevel_resolution = 2
     spline = curve.splines.new("POLY")
     spline.points.add(len(points) - 1)
     for point, co in zip(spline.points, points):
@@ -166,135 +167,220 @@ def collision_box(bounds):
     return obj
 
 
+def mesh_object(name, verts, faces, kind, loc=(0,0,0), bevel=0):
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces); mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(obj); obj.location=loc
+    if bevel:
+        bpy.context.view_layer.objects.active=obj
+        mod=obj.modifiers.new('broad_edge_chamfer','BEVEL')
+        mod.width=bevel; mod.segments=1
+        bpy.ops.object.modifier_apply(modifier=mod.name)
+    return finish(obj,name,kind)
+
+
+def lathe(name, profile, kind, loc=(0,0,0), segments=24, rotation=None):
+    """A radial cross-section builds rims, dished hubs and rolled lips as form."""
+    verts=[(r*math.cos(2*math.pi*i/segments),r*math.sin(2*math.pi*i/segments),z)
+           for r,z in profile for i in range(segments)]
+    faces=[]
+    for k in range(len(profile)-1):
+        for i in range(segments):
+            j=(i+1)%segments
+            faces.append((k*segments+i,k*segments+j,(k+1)*segments+j,(k+1)*segments+i))
+    faces.extend([tuple(reversed(range(segments))),tuple((len(profile)-1)*segments+i for i in range(segments))])
+    obj=mesh_object(name,verts,faces,kind,loc)
+    if rotation: obj.rotation_euler=rotation
+    apply_mesh_transform(obj)
+    return obj
+
+
+def tube(name, points, radius, kind, sides=8, taper=False):
+    """Continuous round-section tube: no disconnected ring stack or square rope."""
+    verts=[]; faces=[]
+    for i,p in enumerate(points):
+        p=Vector(p)
+        tangent=(Vector(points[min(i+1,len(points)-1)])-Vector(points[max(i-1,0)])).normalized()
+        normal=tangent.cross(Vector((0,0,1)))
+        if normal.length<.1: normal=tangent.cross(Vector((0,1,0)))
+        normal.normalize(); binormal=tangent.cross(normal).normalized()
+        r=radius*(1-.6*max(0,(i-(len(points)-5))/4)) if taper else radius
+        for j in range(sides):
+            a=2*math.pi*j/sides
+            verts.append(tuple(p+r*(math.cos(a)*normal+math.sin(a)*binormal)))
+        if i:
+            for j in range(sides):
+                n=(j+1)%sides; b=(i-1)*sides; t=i*sides
+                faces.append((b+j,b+n,t+n,t+j))
+    faces.extend([tuple(reversed(range(sides))),tuple((len(points)-1)*sides+i for i in range(sides))])
+    return mesh_object(name,verts,faces,kind)
+
+
 def ore_cart():
-    # A compact 1.4 m gauge cart: four obvious wheels, timber frame, and a
-    # flared open ore tub.  The missing front slat makes abandonment legible.
-    for x in (-.62, .62):
-        for y in (-.38, .38):
-            cylinder("cart_wheel", (x, y, .20), .22, .09, "metal", 10,
-                     rotation=(0, math.pi/2, 0))
-    for y in (-.38, .38):
-        beam_between("cart_axle", (-.72,y,.20), (.72,y,.20), .06, .06, "metal")
-    cube("cart_chassis", (0,0,.42), (1.35,.84,.12), "timber", .018)
+    # Flared individual planks, a repaired opening, iron hoops and dished wheels
+    # describe a constructed mine cart rather than a solid primitive tub.
+    for y in (-.34,.34):
+        cylinder('cart_axle',(0,y,.23),.039,1.48,'metal',16,rotation=(0,math.pi/2,0))
+        for x in (-.66,.66):
+            lathe('cart_dished_wheel',[(.06,-.07),(.10,-.035),(.192,-.023),(.22,-.05),(.226,-.03),(.226,.03),(.22,.05),(.192,.023),(.10,.035),(.06,.07)],'metal',(x,y,.23),20,rotation=(0,math.pi/2,0))
+    for x in (-.45,.45):
+        beam_between('cart_underframe',(x,-.49,.38),(x,.49,.38),.095,.09)
+    for y in (-.34,-.17,0,.17,.34):
+        cube('cart_floor_plank',(0,y,.465),(1.16,.16,.075),'timber',.012)
+    for side in (-1,1):
+        for z in (.57,.765,.96):
+            x=side*(.56+(z-.48)*.20)
+            obj=cube('cart_flared_side_plank',(x,0,z),(.072,.99,.184),'timber',.012)
+            obj.rotation_euler[1]=side*.197; apply_mesh_transform(obj)
+        beam_between('cart_rounded_top_rail',(side*.681,-.54,1.071),(side*.681,.54,1.071),.083,.081)
+        for y in (-.37,.37):
+            beam_between('cart_iron_side_hoop',(side*.598,y,.51),(side*.710,y,1.064),.065,.018,'metal')
+    for z in (.57,.765,.96):
+        y=.455+(z-.48)*.17
+        obj=cube('cart_back_plank',(0,y,z),(1.21+(z-.48)*.38,.068,.181),'timber',.009)
+        obj.rotation_euler[0]=-.17; apply_mesh_transform(obj)
+    # Low front sill and a diagonal broken plank preserve an open abandoned mouth.
+    cube('cart_front_sill',(0,-.45,.57),(1.21,.068,.18),'timber',.012)
+    beam_between('cart_repaired_front_brace',(-.55,-.48,.62),(.18,-.48,.95),.075,.052)
     for x in (-.58,.58):
-        beam_between("cart_side_rail", (x,-.46,.44), (x,.46,.44), .08,.08)
-    # Broad, outward-leaning planked hopper sides give this a loose-ore volume
-    # at a glance.  Thin iron seams keep the individual planks readable.
-    for x, angle in ((-.64,-.20),(.64,.20)):
-        side = cube("cart_hopper_planked_side", (x,0,.79), (.07,.92,.62), "timber", .01)
-        side.rotation_euler[1] = angle; apply_mesh_transform(side)
-        for z in (.60,.79,.98):
-            seam = beam_between("cart_hopper_plank_seam", (x,-.46,z), (x,.46,z), .026,.020, "metal")
-            seam.rotation_euler[1] = angle; apply_mesh_transform(seam)
-    back = cube("cart_hopper_back", (0,.43,.78), (1.34,.07,.60), "timber", .01)
-    back.rotation_euler[0] = -.18; apply_mesh_transform(back)
-    for x in (-.38,0,.38):
-        beam_between("cart_back_plank_seam", (x,.43,.51), (x,.43,1.05), .025,.02,"metal")
-    beam_between("cart_back_rim", (-.71,.49,1.06), (.71,.49,1.06), .07,.07)
-    for y in (-.34,.02,.30):
-        beam_between("cart_floor_slats", (-.52,y,.54), (.52,y,.54), .07,.045)
-    for x in (-.64,.64):
-        cylinder("cart_rim_iron", (x,.44,1.06), .055, .12, "metal", 8,
-                 rotation=(0,math.pi/2,0))
-    collision_box((-.78,.78,-.52,.52,0,1.16))
+        beam_between('cart_front_corner_post',(x,-.465,.50),(x*1.17,-.53,1.07),.074,.075)
+    collision_box((-.79,.79,-.59,.60,0,1.13))
+
+
+def fractured_block(name, loc, size, angle=0, skew=1):
+    x,y,z=size[0]/2,size[1]/2,size[2]
+    # Chamfered cut stone with a genuinely missing end wedge and broad facets.
+    verts=[(-x,-y,0),(x*.72,-y,0),(x,y*.05,0),(x*.78,y,0),(-x,y,0),
+           (-x,-y,z),(.53*x,-y,z*.86),(x,y*.12,z*.67),(.67*x,y,z*.85),(-x,y,z)]
+    faces=[(0,4,3,2,1),(5,6,7,8,9),(0,1,6,5),(1,2,7,6),(2,3,8,7),(3,4,9,8),(4,0,5,9)]
+    obj=mesh_object(name,verts,faces,'stone',loc,.016)
+    obj.rotation_euler[2]=angle; apply_mesh_transform(obj)
+    return obj
 
 
 def fallen_masonry():
-    # Courses and a split lintel are actual stacked construction, not scatter.
-    # Lintel end is a genuine angled fracture, not a rectangular cut with wear.
-    verts=[(-.78,-.19,0),(-.78,.19,0),(.61,-.19,0),(.72,.19,0),
-           (-.78,-.19,.34),(-.78,.19,.34),(.72,-.19,.21),(.61,.19,.29)]
-    faces=[(0,2,6,4),(2,3,7,6),(3,1,5,7),(1,0,4,5),(4,6,7,5),(0,1,3,2)]
-    mesh=bpy.data.meshes.new("fallen_lintel"); mesh.from_pydata(verts,[],faces); mesh.update()
-    lintel=bpy.data.objects.new("fallen_lintel",mesh); bpy.context.collection.objects.link(lintel)
-    lintel.location=(0,.02,0); finish(lintel,"fallen_lintel","stone")
-    obj = cube("fallen_course_long", (-.17,-.38,.34), (1.25,.36,.28), "stone", .018)
-    obj.rotation_euler[2] = math.radians(-12); apply_mesh_transform(obj)
-    obj = cube("fallen_course_short", (.52,.30,.18), (.64,.44,.32), "stone", .018)
-    obj.rotation_euler[2] = math.radians(17); apply_mesh_transform(obj)
-    obj = cube("fallen_capstone", (-.52,.31,.53), (.78,.34,.24), "stone", .022)
-    obj.rotation_euler[1] = math.radians(14); apply_mesh_transform(obj)
-    irregular_rock("masonry_broken_corner", (.42,-.25,0), (.50,.42,.27))
-    collision_box((-.88,.88,-.64,.58,0,.72))
+    fractured_block('fallen_split_lintel',(-.10,-.03,0),(1.58,.46,.32),-.12)
+    fractured_block('fallen_course_long',(-.17,-.39,.03),(1.24,.36,.29),-.28)
+    fractured_block('fallen_course_short',(.52,.29,.035),(.70,.49,.33),.36)
+    obj=fractured_block('fallen_capstone',(-.36,.19,.28),(.92,.37,.27),.13)
+    obj.rotation_euler[1]=.20; apply_mesh_transform(obj)
+    for i,(loc,size) in enumerate([((.55,-.27,0),(.41,.35,.22)),((-.64,.52,0),(.25,.31,.18)),((.15,.51,0),(.29,.27,.12))]):
+        irregular_rock('masonry_detached_shard_%02d'%i,loc,size)
+    collision_box((-.96,.90,-.67,.70,0,.65))
+
+
+def snapped_beam(name,a,b,width,depth):
+    a,b=Vector(a),Vector(b); length=(b-a).length; w,d=width/2,depth/2
+    # Eight perimeter points make two deep, recognisable longitudinal splinters.
+    ring=[(-w,-d),(0,-d),(w,-d),(w,0),(w,d),(0,d),(-w,d),(-w,0)]
+    heights=[length-.12,length-.27,length-.03,length-.18,length-.10,length-.32,length,length-.21]
+    verts=[(x,y,0) for x,y in ring]+[(x,y,h) for (x,y),h in zip(ring,heights)]
+    verts.append((0,0,length-.30))
+    faces=[tuple(reversed(range(8)))]+[(i,(i+1)%8,(i+1)%8+8,i+8) for i in range(8)]+[(8+i,8+(i+1)%8,16) for i in range(8)]
+    obj=mesh_object(name,verts,faces,'timber',a,.007)
+    obj.rotation_mode='QUATERNION'; obj.rotation_quaternion=Vector((0,0,1)).rotation_difference((b-a).normalized())
+    apply_mesh_transform(obj)
+    return obj
 
 
 def broken_bracing():
-    # A collapsed A-frame: sawn timber ends and iron straps establish purpose.
-    def snapped_beam(name, a, b, width, depth):
-        a,b=Vector(a),Vector(b); length=(b-a).length
-        w,d=width/2,depth/2
-        verts=[(-w,-d,0),(w,-d,0),(w,d,0),(-w,d,0),
-               (-w,-d,length), (w,-d,length-.14), (w,d,length-.05), (-w,d,length-.19)]
-        faces=[(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7),(4,5,6,7),(0,3,2,1)]
-        mesh=bpy.data.meshes.new(name); mesh.from_pydata(verts,[],faces); mesh.update()
-        obj=bpy.data.objects.new(name,mesh); bpy.context.collection.objects.link(obj); obj.location=a
-        obj.rotation_mode="QUATERNION"; obj.rotation_quaternion=Vector((0,0,1)).rotation_difference((b-a).normalized())
-        finish(obj,name,"timber"); apply_mesh_transform(obj)
-    snapped_beam("brace_fallen_main", (-.88,-.22,.08), (.78,.34,.18), .15,.13)
-    snapped_beam("brace_fallen_cross", (-.70,.48,.10), (.72,-.42,.15), .13,.12)
-    snapped_beam("brace_split_upright", (-.22,-.08,.10), (.28,-.02,.92), .14,.12)
-    cube("brace_broken_foot", (.43,.11,.09), (.34,.22,.18), "timber", .01)
-    for x,y,z in [(-.40,-.02,.15),(.02,.07,.18),(.33,-.12,.41)]:
-        cube("brace_iron_strap", (x,y,z), (.09,.20,.06), "metal", .005)
-    collision_box((-.98,.90,-.56,.58,0,1.02))
+    snapped_beam('brace_fallen_main',(-.87,-.24,.09),(.83,.34,.18),.17,.15)
+    snapped_beam('brace_fallen_cross',(-.70,.46,.09),(.76,-.43,.16),.15,.14)
+    snapped_beam('brace_split_upright',(-.23,-.08,.15),(.28,-.02,.99),.17,.14)
+    snapped_beam('brace_detached_splinter',(.13,-.22,.06),(.62,.05,.10),.065,.045)
+    for x,y,z in [(-.48,-.10,.13),(-.02,.04,.19)]:
+        # U-shaped straps actually wrap the timber rather than floating boxes.
+        tube('brace_bent_strap',[(x,y-.10,z-.07),(x,y-.10,z+.065),(x,y+.10,z+.065),(x,y+.10,z-.07)],.018,'metal',6)
+        cylinder('brace_strap_pin',(x,y-.13,z+.04),.022,.065,'metal',12,rotation=(math.pi/2,0,0))
+    cube('brace_broken_foot',(.42,.13,.075),(.33,.24,.15),'timber',.016)
+    collision_box((-.98,.91,-.57,.59,0,1.03))
 
 
 def rope_coil():
-    # Nested, slightly offset coils and a loose tail read as rope rather than a ring.
-    for i, (r,x,y) in enumerate(((.43,0,0),(.37,.015,-.01),(.31,-.01,.015),(.24,.02,.02))):
-        torus("rope_coil_%02d" % i, (x,y,.045+i*.030), r, .038, "rope", 14, 4)
-    pipe("rope_loose_tail", [(.43,.02,.05),(.64,.18,.05),(.70,.45,.045),
-                              (.55,.61,.042),(.34,.55,.04)], .038)
-    collision_box((-.49,.76,-.50,.68,0,.20))
+    points=[]
+    # Four turns are a single spiral, with a laid-down S-shaped free end.
+    for i in range(137):
+        t=i/136; a=2*math.pi*4*t
+        r=.13+.31*t
+        points.append((r*math.cos(a),r*math.sin(a),.041+.008*math.sin(a*.5)))
+    start=Vector(points[-1]); controls=[start,Vector((.47,.19,.039)),Vector((.74,.43,.039)),Vector((.56,.60,.039))]
+    for i in range(1,15):
+        t=i/14
+        q=(1-t)**3*controls[0]+3*(1-t)**2*t*controls[1]+3*(1-t)*t*t*controls[2]+t**3*controls[3]
+        points.append(tuple(q))
+    tube('continuous_laid_rope',points,.032,'rope',8,True)
+    collision_box((-.48,.72,-.47,.65,0,.095))
 
 
 def rusted_fittings():
-    # Fallen mine pulley: a deeply legible wheel, U bracket, hook, and short chain.
-    cube("pulley_mount_plate", (0,0,.06), (1.05,.30,.12), "metal", .012)
-    for x in (-.42,.42):
-        cylinder("pulley_rivet", (x,-.16,.13), .045, .055, "metal", 8,
-                 rotation=(math.pi/2,0,0))
-    beam_between("pulley_upright_l", (-.34,0,.10), (-.34,0,.74), .09,.09, "metal")
-    beam_between("pulley_upright_r", (.34,0,.10), (.34,0,.74), .09,.09, "metal")
-    cylinder("pulley_wheel", (0,0,.54), .27, .12, "metal", 12,
-             rotation=(math.pi/2,0,0))
-    cylinder("pulley_axle", (0,0,.54), .055, .84, "metal", 8,
-             rotation=(math.pi/2,0,0))
+    # A dished sheave, cheeks and pin form a functional pulley lying on its side.
+    lathe('pulley_grooved_sheave',[(.055,-.07),(.20,-.06),(.275,-.07),(.282,-.045),(.245,-.015),(.245,.015),(.282,.045),(.275,.07),(.20,.06),(.055,.07)],'metal',(0,0,.31),24,rotation=(math.pi/2,0,0))
+    cylinder('pulley_axle',(0,0,.31),.043,.39,'metal',20,rotation=(math.pi/2,0,0))
+    for y in (-.12,.12):
+        # Rounded cheek bars keep the sheave clear; forge-eye at top carries chain.
+        beam_between('pulley_cheek',(-.01,y,.30),(.01,y,.68),.09,.065,'metal')
+        lathe('pulley_pin_cap',[(.055,-.012),(.058,0),(.05,.018)],'metal',(0,y*1.64,.31),16,rotation=(math.pi/2,0,0))
+    torus('pulley_forged_eye',(0,0,.70),.083,.025,'metal',20,6,rotation=(math.pi/2,0,0))
     for i in range(3):
-        torus("chain_link", ((i-1)*.12,.02,.18+i*.11), .075,.018,"metal",8,3,
-              rotation=(math.pi/2,0,0) if i%2 else (0,math.pi/2,0))
-    pipe("pulley_hook", [(.12,.02,.50),(.12,.02,.35),(.23,.02,.27),
-                          (.29,.02,.35),(.22,.02,.40)], .035, "metal")
-    collision_box((-.56,.56,-.22,.22,0,.86))
+        torus('fallen_chain_link',(.16+i*.115,.02,.11),.070,.019,'metal',16,6,rotation=(math.pi/2,0,0) if i%2 else (0,.3,0))
+    hook=[]
+    for i in range(21):
+        a=-math.pi*.15+math.pi*1.65*i/20
+        hook.append((.43+.13*math.cos(a),.04,.19+.13*math.sin(a)))
+    tube('forged_open_hook',hook,.031,'metal',8,True)
+    cube('fallen_anchor_plate',(-.31,.17,.038),(.44,.22,.076),'metal',.02)
+    for x in (-.45,-.19):
+        cylinder('anchor_plate_rivet',(x,.17,.08),.024,.028,'metal',12)
+    collision_box((-.56,.62,-.23,.33,0,.82))
+
+
+def spent_candle(name,x,y,height,radius,phase):
+    n=20; rings=[]
+    for k in range(5):
+        ring=[]
+        for i in range(n):
+            a=2*math.pi*i/n
+            wobble=.03*math.sin(3*a+phase)+.025*math.cos(5*a-phase)
+            if k==0:r,z=radius*1.15,.044
+            elif k==1:r,z=radius*(1+wobble),.072
+            elif k==2:r,z=radius*(.93+wobble),height+.035*math.sin(2*a+phase)+.017*math.cos(3*a)
+            elif k==3:r,z=radius*.62,height-.011+.020*math.sin(2*a+phase)
+            else:r,z=radius*.29,height-.04
+            ring.append((x+r*math.cos(a),y+r*math.sin(a),z))
+        rings+=ring
+    faces=[tuple(reversed(range(n)))]+[(k*n+i,k*n+(i+1)%n,(k+1)*n+(i+1)%n,(k+1)*n+i) for k in range(4) for i in range(n)]+[tuple(4*n+i for i in range(n))]
+    mesh_object(name,rings,faces,'wax')
+    cylinder(name+'_charred_wick',(x,y,height-.018),.007,.053,'metal',8)
+    # Two broad wax rivulets change the outline; no decorative microtexture.
+    for a in (phase,phase+2.8):
+        tube(name+'_melted_wax',[(x+radius*math.cos(a),y+radius*math.sin(a),height-.005),(x+radius*1.035*math.cos(a),y+radius*1.035*math.sin(a),height-.08),(x+radius*math.cos(a),y+radius*math.sin(a),height-.12)],.013,'wax',6,True)
 
 
 def guttered_candles():
-    # Four uneven spent candles in an iron catch dish; no flame means abandoned.
-    cylinder("candle_dish", (0,0,.045), .36, .09, "metal", 12)
-    cylinder("candle_rim", (0,0,.10), .34, .04, "metal", 12, radius_top=.32)
-    for i,(x,y,h,r) in enumerate(((-.13,-.08,.32,.075),(.13,-.05,.48,.080),
-                                  (-.02,.14,.23,.065),(.10,.13,.36,.070))):
-        cylinder("spent_candle_%02d"%i, (x,y,.12+h/2), r, h, "rope", 9,
-                 radius_top=r*.92)
-        cylinder("black_wick_%02d"%i, (x,y,.13+h), .012, .045, "metal", 6)
-    # A fallen stub on the tray breaks the altar-like symmetry.
-    cylinder("fallen_candle_stub", (-.20,.14,.16), .055, .22, "rope", 8,
-             rotation=(0,math.pi/2.7,0))
-    collision_box((-.40,.40,-.40,.40,0,.66))
+    lathe('candle_catch_dish',[(.02,.012),(.29,.012),(.34,.035),(.36,.080),(.359,.098),(.342,.103),(.321,.065),(.285,.044),(.02,.044)],'metal',segments=28)
+    for i,(x,y,h,r) in enumerate(((-.13,-.08,.31,.071),(.13,-.045,.48,.075),(-.04,.14,.20,.061),(.115,.135,.33,.062))):
+        spent_candle('spent_candle_%02d'%i,x,y,h,r,i*1.7)
+    lathe('fallen_candle_stub',[(.045,-.082),(.049,-.065),(.047,.07),(.04,.08)],'wax',(-.21,.12,.11),20,rotation=(0,math.pi/2.5,.3))
+    collision_box((-.38,.38,-.38,.38,0,.56))
 
 
 def spoil_heap():
-    # Fixed, faceted rock forms with a discarded shovel make this excavation spoil.
-    # Chunks overlap into an excavation mound, with a large fractured core and
-    # smaller settled pieces.  This reads as spoil at room distance, not tiles.
-    for i, (x,y,z,sx,sy,sz) in enumerate(((0,0,0,.92,.78,.29),(-.28,-.16,.16,.58,.50,.28),
-                                           (.28,-.15,.13,.54,.46,.25),(-.10,.27,.18,.60,.48,.30),
-                                           (.36,.23,.20,.38,.35,.20),(-.42,.20,.12,.36,.34,.22))):
-        irregular_rock("spoil_chunk_%02d"%i, (x,y,z), (sx,sy,sz))
-    beam_between("discarded_shovel_handle", (-.57,.38,.07), (.44,.57,.14), .055,.045)
-    obj = cube("discarded_shovel_blade", (.51,.59,.105), (.30,.22,.035), "metal", .01)
-    obj.rotation_euler[2] = math.radians(20); apply_mesh_transform(obj)
-    collision_box((-.72,.72,-.53,.72,0,.48))
+    pieces=[(0,0,0,.96,.80,.25),(-.24,-.16,.08,.61,.50,.30),(.24,-.11,.06,.56,.47,.24),(-.08,.23,.12,.59,.48,.29),(.38,.22,.08,.39,.35,.20),(-.42,.18,.04,.38,.33,.21),(-.45,-.36,0,.24,.19,.11),(.48,-.26,0,.27,.26,.12),(.08,-.46,0,.31,.22,.09),(-.26,.48,0,.21,.25,.13)]
+    for i,(x,y,z,sx,sy,sz) in enumerate(pieces):
+        obj=irregular_rock('spoil_settled_fracture_%02d'%i,(x,y,z),(sx,sy,sz))
+        obj.rotation_euler[2]=i*.71; apply_mesh_transform(obj)
+    # A round haft and cupped spade make the discarded tool believable.
+    a,b=Vector((-.56,.39,.08)),Vector((.39,.55,.13))
+    obj=cylinder('discarded_shovel_haft',(a+b)/2,.028,(b-a).length,'timber',16)
+    obj.rotation_mode='QUATERNION';obj.rotation_quaternion=Vector((0,0,1)).rotation_difference((b-a).normalized());apply_mesh_transform(obj)
+    verts=[(.34,.46,.10),(.60,.46,.09),(.74,.52,.07),(.74,.63,.07),(.60,.70,.09),(.34,.64,.10),(.51,.56,.052)]
+    faces=[(i,(i+1)%6,6) for i in range(6)]
+    shovel=mesh_object('discarded_cupped_spade',verts,faces,'metal')
+    mod=shovel.modifiers.new('forged_plate_thickness','SOLIDIFY');mod.thickness=.014
+    bpy.context.view_layer.objects.active=shovel;bpy.ops.object.modifier_apply(modifier=mod.name);finish(shovel,'discarded_cupped_spade','metal')
+    cylinder('shovel_socket',(.36,.55,.115),.036,.16,'metal',16,rotation=(0,math.pi/2,.17))
+    collision_box((-.73,.77,-.59,.74,0,.47))
 
 
 ASSETS = [
@@ -309,6 +395,7 @@ ASSETS = [
 
 
 def mesh_stats():
+    bpy.context.view_layer.update()
     visible = [o for o in bpy.context.scene.objects if o.type == "MESH" and not o.hide_render]
     points = [o.matrix_world @ Vector(corner) for o in visible for corner in o.bound_box]
     bounds = [[round(min(p[i] for p in points), 3), round(max(p[i] for p in points), 3)]
@@ -352,29 +439,35 @@ def review_sheet():
     for index, (_name, builder) in enumerate(ASSETS):
         before = set(bpy.context.scene.objects)
         builder()
-        dx, dy = (index % 4) * 2.7, (index // 4) * 3.0
+        dx, dy = (index % 3) * 2.7, (index // 3) * 2.7
         # Only the asset just made moves; preceding assets stay in their cell.
         for obj in set(bpy.context.scene.objects) - before:
             obj.location.x += dx
             obj.location.y += dy
-        cube("review_tile", (dx,dy,-.06), (2.25,2.25,.12), "stone", 0, 0.0)
-        review_label(_name, (dx,dy-1.02,.015))
-    add_reference_figure((8.0,4.3))
-    review_label("1.80 m", (8.0,3.75,.015))
+        tile=cube("review_tile", (dx,dy,-.06), (2.5,2.5,.12), "stone", .015, 0.0)
+        paper=bpy.data.materials.get('review_paper') or bpy.data.materials.new('review_paper')
+        paper.diffuse_color=(.69,.68,.64,1);paper.use_nodes=True
+        paper.node_tree.nodes.get('Principled BSDF').inputs['Base Color'].default_value=(.69,.68,.64,1)
+        tile.data.materials.clear();tile.data.materials.append(paper)
+        review_label(_name.replace('dressing_','').upper(), (dx,dy-1.01,.015))
+    add_reference_figure((5.4,5.4))
+    review_label("1.80 m SCALE", (5.4,4.39,.015))
     bpy.ops.object.light_add(type="AREA", location=(4,-4,11))
-    bpy.context.object.data.energy, bpy.context.object.data.shape = 1200, "DISK"
+    bpy.context.object.data.energy, bpy.context.object.data.shape = 2400, "DISK"
     bpy.context.object.data.size = 6
     bpy.ops.object.light_add(type="AREA", location=(9,9,6))
-    bpy.context.object.data.energy, bpy.context.object.data.size = 700, 4
-    bpy.ops.object.camera_add(location=(7.5,-9.5,13.5))
+    bpy.context.object.data.energy, bpy.context.object.data.size = 1500, 4
+    bpy.ops.object.camera_add(location=(4.2,-8.7,15.8))
     camera = bpy.context.object
-    camera.rotation_euler = (Vector((4.0,1.5,.35))-camera.location).to_track_quat('-Z','Y').to_euler()
-    camera.data.type = "ORTHO"; camera.data.ortho_scale = 11.0
+    camera.rotation_euler = (Vector((2.7,2.7,.35))-camera.location).to_track_quat('-Z','Y').to_euler()
+    camera.data.type = "ORTHO"; camera.data.ortho_scale = 9.2
     scene = bpy.context.scene
     scene.camera = camera
     # Blender 5 exposes the EEVEE-next renderer under this stable enum name.
     scene.render.engine = "BLENDER_EEVEE"
-    scene.render.resolution_x, scene.render.resolution_y = 1800, 1250
+    scene.world.color=(.5,.5,.5)
+    scene.view_settings.view_transform='AgX'
+    scene.render.resolution_x, scene.render.resolution_y = 2400, 2300
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
     scene.render.filepath = str(SRC / "dressing_review.png")
@@ -382,17 +475,53 @@ def review_sheet():
     bpy.ops.wm.save_as_mainfile(filepath=str(SRC / "dressing_kit.blend"))
 
 
+def render_asset_review(name, stats):
+    """Close views expose construction and silhouette at player inspection scale."""
+    span=max(b-a for a,b in stats['bounds_blender_xyz_m'])
+    height=stats['bounds_blender_xyz_m'][2][1]
+    target=Vector((0,0,height*.45))
+    bpy.ops.object.camera_add(location=target+Vector((1.6,-2.4,1.65))*span)
+    camera=bpy.context.object
+    camera.rotation_euler=(target-camera.location).to_track_quat('-Z','Y').to_euler()
+    camera.data.type='ORTHO';camera.data.ortho_scale=span*1.75
+    scene=bpy.context.scene;scene.camera=camera
+    for location,power,size in [((1,-2,4),480,3),((-3,1,2),360,3)]:
+        bpy.ops.object.light_add(type='AREA',location=Vector(location)*span)
+        lamp=bpy.context.object;lamp.data.energy=power*span*span;lamp.data.size=size*span
+        lamp.rotation_euler=(target-lamp.location).to_track_quat('-Z','Y').to_euler()
+    bpy.ops.mesh.primitive_plane_add(size=200,location=(0,0,-.004))
+    ground=bpy.context.object
+    mat=bpy.data.materials.new('review_neutral_ground');mat.diffuse_color=(.46,.46,.44,1)
+    ground.data.materials.append(mat)
+    scene.world.color=(.45,.45,.45)
+    scene.render.engine='BLENDER_EEVEE';scene.view_settings.view_transform='AgX'
+    scene.render.resolution_x=1100;scene.render.resolution_y=900
+    scene.render.resolution_percentage=100;scene.render.image_settings.file_format='PNG'
+    scene.render.filepath=str(SRC/(name+'_review.png'))
+    bpy.ops.render.render(write_still=True)
+
+
 def main():
+    bpy.context.preferences.filepaths.save_version = 0
     bpy.context.scene.unit_settings.system = "METRIC"
     delivered = []
     for name, builder in ASSETS:
         clear_scene()
         builder()
+        # Set base-centre from the finished visible form, not a guessed box.
+        bpy.context.view_layer.update()
+        visible=[o for o in bpy.context.scene.objects if o.type=='MESH' and not o.hide_render]
+        pts=[o.matrix_world @ v.co for o in visible for v in o.data.vertices]
+        shift=Vector(((min(p.x for p in pts)+max(p.x for p in pts))/2,
+                      (min(p.y for p in pts)+max(p.y for p in pts))/2,
+                      min(p.z for p in pts)))
+        for obj in bpy.context.scene.objects: obj.location-=shift
         stats = mesh_stats()
         assert stats["triangles"] <= 3000, (name, stats["triangles"])
         export_asset(name)
         bpy.ops.wm.save_as_mainfile(filepath=str(SRC / (name + ".blend")))
         delivered.append({"name": name, **stats})
+        render_asset_review(name, stats)
     (SRC / "measurements.json").write_text(json.dumps(delivered, indent=2) + "\n")
     review_sheet()
     print("DRESSING_DELIVERED", json.dumps(delivered))

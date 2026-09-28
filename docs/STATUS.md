@@ -193,6 +193,6 @@ _None. Sequencing is clean._
 
 ---
 
-_46 docs (45 accepted) · 265 ADRs · 0 open questions · 266 ⟨tune⟩ markers._
+_47 docs (45 accepted) · 265 ADRs · 0 open questions · 266 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

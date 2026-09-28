@@ -9,16 +9,36 @@ from __future__ import annotations
 
 import math
 import os
-import shutil
+
 
 import bpy
-from mathutils import Vector
+import bmesh
+from mathutils import Vector, Matrix
 
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 EXPORT_DIR = os.path.normpath(os.path.join(ROOT, "../../game/art/weapons"))
 BLEND_PATH = os.path.join(ROOT, "weapons.blend")
 REVIEW_PATH = os.path.join(ROOT, "weapons_review_sheet.png")
+SCALE_PATH = os.path.join(ROOT, "weapons_scale_sheet.png")
+
+# **How long each weapon is, in metres** — ART-006 §5.2 (ADR-266).
+#
+# Stated here and asserted below, because the first delivered set was 1.6x to
+# 2.2x life size -- a 3.75 m spear, a 2.69 m bow, a 2.15 m sword -- and nothing
+# anywhere said how long a weapon was. ART-006 gave the pivot and the facing;
+# art_probe.gd deliberately declined to have an opinion about any one asset's
+# size, because it was written to bracket the 100x and 39x *import* errors. A
+# 2x *authoring* error is what a hand-built mesh actually suffers, and it went
+# through both.
+#
+# The builder refuses to export a weapon that disagrees with its own entry, so
+# the error is caught where it is made rather than after it has shipped.
+STATED_LENGTH = {
+    "seax": 0.50, "bearded_axe": 0.80, "ash_spear": 2.00,
+    "yew_bow": 1.65, "dvergar_hammer": 0.85, "regin_blade": 1.25,
+}
+LENGTH_TOLERANCE = 0.08
 
 # ART-006 §2.3: outline R, hatch G, ink/material B.
 INK = {
@@ -27,9 +47,9 @@ INK = {
     "leather": (1.0, 0.5, 0.6, 1.0),
 }
 MATERIAL_COLOURS = {
-    "wood": (0.29, 0.285, 0.265, 1.0),
-    "metal": (0.34, 0.37, 0.39, 1.0),
-    "leather": (0.19, 0.185, 0.175, 1.0),
+    "wood": (0.27, 0.27, 0.27, 1.0),
+    "metal": (0.38, 0.38, 0.38, 1.0),
+    "leather": (0.14, 0.14, 0.14, 1.0),
 }
 
 
@@ -83,45 +103,6 @@ def box(
     return mesh_object(collection, name, verts, faces, material_name)
 
 
-def prism_yz(
-    collection: bpy.types.Collection,
-    name: str,
-    profile: list[tuple[float, float]],
-    half_width: float,
-    material_name: str,
-) -> bpy.types.Object:
-    """Extrude a weapon side-profile in the Y/Z plane across the X axis."""
-    verts = [(-half_width, y, z) for y, z in profile]
-    verts += [(half_width, y, z) for y, z in profile]
-    count = len(profile)
-    faces: list[tuple[int, ...]] = [tuple(range(count - 1, -1, -1)), tuple(range(count, count * 2))]
-    for i in range(count):
-        j = (i + 1) % count
-        faces.append((i, j, count + j, count + i))
-    return mesh_object(collection, name, verts, faces, material_name)
-
-
-def cylinder_y(
-    collection: bpy.types.Collection,
-    name: str,
-    y0: float, y1: float, radius: float,
-    material_name: str,
-    sides: int = 8,
-    r1: float | None = None,
-) -> bpy.types.Object:
-    r1 = radius if r1 is None else r1
-    verts: list[tuple[float, float, float]] = []
-    for y, r in ((y0, radius), (y1, r1)):
-        for index in range(sides):
-            angle = math.tau * index / sides
-            verts.append((math.cos(angle) * r, y, math.sin(angle) * r))
-    faces: list[tuple[int, ...]] = [tuple(range(sides - 1, -1, -1)), tuple(range(sides, sides * 2))]
-    for index in range(sides):
-        next_index = (index + 1) % sides
-        faces.append((index, next_index, sides + next_index, sides + index))
-    return mesh_object(collection, name, verts, faces, material_name)
-
-
 def cylinder_between(
     collection: bpy.types.Collection,
     name: str,
@@ -154,77 +135,193 @@ def create_collection(name: str) -> bpy.types.Collection:
     return collection
 
 
+def loft(collection, name, sections, material_name, sides=10):
+    """Joined elliptical rings produce deliberate swelling/taper, not stacked cylinders."""
+    verts, faces = [], []
+    for y, x_radius, z_radius, z_center in sections:
+        verts.extend((math.cos(math.tau*i/sides)*x_radius, y,
+                      z_center+math.sin(math.tau*i/sides)*z_radius) for i in range(sides))
+    faces.append(tuple(reversed(range(sides))))
+    for k in range(len(sections)-1):
+        for i in range(sides):
+            j=(i+1)%sides
+            faces.append((k*sides+i,k*sides+j,(k+1)*sides+j,(k+1)*sides+i))
+    faces.append(tuple((len(sections)-1)*sides+i for i in range(sides)))
+    return mesh_object(collection,name,verts,faces,material_name)
+
+
+def blade(collection, name, sections, fuller=False):
+    """Hexagonal forged cross-section: two keen edges and two broad bevels per side."""
+    verts, faces = [], []
+    for y, low, high, thickness in sections:
+        mid=(low+high)*.5
+        if fuller:
+            # A shallow recessed channel between two shoulders is forged form.
+            span=(high-low)/2
+            profile=[(-.0005,low),(-thickness,mid-span*.38),
+                     (-thickness*.55,mid-span*.20),(-thickness*.55,mid+span*.20),
+                     (-thickness,mid+span*.38),(-.0005,high)]
+            profile += [(-x,z) for x,z in reversed(profile)]
+            verts.extend((x,y,z) for x,z in profile)
+        else:
+            verts.extend([(-.0005,y,low),(-thickness,y,mid),(-.0005,y,high),
+                          (.0005,y,high),(thickness,y,mid),(.0005,y,low)])
+    n=12 if fuller else 6
+    faces.append(tuple(reversed(range(n))))
+    for k in range(len(sections)-1):
+        for i in range(n):
+            j=(i+1)%n
+            faces.append((n*k+i,n*k+j,n*(k+1)+j,n*(k+1)+i))
+    faces.append(tuple(n*(len(sections)-1)+i for i in range(n)))
+    return mesh_object(collection,name,verts,faces,"metal")
+
+
+def binding(collection, name, y0, y1, radius, turns=8):
+    # A shallow continuous raised seam, not a stack of oversized grip rings.
+    verts, faces = [], []
+    steps=turns*8
+    for i in range(steps+1):
+        t=i/steps
+        angle=math.tau*turns*t
+        for r,dy in ((radius, -.0012),(radius+.0015,0),(radius,.0012)):
+            verts.append((r*math.cos(angle), y0+(y1-y0)*t+dy,r*math.sin(angle)))
+    for i in range(steps):
+        for j in range(2):
+            a=3*i+j
+            faces.append((a,a+1,a+4,a+3))
+    return mesh_object(collection,name,verts,faces,"leather")
+
+
 def seax() -> bpy.types.Collection:
     c = create_collection("seax")
-    cylinder_y(c, "seax_grip", -0.08, 0.05, 0.036, "leather")
-    cylinder_y(c, "seax_pommel", -0.11, -0.08, 0.046, "metal", r1=0.041)
-    box(c, "seax_guard", -0.022, 0.022, 0.045, 0.070, -0.095, 0.095, "metal")
-    prism_yz(c, "seax_blade", [(0.065, -0.055), (0.065, 0.062), (0.32, 0.058), (0.39, 0.0), (0.28, -0.040)], 0.014, "metal")
-    prism_yz(c, "seax_spine", [(0.11, 0.063), (0.32, 0.059), (0.36, 0.018), (0.11, 0.024)], 0.019, "metal")
+    loft(c,"seax_grip",[(-.092,.014,.018,0),(-.075,.017,.020,0),
+         (-.025,.018,.021,0),(.025,.017,.020,0),(.043,.014,.018,0)],"leather",12)
+    loft(c,"seax_pommel",[(-.11,.012,.017,0),(-.103,.019,.025,0),
+         (-.09,.019,.025,0),(-.084,.014,.018,0)],"metal",10)
+    loft(c,"seax_bolster",[(.037,.014,.025,0),(.044,.020,.035,0),
+         (.055,.020,.035,0),(.061,.010,.028,0)],"metal",10)
+    blade(c,"seax_broken_back",[(.055,-.027,.028,.0055),(.13,-.031,.029,.0055),
+          (.285,-.028,.029,.004),(.326,-.022,.014,.003),(.39,-.007,-.006,.0006)])
+    binding(c,"seax_wrap",-.079,.029,.018,7)
     return c
 
 
 def bearded_axe() -> bpy.types.Collection:
     c = create_collection("bearded_axe")
-    cylinder_y(c, "axe_haft", -0.11, 0.54, 0.035, "wood", r1=0.030)
-    cylinder_y(c, "axe_grip", -0.11, 0.07, 0.043, "leather", r1=0.038)
-    cylinder_y(c, "axe_butt", -0.15, -0.11, 0.043, "metal", r1=0.035)
-    prism_yz(c, "axe_head", [(0.43, -0.06), (0.45, 0.13), (0.65, 0.20), (0.63, 0.07), (0.58, -0.22), (0.48, -0.25)], 0.048, "metal")
-    box(c, "axe_eye", -0.058, 0.058, 0.45, 0.53, -0.065, 0.065, "metal")
+    loft(c,"axe_curved_ash",[(-.15,.016,.022,.004),(-.125,.018,.025,0),
+         (-.07,.016,.020,-.006),(.04,.015,.019,-.010),(.24,.017,.022,-.010),
+         (.46,.019,.026,0),(.61,.016,.023,0),(.65,.014,.020,0)],"wood",10)
+    loft(c,"axe_grip",[(-.125,.018,.025,0),(-.07,.018,.022,-.006),
+         (.025,.017,.021,-.010),(.065,.018,.023,-.010)],"leather",10)
+    # Cross-sections run out from the wrapped eye into a long curved beard.
+    sections=[(.045,.46,.60,.025),(.012,.45,.62,.031),(-.035,.44,.625,.030),
+              (-.085,.41,.632,.023),(-.16,.32,.638,.014),(-.21,.28,.626,.006),
+              (-.232,.29,.60,.0008)]
+    verts,faces=[],[]
+    for z,lo,hi,r in sections:
+        bevel=min(.012,(hi-lo)*.15)
+        verts.extend([(-r*.7,lo,z),(-r,lo+bevel,z),(-r,hi-bevel,z),(-r*.7,hi,z),
+                      (r*.7,hi,z),(r,hi-bevel,z),(r,lo+bevel,z),(r*.7,lo,z)])
+    faces.append(tuple(reversed(range(8))))
+    for k in range(len(sections)-1):
+        for i in range(8):
+            j=(i+1)%8
+            faces.append((8*k+i,8*k+j,8*(k+1)+j,8*(k+1)+i))
+    faces.append(tuple(8*(len(sections)-1)+i for i in range(8)))
+    mesh_object(c,"axe_forged_beard",verts,faces,"metal")
     return c
 
 
 def ash_spear() -> bpy.types.Collection:
     c = create_collection("ash_spear")
-    cylinder_y(c, "spear_shaft", -0.18, 1.55, 0.026, "wood", sides=8, r1=0.020)
-    cylinder_y(c, "spear_grip", -0.08, 0.23, 0.035, "leather", sides=8, r1=0.032)
-    cylinder_y(c, "spear_socket", 1.48, 1.62, 0.040, "metal", sides=8, r1=0.028)
-    prism_yz(c, "spear_head", [(1.55, 0.0), (1.66, 0.095), (1.82, 0.0), (1.66, -0.095)], 0.018, "metal")
-    cylinder_y(c, "spear_butt_cap", -0.18, -0.12, 0.038, "metal", sides=6, r1=0.026)
+    loft(c,"spear_ash",[(-.16,.016,.016,0),(.0,.017,.017,0),(.75,.016,.016,0),
+         (1.45,.012,.012,0),(1.59,.010,.010,0)],"wood",12)
+    loft(c,"spear_grip",[(-.07,.018,.018,0),(.0,.019,.019,0),
+         (.16,.019,.019,0),(.22,.017,.017,0)],"leather",12)
+    loft(c,"spear_socket",[(1.46,.015,.015,0),(1.49,.016,.016,0),
+         (1.56,.012,.012,0),(1.62,.005,.016,0)],"metal",12)
+    blade(c,"spear_leaf",[(1.56,-.013,.013,.006),(1.63,-.034,.034,.007),
+          (1.69,-.040,.040,.006),(1.74,-.031,.031,.0045),
+          (1.79,-.014,.014,.003),(1.82,-.0005,.0005,.0005)])
+    loft(c,"spear_ferrule",[(-.18,.006,.006,0),(-.168,.017,.017,0),
+         (-.135,.018,.018,0),(-.12,.016,.016,0)],"metal",10)
     return c
 
 
 def yew_bow() -> bpy.types.Collection:
     c = create_collection("yew_bow")
-    # A bow is upright in the hand: grip and limbs run along Z.  The carved
-    # stave bows forward (+Y); the single taut string is behind the grip (-Y).
-    cylinder_between(c, "bow_grip", (0.0, 0.035, -0.115), (0.0, 0.035, 0.115), 0.036, "leather", 8)
-    upper = [(0.04, 0.115), (0.15, 0.26), (0.25, 0.42),
-             (0.30, 0.58), (0.24, 0.72), (-0.13, 0.80)]
-    lower = [(0.04, -0.115), (0.15, -0.26), (0.25, -0.42),
-             (0.30, -0.58), (0.24, -0.72), (-0.13, -0.80)]
-    for label, points in (("upper", upper), ("lower", lower)):
-        for index, ((y0, z0), (y1, z1)) in enumerate(zip(points, points[1:])):
-            cylinder_between(c, "bow_%s_%d" % (label, index), (0.0, y0, z0), (0.0, y1, z1), 0.027 - index * 0.004, "wood")
-    cylinder_between(c, "bow_string", (0.0, -0.13, -0.80), (0.0, -0.13, 0.80), 0.006, "leather", 5)
+    # One continuous stave, progressively thinner toward horn-like nocks.
+    verts,faces=[],[]
+    segments,sides=32,8
+    for i in range(segments+1):
+        z=-.825+1.65*i/segments
+        t=abs(z)/.825
+        y=-.185*t*t + .018*t**4
+        width=.018*(1-.70*t)+.002
+        depth=.015*(1-.70*t)+.001
+        for j in range(sides):
+            a=math.tau*j/sides
+            verts.append((width*math.cos(a),y+depth*math.sin(a),z))
+    faces.append(tuple(reversed(range(sides))))
+    for i in range(segments):
+        for j in range(sides):
+            k=(j+1)%sides
+            faces.append((i*sides+j,i*sides+k,(i+1)*sides+k,(i+1)*sides+j))
+    faces.append(tuple(segments*sides+j for j in range(sides)))
+    mesh_object(c,"bow_continuous_yew_stave",verts,faces,"wood")
+    cylinder_between(c,"bow_leather_grip",(0,-.001,-.09),(0,-.001,.09),.021,"leather",12)
+    cylinder_between(c,"bow_braced_string",(0,-.174,-.82),(0,-.174,.82),.0009,"leather",6)
+    for sign in (-1,1):
+        cylinder_between(c,"bow_nock_%s" % sign,(0,-.171,sign*.804),
+                         (0,-.167,sign*.822),.007,"metal",8)
     return c
 
 
 def dvergar_hammer() -> bpy.types.Collection:
     c = create_collection("dvergar_hammer")
-    cylinder_y(c, "hammer_haft", -0.14, 0.46, 0.047, "wood", sides=8, r1=0.038)
-    cylinder_y(c, "hammer_grip", -0.14, 0.12, 0.054, "leather", sides=8, r1=0.047)
-    cylinder_y(c, "hammer_butt", -0.18, -0.14, 0.060, "metal", sides=8, r1=0.047)
-    box(c, "hammer_head", -0.16, 0.16, 0.40, 0.58, -0.20, 0.20, "metal")
-    prism_yz(c, "hammer_peen", [(0.57, -0.13), (0.66, -0.07), (0.67, 0.07), (0.57, 0.13)], 0.11, "metal")
-    box(c, "hammer_strike_face", -0.21, 0.21, 0.34, 0.41, -0.15, 0.15, "metal")
-    cylinder_y(c, "hammer_wedge", 0.46, 0.51, 0.060, "metal", sides=6, r1=0.052)
+    loft(c,"hammer_haft",[(-.18,.018,.023,0),(-.15,.020,.026,0),
+         (-.10,.016,.020,0),(.02,.017,.021,-.009),(.20,.018,.024,-.012),
+         (.45,.022,.029,0),(.655,.018,.024,0)],"wood",12)
+    loft(c,"hammer_grip",[(-.15,.021,.027,0),(-.11,.019,.023,0),
+         (.02,.020,.024,-.009),(.075,.020,.025,-.010)],"leather",12)
+    # Octagonal cross-sections, square striking poll and narrowing opposing peen.
+    sections=[(-.19,.048,.065),(-.181,.060,.076),(-.145,.060,.076),
+              (-.123,.047,.058),(.07,.045,.055),(.13,.032,.044),(.20,.012,.024)]
+    verts,faces=[],[]
+    for z,rx,ry in sections:
+        for x,y in [(-rx*.7,-ry),(-rx,-ry*.7),(-rx,ry*.7),(-rx*.7,ry),
+                    (rx*.7,ry),(rx,ry*.7),(rx,-ry*.7),(rx*.7,-ry)]:
+            verts.append((x,.594+y,z))
+    faces.append(tuple(reversed(range(8))))
+    for k in range(len(sections)-1):
+        for i in range(8):
+            j=(i+1)%8
+            faces.append((8*k+i,8*k+j,8*(k+1)+j,8*(k+1)+i))
+    faces.append(tuple(8*(len(sections)-1)+i for i in range(8)))
+    mesh_object(c,"hammer_forged_head",verts,faces,"metal")
+    loft(c,"hammer_lower_collar",[(.465,.025,.032,0),(.478,.027,.034,0),
+         (.515,.026,.033,0)],"metal",10)
     return c
 
 
 def regin_blade() -> bpy.types.Collection:
     c = create_collection("regin_blade")
-    cylinder_y(c, "regin_grip", -0.09, 0.07, 0.040, "leather", sides=8)
-    cylinder_y(c, "regin_pommel", -0.14, -0.08, 0.058, "metal", sides=6, r1=0.042)
-    box(c, "regin_guard", -0.028, 0.028, 0.065, 0.105, -0.14, 0.14, "metal")
-    # Uneven shoulders and a stepped fuller make the old, reforged relic legible.
-    prism_yz(c, "regin_blade", [(0.09, -0.055), (0.19, -0.092), (0.30, -0.105),
-        (0.40, -0.078), (0.49, -0.092), (0.88, -0.047), (1.11, 0.0),
-        (0.88, 0.047), (0.49, 0.092), (0.40, 0.078), (0.30, 0.105),
-        (0.19, 0.092)], 0.019, "metal")
-    prism_yz(c, "regin_raised_ridge", [(0.20, -0.020), (0.36, -0.022),
-        (0.45, -0.010), (0.92, -0.013), (1.03, 0.0), (0.92, 0.013),
-        (0.45, 0.010), (0.36, 0.022), (0.20, 0.020)], 0.030, "metal")
+    loft(c,"regin_grip",[(-.088,.015,.020,0),(-.055,.018,.023,0),
+         (.025,.019,.024,0),(.067,.015,.020,0)],"leather",12)
+    loft(c,"regin_lobed_pommel",[(-.14,.010,.021,0),(-.13,.023,.043,0),
+         (-.111,.026,.049,0),(-.092,.020,.041,0),(-.082,.013,.023,0)],"metal",12)
+    # Gently downturned quillons are a shaped forging, not a rectangular bar.
+    obj=loft(c,"regin_curved_guard",[(-.125,.012,.014,-.011),(-.11,.019,.018,-.006),
+         (-.052,.016,.019,.004),(0,.018,.021,.009),(.052,.016,.019,.004),
+         (.11,.019,.018,-.006),(.125,.012,.014,-.011)],"metal",8)
+    for v in obj.data.vertices:
+        y,z=v.co.y,v.co.z
+        v.co.y=.083+z
+        v.co.z=y
+    blade(c,"regin_forged_blade",[(.099,-.036,.036,.007),(.16,-.039,.039,.007),
+          (.32,-.038,.038,.0065),(.40,-.035,.035,.006),(.49,-.034,.034,.006),
+          (.84,-.026,.026,.0045),(1.02,-.014,.014,.003),(1.11,-.0005,.0005,.0005)], fuller=True)
+    binding(c,"regin_wrap",-.074,.05,.019,8)
     return c
 
 
@@ -243,6 +340,10 @@ def export_collection(collection: bpy.types.Collection, filename: str) -> None:
     for obj in collection.objects:
         obj.select_set(True)
     bpy.context.view_layer.objects.active = next(iter(collection.objects))
+    for obj in collection.objects:
+        bm=bmesh.new(); bm.from_mesh(obj.data)
+        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
+        bm.to_mesh(obj.data); bm.free()
     path = os.path.join(EXPORT_DIR, filename + ".glb")
     bpy.ops.export_scene.gltf(
         filepath=path,
@@ -279,7 +380,7 @@ def review_label(
     curve.body = text
     curve.align_x = "CENTER"
     curve.align_y = "CENTER"
-    curve.size = 0.22
+    curve.size = 0.13
     curve.extrude = 0.002
     curve.materials.append(material_ref)
     label = bpy.data.objects.new("label_" + text, curve)
@@ -289,53 +390,154 @@ def review_label(
     collection.objects.link(label)
 
 
+def build_scale_sheet(collections: dict[str, bpy.types.Collection]) -> None:
+    """Every weapon at true scale beside a measured 1.80 m figure (ADR-266).
+
+    The review sheet enlarges each weapon to fill its own panel. That is the
+    right way to inspect **form**, and it destroys every clue about **size**:
+    a 0.5 m knife and a 2 m spear draw exactly the same. So this is a second
+    sheet rather than a change to that one -- the two answer different
+    questions and neither can answer both.
+
+    The captions carry the numbers, and a caption is not the same instrument.
+    It is written beside the geometry it describes, from the same source, so a
+    weapon modelled at twice life size gets a label confidently stating the
+    length it was supposed to be. **The figure can disagree**: 1.80 m is a fact
+    about people, fixed by ART-006 §3.1, and a weapon built twice too long
+    stands twice as tall as it. That is the whole point of a reference -- it is
+    independent of the subject.
+    """
+    sheet = create_collection("SCALE_ONLY")
+    paper = review_material("scale_paper", (0.48, 0.48, 0.48, 1.0))
+    ink = review_material("scale_ink", (0.025, 0.025, 0.025, 1.0))
+    backdrop = box(sheet, "scale_backdrop", -.48, -.46, -4.0, 4.0, -1.6, 1.5,
+                   "leather")
+    backdrop.data.materials[0] = paper
+    base = -1.0
+    # Shortest to longest, so the eye reads the set as a scale in itself.
+    order = ["seax", "bearded_axe", "dvergar_hammer", "regin_blade",
+             "yew_bow", "ash_spear"]
+    for i, name in enumerate(order):
+        # The bow already stands along its own Z; everything else is authored
+        # along +Y and is stood upright, exactly as the review sheet does it.
+        turn = (Matrix.Identity(4) if name == "yew_bow"
+                else Matrix.Rotation(math.pi / 2.0, 4, "X"))
+        points = [turn @ v.co
+                  for o in collections[name].objects for v in o.data.vertices]
+        y = -1.9 + i * 1.05
+        lift = base - min(p.z for p in points)
+        for source in collections[name].objects:
+            source.hide_render = True
+            copy = source.copy()
+            copy.data = source.data.copy()
+            copy.name = "scale_" + source.name
+            for v in copy.data.vertices:
+                v.co = (turn @ v.co) + Vector((0.0, y, lift))
+            copy.hide_render = False
+            sheet.objects.link(copy)
+        review_label(sheet, "%.2f M" % STATED_LENGTH[name],
+                     (.05, y, base - 0.22), ink)
+
+    # 1.80 m exactly, foot to crown: ART-006 §3.1's body. Jointed rather than
+    # a single post, because the reference only works if it reads as a person
+    # at a glance -- a column beside a spear is two columns.
+    figure = -3.1
+    # Proportioned off ART-006 §3.1's 1.80 m body: hip at half height,
+    # shoulders at 1.47, crown at 1.80 exactly -- which is the only dimension
+    # here that has to be right.
+    for side in (-0.09, 0.09):
+        cylinder_between(sheet, "scale_leg_%+.2f" % side,
+                         (0.0, figure + side, base),
+                         (0.0, figure + side, base + 0.94), 0.068, "metal", 8)
+    cylinder_between(sheet, "scale_body", (0.0, figure, base + 0.86),
+                     (0.0, figure, base + 1.52), 0.155, "metal", 8)
+    cylinder_between(sheet, "scale_head", (0.0, figure, base + 1.53),
+                     (0.0, figure, base + 1.80), 0.105, "metal", 8)
+    for side in (-1.0, 1.0):
+        cylinder_between(sheet, "scale_arm_%+.0f" % side,
+                         (0.0, figure + side * 0.17, base + 1.47),
+                         (0.0, figure + side * 0.21, base + 0.78),
+                         0.048, "metal", 6)
+    review_label(sheet, "1.80 M", (.05, figure, base - 0.22), ink)
+
+    camera_data = bpy.data.cameras.new("scale_camera")
+    camera = bpy.data.objects.new("scale_camera", camera_data)
+    sheet.objects.link(camera)
+    camera.location = (10.0, 0.0, -0.10)
+    look_at(camera, (0.0, 0.0, -0.10))
+    camera_data.type = "ORTHO"
+    camera_data.ortho_scale = 8.2
+    bpy.context.scene.camera = camera
+
+    light_data = bpy.data.lights.new("scale_key", "AREA")
+    light_data.energy = 900.0
+    light_data.shape = "DISK"
+    light_data.size = 7.0
+    light = bpy.data.objects.new("scale_key", light_data)
+    sheet.objects.link(light)
+    light.location = (4.0, -1.5, 4.0)
+    look_at(light, (0.0, 0.0, -0.10))
+    bpy.context.scene.render.engine = "BLENDER_EEVEE"
+    bpy.context.scene.render.resolution_x = 2400
+    bpy.context.scene.render.resolution_y = 800
+    bpy.context.scene.render.resolution_percentage = 100
+    bpy.context.scene.render.image_settings.file_format = "PNG"
+    bpy.context.scene.render.filepath = SCALE_PATH
+    bpy.context.scene.world.color = (0.025, 0.025, 0.025)
+    bpy.ops.render.render(write_still=True)
+
+    # Off the stage before the review sheet builds its own, or both sets of
+    # copies would stand in the same frame.
+    for obj in list(sheet.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
+    bpy.data.collections.remove(sheet)
+
+
 def build_review_sheet(collections: dict[str, bpy.types.Collection]) -> None:
     review = create_collection("REVIEW_ONLY")
     layout = {
-        "seax": (-1.65, 1.15), "bearded_axe": (0.0, 1.15), "ash_spear": (1.35, 1.15),
-        "yew_bow": (-1.65, -0.90), "dvergar_hammer": (0.0, -0.90), "regin_blade": (1.55, -0.90),
+        "seax": (-2.15, 1.2), "bearded_axe": (0, 1.2), "ash_spear": (2.15, 1.2),
+        "yew_bow": (-2.15, -1.2), "dvergar_hammer": (0, -1.2), "regin_blade": (2.15, -1.2),
     }
-    for name, collection in collections.items():
-        for source in collection.objects:
-            # Source geometry remains at its true grip-origin location; the
-            # review sheet uses linked copies positioned as a contact sheet.
-            source.hide_render = True
-        y_offset, z_offset = layout[name]
-        for source in collection.objects:
-            copy = source.copy()
-            copy.data = source.data
-            copy.name = "review_" + source.name
-            copy.location = (0.0, y_offset, z_offset)
-            copy.scale = (1.0, 1.0, 1.0)
-            copy.hide_render = False
-            review.objects.link(copy)
-
-    paper = review_material("review_paper", (0.52, 0.49, 0.43, 1.0))
-    ink = review_material("review_ink", (0.035, 0.032, 0.028, 1.0))
-    backdrop = box(review, "review_backdrop", -0.32, -0.30, -3.2, 3.3, -2.15, 2.15, "leather")
+    # Composed from STATED_LENGTH rather than typed out, so the caption and
+    # the assertion cannot disagree. It is still a caption and still not a
+    # reference -- weapons_scale_sheet.png is where size is actually reviewed.
+    names = {
+        "seax": "SEAX", "bearded_axe": "BEARDED AXE",
+        "ash_spear": "ASH SPEAR", "yew_bow": "YEW BOW",
+        "dvergar_hammer": "DVERGAR HAMMER", "regin_blade": "REGIN'S BLADE",
+    }
+    labels = {key: "%s / %.2f M" % (text, STATED_LENGTH[key])
+              for key, text in names.items()}
+    paper = review_material("review_paper", (0.48, 0.48, 0.48, 1.0))
+    ink = review_material("review_ink", (0.025, 0.025, 0.025, 1.0))
+    backdrop = box(review,"review_backdrop",-.48,-.46,-3.3,3.3,-2.55,2.55,"leather")
     backdrop.data.materials[0] = paper
-    labels = {
-        "seax": "SEAX", "bearded_axe": "BEARDED AXE", "ash_spear": "ASH SPEAR",
-        "yew_bow": "YEW BOW", "dvergar_hammer": "DVERGAR HAMMER", "regin_blade": "REGIN'S BLADE",
-    }
-    label_height = {"seax": 1.75, "bearded_axe": 1.75, "ash_spear": 1.75,
-                    "yew_bow": 0.18, "dvergar_hammer": -0.32, "regin_blade": -0.32}
-    for name, (y_offset, _z_offset) in layout.items():
-        review_label(review, labels[name], (0.04, y_offset, label_height[name]), ink)
-    # The review-only silhouette is deliberately a measured 1.80 m reference,
-    # so visual proportions cannot drift away from ART-006 §3.1.
-    cylinder_between(review, "review_body", (0.0, -2.75, -1.75), (0.0, -2.75, -0.32), 0.14, "metal", 8)
-    cylinder_between(review, "review_head", (0.0, -2.75, -0.27), (0.0, -2.75, 0.05), 0.17, "metal", 8)
-    cylinder_between(review, "review_arm_l", (0.0, -2.75, -0.55), (0.0, -3.02, -0.99), 0.045, "metal", 6)
-    cylinder_between(review, "review_arm_r", (0.0, -2.75, -0.55), (0.0, -2.48, -0.99), 0.045, "metal", 6)
-    review_label(review, "1.80 M", (0.04, -2.75, 0.42), ink)
+    for name, collection in collections.items():
+        coords=[v.co for o in collection.objects for v in o.data.vertices]
+        axis=2 if name=="yew_bow" else 1
+        lo=min(v[axis] for v in coords); hi=max(v[axis] for v in coords)
+        scale=1.85/(hi-lo)
+        transform=Matrix.Rotation(.16,4,'Z') @ Matrix.Rotation(-.14,4,'Y')
+        if name!="yew_bow": transform=transform @ Matrix.Rotation(math.pi/2,4,'X')
+        center=Vector((0,0,(lo+hi)/2)) if axis==2 else Vector((0,(lo+hi)/2,0))
+        y,z=layout[name]
+        for source in collection.objects:
+            source.hide_render=True
+            copy=source.copy(); copy.data=source.data.copy()
+            copy.name="review_"+source.name
+            for v in copy.data.vertices:
+                v.co=transform @ ((v.co-center)*scale)+Vector((0,y,z))
+            copy.hide_render=False
+            review.objects.link(copy)
+        review_label(review,labels[name],(.05,y,z-1.08),ink)
     camera_data = bpy.data.cameras.new("review_camera")
     camera = bpy.data.objects.new("review_camera", camera_data)
     review.objects.link(camera)
     camera.location = (10.0, 0.0, 0.0)
     look_at(camera, (0.0, 0.0, 0.0))
     camera_data.type = "ORTHO"
-    camera_data.ortho_scale = 4.8
+    camera_data.ortho_scale = 6.9
     bpy.context.scene.camera = camera
 
     light_data = bpy.data.lights.new("review_key", "AREA")
@@ -347,8 +549,8 @@ def build_review_sheet(collections: dict[str, bpy.types.Collection]) -> None:
     light.location = (4.0, -1.5, 4.0)
     look_at(light, (0.0, 0.0, 0.0))
     bpy.context.scene.render.engine = "BLENDER_EEVEE"
-    bpy.context.scene.render.resolution_x = 1400
-    bpy.context.scene.render.resolution_y = 980
+    bpy.context.scene.render.resolution_x = 2400
+    bpy.context.scene.render.resolution_y = 1850
     bpy.context.scene.render.resolution_percentage = 100
     bpy.context.scene.render.image_settings.file_format = "PNG"
     bpy.context.scene.render.filepath = REVIEW_PATH
@@ -358,14 +560,57 @@ def build_review_sheet(collections: dict[str, bpy.types.Collection]) -> None:
 
 
 def main() -> None:
+    bpy.context.preferences.filepaths.save_version = 0
     bpy.ops.object.select_all(action="SELECT")
     bpy.ops.object.delete(use_global=False)
     for collection in list(bpy.data.collections):
         bpy.data.collections.remove(collection)
     os.makedirs(EXPORT_DIR, exist_ok=True)
     collections = {name: builder() for name, builder in BUILDERS.items()}
+
+    # **Measured before anything is written** (ADR-266). The first version of
+    # this asserted after the export loop, which fails the build and leaves the
+    # wrong weapon sitting in game/art/weapons/ for the next importer to find.
+    # A gate downstream of the thing it guards is a report, not a gate.
+    wrong = []
+    for name, collection in collections.items():
+        points = [o.matrix_world @ v.co for o in collection.objects for v in o.data.vertices]
+        stated = STATED_LENGTH[name]
+        longest = max(max(p[i] for p in points) - min(p[i] for p in points)
+                      for i in (0, 1, 2))
+        if abs(longest - stated) > stated * LENGTH_TOLERANCE:
+            wrong.append("%s is %.3f m and ART-006 §5.2 says %.2f m"
+                         % (name, longest, stated))
+    if wrong:
+        raise SystemExit("ART-006 §5.2 length: " + "; ".join(wrong))
+
     for name, collection in collections.items():
         export_collection(collection, name)
+    # Regeneration must update the size record alongside the actual exports.
+    lines = ["# Weapon delivery measurements", "",
+             "Generated by `build_weapons.py` in Blender. Dimensions are metres; "
+             "the grip is the origin and glTF is Y-up, −Z forward.", "",
+             "| Asset | Triangles | Bounds (X × Y × Z m) |",
+             "|---|---:|---:|"]
+    for name, collection in collections.items():
+        points = [o.matrix_world @ v.co for o in collection.objects for v in o.data.vertices]
+        sizes = [max(p[i] for p in points) - min(p[i] for p in points) for i in (0, 2, 1)]
+        triangles = sum(len(p.vertices) - 2 for o in collection.objects for p in o.data.polygons)
+        lines.append(f"| `{name}.glb` | {triangles} | " + " × ".join(f"{v:.3f}" for v in sizes) + " |")
+    lines += ["", "All surfaces carry COLOR_0: R=1, G=0.5; B=0.2 timber, "
+              "0.4 metal, or 0.6 leather. No UVs or textures. All meshes have "
+              "hard normals and identity transforms.", "",
+              "Two sheets, because they answer different questions. "
+              "`weapons_review_sheet.png` enlarges each panel independently, "
+              "for **form** — and therefore says nothing about size. "
+              "`weapons_scale_sheet.png` stands all six at true scale beside a "
+              "measured 1.80 m figure, for **size** (ADR-266). Every length is "
+              "asserted against `ART-006` §5.2 at export; the build fails "
+              "rather than delivering a weapon that is not the length it "
+              "claims.", ""]
+    with open(os.path.join(ROOT, "weapons_measurements.md"), "w") as output:
+        output.write("\n".join(lines))
+    build_scale_sheet(collections)
     build_review_sheet(collections)
     print("WEAPONS_DONE", ",".join(BUILDERS.keys()))
 

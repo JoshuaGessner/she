@@ -16,9 +16,10 @@ SRC = Path(__file__).resolve().parent
 OUT.mkdir(parents=True, exist_ok=True)
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete(use_global=False)
+bpy.context.preferences.filepaths.save_version = 0
 bpy.context.scene.unit_settings.system = 'METRIC'
 MATS = {}
-for name, tone, ink in [('stone', .38, 0), ('pale_stone', .47, 0), ('dark_stone', .29, 0), ('timber', .20, .2), ('iron', .12, .4)]:
+for name, tone, ink in [('stone', .38, 0), ('pale_stone', .415, 0), ('dark_stone', .335, 0), ('timber', .20, .2), ('iron', .12, .4)]:
     m = bpy.data.materials.new(name)
     m.diffuse_color = (tone, tone, tone, 1)
     m.use_nodes = True
@@ -66,6 +67,26 @@ def prism(name, polygon, bottom, top, mat='stone'):
     bpy.context.collection.objects.link(o)
     return finish(o, name, mat)
 
+def profiled(name, rings, mat='stone', sides=8, angle=math.pi/8):
+    """A continuous shaft/collar profile, not a stack of intersecting cubes."""
+    verts = [(math.cos(angle+i*math.tau/sides)*r,
+              math.sin(angle+i*math.tau/sides)*r,z)
+             for z,r in rings for i in range(sides)]
+    faces = [tuple(reversed(range(sides))), tuple(range(len(verts)-sides,len(verts)))]
+    for j in range(len(rings)-1):
+        faces += [(j*sides+i,j*sides+(i+1)%sides,(j+1)*sides+(i+1)%sides,(j+1)*sides+i)
+                  for i in range(sides)]
+    mesh=bpy.data.meshes.new(name);mesh.from_pydata(verts,[],faces);mesh.update()
+    obj=bpy.data.objects.new(name,mesh);bpy.context.collection.objects.link(obj)
+    return finish(obj,name,mat)
+
+def pin(name, position, radius=.024, depth=.012, axis=(0,0,1)):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=8,ring_count=4,radius=1,location=position)
+    obj=bpy.context.object
+    obj.scale=(radius,radius,depth)
+    obj.rotation_euler=Vector(axis).to_track_quat('Z','Y').to_euler()
+    return finish(obj,name,'iron')
+
 def proxy(center, size, name='solid'):
     o = box(name+'-colonly', center, size, bevel=0)
     o.hide_render = True
@@ -75,10 +96,13 @@ def proxy(center, size, name='solid'):
 def wall(width, height, depth=.3, x=0, y=0, z=0, variant=0):
     # Solid recessed backing keeps seams closed, while chamfered courses ink.
     box('masonry_core', (x,y,z+height/2), (width,depth-.04,height), 'dark_stone', 0)
-    rows = max(1, round(height / (.5 if variant == 0 else .4)))
-    rh = height/rows
+    rows = max(1, round(height / (.55 if variant == 0 else .48)))
+    weights = [([1.15,.85,1.0] if variant==0 else [.8,1.2,1.0,.9])[i%(3 if variant==0 else 4)] for i in range(rows)]
+    heights=[height*w/sum(weights) for w in weights]
+    bottom=z
     for row in range(rows):
-        spacing = .67 if variant == 0 else .8
+        rh=heights[row]
+        spacing = [.78,.91,.69][(row+variant)%3]
         start = -width/2
         cuts = [start]
         cut = start + (spacing/2 if row%2 else spacing)
@@ -89,9 +113,11 @@ def wall(width, height, depth=.3, x=0, y=0, z=0, variant=0):
         for a,b in zip(cuts,cuts[1:]):
             gap_a = .006 if a != -width/2 else 0
             gap_b = .006 if b != width/2 else 0
-            box('course_%02d'%row, (x+(a+b+gap_a-gap_b)/2,y,z+(row+.5)*rh),
+            box('course_%02d'%row, (x+(a+b+gap_a-gap_b)/2,y,bottom+rh/2),
                 (b-a-gap_a-gap_b,depth,rh-.008),
-                ['stone','pale_stone','stone','dark_stone'][(row+len(bpy.context.scene.objects))%4], .009)
+                ['stone','stone','pale_stone','stone','dark_stone'][(row+len(bpy.context.scene.objects))%5],
+                min(.028,.07*rh,.055*(b-a)))
+        bottom+=rh
 
 def new_asset(name):
     col = bpy.data.collections.new(name)
@@ -137,11 +163,16 @@ for name,h,v in [('delvings_wall_2x26',2.6,0),('delvings_wall_2x40',4,0),('delvi
 name='delvings_doorway'
 c=new_asset(name)
 for x in [-1.6,1.6]:
-    wall(.8,2.2,x=x)
+    wall(.8,2.2,depth=.24,x=x,y=.03)
+    # Rebated dressed jambs sit entirely inside the existing panel envelope.
+    for border in [x-.31,x+.31]:
+        box('jamb_reveal',(border,-.12,1.10),(.16,.06,1.86),'pale_stone',.016)
+    box('jamb_foot',(x,0,.09),(.8,.3,.18),'pale_stone',.022)
+    box('jamb_abacus',(x,0,2.10),(.8,.3,.20),'pale_stone',.025)
     proxy((x,0,1.1),(.8,.3,2.2),'jamb')
 wall(4,1.4,z=2.6,variant=1)
 # One structural lintel, rather than a coplanar decorative facing.
-box('lintel',(0,0,2.4),(4,.3,.4),'pale_stone',.009)
+box('lintel',(0,0,2.4),(4,.3,.4),'pale_stone',.035)
 proxy((0,0,3.1),(4,.3,1.8),'lintel')
 export(name,c)
 
@@ -163,8 +194,19 @@ name='delvings_corner_chamfer'
 c=new_asset(name)
 # Square 2 m envelope; diagonal is the specified 1.6 m corner cutback.
 poly=[(-1,-1),(-.7,-1),(-.7,-.6),(.6,.7),(1,.7),(1,1),(.6,1),(-1,-.6)]
+prism('corner_backing',poly,0,4,'dark_stone')
+# Separate diagonal voussoirs reveal vertical joints as well as horizontal beds.
 for row in range(8):
-    prism('diagonal_course',poly,row*.5,(row+1)*.5-(.008 if row<7 else 0),'pale_stone' if row%3==0 else 'stone')
+    for part in range(3):
+        a=part/3; b=(part+1)/3
+        # Face lies on y=x+.4; inward return on y=x+.1.
+        x0=-.99+1.58*a; x1=-.99+1.58*b
+        face=[(x0+.008,x0+.4-.016),(x1-.008,x1+.4-.016),
+              (x1-.008,x1+.10),(x0+.008,x0+.10)]
+        o=prism('diagonal_ashlar',face,row*.5+.008,(row+1)*.5-.008,'stone' if part!=1 else 'pale_stone')
+        # Put the front just outside the recessed backing without growing bounds.
+        for v in o.data.vertices:
+            v.co.y-=.02
 # One low-complexity concave proxy retains the traversable side of the chamfer.
 o=prism('corner-colonly',poly,0,4)
 o.hide_render=True
@@ -182,7 +224,7 @@ for name,var in [('delvings_floor_2x2',0),('delvings_floor_2x2_b',1)]:
             left=.008 if a>-1 else 0
             right=.008 if b<1 else 0
             box('flag',((a+b+left-right)/2,-1+(row+.5)*2/rows,.047),
-                (b-a-left-right,2/rows-.008,.026),'pale_stone' if row%2 else 'stone',.004)
+                (b-a-left-right,2/rows-.008,.026),'pale_stone' if row%2 else 'stone',.008)
     proxy((0,0,.03),(2,2,.06),'floor')
     export(name,c)
 
@@ -190,9 +232,10 @@ name='delvings_ceiling_2x2'
 c=new_asset(name)
 box('ceiling_slab',(0,0,.29),(2,2,.18),'stone',.012)
 for y in [-.83,.83]:
-    box('crossbeam',(0,y,.10),(2,.24,.20),'timber',.015)
+    box('crossbeam',(0,y,.10),(2,.24,.20),'timber',.027)
     for x in [-.75,.75]:
         box('iron_strap',(x,y,.10),(.08,.255,.20),'iron',.004)
+        pin('strap_pin',(x,y,.006),radius=.023,depth=.006)
 for x in [-.66,0,.66]:
     box('ceiling_plank',(x,0,.19),(.65,2,.07),'timber',.006)
 proxy((0,0,.19),(2,2,.38),'ceiling')
@@ -203,9 +246,11 @@ c=new_asset(name)
 for x in [-.875,.875]:
     wall(.25,2.2,.6,x=x)
     proxy((x,0,1.1),(.25,.6,2.2),'side')
-box('nook_back',(0,.24,1.1),(1.5,.12,2.2),'stone',.009)
-box('nook_lintel',(0,0,2.08),(1.5,.6,.24),'pale_stone',.012)
-box('nook_sill',(0,0,.035),(1.5,.6,.07),'pale_stone',.007)
+box('nook_back',(0,.24,1.1),(1.5,.12,2.2),'stone',.025)
+box('nook_lintel',(0,0,2.08),(1.5,.6,.24),'pale_stone',.035)
+box('nook_sill',(0,0,.035),(1.5,.6,.07),'pale_stone',.018)
+for x in [-.90,.90]:
+    box('nook_reveal',(x,-.265,1.1),(.14,.07,1.80),'pale_stone',.024)
 proxy((0,.24,1.1),(1.5,.12,2.2),'back')
 proxy((0,0,2.08),(1.5,.6,.24),'lintel')
 proxy((0,0,.035),(1.5,.6,.07),'sill')
@@ -214,7 +259,7 @@ export(name,c)
 name='delvings_ledge_edge'
 c=new_asset(name)
 wall(2,2.3,.52,y=.04)
-box('deck_cap',(0,0,2.4),(2,.6,.2),'pale_stone',.012)
+box('deck_cap',(0,0,2.4),(2,.6,.2),'pale_stone',.035)
 proxy((0,0,1.25),(2,.6,2.5),'ledge')
 export(name,c)
 
@@ -224,8 +269,24 @@ c=new_asset(name)
 verts=[(-1,-3,0),(1,-3,0),(-1,2,0),(1,2,0),(-1,2,2.5),(1,2,2.5),(-1,3,0),(1,3,0),(-1,3,2.5),(1,3,2.5)]
 faces=[(0,1,5,4),(4,5,9,8),(0,4,8,6),(1,7,9,5),(6,8,9,7),(0,6,7,1)]
 mesh=bpy.data.meshes.new('ramp');mesh.from_pydata(verts,[],faces);mesh.update()
-o=bpy.data.objects.new('ramp',mesh);c.objects.link(o);finish(o,'ramp')
+o=bpy.data.objects.new('ramp',mesh);c.objects.link(o);finish(o,'ramp','dark_stone')
 collision=o.copy();collision.data=o.data.copy();c.objects.link(collision);collision.name='ramp-colonly';collision.hide_render=True;collision.display_type='WIRE'
+# Recess the visual bed; the collider retains the exact 26.565 degree plane.
+for vertex in o.data.vertices:
+    if vertex.co.z>0:vertex.co.z-=.025
+for row in range(8):
+    y0=-3+row*5/8; y1=-3+(row+1)*5/8
+    for a,b in [(-1,0),(0,1)]:
+        x0=a+(.008 if a==0 else 0);x1=b-(.008 if b==0 else 0)
+        start=y0+(.005 if row else 0);end=y1-.005
+        top0=(start+3)*.5;top1=(end+3)*.5
+        vs=[(x0,start,max(0,top0-.025)),(x1,start,max(0,top0-.025)),
+            (x1,end,top1-.025),(x0,end,top1-.025),
+            (x0,start,top0),(x1,start,top0),(x1,end,top1),(x0,end,top1)]
+        me=bpy.data.meshes.new('ramp_flag');me.from_pydata(vs,[],[(0,3,2,1),(4,5,6,7),(0,1,5,4),(1,2,6,5),(2,3,7,6),(3,0,4,7)]);me.update()
+        flag=bpy.data.objects.new('ramp_flag',me);c.objects.link(flag);finish(flag,'ramp_flag','stone')
+for x in [-.5,.5]:
+    box('landing_flag',(x,2.5,2.4875),(.99,1,.025),'stone',.005)
 # End fascia courses are genuine stepped cuts, staying inside footprint.
 for row in range(5):
     box('landing_fascia',(0,2.99,(row+.5)*.5),(1.98,.02,.48),'pale_stone' if row%2 else 'stone',.006)
@@ -235,10 +296,11 @@ name='delvings_pillar'
 c=new_asset(name)
 box('foot',(0,0,.12),(.8,.8,.24),'pale_stone',.02)
 box('plinth',(0,0,.32),(.68,.68,.16),'stone',.015)
-for row in range(6):
-    box('shaft_course',(0,0,.4+(row+.5)*.5),(.54,.54,.49),'stone',.018)
-box('neck',(0,0,3.5),(.64,.64,.2),'dark_stone',.013)
-box('capital',(0,0,3.8),(.8,.8,.4),'pale_stone',.022)
+profiled('octagonal_shaft',[(.40,.33),(.48,.30),(1.35,.295),(2.25,.28),(3.35,.265),(3.43,.30)],'stone')
+profiled('shaft_base',[(.34,.355),(.40,.355),(.48,.30)],'pale_stone')
+profiled('capital_bell',[(3.40,.29),(3.48,.31),(3.60,.37),(3.67,.37)],'pale_stone')
+box('neck',(0,0,3.71),(.68,.68,.12),'dark_stone',.025)
+box('capital',(0,0,3.885),(.8,.8,.23),'pale_stone',.045)
 proxy((0,0,2),(.8,.8,4),'pillar')
 export(name,c)
 
