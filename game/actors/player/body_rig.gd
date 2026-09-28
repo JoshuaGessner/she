@@ -103,6 +103,9 @@ const POSED: Array[String] = [
 ## for them is a mail shirt and a pair of bracers modelled to lie on a floor;
 ## bolted rigidly to a bone they would be a coat of mail worn as a sandwich
 ## board. They wait for skinned meshes on this rig, which is `ART-006` §5.4.
+## The hand a thing being used is held in (ADR-267) — the right, which carries
+## nothing else on the rig (see above).
+const USE_SOCKET: StringName = &"sock_hand_r"
 const SOCKETS: Dictionary = {
 	Enums.Slot.HEAD: &"sock_head",
 	Enums.Slot.OFF_HAND: &"sock_hand_l",
@@ -131,6 +134,9 @@ var _breath: float = 0.0
 var _sockets: Dictionary = {}
 var _worn: Dictionary = {}
 var _gear_shown: bool = true
+## The lantern's shutter, eased, and what the right hand is using (ADR-267).
+var _open: float = 0.0
+var _using: ItemResource = null
 
 
 func _ready() -> void:
@@ -257,8 +263,9 @@ func wear(items: Dictionary) -> void:
 ## skin is: your own helm stands where your camera is.
 func show_gear(on: bool) -> void:
 	_gear_shown = on
-	for slot: Enums.Slot in _sockets:
-		(_sockets[slot] as Node3D).visible = on
+	# Keyed by slot or, for the hand a thing is used in, by bone — so untyped.
+	for key: Variant in _sockets:
+		(_sockets[key] as Node3D).visible = on
 
 
 ## Where a bone's head is now, in world space — for the checks that ask which
@@ -287,6 +294,57 @@ func socket_at(slot: Enums.Slot) -> Vector3:
 	return _skeleton.global_transform * _skeleton.get_bone_global_pose(index).origin
 
 
+## **What a teammate's hands are doing** (ADR-267), from numbers the wire
+## already carries: `lit` opens the shutter of a lantern in the off hand, and
+## while `mending` or `leaving` runs the binding or the Waystone is in the right
+## hand — which is otherwise empty (Q114), and is the hand a person ties a knot
+## or holds up a stone with. `HeldLook` poses both, so a teammate's lantern and
+## your own shut the same way.
+func show_use(delta: float, lit: bool, mending: float, leaving: float) -> void:
+	if _skeleton == null:
+		return
+	_open = lerpf(_open, 1.0 if lit else 0.0, clampf(delta * 9.0, 0.0, 1.0))
+	var carried: ItemResource = _worn.get(Enums.Slot.OFF_HAND, null) as ItemResource
+	if carried != null and carried.has_trait(LightTrait):
+		HeldLook.lantern(worn_on(Enums.Slot.OFF_HAND), _open)
+	var using: ItemResource = null
+	var done: float = 0.0
+	if leaving > 0.0:
+		using = HeldLook.first_with(ExtractionTrait)
+		done = leaving
+	elif mending > 0.0:
+		using = HeldLook.first_with(MendingTrait)
+		done = mending
+	var hand: BoneAttachment3D = _attach(USE_SOCKET)
+	if hand == null:
+		return
+	if using != _using:
+		_using = using
+		for child: Node in hand.get_children():
+			child.free()
+		if using != null:
+			var look: Node3D = using.look()
+			if look != null:
+				# Held by its middle, hanging below the fist.
+				look.position = Vector3(0.0, -0.12, 0.0)
+				hand.add_child(look)
+	if hand.get_child_count() == 0:
+		return
+	var held := hand.get_child(0) as Node3D
+	if using != null and using.has_trait(ExtractionTrait):
+		HeldLook.waystone(held, done)
+	elif using != null and using.has_trait(MendingTrait):
+		HeldLook.binding(held, done)
+
+
+## What the right hand is holding while it is used, for `--hands-probe`.
+func in_use() -> Node3D:
+	var hand := _sockets.get(USE_SOCKET, null) as BoneAttachment3D
+	if hand == null or hand.get_child_count() == 0:
+		return null
+	return hand.get_child(0) as Node3D
+
+
 ## The model riding `slot`, or null — for `--body-probe`, which asks where it
 ## actually landed rather than what was asked for.
 func worn_on(slot: Enums.Slot) -> Node3D:
@@ -300,7 +358,18 @@ func worn_on(slot: Enums.Slot) -> Node3D:
 func _socket(slot: Enums.Slot) -> BoneAttachment3D:
 	if _sockets.has(slot):
 		return _sockets[slot]
-	var bone: StringName = SOCKETS[slot]
+	var socket: BoneAttachment3D = _attach(SOCKETS[slot])
+	if socket != null:
+		_sockets.erase(SOCKETS[slot])
+		_sockets[slot] = socket
+	return socket
+
+
+## An attachment on one bone, made the first time it is asked for, keyed by the
+## bone's name until a slot claims it.
+func _attach(bone: StringName) -> BoneAttachment3D:
+	if _sockets.has(bone):
+		return _sockets[bone]
 	if _skeleton.find_bone(bone) < 0:
 		push_warning("BodyRig: the rig has no socket '%s'" % bone)
 		return null
@@ -309,7 +378,7 @@ func _socket(slot: Enums.Slot) -> BoneAttachment3D:
 	socket.bone_name = bone
 	socket.visible = _gear_shown
 	_skeleton.add_child(socket)
-	_sockets[slot] = socket
+	_sockets[bone] = socket
 	return socket
 
 

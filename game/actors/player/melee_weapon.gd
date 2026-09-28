@@ -72,6 +72,8 @@ var _scarred: bool = false
 var _glancing: bool = false
 ## Whose model is in the hand — see `_show`.
 var _shown: ItemResource = null
+## How far the blade has come up into view since it was put in the hand, 0 to 1.
+var _drawn: float = 1.0
 
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _model: Node3D = $Model
@@ -140,6 +142,11 @@ func _show(item: ItemResource) -> void:
 	if item == _shown:
 		return
 	_shown = item
+	# **Brought up into view** (ADR-267). A weapon changing in the hand was a
+	# cut from one model to the next; it now rises from below the frame, which
+	# is where a hand brings a thing from. Idle only — see `_enter`.
+	_drawn = 0.0 if item != null else 1.0
+	set_process(_drawn < 1.0)
 	for child: Node in _model.get_children():
 		child.free()
 	if item == null:
@@ -204,6 +211,39 @@ func _update_pose() -> void:
 			_pose(POSE_RAISED if _glancing else POSE_STRUCK, POSE_REST, t)
 		Phase.IDLE:
 			_pose(POSE_REST, POSE_REST, 0.0)
+			lower_by_draw(_model, 1.0 - _drawn)
+
+
+## How long a weapon takes to come up into view, seconds ⟨tune⟩ — shorter than
+## the fastest wind-up, so a draw is never what a player is waiting on.
+const DRAW_SECONDS: float = 0.28
+## How far below and tipped away from its rest pose a weapon starts its draw.
+const LOWERED_BY: Vector3 = Vector3(0.05, -0.42, 0.10)
+const LOWERED_PITCH: float = -55.0
+
+
+func _process(delta: float) -> void:
+	_drawn = minf(1.0, _drawn + delta / DRAW_SECONDS)
+	if _phase == Phase.IDLE:
+		_update_pose()
+	if _drawn >= 1.0:
+		set_process(false)
+
+
+## How far it has been drawn, for `--hands-probe`.
+func drawn() -> float:
+	return _drawn
+
+
+## Push a pose node down and away by `amount` of the lowered offset — shared
+## with `RangedWeapon`, which draws the same way. Eased, so the weapon arrives
+## rather than slides: most of the travel is at the start.
+static func lower_by_draw(node: Node3D, amount: float) -> void:
+	if amount <= 0.0:
+		return
+	var t: float = 1.0 - pow(1.0 - clampf(amount, 0.0, 1.0), 3.0)
+	node.position += LOWERED_BY * t
+	node.rotation.x += deg_to_rad(LOWERED_PITCH) * t
 
 
 func phase() -> Phase:
@@ -288,6 +328,10 @@ func begin_owned_swing() -> void:
 
 
 func _enter(next: Phase, duration: float) -> void:
+	# A swing takes the blade from wherever the draw had got to: the timing of
+	# a swing is `DES-009`'s and a draw may never delay or soften one.
+	if next != Phase.IDLE:
+		_drawn = 1.0
 	if next != Phase.RECOVERY:
 		_glancing = false
 	_phase = next

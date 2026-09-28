@@ -520,6 +520,9 @@ var pinger: Pinger = null
 ## one, rather than sitting hidden in `player.tscn` for the five of `DES-011`'s
 ## six that do not — see `RangedWeapon`.
 var ranged: RangedWeapon = null
+## Your own off hand and whatever you are using, in first person (ADR-267).
+## Only on the body this process plays; see `Hands`.
+var _hands: Hands = null
 ## How far through setting a Snare, 0 to 1. **Not replicated**, unlike the
 ## Húskarl's `planted`: that one crosses the wire because it changes a collision
 ## layer and the host's enemies have to collide with it. This changes nothing
@@ -707,6 +710,15 @@ func _ready() -> void:
 	_body.visible = not _is_local
 	# And never your own helm: it would stand where the camera is.
 	_rig.show_gear(not _is_local)
+	# **Your own hands instead** (ADR-267): the off hand and whatever is being
+	# used, drawn where you can see them. Only for the body you are playing —
+	# a teammate's are on their rig.
+	if _is_local and _hands == null:
+		_hands = Hands.new()
+		_hands.name = "Hands"
+		_head.add_child(_hands)
+		var off: ItemInstance = equipment.in_slot(Enums.Slot.OFF_HAND)
+		_hands.hold(off.definition if off != null else null)
 	_ink.visible = _is_local
 	set_process_unhandled_input(_is_local)
 	if _is_local:
@@ -1280,6 +1292,10 @@ func reach_for(item: WorldItem) -> void:
 	if item == null or not is_instance_valid(item):
 		return
 	var path: NodePath = item.get_path()
+	# So the thing is seen going into this body's bag if the host lets it be
+	# taken (ADR-267). A mark, not a decision: the host still decides.
+	if _is_local:
+		item.claim_locally()
 	if multiplayer.is_server():
 		_take(path)
 	else:
@@ -2317,6 +2333,10 @@ func _physics_process(delta: float) -> void:
 		net_position = position
 		net_yaw = _yaw
 		net_pitch = _pitch
+		# What your own hands are holding and doing (ADR-267) — the first-
+		# person twin of `BodyRig.show_use` below.
+		if _hands != null:
+			_hands.step(delta, lit, blocking, mending, leaving)
 	else:
 		_ease_toward_the_wire(delta)
 		# **The body a teammate actually sees** (`M4-T05`).
@@ -2335,6 +2355,10 @@ func _physics_process(delta: float) -> void:
 		_rig.step(delta,
 			Vector2(moved.x, moved.z).length() / maxf(delta, 0.0001),
 			tuning.walk_speed, stance, _pitch, is_downed())
+		# What their hands are doing (ADR-267): the lantern's shutter, a
+		# binding being tied, a Waystone being spent — every one a number the
+		# wire already carries.
+		_rig.show_use(delta, lit, mending, leaving)
 
 	# The weapon runs on every peer. On the owner it is the swing they asked
 	# for; on the host it is the swing whose hitbox decides damage; elsewhere
@@ -2727,6 +2751,11 @@ func rig() -> BodyRig:
 	return _rig
 
 
+## Your hands in first person, or null on a body this process is not playing.
+func hands() -> Hands:
+	return _hands
+
+
 ## **Hold** (`M3-T02`, `DES-011`) — the Húskarl's verb, and only theirs.
 ##
 ## *"Plant and become an immovable object. Nothing pushes past you. Allies can
@@ -2962,6 +2991,9 @@ func _on_equipment_changed() -> void:
 		var worn: ItemInstance = equipment.in_slot(slot)
 		on_the_body[slot] = worn.definition if worn != null else null
 	_rig.wear(on_the_body)
+	if _hands != null:
+		var off: ItemInstance = equipment.in_slot(Enums.Slot.OFF_HAND)
+		_hands.hold(off.definition if off != null else null)
 	var carried_light := equipment.trait_in(
 		Enums.Slot.OFF_HAND, LightTrait) as LightTrait
 	lantern.carry(carried_light)

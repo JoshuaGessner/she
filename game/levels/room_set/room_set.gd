@@ -955,6 +955,10 @@ func _ready() -> void:
 			_body_probe()
 		elif arg.begins_with("--body-shot="):
 			_body_shot(arg.split("=", true, 1)[1])
+		elif arg == "--hands-probe":
+			_hands_probe()
+		elif arg.begins_with("--hands-shot="):
+			_hands_shot(arg.split("=", true, 1)[1])
 		elif arg == "--acoustics-probe":
 			_acoustics_probe()
 		elif arg == "--portal-probe":
@@ -11292,8 +11296,14 @@ func _use_probe() -> void:
 	player.ask_to_use(stave.instance_id)
 	await _hold(0.3)
 	var circle: Hush = null
+	# **The node that is a circle, not the last one with the name.** The
+	# rune's own model breaks into shards inside its circle (ADR-267), and its
+	# meshes are called `hush_token` and `hush_inset_stave` — so the last
+	# `hush_*` in the tree was a piece of stone, and this row reported no
+	# circle while one stood there.
 	for node: Node in _session.find_children("hush_*", "", true, false):
-		circle = node as Hush
+		if node is Hush:
+			circle = node as Hush
 	if circle == null:
 		problems.append("breaking a hush rune put no circle in the world")
 		_report(problems, "use")
@@ -14793,6 +14803,299 @@ func _body_wears(body: Player) -> PackedStringArray:
 			+ "and its helm stands where its camera is")
 	gear.clear()
 	return problems
+
+
+## **Things move when they are handled, and every movement ends** (ADR-267).
+##
+## `--hands-probe`. The polish pass put motion on items — a hover and a ring on
+## the one in reach, a star on treasure, a fall for a thing set down, a tumble
+## for a thing thrown, a ghost that follows a pick-up into the bag, a weapon
+## that rises into view, and the off hand, a binding and a Waystone drawn in
+## the hand. Two things can go wrong with motion, and they need asking apart:
+##
+## - **it never happens** — the regression ADR-267 found, where every authored
+##   item's highlight had been reaching nothing since ADR-262 and no row said;
+## - **it never finishes** — a model left hovering, lying half in the floor
+##   after a tumble, or a weapon stuck part-drawn, which is a fault a player
+##   reads as the game being broken.
+##
+## So each row watches the motion **start** and watches it **end** where the
+## thing belongs.
+func _hands_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	var ahead: Vector3 = -body.global_transform.basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var ground: Vector3 = body.global_position + ahead * 1.2
+	ground.y = body.global_position.y
+
+	# ─ 1. the one in reach floats and is ringed, and settles back ─
+	var bead: WorldItem = _session.spawn_world_item(&"glt_gilt_bead", ground)
+	var iron: WorldItem = _session.spawn_world_item(&"mat_bog_iron",
+		ground + ahead.cross(Vector3.UP) * 1.0)
+	await _hold(0.2)
+	iron.highlight(true)
+	await _hold(0.5)
+	var lifted: float = iron.look_lift()
+	var ringed: bool = iron.get_node_or_null(^"halo") != null \
+		and (iron.get_node(^"halo") as Node3D).visible
+	iron.highlight(false)
+	await _hold(0.6)
+	print("[hands] reach       lifted %.3f m and %s, back to %.3f m"
+		% [lifted, "ringed" if ringed else "no ring", iron.look_lift()])
+	if lifted < WorldItem.HOVER * 0.8 or not ringed:
+		problems.append(("the item in reach lifted %.3f m and was %sringed — "
+			+ "an authored model has shown nothing when looked at since ADR-262, "
+			+ "and this is that again") % [lifted, "" if ringed else "not "])
+	if absf(iron.look_lift()) > 0.005:
+		problems.append("an item that left reach was left floating %.3f m up"
+			% iron.look_lift())
+
+	# ─ 2. treasure has a star; iron does not ─
+	print("[hands] glint       bead %s, bog iron %s" % [
+		"has one" if bead.glint() != null else "none",
+		"has one" if iron.glint() != null else "none"])
+	if bead.glint() == null or iron.glint() != null:
+		problems.append("the glint is on the wrong things — it is glitter's, "
+			+ "and a floor where everything catches the eye is one where nothing does")
+
+	# ─ 3. a thing set down falls the last half-metre, and lands ─
+	var dropped: WorldItem = _session.spawn_world_item(&"mat_bog_iron",
+		ground - ahead.cross(Vector3.UP) * 1.0, 0.0, Vector3.ZERO, true)
+	await get_tree().process_frame
+	var from: float = dropped.look_lift()
+	await _hold(0.6)
+	print("[hands] set down    fell from %.2f m to %.3f m" % [from, dropped.look_lift()])
+	if from < WorldItem.DROP_HEIGHT * 0.5 or absf(dropped.look_lift()) > 0.005:
+		problems.append(("a thing set down started %.2f m up and finished %.3f m "
+			+ "up — it should fall the last half-metre and lie on the floor")
+			% [from, dropped.look_lift()])
+
+	# ─ 4. a thing thrown turns in the air, and lands the right way up ─
+	var thrown: WorldItem = _session.spawn_world_item(&"mat_bog_iron",
+		body.global_position + ahead * 0.6 + Vector3.UP * 1.4, 0.0,
+		ahead * 5.0 + Vector3.UP * 2.0, true)
+	var turned: float = 0.0
+	for _i: int in 12:
+		await get_tree().physics_frame
+		if thrown != null and is_instance_valid(thrown):
+			turned = maxf(turned, thrown.look_basis().get_euler().length())
+	await _hold(1.6)
+	var upright: bool = is_instance_valid(thrown) \
+		and thrown.look_basis().is_equal_approx(Basis()) \
+		and absf(thrown.look_lift()) < 0.005 and not thrown.in_flight()
+	print("[hands] thrown      turned %.2f rad in the air, %s" % [turned,
+		"landed upright" if upright else "did not come to rest upright"])
+	if turned < 0.3:
+		problems.append("a thrown thing flew without turning at all")
+	if not upright:
+		problems.append("a thrown thing came to rest on its side or in the air — "
+			+ "its model pivots at its base, so that is half of it in the floor")
+
+	# ─ 5. a thing taken is seen going into the bag ─
+	var taken: WorldItem = _session.spawn_world_item(&"glt_gilt_bead",
+		body.global_position + ahead * 0.5)
+	await _hold(0.2)
+	body.reach_for(taken)
+	var ghost_seen: bool = false
+	for _i: int in 10:
+		await get_tree().process_frame
+		for node: Node in get_tree().root.get_children():
+			if node is ItemGhost:
+				ghost_seen = true
+	await _hold(0.5)
+	var ghosts_left: int = 0
+	for node: Node in get_tree().root.get_children():
+		if node is ItemGhost:
+			ghosts_left += 1
+	print("[hands] taken       ghost %s, %d left after it" % [
+		"flew" if ghost_seen else "never appeared", ghosts_left])
+	if not ghost_seen:
+		problems.append("an item was taken and nothing was seen going into the "
+			+ "bag — a thing on the floor, then no thing")
+	if ghosts_left > 0:
+		problems.append("%d pick-up ghost(s) outlived their flight" % ghosts_left)
+
+	# ─ 6. a weapon put in the hand rises into view, and arrives ─
+	var gear: Equipment = body.equipment
+	gear.clear()
+	await get_tree().process_frame
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 9700))
+	await get_tree().process_frame
+	var starting: float = body.weapon.drawn()
+	await _hold(MeleeWeapon.DRAW_SECONDS + 0.15)
+	var model := body.weapon.get_node(^"Model") as Node3D
+	var at_rest: bool = model.position.is_equal_approx(
+		MeleeWeapon.POSE_REST[0] as Vector3)
+	print("[hands] drawn       %.2f at the start, %.2f after, %s" % [
+		starting, body.weapon.drawn(), "at rest" if at_rest else "not at rest"])
+	if starting > 0.5 or body.weapon.drawn() < 1.0 or not at_rest:
+		problems.append(("a weapon put in the hand began %.2f drawn and ended "
+			+ "%.2f, %s — it should rise into view and stop where it rests")
+			% [starting, body.weapon.drawn(),
+				"at rest" if at_rest else "somewhere else"])
+
+	# ─ 7. the lantern hangs in your hand, and its shutter opens ─
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"tol_horn_lantern"), 9701))
+	body.lit = false
+	await _hold(0.6)
+	var hands: Hands = body.hands()
+	var lamp: Node3D = hands.off_look() if hands != null else null
+	var louvres: int = HeldLook.louvres(lamp)
+	var shut: Basis = _first_louvre(lamp)
+	body.lit = true
+	await _hold(0.6)
+	var open: Basis = _first_louvre(lamp)
+	var flame := lamp.get_node_or_null(^"flame") as Node3D if lamp != null else null
+	var swung: float = rad_to_deg(shut.get_rotation_quaternion().angle_to(
+		open.get_rotation_quaternion()))
+	print("[hands] lantern     %s, %d louvre(s) turned %.0f°, flame %s" % [
+		"in hand" if lamp != null else "not in hand", louvres, swung,
+		"lit" if flame != null and flame.visible else "out"])
+	if lamp == null:
+		problems.append("the lantern is in the off hand and not in your view — "
+			+ "`DES-020` says of the off hand *seen by you: constantly*")
+	elif louvres == 0 or swung < 45.0 or flame == null or not flame.visible:
+		problems.append(("the lantern's shutter turned %.0f° over %d louvre(s) "
+			+ "and its flame is %s — lit and shuttered look the same")
+			% [swung, louvres, "lit" if flame != null and flame.visible else "out"])
+	body.lit = false
+
+	# ─ 8. a binding is tied in your hands, and put away ─
+	body.mending = 0.5
+	await _hold(0.5)
+	var roll: Node3D = hands.use_look() if hands != null else null
+	var shrunk: float = roll.scale.x if roll != null else 1.0
+	body.mending = 0.0
+	await _hold(0.8)
+	var put_away: bool = hands != null and hands.use_look() == null
+	print("[hands] binding     %s, at %.2f of its size half-tied, %s" % [
+		"in hand" if roll != null else "nothing", shrunk,
+		"put away" if put_away else "still held"])
+	if roll == null or shrunk > 0.95 or not put_away:
+		problems.append("a binding half-tied showed %s and was %s afterwards"
+			% ["nothing" if roll == null else "a roll that had not wound down",
+				"put away" if put_away else "still in hand"])
+
+	# ─ 9. a Waystone takes the way out's light as it is spent ─
+	body.leaving = 0.9
+	await _hold(0.5)
+	var stone: Node3D = hands.use_look() if hands != null else null
+	var departing := stone.find_child("departure", true, false) as OmniLight3D \
+		if stone != null else null
+	print("[hands] waystone    %s, departure light %.2f" % [
+		"raised" if stone != null else "nothing",
+		departing.light_energy if departing != null else 0.0])
+	if departing == null or departing.light_energy <= 0.2:
+		problems.append("a Waystone nine-tenths spent is not glowing in the hand "
+			+ "— leaving looks like standing still")
+	body.leaving = 0.0
+	await _hold(0.6)
+
+	# ─ 10. a teammate's hands say the same things ─
+	var mate: Player = _session.spawn_player(2, body.global_position + ahead * 3.0)
+	if mate == null:
+		problems.append("no teammate could be spawned to ask about their hands")
+	else:
+		await _hold(0.3)
+		mate.equipment.equip(ItemInstance.of(
+			ItemCatalogue.by_id(&"tol_horn_lantern"), 9710))
+		mate.lit = true
+		mate.mending = 0.5
+		await _hold(0.6)
+		var their_lamp: Node3D = mate.rig().worn_on(Enums.Slot.OFF_HAND)
+		var their_flame := their_lamp.get_node_or_null(^"flame") as Node3D \
+			if their_lamp != null else null
+		var their_roll: Node3D = mate.rig().in_use()
+		print("[hands] teammate    lantern flame %s, binding %s" % [
+			"lit" if their_flame != null and their_flame.visible else "out",
+			"in hand" if their_roll != null else "nothing"])
+		if their_flame == null or not their_flame.visible or their_roll == null:
+			problems.append("a teammate's lit lantern or binding in hand does not "
+				+ "show on their body — the same state reads differently to "
+				+ "the two people it matters to")
+
+	# ─ 11. a broken rune breaks, and its pieces go ─
+	var rune := HeldLook.first_with(HushTrait)
+	var circle: Hush = _session.spawn_hush(ground,
+		rune.first_trait(HushTrait) as HushTrait) if rune != null else null
+	var shards: int = 0
+	if circle != null:
+		await get_tree().process_frame
+		shards = circle.find_children("shard_*", "", false, false).size()
+		await _hold(Hush.SHARD_SECONDS + 0.3)
+	var shards_left: int = circle.find_children("shard_*", "", false, false).size() \
+		if circle != null and is_instance_valid(circle) else 0
+	print("[hands] hush        %d shard(s) at the break, %d left after"
+		% [shards, shards_left])
+	if shards == 0 or shards_left > 0:
+		problems.append("a broken rune showed %d shard(s) and left %d behind"
+			% [shards, shards_left])
+
+	for problem: String in problems:
+		printerr("[hands] FAIL %s" % problem)
+	print("[hands] things move when handled, and every movement ends")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## The first louvre of a lantern's shutter, as it stands now.
+static func _first_louvre(lamp: Node3D) -> Basis:
+	if lamp == null:
+		return Basis()
+	var found: Array[Node] = lamp.find_children("shutter_louvre*", "Node3D",
+		true, false)
+	return (found[0] as Node3D).basis if not found.is_empty() else Basis()
+
+
+## **`--hands-shot=PATH`** (ADR-267): what you see in your hands, and what lies
+## on the floor in reach — the lantern open over a seax, a binding half-tied, a
+## Waystone nearly spent, and treasure with its star and ring. Every row in
+## `--hands-probe` is a number; whether a lantern in the corner of the eye
+## reads as a lantern is not one (ADR-093).
+func _hands_shot(path: String) -> void:
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	await _hold(0.4)
+	var ahead: Vector3 = -body.global_transform.basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var gear: Equipment = body.equipment
+	gear.clear()
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 9800))
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"tol_horn_lantern"), 9801))
+	body.lit = true
+	var coin: WorldItem = _session.spawn_world_item(&"glt_hoard_coin",
+		body.global_position + ahead * 1.3)
+	await _hold(0.8)
+	coin.highlight(true)
+	body.face_toward(coin.global_position)
+	await _hold(0.6)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	coin.highlight(false)
+	body.face_toward(body.global_position + ahead * 4.0 + Vector3.UP * 1.5)
+	body.mending = 0.5
+	await _hold(0.7)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-binding.png"))
+	body.mending = 0.0
+	body.leaving = 0.85
+	await _hold(0.7)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-waystone.png"))
+	body.leaving = 0.0
+	body.lit = false
+	await _hold(0.6)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-shut.png"))
+	print("[hands] shot %s" % path)
+	get_tree().quit(0)
 
 
 ## **`--body-shot=PATH`** (ADR-265): a dressed teammate, seen by you.

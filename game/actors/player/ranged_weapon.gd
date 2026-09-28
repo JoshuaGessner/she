@@ -57,6 +57,8 @@ var _kit: RangedTrait = null
 ## The bow in the hand, and whose model it is — see `equip`.
 var _stave: ItemResource = null
 var _shown: Node3D = null
+## How far the bow has risen into view since it was taken in hand, 0 to 1.
+var _drawn: float = 1.0
 
 
 func _ready() -> void:
@@ -99,6 +101,9 @@ func equip(bow: RangedTrait, item: ItemResource = null) -> void:
 	if item == _stave:
 		return
 	_stave = item
+	# Brought up into view, as `MeleeWeapon._show` does (ADR-267).
+	_drawn = 0.0 if item != null else 1.0
+	set_process(_drawn < 1.0)
 	if _shown != null:
 		_shown.free()
 		_shown = null
@@ -138,6 +143,7 @@ func _update_pose() -> void:
 			_pose(POSE_DRAWN, POSE_REST, t)
 		Phase.IDLE:
 			_pose(POSE_REST, POSE_REST, 0.0)
+			MeleeWeapon.lower_by_draw(_model, 1.0 - _drawn)
 	_update_nock()
 
 
@@ -178,6 +184,10 @@ func begin_owned_draw() -> void:
 
 
 func _enter(next: Phase, duration: float) -> void:
+	# A draw of the string takes the bow from wherever it had risen to — the
+	# bow's telegraph is `DES-009`'s and nothing here may soften it.
+	if next != Phase.IDLE:
+		_drawn = 1.0
 	_phase = next
 	_remaining = duration
 	_duration = duration
@@ -209,3 +219,11 @@ func cancel() -> void:
 	if _phase == Phase.IDLE:
 		return
 	_enter(Phase.IDLE, 0.0)
+
+
+func _process(delta: float) -> void:
+	_drawn = minf(1.0, _drawn + delta / MeleeWeapon.DRAW_SECONDS)
+	if _phase == Phase.IDLE and _model != null:
+		_update_pose()
+	if _drawn >= 1.0:
+		set_process(false)

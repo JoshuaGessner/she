@@ -1458,6 +1458,24 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Things move when they are handled, and every movement ends** (ADR-267).
+	# The item polish is look only — a hover and a ring on the thing in reach,
+	# a fall, a tumble, a pick-up seen going into the bag, a weapon rising into
+	# view, the lantern's shutter and the binding and Waystone in the hand — so
+	# the two faults it can have are that a motion never starts (every
+	# authored item's highlight had reached nothing since ADR-262) and that one
+	# never finishes (a model left hanging, or lying half in the floor).
+	# Asserted on the closing line as well as the absence of FAIL, because the
+	# probe awaits frames and a script error mid-await leaves a level idling.
+	hands="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --hands-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[hands\] things move when handled' <<<"$hands" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$hands"; then
+		echo "FAIL things move when handled" >&2
+		printf '%s\n' "$hands" | grep -E '\[hands\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Do the rooms ask anything** (`M4-T01` step 6, `DES-015` Layer 3,
 	# ADR-192)? Every check above is about a floor's *shape* and passes cleanly
 	# against one whose rooms are space with loot dealt into it by worth — which
@@ -1739,6 +1757,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 echo "every verb the game has is named on a screen a tester can find,"
 echo "a body walks out of every room without sticking to it,"
 echo "a teammate is a body rather than a capsule, and it walks,"
+echo "a thing handled moves like one, and every movement ends,"
 echo "every colour the bag draws comes from the theme it is drawn under,"
 echo "every model delivered is measured against the spec it was authored to,"
 echo "and what a run came to is written down where a person can read it,"

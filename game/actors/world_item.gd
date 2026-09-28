@@ -101,6 +101,25 @@ const EMBER_RADIUS: float = 0.30
 ## to be somewhere specific.
 const REST_HEIGHT: float = 0.0
 
+## The inked star on treasure (ADR-267) — see the shader for why it is a star
+## and not a flicker of the glimmer light.
+const GLINT: Shader = preload("res://art/shaders/glint.gdshader")
+## How big the star is, metres across ⟨tune⟩.
+const GLINT_SIZE: float = 0.34
+
+## How far a thing in reach floats off the floor, metres ⟨tune⟩. A few
+## centimetres: enough that the eye catches it moving, not so much that it
+## reads as magic in a game whose floors are honest about weight.
+const HOVER: float = 0.05
+## How fast it floats up and settles back, per second ⟨tune⟩.
+const HOVER_EASE: float = 10.0
+## How far a dropped thing falls to the floor, and for how long ⟨tune⟩ — the
+## height a hand lets go from, compressed so a panic dump is not a slow drop.
+const DROP_HEIGHT: float = 0.45
+const DROP_SECONDS: float = 0.32
+## How fast a thrown thing turns end over end, radians a second ⟨tune⟩.
+const TUMBLE: float = 13.0
+
 ## How wide a thrown weapon is in the air, for what it can meet (ADR-227) — an
 ## arrow's forgiving radius and a little more, because an axe is not a point.
 const STRIKE_RADIUS: float = 0.2
@@ -162,12 +181,29 @@ var _material: StandardMaterial3D = null
 var _velocity: Vector3 = Vector3.ZERO
 var _flying: bool = false
 
+# ── how it moves when handled (ADR-267) ──────────────────────────────────────
+# Everything below is **look, never state**: no position, collider or clock the
+# host resolves anything against is touched. Each peer animates its own copy.
+
+## The authored model, and what is drawn under it when it is the one in reach.
+var _look: Node3D = null
+var _halo: MeshInstance3D = null
+## How far the look floats while it is in reach, eased toward its target.
+var _lift: float = 0.0
+var _highlit: bool = false
+## When this process's own player reached for it, for the ghost that follows it
+## into the bag — see `_exit_tree`.
+var _claimed_msec: int = -1
+
 
 func _ready() -> void:
 	add_to_group(GROUP)
 	_velocity = launch
 	_flying = not launch.is_zero_approx()
 	set_physics_process(_flying)
+	# Idle until something is in reach — see `_process`. A floor lays hundreds
+	# of these and almost all of them are never looked at.
+	set_process(false)
 	_definition = ItemCatalogue.by_id(item_id)
 	if is_ember():
 		_build_ember()
@@ -179,6 +215,14 @@ func _ready() -> void:
 		push_error("world item spawned with unknown id '%s'" % item_id)
 		return
 	_build_mesh()
+	_build_halo()
+	_build_glint()
+	# **A thing set down falls the last half-metre** (ADR-267). `disturbed`
+	# is exactly *somebody put this here*, which is the only time it arrived
+	# from a hand rather than having lain here since the floor was built. A
+	# thrown thing lands from its own flight and needs no drop.
+	if disturbed and not _flying:
+		_fall_into_place(DROP_HEIGHT)
 
 
 func definition() -> ItemResource:
@@ -239,6 +283,7 @@ func _physics_process(delta: float) -> void:
 	var hit: Dictionary = space.intersect_ray(query)
 	if hit.is_empty():
 		global_position += step
+		_tumble(delta)
 		return
 	# Land just clear of the surface, so the next frame's ray does not start
 	# inside it and report an immediate second hit.
@@ -247,6 +292,7 @@ func _physics_process(delta: float) -> void:
 	_velocity = Vector3.ZERO
 	_flying = false
 	set_physics_process(false)
+	_land()
 	# A thrown axe rings on stone as well as on flesh: a miss still tells the
 	# floor where it went.
 	if thrower != 0:
@@ -340,7 +386,8 @@ func _build_mesh() -> void:
 	# second body from the `-col` suffix would put a solid object in the room
 	# that a player can walk into and shove around. `look()` throws it away,
 	# and says why it has to happen before the tree sees the model.
-	add_child(_definition.look())
+	_look = _definition.look()
+	add_child(_look)
 	_build_glimmer()
 
 
@@ -450,12 +497,190 @@ func _colour() -> Color:
 ## `M4-T05` builds; the object drawing attention to itself is free, needs no
 ## text, and therefore needs no per-device glyph (`DES-019` rule 7).
 func highlight(on: bool) -> void:
+	# **The model floats and is ringed** (ADR-267). This pulsed a material's
+	# albedo, which was the whole of the highlight while every item was a box
+	# this file owned. ADR-262 swapped the boxes for authored models and left
+	# the pulse reaching only the ember, so for every other item in the game
+	# the only sign it was the one in reach was the prompt — a sentence, where
+	# `DES-019` wants the thing itself to answer the eye.
+	if _look != null:
+		_highlit = on
+		if _halo != null:
+			_halo.visible = on
+		set_process(true)
 	if _material == null:
 		return
 	var pulse: float = 1.0
 	if on:
 		pulse = 1.0 + sin(Time.get_ticks_msec() * 0.006) * 0.25
 	_material.albedo_color = _colour() * pulse
+
+
+## How far the model is off its floor right now, metres — for the probe that
+## asks whether a highlight, a drop or a landing ever leaves it hanging.
+func look_lift() -> float:
+	return _look.position.y if _look != null else 0.0
+
+
+## The model, turned however its flight turned it — for the probe that asks
+## whether it comes to rest the right way up.
+func look_basis() -> Basis:
+	return _look.basis if _look != null else Basis()
+
+
+## This process's own player reached for it (ADR-267). Only a mark for the
+## ghost that follows a taken thing into the bag; nothing is decided by it.
+func claim_locally() -> void:
+	_claimed_msec = Time.get_ticks_msec()
+
+
+func _process(delta: float) -> void:
+	if _look == null:
+		set_process(false)
+		return
+	var want: float = HOVER if _highlit else 0.0
+	_lift = lerpf(_lift, want, clampf(delta * HOVER_EASE, 0.0, 1.0))
+	if absf(_lift - want) < 0.001:
+		_lift = want
+		# Settled and not in reach: nothing left to animate.
+		if not _highlit:
+			set_process(false)
+	# Only while nothing else is moving it: a fall or a landing owns the
+	# height until it has finished.
+	if not _falling:
+		_look.position.y = _lift
+
+
+var _falling: bool = false
+
+
+## Drop the model the last `height` metres onto its spot, with one small
+## bounce, so a thing let go of reads as let go of rather than as appearing.
+func _fall_into_place(height: float) -> void:
+	if _look == null:
+		return
+	_falling = true
+	_look.position.y = height
+	var fall := create_tween()
+	fall.tween_property(_look, "position:y", 0.0, DROP_SECONDS * 0.7) \
+		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	fall.tween_property(_look, "position:y", height * 0.08, DROP_SECONDS * 0.15) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	fall.tween_property(_look, "position:y", 0.0, DROP_SECONDS * 0.15) \
+		.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+	fall.finished.connect(func() -> void: _falling = false)
+
+
+## End over end while it flies, about the axis across its flight. Only the
+## model turns; the node keeps flying straight, so nothing the host measures
+## about a throw moves by a millimetre.
+func _tumble(delta: float) -> void:
+	if _look == null:
+		return
+	var flat := Vector3(_velocity.x, 0.0, _velocity.z)
+	if flat.length() < 0.01:
+		return
+	var across: Vector3 = global_basis.inverse() * flat.cross(Vector3.UP).normalized()
+	_look.rotate(across.normalized(), -TUMBLE * delta)
+
+
+## Come to rest the right way up. A model pivots at its base, so one that
+## stopped mid-turn would lie half inside the floor or stand on its point.
+func _land() -> void:
+	if _look == null:
+		return
+	var settle := create_tween()
+	settle.tween_property(_look, "basis", Basis(), 0.12) \
+		.set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+	_fall_into_place(0.12)
+
+
+## The ring drawn under the model while it is in reach (ADR-267).
+##
+## A ring on the floor rather than a glow on the model: `ART-005` inks a
+## surface's edges and hatches its value, and a model tinted brighter reads as
+## a lighting fault in a woodcut. An inked circle around a thing is how a
+## printmaker points at it. Sized to the model's own footprint, so a gemstone
+## gets a small one and an altar-plate a wide one.
+func _build_halo() -> void:
+	if _look == null:
+		return
+	var span: float = 0.0
+	for node: Node in _look.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		var box: AABB = mesh.transform * mesh.get_aabb()
+		span = maxf(span, maxf(box.size.x, box.size.z))
+	var ring := TorusMesh.new()
+	ring.inner_radius = span * 0.5 + 0.10
+	ring.outer_radius = span * 0.5 + 0.13
+	ring.rings = 32
+	ring.ring_segments = 4
+	var ink := StandardMaterial3D.new()
+	ink.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	ink.albedo_color = _colour().lerp(Color(0.92, 0.9, 0.85), 0.55)
+	_halo = MeshInstance3D.new()
+	_halo.name = "halo"
+	_halo.mesh = ring
+	_halo.material_override = ink
+	_halo.scale = Vector3(1.0, 0.05, 1.0)
+	_halo.position.y = 0.012
+	_halo.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_halo.visible = false
+	add_child(_halo)
+
+
+## The glint on treasure — glitter only, for `_build_glimmer`'s reason: if
+## everything caught the eye, nothing would be worth crossing a room for.
+func _build_glint() -> void:
+	if _look == null or not _definition.tags.has(&"glitter"):
+		return
+	var top: float = 0.0
+	for node: Node in _look.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		top = maxf(top, (mesh.transform * mesh.get_aabb()).end.y)
+	var star := ShaderMaterial.new()
+	star.shader = GLINT
+	# Per item, from where it lies, so a hoard does not twinkle in step and a
+	# given coin catches at the same moment on every peer.
+	star.set_shader_parameter("phase",
+		fposmod(global_position.x * 0.37 + global_position.z * 0.61, 1.0))
+	var quad := QuadMesh.new()
+	quad.size = Vector2(GLINT_SIZE, GLINT_SIZE)
+	var star_quad := MeshInstance3D.new()
+	star_quad.name = "glint"
+	star_quad.mesh = quad
+	star_quad.material_override = star
+	star_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	star_quad.position = Vector3(0.0, top * 0.8, 0.0)
+	_look.add_child(star_quad)
+
+
+## The glint, if this thing has one — for the probe.
+func glint() -> MeshInstance3D:
+	return _look.get_node_or_null(^"glint") as MeshInstance3D if _look != null else null
+
+
+## **Taken, and seen going into the bag** (ADR-267).
+##
+## The host frees a taken item and every peer's copy goes with it, so until
+## now a pick-up was a thing on the floor, then no thing. For the player who
+## took it, a copy of the model is sent up into the lower edge of their view
+## and gone — the hand going down for it and coming back, without a hand.
+## Only for this process's own reach (`claim_locally`), because a teammate's
+## pick-up is theirs to see; and only when this node is being **freed**, so a
+## floor being torn down by a descent does not fire a flight of ghosts.
+func _exit_tree() -> void:
+	if _claimed_msec < 0 or not is_queued_for_deletion() or _definition == null:
+		return
+	if Time.get_ticks_msec() - _claimed_msec > 1500:
+		return
+	var eye: Camera3D = get_viewport().get_camera_3d() if get_viewport() != null else null
+	var root: Node = get_tree().root if get_tree() != null else null
+	if eye == null or root == null:
+		return
+	var ghost := ItemGhost.made(_definition, global_transform, eye)
+	if ghost != null:
+		root.add_child.call_deferred(ghost)
 
 
 ## The nearest takeable item within `radius`, or `null`.

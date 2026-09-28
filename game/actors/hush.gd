@@ -53,6 +53,9 @@ const REPLICATED_PROPERTIES: Dictionary = {
 const REPLICATION_HZ: float = 10.0
 
 const EDGE_COLOUR: Color = Color(0.55, 0.62, 0.66)
+## How many pieces the rune breaks into, and how long they last (ADR-267) ⟨tune⟩.
+const SHARDS: int = 3
+const SHARD_SECONDS: float = 0.6
 
 var radius: float = 6.0
 var seconds: float = 10.0
@@ -137,6 +140,36 @@ func _ready() -> void:
 	_closing.position.y = 0.03
 	add_child(_closing)
 	_dress()
+	_break_the_rune()
+
+
+## **The rune breaking** (ADR-267): the token in pieces at your feet as the
+## circle opens, so a Hush reads as a thing you broke and not as a ring that
+## appeared. Three shards of its own model, thrown out and down and gone in
+## under a second. Look only, on every peer from the spawn — nothing counts
+## them, and they carry no collision (`ItemResource.look`).
+func _break_the_rune() -> void:
+	var rune: ItemResource = HeldLook.first_with(HushTrait)
+	if rune == null:
+		return
+	for i: int in SHARDS:
+		var shard: Node3D = rune.look()
+		if shard == null:
+			return
+		shard.name = "shard_%d" % i
+		var out := Vector3.FORWARD.rotated(Vector3.UP, TAU * float(i) / SHARDS)
+		shard.position = Vector3(0.0, 0.25, 0.0)
+		shard.scale = Vector3.ONE * 0.55
+		shard.rotation = Vector3(0.6 * float(i), TAU * float(i) / SHARDS, 0.0)
+		add_child(shard)
+		var burst := create_tween().set_parallel(true)
+		burst.tween_property(shard, "position", out * 0.6 + Vector3(0.0, 0.02, 0.0),
+			SHARD_SECONDS).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_QUAD)
+		burst.tween_property(shard, "rotation:x", shard.rotation.x + 4.0,
+			SHARD_SECONDS)
+		burst.tween_property(shard, "scale", Vector3.ONE * 0.05, SHARD_SECONDS) \
+			.set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		burst.chain().tween_callback(shard.queue_free)
 
 
 func _process(delta: float) -> void:

@@ -10110,5 +10110,49 @@ The gate fails every weapon in the old art, and the new art fails ADR-265's grip
 
 `ART-007` moves to `accepted`. The review sheets are geometry renders and the in-game capture is the judgement that counts; both show forms that read in silhouette, which is what `ART-005` asks of a woodcut. Every model passes `art_probe` (47 of 47, 0 failures), `--kit-probe` (14 modules, 0 off size), `dressing_probe` (301 pieces, 7 of 7 in use) and `--body-probe`.
 
+## ADR-267 — Things move when they are handled, and a highlight that had reached nothing is fixed
+
+**Date:** 2026-09-28 · **Status:** accepted · **Advances `M4-T05`** · **Developer's brief** · **Look only: nothing here is replicated, decided or read back**
+
+**Context:** *"Do some more polish on the game itself. Improve animations and effects and visual things around items and using them."* There was none: not one `Tween` in gameplay code. An item appeared on the floor, vanished into a bag, and a weapon changed in the hand by a cut.
+
+### What it is not
+
+**Not combat juice.** `DES-009` §M1 protocol adds hitstop, then sound, then camera kick, *one at a time, measuring each*, and says the order is the point — so the swing, its poses and its timings are untouched, and a draw may never delay a swing (`MeleeWeapon._enter` snaps it drawn). **Not the glimmer light.** Its energy *is* the find's worth (ADR-204) and `--prize-probe` holds it to that number exactly, so treasure catches the eye with an inked star instead of a flicker.
+
+### What moves now
+
+| Where | What | Driven by |
+|---|---|---|
+| The thing in reach | floats 5 cm and gets an inked ring on the floor | `Player._update_reach` |
+| Treasure | a four-point star catches now and then, stepped at the ink pass's boil rate | the glint shader, phase from where it lies |
+| A thing set down | falls the last 0.45 m with one small bounce | `disturbed` on the spawn |
+| A thing thrown | turns end over end, lands the right way up | its own flight |
+| A thing taken | a copy flies into the lower edge of the taker's view | the taker's own reach |
+| A weapon put in the hand | rises into view over 0.28 s | `MeleeWeapon`, `RangedWeapon` |
+| The off hand, first person | the lantern hangs in view with its **louvres opening** when lit; a shield comes across on guard | `Hands`, from `lit` and `blocking` |
+| A binding being tied | the roll turns and winds down in both hands | `mending` |
+| A Waystone being spent | raised, taking the doorways' pale as the way out opens | `leaving` |
+| A teammate | the same lantern shutter, and the binding or stone in their empty right hand | `BodyRig.show_use` |
+| A rune broken | three shards of it flung from the circle | the `Hush` spawn |
+
+**One state, one picture.** `HeldLook` is the only place a number becomes a pose, and both `Hands` and `BodyRig` call it — so your lantern and a teammate's shut the same way, and a player who learns what *shuttered* looks like on themselves can read it across a room. Everything is driven by a value every peer already has, so a party of four costs the bandwidth it did.
+
+The Waystone takes `M2-T13`'s pale — the colour every doorway is lit with — because the lighting language already says *this is the way out*, and a stone opening one is exactly that. Its light is **not** in `Lantern.LIGHT_GROUP`: it lights the hand that holds it and gives nobody away.
+
+### The regression this found
+
+`WorldItem.highlight()` pulsed a material's albedo, which was the whole highlight while every item was a box that file owned. ADR-262 swapped the boxes for authored models and the pulse kept reaching only the ember — so **since ADR-262, no item in the game has shown that it was the one in reach**, and the only sign was a sentence under the crosshair. The ring and the hover are that highlight, rebuilt for a model.
+
+### Measured
+
+`--hands-probe`, new, watches every motion **start and end where the thing belongs**, because motion fails two ways — it never happens, or it never finishes and leaves a model hanging or half in the floor. Eleven rows: the thing in reach lifts 0.050 m, is ringed and settles back to 0.000; the bead has a star and the bog iron none; a thing set down falls from 0.45 m to the floor; a throw turns 2.6 rad and lands upright; a pick-up's ghost flies and none outlive it; a seax is 0.02 drawn at the start and at its rest pose after; the lantern's four louvres turn 78° and its flame lights; a half-tied binding is at 0.68 of its size and put away after; a Waystone nine-tenths spent pours 1.3; a teammate's lantern and binding show on their body; a broken rune throws three shards and leaves none. **Six plants, six caught**: an inert highlight, no tumble, no landing, no claim, no draw, a frozen shutter. **The sweep caught one of mine.** `--use-probe` found its circle by taking the *last* node named `hush_*` — and the rune now breaks into shards of its own model inside the circle, whose meshes are called `hush_token` and `hush_inset_stave`. The row reported no circle while one stood there; it now keeps the node that is a `Hush`. `--hands-shot` photographs the lantern lit and shut, a binding, a Waystone and a ringed coin — and moved the lantern twice: first it hung below the frame with only its bail showing, then with its shutter facing away, which is the one part of it that says whether you are lit.
+
+### Still not done
+
+- **The arm.** Things are held in first person by nothing; there are no first-person arms (Q96's proportions are still a feel question), and a teammate's weapon still floats before their face (Q114).
+- **The nocked arrow** is a cylinder, for ADR-265's reason.
+- **`DES-009`'s impact layers** — hitstop, sound, kick — wait for the protocol, in its order.
+
 *Entries below to be added as design decisions are signed off.*
 
