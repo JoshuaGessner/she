@@ -4,7 +4,7 @@ title: Modelling Brief — for an Agent Building Assets
 status: accepted
 owner: art
 tags: [art, assets, brief, modelling, specs, blender, gltf]
-updated: 2026-09-25
+updated: 2026-09-28
 related: [ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002]
 ---
 
@@ -234,16 +234,16 @@ This is where a player spends the most minutes, and it is the thing that current
 
 Bag footprint is given in grid cells — **each cell is roughly a hand's width**, so it is a reliable proportion guide. Weight is the honest one: 26 kg of coin chest should look like 26 kg.
 
-**Weapons** — `weapons/`, 800 tris, pivot at the grip, pointing −Z:
+**Weapons** — `weapons/`, 800 tris, pivot at the grip, pointing −Z, and **the length given here, within 8%** (ADR-266 — `art_probe` checks it). The first delivery was 1.6–2.2× life size because this table gave pivot and facing and never length; a length is the one number a weapon held by a pose node has no other reference for:
 
-| File | Name | Bag | kg |
-|---|---|---|---|
-| `seax.glb` | Seax | 1×2 | 1.1 |
-| `bearded_axe.glb` | Bearded Axe | 1×3 | 1.9 |
-| `ash_spear.glb` | Ash Spear | 1×4 | 2.6 |
-| `yew_bow.glb` | Yew Bow | 1×3 | 1.4 |
-| `dvergar_hammer.glb` | Dvergar Hammer | 2×3 | 6.4 |
-| `regin_blade.glb` | Regin's Blade | 1×4 | 3.2 |
+| File | Name | Bag | kg | Long |
+|---|---|---|---|---|
+| `seax.glb` | Seax | 1×2 | 1.1 | 0.50 m |
+| `bearded_axe.glb` | Bearded Axe | 1×3 | 1.9 | 0.80 m |
+| `ash_spear.glb` | Ash Spear | 1×4 | 2.6 | 2.00 m |
+| `yew_bow.glb` | Yew Bow | 1×3 | 1.4 | 1.65 m |
+| `dvergar_hammer.glb` | Dvergar Hammer | 2×3 | 6.4 | 0.85 m |
+| `regin_blade.glb` | Regin's Blade | 1×4 | 3.2 | 1.25 m |
 
 > **Regin's Blade is a relic and the most storied object on this list** — Regin reforged the sword that killed Fáfnir. It should read as older and stranger than everything around it, and it is still under 800 triangles.
 

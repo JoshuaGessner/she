@@ -1,11 +1,11 @@
 ---
 id: ART-007
 title: Asset Quality Review — First Delivered Library
-status: proposed
+status: accepted
 owner: art
 tags: [art, assets, modelling, review]
-updated: 2026-09-27
-related: [ART-006, ART-004, ART-005, DES-020]
+updated: 2026-09-28
+related: [ART-006, ART-004, ART-005, DES-020, PRO-002]
 ---
 
 # Asset quality review

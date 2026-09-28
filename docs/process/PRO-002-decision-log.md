@@ -10088,5 +10088,27 @@ So the order is the other way round. The dressing is laid in `DelvingsFloor.of`,
 
 About a day. Per floor, roughly 10–15 extra scene instances with a trimesh collider each, frustum-cullable; not measured against a frame budget, alongside ADR-263's 1,050 draw calls.
 
+## ADR-266 — The art is rebuilt at life size, and a weapon now has a length to be wrong about
+
+**Date:** 2026-09-28 · **Status:** accepted · **Advances `M4-T10`** · **Accepts `ART-007`** · **Developer's brief** · *The gate is she-73's work; the art is the art pass's (`31fdd85`)*
+
+**Context:** The developer asked for a less blocky pass over the library ADR-262 and ADR-263 put in the game. Every model was rebuilt — varied ashlar and recessed jambs in the kit, thin edges and a fuller on the blades, a hollow helm and a panelled, louvred lantern, dished cart wheels and melted candle rims — and `ART-007` records the pass. It sat uncommitted because two things in it had to land together or not at all.
+
+### The first set was twice life size, and nothing could say so
+
+Rebuilding the weapons showed the delivered set had been **1.6 to 2.2 times life size**: a 3.75 m spear, a 2.69 m bow, a 2.15 m sword. `art_probe` passed all of them. Its size row brackets a model between 0.02 m and 120 m — built to catch 100× and 39× *import* errors, and *"without an opinion about any particular asset's size"* in its own words — so a 2× *authoring* error walks through. And `ART-006` gave a weapon its pivot and its facing and never its length.
+
+So `ART-006` §5.2 now states each weapon's length, and `art_probe` holds each delivered weapon to its own within 8% ⟨tune⟩. **A specification, not a measurement**: the lengths are those of the real objects, written before the asset is read, so an asset can disagree with them — a table derived from what was delivered would be ADR-263's row that measured itself. **Weapons only**, because worn gear is already measured where it matters: `--body-probe` asks whether a helm covers the crown and a lantern hangs from the fist.
+
+**Planted with the real fault**: the committed `ash_spear.glb` restored from the previous commit fails the row — *"longest side 3.750 m, 88% off"* — which is the spear that shipped in ADR-262.
+
+### The art landed first, and the gate follows it
+
+The gate fails every weapon in the old art, and the new art fails ADR-265's grips — the rebuilt helm sat 0.13 m high on the scalp and the rebuilt lantern hangs 0.22 m shorter. So the order mattered: the rebuilt art landed in `31fdd85` **with its two grips already retuned** (`arm_spangen_helm` −0.09 m, `tol_horn_lantern` −0.62 m), and this commit puts the length gate over it. Neither half reddens the sweep that way. **That the helm's grip had to move is ADR-265 working as intended**: a grip is per-item data coupled to the model's dimensions, and `--body-probe` is what says so — the art pass's own in-game capture caught the same helm first, *"despite passing the bounding-box test"*, which is a screenshot beating a probe for the sixth time (ADR-093).
+
+### Accepted
+
+`ART-007` moves to `accepted`. The review sheets are geometry renders and the in-game capture is the judgement that counts; both show forms that read in silhouette, which is what `ART-005` asks of a woodcut. Every model passes `art_probe` (47 of 47, 0 failures), `--kit-probe` (14 modules, 0 off size), `dressing_probe` (301 pieces, 7 of 7 in use) and `--body-probe`.
+
 *Entries below to be added as design decisions are signed off.*
 

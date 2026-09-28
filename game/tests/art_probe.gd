@@ -60,6 +60,37 @@ const GRID_TOLERANCE: float = 0.02
 const SMALLEST: float = 0.02
 const LARGEST: float = 120.0
 
+## **How long each weapon is, from `ART-006` §5.2** (ADR-266).
+##
+## The bracket above is a rule general enough to need no table, and that is
+## exactly why a **2x error walks through it**. 100x and 39x are *import*
+## errors; 2x is an *authoring* error, and it is the one a hand-built mesh
+## actually suffers — half-extent read as size, radius as diameter, or simply
+## modelling by eye. The first delivered set was 1.6x to 2.2x life size: a
+## 3.75 m spear, a 2.69 m bow and a 2.15 m sword, none of which this file
+## objected to, because `ART-006` specified a weapon's pivot and its facing
+## and never its length.
+##
+## Weapons only, and on purpose. Worn gear is already measured where it
+## matters — `--body-probe` asks whether a helm covers the crown and a lantern
+## hangs from the fist, which is a physical claim about size that no table can
+## improve on. A weapon is held by a pose node with nothing beside it, so a
+## number is the only reference it has.
+##
+## **This is a specification, not a measurement.** These are lengths of real
+## objects, written down before the asset is read, so that an asset can
+## disagree with them. Deriving them from what was delivered would be the row
+## ADR-263 found measuring itself.
+const LENGTHS: Dictionary = {
+	"seax": 0.50, "bearded_axe": 0.80, "ash_spear": 2.00,
+	"yew_bow": 1.65, "dvergar_hammer": 0.85, "regin_blade": 1.25,
+}
+
+## How far a weapon may sit from its stated length before it is a different
+## weapon. A fraction rather than a distance, so a knife is held to a knife's
+## precision and a spear to a spear's ⟨tune⟩.
+const LENGTH_TOLERANCE: float = 0.08
+
 ## How far a placed asset's base may sit off its own origin. `ART-004` puts
 ## prop pivots at **base centre**; an asset pivoted at its middle sinks halfway
 ## into the floor wherever the generator puts it.
@@ -163,6 +194,15 @@ func _measure(path: String) -> void:
 	var longest: float = maxf(bounds.size.x, maxf(bounds.size.y, bounds.size.z))
 	_check(longest >= SMALLEST and longest <= LARGEST,
 		"1 unit is 1 metre", "longest side %.3f m" % longest)
+
+	# ── and the length the brief states for it (ADR-266) ──────────────────
+	var named: String = path.get_file().get_basename()
+	if LENGTHS.has(named):
+		var stated: float = float(LENGTHS[named])
+		_check(absf(longest - stated) <= stated * LENGTH_TOLERANCE,
+			"is the %.2f m `ART-006` says it is" % stated,
+			"longest side %.3f m, %.0f%% off" % [longest,
+				absf(longest - stated) / stated * 100.0])
 
 	# ── poly ceiling ──────────────────────────────────────────────────────
 	var ceiling: int = int(CATEGORIES[category])
