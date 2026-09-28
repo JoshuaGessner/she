@@ -603,8 +603,24 @@ const ROOM_ASKED_EVERY: float = 0.2
 ## to the next one along.
 const HEARD_THROUGH_STONE: float = 0.5
 var _room_asked: float = 0.0
+## What `--crossing-probe` carries across, so the far side can recognise it.
+## Neither is a game rule — they exist to be distinctive ⟨tune⟩.
+const HURT_ACROSS: float = 71.0
+const HUNT_ACROSS: float = 137.0
+
 ## What the field read where somebody came down, for `--late-probe`.
 var _probe_arrival_clamor: float = 0.0
+
+## What `--crossing-probe` is owed on the far side of a floor transition.
+##
+## **Static because the node does not survive** (ADR-264). A crossing frees the
+## scene that began it, so an expectation kept on `self` dies with the floor it
+## was written on — which is exactly why no check had ever crossed. A static
+## outlives the scene change; the arrival reads it and reports.
+##
+## Empty means no crossing is in flight, which is also how the arrival tells
+## itself apart from the departure.
+static var _crossing: Dictionary = {}
 
 
 func _ready() -> void:
@@ -808,7 +824,11 @@ func _ready() -> void:
 	# today only because a fresh process starts with an empty stash. The gate
 	# is here rather than inside, so `--exit-probe` can still call it directly
 	# and assert what it does.
-	if not _probing:
+	# **`--crossing-probe` is the exception, and it earns it.** The gate above
+	# keeps a probe from inheriting a loadout it did not pack; a crossing probe
+	# packed this one itself, on the floor it just left, and whether the bag
+	# survives the transition is the thing it is measuring.
+	if not _probing or not _crossing.is_empty():
 		_carry_the_stash_down()
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
@@ -837,6 +857,8 @@ func _ready() -> void:
 			_ear_probe()
 		elif arg == "--ground-probe":
 			_ground_probe()
+		elif arg == "--crossing-probe":
+			_crossing_probe()
 		elif arg.begins_with("--delvings-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--ink-shot="):
@@ -8403,9 +8425,16 @@ func _take_the_party_down() -> void:
 	print("[descent] floor %d → %d, carrying %d item(s) at %.0f hp, wounds %d, "
 		% [_floor_index, to, bag.size(), hurt, wounds]
 		+ "the Hunt %.0f s old" % age)
-	if _probing:
+	if _probing and _crossing.is_empty():
 		# The descent *happened*, which is what a probe reads. Changing scene
 		# would free the node holding the assertion (ADR-138).
+		#
+		# **Except for `--crossing-probe`** (ADR-264), which is built to be
+		# freed: its expectation lives in a `static var` that outlives this
+		# node, so the arrival on the next floor is what collects. Until it
+		# existed, this early return meant the last step of a descent — the
+		# one that frees a floor, a population and a HUD and builds another —
+		# had never been executed by any check in the suite.
 		return
 	get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
 
@@ -16945,6 +16974,147 @@ func _tag_is_read(tag: StringName) -> bool:
 ##    able to bait it. A body that closed on a player it could not see would
 ##    break stealth silently, and every probe in this repository would stay
 ##    green while it did.
+## **A floor transition, performed rather than asserted** (ADR-264).
+##
+## `--descent-probe` proves the *decision* to descend: the run file advances,
+## the bag is packed, the Hunt's age travels. It stops one line short of the
+## thing that actually happens, because `_probing` returns before
+## `change_scene_to_file` — so the moment that frees a floor, an actor
+## population and a HUD and builds another has never been executed by a check.
+## A segfault there reached a player before anything in this suite noticed.
+##
+## This is the one probe built to be **freed**. It packs a bag it can recognise,
+## writes down what it is owed in `_crossing` — a `static var`, because `self`
+## does not survive — walks into the hole, and the floor on the other side
+## collects.
+##
+## **Why the bag and not just the arrival.** That a scene loads proves the
+## process lived; it does not prove the *run* did. Everything a player would
+## lose by crossing badly is carried state — what you hold, how hurt you are,
+## how old the thing chasing you is — and all of it travels through a file and
+## a spawn payload rather than through memory. If the crossing ever silently
+## drops one of those, the player's report is "my bag emptied on the stairs"
+## and there is nothing in a log to explain it.
+func _crossing_probe() -> void:
+	await _hold(0.6)
+	if _crossing.is_empty():
+		_crossing_leave()
+		return
+	_crossing_arrive()
+
+
+## The near side: pack something recognisable, then claim the Shaft for real.
+func _crossing_leave() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	# A scratch run, never the player's (ADR-152). `arm()` refuses the real
+	# file while a check runs, so this would silently do nothing otherwise.
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	RunFile.begin(&"veidimadr", 1, _run_seed)
+	RunFile.note({"floor": _floor_index})
+
+	var body: Player = _session.local_player()
+	if body == null:
+		push_error("[crossing] FAIL no body to take down")
+		get_tree().quit(1)
+		return
+	var packed: PackedStringArray = PackedStringArray()
+	for id: StringName in [&"mat_bog_iron", &"glt_gilt_bead", &"wpn_seax"]:
+		var what: ItemResource = ItemCatalogue.by_id(id)
+		if what == null:
+			problems.append("no item `%s` to pack" % id)
+			continue
+		if body.inventory.add(what) != null:
+			packed.append(String(id))
+	body.health.current = HURT_ACROSS
+	if _hunter != null:
+		_hunter.age = HUNT_ACROSS
+
+	if not problems.is_empty():
+		for problem: String in problems:
+			push_error("[crossing] FAIL %s" % problem)
+		get_tree().quit(1)
+		return
+
+	_crossing = {
+		"from": _floor_index,
+		"bag": packed,
+		"health": body.health.current,
+		"hunt": _hunter.age if _hunter != null else 0.0,
+	}
+	print("[crossing] leaving floor %d with %d item(s) at %.0f hp, "
+		% [_floor_index, packed.size(), body.health.current]
+		+ "the Hunt %.0f s old" % float(_crossing["hunt"]))
+	_on_shaft_claimed(body)
+	# **Nothing after this line.** `change_scene_to_file` detaches this node, so
+	# `get_tree()` is null from here on — and in an exported build GDScript's
+	# null check is compiled out, which turns an await here into a segfault
+	# rather than an error. The arrival does the reporting.
+
+
+## The far side: everything the run was carrying arrived with it.
+func _crossing_arrive() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var was: Dictionary = _crossing
+	_crossing = {}
+	var from: int = int(was["from"])
+
+	print("[crossing] arrived  floor %d → %d" % [from, _floor_index])
+	if _floor_index != from + 1:
+		problems.append(("the crossing landed on floor %d, not %d — a descent "
+			+ "that does not advance is a staircase to the room you left")
+			% [_floor_index, from + 1])
+	if RunFile.floor_index() != from + 1:
+		problems.append(("the run file says floor %d and the level says %d — "
+			+ "a resumed run would reopen the wrong floor")
+			% [RunFile.floor_index(), _floor_index])
+
+	var body: Player = _session.local_player()
+	var arrived: PackedStringArray = PackedStringArray()
+	if body != null:
+		for row: Variant in body.inventory.pack():
+			arrived.append(String((row as Dictionary).get("item", "")))
+	arrived.sort()
+	var expected: PackedStringArray = (was["bag"] as PackedStringArray).duplicate()
+	expected.sort()
+	print("[crossing] the bag   %d of %d item(s) arrived"
+		% [arrived.size(), expected.size()])
+	if arrived != expected:
+		problems.append(("the bag crossed as %s and arrived as %s — carried "
+			+ "state travels through a file and a spawn payload, so losing it "
+			+ "here looks to a player like the stairs ate their run")
+			% [str(expected), str(arrived)])
+
+	var hurt: float = body.health.current if body != null else -1.0
+	print("[crossing] the body  %.0f hp, wanted %.0f" % [hurt, float(was["health"])])
+	if body != null and absf(hurt - float(was["health"])) > 0.5:
+		problems.append(("crossed at %.0f hp and arrived at %.0f — a floor "
+			+ "change is not a bandage (`DES-005`)") % [float(was["health"]), hurt])
+
+	var age: float = _hunter.age if _hunter != null else -1.0
+	print("[crossing] the Hunt  %.0f s old, wanted at least %.0f"
+		% [age, float(was["hunt"])])
+	if _hunter == null:
+		problems.append("nothing is hunting on the floor below — the Hunt "
+			+ "comes with you (ADR-037), a staircase does not shake it")
+	elif age + 0.5 < float(was["hunt"]):
+		problems.append(("the Hunt crossed at %.0f s and arrived at %.0f — "
+			+ "descending granted what `DES-017` says it must not")
+			% [float(was["hunt"]), age])
+
+	if _world.get_child_count() <= 0:
+		problems.append("the floor below is empty — the crossing built nothing")
+
+	RunFile.clear()
+	if problems.is_empty():
+		print("[crossing] PASS")
+		get_tree().quit()
+		return
+	for problem: String in problems:
+		push_error("[crossing] FAIL %s" % problem)
+	get_tree().quit(1)
+
+
 func _ground_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var player: Player = _session.local_player()

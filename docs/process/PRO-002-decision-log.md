@@ -9966,6 +9966,56 @@ Four of those six describe a *different building* rather than a worse one — wa
 - **The set dressing is still delivered and unused.** There is no scatter system in the generator at all; that is a feature, not a seam, and it is the next one.
 - **Cost.** 9,453 pieces over 5,523 slabs across nine floors — roughly 1,050 extra draw calls on a busy floor, all frustum-cullable, LODs generated on import. Not measured against a frame budget yet, and the first thing to look at if one bites.
 
+## ADR-264 — The descent is performed rather than decided, and a dead probe is not a passing one
+
+**Date:** 2026-09-23 · **Status:** accepted · **Advances `M4-T01`** · **Closes the gap a reported crash came through** · **Developer's brief**
+
+**Context:** A player descended from floor 0 to floor 1 in an exported build and the process died — `SIGSEGV`, null address, no line in the log because a segfault outruns the log buffer. The run file had already been written with `"floor": 1`, so the descent committed and then the crossing killed it.
+
+I could not reproduce it. What the attempt found instead is why nothing had caught it.
+
+### Every probe decides to descend; none of them ever crossed
+
+`_take_the_party_down` ends like this:
+
+```gdscript
+if _probing:
+    return
+get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
+```
+
+`_probing` is set by **any** argument containing the word `probe`. So `--descent-probe` proves the run file advances, the bag is packed and the Hunt's age travels — and then stops one line short of the thing that actually happens. **The moment that frees a floor, an actor population and a HUD and builds another had never been executed by a check in this suite.**
+
+The early return's stated reason is true: changing scene frees the node holding the assertion (ADR-138). The answer is not to skip the crossing but to keep the expectation somewhere the node's death cannot reach. `_crossing` is a **`static var`** — it outlives the scene, so the probe writes down what it is owed on the way out and *the floor on the other side collects*. It is the one probe in the suite built to be freed.
+
+### It asserts the carried state, not just the arrival
+
+That a scene loads proves the process lived; it does not prove the **run** did. Everything a player loses by crossing badly is carried state — what you hold, how hurt you are, how old the thing chasing you is — and none of it travels through memory. It goes out through a file and comes back through a spawn payload. If a crossing ever silently drops one, the report is *"my bag emptied on the stairs"* and there is nothing in a log to explain it.
+
+So four rows: the floor advanced by exactly one and the run file agrees; the bag arrived item for item; the body arrived at the health it left with (`DES-009` bans regeneration inside a run); and the Hunt arrived at least as old as it left (`DES-017`: *"descending grants nothing"*).
+
+### A dead probe prints no FAIL line
+
+This is the part worth carrying to every future probe of this shape.
+
+The failure this exists to catch is one that **kills the probe**. A corpse emits no `FAIL`, and the engine's exit code after a crash is whatever the crash left. Planted, a crossing that never arrives **exits 0, prints nothing after the departure line, and a `grep -qE 'FAIL'` calls it green.**
+
+So the sweep asserts the **presence of `[crossing] PASS`**, not the absence of failure. Checking for absence is what every other block in the sweep does, and it is correct for every other block, because those probes cannot be killed by the thing they measure.
+
+> The shape is ADR-098's, one level up: *"does it work?"* and *"does anything run it?"* are different questions, and *"did the thing that runs it survive?"* is a third.
+
+**Five plants, five caught.** A descent that does not advance the floor; a bag dropped on the stairs; a floor change that heals you to 125; a descent that shakes the Hunt back to 1 s; and the crossing that never arrives — which no `FAIL` grep catches and the `PASS` requirement does.
+
+### One exception it needed, and why it is not a special case
+
+`_carry_the_stash_down` is gated on `_probing`, with a good reason recorded beside it: *"a probe inheriting a loadout is measuring a bag it did not pack."* The crossing probe packed this one itself, on the floor it just left, and whether the bag survives is the whole measurement — so the gate reads `if not _probing or not _crossing.is_empty()`. The rule is unchanged; the crossing probe simply is not the case the rule was written about.
+
+### What it does not settle
+
+**The reported crash is still unexplained.** This probe crosses cleanly in both the editor and an exported build, so whatever the player hit needs something the probe does not yet do — the Gullsjúkr actively hunting, a waystone extraction earlier in the same process, a body walking onto the pad rather than a handler called directly. The probe is the instrument that will catch it next time and the hole it came through is closed; the bug is not found.
+
+**And the thing that makes it dangerous is worth writing down**: in an exported build GDScript's *"Cannot call method on a null value"* check is **compiled out**. The same line that prints a red error in the editor is a hard segfault in the build a player runs. Every null that the editor forgives is a crash waiting for a release. That, not this probe, is the standing hazard.
+
 ## ADR-265 — Everything delivered is in the game, and a teammate stops walking backwards
 
 **Date:** 2026-09-25 · **Status:** accepted · **Advances `M4-T10`** · **Implements `DES-020`'s grip and sockets** · **Developer's brief**

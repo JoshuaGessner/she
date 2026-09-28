@@ -558,6 +558,28 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The descent is performed, not merely decided** (ADR-264).
+	#
+	# `--descent-probe` above stops one line short of what actually happens:
+	# every probe sets `_probing`, and `_probing` returns before
+	# `change_scene_to_file`. So the moment that frees a floor, an actor
+	# population and a HUD and builds another had never been run by anything
+	# here — and a segfault in it reached a player first.
+	#
+	# **Asserted on PASS rather than on FAIL, deliberately.** The failure this
+	# exists to catch is one that kills the probe, and a dead probe prints no
+	# FAIL line. Planted, a crossing that never arrives exits 0 and says
+	# nothing at all; only the missing PASS distinguishes it from a green run.
+	crossing="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/room_set/room_set.tscn -- --delvings --crossing-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[crossing\] PASS' <<<"$crossing" \
+			|| grep -qE 'FAIL|SCRIPT ERROR' <<<"$crossing"; then
+		echo "FAIL a party has to survive the crossing itself, not just decide to" >&2
+		printf '%s\n' "$crossing" | grep -E '\[crossing\]|ERROR' \
+			| sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Darkness is a mechanic** (`M4-T13`, ADR-188, `ART-001`).
 	#
 	# Six rows, and the second is the one that matters: an enemy standing at a
