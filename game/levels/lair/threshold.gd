@@ -1546,6 +1546,8 @@ func _build_fire() -> void:
 	glow.emission_enabled = true
 	glow.emission = FIRE_COLOUR
 	glow.emission_energy_multiplier = 1.2
+	# `ART-005`'s *her fire*: gold, and kept so on a white page (ADR-269).
+	InkPass.stamp(glow, InkPass.Class.GOLD)
 	var node := MeshInstance3D.new()
 	node.mesh = mesh
 	node.material_override = glow
@@ -1687,6 +1689,9 @@ func _build_readout() -> void:
 	# a corner sized for none. With a region of its own it is transient, which
 	# is what both of those messages always were.
 	_speech = Label.new()
+	# On the hub's ground too: it lies on the page rather than on a panel, and
+	# the page is white here (ADR-269).
+	_speech.theme = MenuStyle.LAIR
 	_speech.theme_type_variation = MenuStyle.BODY_WARM
 	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speech.visible = false

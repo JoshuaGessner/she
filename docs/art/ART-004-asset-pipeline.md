@@ -4,7 +4,7 @@ title: Asset Pipeline & Production Schedule
 status: accepted
 owner: art
 tags: [art, assets, pipeline, blender, godot, production, specs]
-updated: 2026-09-18
+updated: 2026-09-28
 related: [ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017]
 ---
 
@@ -44,6 +44,10 @@ For a solo project this is the highest-leverage art decision available, and it m
 
 Cheap to author, requires no *colour* texture work in any phase — one shared triplanar normal map per material family is the single exception, and the engine applies it (ADR-259) — but **every model must carry vertex colours from the start.** Retrofitting them across a finished library is miserable, which is why this is the one art decision that cannot wait.
 
+> ### **R and B are read now (ADR-269); G is not.** The note below is ADR-258's, kept for its reasoning.
+>
+> The pass could not see per-vertex data and still cannot; the channels reach it through the **stencil buffer** instead. Every surface is classified from its authored R at load — 0 draws no line, under ½ a faint one, otherwise full — and a surface whose B is gold keeps its colour on either page. **G** is a flat 0.5 across the library and is read by nothing.
+>
 > ### ⚠️ **Nothing reads these channels today, and the pass that exists cannot** (ADR-258)
 >
 > Measured before starting `M4-T10`: `ink_outline.gdshader` is a **full-screen quad** (`POSITION = vec4(VERTEX.xy, 1.0, 1.0)`) sampling the screen, depth, normal-roughness and noise textures, and nothing else. Per-vertex attributes are not in any of those buffers, so **R, G and B are unreadable by construction** — not unimplemented, unreachable. Nothing else in the build reads them either; the only `vertex_color_use_as_albedo` in the project is on a debug overlay.

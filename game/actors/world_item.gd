@@ -388,6 +388,12 @@ func _build_mesh() -> void:
 	# and says why it has to happen before the tree sees the model.
 	_look = _definition.look()
 	add_child(_look)
+	# `ART-005`: loot always outlines, at full weight, at any distance —
+	# which in the Deep means a shape drawn in the dark that you have to walk
+	# into the dark to take (ADR-269). The model only, and before the glint
+	# is hung on it: the glint is a billboard, and an overlay cannot turn to
+	# face you with it (`--ink-probe` holds the order).
+	InkPass.mark(_look)
 	_build_glimmer()
 
 
@@ -476,6 +482,7 @@ func _build_ember() -> void:
 	_mesh.material_override = _material
 	_mesh.position.y = EMBER_RADIUS + 0.1
 	add_child(_mesh)
+	InkPass.mark(_mesh)
 
 
 ## The blockout colour for an item, wherever it is being drawn. `BagScreen`
@@ -653,6 +660,12 @@ func _build_glint() -> void:
 	star_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	star_quad.position = Vector3(0.0, top * 0.8, 0.0)
 	_look.add_child(star_quad)
+
+
+## The model, and only the model — for `--ink-probe`, which asks whether the
+## thing itself wears the threat mark while the halo and the glint do not.
+func look() -> Node3D:
+	return _look
 
 
 ## The glint, if this thing has one — for the probe.

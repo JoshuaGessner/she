@@ -959,6 +959,10 @@ func _ready() -> void:
 			_hands_probe()
 		elif arg.begins_with("--hands-shot="):
 			_hands_shot(arg.split("=", true, 1)[1])
+		elif arg == "--ink-probe":
+			_ink_probe()
+		elif arg.begins_with("--threat-shot="):
+			_threat_shot(arg.split("=", true, 1)[1])
 		elif arg == "--acoustics-probe":
 			_acoustics_probe()
 		elif arg == "--portal-probe":
@@ -15048,6 +15052,372 @@ static func _first_louvre(lamp: Node3D) -> Basis:
 	var found: Array[Node] = lamp.find_children("shutter_louvre*", "Node3D",
 		true, false)
 	return (found[0] as Node3D).basis if not found.is_empty() else Basis()
+
+
+## **`--ink-probe`** (`M4-T08`, ADR-269): the page, the classes, and what
+## the modeller's channels decide — everything about the ink that is true
+## without a pixel. The pixels are `--threat-shot`, windowed (ADR-198's split).
+##
+## 1. **The chain is the table.** One pass per class, each on its own shader,
+##    drawn in class order, and each shader answering to the stencil value its
+##    class *is* — read out of the shader source, because a class shader copied
+##    and not renumbered compiles, runs, and draws one class twice and another
+##    never.
+## 2. **The page is the level's.** The Deep draws the Deep; the Threshold and
+##    the Chamber carry `InkPass.PRINTED` in their own scene files and nothing
+##    else does, so the print cannot be left set by a level that has gone.
+## 3. **Threats wear the mark** — an enemy's body and a thing on the floor —
+##    and what a `WorldItem` draws for itself (the halo, the glint) does not.
+## 4. **R and B decide the dressing and the kit.** Every delivered piece read,
+##    every surface in the class its authored channels put it in, and at least
+##    one piece actually suppressed — a probe that found every surface at full
+##    weight would pass on a library nobody had authored.
+## 5. **The hub's palette reads on its page.** Every Lair tone against the
+##    Lair's panel ground at `DES-018`'s text contrast.
+func _ink_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	var ink := body.get_node(^"Head/Camera3D/InkPass") as InkPass
+
+	# ─ 1. one pass per class, in order, each on its own stencil value ─
+	var chain: Array[ShaderMaterial] = []
+	var link: Material = ink.material
+	while link != null:
+		chain.append(link as ShaderMaterial)
+		link = link.next_pass
+	print("[ink] chain       %d pass(es) for %d class(es)"
+		% [chain.size(), InkPass.Class.size()])
+	if chain.size() != InkPass.Class.size():
+		problems.append("the pass has %d link(s) for %d classes, so a class is "
+			% [chain.size(), InkPass.Class.size()] + "drawn twice or never")
+	var answers := RegEx.create_from_string("stencil_mode\\s+read,\\s*compare_equal,\\s*(\\d+)")
+	for index: int in mini(chain.size(), InkPass.Class.size()):
+		var found: RegExMatch = answers.search(chain[index].shader.code)
+		var reference: int = int(found.get_string(1)) if found != null else -1
+		print("[ink] class       %-7s stencil %d, priority %d"
+			% [InkPass.Class.keys()[index], reference, chain[index].render_priority])
+		if reference != index:
+			problems.append("the %s pass answers to stencil %d, not %d"
+				% [InkPass.Class.keys()[index], reference, index])
+		if chain[index].render_priority != 100 + index:
+			problems.append("the %s pass draws at priority %d — the classes must "
+				% [InkPass.Class.keys()[index], chain[index].render_priority]
+				+ "draw after the threat marks and in class order")
+
+	# ─ 2. the page is the level's ─
+	print("[ink] page        the Deep draws as %s" % InkPass.Page.keys()[ink.page()])
+	if ink.page() != InkPass.Page.DEEP:
+		problems.append("the Deep is drawn as a print — black on white, and a "
+			+ "light that no longer draws anything")
+	for scene: String in ["res://levels/lair/threshold.tscn",
+			"res://levels/lair/chamber.tscn", "res://levels/room_set/room_set.tscn"]:
+		var state: SceneState = (load(scene) as PackedScene).get_state()
+		var printed: bool = state.get_node_groups(0).has(String(InkPass.PRINTED))
+		var should: bool = not scene.ends_with("room_set.tscn")
+		print("[ink] page        %-15s %s" % [scene.get_file(),
+			"a print" if printed else "the Deep"])
+		if printed != should:
+			problems.append("`%s` is %sdrawn as a print" % [scene.get_file(),
+				"" if printed else "not "])
+
+	# ─ 3. threats wear the mark, and what an item draws for itself does not ─
+	_session.clear_enemies()
+	var ahead: Vector3 = -body.global_transform.basis.z
+	ahead.y = 0.0
+	var ground: Vector3 = body.global_position + ahead.normalized() * 3.0
+	ground.y = body.global_position.y
+	_session.spawn_enemy(ground)
+	var bead: WorldItem = _session.spawn_world_item(&"glt_gilt_bead",
+		body.global_position + ahead.normalized() * 1.2)
+	await _hold(0.3)
+	var enemies: int = 0
+	var bare_enemies: int = 0
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		enemies += 1
+		if not _all_marked(node):
+			bare_enemies += 1
+	# The glint hangs under the model so that it follows the hover, and is
+	# built after the model is marked — which is the only thing keeping a
+	# billboard's overlay off it. This row is what holds that order.
+	var look_marked: bool = bead != null and _all_marked(bead.look(), bead.glint())
+	var glint_marked: bool = bead != null and bead.glint() != null \
+		and bead.glint().material_overlay != null
+	print("[ink] threat      %d enem(y/ies), %d unmarked; the bead %s, its glint %s"
+		% [enemies, bare_enemies, "marked" if look_marked else "UNMARKED",
+			"marked" if glint_marked else "left alone"])
+	if enemies == 0 or bare_enemies > 0:
+		problems.append("%d of %d enemies draw as world — in the dark, a body "
+			% [bare_enemies, enemies] + "that is not there (ADR-203)")
+	if not look_marked:
+		problems.append("a thing worth taking is drawn as world, so it fades "
+			+ "with distance and vanishes in the dark")
+	if glint_marked:
+		problems.append("the glint wears the mark — a billboard's overlay marks "
+			+ "a square the star is not in")
+
+	# ─ 4. the authored channels decide the dressing and the kit ─
+	var suppressed: int = 0
+	for piece: StringName in FloorDressing.DELIVERED:
+		var made := (load(FloorDressing.SHELF % piece) as PackedScene).instantiate()
+		InkPass.classify(made)
+		for node: Node in made.find_children("*", "MeshInstance3D", true, false):
+			var drawn := (node as MeshInstance3D).mesh
+			for surface: int in drawn.get_surface_count():
+				var wanted: InkPass.Class = InkPass.class_of_surface(drawn, surface)
+				var carried: int = _stencil_of(drawn.surface_get_material(surface))
+				if wanted != InkPass.Class.WORLD:
+					suppressed += 1
+				if carried != wanted:
+					problems.append("`%s` surface %d is authored %s and draws as %s"
+						% [piece, surface, InkPass.Class.keys()[wanted],
+							InkPass.Class.keys()[carried]])
+		made.free()
+	var loud: int = 0
+	for module: StringName in DelvingsKit.DELIVERED:
+		var drawn: Mesh = DelvingsKit.mesh_of(module)
+		for surface: int in drawn.get_surface_count():
+			if _stencil_of(drawn.surface_get_material(surface)) != InkPass.Class.WORLD:
+				loud += 1
+	print("[ink] authored    %d dressing surface(s) suppressed by R; %d kit "
+		% [suppressed, loud] + "surface(s) off full weight")
+	if suppressed == 0:
+		problems.append("no dressing surface is suppressed, so either nothing "
+			+ "reads R or nobody authored it — `ART-005` calls this mandatory")
+	if loud > 0:
+		problems.append("%d kit surface(s) lost their lines — the kit is " % loud
+			+ "authored at full weight throughout")
+
+	# ─ 5. the hub's palette reads on its page ─
+	var panel: CarvedFrame = MenuStyle.LAIR.get_stylebox(&"panel", &"Frame") as CarvedFrame
+	for tone: StringName in [&"Text", &"Dim", &"Warm", &"Debt"]:
+		var colour: Color = MenuStyle.LAIR.get_color(&"font_color", tone)
+		var ratio: float = _contrast(colour, panel.ground)
+		var needed: float = 4.5 if tone == &"Text" else 3.0
+		print("[ink] lair        %-4s %.1f:1 on the hub's paper" % [tone, ratio])
+		if ratio < needed:
+			problems.append("the Lair's %s reads %.1f:1 on its own panel, under "
+				% [tone, ratio] + "%.1f:1" % needed)
+
+	for problem: String in problems:
+		printerr("[ink] FAIL %s" % problem)
+	print("[ink] two pages, five classes, and the modeller decides the lines")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## Whether every mesh under `root` but `except` wears the threat mark.
+static func _all_marked(root: Node, except: Node = null) -> bool:
+	var meshes: int = 0
+	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
+		var drawn := node as MeshInstance3D
+		if drawn == except:
+			continue
+		meshes += 1
+		if drawn.material_overlay == null \
+				or (drawn.material_overlay as ShaderMaterial).shader != InkPass.MARK:
+			return false
+	return meshes > 0
+
+
+## The ink class a material writes, or `WORLD` when it writes none.
+static func _stencil_of(written: Material) -> int:
+	var base := written as BaseMaterial3D
+	if base == null or base.stencil_mode != BaseMaterial3D.STENCIL_MODE_CUSTOM:
+		return InkPass.Class.WORLD
+	return base.stencil_reference
+
+
+## WCAG contrast ratio of two colours, over opaque paper.
+static func _contrast(a: Color, b: Color) -> float:
+	var la: float = a.srgb_to_linear().get_luminance()
+	var lb: float = b.srgb_to_linear().get_luminance()
+	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+## **`--threat-shot=PATH`** (`M4-T08`, ADR-269): a body standing in the dark,
+## drawn — and the same body unmarked, which is the control.
+##
+## ADR-203's fourth dead draft found the debt this pays: a body at an enemy post
+## in an unlit stretch was *standing, in frame, and invisible*, because the
+## Deep drew a dark line on a dark page. `ART-005` had promised the opposite —
+## *"if the shader ever makes a threat harder to see, the shader is wrong"* —
+## and only the two-world inversion could keep it.
+##
+## So: every enemy post on the floor, a body stood on it, a camera
+## `THREAT_SIGHT` metres off along a clear line, and **two frames** — marked,
+## and with the mark taken off. The control is what makes the frame a test at
+## all: a post the lantern or a doorway lamp reaches would show the body either
+## way and prove nothing, so a post only counts if the unmarked body is dark.
+## The brightest pixel inside the body's own screen rect is the measurement.
+##
+## Windowed, because a headless render has no pixels (ADR-198's split).
+func _threat_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	player.show_ink(true)
+	# **The shutter shut.** A lantern reaches 11 m (ADR-188), so at 8 m your
+	# own lamp lights the body and the frame asks nothing. The dark this is
+	# about is the dark you chose.
+	player.lit = false
+	# The interface off: the reticle sits dead centre, which is exactly where
+	# the body is, and it is the brightest thing in the frame.
+	for layer: Node in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	var camera: Camera3D = get_viewport().get_camera_3d()
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var tried: int = 0
+	for post: Vector3 in _floor.enemy_posts():
+		var ground: Vector3 = _standing_at(post)
+		if ground == Vector3.INF:
+			continue
+		var eye: Vector3 = Vector3.INF
+		for turn: int in 8:
+			var along := Vector3.FORWARD.rotated(Vector3.UP, TAU * float(turn) / 8.0)
+			var from: Vector3 = ground + Vector3(0.0, 1.2, 0.0)
+			var ray := PhysicsRayQueryParameters3D.create(from,
+				from + along * (THREAT_SIGHT + 1.0))
+			ray.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(ray).is_empty():
+				continue
+			var under: Vector3 = _standing_at(ground + along * THREAT_SIGHT)
+			if under != Vector3.INF and absf(under.y - ground.y) < 0.5:
+				eye = under
+				break
+		if eye == Vector3.INF:
+			continue
+		tried += 1
+		var facing: Vector3 = eye - ground
+		_session.spawn_enemy(ground, atan2(-facing.x, -facing.z))
+		await _hold(0.3)
+		var body: Node3D = null
+		var nearest: float = INF
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			var d: float = (node as Node3D).global_position.distance_to(ground)
+			if d < nearest:
+				nearest = d
+				body = node as Node3D
+		if body == null or nearest > 1.0:
+			continue
+		var to: Vector3 = ground - eye
+		player.teleport(eye + Vector3(0.0, 0.1, 0.0), atan2(-to.x, -to.z))
+		# The sense lamps light themselves (`DES-013`), so the dark does not
+		# hide them and they are not what is being asked about. Off in both
+		# frames.
+		for node: Node in body.find_children("*", "MeshInstance3D", true, false):
+			var lamp := (node as MeshInstance3D).material_override as BaseMaterial3D
+			if lamp != null and lamp.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
+				(node as MeshInstance3D).visible = false
+		# Three frames of one composition. The **silhouette** paints the body
+		# flat white with the ink off, so the pixels that are the body — and
+		# only those — are known exactly: the brightest pixel in a rectangle
+		# round it was the lit corridor behind it on the first run, and a
+		# measurement that reads the room says nothing about the body.
+		var frames: Dictionary[String, Image] = {}
+		var drawn_by: Dictionary[MeshInstance3D, Material] = {}
+		var white := StandardMaterial3D.new()
+		white.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		for step: String in ["silhouette", "marked", "control"]:
+			for node: Node in body.find_children("*", "MeshInstance3D", true, false):
+				var drawn := node as MeshInstance3D
+				if step == "silhouette":
+					drawn_by[drawn] = drawn.material_override
+					drawn.material_override = white
+				else:
+					drawn.material_override = drawn_by.get(drawn, null)
+				if step == "marked":
+					InkPass.mark(drawn)
+				else:
+					drawn.material_overlay = null
+			player.show_ink(step != "silhouette")
+			await _hold(0.25)
+			body.global_position = ground
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			frames[step] = get_viewport().get_texture().get_image()
+			frames[step].save_png("%s_%s.png" % [path.trim_suffix(".png"), step])
+		var rect: Rect2i = Rect2i(_screen_rect(camera, body)).intersection(
+			Rect2i(Vector2i.ZERO, frames["control"].get_size()))
+		# How dark the body is unmarked (its mean), and how much of it is
+		# drawn (the share of its pixels at line brightness) with and without
+		# its mark. A mean rather than the brightest pixel, because one rim
+		# a doorway lamp catches is not a body you can see.
+		var pixels: int = 0
+		var dark: float = 0.0
+		var drawn: Array[int] = [0, 0]
+		for x: int in range(rect.position.x, rect.end.x):
+			for y: int in range(rect.position.y, rect.end.y):
+				var bare: float = frames["control"].get_pixel(x, y).get_luminance()
+				if frames["silhouette"].get_pixel(x, y).get_luminance() - bare < 0.3:
+					continue
+				pixels += 1
+				dark += bare
+				if frames["marked"].get_pixel(x, y).get_luminance() > THREAT_LINE:
+					drawn[0] += 1
+				if bare > THREAT_LINE:
+					drawn[1] += 1
+		if pixels < THREAT_PIXELS:
+			print("[threat] post at %s shows %d px of body — not a test, next"
+				% [ground, pixels])
+			body.queue_free()
+			continue
+		body.queue_free()
+		dark /= float(pixels)
+		if dark > THREAT_DARK:
+			print("[threat] post at %s is lit (mean %.2f) — not a test, next"
+				% [ground, dark])
+			continue
+		var share: Array[float] = [float(drawn[0]) / float(pixels),
+			float(drawn[1]) / float(pixels)]
+		print("[threat] a body %.1f m off in the dark (mean %.3f, %d px): "
+			% [THREAT_SIGHT, dark, pixels] + "%.0f%% drawn marked, %.0f%% unmarked"
+			% [share[0] * 100.0, share[1] * 100.0])
+		if share[0] - share[1] < THREAT_DRAWN:
+			printerr("[threat] FAIL a body in the dark is not drawn: %.0f%% "
+				% (share[0] * 100.0) + "of it marked against %.0f%% without"
+				% (share[1] * 100.0))
+			get_tree().quit(1)
+			return
+		print("[threat] a threat in the dark is drawn")
+		get_tree().quit(0)
+		return
+	# **Not a silent pass** (ADR-200).
+	printerr("[threat] FAIL no enemy post on this floor stands in the dark with "
+		+ "a clear %.0f m view of it (%d tried), so nothing here " % [
+			THREAT_SIGHT, tried] + "can test the promise")
+	get_tree().quit(1)
+
+
+## How far the camera stands from the body, metres — inside the 14 m where the
+## world's own lines begin to fade, so that a threat drawn here is not being
+## drawn *because* it is exempt from the falloff.
+const THREAT_SIGHT: float = 8.0
+## Mean luminance the unmarked body may have and still be "in the dark".
+const THREAT_DARK: float = 0.06
+## What counts as a drawn pixel: bone ink is ~0.8, the Deep's page ~0.04.
+const THREAT_LINE: float = 0.4
+## Fewest body pixels a frame must show to be a measurement at all.
+const THREAT_PIXELS: int = 200
+## How much more of the body its mark must draw ⟨tune⟩ — an outline, not a
+## fill, so a tenth of a body 8 m off is several strokes' worth.
+const THREAT_DRAWN: float = 0.1
+
+
+## The screen rectangle a node's drawn meshes cover.
+func _screen_rect(camera: Camera3D, root: Node3D) -> Rect2:
+	var rect := Rect2()
+	var first: bool = true
+	for node: Node in root.find_children("*", "MeshInstance3D", true, false):
+		var drawn := node as MeshInstance3D
+		if not drawn.visible:
+			continue
+		var box: AABB = drawn.global_transform * drawn.get_aabb()
+		for corner: int in 8:
+			var at: Vector3 = box.get_endpoint(corner)
+			if camera.is_position_behind(at):
+				continue
+			var seen: Vector2 = camera.unproject_position(at)
+			rect = Rect2(seen, Vector2.ZERO) if first else rect.expand(seen)
+			first = false
+	return rect
 
 
 ## **`--hands-shot=PATH`** (ADR-267): what you see in your hands, and what lies

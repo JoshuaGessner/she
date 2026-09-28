@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-09-18
+updated: 2026-09-28
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -41,6 +41,18 @@ The reference image's look isn't discarded — it is **the safe place.**
 | **Ink** | Pale bone-white, appearing only in lantern reach | Hard black, everywhere, confident |
 | **Feel** | An unfinished page | A finished print |
 | **Why** | Darkness is a mechanic here | There is no darkness mechanic in the hub |
+
+> **BUILT (ADR-269, `M4-T08`).** One uniform, `page`, set by the level the
+> camera is in: `threshold.tscn` and `chamber.tscn` carry the `printed` group
+> on their roots and nothing else does, so the cut is exactly the Descent and
+> cannot be left set. **In the Deep a contour is bone and is only laid where
+> there is light to lay it**; lit stone gives up value to pale strokes laid
+> densest where the light is strongest, and unlit ground is left as rendered so
+> ADR-203's fog still matches it. **On the print** tone becomes paper and ink —
+> bare paper in the light, hatch through the middle, solid ink in the deepest
+> shadow — and the paper keeps some of the light's own hue, because the
+> Threshold is warm for the reason the fire is. The Lair's interface is ink on
+> paper to match.
 
 **The safe place literally looks like a completed drawing.** The dangerous place is one that hasn't been drawn yet, and you are drawing it as you go, badly, with a lantern.
 
@@ -148,7 +160,9 @@ And it matches real hand-drawn practice: **contours are redrawn every frame; fil
 > below for the current shared treatment; it adds no texture/UV requirement.
 > `game/data/tuning/ink_style.tres` owns its density, width and strength. Hatching
 > follows existing illumination and does not reveal unlit space. The authored
-> vertex channels and two-world inversion remain M4-T08 work.
+> vertex channels and the two-world inversion are built (ADR-269): the same
+> nested families serve both pages, asked for by shadow on the print and by
+> light in the Deep.
 
 Full TAM requires lapped-texture parametrisation over a curvature-aligned direction field. **That is far too much for a solo project.** The 80% version:
 
@@ -203,6 +217,15 @@ If lighting is quantised and value comes from screen-space hatching, **models ne
 
 Cheap to author, and outline suppression is essential — see below.
 
+> **How they reach a full-screen pass (ADR-269).** Per-object data is in none
+> of the buffers the pass samples, so each object writes an **ink class** into
+> the **stencil buffer** and the pass runs once per class behind a stencil
+> test — one include, five shaders that differ only in the value they answer
+> to. **R** is read off every surface at load and quantised to three steps
+> (0 → no line, under ½ → a faint one, else full), because a stencil carries a
+> class and not a number. **B**'s top step, gold, keeps a surface's colour.
+> **G** is authored everywhere and read nowhere yet.
+
 > **"No texture work" is amended in one direction (ADR-259).** Still no albedo or colour textures, still no baked lighting or ambient occlusion. Added: **one shared tileable triplanar normal map per material family**, coarse, not authored per asset.
 >
 > The reason is that this pass was already reading one. The outline stage calls an edge wherever the normal-roughness buffer changes, and in Forward+ that buffer is written *after* a material perturbs its normal — so a normal map here is a **drawing instruction**, not a lighting trick. Measured on the spike: the pass drew **2.97 %** of the frame with flat materials and **5.94 %** at `normal_scale` 0.50 ⟨tune⟩, with no shader change at all. At 1.00 it drew 28.90 %, which is this document's own scribble failure.
@@ -214,8 +237,8 @@ Cheap to author, and outline suppression is essential — see below.
 **Outlining everything at 150 agents in a cluttered dungeon is visual noise**, and Principle 6 says legibility beats realism. Mandatory controls:
 
 - **Distance falloff** on line weight — distant geometry loses its outlines rather than becoming a scribble. **`InkPass.FALLOFF_START`/`FALLOFF_END`** ⟨tune⟩ since ADR-203, promoted out of the shader's uniform defaults so the fog envelope below can be checked against it.
-- **Outline suppression on unimportant props** via the R channel. Set dressing does not get lines.
-- **Enemies and loot always outline**, at full weight, regardless of distance ⟨tune⟩. If the shader ever makes a threat harder to see, the shader is wrong.
+- **Outline suppression on unimportant props** via the R channel. Set dressing does not get lines. *Built (ADR-269): 94 dressing surfaces draw faint or bare from their authored R.*
+- **Enemies and loot always outline**, at full weight, regardless of distance ⟨tune⟩. If the shader ever makes a threat harder to see, the shader is wrong. *Built (ADR-269), and regardless of light as well — in the Deep a threat is a pale line wherever it stands, which is the promise ADR-203 found unpaid. `--threat-shot` measures it: a body in an unlit corridor 35 % drawn marked, 2 % without.*
 - **Test in the busiest possible room** early. A style that only works in an empty corridor is not a style.
 
 ## The floor has an outside
@@ -276,7 +299,7 @@ Descent.
 
 > It is also the cheaper of the two and the one that survives a loading transition, which the gradient does not. **Closes Q98.**
 
-> **OPEN (Q99):** Do *player characters* get heavier outlines than the world, so teammates read instantly in a cluttered room? Almost certainly yes, and it is nearly free.
+> **OPEN (Q99):** Do *player characters* get heavier outlines than the world, so teammates read instantly in a cluttered room? Almost certainly yes, and since ADR-269 it is one line — a class for bodies.
 
 > **OPEN (Q101):** How many nested hatch layers — 4, 5, or 6? Fewer is less authoring and coarser tone control. Start at 4 and add only if banding is visible.
 

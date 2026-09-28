@@ -10172,5 +10172,76 @@ The Waystone takes `M2-T13`'s pale — the colour every doorway is lit with — 
 - `TEC-005` records the decision where its FMOD recommendation stood.
 - `AudioDirector`'s header no longer promises a migration.
 
+## ADR-269 — The page turns at the Descent, and a threat in the dark is drawn
+
+**Date:** 2026-09-28 · **Status:** accepted · **Closes `M4-T08`** · **Closes Q113** · **Pays ADR-203's deferred threat promise** · **Amends `ART-005`, `ART-004`, ADR-051, ADR-216**
+
+**Context:** `M4-T08` owed three things: hatching, the Threshold/Deep inversion, and the vertex channels read across the library. ADR-248 had built the hatching. The other two had not been started, and one of them carried a debt. ADR-203's fourth dead draft of the threat frame found a body standing in frame at an enemy post, **and invisible**, because the Deep drew dark ink (0.05) on a dark page (0.04). `ART-005` promises the opposite — *"enemies and loot always outline, at full weight, regardless of distance; if the shader ever makes a threat harder to see, the shader is wrong"* — and ADR-203 wrote down that until the inversion landed, threat legibility rested on the doorway lamps.
+
+**Measured before anything changed:** the delivered library already carries the channels. All 47 committed `.glb`s have `COLOR_0` on every primitive. **R** is 1.0 on everything except the seven set-dressing pieces, which are authored at 0 and 0.32. **B** is the material ID in six steps, with gold at 1.0 on every coin and torc. **G** is a flat 0.5 everywhere. ADR-258 was right that nothing *read* them, and right about why: the pass is a full-screen quad, and per-object data is in none of the buffers it samples.
+
+### Decision 1 — the page is the level's, and it is a hard cut
+
+`InkPass.Page` is **DEEP** or **PRINT**, and a level declares the print by carrying the `printed` group on its **scene root** — `threshold.tscn` and `chamber.tscn` do, and nothing else does. The camera reads it when it arrives. A group in a scene file exists from the instant the scene is instanced, before any `_ready`, and it is freed with the level, so the print cannot be left set by a level that has gone (`M2-T15`'s fault, and the reason ADR-216 deleted the palette `static var`). There is no blend anywhere (ADR-167).
+
+- **The Deep — your lantern draws.** Contours are **bone** (0.86, 0.83, 0.76), and a contour is put down only where there is light to put it down with: the brightest of its five samples, because a contour sits on the edge of a lit thing and half its taps are the dark beside it. Lit stone gives up 45 % of its value ⟨tune⟩ and gets it back as pale strokes, densest where the light is strongest — a white-line engraving, where light is the thing that is cut. **Unlit ground is left exactly as rendered**, because ADR-203's fog is authored at the ground colour and a pass that darkened the page would put the boundary back.
+- **The print — a finished page.** Tone becomes paper and ink between display values 0.04 and 0.30 ⟨tune⟩: bare paper in the light, hatch through the middle, solid ink in the deepest shadow (which is how a woodcut draws night, so the Threshold's *dark ahead* stays dark). The paper keeps 45 % of the light's own hue ⟨tune⟩, because the Threshold is warm for the reason the Lodge's fire is.
+
+### Decision 2 — a pixel's class travels in the stencil buffer
+
+Q113 offered two routes and this is neither. **Roughness** was the cheap one: its alpha is already in `hint_normal_roughness_texture`. But roughness is also a lighting input — the Gullsjúkr is 0.35 and would have read as a light line — and it holds one number where the pass needs a class. **An attribute pass** was the expensive one. **The stencil buffer** is purpose-built for this: Godot 4.5 exposes it to spatial materials, and it was verified in 4.7 on a standalone scene before any game code changed. A marked cube masked a full-screen quad exactly; its unmarked twin did not.
+
+So each object writes its class, and **the pass runs once per class behind a stencil test**: one include (`ink.gdshaderinc`) holds the whole treatment, and five four-line shaders differ only in the stencil value they answer to. The test rejects a pixel before its fragment runs, so five passes do the work of about one.
+
+| Class | Stencil | Who | Contour |
+|---|---|---|---|
+| **WORLD** | 0 | stone, the kit, everything unclaimed | full weight; fades with distance; in the Deep, only where lit |
+| **THREAT** | 1 | enemies, the Gullsjúkr, anything on the floor worth taking | full weight, 1.6× wide, **at any distance, lit or not**; keeps any strong colour |
+| **FAINT** | 2 | surfaces authored 0 < R < 0.5 | 0.35 weight ⟨tune⟩ |
+| **BARE** | 3 | surfaces authored R = 0 | none |
+| **GOLD** | 4 | the hoard, her fire | full weight; **the page is never laid over it** |
+
+**How a class gets there** depends on who owns the material. A threat wears a shared **overlay** that adds black and writes a 1, because an item's model shares its imported materials with the copy in your hand, and an overlay is per node. Set dressing and the kit are classified from their **authored channels**, once per mesh resource, onto duplicates of their materials. That puts R where ADR-051 said it went. B's gold step is read too, and G stays unread. The Lair's own gold materials are **stamped** directly, because nothing else uses them.
+
+### Decision 3 — gold is declared, not recognised
+
+The first version kept gold by pixel chroma, and the Chamber's hoard went grey. **In linear light the hoard and the Threshold's firelit stone have the same chroma**, so any threshold that keeps one papers over the other or leaves the camp orange. Loot and the Gullsjúkr are threats and keep strong colour by a low chroma threshold of 0.12, which is safe because threats are few. The hoard and the Lodge's fire are not threats, so they say what they are.
+
+### Decision 4 — the hub's interface is ink on paper
+
+ADR-216 said `M4-T08` would change four values in `lair_theme.tres`. It changed **six**: Text, Dim, the frame and the rule as promised, plus **Warm and Debt**, because her speech is amber and a debt is red, and both were chosen to read on black. At its Deep value Warm measured **2.4:1** on the new paper. On the Lair's panel ground the new tones measure: Text 15.7:1, Dim 7.0:1, Warm 5.9:1, Debt 6.4:1. Her speech lies on the page rather than on a panel, so it now carries the Lair theme as well.
+
+### Q113, answered
+
+*Does a dressed room read as noise without suppression?* In the one dressed room the floor offers (seed 31346, floor 1, `--ink-shot`'s dressing view), **no**. An ore cart at full weight is not noise. It is, though, drawn exactly as loudly as the masonry, and at R's faint weight it recedes behind the architecture, which is what `ART-005` asks of set dressing. The 150-agent room `ART-005` actually fears has still not been photographed, because the build does not make one.
+
+### Found on the way
+
+- **A wider line made a more nervous detector.** Widening a threat's taps to 1.6× made the capsule's own curvature cross the normal threshold, and the body filled with blotches instead of being outlined. Both edge measures are now normalised by the class's width, so width thickens a line and does not add lines.
+- **The measurement read the room.** `--threat-shot`'s first metric was the brightest pixel in the body's screen rectangle, and every post read as lit at exactly 0.84. That was the reticle, dead centre. With the interface hidden, it read the lit corridor behind the body. Then the player's own lantern lit the body at 8 m, inside its 11 m reach. So the shot now has three frames: a silhouette with the body flat white and the ink off, which gives exactly the body's pixels, then marked, then unmarked. The shutter is shut, and a body counts as dark by its mean luminance, not its brightest rim.
+- **A guard that could not fire.** `mark()` skipped shader-drawn meshes to spare the glint. A plant that removed the skip passed, because the glint is hung on the model *after* the model is marked. The skip was removed, and the probe row now holds the order itself: a plant that marks after the glint is caught.
+
+### Measured
+
+`--threat-shot=PATH`, windowed, on seed 5 floor 2 with the shutter shut: a body 8 m away in an unlit corridor has a mean luminance of **0.043** over 3,716 pixels. **35 % of it is drawn marked and 2 % unmarked**, a pale silhouette on black where ADR-203 found nothing. Seed 31346 floor 1 has no dark post: both of its posts read as lit (means 0.13 and 0.14), and the shot says so rather than passing.
+
+`--ink-probe`, headless, in the sweep, five rows:
+
+- the chain is one pass per class, in order, each answering to its own stencil value (read from the shader source);
+- the Deep draws as the Deep, and exactly the Threshold and the Chamber are prints;
+- an enemy and a bead are marked, and the bead's glint is not;
+- **94 dressing surfaces** are suppressed by their authored R, and no kit surface is;
+- every Lair tone clears text contrast on its own paper.
+
+**Eight plants, eight caught:** a class shader copied and not renumbered, the Chamber's group dropped, an enemy unmarked, the classifier disabled, the old Warm tone, an item unmarked, the glint marked, and (before its removal) the dead skip.
+
+**What five passes cost**, on `M1-T09`'s own harness (`ink_spike --bench=1 --amplify=40`, 1920×1080, two runs each): **0.257 ms** a camera for the one pass at `bde981b`, **0.315 ms** for the five now — +0.06 ms, the four passes the stencil rejects for nearly every pixel. Still about 2 % of a 60 fps frame, inside ADR-070's budget. The spike stands no threat and no dressing, so this is the cost of the classes existing; each pixel is shaded by exactly one class, whichever it is.
+
+### Still not done
+
+- **Q99** — whether a teammate outlines heavier than the world — is still a design question, but it now costs one line: a class for bodies.
+- **Q102** — coplanar edges — is unchanged. The stencil is an object-ID channel for *classes*, not per object, so two touching walls still draw no line between them.
+- **G** (hatch density bias) is authored everywhere and read nowhere. It is left rather than wired, because a flat 0.5 across the whole library has nothing yet to say.
+
 *Entries below to be added as design decisions are signed off.*
 

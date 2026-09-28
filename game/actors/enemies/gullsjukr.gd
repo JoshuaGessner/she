@@ -759,6 +759,8 @@ func _build_body() -> void:
 	_mesh.material_override = _material
 	_mesh.position.y = 1.2
 	add_child(_mesh)
+	# The one thing on the floor that must never be hard to see (ADR-269).
+	InkPass.mark(_mesh)
 
 	# **Something to hit** (`M3-T04`). Until now it had no `Hurtbox` at all, so
 	# a swing at a Gullsjúkr passed straight through and produced *nothing* —

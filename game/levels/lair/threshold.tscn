@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://levels/lair/threshold.gd" id="1_threshold"]
 
-[node name="Threshold" type="Node3D"]
+[node name="Threshold" type="Node3D" groups=["printed"]]
 script = ExtResource("1_threshold")

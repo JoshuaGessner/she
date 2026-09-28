@@ -181,6 +181,9 @@ static func raise(placed: Array[Dictionary], into: Node3D) -> Node3D:
 		var made := packed.instantiate() as Node3D
 		made.name = "%s_%d" % [entry["piece"], count]
 		made.transform = entry["at"]
+		# Set dressing does not get lines (`ART-005`), and its modeller said
+		# so in R. Read once per piece, on the mesh (ADR-269).
+		InkPass.classify(made)
 		for node: Node in made.find_children("*", "PhysicsBody3D", true, false):
 			if not bool(entry["solid"]):
 				# Freed before the tree sees it, for `ItemResource.look`'s

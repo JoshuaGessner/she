@@ -2,5 +2,5 @@
 
 [ext_resource type="Script" path="res://levels/lair/chamber.gd" id="1_chamber"]
 
-[node name="Chamber" type="Node3D"]
+[node name="Chamber" type="Node3D" groups=["printed"]]
 script = ExtResource("1_chamber")

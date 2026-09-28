@@ -292,6 +292,9 @@ func _ready() -> void:
 	_mesh.material_override = _material
 	_sight_lamp = _build_lamp(Vector3(-0.16, 2.1, 0))
 	_hearing_lamp = _build_lamp(Vector3(0.16, 2.1, 0))
+	# A threat outlines at full weight wherever it stands, lit or not
+	# (`ART-005`, ADR-269) — the body and its sense lamps both.
+	InkPass.mark(self)
 	# Applied from whatever `_state` already holds rather than assuming
 	# UNAWARE. Spawn state can land either side of `_ready` depending on how
 	# the spawn packet is applied, and an enemy that arrived dead must not

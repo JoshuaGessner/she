@@ -1476,6 +1476,22 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Two pages, five classes, and the modeller decides the lines** (ADR-269).
+	# The ink's half that is true without a pixel: one pass per class, each on
+	# the stencil value its class is; the Lair a print and the Deep not; every
+	# threat marked and the glint not; the dressing's R read off every delivered
+	# surface; and the hub's palette at text contrast on its own paper. The
+	# pixels — a body in an unlit corridor, drawn — are `--threat-shot`,
+	# windowed, because a headless render has none (ADR-198).
+	ink="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --ink-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[ink\] two pages, five classes' <<<"$ink" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$ink"; then
+		echo "FAIL two pages, five classes" >&2
+		printf '%s\n' "$ink" | grep -E '\[ink\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Do the rooms ask anything** (`M4-T01` step 6, `DES-015` Layer 3,
 	# ADR-192)? Every check above is about a floor's *shape* and passes cleanly
 	# against one whose rooms are space with loot dealt into it by worth — which

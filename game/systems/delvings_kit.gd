@@ -158,6 +158,10 @@ static func mesh_of(module: StringName) -> Mesh:
 					instance.mesh.surface_get_material(i))
 		made.free()
 		if built.get_surface_count() > 0:
+			# Every module is authored at full weight today, so this changes
+			# nothing — and is here so the day one is not, the R channel is
+			# what decides rather than this file (ADR-269).
+			InkPass.classify_mesh(built)
 			found = built
 		else:
 			push_error("[kit] module `%s` has no render mesh" % module)

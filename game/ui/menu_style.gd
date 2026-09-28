@@ -177,15 +177,14 @@ const SCRIM: StringName = &"Scrim"
 ## a way out that forgot would have drawn the next floor in the hub's colours.
 ## A theme on a node is freed with the node.
 ##
-## ## The values in it are correct for the world as it is drawn *today*
+## ## Ink on paper, because the Lair is a print
 ##
-## The Lair is not white yet — `ART-005`'s two treatments arrive with the ink
-## shader at `M4-T08`, and the Chamber is currently a dark, warm room. So the
-## hub's ground is a *warmer, higher-contrast* version of the same pale-on-dark
-## reading, rather than the inverted one it will become. Writing the inverted
-## palette now would put a black panel on a black wall and call it
-## forward-looking. **`M4-T08` changes the four entries in that file**; no
-## screen moves.
+## `M4-T08` drew the Threshold and the Chamber as `ART-005`'s finished page —
+## black ink on white — so the hub's panels are paper with ink on them, and the
+## Deep's are the inverse (ADR-269). It took the four entries ADR-216 said it
+## would, and two more it had not counted: **Warm and Debt**, because her
+## speech is amber and a debt is red, and both were picked to read on black.
+## On paper at their Deep values they measured under 3:1. No screen moved.
 const LAIR: Theme = preload("res://ui/lair_theme.tres")
 
 

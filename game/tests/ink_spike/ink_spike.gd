@@ -274,20 +274,20 @@ func _apply_mode(mode: Mode) -> void:
 		extra.visible = mode != Mode.RAW
 	match mode:
 		Mode.CLEAN:
-			_material.set_shader_parameter("wobble_amount", 0.0)
-			_material.set_shader_parameter("weight_variation", 0.0)
-			_material.set_shader_parameter("boil_fps", 0.0)
+			_post.set_parameter("wobble_amount", 0.0)
+			_post.set_parameter("weight_variation", 0.0)
+			_post.set_parameter("boil_fps", 0.0)
 		Mode.WOBBLE:
-			_material.set_shader_parameter("wobble_amount", 1.1)
-			_material.set_shader_parameter("weight_variation", 0.55)
-			_material.set_shader_parameter("boil_fps", 0.0)  # 60 fps shimmer
+			_post.set_parameter("wobble_amount", 1.1)
+			_post.set_parameter("weight_variation", 0.55)
+			_post.set_parameter("boil_fps", 0.0)  # 60 fps shimmer
 		Mode.INK:
-			_material.set_shader_parameter("wobble_amount", 1.1)
-			_material.set_shader_parameter("weight_variation", 0.55)
-			_material.set_shader_parameter("boil_fps", 10.0)
+			_post.set_parameter("wobble_amount", 1.1)
+			_post.set_parameter("weight_variation", 0.55)
+			_post.set_parameter("boil_fps", 10.0)
 		Mode.RAW:
 			pass
-	_material.set_shader_parameter("paper_mix", 1.0 if _paper else 0.0)
+	_post.set_page(InkPass.Page.PRINT if _paper else InkPass.Page.DEEP)
 
 
 func _capture_mouse(on: bool) -> void:
@@ -402,7 +402,7 @@ func _run_capture() -> void:
 	# wrong thing. `manual_time` paces the boil by frame index, so the recording
 	# is correct regardless of how slowly it renders.
 	for i: int in range(_capture_frames):
-		_material.set_shader_parameter("manual_time", float(i) / _capture_fps)
+		_post.set_parameter("manual_time", float(i) / _capture_fps)
 		await _save_frame("%s/boil_%03d.png" % [_capture_dir, i])
 
 	print("[ink_spike] captured %d frames to %s" % [_capture_frames, _capture_dir])

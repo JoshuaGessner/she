@@ -4,7 +4,7 @@ title: Art & Audio Direction
 status: accepted
 owner: art
 tags: [art, audio, style, budget, readability]
-updated: 2026-09-03
+updated: 2026-09-28
 related: [DES-001, DES-005, DES-006]
 ---
 
@@ -20,7 +20,7 @@ related: [DES-001, DES-005, DES-006]
 
 - **Silhouette first.** Every enemy must be identifiable as a black shape at 20m. This is a survival requirement in a first-person game where things approach from the dark.
 - **Darkness is a mechanic, not an effect.** Light sources are a resource the player manages (`DES-008` — the lantern occupies a weapon slot). Lighting design is gameplay design here, so it can't be handed off as polish. **Built at `M4-T13` (ADR-188)** — `Exposure` scales enemy sight from 6.7 m to 16.0 m ⟨tune⟩ on the light falling on you, so this sentence is now something a probe can fail on rather than a principle.
-  - **The 20 m silhouette below is not the lantern's job, and deliberately.** A lamp that reached 20 m would advertise you further than the thing hunting you can see, which inverts the mechanic. `ART-005` already owns the answer — *enemies and loot always outline at full weight regardless of distance* — so threat legibility is the ink pass at `M4-T08`, and the lantern's reach is a gameplay number rather than a readability one.
+  - **The 20 m silhouette below is not the lantern's job, and deliberately.** A lamp that reached 20 m would advertise you further than the thing hunting you can see, which inverts the mechanic. `ART-005` already owns the answer — *enemies and loot always outline at full weight regardless of distance* — so threat legibility is the ink pass at `M4-T08`, and the lantern's reach is a gameplay number rather than a readability one. *Built (ADR-269): in the Deep a threat is drawn in pale ink at any distance, lit or not.*
   - **The floor's ambient was never what made it navigable — the doorway lamps were** (ADR-188). Measured: at the darkest standable point of a generated floor, 0.34 and 0.06 ambient look alike. So darkness got cheaper than expected, and the unlit crossing is a real playstyle: move between the lamps, slower and blinder and much harder to see.
 - **Elegiac palette:** desaturated stone, cold blues, with **gold as the only truly saturated colour in the world.** Treasure should be visually magnetic. Greed should be a *visual* pull before it's a mechanical one.
 - **Material grubbiness.** Wear, damage, dust. The world is a corpse being looted.

@@ -516,6 +516,9 @@ func _rebuild_hoard() -> void:
 	rng.seed = 0x5E1F
 	var gold: StandardMaterial3D = _material(GOLD)
 	gold.roughness = 0.35
+	# Her hoard is the one colour in a finished print (`ART-005`), so the
+	# page is never laid over it (ADR-269).
+	InkPass.stamp(gold, InkPass.Class.GOLD)
 	for index: int in range(lumps):
 		var lump := MeshInstance3D.new()
 		var box := BoxMesh.new()
@@ -837,6 +840,9 @@ func _build_readout() -> void:
 	# (`chamber.gd:471`) — a layout workaround for having no layout. With a
 	# region of its own it can simply be absent when she is not speaking.
 	_speech = Label.new()
+	# On the hub's ground too: it lies on the page rather than on a panel, and
+	# the page is white here (ADR-269).
+	_speech.theme = MenuStyle.LAIR
 	_speech.theme_type_variation = MenuStyle.BODY_WARM
 	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speech.visible = false
