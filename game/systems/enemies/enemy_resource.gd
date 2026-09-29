@@ -17,6 +17,9 @@ extends Resource
 ## Stable, permanent, prefixed `enm_` (`TEC-006`). A spawn names this.
 @export var id: StringName = &""
 @export var name_key: StringName = &""
+## The rigged visual this archetype carries. Collision and behaviour stay in
+## `Enemy`, so replacing art cannot silently alter reach or movement.
+@export_file("*.glb") var visual_path: String = ""
 
 @export_group("Body")
 @export var health: float = 60.0
@@ -71,6 +74,10 @@ func validate() -> PackedStringArray:
 		problems.append("enemy id '%s' does not start with enm_ (TEC-006)" % id)
 	if String(name_key).is_empty():
 		problems.append("%s has no name_key" % id)
+	if visual_path.is_empty():
+		problems.append("%s has no visual_path" % id)
+	elif not ResourceLoader.exists(visual_path, "PackedScene"):
+		problems.append("%s visual does not load: %s" % [id, visual_path])
 	if health <= 0.0:
 		problems.append("%s has no health, so it is dead on arrival" % id)
 	if poise <= 0.0:

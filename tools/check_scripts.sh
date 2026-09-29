@@ -210,6 +210,15 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# Authored poses must reach the production actor without moving collision.
+	enemy_animation="$("$GODOT_BIN" --headless --path "$GAME" res://tests/enemy_animation_probe.tscn 2>&1)"
+	if grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$enemy_animation" \
+			|| ! grep -q '\[enemy-animation\] 0 failure(s)' <<<"$enemy_animation"; then
+		echo "FAIL the live enemy animation path" >&2
+		printf '%s\n' "$enemy_animation" >&2
+		exit 1
+	fi
+
 	# **The kit is laid, and the solids underneath it did not move**
 	# (`M4-T10`, ADR-263). Cladding is a rendering change by construction —
 	# every module hangs on a box that already existed and no module brings a

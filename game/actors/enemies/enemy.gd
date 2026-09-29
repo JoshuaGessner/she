@@ -92,6 +92,7 @@ const REPLICATED_PROPERTIES: Dictionary = {
 	".:net_yaw": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:_state": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_attack": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:visual_progress": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_sees": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_hears": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	"Health:current": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
@@ -134,6 +135,11 @@ var _attack: Attack = Attack.NONE:
 
 var _attack_timer: float = 0.0
 var _stagger_timer: float = 0.0
+## The authority samples corpse time into the replicated presentation phase.
+var _death_elapsed: float = 0.0
+## Normalized presentation phase, including spawn state for late arrivals.
+## It does not move damage or state authority to an animation clock.
+var visual_progress: Vector2 = Vector2(-1, -1)
 
 ## **Which enemy this is** (`M4-T02`, ADR-231): an `EnemyCatalogue` id, set off
 ## the spawn payload before `_ready` on every peer, as `WorldItem.item_id` is.
@@ -180,7 +186,6 @@ var _target: Node3D = null
 var rooted: Rooted = null
 var _agent: NavigationAgent3D = null
 var _repath_in: float = 0.0
-var _material: StandardMaterial3D = null
 var _sight_lamp: StandardMaterial3D = null
 var _hearing_lamp: StandardMaterial3D = null
 
@@ -199,7 +204,7 @@ var _hears: bool = false
 @onready var health: Health = $Health
 @onready var _hurtbox: Hurtbox = $Hurtbox
 @onready var _hitbox: Hitbox = $Hitbox
-@onready var _mesh: MeshInstance3D = $Mesh
+@onready var _visual: EnemyVisual = $Visual
 @onready var _eyes: Node3D = $Eyes
 @onready var _ears: ClamorSensor = $Ears
 ## **What makes an enemy audible to other enemies.** `DES-013`'s ladder diagram
@@ -288,8 +293,7 @@ func _ready() -> void:
 	_hurtbox.armour = _kind.armour_class
 	_hurtbox.hit.connect(_on_hurt)
 	health.died.connect(_on_died)
-	_material = StandardMaterial3D.new()
-	_mesh.material_override = _material
+	_visual.configure_enemy(_kind)
 	_sight_lamp = _build_lamp(Vector3(-0.16, 2.1, 0))
 	_hearing_lamp = _build_lamp(Vector3(0.16, 2.1, 0))
 	# A threat outlines at full weight wherever it stands, lit or not
@@ -446,6 +450,40 @@ func _process(delta: float) -> void:
 	# corpse's transform through a tween, and easing would fight it.
 	if not multiplayer.is_server() and _state != State.DEAD:
 		_ease_toward_the_wire(delta)
+	if _state == State.DEAD:
+		_death_elapsed += delta
+	if multiplayer.is_server():
+		visual_progress = Vector2(_state_progress(), _attack_progress())
+	# Dedicated servers own the same combat/network clocks, but have no frame
+	# to draw. The animation probe invokes the visual explicitly when headless.
+	if DisplayServer.get_name() != "headless":
+		_visual.present_enemy(int(_state), int(_attack), visual_progress.x,
+				visual_progress.y, global_position, delta)
+
+
+## Timers are only sampled on the authority. Remote peers receive normalized
+## progress so a late arrival does not restart an attack halfway through it.
+func _state_progress() -> float:
+	if _state == State.DEAD:
+		return clampf(_death_elapsed / FALL_SECONDS, 0.0, 1.0)
+	match _state:
+		State.CALLING:
+			return 1.0 - _call_timer / Config.tuning.enemy_swarm_telegraph
+		State.STAGGERED:
+			return 1.0 - _stagger_timer / _kind.stagger
+	return -1.0
+
+
+func _attack_progress() -> float:
+	if _attack == Attack.NONE:
+		return -1.0
+	var duration: float = _kind.attack.telegraph
+	match _attack:
+		Attack.ACTIVE:
+			duration = _kind.attack.active
+		Attack.RECOVERY:
+			duration = _kind.attack.recovery
+	return 1.0 - _attack_timer / maxf(duration, 0.001)
 
 
 ## Carry the body to where the host says it is, rather than putting it there.
@@ -1003,6 +1041,7 @@ func _on_died(_from: Node) -> void:
 	# resolved nowhere else (`Hitbox`). Assigning the state is enough: the
 	# setter turns it into a corpse here *and* on every client when the value
 	# arrives, which is why there is no death RPC.
+	_death_elapsed = 0.0
 	_state = State.DEAD
 	died.emit()
 
@@ -1029,10 +1068,8 @@ func _apply_state() -> void:
 ## level that is now deliberately dark, a standing capsule going from 0.28 grey
 ## to 0.12 grey is close to no signal at all.
 ##
-## Still not a ragdoll — that is an animation system this project does not have
-## and does not need yet. A body that **topples**, makes a sound, and sinks is
-## three unambiguous cues from primitives, and it answers the question the
-## player is actually asking.
+## Still not a ragdoll. The authored death clip owns the visible fall; this
+## actor owns collision removal, fall duration and despawn timing.
 func _become_a_corpse() -> void:
 	_hitbox.disarm()
 	# A dead thing is not being held in place by a trap; it is dead. Leaving the
@@ -1055,17 +1092,12 @@ func _become_a_corpse() -> void:
 ##
 ## Runs on **every** peer, because `_apply_state` is reached by the host
 ## deciding and a client receiving the replicated value — which is the same
-## property that already made a corpse a corpse on every screen without a death
-## message, now carrying the animation with it for free.
+## property that already made a corpse a corpse on every screen. The visual
+## receives normalized fall progress separately, including on late arrival.
 func _fall_over() -> void:
-	var tip := create_tween()
-	tip.set_parallel(true)
-	# Away from whatever was in front of it. Rotation only on the body's visual
-	# transform: the collision is already gone, so nothing here can wedge.
-	var away: float = -1.0 if randf() < 0.5 else 1.0
-	tip.tween_property(self, "rotation:z", deg_to_rad(88.0 * away),
-		FALL_SECONDS).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
-	tip.tween_property(self, "position:y", position.y - 0.35, FALL_SECONDS)
+	# The animation falls under Visual. Rotating this root as well would tip a
+	# skinned body twice and would rotate the navigation-facing actor for no
+	# gameplay reason.
 	Foley.at(self, Foley.Sound.THUMP, 0.55)
 	# Then it goes. `DES-015` builds floors out of few, reused rooms and the
 	# Hunt escalates over minutes — a floor slowly filling with permanent
@@ -1086,10 +1118,8 @@ func _fall_over() -> void:
 
 
 func _apply_tint() -> void:
-	if _material == null:
-		return
 	var tint: Color = TELEGRAPH_TINT if _attack == Attack.TELEGRAPH else TINTS[_state]
-	_material.albedo_color = tint
+	_visual.set_tint(tint)
 
 
 ## Two lamps over the head: left is sight, right is hearing. Separate marks

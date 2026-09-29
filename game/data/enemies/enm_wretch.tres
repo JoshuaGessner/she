@@ -16,6 +16,7 @@ reach = 2.2
 script = ExtResource("1_enemy")
 id = &"enm_wretch"
 name_key = &"enemy.enm_wretch.name"
+visual_path = "res://art/enemies/wretch.glb"
 health = 60.0
 poise = 100.0
 poise_regen = 18.0

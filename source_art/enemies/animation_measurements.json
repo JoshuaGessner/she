@@ -1,0 +1,122 @@
+{
+  "wretch": {
+    "clips": {
+      "idle": 4,
+      "search": 3,
+      "walk": 1,
+      "run": 1,
+      "telegraph": 1,
+      "attack": 1,
+      "recovery": 1,
+      "stagger": 1,
+      "death": 1
+    },
+    "loops": [
+      "idle",
+      "run",
+      "search",
+      "walk"
+    ],
+    "bones": 28
+  },
+  "sling_wretch": {
+    "clips": {
+      "idle": 4,
+      "search": 3,
+      "walk": 1,
+      "run": 1,
+      "telegraph": 1,
+      "attack": 1,
+      "recovery": 1,
+      "stagger": 1,
+      "death": 1
+    },
+    "loops": [
+      "idle",
+      "run",
+      "search",
+      "walk"
+    ],
+    "bones": 28
+  },
+  "bellringer": {
+    "clips": {
+      "idle": 4,
+      "search": 3,
+      "walk": 1,
+      "run": 1,
+      "telegraph": 1,
+      "attack": 1,
+      "recovery": 1,
+      "stagger": 1,
+      "death": 1,
+      "call": 1
+    },
+    "loops": [
+      "idle",
+      "run",
+      "search",
+      "walk"
+    ],
+    "bones": 28
+  },
+  "hall_warden": {
+    "clips": {
+      "idle": 4,
+      "search": 3,
+      "walk": 1,
+      "run": 1,
+      "telegraph": 1,
+      "attack": 1,
+      "recovery": 1,
+      "stagger": 1,
+      "death": 1
+    },
+    "loops": [
+      "idle",
+      "run",
+      "search",
+      "walk"
+    ],
+    "bones": 28
+  },
+  "hoard_keeper": {
+    "clips": {
+      "idle": 4,
+      "search": 3,
+      "walk": 1,
+      "run": 1,
+      "telegraph": 1,
+      "attack": 1,
+      "recovery": 1,
+      "stagger": 1,
+      "death": 1
+    },
+    "loops": [
+      "idle",
+      "run",
+      "search",
+      "walk"
+    ],
+    "bones": 28
+  },
+  "gullsjukr": {
+    "clips": {
+      "idle": 4,
+      "search": 3,
+      "walk": 1,
+      "run": 1,
+      "collect": 1,
+      "take": 1,
+      "shrug": 1
+    },
+    "loops": [
+      "collect",
+      "idle",
+      "run",
+      "search",
+      "walk"
+    ],
+    "bones": 28
+  }
+}

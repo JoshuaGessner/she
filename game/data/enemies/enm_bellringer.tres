@@ -16,6 +16,7 @@ reach = 2.0
 script = ExtResource("1_enemy")
 id = &"enm_bellringer"
 name_key = &"enemy.enm_bellringer.name"
+visual_path = "res://art/enemies/bellringer.glb"
 health = 40.0
 poise = 60.0
 poise_regen = 18.0

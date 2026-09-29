@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-29 · 48 documents_
+_Regenerated 2026-09-29 · 49 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -58,8 +58,8 @@ _How we work, what we decided, what we must not do._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-18 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-28 | DES-001, DES-003, PRO-001 |
+| `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-29 | DES-001, TEC-001, TEC-003 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-09-29 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
@@ -82,20 +82,22 @@ _Visual and audio direction._
 | `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-09-28 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
 | `ART-007` | [Asset Quality Review — First Delivered Library](art/ART-007-asset-quality-review.md) | ✔ accepted | 2026-09-28 | ART-006, ART-004, ART-005, DES-020, PRO-002 |
 | `ART-008` | [Worn Armour, Class Arms and Depth Variants — Review](art/ART-008-worn-armour-and-depth-review.md) | ◆ proposed | 2026-09-28 | ART-004, ART-006, ART-007, DES-020, TEC-008 |
+| `ART-009` | [Enemy Model and Animation Review](art/ART-009-enemy-model-and-animation-review.md) | ✎ draft | 2026-09-29 | ART-004, ART-005, ART-006, DES-013, DES-017, PRO-001, PRO-002 |
 
 ## By Tag
 
 - **accessibility** — DES-018, TEC-009
 - **adr** — PRO-002
 - **ai** — DES-005, DES-013, DES-017
+- **animation** — ART-009
 - **architecture** — TEC-001, TEC-004
 - **armour** — DES-023
-- **art** — ART-001, ART-004, ART-005, ART-006, ART-007, ART-008, PRO-008
+- **art** — ART-001, ART-004, ART-005, ART-006, ART-007, ART-008, ART-009, PRO-008
 - **assets** — ART-004, ART-006, ART-007, ART-008
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
 - **balance** — DES-003, DES-004, DES-008, DES-022, PRO-005
 - **biomes** — DES-006
-- **blender** — ART-004, ART-006
+- **blender** — ART-004, ART-006, ART-009
 - **blockout** — TEC-008
 - **brief** — ART-003, ART-006
 - **budget** — ART-001, ART-002
@@ -122,7 +124,7 @@ _Visual and audio direction._
 - **difficulty** — DES-022
 - **dmz** — DES-007
 - **economy** — DES-003, DES-008
-- **enemies** — DES-013
+- **enemies** — ART-009, DES-013
 - **engine** — TEC-001, TEC-005
 - **equipment** — DES-020
 - **ethics** — PRO-005, PRO-006
@@ -199,7 +201,7 @@ _Visual and audio direction._
 - **research** — PRO-005, TEC-007, TEC-008, TEC-009
 - **resources** — TEC-006
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
-- **review** — ART-007, ART-008
+- **review** — ART-007, ART-008, ART-009
 - **risk** — PRO-004, PRO-007, TEC-004, TEC-005
 - **roadmap** — PRO-001
 - **save** — TEC-003

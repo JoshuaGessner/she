@@ -17,6 +17,7 @@ heavy = true
 script = ExtResource("1_enemy")
 id = &"enm_hall_warden"
 name_key = &"enemy.enm_hall_warden.name"
+visual_path = "res://art/enemies/hall_warden.glb"
 health = 160.0
 poise = 150.0
 poise_regen = 12.0

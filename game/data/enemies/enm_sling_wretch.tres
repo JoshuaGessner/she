@@ -17,6 +17,7 @@ missile_speed = 18.0
 script = ExtResource("1_enemy")
 id = &"enm_sling_wretch"
 name_key = &"enemy.enm_sling_wretch.name"
+visual_path = "res://art/enemies/sling_wretch.glb"
 health = 45.0
 poise = 60.0
 poise_regen = 18.0

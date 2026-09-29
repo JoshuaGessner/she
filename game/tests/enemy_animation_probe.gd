@@ -1,0 +1,75 @@
+extends Node
+
+## A clip can pass a skeleton test and still never play on a live enemy. This
+## instantiates the production actors, interrupts their actions, and checks the
+## resulting pose without permitting visual code to move gameplay collision.
+var _failures: int = 0
+
+
+func _ready() -> void:
+	call_deferred("_run")
+
+
+func _check(ok: bool, label: String) -> void:
+	print("%s %s" % ["ok" if ok else "FAIL", label])
+	if not ok:
+		_failures += 1
+
+
+func _run() -> void:
+	var world := Node3D.new()
+	add_child(world)
+	for kind: String in ["wretch", "sling_wretch", "bellringer", "hall_warden", "hoard_keeper"]:
+		var enemy := (load("res://actors/enemies/enemy.tscn") as PackedScene).instantiate() as Enemy
+		enemy.archetype = StringName("enm_" + kind)
+		world.add_child(enemy)
+		enemy.set_physics_process(false)
+		enemy.set_process(false)
+		var visual := enemy.get_node("Visual") as EnemyVisual
+		var rigs: Array[Node] = visual.find_children("*", "Skeleton3D", true, false)
+		_check(rigs.size() == 1, kind + " uses one production skeleton")
+		if rigs.size() != 1:
+			enemy.free()
+			continue
+		var rig := rigs[0] as Skeleton3D
+		var hand: int = rig.find_bone("hand_r")
+		var start: Transform3D = enemy.transform
+		visual.present_enemy(Enemy.State.UNAWARE, Enemy.Attack.NONE, 0, 0, Vector3.ZERO, 0.2)
+		rig.force_update_all_bone_transforms()
+		var resting: Vector3 = rig.get_bone_global_pose(hand).origin
+		visual.present_enemy(Enemy.State.ALERTED, Enemy.Attack.TELEGRAPH, 0, 1, Vector3.ZERO, 0.2)
+		rig.force_update_all_bone_transforms()
+		var raised: Vector3 = rig.get_bone_global_pose(hand).origin
+		_check(resting.distance_to(raised) > 0.10, kind + " visibly winds up through the actor visual")
+		visual.present_enemy(Enemy.State.ALERTED, Enemy.Attack.ACTIVE, 0, 1, Vector3.ZERO, 0.2)
+		rig.force_update_all_bone_transforms()
+		_check(raised.distance_to(rig.get_bone_global_pose(hand).origin) > 0.10,
+			kind + " follows through when the hit becomes active")
+		if kind == "sling_wretch":
+			var stone := visual.find_child("sling_stone", true, false) as MeshInstance3D
+			_check(stone != null and not stone.visible, "sling releases its visible stone with the missile")
+			visual.present_enemy(Enemy.State.ALERTED, Enemy.Attack.RECOVERY, 0, 1, Vector3.ZERO, 0.2)
+			_check(stone != null and stone.visible, "sling reloads after recovery")
+		visual.present_enemy(Enemy.State.STAGGERED, Enemy.Attack.NONE, 0.3, 0, Vector3.ZERO, 0.2)
+		_check(visual.get("_clip") == &"stagger", kind + " interrupts into stagger")
+		visual.present_enemy(Enemy.State.DEAD, Enemy.Attack.ACTIVE, 1, 0, Vector3.ZERO, 0.2)
+		rig.force_update_all_bone_transforms()
+		_check(rig.get_bone_global_pose(rig.find_bone("head")).origin.y < 0.5,
+			kind + " falls to the floor")
+		_check(enemy.transform.is_equal_approx(start), kind + " animation never moves actor collision")
+		enemy.free()
+	var hunter := Gullsjukr.new()
+	world.add_child(hunter)
+	hunter.set_process(false)
+	hunter.set_physics_process(false)
+	var hunter_visual := hunter.get_node("Visual") as EnemyVisual
+	for phase: int in [EnemyVisual.HunterPresentation.COLLECT,
+		EnemyVisual.HunterPresentation.TAKE, EnemyVisual.HunterPresentation.SHRUG]:
+		hunter_visual.present_hunter(Gullsjukr.State.COLLECTING, phase, 0.5, Vector3.ZERO, 0.2)
+		_check(hunter_visual.get("_clip") == ([&"collect", &"take", &"shrug"][phase - 1]),
+			"hunter presents replicated action %d" % phase)
+	hunter.free()
+	world.free()
+	await get_tree().process_frame
+	print("[enemy-animation] %d failure(s)" % _failures)
+	get_tree().quit(1 if _failures else 0)

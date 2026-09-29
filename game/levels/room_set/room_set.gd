@@ -969,6 +969,8 @@ func _ready() -> void:
 			_ink_probe()
 		elif arg.begins_with("--threat-shot="):
 			_threat_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--threat-dark-shot="):
+			_threat_shot(arg.split("=", true, 1)[1], true)
 		elif arg == "--acoustics-probe":
 			_acoustics_probe()
 		elif arg == "--portal-probe":
@@ -11730,6 +11732,7 @@ func _archetype_probe() -> void:
 	var odd := EnemyResource.new()
 	odd.id = &"enm_probe_odd"
 	odd.name_key = &"enemy.enm_wretch.name"
+	odd.visual_path = "res://art/enemies/hall_warden.glb"
 	odd.health = 137.0
 	odd.poise = 43.0
 	odd.stagger = 0.61
@@ -11770,6 +11773,10 @@ func _archetype_probe() -> void:
 	for pair: Array in [[odd_body, odd, "scratch"], [plain_body, wretch, "Wretch"]]:
 		var body: Enemy = pair[0]
 		var kind: EnemyResource = pair[1]
+		var visual := body.get_node("Visual") as EnemyVisual
+		var model := visual.get("_model") as Node3D
+		if model == null or model.scene_file_path != kind.visual_path:
+			problems.append("%s did not load its archetype's visual" % pair[2])
 		var hurtbox := body.get("_hurtbox") as Hurtbox
 		var hitbox := body.get("_hitbox") as Hitbox
 		print(("[archetype] %-8s health %.0f (want %.0f), armour %s (want %s), "
@@ -15464,13 +15471,19 @@ static func _contrast(a: Color, b: Color) -> float:
 ## The brightest pixel inside the body's own screen rect is the measurement.
 ##
 ## Windowed, because a headless render has no pixels (ADR-198's split).
-func _threat_shot(path: String) -> void:
+func _threat_shot(path: String, force_dark: bool = false) -> void:
 	var player: Player = _session.local_player()
 	player.show_ink(true)
 	# **The shutter shut.** A lantern reaches 11 m (ADR-188), so at 8 m your
 	# own lamp lights the body and the frame asks nothing. The dark this is
 	# about is the dark you chose.
 	player.lit = false
+	# A controlled darkness case complements the naturally dark-post search.
+	# It tests the stronger promise: the outline survives with no scene light.
+	if force_dark:
+		_environment.ambient_light_energy = 0.0
+		for node: Node in get_tree().root.find_children("*", "Light3D", true, false):
+			(node as Light3D).visible = false
 	# The interface off: the reticle sits dead centre, which is exactly where
 	# the body is, and it is the brightest thing in the frame.
 	for layer: Node in get_tree().root.find_children("*", "CanvasLayer", true, false):
@@ -15510,6 +15523,12 @@ func _threat_shot(path: String) -> void:
 				body = node as Node3D
 		if body == null or nearest > 1.0:
 			continue
+		# The authored post can already hold an enemy. Two coincident skinned
+		# bodies make the white silhouette mask measure their overlap instead
+		# of one threat. Hold one pose and hide every other body for all frames.
+		for other: Node in get_tree().get_nodes_in_group("enemies"):
+			other.process_mode = Node.PROCESS_MODE_DISABLED
+			(other as Node3D).visible = other == body
 		var to: Vector3 = ground - eye
 		player.teleport(eye + Vector3(0.0, 0.1, 0.0), atan2(-to.x, -to.z))
 		# The sense lamps light themselves (`DES-013`), so the dark does not

@@ -38,6 +38,11 @@ const BARE_ARMS: Array[String] = [
 	"res://art/characters/ulfhedinn_arms.glb",
 	"res://art/characters/haugbrjotr_arms.glb",
 ]
+const ENEMY_MODELS: Array[String] = [
+	"res://art/enemies/wretch.glb", "res://art/enemies/sling_wretch.glb",
+	"res://art/enemies/bellringer.glb", "res://art/enemies/hall_warden.glb",
+	"res://art/enemies/hoard_keeper.glb", "res://art/heroes/gullsjukr.glb",
+]
 const SOCKETS: Array[String] = [
 	"sock_head", "sock_hand_r", "sock_hand_l", "sock_back",
 	"sock_hip_r", "sock_hip_l", "sock_shoulders",
@@ -136,9 +141,95 @@ func _initialize() -> void:
 			% [path.get_file(), skeleton.get_bone_count()])
 	for entry: Dictionary in WORN:
 		await _check_worn(entry, skeleton)
+	for path: String in ENEMY_MODELS:
+		_check(_same_skeleton(path, skeleton), "%s retains the shared bind pose" % path.get_file())
+		await _check_enemy_animation(path)
 
 	print("\n%d failure(s)" % _failures)
 	quit(1 if _failures > 0 else 0)
+
+
+## Sample the exported clips, not the authoring curves: import can lose actions,
+## bind tracks to the wrong skeleton, or change the loop's final pose.
+func _check_enemy_animation(path: String) -> void:
+	var packed := load(path) as PackedScene
+	if packed == null:
+		return
+	var model: Node = packed.instantiate()
+	get_root().add_child(model)
+	await process_frame
+	var rig: Skeleton3D = _find_skeleton(model)
+	var players: Array[Node] = model.find_children("*", "AnimationPlayer", true, false)
+	_check(rig != null and players.size() == 1, "%s has one animation player" % path.get_file())
+	if rig == null or players.size() != 1:
+		model.free()
+		return
+	var player := players[0] as AnimationPlayer
+	player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+	var hunter: bool = path.contains("gullsjukr")
+	var clips: Array[String] = ["idle", "search", "walk", "run"]
+	clips.append_array(["collect", "take", "shrug"] if hunter else
+		["telegraph", "attack", "recovery", "stagger", "death"])
+	if path.contains("bellringer"):
+		clips.append("call")
+	var meshes: Array[Node] = _meshes(model)
+	var binds_ok: bool = not meshes.is_empty()
+	for node: Node in meshes:
+		var mesh := node as MeshInstance3D
+		binds_ok = binds_ok and mesh.skin != null \
+			and mesh.get_node_or_null(mesh.skeleton) == rig \
+			and _rest_skin_error(mesh, rig) < PLACEMENT_TOLERANCE
+	_check(binds_ok, "%s skins resolve with undistorted bind poses" % path.get_file())
+	for clip: String in clips:
+		_check(player.has_animation(clip), "%s exports %s" % [path.get_file(), clip])
+		if not player.has_animation(clip):
+			continue
+		var animation: Animation = player.get_animation(clip)
+		var first: Array[Transform3D] = _sample_pose(player, rig, clip, 0.0)
+		var motion: float = 0.0
+		var finite: bool = true
+		for sample: int in range(1, 21):
+			var posed: Array[Transform3D] = _sample_pose(player, rig, clip,
+				animation.length * float(sample) / 20.0)
+			for bone: int in range(posed.size()):
+				finite = finite and posed[bone].origin.is_finite() and posed[bone].basis.is_finite()
+				motion = maxf(motion, posed[bone].origin.distance_to(first[bone].origin))
+		_check(finite and motion > 0.001, "%s/%s produces finite skeletal motion"
+			% [path.get_file(), clip], "%.4f m" % motion)
+		if clip in ["idle", "search", "walk", "run", "collect"]:
+			var last: Array[Transform3D] = _sample_pose(player, rig, clip, animation.length)
+			var seamless: bool = true
+			for bone: int in range(last.size()):
+				seamless = seamless and last[bone].is_equal_approx(first[bone])
+			_check(seamless, "%s/%s closes its loop" % [path.get_file(), clip])
+	for gait: String in ["walk", "run"]:
+		if not player.has_animation(gait):
+			continue
+		var stride: float = (1.05 if gait == "walk" else 1.65) * (0.66 if hunter else 1.0)
+		var ankle: int = rig.find_bone("foot_l")
+		var planted := Vector3.ZERO
+		var slip: float = 0.0
+		for step: int in range(11):
+			var phase: float = float(step) / 20.0
+			var posed: Array[Transform3D] = _sample_pose(player, rig, gait, phase)
+			var at: Vector3 = posed[ankle].origin + Vector3(0, 0, stride * phase)
+			if step == 0:
+				planted = at
+			slip = maxf(slip, planted.distance_to(at))
+		_check(slip < 0.045, "%s/%s stance foot stays planted" % [path.get_file(), gait],
+			"largest drift %.4f m" % slip)
+	model.free()
+
+
+func _sample_pose(player: AnimationPlayer, rig: Skeleton3D, clip: String,
+		time: float) -> Array[Transform3D]:
+	player.play(clip)
+	player.seek(time, true)
+	rig.force_update_all_bone_transforms()
+	var result: Array[Transform3D] = []
+	for bone: int in range(rig.get_bone_count()):
+		result.append(rig.get_bone_global_pose(bone))
+	return result
 
 
 func _find_skeleton(node: Node) -> Skeleton3D:
@@ -200,6 +291,7 @@ func _same_skeleton(path: String, shared: Skeleton3D) -> bool:
 	var imported: Node = packed.instantiate()
 	var source: Skeleton3D = _find_skeleton(imported)
 	if source == null or source.get_bone_count() != shared.get_bone_count():
+		print("  bone count %s: %s shared %d" % [path, source.get_bone_count() if source != null else -1, shared.get_bone_count()])
 		imported.free()
 		return false
 	for index: int in range(shared.get_bone_count()):
@@ -217,6 +309,8 @@ func _same_skeleton(path: String, shared: Skeleton3D) -> bool:
 		if source_parent_name != shared_parent_name \
 				or not source.get_bone_rest(source_index).is_equal_approx(
 					shared.get_bone_rest(index)):
+			print("  bind mismatch %s/%s: %s versus %s" % [path.get_file(), shared_name,
+				source.get_bone_rest(source_index), shared.get_bone_rest(index)])
 			imported.free()
 			return false
 	imported.free()

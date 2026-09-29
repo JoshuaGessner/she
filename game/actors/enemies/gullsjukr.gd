@@ -168,6 +168,8 @@ const REPLICATED_PROPERTIES: Dictionary = {
 	".:position": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:rotation:y": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:state_index": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:visual_phase": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:visual_progress": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 }
 
 ## Replicated as an int, because `MultiplayerSynchronizer` carries properties
@@ -189,6 +191,8 @@ var age: float = 0.0
 ## Seconds of shrug left to draw (`M3-T04`). Short, because it is an
 ## acknowledgement rather than a stagger — nothing about its behaviour changes.
 var _shrug_left: float = 0.0
+var visual_phase: int = EnemyVisual.HunterPresentation.NONE
+var visual_progress: float = 0.0
 
 ## Held by a Snare (`M3-T11`). The same component the ordinary enemies
 ## carry, and the reason `DES-011` gives the Veiðimaðr the verb at all.
@@ -207,8 +211,7 @@ var _taking: float = 0.0
 ## falls back to the straight line, which is what it always did.
 var _agent: NavigationAgent3D = null
 var _repath_in: float = 0.0
-var _material: StandardMaterial3D = null
-var _mesh: MeshInstance3D = null
+var _visual: EnemyVisual = null
 
 
 func configure_replication() -> void:
@@ -481,6 +484,23 @@ func _physics_process(delta: float) -> void:
 			_apply_tint()
 	_think(delta)
 	_walk(delta)
+	visual_phase = EnemyVisual.HunterPresentation.NONE
+	visual_progress = 0.0
+	if _shrug_left > 0.0:
+		visual_phase = EnemyVisual.HunterPresentation.SHRUG
+		visual_progress = 1.0 - _shrug_left / SHRUG_SECONDS
+	elif state() == State.COLLECTING and not _has_goal:
+		visual_phase = EnemyVisual.HunterPresentation.COLLECT
+		visual_progress = 1.0 - _collect_left / Config.tuning.hunter_collect_seconds
+	elif state() == State.SIGHTED and not _has_goal and _taking > 0.0:
+		visual_phase = EnemyVisual.HunterPresentation.TAKE
+		visual_progress = _taking / Config.tuning.hunter_take_seconds
+
+
+func _process(delta: float) -> void:
+	if _visual != null and DisplayServer.get_name() != "headless":
+		_visual.present_hunter(int(state()), visual_phase, visual_progress, global_position, delta)
+		_apply_tint()
 
 
 func _think(delta: float) -> void:
@@ -729,9 +749,8 @@ func _walk(delta: float) -> void:
 # ── the body ──────────────────────────────────────────────────────────────
 
 
-## Blockout (ADR-046). Taller and far wider than a person, because `DES-017`
-## asks for a silhouette that reads at any distance and reads *wrong*: huge,
-## lopsided, glittering where a person should not.
+## DES-017's lopsided hoard gives the authored body its silhouette. Collision
+## retains the measured navigation envelope independently of that equipment.
 func _build_body() -> void:
 	# **Sized to the floors it hunts on** (`M4-T30`, ADR-211). Every dimension
 	# here is `NAV_RADIUS`/`NAV_HEIGHT` rather than a literal, because the body
@@ -745,22 +764,13 @@ func _build_body() -> void:
 	collider.position.y = NAV_HEIGHT * 0.5
 	add_child(collider)
 
-	# The taper is kept in proportion, so it is the same creature at a smaller
-	# size rather than a different one: the mesh overhangs the collider by the
-	# same fraction it always did, which is what gives it shoulders.
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = NAV_RADIUS * 0.60
-	mesh.bottom_radius = NAV_RADIUS * 1.13
-	mesh.height = NAV_HEIGHT
-	_material = StandardMaterial3D.new()
-	_material.roughness = 0.35
-	_mesh = MeshInstance3D.new()
-	_mesh.mesh = mesh
-	_mesh.material_override = _material
-	_mesh.position.y = 1.2
-	add_child(_mesh)
+	# The Blender model is authored to this envelope on the shared rest rig.
+	_visual = EnemyVisual.new()
+	_visual.name = "Visual"
+	add_child(_visual)
+	_visual.configure_hunter()
 	# The one thing on the floor that must never be hard to see (ADR-269).
-	InkPass.mark(_mesh)
+	InkPass.mark(_visual)
 
 	# **Something to hit** (`M3-T04`). Until now it had no `Hurtbox` at all, so
 	# a swing at a Gullsjúkr passed straight through and produced *nothing* —
@@ -883,9 +893,9 @@ func _on_struck(_amount: float, _from: Node) -> void:
 
 
 func _apply_tint() -> void:
-	if _material == null:
+	if _visual == null:
 		return
-	if _shrug_left > 0.0:
-		_material.albedo_color = SHRUG_TINT
+	if visual_phase == EnemyVisual.HunterPresentation.SHRUG:
+		_visual.set_tint(SHRUG_TINT)
 		return
-	_material.albedo_color = TINTS[state()] as Color
+	_visual.set_tint(TINTS[state()] as Color)

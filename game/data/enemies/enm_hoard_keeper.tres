@@ -17,6 +17,7 @@ heavy = true
 script = ExtResource("1_enemy")
 id = &"enm_hoard_keeper"
 name_key = &"enemy.enm_hoard_keeper.name"
+visual_path = "res://art/enemies/hoard_keeper.glb"
 health = 120.0
 poise = 120.0
 poise_regen = 15.0

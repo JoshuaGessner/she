@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-28
+updated: 2026-09-29
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -10394,6 +10394,45 @@ Hold paid for itself with `Stamina.spend`, which refuses an amount larger than w
 - **The Aspects a class may enter** are still only Hoard and Wing (`M5-T03`). A Húskarl can walk the Hoard and its Rite, and nothing else.
 - **The numbers** — every one above is ⟨tune⟩, and none has met a person.
 
-*Entries below to be added as design decisions are signed off.*
+## ADR-274 — Enemy performances follow combat, and never become a second combat clock
+
+**Date:** 2026-09-29 · **Status:** accepted · **Advances `M4-T10`** · **Developer's request for enemy models and complete animation**
+
+The five Delvings archetypes and the Gold-Sick replace their geometric proxies
+with Blender-authored skinned meshes on the unchanged shared humanoid skeleton.
+`ART-009` records production and review status; this decision accepts the
+integration contract, not final art sign-off.
+
+**Gameplay owns every consequence.** Wind-up, active and recovery remain the
+existing `AttackResource` phases. The visual samples normalized clips at those
+phases, rather than emitting animation events that could hit twice or change a
+telegraph's duration. Walk and run advance by distance travelled. A short pose
+blend softens starts and interruptions; the attack phases share boundary poses.
+Death takes priority over a replicated attack phase and replaces the proxy's
+whole-actor topple. Corpse lifetime, collision removal and despawn remain owned
+by `Enemy`.
+
+The host replicates normalized event progress, including the spawn snapshot,
+so a late arrival samples the current phase rather than replaying its start.
+Dedicated headless servers keep these clocks and state updates but skip pose
+sampling; the animation probe calls the production visual explicitly.
+
+**The Gold-Sick has different verbs.** It walks toward bait before stooping,
+and its collect, take and shrug phase/progress are replicated presentation data.
+Neither clients nor animation decide what it consumes. Its existing collision
+and navigation envelope remain 0.55 m radius and 2.0 m high. Its asymmetry is
+in the hoard and plate, not in a competing skeleton. No killable-state animation
+is claimed for a fight the current game does not implement.
+
+**Verification reaches the actor.** `rig_probe` validates exported hierarchy,
+skins, motion, loops and foot plants. `enemy_animation_probe` exercises the
+production visual through wind-up, impact, interruption and death, and verifies
+that posing does not move the actor transform. `art_probe` retains the 6,000 /
+40,000 triangle ceilings. The live animation probe joins the mandatory sweep.
+
+Rejected: a new enemy skeleton, root-motion locomotion that competes with host
+navigation, animation-driven damage, and keeping the old proxy hidden beside the
+real visual. Fingers remain modeled grips on the permanent hand bones; changing
+the skeleton's articulation would be a separate decision.
 
 *Entries below to be added as design decisions are signed off.*
