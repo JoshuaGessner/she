@@ -50,6 +50,38 @@ func _run() -> void:
 			_check(stone != null and not stone.visible, "sling releases its visible stone with the missile")
 			visual.present_enemy(Enemy.State.ALERTED, Enemy.Attack.RECOVERY, 0, 1, Vector3.ZERO, 0.2)
 			_check(stone != null and stone.visible, "sling reloads after recovery")
+		# **Feet move when the body does** (ADR-275) — every state a body can
+		# travel in, and the still ones hold their own clip. One stride of
+		# travel must also carry the walk once round, which is what keeps a foot
+		# planted rather than skating.
+		var travels: Array = [
+			[Enemy.State.UNAWARE, &"walk", &"idle"],
+			[Enemy.State.SUSPICIOUS, &"walk", &"search"],
+			[Enemy.State.ALERTED, &"run", &"idle"],
+			[Enemy.State.SWARM, &"run", &"idle"],
+		]
+		for row: Array in travels:
+			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 0), 0.1)
+			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 0.1), 0.1)
+			var moving: StringName = visual.get("_clip")
+			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 0.1), 0.1)
+			var still: StringName = visual.get("_clip")
+			_check(moving == row[1] and still == row[2], "%s in state %d %s moving, %s still (got %s, %s)"
+				% [kind, row[0], row[1], row[2], moving, still])
+		var player := visual.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
+		# Measured as an advance, from wherever the rows above left the cycle.
+		visual.present_enemy(Enemy.State.UNAWARE, Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 1.0), 0.1)
+		visual.present_enemy(Enemy.State.UNAWARE, Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 1.01), 0.1)
+		var from: float = player.current_animation_position / player.current_animation_length
+		visual.present_enemy(Enemy.State.UNAWARE, Enemy.Attack.NONE, 0, 0,
+			Vector3(0, 0, 1.01 + EnemyVisual.ENEMY_WALK_STRIDE * 0.5), 0.1)
+		var to: float = player.current_animation_position / player.current_animation_length
+		var advance: float = fposmod(to - from, 1.0)
+		_check(absf(advance - 0.5) < 0.02,
+			"%s walks half a cycle in half a stride (advanced %.2f)" % [kind, advance])
+		if kind == "bellringer":
+			visual.present_enemy(Enemy.State.CALLING, Enemy.Attack.NONE, 0.5, 0, Vector3.ZERO, 0.1)
+			_check(visual.get("_clip") == &"call", "bellringer rings while it calls")
 		visual.present_enemy(Enemy.State.STAGGERED, Enemy.Attack.NONE, 0.3, 0, Vector3.ZERO, 0.2)
 		_check(visual.get("_clip") == &"stagger", kind + " interrupts into stagger")
 		visual.present_enemy(Enemy.State.DEAD, Enemy.Attack.ACTIVE, 1, 0, Vector3.ZERO, 0.2)
@@ -63,6 +95,17 @@ func _run() -> void:
 	hunter.set_process(false)
 	hunter.set_physics_process(false)
 	var hunter_visual := hunter.get_node("Visual") as EnemyVisual
+	for row: Array in [[Gullsjukr.State.DISTANT, &"walk", &"idle"],
+			[Gullsjukr.State.COURSING, &"walk", &"walk"],
+			[Gullsjukr.State.SIGHTED, &"run", &"idle"],
+			[Gullsjukr.State.LOST, &"walk", &"search"]]:
+		hunter_visual.present_hunter(row[0], EnemyVisual.HunterPresentation.NONE, 0, Vector3(0, 0, 0), 0.1)
+		hunter_visual.present_hunter(row[0], EnemyVisual.HunterPresentation.NONE, 0, Vector3(0, 0, 0.1), 0.1)
+		var going: StringName = hunter_visual.get("_clip")
+		hunter_visual.present_hunter(row[0], EnemyVisual.HunterPresentation.NONE, 0, Vector3(0, 0, 0.1), 0.1)
+		var halted: StringName = hunter_visual.get("_clip")
+		_check(going == row[1] and halted == row[2], "hunter in state %d %s moving, %s still (got %s, %s)"
+			% [row[0], row[1], row[2], going, halted])
 	for phase: int in [EnemyVisual.HunterPresentation.COLLECT,
 		EnemyVisual.HunterPresentation.TAKE, EnemyVisual.HunterPresentation.SHRUG]:
 		hunter_visual.present_hunter(Gullsjukr.State.COLLECTING, phase, 0.5, Vector3.ZERO, 0.2)

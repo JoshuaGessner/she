@@ -10435,4 +10435,24 @@ navigation, animation-driven damage, and keeping the old proxy hidden beside the
 real visual. Fingers remain modeled grips on the permanent hand bones; changing
 the skeleton's articulation would be a separate decision.
 
+## ADR-275 — Nothing that moves plays standing still
+
+**Date:** 2026-09-29 · **Status:** accepted · **Advances `M4-T10`** · **Developer's request: every enemy model in the game and animated correctly** · **Amends ADR-274**
+
+**Context:** ADR-274 put all five enemy models and the Gold-Sick in the game, on the shared rig, with performances that follow combat. A pass over what it built found the models loaded, every clip a state asks for present, and the threat outline (ADR-269) reaching the new skinned bodies. The one fault was in the mapping from state to clip. **A state with no clip of its own played `idle` whether or not the body was moving.** `_settle` walks an UNAWARE enemy back to its post, so every enemy that lost you glided home with its feet still. The Gold-Sick's DISTANT fell through the same way. It is still in practice, since the Hunter leaves DISTANT the moment it has somewhere to go, but only by coincidence.
+
+**Decision:** those states idle while standing and **walk while moving**, at the walk's own stride, so the feet keep pace with the ground. Every state a body can travel in now has a moving clip and a still one.
+
+**Measured:** `enemy_animation_probe`, in the sweep, gains three kinds of row, for all five archetypes and the Hunter.
+
+- **Moving and still, per state:** UNAWARE walks or idles, SUSPICIOUS walks or searches, ALERTED and SWARM run or idle. The Hunter walks or idles when Distant, walks when Coursing, runs or idles when Sighted, and walks or searches when Lost.
+- **Stride:** half a stride of travel carries the walk exactly half a cycle round, 0.50 on every body.
+- **The Bellringer rings while it calls.**
+
+**Planted:** the old `idle` restored fails the UNAWARE row and the stride row on all five.
+
+**Seen:** `enemy_review` photographs the lineup idle, walking, winding up, striking and fallen, and the Gold-Sick close up. The Hall-Warden's hammer goes overhead and the spear drops into its lunge. **The Wretch's wind-up barely leaves its idle pose from the front**, which is `M4-T10`'s open readability question in combat, not a fault this pass can settle.
+
+**The dark-corridor shot, re-run on the models:** at the post where the capsule measured a mean of 0.043, the modelled body measures 0.08. It is paler, and in the unmarked frame it is a faint grey figure against a lamp-lit doorway. Marked, it is drawn plainly in bone ink. The shot's *"in the dark"* bound of 0.06 now finds no qualifying post on seed 5 floor 2, and it says so rather than passing. The bound is left where it is: loosening it to pass would be the probe describing its own result.
+
 *Entries below to be added as design decisions are signed off.*

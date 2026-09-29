@@ -154,7 +154,10 @@ func present_enemy(state: int, attack: int, state_progress: float,
 		ENEMY_CALLING:
 			_play_event(&"call", state_progress)
 		_:
-			_play_loop(&"idle")
+			# **An unaware body walking home walks** (ADR-275). `_settle` steers
+			# an UNAWARE enemy back to its post, and this played `idle` all the
+			# way there: a body gliding across the floor with its feet still.
+			_idle_or_walk(ENEMY_WALK_STRIDE)
 
 
 func present_hunter(state: int, presentation: int, presentation_progress: float,
@@ -190,7 +193,18 @@ func present_hunter(state: int, presentation: int, presentation_progress: float,
 			else:
 				_play_loop(&"search")
 		_:
-			_play_loop(&"idle")
+			# Distant, or anything added after it: still unless it is going
+			# somewhere, and walking if it is (ADR-275).
+			_idle_or_walk(HUNTER_WALK_STRIDE)
+
+
+## Idle while standing, walking while not — for the states that have no clip of
+## their own, so nothing a body does while moving can play with its feet still.
+func _idle_or_walk(stride: float) -> void:
+	if _moved > 0.0001:
+		_play_locomotion(&"walk", stride, _walk_metres)
+	else:
+		_play_loop(&"idle")
 
 
 func _track_distance(at: Vector3) -> void:

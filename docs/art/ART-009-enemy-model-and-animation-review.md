@@ -89,3 +89,9 @@ drift measured below 0.025 m. The status check retains nine existing untuned
 documentation warnings. Final visual sign-off remains pending. Faces, equipment grips,
 silhouette character and motion readability must be reviewed in actual combat;
 passing a mesh or animation census is not art approval. `M4-T10` remains open.
+
+**ADR-275:** a state with no clip of its own played `idle` while the body moved,
+so an UNAWARE enemy walking back to its post glided with its feet still. Those
+states walk while moving now, at the walk's stride, and the animation probe
+asserts moving and still clips for every travelling state, and half a cycle for
+half a stride.
