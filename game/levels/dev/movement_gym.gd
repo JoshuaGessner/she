@@ -51,6 +51,7 @@ func _wretch() -> EnemyResource:
 func _ready() -> void:
 	_build()
 	_session = SESSION_SCENE.instantiate() as CoopSession
+	_session.world_scene = scene_file_path
 	_session.spawn_points = SPAWNS
 	_session.player_spawned.connect(_on_player_spawned)
 	add_child(_session)

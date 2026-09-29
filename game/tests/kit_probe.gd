@@ -58,6 +58,7 @@ func _initialize() -> void:
 	var expected: Dictionary = _expected_bounds()
 	var missing: int = 0
 	var wrong: PackedStringArray = PackedStringArray()
+	var buried_relief: PackedStringArray = PackedStringArray()
 	for module: StringName in DelvingsKit.DELIVERED:
 		var shape: Mesh = DelvingsKit.mesh_of(module)
 		if shape == null:
@@ -71,6 +72,12 @@ func _initialize() -> void:
 				or not got.size.is_equal_approx(want.size):
 			wrong.append("%s is %v..%v, not %v..%v"
 				% [module, got.position, got.end, want.position, want.end])
+		if DelvingsKit.DEPTH_DELIVERED.has(module) \
+				and String(module).contains("_floor_"):
+			var lowest_top: float = _lowest_walking_face(shape)
+			if lowest_top == INF:
+				buried_relief.append("%s top %.3f m"
+					% [module, lowest_top])
 	print("[kit] delivered   %d module(s), %d missing, %d off their stated size"
 		% [DelvingsKit.DELIVERED.size(), missing, wrong.size()])
 	if missing > 0:
@@ -82,6 +89,13 @@ func _initialize() -> void:
 		problems.append(("%d module(s) are not the size `DelvingsKit` places "
 			+ "them at (%s) — every piece in the game would be out by the "
 			+ "difference") % [wrong.size(), "; ".join(wrong)])
+	print("[kit] depth relief %d buried upward-facing surface(s)"
+		% buried_relief.size())
+	if not buried_relief.is_empty():
+		problems.append(("%d depth-floor walking surface(s) finish inside the "
+			+ "unchanged render core (%s) — the relief exists in the asset but "
+			+ "cannot be seen in the game")
+			% [buried_relief.size(), "; ".join(buried_relief)])
 
 	# ─ 2. build the corpus ────────────────────────────────────────────────
 	var modules: Array[RoomModule] = RoomCatalogue.all()
@@ -182,14 +196,20 @@ func _initialize() -> void:
 	# ask `WorldHash`, which reads `global_position` — undefined outside a
 	# tree, and a `SceneTree` probe has no tree to put a floor in, so every
 	# entry would come back at the origin and agree about nothing.
-	var first: PackedStringArray = _fingerprint(modules, calamities, kinds)
-	var again: PackedStringArray = _fingerprint(modules, calamities, kinds)
-	var same: bool = first == again
-	print("[kit] same seed   %d piece(s), %s"
-		% [first.size(), "identical" if same else "DIVERGED"])
+	var same: bool = true
+	for depth: int in [1, 2]:
+		var first: PackedStringArray = _fingerprint(
+			modules, calamities, kinds, depth)
+		var again: PackedStringArray = _fingerprint(
+			modules, calamities, kinds, depth)
+		var stable: bool = first == again
+		print("[kit] same seed   depth %d, %d piece(s), %s"
+			% [depth, first.size(), "identical" if stable else "DIVERGED"])
+		same = same and stable
 	if not same:
-		problems.append("one seed laid two different sets of stone — the kit "
-			+ "has found a source of variance the builder does not have")
+		problems.append("one depth surface family laid two different sets of "
+			+ "stone for one seed — the kit has found a source of variance the "
+			+ "builder does not have")
 
 	# ─ 7. which of the delivered modules the game actually stands up ──────
 	#
@@ -207,6 +227,18 @@ func _initialize() -> void:
 		% [DelvingsKit.DELIVERED.size() - idle.size(),
 			DelvingsKit.DELIVERED.size(),
 			", ".join(idle) if not idle.is_empty() else "none"])
+	var depth_idle: PackedStringArray = PackedStringArray()
+	for module: StringName in DelvingsKit.DEPTH_DELIVERED:
+		var shape: Mesh = DelvingsKit.mesh_of(module)
+		if shape != null and not placed.has(shape.get_instance_id()):
+			depth_idle.append(String(module).replace("delvings_", ""))
+	print("[kit] depth use   %d of %d module(s)"
+		% [DelvingsKit.DEPTH_DELIVERED.size() - depth_idle.size(),
+			DelvingsKit.DEPTH_DELIVERED.size()])
+	if not depth_idle.is_empty():
+		problems.append(("%d depth module(s) are still on the shelf (%s) — "
+			+ "the Retreat/Cause surface family was delivered but not reached by "
+			+ "a generated floor") % [depth_idle.size(), ", ".join(depth_idle)])
 
 	if problems.is_empty():
 		print("[kit] PASS")
@@ -225,15 +257,17 @@ func _expected_bounds() -> Dictionary:
 	var half: float = DelvingsKit.TILE * 0.5
 	var deep: float = DelvingsKit.PANEL_DEEP * 0.5
 	var bounds: Dictionary = {}
-	for i: int in DelvingsKit.PANEL_HIGH.size():
-		for module: StringName in DelvingsKit.PANELS[i]:
-			bounds[module] = AABB(Vector3(-half, 0.0, -deep),
-				Vector3(DelvingsKit.TILE, DelvingsKit.PANEL_HIGH[i],
-					DelvingsKit.PANEL_DEEP))
-	for module: StringName in DelvingsKit.FLAGS:
-		bounds[module] = AABB(Vector3(-half, 0.0, -half),
-			Vector3(DelvingsKit.TILE, DelvingsKit.FLAG_DEEP,
-				DelvingsKit.TILE))
+	for family: Array in DelvingsKit.PANELS_BY_BAND:
+		for i: int in DelvingsKit.PANEL_HIGH.size():
+			for module: StringName in family[i]:
+				bounds[module] = AABB(Vector3(-half, 0.0, -deep),
+					Vector3(DelvingsKit.TILE, DelvingsKit.PANEL_HIGH[i],
+						DelvingsKit.PANEL_DEEP))
+	for family: Array in DelvingsKit.FLAGS_BY_BAND:
+		for module: StringName in family:
+			bounds[module] = AABB(Vector3(-half, 0.0, -half),
+				Vector3(DelvingsKit.TILE, DelvingsKit.FLAG_DEEP,
+					DelvingsKit.TILE))
 	bounds[DelvingsKit.BEAMS] = AABB(Vector3(-half, 0.0, -half),
 		Vector3(DelvingsKit.TILE, DelvingsKit.BEAM_DEEP, DelvingsKit.TILE))
 	bounds[DelvingsKit.FRAME] = AABB(
@@ -241,6 +275,27 @@ func _expected_bounds() -> Dictionary:
 		Vector3(DelvingsKit.FRAME_WIDE, DelvingsKit.FRAME_HIGH,
 			DelvingsKit.PANEL_DEEP))
 	return bounds
+
+
+## A floor's AABB top can be correct while its lower flags lie inside the
+## existing visible slab. The mesh's buried bed is deliberately not a walking
+## face, so measure upward-facing vertices *above* the core's top instead:
+## those are the surfaces a player can actually read under `DelvingsKit`'s
+## fixed FLAG_DEEP/PROUD placement.
+static func _lowest_walking_face(shape: Mesh) -> float:
+	var lowest: float = INF
+	var core_top: float = DelvingsKit.FLAG_DEEP - DelvingsKit.PROUD
+	for surface: int in shape.get_surface_count():
+		var arrays: Array = shape.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] \
+			as PackedVector3Array
+		var normals: PackedVector3Array = arrays[Mesh.ARRAY_NORMAL] \
+			as PackedVector3Array
+		for vertex: int in vertices.size():
+			if vertex < normals.size() and normals[vertex].y > 0.9 \
+					and vertices[vertex].y > core_top:
+				lowest = minf(lowest, vertices[vertex].y)
+	return lowest
 
 
 ## Every collision shape under a floor, and a complaint for any that is not a
@@ -391,13 +446,13 @@ func _clad_slabs(shell: Node3D, bare: PackedStringArray,
 ## two that lay different stones must not.
 func _fingerprint(modules: Array[RoomModule],
 		calamities: Array[CalamityResource],
-		kinds: PackedStringArray) -> PackedStringArray:
-	var graph: MissionGraph = MissionGraph.build(SEEDS[0], 1)
+		kinds: PackedStringArray, depth: int) -> PackedStringArray:
+	var graph: MissionGraph = MissionGraph.build(SEEDS[0], depth)
 	var lore: ExpeditionHistory = ExpeditionHistory.roll(
 		SEEDS[0], calamities, kinds)
-	var plan: FloorPlan = FloorPlan.build(graph, SEEDS[0], 1, modules, lore)
+	var plan: FloorPlan = FloorPlan.build(graph, SEEDS[0], depth, modules, lore)
 	var shell := Node3D.new()
-	FloorBuilder.build(plan, graph, SEEDS[0], 1, shell)
+	FloorBuilder.build(plan, graph, SEEDS[0], depth, shell)
 	var rows: Array[String] = []
 	_stones(shell, Transform3D(), rows)
 	rows.sort()

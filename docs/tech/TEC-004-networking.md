@@ -4,7 +4,7 @@ title: Networking Architecture
 status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-09-16
+updated: 2026-09-28
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
@@ -162,11 +162,11 @@ The Lair is two scenes with opposite networking postures, and getting this right
 
 > **AS BUILT at `M4-T15` (ADR-250), and ADR-157's refusal is now the past.**
 >
-> A knock during a run is answered with a **call down** — the expedition's seed and floor — and no body. The joiner opens a run on those numbers, builds that floor for itself, and **knocks again from it**; only then is a body spawned, at **the Shaft** (`DES-005` Layer 3b), loudly enough for the Hunt to hear. Two sentences cross a `Doorway` node at one path under the tree root, because `CoopSession` is per level and a joiner is in another scene — which is exactly what ADR-157 could not get past.
+> A knock during a run is answered with a **call down** — the expedition's seed and floor — and no body. The joiner opens a run on those numbers, builds that floor for itself, and **knocks again from it**; only then is a body spawned, at **the Shaft** (`DES-005` Layer 3b), loudly enough for the Hunt to hear. `Doorway` owns the native `SceneMultiplayer` admission callback (ADR-271): both ends exchange scene, seed and floor before gameplay traffic is allowed. A mismatched client receives the host’s floor description, changes scene and reconnects.
 >
-> **The walk down is a new connection.** Godot caches node paths per connection: packets the host sends while the joiner is still at the fire are addressed to a scene that does not exist here, and the engine keeps that answer for the life of the connection — `ID 1 not found in cache of peer 1`, on every spawn, forever. That is ADR-157's *"it broke both ends"*, named.
+> **The walk down is a new connection.** ADR-271 moves the redirect into the authentication stage so no invalid scene packets are sent before that reconnect. Godot caches node paths per connection: packets the host sends while the joiner is still at the fire are addressed to a scene that does not exist here, and the engine keeps that answer for the life of the connection — `ID 1 not found in cache of peer 1`, on every spawn, forever. That is ADR-157's *"it broke both ends"*, named.
 >
-> **The delta below is mostly not sent by hand.** Everything that changes on a floor is either spawned through the `MultiplayerSpawner` or is a replicated property, and per-peer visibility holds all of it back until a peer says it is standing on the floor — so the frame it does, the engine spawns the world **as it stands**, including the absence of what has been taken. The table is still the description of what must be true, and `run_coop.py --late` asks it: the joiner sees the same items and bodies the host does, one of which was taken off the floor before it knocked.
+> **The delta below is mostly not sent by hand.** Everything that changes on a floor is either spawned through the `MultiplayerSpawner` or is a replicated property, and native connection admission holds all of it back until both ends confirm the same scene and expedition — so the frame they do, the engine spawns the world **as it stands**, including the absence of what has been taken. The table is still the description of what must be true, and `run_coop.py --late` asks it: the joiner sees the same items and bodies the host does, one of which was taken off the floor before it knocked.
 
 A player waiting in the Lair opens a gate at the party's position and steps through (`DES-005` Layer 3b). Built on the extraction mechanism run backward, which is why it's affordable — but it is still the most demanding networking feature in the project.
 

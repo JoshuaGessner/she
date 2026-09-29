@@ -1,0 +1,32 @@
+{
+  "mail_byrnie_worn": {
+    "triangles": 3544,
+    "mesh_parts": 13,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "calf_l",
+      "calf_r",
+      "chest",
+      "foot_l",
+      "foot_r",
+      "pelvis",
+      "spine_01",
+      "spine_02",
+      "thigh_l",
+      "thigh_r",
+      "upper_arm_l",
+      "upper_arm_r"
+    ]
+  },
+  "iron_bracers_worn": {
+    "triangles": 2184,
+    "mesh_parts": 12,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "forearm_l",
+      "forearm_r"
+    ]
+  }
+}

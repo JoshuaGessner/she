@@ -35,7 +35,7 @@ extends Node3D
 ## `Lantern.GRIP` puts the actual light, so what you see lit is lit from there.
 
 ## Where the off-hand item rests — (position, rotation in degrees), head frame.
-const OFF_REST: Array = [Vector3(-0.42, 0.12, -0.74), Vector3(0, 158, 4)]
+const OFF_REST: Array = [Vector3(-0.42, -0.22, -0.64), Vector3(0, 158, 4)]
 ## Where a shield comes to while the guard is up: across the body, face out.
 const OFF_GUARD: Array = [Vector3(-0.12, -0.20, -0.42), Vector3(6, 4, -8)]
 ## Where the off hand goes while both hands are busy with something else.
@@ -59,8 +59,20 @@ var _use_item: ItemResource = null
 var _use_look: Node3D = null
 var _raised: float = 0.0
 
+## The first-person presentation has its own scene instance because it lives in
+## the camera frame. It is still the *same asset meshes* and bone topology as a
+## teammate's gear: `ItemResource.wear_on` moves each bracer mesh onto the
+## class-arm skeleton, rather than creating an unweighted camera prop.
+var _arms: Node3D = null
+var _arms_skeleton: Skeleton3D = null
+var _arms_class: ClassResource = null
+var _arms_item: ItemResource = null
+var _main_grip: Node3D = null
+
 
 func _ready() -> void:
+	# Weapon draw-in runs at priority zero; follow its final rendered pose.
+	process_priority = 1
 	_off = Node3D.new()
 	_off.name = "OffHand"
 	add_child(_off)
@@ -96,13 +108,51 @@ func hold(item: ItemResource) -> void:
 	_busy = 1.0
 
 
+## Build the local player's actual forearms, then layer the Arms-slot mesh over
+## them. The class data owns the bare mesh; an absent class arm is a failed data
+## contract and deliberately produces no generated substitute.
+func dress_arms(body: ClassResource, bracers: ItemResource) -> void:
+	if body == _arms_class and bracers == _arms_item:
+		return
+	_arms_class = body
+	_arms_item = bracers
+	if _arms != null:
+		_arms.free()
+		_arms = null
+		_arms_skeleton = null
+	# An unsworn body is valid in the gym and before class selection.
+	if body == null:
+		return
+	if body.bare_arms == null:
+		push_error("Hands: the local class has no first-person bare arms")
+		return
+	_arms = body.bare_arms.instantiate() as Node3D
+	if _arms == null:
+		push_error("Hands: bare arms for %s did not make a Node3D" % body.id)
+		return
+	_arms.name = "Arms"
+	add_child(_arms)
+	_arms_skeleton = _skeleton_under(_arms)
+	if _arms_skeleton == null:
+		push_error("Hands: bare arms for %s have no Skeleton3D" % body.id)
+		_arms.free()
+		_arms = null
+		return
+	if bracers == null:
+		return
+	var worn: Node3D = bracers.wear_on(_arms_skeleton)
+	if worn == null:
+		push_error("Hands: %s has no skinned first-person Arms model" % bracers.id)
+
+
 ## Pose everything for this frame from what the body is doing.
 ##
 ## `lit` is whether the lamp is open, `guarding` whether the guard is up,
 ## `mending` and `leaving` the fractions of a binding and a Waystone done, each
 ## 0 when nothing is under way.
 func step(delta: float, lit: bool, guarding: bool, mending: float,
-		leaving: float) -> void:
+		leaving: float, main_grip: Node3D = null) -> void:
+	_main_grip = main_grip
 	var rate: float = clampf(delta * EASE, 0.0, 1.0)
 	_open = lerpf(_open, 1.0 if lit else 0.0, rate)
 	var shield: bool = _off_item != null and _off_item.has_trait(ShieldTrait)
@@ -135,6 +185,63 @@ func step(delta: float, lit: bool, guarding: bool, mending: float,
 			HeldLook.waystone(_use_look, done)
 		elif _use_item.has_trait(MendingTrait):
 			HeldLook.binding(_use_look, done)
+
+	_align_visible_arms(main_grip)
+
+
+## Draw-in also updates weapon poses between physics ticks. Refresh only the
+## skin pose here, after those item animations, without advancing action state.
+func _process(_delta: float) -> void:
+	_align_visible_arms(_main_grip if is_instance_valid(_main_grip) else null)
+
+
+## Each grip drives only its own hand and forearm. The elbow extends back
+## below the camera; the wrist keeps the authored length and the hand takes
+## the item's orientation through the permanent socket transform.
+func _align_visible_arms(main_grip: Node3D) -> void:
+	if _arms_skeleton == null:
+		return
+	_arms_skeleton.reset_bone_poses()
+	if main_grip != null:
+		_pose_arm("r", main_grip.global_transform)
+	else:
+		var lowered: Vector3 = OFF_AWAY[0] as Vector3
+		lowered.x = -lowered.x
+		_pose_arm("r", global_transform * Transform3D(Basis.IDENTITY, lowered))
+	if _use.visible and _use_look != null:
+		_pose_arm("l", _use.global_transform)
+	elif _off_look != null:
+		_pose_arm("l", _off.global_transform)
+	else:
+		_pose_arm("l", global_transform * Transform3D(Basis.IDENTITY, OFF_AWAY[0] as Vector3))
+
+
+func _pose_arm(side: String, grip: Transform3D) -> void:
+	var hand: int = _arms_skeleton.find_bone("hand_" + side)
+	var forearm: int = _arms_skeleton.find_bone("forearm_" + side)
+	var socket: int = _arms_skeleton.find_bone("sock_hand_" + side)
+	var hand_rest: Transform3D = _arms_skeleton.get_bone_global_rest(hand)
+	var fore_rest: Transform3D = _arms_skeleton.get_bone_global_rest(forearm)
+	var socket_rest: Transform3D = _arms_skeleton.get_bone_global_rest(socket)
+	var hand_at: Transform3D = _arms_skeleton.global_transform.affine_inverse() \
+		* grip * (hand_rest.affine_inverse() * socket_rest).affine_inverse()
+	var back: Vector3 = Config.tuning.first_person_elbow_direction
+	back.x *= -1.0 if side == "l" else 1.0
+	var along: Vector3 = -(_arms_skeleton.global_basis.inverse() \
+		* global_basis * back).normalized()
+	var rest_along: Vector3 = (hand_rest.origin - fore_rest.origin).normalized()
+	var turn := Basis(Quaternion(rest_along, along))
+	var fore_at := Transform3D(turn * fore_rest.basis,
+		hand_at.origin - along * fore_rest.origin.distance_to(hand_rest.origin))
+	_set_global_bone_pose(forearm, fore_at)
+	_set_global_bone_pose(hand, hand_at)
+
+
+func _set_global_bone_pose(bone: int, pose: Transform3D) -> void:
+	var parent: int = _arms_skeleton.get_bone_parent(bone)
+	var local: Transform3D = _arms_skeleton.get_bone_global_pose(parent).affine_inverse() * pose
+	_arms_skeleton.set_bone_pose_position(bone, local.origin)
+	_arms_skeleton.set_bone_pose_rotation(bone, local.basis.get_rotation_quaternion())
 
 
 ## The model in the off hand, for `--hands-probe`.
@@ -176,6 +283,17 @@ static func _bounds(look: Node3D) -> AABB:
 		out = box if first else out.merge(box)
 		first = false
 	return out
+
+
+static func _skeleton_under(node: Node) -> Skeleton3D:
+	var found := node as Skeleton3D
+	if found != null:
+		return found
+	for child: Node in node.get_children():
+		var deeper: Skeleton3D = _skeleton_under(child)
+		if deeper != null:
+			return deeper
+	return null
 
 
 static func _blend(from: Array, to: Array, t: float) -> Array:

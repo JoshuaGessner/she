@@ -747,29 +747,20 @@ def main() -> int:
                  "open, under way" if went else "still taking arrivals"))
 
     # Told where everyone went, instead of turned away.
-    called = "called down to seed" in late["host"]
+    called = "called down to seed" in late["client0"]
     rows.append(("the one knocking is called down", called,
                  "told where they went" if called else "left with no reason"))
     going = "going to them" in late["client0"]
     rows.append(("and goes to them", going,
                  "on its way" if going else "stayed at the fire"))
 
-    # **The fault this whole harness is about, bounded rather than absent.**
-    #
-    # Godot sends a newly connected peer everything the spawner has already
-    # made, in the frame it connects and before any handler can object — so a
-    # knock from the fire cannot avoid one burst of packets naming a scene the
-    # knocker is not in. What must not happen is that it *continues*: the host
-    # answers and hangs up, the joiner comes back on a new connection from the
-    # floor, and from that point the paths agree. So the window is measured
-    # rather than wished away: nothing after the call down.
-    for who, missing in (("client0", "RoomSet/CoopSession"),
-                         ("host", "Threshold/CoopSession")):
-        after = late[who].split("called down to seed")[-1] \
-            if "called down to seed" in late[who] else late[who]
-        clean = missing not in after
-        rows.append((f"and no packets into a scene the {who} is not in, after",
-                     clean, "clean" if clean else f"addressed {missing}"))
+    # Admission must prevent the first invalid packet, not merely recover
+    # after one poisoned scene-path caches (ADR-271).
+    for who in ("client0", "host"):
+        errors = [line for line in late[who].splitlines()
+                  if line.startswith(("ERROR:", "SCRIPT ERROR:"))]
+        rows.append((f"no invalid scene packets on {who}", not errors,
+                     f"{len(errors)} engine error(s)"))
 
     # A body built for somebody whose process cannot see it is the half that
     # costs the *host* the run: it counts in the party, so the floor scales for

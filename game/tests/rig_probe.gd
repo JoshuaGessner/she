@@ -9,6 +9,35 @@ extends SceneTree
 ## tools away from the symptom.
 
 const RIG: String = "res://art/characters/humanoid_rig.glb"
+## Worn models are validated here rather than in a separate validator: the
+## question is still whether the exported shared rig can actually deform a mesh
+## authored against it. A second skeleton test would only drift.
+const WORN: Array[Dictionary] = [
+	{
+		"label": "Otr pelt", "item": "res://data/items/rlc_otr_pelt.tres",
+		"bones": [&"chest", &"upper_arm_l", &"thigh_l"],
+	},
+	{
+		"label": "mail byrnie", "item": "res://data/items/arm_mail_byrnie.tres",
+		"bones": [&"chest", &"upper_arm_l", &"thigh_l"],
+	},
+	{
+		"label": "iron bracers", "item": "res://data/items/arm_iron_bracers.tres",
+		"bones": [&"forearm_l", &"forearm_r"],
+	},
+]
+## Four classes are deliberately absent from the catalogue today, but their
+## source meshes must still stay compatible with the one rig they will use when
+## those classes are authored. The two present classes are also checked through
+## their ClassResource in `data_probe`.
+const BARE_ARMS: Array[String] = [
+	"res://art/characters/huskarl_arms.glb",
+	"res://art/characters/veidimadr_arms.glb",
+	"res://art/characters/volva_arms.glb",
+	"res://art/characters/skald_arms.glb",
+	"res://art/characters/ulfhedinn_arms.glb",
+	"res://art/characters/haugbrjotr_arms.glb",
+]
 const SOCKETS: Array[String] = [
 	"sock_head", "sock_hand_r", "sock_hand_l", "sock_back",
 	"sock_hip_r", "sock_hip_l", "sock_shoulders",
@@ -54,6 +83,11 @@ func _initialize() -> void:
 		return
 	var root: Node = packed.instantiate()
 	get_root().add_child(root)
+	# SceneTree._initialize runs before the root enters the tree. Let the rig's
+	# ready pass establish its rest poses before deliberately changing a bone;
+	# otherwise that first ready pass resets the first garment's test pose.
+	await process_frame
+	await process_frame
 
 	var skeleton: Skeleton3D = _find_skeleton(root)
 	_check(skeleton != null, "scene contains a Skeleton3D")
@@ -95,6 +129,13 @@ func _initialize() -> void:
 		var drift: float = o.distance_to(want)
 		_check(drift <= PLACEMENT_TOLERANCE, "%s placed" % socket,
 			"(%.3f, %.3f, %.3f)  drift %.4f m" % [o.x, o.y, o.z, drift])
+
+	print("\nshared-topology worn gear:")
+	for path: String in BARE_ARMS:
+		_check(_same_skeleton(path, skeleton), "%s shares all %d rig bones"
+			% [path.get_file(), skeleton.get_bone_count()])
+	for entry: Dictionary in WORN:
+		await _check_worn(entry, skeleton)
 
 	print("\n%d failure(s)" % _failures)
 	quit(1 if _failures > 0 else 0)
@@ -147,3 +188,173 @@ func _meshes(node: Node) -> Array[Node]:
 	for child: Node in node.get_children():
 		found += _meshes(child)
 	return found
+
+
+## Exact names, not bone indices. The exporter can reorder a skin without
+## changing its topology, and `ItemResource.wear_on` deliberately remaps that
+## case by name.
+func _same_skeleton(path: String, shared: Skeleton3D) -> bool:
+	var packed: PackedScene = load(path) as PackedScene
+	if packed == null:
+		return false
+	var imported: Node = packed.instantiate()
+	var source: Skeleton3D = _find_skeleton(imported)
+	if source == null or source.get_bone_count() != shared.get_bone_count():
+		imported.free()
+		return false
+	for index: int in range(shared.get_bone_count()):
+		var shared_name: StringName = shared.get_bone_name(index)
+		var source_index: int = source.find_bone(shared_name)
+		if source_index < 0:
+			imported.free()
+			return false
+		var source_parent: int = source.get_bone_parent(source_index)
+		var shared_parent: int = shared.get_bone_parent(index)
+		var source_parent_name: StringName = source.get_bone_name(source_parent) \
+			if source_parent >= 0 else &""
+		var shared_parent_name: StringName = shared.get_bone_name(shared_parent) \
+			if shared_parent >= 0 else &""
+		if source_parent_name != shared_parent_name \
+				or not source.get_bone_rest(source_index).is_equal_approx(
+					shared.get_bone_rest(index)):
+			imported.free()
+			return false
+	imported.free()
+	return true
+
+
+## A correctly indexed `Skin` can still be attached to the source armature and
+## stay frozen while the actual body poses. This goes through the production
+## `wear_on` path, verifies every resulting mesh resolves its skeleton path to
+## `shared`, then evaluates a real weighted vertex under a changed bone pose.
+## It therefore fails a bound-but-unmoving mesh, not merely a missing bind.
+func _check_worn(entry: Dictionary, shared: Skeleton3D) -> void:
+	var label: String = entry["label"] as String
+	var item: ItemResource = load(entry["item"] as String) as ItemResource
+	_check(item != null and item.worn_model != null,
+		"%s has a skinned worn-model reference" % label)
+	if item == null or item.worn_model == null:
+		return
+	_check(_same_skeleton(item.worn_model.resource_path, shared),
+		"%s source has the shared topology" % label)
+	var carrier: Node3D = item.wear_on(shared)
+	_check(carrier != null, "%s joins the active Skeleton3D" % label)
+	if carrier == null:
+		return
+	var meshes: Array[Node] = _meshes(carrier)
+	var joined: bool = not meshes.is_empty()
+	for node: Node in meshes:
+		var mesh := node as MeshInstance3D
+		joined = joined and mesh.skin != null \
+			and mesh.get_node_or_null(mesh.skeleton) == shared
+	_check(joined and carrier.find_children("*", "Skeleton3D", true, false).is_empty(),
+		"%s leaves no duplicate moving skeleton" % label)
+	var drift: float = 0.0
+	for node: Node in meshes:
+		drift = maxf(drift, _rest_skin_error(node as MeshInstance3D, shared))
+	_check(drift < PLACEMENT_TOLERANCE, "%s bind poses preserve the authored rest shape"
+		% label, "largest drift %.6f m" % drift)
+	for bone: StringName in entry["bones"]:
+		var moved: float = await _weighted_motion(meshes, shared, bone)
+		_check(moved > 0.003, "%s weighted vertices follow a posed %s"
+			% [label, bone], "measured %.4f m" % moved)
+	carrier.free()
+
+
+func _weighted_motion(meshes: Array[Node], skeleton: Skeleton3D,
+		bone_name: StringName) -> float:
+	var target: int = skeleton.find_bone(bone_name)
+	if target < 0:
+		return 0.0
+	var old: Transform3D = skeleton.get_bone_global_pose(target)
+	var posed: Transform3D = old
+	posed.basis = posed.basis * Basis(Quaternion(Vector3.UP, 0.55))
+	skeleton.set_bone_global_pose(target, posed)
+	skeleton.force_update_all_bone_transforms()
+	await process_frame
+	var largest: float = 0.0
+	for node: Node in meshes:
+		largest = maxf(largest, _mesh_weighted_motion(node as MeshInstance3D,
+			skeleton, target))
+	skeleton.set_bone_global_pose(target, old)
+	skeleton.force_update_all_bone_transforms()
+	return largest
+
+
+func _mesh_weighted_motion(mesh: MeshInstance3D, skeleton: Skeleton3D,
+		target: int) -> float:
+	if mesh == null or mesh.mesh == null or mesh.skin == null:
+		return 0.0
+	for surface: int in range(mesh.mesh.get_surface_count()):
+		var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES] as PackedInt32Array
+		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS] as PackedFloat32Array
+		if vertices.is_empty() or bones.is_empty() or weights.is_empty():
+			continue
+		var influences: int = bones.size() / vertices.size()
+		var largest: float = 0.0
+		for vertex: int in range(vertices.size()):
+			var touches_target: bool = false
+			var at_rest := Vector3.ZERO
+			var posed := Vector3.ZERO
+			for influence: int in range(influences):
+				var offset: int = vertex * influences + influence
+				var bind: int = bones[offset]
+				if bind < 0 or bind >= mesh.skin.get_bind_count():
+					continue
+				var bone: int = _bound_bone(mesh.skin, skeleton, bind)
+				if bone < 0:
+					continue
+				var weight: float = weights[offset]
+				if weight <= 0.0:
+					continue
+				var inverse_bind: Transform3D = mesh.skin.get_bind_pose(bind)
+				at_rest += (skeleton.get_bone_global_rest(bone) * inverse_bind
+					* vertices[vertex]) * weight
+				posed += (skeleton.get_bone_global_pose(bone) * inverse_bind
+					* vertices[vertex]) * weight
+				touches_target = touches_target or bone == target
+			if touches_target:
+				largest = maxf(largest, at_rest.distance_to(posed))
+		if largest > 0.0:
+			return largest
+	return 0.0
+
+
+## Prefer the bind name because glTF importers are free to omit or reorder the
+## source skeleton index. `wear_on` remaps that same name onto `skeleton`.
+static func _bound_bone(skin: Skin, skeleton: Skeleton3D, bind: int) -> int:
+	var named: StringName = skin.get_bind_name(bind)
+	if named != &"":
+		return skeleton.find_bone(named)
+	var bone: int = skin.get_bind_bone(bind)
+	return bone if bone >= 0 and bone < skeleton.get_bone_count() else -1
+
+
+## Motion alone also passes a mesh with a bad inverse bind: it moves while
+## already displaced. At rest the weighted result must reproduce every vertex.
+func _rest_skin_error(mesh: MeshInstance3D, skeleton: Skeleton3D) -> float:
+	var largest: float = 0.0
+	for surface: int in range(mesh.mesh.get_surface_count()):
+		var arrays: Array = mesh.mesh.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES]
+		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS]
+		if vertices.is_empty() or bones.is_empty():
+			return INF
+		var influences: int = bones.size() / vertices.size()
+		for vertex: int in range(vertices.size()):
+			var result := Vector3.ZERO
+			for influence: int in range(influences):
+				var offset: int = vertex * influences + influence
+				if weights[offset] <= 0.0:
+					continue
+				var bind: int = bones[offset]
+				var bone: int = _bound_bone(mesh.skin, skeleton, bind)
+				if bone < 0:
+					return INF
+				result += (skeleton.get_bone_global_rest(bone)
+					* mesh.skin.get_bind_pose(bind) * vertices[vertex]) * weights[offset]
+			largest = maxf(largest, result.distance_to(vertices[vertex]))
+	return largest

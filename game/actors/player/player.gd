@@ -585,6 +585,12 @@ var _last_solid: Vector3 = Vector3.ZERO
 ## it has to run before the host-owned synchroniser exists, or it would hand
 ## the host's half of the split to the client as well.
 func configure_replication(owning_peer: int) -> void:
+	# Until the owner's first snapshot arrives, the spawn is the only known
+	# transform. Leaving the wire target at zero pulls a late arrival away
+	# from the Shaft while its peer is still building the replicated actors.
+	net_position = position
+	net_yaw = rotation.y
+	_yaw = rotation.y
 	set_multiplayer_authority(owning_peer)
 	add_child(_build_sync("MotionSync", owning_peer, MOTION_PROPERTIES))
 	add_child(_build_sync("StateSync", HOST_PEER, STATE_PROPERTIES))
@@ -719,6 +725,9 @@ func _ready() -> void:
 		_head.add_child(_hands)
 		var off: ItemInstance = equipment.in_slot(Enums.Slot.OFF_HAND)
 		_hands.hold(off.definition if off != null else null)
+		var arms: ItemInstance = equipment.in_slot(Enums.Slot.ARMS)
+		_hands.dress_arms(ClassCatalogue.by_id(sworn),
+			arms.definition if arms != null else null)
 	_ink.visible = _is_local
 	set_process_unhandled_input(_is_local)
 	if _is_local:
@@ -2333,10 +2342,7 @@ func _physics_process(delta: float) -> void:
 		net_position = position
 		net_yaw = _yaw
 		net_pitch = _pitch
-		# What your own hands are holding and doing (ADR-267) — the first-
-		# person twin of `BodyRig.show_use` below.
-		if _hands != null:
-			_hands.step(delta, lit, blocking, mending, leaving)
+
 	else:
 		_ease_toward_the_wire(delta)
 		# **The body a teammate actually sees** (`M4-T05`).
@@ -2431,6 +2437,10 @@ func _physics_process(delta: float) -> void:
 		_tick_binding(delta, tuning)
 		_tick_wounds(delta)
 		_tick_bleeding(delta)
+	# Pose after weapons and use actions have advanced, so grips are this frame's.
+	if _is_local and _hands != null:
+		_hands.step(delta, lit, blocking, mending, leaving,
+			ranged.grip() if ranged != null and ranged.kit() != null else weapon.grip())
 
 
 ## Everything the owning peer simulates for itself. `TEC-004`: prediction for
@@ -2990,10 +3000,16 @@ func _on_equipment_changed() -> void:
 	for slot: Enums.Slot in BodyRig.SOCKETS:
 		var worn: ItemInstance = equipment.in_slot(slot)
 		on_the_body[slot] = worn.definition if worn != null else null
+	for slot: Enums.Slot in BodyRig.SKINNED_SLOTS:
+		var worn: ItemInstance = equipment.in_slot(slot)
+		on_the_body[slot] = worn.definition if worn != null else null
 	_rig.wear(on_the_body)
 	if _hands != null:
 		var off: ItemInstance = equipment.in_slot(Enums.Slot.OFF_HAND)
 		_hands.hold(off.definition if off != null else null)
+		var arms: ItemInstance = equipment.in_slot(Enums.Slot.ARMS)
+		_hands.dress_arms(ClassCatalogue.by_id(sworn),
+			arms.definition if arms != null else null)
 	var carried_light := equipment.trait_in(
 		Enums.Slot.OFF_HAND, LightTrait) as LightTrait
 	lantern.carry(carried_light)

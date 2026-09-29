@@ -252,6 +252,7 @@ func _edges_probe() -> void:
 	# worth testing.
 	multiplayer.multiplayer_peer = null
 	var rebuilt := SESSION_SCENE.instantiate() as CoopSession
+	rebuilt.world_scene = scene_file_path
 	rebuilt.name = "RebuiltSession"
 	add_child(rebuilt)
 	await get_tree().process_frame
@@ -1089,6 +1090,7 @@ func _report_board(problems: PackedStringArray) -> void:
 
 func _spawn_actors() -> void:
 	_session = SESSION_SCENE.instantiate() as CoopSession
+	_session.world_scene = scene_file_path
 	_session.spawn_points = SPAWNS
 	# **The fire takes arrivals** (`M3-T36`, ADR-157). Said before the session
 	# enters the tree, because its `_ready` is what applies it to the transport.

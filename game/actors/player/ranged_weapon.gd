@@ -227,3 +227,8 @@ func _process(delta: float) -> void:
 		_update_pose()
 	if _drawn >= 1.0:
 		set_process(false)
+
+
+## Presented grip, passed down to the first-person arms by Player.
+func grip() -> Node3D:
+	return _model if _kit != null else null

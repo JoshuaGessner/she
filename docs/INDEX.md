@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-28 · 47 documents_
+_Regenerated 2026-09-28 · 48 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -45,7 +45,7 @@ _How it gets built._
 | `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-08-16 | TEC-002, TEC-003, DES-005 |
 | `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✔ accepted | 2026-09-13 | TEC-001, PRO-001 |
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-09-16 | DES-003, DES-015, TEC-001, TEC-002, TEC-004 |
-| `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-09-16 | DES-012, TEC-001, TEC-003, PRO-001 |
+| `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-09-28 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-28 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-04 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
@@ -81,6 +81,7 @@ _Visual and audio direction._
 | `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-09-28 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
 | `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-09-28 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
 | `ART-007` | [Asset Quality Review — First Delivered Library](art/ART-007-asset-quality-review.md) | ✔ accepted | 2026-09-28 | ART-006, ART-004, ART-005, DES-020, PRO-002 |
+| `ART-008` | [Worn Armour, Class Arms and Depth Variants — Review](art/ART-008-worn-armour-and-depth-review.md) | ◆ proposed | 2026-09-28 | ART-004, ART-006, ART-007, DES-020, TEC-008 |
 
 ## By Tag
 
@@ -89,8 +90,8 @@ _Visual and audio direction._
 - **ai** — DES-005, DES-013, DES-017
 - **architecture** — TEC-001, TEC-004
 - **armour** — DES-023
-- **art** — ART-001, ART-004, ART-005, ART-006, ART-007, PRO-008
-- **assets** — ART-004, ART-006, ART-007
+- **art** — ART-001, ART-004, ART-005, ART-006, ART-007, ART-008, PRO-008
+- **assets** — ART-004, ART-006, ART-007, ART-008
 - **audio** — ART-001, ART-002, ART-003, DES-018, TEC-005
 - **balance** — DES-003, DES-004, DES-008, DES-022, PRO-005
 - **biomes** — DES-006
@@ -163,7 +164,7 @@ _Visual and audio direction._
 - **middleware** — TEC-005
 - **migration** — TEC-003
 - **milestones** — PRO-001
-- **modelling** — ART-006, ART-007
+- **modelling** — ART-006, ART-007, ART-008
 - **monetization** — PRO-006
 - **movement** — DES-009
 - **multiplayer** — DES-012, TEC-004
@@ -198,7 +199,7 @@ _Visual and audio direction._
 - **research** — PRO-005, TEC-007, TEC-008, TEC-009
 - **resources** — TEC-006
 - **retention** — DES-010, DES-012, DES-014, DES-016, PRO-005
-- **review** — ART-007
+- **review** — ART-007, ART-008
 - **risk** — PRO-004, PRO-007, TEC-004, TEC-005
 - **roadmap** — PRO-001
 - **save** — TEC-003

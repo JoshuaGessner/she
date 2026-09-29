@@ -19,7 +19,7 @@ from mathutils import Vector
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[1]
 BLEND_PATH = SCRIPT_DIR / "humanoid_rig.blend"
-GLB_PATH = REPO_ROOT / "game" / "assets" / "characters" / "humanoid_rig.glb"
+GLB_PATH = REPO_ROOT / "game" / "art" / "characters" / "humanoid_rig.glb"
 
 TOTAL_HEIGHT_M = 1.80
 EYE_HEIGHT_M = 1.62

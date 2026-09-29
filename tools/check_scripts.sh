@@ -1723,7 +1723,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# That difference is the whole test — ADR-157 refused this join precisely
 	# because the two ends were in different scenes, and a check that launched
 	# both into the Deep would be asserting the easy half.
-	late="$(GODOT="$GODOT_BIN" python3 "$ROOT/tools/run_coop.py" --late 2>&1)"
+	late="$(GODOT="$GODOT_BIN" python3 "$ROOT/tools/run_coop.py" --late --clients 2 2>&1)"
 	if [[ $? -ne 0 ]]; then
 		echo "FAIL a late arrival has to reach the party's floor" >&2
 		printf '%s\n' "$late" | sed 's/^/      /' >&2

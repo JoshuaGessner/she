@@ -1,0 +1,74 @@
+{
+  "huskarl": {
+    "triangles": 1856,
+    "mesh_parts": 18,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "forearm_l",
+      "forearm_r",
+      "hand_l",
+      "hand_r"
+    ]
+  },
+  "veidimadr": {
+    "triangles": 2176,
+    "mesh_parts": 22,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "forearm_l",
+      "forearm_r",
+      "hand_l",
+      "hand_r"
+    ]
+  },
+  "volva": {
+    "triangles": 2140,
+    "mesh_parts": 28,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "forearm_l",
+      "forearm_r",
+      "hand_l",
+      "hand_r"
+    ]
+  },
+  "skald": {
+    "triangles": 1960,
+    "mesh_parts": 16,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "forearm_l",
+      "forearm_r",
+      "hand_l",
+      "hand_r"
+    ]
+  },
+  "ulfhedinn": {
+    "triangles": 1960,
+    "mesh_parts": 16,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "forearm_l",
+      "forearm_r",
+      "hand_l",
+      "hand_r"
+    ]
+  },
+  "haugbrjotr": {
+    "triangles": 2040,
+    "mesh_parts": 20,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "weighted_bones": [
+      "forearm_l",
+      "forearm_r",
+      "hand_l",
+      "hand_r"
+    ]
+  }
+}

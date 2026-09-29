@@ -345,7 +345,16 @@ Three things the brief should now say, because each was a guess at delivery time
 | **Set dressing's footprint** | Pieces up to 1.75 × 1.35 m | Every piece is laid **long side along a wall**, back to the stone. A piece more than ~1.4 m deep takes too much of a 6 m room; a piece meant to stand free of a wall has nowhere to go. |
 | **Height is solidity** | Collision on everything | A piece a body could step over (under 0.10 m — the rope coil) is laid **without** its collision, because a solid 8 cm coil stops a walking body dead. Everything taller is solid. |
 
-**Body and arms armour are not on the rig**, and cannot be from what was delivered: `DES-020` makes those two slots *skinned*, and the byrnie and bracers are props modelled to lie on a floor. They need meshes weighted to `humanoid_rig.glb` — which is §5.4, part of `M4-T10`, and asks first.
+**The original Body and Arms deliveries were loose props.** The continuation
+authorised by the developer adds `mail_byrnie_worn.glb` and
+`iron_bracers_worn.glb`, plus the wearable `otr_pelt_worn.glb`, all weighted
+to the unchanged shared rig (ADR-270).
+Keep the loose pickup models and the worn models distinct: the former use a
+base-centred prop pivot; the latter use the shared skeleton's bind-space origin.
+The worn Body mesh includes legs and stops above the elbow. The six class arm
+pairs use that same bind pose; only the two existing class records expose them
+in play. `ART-008` records the review; the remaining character work stays in
+`PRO-001` task `M4-T10` at milestone M4.
 
 ## 7. When this brief is wrong
 

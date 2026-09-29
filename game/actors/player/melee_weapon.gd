@@ -434,3 +434,8 @@ func _glance(tuning: TuningProfile) -> void:
 
 func _on_struck(hurtbox: Hurtbox) -> void:
 	connected.emit(hurtbox)
+
+
+## Presented grip, passed down to the first-person arms by Player.
+func grip() -> Node3D:
+	return _model if _shown != null else null

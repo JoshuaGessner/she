@@ -6992,9 +6992,9 @@ func _probe_report(host: bool) -> Dictionary:
 ## a probe that hangs is a CI job that hangs, and the report it fails to write
 ## is indistinguishable from a crash. Timing out writes `players_seen: 1`,
 ## which fails loudly and says why.
-func _await_party() -> float:
+func _await_party(wanted: int = 2) -> float:
 	var began: int = Time.get_ticks_msec()
-	while _session.players().size() < 2 or _session.local_player() == null:
+	while _session.players().size() < wanted or _session.local_player() == null:
 		await get_tree().physics_frame
 		if Time.get_ticks_msec() - began > PROBE_TIMEOUT_MSEC:
 			break
@@ -8744,6 +8744,7 @@ func _door_light(at: Vector3) -> void:
 
 func _spawn_actors() -> void:
 	_session = SESSION_SCENE.instantiate() as CoopSession
+	_session.world_scene = scene_file_path
 	_session.spawn_points = _floor.spawns()
 	add_child(_session)
 
@@ -14286,8 +14287,29 @@ func _a_sound_at(where: Vector3) -> Array:
 ## The host is launched into the Deep with the descent declared under way; the
 ## joiner is launched at **the fire**, knocks, and has to be called down —
 ## which is the path a player takes and the one ADR-157 could not survive.
+var _late_reports: Dictionary = {}
+var _late_release: bool = false
+var _late_probing: bool = false
+
+
+@rpc("any_peer", "reliable")
+func _late_report_ready() -> void:
+	if multiplayer.is_server() and _late_probing:
+		_late_reports[multiplayer.get_remote_sender_id()] = true
+
+
+@rpc("authority", "reliable")
+func _late_reports_finished() -> void:
+	_late_release = true
+
+
 func _late_probe(out: String) -> void:
+	_late_probing = true
 	var host: bool = multiplayer.is_server()
+	var wanted: int = 2
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--late-party="):
+			wanted = clampi(int(arg.get_slice("=", 1)), 2, 4)
 	# **Something is already gone before the knock.** `TEC-004`'s delta table
 	# is a list of things that have changed since the floor was generated, and
 	# the question it is really asking is whether an arrival is handed the
@@ -14314,7 +14336,7 @@ func _late_probe(out: String) -> void:
 		for i: int in 3:
 			_session.spawn_enemy(_floor.shaft() + Vector3(2.0 + float(i), 0.1, 2.0))
 			await _hold(1.0)
-	var waited: float = await _await_party()
+	var waited: float = await _await_party(wanted)
 	var settling: int = Time.get_ticks_msec()
 	while not _session.everyone_declared():
 		await get_tree().physics_frame
@@ -14347,14 +14369,23 @@ func _late_probe(out: String) -> void:
 		"arrival_clamor": _probe_arrival_clamor,
 		"godot": Engine.get_version_info()["string"],
 	}
-	# **Sampled while both are here, written once the other has finished.**
-	# Both processes quit when they have written, and the host quitting first
-	# reads on the joiner as *the host closed the session* — an empty report
-	# and a story about a disconnect that never happened. The host therefore
-	# holds after taking its reading, and what it reports is the moment they
-	# were both standing on the floor rather than the moment it gave up.
+	# Keep every peer alive until all reports have been sampled. A fixed
+	# sleep allowed the first client to quit while the third was still reading.
+	var deadline: int = Time.get_ticks_msec() + PROBE_TIMEOUT_MSEC
 	if host:
-		await _hold(4.0)
+		while _late_reports.size() < wanted - 1 and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
+		# Disconnect clients in sequence so ENet does not relay one departure
+		# to another peer whose transport is already being destroyed.
+		for peer: int in multiplayer.get_peers():
+			_late_reports_finished.rpc_id(peer)
+			deadline = Time.get_ticks_msec() + PROBE_TIMEOUT_MSEC
+			while multiplayer.get_peers().has(peer) and Time.get_ticks_msec() < deadline:
+				await get_tree().process_frame
+	else:
+		_late_report_ready.rpc_id(CoopSession.HOST_PEER)
+		while not _late_release and Time.get_ticks_msec() < deadline:
+			await get_tree().process_frame
 	var file := FileAccess.open(out, FileAccess.WRITE)
 	if file == null:
 		printerr("[late] FAIL cannot write %s" % out)
@@ -14548,6 +14579,16 @@ func _portal_probe() -> void:
 func _body_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	await _hold(0.5)
+	# A remote owner may take time to send its first motion snapshot. Exercise
+	# that silence on a real spawned body, away from the world origin.
+	var arrival := Vector3(-24.0, 0.1, -10.0)
+	var waiting: Player = _session.spawn_player(999, arrival)
+	await _hold(0.2)
+	var drift: float = waiting.position.distance_to(arrival)
+	print("[body] spawn wait   %.4f m drift before the first owner snapshot" % drift)
+	if drift > 0.001:
+		problems.append("a remote body left its spawn before receiving a motion snapshot")
+	_session.despawn_player(999)
 	var body: Player = _session.local_player()
 	if body == null:
 		printerr("[body] FAIL no body on the floor to pose")
@@ -14695,7 +14736,9 @@ func _body_wears(body: Player) -> PackedStringArray:
 	var frame: ItemResource = ItemCatalogue.by_id(&"arm_pack_frame")
 	var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
 	var bow: ItemResource = ItemCatalogue.by_id(&"wpn_yew_bow")
-	for item: ItemResource in [helm, lamp, shield, frame, seax, bow]:
+	var byrnie: ItemResource = ItemCatalogue.by_id(&"arm_mail_byrnie")
+	var bracers: ItemResource = ItemCatalogue.by_id(&"arm_iron_bracers")
+	for item: ItemResource in [helm, lamp, shield, frame, seax, bow, byrnie, bracers]:
 		if item == null:
 			problems.append("an item the gear rows dress the body in is not in "
 				+ "the catalogue, so nothing below measured anything")
@@ -14711,7 +14754,47 @@ func _body_wears(body: Player) -> PackedStringArray:
 	await get_tree().process_frame
 	await get_tree().process_frame
 
-	# ─ 6. the helm covers the crown ─
+	# ─ 6. Body and Arms are skinned, not socket props ─
+	#
+	# The byrnie replaces the covered part of the blockout body, and both it and
+	# the bracers must resolve their skins to this body's Skeleton3D. A floor prop
+	# on a socket would look attached at rest while freezing under the gait.
+	var base_triangles: int = rig.base_body_triangles()
+	gear.equip(ItemInstance.of(byrnie, 9506))
+	gear.equip(ItemInstance.of(bracers, 9507))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var masked_triangles: int = rig.body_triangles()
+	print("[body] the mail     %d base triangle(s), %d exposed; arms %s the shared rig"
+		% [base_triangles, masked_triangles,
+			"bind" if rig.skinned_slot_uses_shared_skeleton(Enums.Slot.ARMS) else "miss"])
+	if rig.worn_on(Enums.Slot.BODY) == null or rig.worn_on(Enums.Slot.ARMS) == null:
+		problems.append("the byrnie or bracers were equipped and did not join the body")
+	if not rig.body_is_masked() or masked_triangles >= base_triangles:
+		problems.append(("the byrnie left %d of %d base triangles visible — it has "
+			+ "to replace its covered proxy body, not layer a second torso inside it")
+			% [masked_triangles, base_triangles])
+	if not rig.skinned_slot_uses_shared_skeleton(Enums.Slot.BODY) \
+			or not rig.skinned_slot_uses_shared_skeleton(Enums.Slot.ARMS):
+		problems.append("the byrnie or bracers keep a duplicate skeleton or do not bind the shared rig")
+	var old_mail: Node3D = rig.worn_on(Enums.Slot.BODY)
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"rlc_otr_pelt"), 9508))
+	await get_tree().process_frame
+	var pelt_bound: bool = rig.skinned_slot_uses_shared_skeleton(Enums.Slot.BODY)
+	print("[body] the pelt     shared rig %s, mail removed %s"
+		% [pelt_bound, not is_instance_valid(old_mail)])
+	if not pelt_bound or is_instance_valid(old_mail) or not rig.body_is_masked():
+		problems.append("swapping mail for Otr's pelt did not replace the worn mesh on the shared rig")
+	gear.unequip(Enums.Slot.BODY)
+	gear.unequip(Enums.Slot.ARMS)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	print("[body] body cleared  %d triangle(s), base restored %s"
+		% [rig.body_triangles(), "exactly" if rig.body_triangles() == base_triangles else "wrong"])
+	if rig.body_is_masked() or rig.body_triangles() != base_triangles:
+		problems.append("taking off the Body garment did not restore the exact base body mesh")
+
+	# ─ 7. the helm covers the crown ─
 	var crown: float = 1.80
 	var head_at: Vector3 = into * rig.socket_at(Enums.Slot.HEAD)
 	var on_head: AABB = _worn_bounds(rig, Enums.Slot.HEAD, into)
@@ -14925,9 +15008,12 @@ func _hands_probe() -> void:
 
 	# ─ 6. a weapon put in the hand rises into view, and arrives ─
 	var gear: Equipment = body.equipment
+	body.sworn = &"huskarl"
+	body._redress()
 	gear.clear()
 	await get_tree().process_frame
 	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 9700))
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_iron_bracers"), 9702))
 	await get_tree().process_frame
 	var starting: float = body.weapon.drawn()
 	await _hold(MeleeWeapon.DRAW_SECONDS + 0.15)
@@ -14947,6 +15033,52 @@ func _hands_probe() -> void:
 	body.lit = false
 	await _hold(0.6)
 	var hands: Hands = body.hands()
+	var arm_skeleton: Skeleton3D = _hands_skeleton(hands)
+	var right_idle: float = _hand_grip_distance(arm_skeleton, &"sock_hand_r",
+		body.weapon.grip())
+	var left_idle: float = _hand_grip_distance(arm_skeleton, &"sock_hand_l",
+		hands.get_node_or_null(^"OffHand") as Node3D if hands != null else null)
+	var right_idle_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_r",
+		body.weapon.grip())
+	var left_idle_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_l",
+		hands.get_node_or_null(^"OffHand") as Node3D if hands != null else null)
+	var bracer_carrier := arm_skeleton.get_node_or_null("Worn_arm_iron_bracers") \
+		if arm_skeleton != null else null
+	var bracers_bound: bool = bracer_carrier != null \
+		and bracer_carrier.find_children("*", "Skeleton3D", true, false).is_empty() \
+		and _skinned_meshes_bind(bracer_carrier, arm_skeleton)
+	print("[hands] arms        idle R %.3f m/%.1f°, L %.3f m/%.1f°, bracers %s"
+		% [right_idle, right_idle_turn, left_idle, left_idle_turn,
+			"bound" if bracers_bound else "unbound"])
+	if arm_skeleton == null or right_idle > 0.015 or left_idle > 0.015 \
+			or right_idle_turn > 3.0 or left_idle_turn > 3.0:
+		problems.append(("first-person idle wrist(s) miss their held grip by right %.3f m "
+			+ "and left %.3f m — an arm beside its item is not a hand holding it")
+			% [right_idle, left_idle])
+	if not bracers_bound:
+		problems.append("first-person bracers do not bind their class arms' one skeleton")
+	# A static grip check misses a one-frame lag during draw-in or a swing.
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"wpn_bearded_axe"), 9712))
+	var moving_error: float = 0.0
+	var turning_error: float = 0.0
+	for _frame: int in range(12):
+		# SceneTree timers run after node processing, like the rendered pose.
+		await get_tree().create_timer(0.025).timeout
+		moving_error = maxf(moving_error,
+			_hand_grip_distance(arm_skeleton, &"sock_hand_r", body.weapon.grip()))
+		turning_error = maxf(turning_error,
+			_hand_grip_turn(arm_skeleton, &"sock_hand_r", body.weapon.grip()))
+	body.weapon.begin_owned_swing()
+	for _frame: int in range(20):
+		await get_tree().create_timer(0.025).timeout
+		moving_error = maxf(moving_error,
+			_hand_grip_distance(arm_skeleton, &"sock_hand_r", body.weapon.grip()))
+		turning_error = maxf(turning_error,
+			_hand_grip_turn(arm_skeleton, &"sock_hand_r", body.weapon.grip()))
+	print("[hands] moving grip %.4f m / %.2f° worst during draw-in and swing"
+		% [moving_error, turning_error])
+	if moving_error > 0.002 or turning_error > 0.5:
+		problems.append("the hand trails its weapon during draw-in or a swing")
 	var lamp: Node3D = hands.off_look() if hands != null else null
 	var louvres: int = HeldLook.louvres(lamp)
 	var shut: Basis = _first_louvre(lamp)
@@ -14968,23 +15100,47 @@ func _hands_probe() -> void:
 			% [swung, louvres, "lit" if flame != null and flame.visible else "out"])
 	body.lit = false
 
-	# ─ 8. a binding is tied in your hands, and put away ─
+	# ─ 8. a guard brings the same left wrist to the raised shield ─
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_round_shield"), 9703))
+	body.blocking = true
+	await _hold(0.5)
+	var left_guard: float = _hand_grip_distance(arm_skeleton, &"sock_hand_l",
+		hands.get_node_or_null(^"OffHand") as Node3D if hands != null else null)
+	var left_guard_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_l",
+		hands.get_node_or_null(^"OffHand") as Node3D if hands != null else null)
+	print("[hands] guard       left wrist %.3f m / %.1f° from the shield grip"
+		% [left_guard, left_guard_turn])
+	if left_guard > 0.015 or left_guard_turn > 3.0:
+		problems.append("the raised shield moved without the first-person left wrist")
+	body.blocking = false
+
+	# ─ 9. a binding is tied in your hands, and put away ─
 	body.mending = 0.5
 	await _hold(0.5)
 	var roll: Node3D = hands.use_look() if hands != null else null
+	var left_use: float = _hand_grip_distance(arm_skeleton, &"sock_hand_l",
+		hands.get_node_or_null(^"InUse") as Node3D if hands != null else null)
+	var right_use: float = _hand_grip_distance(arm_skeleton, &"sock_hand_r",
+		body.weapon.grip())
+	var left_use_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_l",
+		hands.get_node_or_null(^"InUse") as Node3D if hands != null else null)
+	var right_use_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_r",
+		body.weapon.grip())
 	var shrunk: float = roll.scale.x if roll != null else 1.0
 	body.mending = 0.0
 	await _hold(0.8)
 	var put_away: bool = hands != null and hands.use_look() == null
-	print("[hands] binding     %s, at %.2f of its size half-tied, %s" % [
-		"in hand" if roll != null else "nothing", shrunk,
+	print("[hands] binding     %s, at %.2f of its size half-tied, wrists %.3f/%.3f m %.1f/%.1f°, %s" % [
+		"in hand" if roll != null else "nothing", shrunk, left_use, right_use,
+		left_use_turn, right_use_turn,
 		"put away" if put_away else "still held"])
-	if roll == null or shrunk > 0.95 or not put_away:
+	if roll == null or shrunk > 0.95 or not put_away or left_use > 0.015 or right_use > 0.015 \
+			or left_use_turn > 3.0 or right_use_turn > 3.0:
 		problems.append("a binding half-tied showed %s and was %s afterwards"
 			% ["nothing" if roll == null else "a roll that had not wound down",
 				"put away" if put_away else "still in hand"])
 
-	# ─ 9. a Waystone takes the way out's light as it is spent ─
+	# ─ 10. a Waystone takes the way out's light as it is spent ─
 	body.leaving = 0.9
 	await _hold(0.5)
 	var stone: Node3D = hands.use_look() if hands != null else null
@@ -14999,7 +15155,7 @@ func _hands_probe() -> void:
 	body.leaving = 0.0
 	await _hold(0.6)
 
-	# ─ 10. a teammate's hands say the same things ─
+	# ─ 11. a teammate's hands say the same things ─
 	var mate: Player = _session.spawn_player(2, body.global_position + ahead * 3.0)
 	if mate == null:
 		problems.append("no teammate could be spawned to ask about their hands")
@@ -15022,7 +15178,7 @@ func _hands_probe() -> void:
 				+ "show on their body — the same state reads differently to "
 				+ "the two people it matters to")
 
-	# ─ 11. a broken rune breaks, and its pieces go ─
+	# ─ 12. a broken rune breaks, and its pieces go ─
 	var rune := HeldLook.first_with(HushTrait)
 	var circle: Hush = _session.spawn_hush(ground,
 		rune.first_trait(HushTrait) as HushTrait) if rune != null else null
@@ -15039,6 +15195,13 @@ func _hands_probe() -> void:
 		problems.append("a broken rune showed %d shard(s) and left %d behind"
 			% [shards, shards_left])
 
+	# The gym and pre-selection state may return to an unsworn body.
+	hands.dress_arms(null, null)
+	var unsworn_empty: bool = _hands_skeleton(hands) == null
+	print("[hands] unsworn     arms removed %s" % unsworn_empty)
+	if not unsworn_empty:
+		problems.append("returning to no class left the previous class arms attached")
+
 	for problem: String in problems:
 		printerr("[hands] FAIL %s" % problem)
 	print("[hands] things move when handled, and every movement ends")
@@ -15052,6 +15215,50 @@ static func _first_louvre(lamp: Node3D) -> Basis:
 	var found: Array[Node] = lamp.find_children("shutter_louvre*", "Node3D",
 		true, false)
 	return (found[0] as Node3D).basis if not found.is_empty() else Basis()
+
+
+static func _hands_skeleton(hands: Hands) -> Skeleton3D:
+	if hands == null:
+		return null
+	var found: Array[Node] = hands.find_children("*", "Skeleton3D", true, false)
+	return found[0] as Skeleton3D if not found.is_empty() else null
+
+
+static func _hand_socket_pose(skeleton: Skeleton3D, socket: StringName) -> Transform3D:
+	if skeleton == null:
+		return Transform3D.IDENTITY
+	var bone: int = skeleton.find_bone(socket)
+	return skeleton.global_transform * skeleton.get_bone_global_pose(bone) \
+		if bone >= 0 else Transform3D.IDENTITY
+
+
+static func _hand_grip_distance(skeleton: Skeleton3D, socket: StringName,
+		grip: Node3D) -> float:
+	if skeleton == null or grip == null or skeleton.find_bone(socket) < 0:
+		return INF
+	return _hand_socket_pose(skeleton, socket).origin.distance_to(grip.global_position)
+
+
+static func _hand_grip_turn(skeleton: Skeleton3D, socket: StringName,
+		grip: Node3D) -> float:
+	if skeleton == null or grip == null or skeleton.find_bone(socket) < 0:
+		return INF
+	return rad_to_deg(_hand_socket_pose(skeleton, socket).basis.get_rotation_quaternion()
+		.angle_to(grip.global_basis.get_rotation_quaternion()))
+
+
+static func _skinned_meshes_bind(carrier: Node, skeleton: Skeleton3D) -> bool:
+	if carrier == null or skeleton == null:
+		return false
+	var meshes: Array[Node] = carrier.find_children("*", "MeshInstance3D", true, false)
+	if meshes.is_empty():
+		return false
+	for node: Node in meshes:
+		var mesh := node as MeshInstance3D
+		if mesh == null or mesh.skin == null \
+				or mesh.get_node_or_null(mesh.skeleton) != skeleton:
+			return false
+	return true
 
 
 ## **`--ink-probe`** (`M4-T08`, ADR-269): the page, the classes, and what
@@ -15427,6 +15634,7 @@ func _screen_rect(camera: Camera3D, root: Node3D) -> Rect2:
 ## reads as a lantern is not one (ADR-093).
 func _hands_shot(path: String) -> void:
 	var body: Player = _session.local_player()
+	body.sworn = &"huskarl"
 	_session.clear_enemies()
 	await _hold(0.4)
 	var ahead: Vector3 = -body.global_transform.basis.z
@@ -15434,6 +15642,7 @@ func _hands_shot(path: String) -> void:
 	ahead = ahead.normalized()
 	var gear: Equipment = body.equipment
 	gear.clear()
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_iron_bracers"), 9802))
 	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 9800))
 	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"tol_horn_lantern"), 9801))
 	body.lit = true
@@ -15464,6 +15673,19 @@ func _hands_shot(path: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(
 		path.replace(".png", "-shut.png"))
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_round_shield"), 9803))
+	await _hold(0.6)
+	body.set_physics_process(false)
+	body.hands().step(1.0, false, true, 0.0, 0.0, body.weapon.grip())
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-guard.png"))
+	body.set_physics_process(true)
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"wpn_yew_bow"), 9804))
+	await _hold(0.6)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-bow.png"))
 	print("[hands] shot %s" % path)
 	get_tree().quit(0)
 
@@ -15502,7 +15724,8 @@ func _body_shot(path: String) -> void:
 	var gear: Equipment = mate.equipment
 	gear.clear()
 	for id: StringName in [&"wpn_bearded_axe", &"arm_spangen_helm",
-			&"tol_horn_lantern", &"arm_pack_frame"]:
+			&"tol_horn_lantern", &"arm_pack_frame", &"arm_mail_byrnie",
+			&"arm_iron_bracers"]:
 		gear.equip(ItemInstance.of(ItemCatalogue.by_id(id), 9600))
 	mate.lit = true
 	player.equipment.clear()
@@ -15532,6 +15755,13 @@ func _body_shot(path: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(
 		path.replace(".png", "-side.png"))
+
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"rlc_otr_pelt"), 9602))
+	mate.net_yaw = atan2(ahead.x, ahead.z)
+	await _hold(0.4)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-pelt.png"))
 
 	player.equipment.equip(ItemInstance.of(
 		ItemCatalogue.by_id(&"wpn_yew_bow"), 9611))

@@ -541,7 +541,7 @@ def read_report(path: Path) -> dict | None:
         return None
 
 
-def judge_late(host: dict, client: dict) -> list[tuple[str, bool]]:
+def judge_late(host: dict, client: dict, party: int = 2) -> list[tuple[str, bool]]:
     """A join that happened is two machines agreeing that it did.
 
     Every row is a claim one process alone would report happily while the
@@ -557,7 +557,7 @@ def judge_late(host: dict, client: dict) -> list[tuple[str, bool]]:
     seen = (host.get("players_seen", 0), client.get("players_seen", 0))
     rows.append(check(
         "both peers see the whole party",
-        seen == (2, 2), f"host {seen[0]}, joiner {seen[1]} of 2"))
+        seen == (party, party), f"host {seen[0]}, joiner {seen[1]} of {party}"))
     rows.append(check(
         "the joiner built the same floor",
         host.get("seed") == client.get("seed") == LATE_SEED
@@ -653,24 +653,41 @@ def main() -> int:
         # both numbers and a harness on the hand-built Deep would carry zeros.
         host_args = ["--host", f"--port={args.port}", "--under-way",
                      f"--as-run={LATE_SEED}", "--as-class=huskarl",
+                     f"--late-party={args.clients + 1}",
                      f"--late-probe={host_out}"]
         procs.append(("host", launch(godot, host_args, args, 0)))
         time.sleep(2.0)
-        joiner_args = [f"--join=127.0.0.1", f"--port={args.port}",
-                       "--own-run", "--as-class=huskarl", "--as-rank=8",
-                       f"--late-probe={client_outs[0]}"]
-        procs.append(("joiner", launch(godot, joiner_args, args, 1, THRESHOLD)))
+        for slot, output in enumerate(client_outs, 1):
+            joiner_args = ["--join=127.0.0.1", f"--port={args.port}",
+                           "--own-run", "--as-class=huskarl", "--as-rank=8",
+                           f"--late-party={args.clients + 1}",
+                           f"--late-probe={output}"]
+            procs.append((f"joiner{slot}", launch(godot, joiner_args, args, slot, THRESHOLD)))
+            if slot < args.clients:
+                # The next knock arrives while an existing client owns a
+                # MotionSync, exercising relay admission as well as the host.
+                time.sleep(3.0)
         logs = wait_for(procs)
         host = read_report(host_out)
-        joiner = read_report(client_outs[0])
-        if not host or not joiner:
+        joiners = [read_report(output) for output in client_outs]
+        if not host or not all(joiners):
             print("\nthe late-join probe produced no usable report — engine "
                   "output follows:", file=sys.stderr)
             for name, out in logs.items():
                 print(f"\n--- {name} ---\n{out}", file=sys.stderr)
             return 1
         print(f"\nGodot {host['godot']} · a knock after the descent began\n")
-        rows = judge_late(host, joiner)
+        rows = [row for joiner in joiners
+                for row in judge_late(host, joiner, args.clients + 1)]
+        # A final matching world cannot excuse packets addressed to a scene
+        # that did not exist during admission (ADR-271).
+        errors = [line for output in logs.values() for line in output.splitlines()
+                  if line.startswith(("ERROR:", "SCRIPT ERROR:"))]
+        rows.append(check("admission sent no invalid scene packets", not errors,
+                          f"{len(errors)} engine error(s)"))
+        rows.append(check("both processes exited cleanly",
+                          all(proc.returncode == 0 for _, proc in procs),
+                          ", ".join(f"{name}: {proc.returncode}" for name, proc in procs)))
         for row, _ in rows:
             print(row)
         passed = all(ok for _, ok in rows)
@@ -681,6 +698,8 @@ def main() -> int:
             for name, out in logs.items():
                 print(f"\n--- {name} ---\n{out}", file=sys.stderr)
         if args.keep:
+            for name, output in logs.items():
+                (workdir / f"{name}.log").write_text(output)
             print(f"\nraw reports: {workdir}")
         else:
             shutil.rmtree(workdir, ignore_errors=True)

@@ -99,6 +99,12 @@ const PREFIXES: Array[String] = ["wpn_", "arm_", "con_", "glt_", "rlc_", "mat_",
 ## The **ember is the exception and keeps its sphere** — it is a light going
 ## out rather than a prop, and its emission *is* `DES-012`'s rescue window.
 @export var model: PackedScene
+## The body-shaped version of Body and Arms gear (`DES-020`). It is deliberately
+## separate from `model`: a byrnie lying in the world is a prop, whereas one on
+## a person is a mesh weighted to the shared skeleton. Reusing the floor prop
+## here would make a rigid coat follow one bone and silently turn skinned gear
+## back into the sandwich-board path ADR-265 rejected.
+@export var worn_model: PackedScene
 
 @export_group("Composition")
 ## What it can do. Empty is the common and correct case: glitter and materials
@@ -201,6 +207,93 @@ func look() -> Node3D:
 	return built
 
 
+## Build this item's **skinned** presentation on `shared`, or return null when
+## it cannot truthfully share the rig. `look()` is intentionally not involved:
+## that path is for a prop on the floor and removes its collision, while this
+## path keeps the weighted meshes and removes the duplicate skeleton that came
+## in with the asset.
+##
+## The exporter is allowed to reorder bones. Skin binds are therefore remapped
+## by their names, falling back to the source skeleton's name for old glTF
+## imports that leave `Skin.bind_name` blank. A shared rest pose makes the bind
+## matrices compatible; a missing name is an authoring failure, never a reason
+## to keep a second skeleton moving beside the real one.
+func wear_on(shared: Skeleton3D) -> Node3D:
+	if worn_model == null or shared == null:
+		return null
+	var imported := worn_model.instantiate() as Node3D
+	if imported == null:
+		push_error("ItemResource: worn model for %s did not make a Node3D" % id)
+		return null
+	var source: Skeleton3D = _skeleton_under(imported)
+	if source == null:
+		push_error("ItemResource: worn model for %s has no Skeleton3D" % id)
+		imported.free()
+		return null
+	var meshes: Array[MeshInstance3D] = []
+	for node: Node in source.find_children("*", "MeshInstance3D", true, false):
+		meshes.append(node as MeshInstance3D)
+	if meshes.is_empty():
+		push_error("ItemResource: worn model for %s has no weighted meshes" % id)
+		imported.free()
+		return null
+	var carrier := Node3D.new()
+	carrier.name = "Worn_%s" % id
+	shared.add_child(carrier)
+	for mesh: MeshInstance3D in meshes:
+		if not _remap_skin(mesh, source, shared):
+			carrier.free()
+			imported.free()
+			return null
+		# The imported scene owns this mesh. Clear that stale owner before moving
+		# it out so the runtime tree does not emit an inconsistent-owner warning.
+		mesh.owner = null
+		mesh.reparent(carrier, false)
+		# Each mesh becomes a child of a carrier under the one skeleton that poses
+		# it. The carrier keeps an equipped item's meshes together; its parent is
+		# the actual Skeleton3D, so the path climbs two levels.
+		mesh.skeleton = NodePath("../..")
+	imported.free()
+	return carrier
+
+
+static func _skeleton_under(node: Node) -> Skeleton3D:
+	var found := node as Skeleton3D
+	if found != null:
+		return found
+	for child: Node in node.get_children():
+		var deeper: Skeleton3D = _skeleton_under(child)
+		if deeper != null:
+			return deeper
+	return null
+
+
+static func _remap_skin(mesh: MeshInstance3D, source: Skeleton3D,
+		shared: Skeleton3D) -> bool:
+	if mesh.skin == null:
+		push_error("ItemResource: %s in worn model has no Skin" % mesh.name)
+		return false
+	var remapped := mesh.skin.duplicate(true) as Skin
+	if remapped == null:
+		push_error("ItemResource: could not duplicate Skin on %s" % mesh.name)
+		return false
+	mesh.skin = remapped
+	for bind: int in range(remapped.get_bind_count()):
+		var source_index: int = remapped.get_bind_bone(bind)
+		var bone_name: StringName = remapped.get_bind_name(bind)
+		if bone_name == &"" and source_index >= 0 \
+				and source_index < source.get_bone_count():
+			bone_name = source.get_bone_name(source_index)
+		var shared_index: int = shared.find_bone(bone_name)
+		if shared_index < 0:
+			push_error("ItemResource: worn mesh %s binds '%s', absent from the shared rig"
+				% [mesh.name, bone_name])
+			return false
+		remapped.set_bind_bone(bind, shared_index)
+		remapped.set_bind_name(bind, bone_name)
+	return true
+
+
 func validate() -> PackedStringArray:
 	var problems := PackedStringArray()
 	# A weapon nothing can hold is cargo with a damage number on it, and the
@@ -260,6 +353,10 @@ func validate() -> PackedStringArray:
 	if model == null:
 		problems.append("model is null; every item needs an authored world "
 			+ "model, and `WorldItem` deliberately has no generated fallback")
+
+	if slot in [Enums.Slot.BODY, Enums.Slot.ARMS] and worn_model == null:
+		problems.append("%s needs a skinned worn_model for its %s slot"
+			% [id, Enums.Slot.keys()[slot]])
 
 	if weight < 0.0:
 		problems.append("weight cannot be negative")

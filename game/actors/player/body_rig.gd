@@ -94,15 +94,15 @@ const POSED: Array[String] = [
 ## **Which socket each worn slot rides** (`DES-020`'s attachment table,
 ## ADR-265).
 ##
-## Three of the table's rows. The other three are absent on purpose rather than
-## waiting: **the main hand** is already drawn, by `MeleeWeapon` and
+## Three of the table's rows ride sockets. The remaining rows use their
+## prescribed attachment method: **the main hand** is already drawn, by `MeleeWeapon` and
 ## `RangedWeapon` in front of the head, because that copy is the one that swings
 ## and a teammate reads the wind-up off it — a second blade on `sock_hand_r`
 ## would hang still while the first one struck. **Body and arms** are *skinned*
-## in `DES-020`, deforming with the torso and forearm, and what was delivered
-## for them is a mail shirt and a pair of bracers modelled to lie on a floor;
-## bolted rigidly to a bone they would be a coat of mail worn as a sandwich
-## board. They wait for skinned meshes on this rig, which is `ART-006` §5.4.
+## in `DES-020`, deforming with the torso and forearm. Their source scenes only
+## carry a skeleton so Blender can author the weights; `ItemResource.wear_on`
+## remaps those skins by bone name and attaches the meshes to this skeleton.
+## There is never a second armature moving beside the teammate's body.
 ## The hand a thing being used is held in (ADR-267) — the right, which carries
 ## nothing else on the rig (see above).
 const USE_SOCKET: StringName = &"sock_hand_r"
@@ -111,6 +111,16 @@ const SOCKETS: Dictionary = {
 	Enums.Slot.OFF_HAND: &"sock_hand_l",
 	Enums.Slot.PACK: &"sock_back",
 }
+## The two slots that deform with this skeleton rather than ride a socket.
+const SKINNED_SLOTS: Array[Enums.Slot] = [Enums.Slot.ARMS, Enums.Slot.BODY]
+## The base rig is a blockout person, not a layer of clothing. A body garment
+## therefore replaces its torso, legs and upper arms while preserving the head,
+## neck, forearms and hands that the garment is designed to leave exposed.
+const BODY_COVERED_BONES: Array[StringName] = [
+	&"pelvis", &"spine_01", &"spine_02", &"chest",
+	&"thigh_l", &"calf_l", &"foot_l", &"thigh_r", &"calf_r", &"foot_r",
+	&"upper_arm_l", &"upper_arm_r",
+]
 
 ## What a living teammate is made of. Kept in the scene rather than here
 ## because it is the one value on this body a designer would argue about:
@@ -122,6 +132,8 @@ const SOCKETS: Dictionary = {
 
 var _skeleton: Skeleton3D = null
 var _mesh: MeshInstance3D = null
+var _base_body_mesh: Mesh = null
+var _masked_body_mesh: Mesh = null
 ## Bone name -> index, and bone name -> the local axis that swings it forward.
 var _bone: Dictionary = {}
 var _swing: Dictionary = {}
@@ -133,6 +145,9 @@ var _breath: float = 0.0
 ## Slot -> the `BoneAttachment3D` carrying it, and slot -> whose model it is.
 var _sockets: Dictionary = {}
 var _worn: Dictionary = {}
+## Slot -> one carrier directly under `_skeleton`, containing meshes whose
+## `skeleton` NodePath resolves to the shared skeleton.
+var _skinned: Dictionary = {}
 var _gear_shown: bool = true
 ## The lantern's shutter, eased, and what the right hand is using (ADR-267).
 var _open: float = 0.0
@@ -158,6 +173,8 @@ func _ready() -> void:
 	_mesh = _find_mesh(body)
 	if _mesh != null and teammate_skin != null:
 		_mesh.set_surface_override_material(0, teammate_skin)
+	if _mesh != null:
+		_base_body_mesh = _mesh.mesh
 	for name: String in POSED:
 		var index: int = _skeleton.find_bone(name)
 		if index < 0:
@@ -225,8 +242,7 @@ func pelvis_height() -> float:
 	return _skeleton.get_bone_global_pose(_bone["pelvis"]).origin.y
 
 
-## **Put on what the slots hold** (`DES-020`, ADR-265): slot -> `ItemResource`
-## or null, for the slots in `SOCKETS`.
+## **Put on what the slots hold** (`DES-020`): slot -> `ItemResource` or null.
 ##
 ## Called down by the body on every change to its equipment, on every peer, so
 ## a remote teammate's helm arrives with the slot that says they wear one and
@@ -240,6 +256,24 @@ func pelvis_height() -> float:
 func wear(items: Dictionary) -> void:
 	if _skeleton == null:
 		return
+	for slot: Enums.Slot in SKINNED_SLOTS:
+		var skinned_item: ItemResource = items.get(slot, null) as ItemResource
+		if _worn.get(slot, null) == skinned_item:
+			continue
+		_worn[slot] = skinned_item
+		var old: Node3D = _skinned.get(slot, null) as Node3D
+		if old != null:
+			old.free()
+		_skinned.erase(slot)
+		if skinned_item == null:
+			continue
+		var carrier: Node3D = skinned_item.wear_on(_skeleton)
+		if carrier == null:
+			push_error("BodyRig: %s has no skinned worn model for %s"
+				% [skinned_item.id, Enums.Slot.keys()[slot]])
+			continue
+		carrier.visible = _gear_shown
+		_skinned[slot] = carrier
 	for slot: Enums.Slot in SOCKETS:
 		var item: ItemResource = items.get(slot, null) as ItemResource
 		if _worn.get(slot, null) == item:
@@ -257,6 +291,7 @@ func wear(items: Dictionary) -> void:
 			continue
 		look.transform = item.grip
 		socket.add_child(look)
+	_mask_base_body(_skinned.has(Enums.Slot.BODY))
 
 
 ## Draw the gear or not. Off for the body you are inside, for the reason its
@@ -266,6 +301,8 @@ func show_gear(on: bool) -> void:
 	# Keyed by slot or, for the hand a thing is used in, by bone — so untyped.
 	for key: Variant in _sockets:
 		(_sockets[key] as Node3D).visible = on
+	for slot: Enums.Slot in _skinned:
+		(_skinned[slot] as Node3D).visible = on
 
 
 ## Where a bone's head is now, in world space — for the checks that ask which
@@ -348,10 +385,149 @@ func in_use() -> Node3D:
 ## The model riding `slot`, or null — for `--body-probe`, which asks where it
 ## actually landed rather than what was asked for.
 func worn_on(slot: Enums.Slot) -> Node3D:
+	if SKINNED_SLOTS.has(slot):
+		return _skinned.get(slot, null) as Node3D
 	var socket: BoneAttachment3D = _sockets.get(slot, null) as BoneAttachment3D
 	if socket == null or socket.get_child_count() == 0:
 		return null
 	return socket.get_child(0) as Node3D
+
+
+## Whether a body garment has replaced the covered part of the proxy rig. The
+## equipment probe asks this after equipping and again after unequipping, so a
+## garment cannot leave a second torso inside it or permanently erase the base
+## body on its way back to the bag.
+func body_is_masked() -> bool:
+	return _mesh != null and _mesh.mesh == _masked_body_mesh
+
+
+## Triangle count of the body currently drawn, for the same focused probe.
+func body_triangles() -> int:
+	return _triangles(_mesh.mesh) if _mesh != null else 0
+
+
+func base_body_triangles() -> int:
+	return _triangles(_base_body_mesh)
+
+
+## Confirm that an equipped skinned slot uses this body's one Skeleton3D. The
+## body probe asks this at runtime: an asset may carry the right Skin yet still
+## point at the discarded source armature after it is reparented.
+func skinned_slot_uses_shared_skeleton(slot: Enums.Slot) -> bool:
+	var carrier: Node3D = _skinned.get(slot, null) as Node3D
+	if carrier == null or _skeleton == null \
+			or not carrier.find_children("*", "Skeleton3D", true, false).is_empty():
+		return false
+	var meshes: Array[Node] = carrier.find_children("*", "MeshInstance3D", true, false)
+	if meshes.is_empty():
+		return false
+	for node: Node in meshes:
+		var skinned := node as MeshInstance3D
+		if skinned == null or skinned.skin == null \
+				or skinned.get_node_or_null(skinned.skeleton) != _skeleton:
+			return false
+	return true
+
+
+## Make one mesh from the original rig with only its exposed parts. This is a
+## presentation swap, so it keeps the original skeleton, Skin and materials;
+## re-authoring a second base body beside the rig would drift the next time the
+## rig changes. The mesh is restored by identity on unequip.
+func _mask_base_body(on: bool) -> void:
+	if _mesh == null or _base_body_mesh == null:
+		return
+	if not on:
+		_mesh.mesh = _base_body_mesh
+		return
+	if _masked_body_mesh == null:
+		_masked_body_mesh = _without_covered_body(_base_body_mesh, _mesh.skin)
+	if _masked_body_mesh != null:
+		_mesh.mesh = _masked_body_mesh
+
+
+func _without_covered_body(source: Mesh, skin: Skin) -> Mesh:
+	if skin == null:
+		push_error("BodyRig: the base body has no Skin to mask under armour")
+		return null
+	var covered: Dictionary = {}
+	for name: StringName in BODY_COVERED_BONES:
+		var index: int = _skeleton.find_bone(name)
+		if index >= 0:
+			covered[index] = true
+	var filtered := ArrayMesh.new()
+	for surface: int in range(source.get_surface_count()):
+		var arrays: Array = source.surface_get_arrays(surface)
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		var bones: PackedInt32Array = arrays[Mesh.ARRAY_BONES] as PackedInt32Array
+		var weights: PackedFloat32Array = arrays[Mesh.ARRAY_WEIGHTS] as PackedFloat32Array
+		if vertices.is_empty() or bones.is_empty() or weights.is_empty():
+			push_error("BodyRig: base body surface %d has no skin weights" % surface)
+			return null
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+		if indices.is_empty():
+			for vertex: int in range(vertices.size()):
+				indices.append(vertex)
+		var kept := PackedInt32Array()
+		for first: int in range(0, indices.size() - 2, 3):
+			var hidden: bool = false
+			for corner: int in 3:
+				if _covered_vertex(indices[first + corner], vertices.size(), bones,
+						weights, skin, covered):
+					hidden = true
+					break
+			if not hidden:
+				kept.append_array(PackedInt32Array([
+					indices[first], indices[first + 1], indices[first + 2],
+				]))
+		arrays[Mesh.ARRAY_INDEX] = kept
+		filtered.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		filtered.surface_set_material(filtered.get_surface_count() - 1,
+			source.surface_get_material(surface))
+	return filtered
+
+
+## A vertex belongs to the one bone contributing most of its weight. The edge
+## between an upper arm and a forearm stays with the forearm where that is what
+## visibly owns it; filtering every *partial* upper-arm influence would eat the
+## elbow and leave a gap beneath a bracer.
+func _covered_vertex(vertex: int, vertex_count: int,
+		bones: PackedInt32Array, weights: PackedFloat32Array, skin: Skin,
+		covered: Dictionary) -> bool:
+	var influences: int = bones.size() / vertex_count
+	if influences <= 0 or weights.size() < bones.size():
+		return false
+	var strongest_weight: float = -1.0
+	var strongest_bone: int = -1
+	for influence: int in range(influences):
+		var at: int = vertex * influences + influence
+		if weights[at] > strongest_weight:
+			strongest_weight = weights[at]
+			strongest_bone = _bind_bone(skin, bones[at])
+	return covered.has(strongest_bone)
+
+
+## A glTF import may preserve a Skin bind's name but omit its old skeleton
+## index. The base body is posed by `_skeleton`, so resolve names against that
+## skeleton before falling back to a valid numeric bind.
+func _bind_bone(skin: Skin, bind: int) -> int:
+	if bind < 0 or bind >= skin.get_bind_count():
+		return -1
+	var named: StringName = skin.get_bind_name(bind)
+	if named != &"" and _skeleton != null:
+		return _skeleton.find_bone(named)
+	return skin.get_bind_bone(bind)
+
+
+static func _triangles(source_mesh: Mesh) -> int:
+	if source_mesh == null:
+		return 0
+	var total: int = 0
+	for surface: int in range(source_mesh.get_surface_count()):
+		var arrays: Array = source_mesh.surface_get_arrays(surface)
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX] as PackedInt32Array
+		var vertices: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array
+		total += indices.size() / 3 if not indices.is_empty() else vertices.size() / 3
+	return total
 
 
 ## The attachment for one slot, made the first time it is asked for.

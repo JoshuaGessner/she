@@ -56,30 +56,11 @@ const MENU_SCENE: String = "res://ui/main_menu.tscn"
 ## for a slow link, short enough that a mistyped address is a small mistake.
 const CONNECT_TIMEOUT_MSEC: int = 8000
 const LOOPBACK: String = "127.0.0.1"
-## **Why a connection did not happen, when nobody can say which** (`M3-T36`,
-## ADR-157).
-##
-## There are three real causes and a client can tell them apart from none of
-## them: nothing is hosting, the party is full, or the host has already gone
-## down. ENet refuses the last two at the transport and never raises
-## `connection_failed` for either — measured, and the reason `_start_client`
-## carries its own deadline — so all three arrive here as silence.
-##
-## It used to say *"Check the address, and that the host has opened the
-## Threshold"*, which names one cause and asserts it. Two of the three times
-## that sentence appears it is **wrong**, and it sends somebody to re-check an
-## address that was right all along: a fourth player is told to check their
-## typing, and so is somebody whose friend simply started without them.
-##
-## Naming all three is honest about what this process knows, and each one is
-## something the reader can act on. Telling them apart needs the host to answer
-## before the transport refuses, which is a handshake this build does not have
-## and which `M4-T07` brings for free with lobbies — so this is the whole of
-## what is worth building today.
+## A timeout cannot distinguish an unreachable host, a full party, or a scene
+## admission that never completed. Late joining itself is supported (ADR-271).
 const NO_ANSWER: String = ("No answer from %s:%d after %d seconds.\n\n"
-	+ "Either nothing is hosting there, the party is already full, or they "
-	+ "have gone down without you — a descent only takes arrivals while "
-	+ "everyone is at the fire.")
+	+ "Check the address and that the host is reachable. The party may be full, "
+	+ "or the connection could not finish joining its floor.")
 ## Sentinel for "wherever the next spawn mark is". A real position, never used
 ## as one, because `Vector3` has no null.
 const NO_PLACE: Vector3 = Vector3(-99999.0, -99999.0, -99999.0)
@@ -111,6 +92,8 @@ signal floor_rank_changed(was: int, now: int)
 ## three-point level stands on the first point rather than at the origin.
 ## Levels set this before adding the session to the tree.
 var spawn_points: Array[Vector3] = [Vector3.ZERO]
+## The owning level supplies its identity before this session enters the tree.
+var world_scene: String = ""
 
 var _role: String = "solo"
 var _address: String = LOOPBACK
@@ -173,10 +156,6 @@ var _doorway: Doorway = null
 ## **We let go of the host on purpose**, to knock again from the floor. Static,
 ## because it has to survive the scene change it exists for (`M4-T15`).
 static var _going_to_them: bool = false
-## Peers standing on this floor, by their own account. A peer that has
-## connected but not said so is in another scene, and everything spawned here
-## is invisible to it until it does (`M4-T15`, ADR-250).
-var _on_the_floor: Dictionary = {}
 ## Where a late arrival is put — the Shaft, which `DES-005` Layer 3b makes the
 ## way in as well as the way out. Set by the level, because only the level
 ## knows its floor. `NO_PLACE` means *wherever anyone else would spawn*.
@@ -199,8 +178,9 @@ func _ready() -> void:
 	# The knocker's address, before there is anything to knock about.
 	_doorway = Doorway.of(get_tree())
 	if _doorway != null:
-		_doorway.called_down.connect(_come_down)
-		_doorway.arrived.connect(_someone_is_on_the_floor)
+		_doorway.called_down.connect(_come_down, CONNECT_DEFERRED)
+		_doorway.configure(multiplayer as SceneMultiplayer,
+			world_scene, float(CONNECT_TIMEOUT_MSEC) / 1000.0)
 
 	# **A connection outlives a scene change.** The peer lives on the
 	# `SceneTree`, not on this node, so walking from the Threshold into the
@@ -333,13 +313,7 @@ static func taking_arrivals() -> bool:
 func _hold_the_door() -> void:
 	if multiplayer.multiplayer_peer == null or not multiplayer.is_server():
 		return
-	# **Open, and the gate is what is guarded** (`M4-T15`, ADR-250).
-	#
-	# ADR-157 shut the transport, and was right to for what it had: an accepted
-	# peer could send a packet addressed to a scene nobody was in. What
-	# replaces it is a handshake rather than a refusal — a peer that knocks
-	# mid-run is told where the party is and **gets no body until it says it is
-	# standing there**, which rules out that packet at the source.
+	# Transport stays open; Doorway's auth stage admits only matching scenes.
 	multiplayer.multiplayer_peer.refuse_new_connections = false
 	_log("the door is open — %s" % ("the party is at the fire"
 		if _party_is_assembling else "a knock now is a late join"))
@@ -805,7 +779,7 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 	# are independent events and neither waits for the other (ADR-122), so both
 	# orders have to end in the same place: the payload covers *declared first*,
 	# and this covers *spawned first* — which is the ordinary case, because the
-	# host spawns from `peer_connected` and the declaration is an RPC behind it.
+	# adopted connections may have spawned before their new declaration.
 	var body: Player = player_for(id)
 	if body != null:
 		body.sworn = StringName(sworn)
@@ -826,125 +800,36 @@ func declare_descent(rank: int, sworn: String, effects: PackedStringArray,
 	# the host's rank alone, which is the option ADR-010 rejected outright.
 	if floor_rank() != was:
 		floor_rank_changed.emit(was, floor_rank())
+	# A new peer is admitted to this scene, but its body needs the declaration
+	# above before _ready sizes its pools and equips its class kit.
+	if who != 0 and player_for(id) == null:
+		var at: Vector3 = NO_PLACE if _party_is_assembling else late_arrival
+		var arrived: Player = spawn_player(id, at)
+		if arrived != null and not _party_is_assembling:
+			_log("peer %d came down late, at %s" % [id, str(arrived.global_position.round())])
+			came_down_late.emit(id, arrived.global_position)
 
 
-## **A body is built when the host knows what body to build** (`M3-T07`).
-##
-## This used to call `spawn_player` here, and that is one frame too early:
-## a joining peer's `declare_descent` is an RPC it sends from its own
-## `_on_connected`, so the payload was assembled before the host had been told
-## the class — and **every client's body has been built classless since
-## `M3-T02`**, quietly losing its health, speed and carry scales. Nothing
-## noticed, because `sworn` only changed numbers until `M3-T07` gave it a
-## weapon to hold and the two-process smoke started swinging at air.
-##
-## Exactly the shape ADR-122 found in `_build_hunt` — a body arriving and a
-## declaration arriving are independent events — so it takes the same answer
-## from the other end: the declaration is what spawns the body.
+## Admission has already checked the scene before this signal can fire.
+## The client's declaration builds its body once its class and kit are known.
 func _on_peer_connected(peer: int) -> void:
-	# **Belt as well as braces** (`M3-T36`, ADR-157). `refuse_new_connections`
-	# is the fix; this is what makes a failure of it visible instead of
-	# expensive. There is a real window — the door is shut as the descent
-	# begins, and a connection already in flight can land inside it — and a body
-	# built for somebody who cannot see it is what hardens the floor and holds
-	# the run open.
-	if not _party_is_assembling:
-		# **Called down, not turned away** (`M4-T15`, ADR-250). No body yet:
-		# one built now would be built for somebody who is still at the fire,
-		# which is ADR-157's failure exactly. The seed and the floor are what
-		# it needs to build the same floor the party is standing on — every
-		# peer derives its own geometry (ADR-184), so what has to cross is the
-		# number they derive it from.
-		_log("peer %d knocked mid-run — called down to seed %d, floor %d"
-			% [peer, RunFile.seed_of(), RunFile.floor_index()])
-		if _doorway != null:
-			_doorway.the_party_is_below.rpc_id(peer, RunFile.seed_of(),
-				RunFile.floor_index())
-		# **And nothing else.** No body, no timer, no bookkeeping: the peer
-		# that was told lets go of this connection itself and comes back on a
-		# new one from the floor (see `_come_down`), and a peer that hears
-		# nothing is simply a knock that failed.
-		return
-	_log("peer %d joined" % peer)
-	spawn_player(peer)
+	_log("peer %d %s" % [peer, "joined" if _party_is_assembling
+		else "admitted to " + world_scene])
 
 
-## **Down to them** (`M4-T15`, ADR-250), on the peer that knocked: open a run
-## on the expedition the party is already on, walk into it, and **knock again
-## from there**. The floor is built from the seed like anybody else's, because
-## that is the only way two machines agree about a floor.
-##
-## ## The connection is dropped on purpose, and this is the heart of it
-##
-## Godot caches node paths **per connection**. Every packet the host sends
-## while this peer is still at the fire is addressed to a path that does not
-## exist in this scene — and the cache keeps that answer for the life of the
-## connection, so a peer that walked down on the same socket resolves no spawn
-## ever again. Measured, not feared: the first build of this said
-## *"ID 1 not found in cache of peer 1"* on every spawn, the joiner stood on an
-## empty floor, and the host saw a full one. **That is ADR-157's "it broke
-## both ends", named.** So the walk down ends one connection and begins
-## another, made in the scene it will live in.
+## A pre-admission call down carries no scene RPCs. Reconnect after building
+## the host's floor, so its node paths and spawn state are valid on arrival.
 func _come_down(run_seed: int, floor_index: int) -> void:
 	if multiplayer.is_server():
-		return
-	if _standing_on_a_floor():
-		# The second knock: we are already here, and this is the answer that
-		# earns a body.
-		i_am_with_you()
 		return
 	RunFile.begin(GameState.class_id, GameState.pact_rank, run_seed)
 	RunFile.note({"floor": floor_index})
 	_log("called down to seed %d, floor %d — going to them"
 		% [run_seed, floor_index])
-	# Quietly: the host drops this connection the moment it has told us, and
-	# `_on_host_lost` would otherwise read that as the host closing the session
-	# and send the player back to the menu — which is what it is for and
-	# exactly wrong here. Dropped from this end too, in case the message came
-	# from the periodic call rather than from a knock, in which case nobody
-	# has hung up.
+	# This disconnect is our own scene transition, not the host abandoning us.
 	_going_to_them = true
 	multiplayer.multiplayer_peer = null
 	get_tree().change_scene_to_file.call_deferred(DEEP_SCENE)
-
-
-## Is this process standing on a floor already? Asked of the scene rather than
-## of a flag, because the question is *which world is loaded*.
-func _standing_on_a_floor() -> bool:
-	var here: Node = get_tree().current_scene
-	return here != null and here.scene_file_path == DEEP_SCENE
-
-
-## **Say we are standing where you are** — the answer to a call down, and the
-## only thing that earns a body during a run. Nothing on the host, which is the
-## thing being told.
-##
-## Said in reply rather than announced: the host knocks at every connection
-## while a descent is under way, so a peer that has arrived answers the knock
-## it is already being sent. A level that announced it as well would be a
-## second way to say one thing (`ADR-064`), and the first draft had one —
-## removed when a plant showed that deleting it changed nothing.
-func i_am_with_you() -> void:
-	if multiplayer.is_server() or _doorway == null:
-		return
-	_doorway.i_am_with_you.rpc_id(HOST_PEER)
-
-
-## The host's half: a body for somebody who has just arrived, at the Shaft.
-func _someone_is_on_the_floor(peer: int) -> void:
-	if not multiplayer.is_server():
-		return
-	# **Before the body, not after.** The spawn packet for it is sent in the
-	# same frame, and a peer that is not yet visible would be sent nothing and
-	# then never told again.
-	_on_the_floor[peer] = true
-	if player_for(peer) != null:
-		return
-	var body: Player = spawn_player(peer, late_arrival)
-	if body == null:
-		return
-	_log("peer %d came down late, at %s" % [peer, str(body.global_position.round())])
-	came_down_late.emit(peer, body.global_position)
 
 
 func _on_peer_disconnected(peer: int) -> void:
@@ -999,7 +884,6 @@ func _on_peer_disconnected(peer: int) -> void:
 ## a teammate makes the rest of this floor harder, and that is the run being
 ## the product rather than a fault.
 func _forget(peer: int) -> void:
-	_on_the_floor.erase(peer)
 	var was: int = floor_rank()
 	_ranks.erase(peer)
 	_sworn.erase(peer)

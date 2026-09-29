@@ -1,6 +1,7 @@
-[gd_resource type="Resource" script_class="ClassResource" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="ClassResource" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
+[ext_resource type="PackedScene" path="res://art/characters/veidimadr_arms.glb" id="2_arms"]
 
 [resource]
 script = ExtResource("1_class")
@@ -14,4 +15,5 @@ health_scale = 0.8
 stamina_scale = 1.15
 speed_scale = 1.08
 carry_scale = 0.75
+bare_arms = ExtResource("2_arms")
 kit = Array[StringName]([&"wpn_yew_bow", &"con_linen_binding", &"con_linen_binding"])

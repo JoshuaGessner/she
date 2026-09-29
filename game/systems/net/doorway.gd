@@ -1,39 +1,19 @@
 class_name Doorway
 extends Node
 
-## **Where a late arrival knocks** (`M4-T15`, ADR-250, `TEC-004`).
-##
-## ADR-016 made join-in-progress core rather than post-launch. ADR-157 refused
-## it and said exactly why: a `CoopSession` is **built per level**, Godot
-## addresses every RPC by **node path**, and a peer joining mid-run is in a
-## different scene from the party — so the one packet that could tell it where
-## to go cannot be delivered by the thing that knows. *"It broke both ends, and
-## it could cost the host the run."*
-##
-## This is that packet's address. **One node, one name, under the tree root**:
-## the same path on every peer in every scene, alive for the process rather
-## than for the level, so the host in the Deep and a joiner still at the fire
-## can say two sentences to each other. Two calls cross it and nothing else
-## ever will — a general cross-scene RPC channel is how the node-path rule gets
-## quietly abandoned, and this one is deliberately too small to become that.
-##
-## **Not an autoload** (`TEC-001` budgets six and names them): it is made by the
-## first `CoopSession` that needs one, at a path both scenes have because it is
-## under neither.
+## Scene admission before any gameplay packet (ADR-271).
+## A per-scene RPC cannot redirect a peer in another scene. SceneMultiplayer's
+## authentication stage holds replication, RPCs and relay announcements until
+## both ends confirm the scene and expedition. This is readiness, not identity
+## authentication. The existing connection is still replaced when changing scene.
 
 const NAME: StringName = &"Doorway"
-
-## The party is below, and this is the expedition. Host → the peer that knocked.
+const FLOOR_SCENE: String = "res://levels/room_set/room_set.tscn"
 signal called_down(run_seed: int, floor_index: int)
-## A peer that was called down is standing on that floor now. → the host.
-signal arrived(peer: int)
 
-
-## The one in this process, kept here rather than looked up: the first caller
-## is a session in the middle of its own `_ready`, so the node is added to the
-## root **deferred** — the root is busy setting up children at that moment and
-## refuses — and a lookup would not find it yet and would make a second.
 static var _here: Doorway = null
+var _api: SceneMultiplayer = null
+var _scene: String = ""
 
 
 static func of(tree: SceneTree) -> Doorway:
@@ -48,22 +28,37 @@ static func of(tree: SceneTree) -> Doorway:
 	return made
 
 
-## **Come down to us** — host to one peer, naming the expedition it would be
-## joining. The joiner needs both numbers before it can build anything: every
-## peer derives its own geometry from the seed (ADR-184), and a party is on a
-## floor rather than in a level.
-@rpc("authority", "reliable")
-func the_party_is_below(run_seed: int, floor_index: int) -> void:
-	called_down.emit(run_seed, floor_index)
+## Install before a transport is assigned. This node outlives each session,
+## so the API never retains a callback to a freed level between doorways.
+func configure(api: SceneMultiplayer, scene: String, timeout: float) -> void:
+	_api = api
+	_scene = scene
+	_api.auth_callback = _receive_admission
+	_api.auth_timeout = timeout
+	if not _api.peer_authenticating.is_connected(_send_admission):
+		_api.peer_authenticating.connect(_send_admission)
 
 
-## **I am where you are** — said by a peer once the level it is in is built.
-## The host spawns no body for anyone until this arrives, which is the whole of
-## ADR-157's fix: a body built for somebody who is in another scene is the
-## failure, and this is the sentence that rules it out. Said from the camp as
-## well as from a floor, because *which scene* is the question — a peer at the
-## fire that never said it would be sent a world it cannot see.
-@rpc("any_peer", "reliable")
-func i_am_with_you() -> void:
-	var who: int = multiplayer.get_remote_sender_id()
-	arrived.emit(who if who != 0 else multiplayer.get_unique_id())
+func _place() -> Dictionary:
+	return {"scene": _scene,
+		"seed": RunFile.seed_of() if _scene == FLOOR_SCENE else 0,
+		"floor": RunFile.floor_index() if _scene == FLOOR_SCENE else 0}
+
+
+func _send_admission(peer: int) -> void:
+	_api.send_auth(peer, var_to_bytes(_place()))
+
+
+func _receive_admission(peer: int, packet: PackedByteArray) -> void:
+	var decoded: Variant = bytes_to_var(packet)
+	if not decoded is Dictionary:
+		return
+	var place: Dictionary = decoded as Dictionary
+	if place == _place():
+		_api.complete_auth(peer)
+	elif not _api.is_server() and peer == 1 \
+			and place.get("scene", "") == FLOOR_SCENE \
+			and place.get("seed") is int and place.get("floor") is int \
+			and int(place["floor"]) >= 0 and int(place["floor"]) <= RunFile.LAST_FLOOR:
+		# The session receives this deferred, outside the engine's packet loop.
+		called_down.emit(int(place["seed"]), int(place["floor"]))

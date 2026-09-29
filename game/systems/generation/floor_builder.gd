@@ -255,6 +255,10 @@ var _trim: Node3D = null
 var _slabs: int = 0
 var _visible_floors: Dictionary[AABB, bool] = {}
 var _roughness: float = 0.0
+## The surface family follows the existing depth gradient. Geometry and every
+## collider still come from this builder's slabs; the kit only reads this when
+## it chooses a same-footprint render mesh.
+var _surface_band: int = DelvingsKit.BAND_WORKED
 var _depth: int = 0
 var _alcoves_cut: int = 0
 var _ledges_raised: int = 0
@@ -276,6 +280,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 	builder._into = into
 	builder._depth = clampi(floor_index, 0, STONE.size() - 1)
 	builder._roughness = clampf(float(floor_index) / 2.0, 0.0, 1.0)
+	builder._surface_band = DelvingsKit.band_for_roughness(builder._roughness)
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = MissionGraph._mix(
@@ -770,14 +775,14 @@ func _face(plan: FloorPlan, gaps: Array[Vector3], start: float, stop: float,
 		var opening: float = gap.x - half
 		if opening > cursor:
 			DelvingsKit.masonry(trim, spot.call((cursor + opening) * 0.5, 0.0),
-				yaw, opening - cursor, height, WALL_THICK)
+				yaw, opening - cursor, height, WALL_THICK, _surface_band)
 		if framed:
 			DelvingsKit.doorway(trim, spot.call(gap.x, 0.0), yaw)
 			if height > DelvingsKit.FRAME_HIGH:
 				DelvingsKit.masonry(trim,
 					spot.call(gap.x, DelvingsKit.FRAME_HIGH), yaw,
 					DelvingsKit.FRAME_WIDE, height - DelvingsKit.FRAME_HIGH,
-					WALL_THICK)
+					WALL_THICK, _surface_band)
 		elif gap.z == GAP_ALCOVE and height > ALCOVE_CEILING:
 			# An alcove's mouth is a full-height slot in the collision, because
 			# the recess needs no lintel to hold the rock up. Above the
@@ -786,11 +791,11 @@ func _face(plan: FloorPlan, gaps: Array[Vector3], start: float, stop: float,
 			# jump, so closing it closes a sight of nothing rather than a way
 			# through anything.
 			DelvingsKit.masonry(trim, spot.call(gap.x, ALCOVE_CEILING), yaw,
-				gap.y, height - ALCOVE_CEILING, WALL_THICK)
+				gap.y, height - ALCOVE_CEILING, WALL_THICK, _surface_band)
 		cursor = maxf(cursor, gap.x + half)
 	if stop > cursor:
 		DelvingsKit.masonry(trim, spot.call((cursor + stop) * 0.5, 0.0), yaw,
-			stop - cursor, height, WALL_THICK)
+			stop - cursor, height, WALL_THICK, _surface_band)
 
 
 ## May a framed doorway stand here?
@@ -1127,7 +1132,7 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	node.add_child(body)
 	if SURFACES.has(role):
 		if clad:
-			DelvingsKit.clad(node, SURFACES[role])
+			DelvingsKit.clad(node, SURFACES[role], _surface_band)
 		elif SURFACES[role] == DelvingsKit.WALL:
 			# The caller lays this wall's surface itself — see `_face` — but
 			# the box still has to move out from under it.

@@ -48,6 +48,13 @@ const CEILING: StringName = &"ceiling"
 const WALL: StringName = &"wall"
 const CHAMFER: StringName = &"chamfer"
 
+## `FloorBuilder` owns the depth morph; the kit only changes its surface family.
+## Keeping the three families as an integer makes the pick a pure function of
+## the existing depth/roughness and never a second generation stream.
+const BAND_WORKED: int = 0
+const BAND_RETREAT: int = 1
+const BAND_CAUSE: int = 2
+
 
 ## Where the modules live. One folder, one naming convention, checked by
 ## `art_probe.gd`.
@@ -97,8 +104,35 @@ const PANELS: Array = [
 	[&"delvings_wall_2x70"],
 ]
 const FLAGS: Array = [&"delvings_floor_2x2", &"delvings_floor_2x2_b"]
+## One surface family per existing roughness band. The geometry remains the
+## same 2 m footprint, so a change of band cannot touch a collision or route.
+const PANELS_BY_BAND: Array = [
+	PANELS,
+	[
+		[&"delvings_retreat_wall_2x26"],
+		[&"delvings_retreat_wall_2x40"],
+		[&"delvings_retreat_wall_2x70"],
+	],
+	[
+		[&"delvings_cause_wall_2x26"],
+		[&"delvings_cause_wall_2x40"],
+		[&"delvings_cause_wall_2x70"],
+	],
+]
+const FLAGS_BY_BAND: Array = [
+	FLAGS,
+	[&"delvings_retreat_floor_step_2x2"],
+	[&"delvings_cause_floor_slope_2x2"],
+]
 const BEAMS: StringName = &"delvings_ceiling_2x2"
 const FRAME: StringName = &"delvings_doorway"
+
+const DEPTH_DELIVERED: Array[StringName] = [
+	&"delvings_retreat_wall_2x26", &"delvings_retreat_wall_2x40",
+	&"delvings_retreat_wall_2x70", &"delvings_retreat_floor_step_2x2",
+	&"delvings_cause_wall_2x26", &"delvings_cause_wall_2x40",
+	&"delvings_cause_wall_2x70", &"delvings_cause_floor_slope_2x2",
+]
 
 ## Every module the kit ships, for `--kit-probe` to load and measure. Listed
 ## rather than globbed so that a module **disappearing** is a failure and not a
@@ -109,6 +143,10 @@ const DELIVERED: Array[StringName] = [
 	&"delvings_corner_chamfer", &"delvings_floor_2x2", &"delvings_floor_2x2_b",
 	&"delvings_ceiling_2x2", &"delvings_alcove", &"delvings_ledge_edge",
 	&"delvings_ramp_2x25", &"delvings_pillar",
+	&"delvings_retreat_wall_2x26", &"delvings_retreat_wall_2x40",
+	&"delvings_retreat_wall_2x70", &"delvings_retreat_floor_step_2x2",
+	&"delvings_cause_wall_2x26", &"delvings_cause_wall_2x40",
+	&"delvings_cause_wall_2x70", &"delvings_cause_floor_slope_2x2",
 ]
 
 ## The render mesh of each module, pulled out of its `.glb` once.
@@ -202,7 +240,8 @@ static func recess(node: MeshInstance3D) -> void:
 ## flat floor's solid laps its neighbours by `FloorBuilder.FLOOR_LAP` and its
 ## surface deliberately does not, and paving that lap would put flagstones
 ## inside the next room along.
-static func clad(node: MeshInstance3D, role: StringName) -> void:
+static func clad(node: MeshInstance3D, role: StringName,
+		band: int = BAND_WORKED) -> void:
 	var box := node.mesh as BoxMesh
 	if box == null:
 		push_error("[kit] `%s` has no BoxMesh to be clad" % node.name)
@@ -211,7 +250,7 @@ static func clad(node: MeshInstance3D, role: StringName) -> void:
 	match role:
 		FLOOR:
 			flagstones(node, Vector3(0.0, size.y * 0.5 + PROUD, 0.0),
-				Vector2(size.x, size.z))
+				Vector2(size.x, size.z), band)
 		CEILING:
 			# **The one box that stops being drawn.** A ceiling module is
 			# 0.38 m of crossbeam, plank and slab against a 0.3 m solid, so any
@@ -226,7 +265,7 @@ static func clad(node: MeshInstance3D, role: StringName) -> void:
 			var length: float = size.x if along_x else size.z
 			var deep: float = size.z if along_x else size.x
 			if masonry(node, Vector3(0.0, -size.y * 0.5, 0.0),
-					0.0 if along_x else PI * 0.5, length, size.y, deep) == 0:
+					0.0 if along_x else PI * 0.5, length, size.y, deep, band) == 0:
 				return
 			recess(node)
 		CHAMFER:
@@ -235,7 +274,8 @@ static func clad(node: MeshInstance3D, role: StringName) -> void:
 			# free yaw on making that face local +Z, so this does not have to
 			# know which corner it is standing on.
 			if masonry(node, Vector3(0.0, -size.y * 0.5,
-					size.z * 0.5 - PANEL_DEEP * 0.5), 0.0, size.x, size.y) == 0:
+					size.z * 0.5 - PANEL_DEEP * 0.5), 0.0, size.x, size.y,
+					PANEL_DEEP, band) == 0:
 				return
 			recess(node)
 		_:
@@ -248,7 +288,8 @@ static func clad(node: MeshInstance3D, role: StringName) -> void:
 ## with, and `span` is the footprint they cover. Laid in `into`'s frame rather
 ## than the world's, so a tilted ramp's flags tilt with it and a corridor that
 ## climbs is paved rather than painted.
-static func flagstones(into: Node3D, at: Vector3, span: Vector2) -> void:
+static func flagstones(into: Node3D, at: Vector3, span: Vector2,
+		band: int = BAND_WORKED) -> void:
 	if span.x <= 0.0 or span.y <= 0.0:
 		return
 	var across: int = maxi(1, roundi(span.x / TILE))
@@ -268,7 +309,8 @@ static func flagstones(into: Node3D, at: Vector3, span: Vector2) -> void:
 			var turn: int = _draw(spot, 4)
 			var fit := Vector3(squeeze.x, 1.0, squeeze.y) if turn % 2 == 0 \
 				else Vector3(squeeze.y, 1.0, squeeze.x)
-			_piece(into, _pick(FLAGS, spot), spot, PI * 0.5 * float(turn), fit)
+			_piece(into, _pick(FLAGS_BY_BAND[_band(band)], spot), spot,
+				PI * 0.5 * float(turn), fit)
 
 
 ## A beamed ceiling whose slab finishes at `at.y`, covering `span`.
@@ -302,7 +344,8 @@ static func beams(into: Node3D, at: Vector3, span: Vector2) -> void:
 ## Returns how many panels were laid, so a caller can tell "nothing fits here"
 ## from "nothing was asked for".
 static func masonry(into: Node3D, at: Vector3, yaw: float, length: float,
-		height: float, deep: float = PANEL_DEEP) -> int:
+		height: float, deep: float = PANEL_DEEP,
+		band: int = BAND_WORKED) -> int:
 	if length <= 0.0 or height <= 0.0:
 		return 0
 	var count: int = maxi(1, roundi(length / TILE))
@@ -321,7 +364,7 @@ static func masonry(into: Node3D, at: Vector3, yaw: float, length: float,
 			+ (float(i) + 0.5) * length / float(count)
 		for row: float in rows:
 			var spot: Vector3 = at + turn * Vector3(slide, 0.0, row)
-			_piece(into, _pick(PANELS[step], spot), spot, yaw,
+			_piece(into, _pick(PANELS_BY_BAND[_band(band)][step], spot), spot, yaw,
 				Vector3(squeeze, lift, 1.0))
 			laid += 1
 	return laid
@@ -336,6 +379,22 @@ static func masonry(into: Node3D, at: Vector3, yaw: float, length: float,
 ## the ceiling and is hidden by it.
 static func doorway(into: Node3D, at: Vector3, yaw: float) -> void:
 	_piece(into, FRAME, at, yaw, Vector3.ONE)
+
+
+## Floor 0 is the intact working, floor 1 the Retreat and floor 2 the Cause.
+## `FloorBuilder` already quantises roughness to those values; this only makes
+## that established depth legible in surface treatment.
+static func band_for_roughness(roughness: float) -> int:
+	var clamped: float = clampf(roughness, 0.0, 1.0)
+	if clamped < 0.25:
+		return BAND_WORKED
+	if clamped < 0.75:
+		return BAND_RETREAT
+	return BAND_CAUSE
+
+
+static func _band(value: int) -> int:
+	return clampi(value, BAND_WORKED, BAND_CAUSE)
 
 
 ## Which panel height is the least stretch for `height`.

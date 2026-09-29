@@ -10243,5 +10243,77 @@ ADR-216 said `M4-T08` would change four values in `lair_theme.tres`. It changed 
 - **Q102** — coplanar edges — is unchanged. The stencil is an object-ID channel for *classes*, not per object, so two touching walls still draw no line between them.
 - **G** (hatch density bias) is authored everywhere and read nowhere. It is left rather than wired, because a flat 0.5 across the whole library has nothing yet to say.
 
-*Entries below to be added as design decisions are signed off.*
+## ADR-270 — Wearable meshes share the moving rig, and the deeper kit stays on the same solids
 
+**Date:** 2026-09-28 · **Status:** accepted · **Advances `M4-T10`** · **Implements `DES-020` and `ART-006`** · **Developer's request to continue asset production**
+
+The first delivered mail shirt and bracers were floor props. Their base-centred
+pivots were correct for a pickup and could not also be the bind-space origin of
+a garment. The next delivery therefore keeps those pickup models and adds
+explicit `ItemResource.worn_model` references for the Body and Arms slots.
+Ótr’s Pelt also occupies Body, so it receives a fitted fur mantle over a complete
+tunic and legs. Data validation requires a worn model on every Body/Arms item;
+the rule follows the slot rather than assuming only items named armour are worn.
+
+Worn meshes bind by bone name to the existing body skeleton. The skeleton
+packaged in a garment's GLB is an authoring reference and is discarded after
+rebinding; a teammate does not carry a second independently animated skeleton.
+The original 28 bone names, hierarchy, rest transforms, sockets and collider
+dimensions remain unchanged. Missing or incompatible skin data is an error,
+not permission to attach the loose prop rigidly to a body bone.
+
+Body includes the legs and stops above the elbow, as `DES-020` specifies. The
+mail garment includes trousers and boots. Covered triangles of the underlying
+body are hidden while it is worn and restored on removal; making the garment
+larger to conceal a rigid knee under a bending trouser leg is not a fit solution.
+
+The first-person arm library uses the same bind pose. `ClassResource.bare_arms`
+references the Húskarl and Veiðimaðr pairs for the two existing class records;
+the other four class arm meshes do not introduce unfinished playable classes.
+First-person bracers use the same weighted geometry as third person. Their
+camera-space presentation is separate from the teammate's full body, and never
+parents the camera to `sock_head`. The shared rig has no finger bones, so the
+authored fingers have a carrying curl rather than independent finger animation.
+
+Retreat and Cause wall/floor surfaces retain the existing kit footprints. Depth
+chooses the visual shelf; `FloorBuilder` still owns chamfering, ceiling heights,
+collision and navigation. Small floor relief stays inside the existing visual
+flagstone thickness instead of quietly lifting the ground above its collider.
+
+`ART-008` holds the delivery review. This advances asset production without
+closing `M4-T10`: complete class bodies, enemies, hero assets and authored
+locomotion still require their own production and visual review.
+
+## ADR-271 — Admit a peer to the scene before sending that scene
+
+**Date:** 2026-09-28 · **Status:** accepted · **Fixes `M4-T15`** · **Developer's request to fix the failed late-join check**
+
+The asset sweep exposed a late arrival whose host copy moved 26 m toward the
+world origin while its owner still stood at the Shaft. The remote player's
+interpolation target was zero until its first motion snapshot. Seed that target
+and yaw from the spawn transform before configuring replication. The body probe
+now waits without an owner snapshot: the fix holds its spawn, while removing it
+produces 25.91 m of drift and fails.
+
+The same run logged scene-path errors in both directions. ADR-250's claimed
+visibility gate did not exist: `_on_the_floor` was written but never consulted.
+The engine sent existing spawns before `peer_connected`, and the joining client
+sent its declaration from a different scene. A later successful reconnect could
+hide those errors from the old final-state-only check.
+
+Use Godot's native `SceneMultiplayer` authentication stage as a scene-admission
+barrier. This verifies readiness, not player identity. The persistent `Doorway`
+exchanges scene path, seed and floor through `send_auth`; only matching peers
+complete admission. A client at the Threshold receives the host's expedition,
+builds it and reconnects. Until then Godot sends no gameplay replication or RPCs
+and does not announce the peer to established clients. There is no per-actor
+visibility fallback and the unused floor-peer dictionary and Doorway RPCs are
+removed. A newly admitted player's declaration supplies its class before its
+body is built; a late arrival still spawns at the Shaft and makes arrival noise.
+
+The late-join harness now rejects engine errors as well as disagreement in its
+reports, supports an established client plus another late arrival, and keeps
+all peers alive until every report is sampled. Normal connected-party scene
+transitions continue to adopt their connection without reauthentication.
+
+*Entries below to be added as design decisions are signed off.*

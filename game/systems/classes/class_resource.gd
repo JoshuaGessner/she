@@ -68,6 +68,10 @@ const ASPECTS: Array[StringName] = [
 ## them, which is the Húskarl's *"keep moving under weight that would pin
 ## anyone else"* expressed without a new system.
 @export var carry_scale: float = 1.0
+## The real first-person forearms for this class (`DES-020`). They use the
+## shared 28-bone topology, so an Arms item can be skinned over them without a
+## class-specific armour mesh or a generated arm standing in for one.
+@export var bare_arms: PackedScene
 
 @export_group("Kit")
 ## Item ids this class descends with on a fresh life. Real definitions from the
@@ -117,4 +121,7 @@ func validate() -> PackedStringArray:
 	if carry_scale <= 0.0:
 		problems.append("%s has a non-positive carry_scale, which makes encumbrance undefined"
 			% id)
+	if bare_arms == null:
+		problems.append("%s has no bare_arms mesh — DES-020 makes forearms the "
+			+ "one armour a player sees on their own body")
 	return problems

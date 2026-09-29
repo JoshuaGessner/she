@@ -51,6 +51,11 @@ extends Resource
 @export var stick_look_curve: float = 2.0
 @export var field_of_view: float = 75.0
 
+@export_group("First-person Arms")
+## From wrist toward elbow in the camera frame; X mirrors for the left arm.
+## The held item supplies the wrist pose, while this keeps the elbow below view.
+@export var first_person_elbow_direction: Vector3 = Vector3(0.25, -0.8, 0.6)
+
 @export_group("Stamina")
 @export var stamina_max: float = 100.0
 @export var sprint_drain: float = 17.0
