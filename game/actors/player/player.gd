@@ -2501,6 +2501,11 @@ func _physics_process(delta: float) -> void:
 	if multiplayer.is_server():
 		_emit_movement_clamor(delta, tuning)
 		_tick_waystone(delta)
+		# A Waystone spent by the last body standing ends the run, and the end
+		# of a run is `change_scene_to_file`, which detaches this body before
+		# the tick returns (ADR-276). Nothing below may ask a tree it has left.
+		if not is_inside_tree():
+			return
 		_tick_binding(delta, tuning)
 		_tick_wounds(delta)
 		_tick_bleeding(delta)

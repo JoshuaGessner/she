@@ -10455,4 +10455,17 @@ the skeleton's articulation would be a separate decision.
 
 **The dark-corridor shot, re-run on the models:** at the post where the capsule measured a mean of 0.043, the modelled body measures 0.08. It is paler, and in the unmarked frame it is a faint grey figure against a lamp-lit doorway. Marked, it is drawn plainly in bone ink. The shot's *"in the dark"* bound of 0.06 now finds no qualifying post on seed 5 floor 2, and it says so rather than passing. The bound is left where it is: loosening it to pass would be the probe describing its own result.
 
+## ADR-276 — A floor that has left the tree stops asking it questions
+
+**Date:** 2026-09-29 · **Status:** accepted · **Amends ADR-264** · **Developer's report: the exported build closed when the Shaft's timer finished on the first floor**
+
+**Context:** the macOS crash report is `EXC_BAD_ACCESS` at address 0 on the main thread, 100 s into a run, and the game log stops at the floor-0 bake because a release build buffers its output. The Shaft finishes inside `RoomSet._physics_process`: `_shaft.advance` emits `claimed`, the claim ends in `_take_the_party_down`, and that ends in `change_scene_to_file`, which detaches the floor **before `advance` returns** (ADR-113 measured it). `_physics_process` then went on to `multiplayer.is_server()` for the barrow. Off the tree, `multiplayer` is null. In the editor that is a script error, and exported it is a null read. **`--crossing-probe` never saw it**, because it called `_on_shaft_claimed` directly and so skipped the one caller a player reaches it from.
+
+**Decision:**
+- **The floor returns from `_physics_process` once the Shaft has taken it out of the tree.**
+- **The body does the same after `_tick_waystone`,** since a Waystone spent by the last body standing ends the run inside the player's own physics tick. What followed there only read `global_position`, which is an error on a detached node rather than a crash. It is the same shape of fault and costs one line.
+- **The crossing probe now goes through the channel.** It stands the body in the Shaft, begins the channel one frame short of done, and lets `_physics_process` finish it.
+
+**Measured:** with the guard removed, the probe prints `SCRIPT ERROR: Cannot call method 'is_server' on a null value` at `_physics_process` after the descent, and the sweep's crossing row fails on it. With the guard in place the crossing is clean and every carried value arrives. The Waystone guard has no probe of its own, because every extraction probe swaps the scene change for `_reset_floor`.
+
 *Entries below to be added as design decisions are signed off.*

@@ -7744,6 +7744,13 @@ func _physics_process(delta: float) -> void:
 	_sound_of_the_room(delta)
 	if _shaft != null:
 		_shaft.advance(delta)
+		# **A finished channel may have taken the floor with it** (ADR-276).
+		# The claim ends in `change_scene_to_file`, which detaches this node
+		# before `advance` returns — and everything below asks the tree it is
+		# no longer in. In the editor that is a script error; exported, the
+		# null check is compiled out and it is a segfault.
+		if not is_inside_tree():
+			return
 	# **The barrow wakes when somebody reaches the way on** (ADR-242), and the
 	# level decides it because the level knows where the way on is.
 	if _barrow != null and multiplayer.is_server():
@@ -18473,7 +18480,14 @@ func _crossing_leave() -> void:
 	print("[crossing] leaving floor %d with %d item(s) at %.0f hp, "
 		% [_floor_index, packed.size(), body.health.current]
 		+ "the Hunt %.0f s old" % float(_crossing["hunt"]))
-	_on_shaft_claimed(body)
+	# **Through the channel, not around it.** Calling `_on_shaft_claimed` here
+	# skipped the one caller a player reaches it from — `_physics_process`,
+	# which went on running on a floor `change_scene_to_file` had already
+	# detached, and read a null `multiplayer`. A segfault in an exported build,
+	# after the timer, on the first floor anyone played past (ADR-276).
+	body.global_position = _shaft.global_position
+	_shaft.begin(body)
+	_shaft.set("_progress", 0.999)
 	# **Nothing after this line.** `change_scene_to_file` detaches this node, so
 	# `get_tree()` is null from here on — and in an exported build GDScript's
 	# null check is compiled out, which turns an await here into a segfault
