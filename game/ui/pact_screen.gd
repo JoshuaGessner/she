@@ -131,6 +131,16 @@ func _redraw() -> void:
 			"%s may not enter any Aspect this build has written."
 			% body.display(), MenuStyle.BODY_WARM))
 
+	# **Your Rite** (`DES-011`, ADR-273): the class's own branch, drawn only for
+	# the class that can walk it, and drawn even before it opens — the rank it
+	# waits on is a sentence on every row, which is the reason to show it.
+	var rite: Array[AspectNode] = AspectCatalogue.rite_of(body.id)
+	if not rite.is_empty():
+		_column.add_child(MenuStyle.line(
+			"THE %s'S RITE" % body.display().to_upper(), MenuStyle.SUB_DIM))
+		for node: AspectNode in rite:
+			_column.add_child(_row(node))
+
 
 ## Escape, or the bag key that opened nothing. No close button: `DES-019` is
 ## hostile to persistent UI and every other full-screen surface in this game

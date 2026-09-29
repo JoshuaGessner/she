@@ -517,10 +517,15 @@ func _check_the_tree_hangs_together() -> void:
 			#    node is gated on an Aspect a class may not even be allowed to
 			#    enter, which is a lockout nothing in the UI could explain.
 			var before := by_id[String(needed)] as AspectNode
-			if before.aspect != node.aspect:
-				_fail("'%s' is a %s node requiring '%s' from the %s — a path "
-					% [node.id, node.aspect, needed, before.aspect]
-					+ "cannot depend on one a class may not enter (ADR-009)")
+			if before.aspect != node.aspect or before.sworn != node.sworn:
+				_fail("'%s' requires '%s' from another path — a path cannot "
+					% [node.id, needed]
+					+ "depend on one a class may not enter (ADR-009, ADR-273)")
+
+		# 2b. **A Rite belongs to a class that exists** (ADR-273). A Rite for a
+		#     class nobody can swear is a branch nobody can ever see.
+		if node.sworn != &"" and ClassCatalogue.by_id(node.sworn) == null:
+			_fail("'%s' is the Rite of '%s', which is not a class" % [node.id, node.sworn])
 
 		# 3. **Cycles.** Two nodes each waiting on the other are both authored,
 		#    both valid on their own, and both unreachable forever.
@@ -530,12 +535,13 @@ func _check_the_tree_hangs_together() -> void:
 
 	# The keystone is what a build is named after (`DES-004`), so an Aspect
 	# without one is a path with no destination.
+	# A Rite has none, by design (ADR-273), so it is not asked.
 	var keystones: Dictionary = {}
 	for node: AspectNode in _nodes:
 		if node.tier == AspectNode.Tier.KEYSTONE:
 			keystones[String(node.aspect)] = true
 	for node: AspectNode in _nodes:
-		if not keystones.has(String(node.aspect)):
+		if node.sworn == &"" and not keystones.has(String(node.aspect)):
 			_fail("the %s has nodes but no keystone — `DES-004` makes the "
 				% node.aspect + "keystone the thing a build is named after")
 			break

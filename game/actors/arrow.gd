@@ -147,8 +147,31 @@ func _on_hit(area: Area3D) -> void:
 	# between a slinger and you is cover, by the developer's call (ADR-235).
 	if thrower != null and struck == thrower:
 		return
+	# **Pinning Shot** (ADR-273), asked before the arrow lands — the hit is
+	# what tells a body it has been found.
+	var pins: bool = _pins(struck)
 	hurtbox.receive(damage, damage_type, self)
+	if pins:
+		var held := struck as Enemy
+		held.rooted.hold_for(Config.tuning.snare_hold_seconds)
+		for node: Node in get_tree().get_nodes_in_group(&"snares"):
+			var set_one := node as Snare
+			if set_one != null and set_one.placer == shooter:
+				set_one.spring_empty()
 	_land(_field)
+
+
+## Whether this arrow pins what it struck: the shooter has the node, and the
+## thing struck is an enemy that had not noticed anyone.
+func _pins(struck: Node) -> bool:
+	var enemy := struck as Enemy
+	if enemy == null or enemy.state() not in [Enemy.State.UNAWARE, Enemy.State.SUSPICIOUS]:
+		return false
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var archer := node as Player
+		if archer != null and archer.get_multiplayer_authority() == shooter:
+			return archer.has_effect(&"arrow_pins")
+	return false
 
 
 ## **Straight into the field**, not through a `ClamorSource`.

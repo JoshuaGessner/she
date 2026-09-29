@@ -77,6 +77,19 @@ const CROUCH_KNEE: float = 1.45
 const CROUCH_DROP: float = 0.30
 ## How far a downed body folds, radians ⟨tune⟩.
 const DOWNED_PITCH: float = 1.25
+## **A Húskarl holding** (`M4-T03`, ADR-272): a lunge, the lead foot forward and
+## the back foot braced, the shield arm up across the chest, the body leaning
+## into what is coming. Radians ⟨tune⟩, except the drop, which is metres and
+## deliberately small — the collider does not move, and a silhouette that sank
+## below its own collider would be `PRO-005` §5's unexplainable hit.
+const BRACE_LEAD_THIGH: float = 0.45
+const BRACE_BACK_THIGH: float = -0.30
+const BRACE_LEAD_KNEE: float = 0.55
+const BRACE_BACK_KNEE: float = 0.15
+const BRACE_SHIELD_ARM: float = 1.15
+const BRACE_SHIELD_ELBOW: float = 0.95
+const BRACE_LEAN: float = 0.35
+const BRACE_DROP: float = 0.06
 ## How much of the camera's pitch the neck and head carry ⟨tune⟩. Not all of it:
 ## a head that tracks a look exactly reads as a turret, and `DES-018` only needs
 ## a teammate's attention to be legible, never precise.
@@ -141,6 +154,18 @@ var _rest_y: float = 0.0
 
 var _phase: float = 0.0
 var _gait: float = 0.0
+## How far into a Hold this body is, 0 to 1. Set by `brace()` before `step()`.
+var _brace: float = 0.0
+## The off-hand item's orientation relative to the body, as it hangs when not
+## braced — face out, square to the front. Held while braced so the shield
+## rides the raised arm *as a shield* rather than tipping with the forearm
+## into a tray (measured: a 2.1 rad arm-and-elbow lift laid it flat).
+var _held_square: Basis = Basis()
+## And where it hung from the hand, in the body's frame — the item's own offset
+## from its socket swings with the arm too, and left alone it carried the shield
+## a metre over the head.
+var _held_offset: Vector3 = Vector3.ZERO
+var _held_known: bool = false
 var _breath: float = 0.0
 ## Slot -> the `BoneAttachment3D` carrying it, and slot -> whose model it is.
 var _sockets: Dictionary = {}
@@ -564,6 +589,18 @@ func mesh() -> MeshInstance3D:
 	return _mesh
 
 
+## **How planted this body is**, 0 to 1 — the Húskarl's Hold, from the
+## replicated `Player.planted`, so it costs nothing on the wire. Read by the
+## next `step()`, which is the one place a pose is made.
+func brace(amount: float) -> void:
+	_brace = clampf(amount, 0.0, 1.0)
+
+
+## How far into a Hold the last `brace()` put this body, for `--verbs-probe`.
+func braced() -> float:
+	return _brace
+
+
 ## Pose the body for this frame.
 ##
 ## `speed` is metres per second along the ground, `of_walking` is what this body
@@ -585,24 +622,32 @@ func step(delta: float, speed: float, of_walking: float, stance: float,
 	var fold: float = maxf(0.0, -sin(_phase)) * KNEE_BEND * _gait
 	var fold_other: float = maxf(0.0, sin(_phase)) * KNEE_BEND * _gait
 
-	_turn("thigh_l", swing + stance * CROUCH_THIGH)
-	_turn("thigh_r", -swing + stance * CROUCH_THIGH)
+	# A planted body is not walking — Hold makes you immovable — so the lunge
+	# replaces the stride rather than adding to it.
+	swing *= 1.0 - _brace
+	_turn("thigh_l", swing + stance * CROUCH_THIGH + _brace * BRACE_LEAD_THIGH)
+	_turn("thigh_r", -swing + stance * CROUCH_THIGH + _brace * BRACE_BACK_THIGH)
 	# Knees fold **backwards**, which is the opposite sign to the hip, and the
 	# reason a knee cannot simply mirror its thigh.
-	_turn("calf_l", -fold - stance * CROUCH_KNEE)
-	_turn("calf_r", -fold_other - stance * CROUCH_KNEE)
+	_turn("calf_l", -fold - stance * CROUCH_KNEE - _brace * BRACE_LEAD_KNEE)
+	_turn("calf_r", -fold_other - stance * CROUCH_KNEE - _brace * BRACE_BACK_KNEE)
 	# Arms oppose the legs. A body carrying nothing still swings them, because
 	# the alternative — arms that hang dead while the legs work — is the tell
 	# that reads as a puppet rather than as a person.
-	_turn("upper_arm_l", -swing * (ARM_SWING / THIGH_SWING))
+	#
+	# The left arm is the shield's (`sock_hand_l`), and a Hold brings it up
+	# across the chest: the one part of the pose a teammate across a room reads
+	# as *they are holding this door*.
+	_turn("upper_arm_l", -swing * (ARM_SWING / THIGH_SWING) + _brace * BRACE_SHIELD_ARM)
 	_turn("upper_arm_r", swing * (ARM_SWING / THIGH_SWING))
 	# Elbows bend forward, which for a hanging forearm is the positive sense.
-	_turn("forearm_l", absf(swing) * 0.35)
+	_turn("forearm_l", absf(swing) * 0.35 + _brace * BRACE_SHIELD_ELBOW)
 	_turn("forearm_r", absf(swing) * 0.35)
 
 	# An upright segment tips *back* on a positive turn, so a body folding
 	# forward over its knees is a negative one.
-	var lean: float = stance * 0.28 + (DOWNED_PITCH if downed else 0.0)
+	var lean: float = stance * 0.28 + _brace * BRACE_LEAN \
+		+ (DOWNED_PITCH if downed else 0.0)
 	_turn("spine_01", -lean * 0.45)
 	_turn("chest", -lean * 0.35 + sin(_breath) * BREATH_RADIANS * (1.0 - _gait))
 	# The head keeps looking where the eyes are while the spine folds under it,
@@ -617,7 +662,37 @@ func step(delta: float, speed: float, of_walking: float, stance: float,
 		var bob: float = -absf(sin(_phase)) * BOB_METRES * _gait
 		var rest: Vector3 = _skeleton.get_bone_rest(index).origin
 		_skeleton.set_bone_pose_position(index,
-			rest + Vector3(0.0, bob - stance * CROUCH_DROP, 0.0))
+			rest + Vector3(0.0, bob - stance * CROUCH_DROP - _brace * BRACE_DROP, 0.0))
+	_square_the_shield()
+
+
+## Keep what the braced arm holds facing the way it faced at rest (ADR-272).
+## Recorded while not braced, applied while braced, in the body's frame — so it
+## needs no knowledge of the hand bone's axes, only of where the item hung.
+func _square_the_shield() -> void:
+	var held: Node3D = worn_on(Enums.Slot.OFF_HAND)
+	if held == null:
+		_held_known = false
+		return
+	if not held.has_meta(&"hung"):
+		held.set_meta(&"hung", held.transform)
+	var hung: Transform3D = held.get_meta(&"hung") as Transform3D
+	var parent := held.get_parent() as Node3D
+	if _brace <= 0.0:
+		held.transform = hung
+		_held_square = global_basis.inverse() * held.global_basis
+		_held_offset = global_basis.inverse() * (held.global_position - parent.global_position)
+		_held_known = true
+		return
+	if not _held_known:
+		return
+	var square := Transform3D(global_basis * _held_square,
+		parent.global_position + global_basis * _held_offset)
+	var local: Transform3D = parent.global_transform.affine_inverse() * square
+	held.transform = Transform3D(
+		hung.basis.orthonormalized().slerp(local.basis.orthonormalized(), _brace)
+			.scaled(hung.basis.get_scale()),
+		hung.origin.lerp(local.origin, _brace))
 
 
 ## Rotate one bone about its own swing axis. A bone this rig does not have is

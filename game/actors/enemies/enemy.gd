@@ -322,6 +322,19 @@ func poise() -> float:
 	return _poise / maxf(_kind.poise, 0.001)
 
 
+## **Thrown back a step and staggered** (`M4-T03`, ADR-273) — a Húskarl's Shove.
+## Host-side, like every consequence. Moved by collision rather than set, so a
+## body against a wall stays against the wall.
+func shove(away: Vector3, metres: float) -> void:
+	if health.is_dead():
+		return
+	_break_poise()
+	var push: Vector3 = away
+	push.y = 0.0
+	if push.length() > 0.01:
+		move_and_collide(push.normalized() * metres)
+
+
 func _break_poise() -> void:
 	_hitbox.disarm()
 	_attack = Attack.NONE
@@ -701,7 +714,9 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				# And never from inside choke-damp (ADR-236): the air will not
 				# carry a shout, so a ringer in the damp has you and tells nobody.
 				var muffled: bool = _ground != null and _ground.stops_calls
+				# Nor from a Veiðimaðr's gagged snare (ADR-273): held and silent.
 				if not _called and _kind.calls_after > 0.0 and not muffled \
+						and not rooted.gagged() \
 						and _alerted_for >= _kind.calls_after:
 					_begin_call(tuning)
 					return
@@ -757,7 +772,7 @@ func _tick_call(delta: float, tuning: TuningProfile) -> void:
 	# running, so ducking behind a pillar for a beat re-calls the moment you
 	# lean out. Only genuinely losing it (`_patience`, back to SUSPICIOUS)
 	# clears the clock, which is what makes disengaging the real answer.
-	if not _sees:
+	if not _sees or rooted.gagged():
 		_call_timer = 0.0
 		_state = State.ALERTED
 		return

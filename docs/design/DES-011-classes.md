@@ -4,7 +4,7 @@ title: Classes — The Sworn
 status: accepted
 owner: design
 tags: [classes, builds, skill-tree, identity, co-op, progression]
-updated: 2026-09-13
+updated: 2026-09-28
 related: [DES-004, DES-003, DES-012, DES-009]
 ---
 
@@ -55,6 +55,9 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 > **The shield is in their hand (ADR-238)**, and the lantern in their bag: seax, round shield and byrnie are 18.1 kg worn of 52, about a third laden. Raised, the shield takes the guard's share off a Hall-Warden's overhead and a Sling-Wretch's stone, which a blade takes nothing off — from the front only. So a Húskarl who wants to see must take the shield off to hold the lamp, through the bag.
 **Unique verb — Hold:** plant and become an immovable object. Nothing pushes past you. Allies can retreat through you.
 **Rite themes:** shield mastery, doorway control, carrying wounded allies, taking hits meant for others.
+
+> **The slice's Rite (ADR-273), four nodes, opening at Pact Rank 3:** **Shield Wall** — while you Hold, a raised shield stops blows from the sides too · **Shove** — letting go throws what is in front back a step and staggers it, loudly · **Take the Blow** *(after Shield Wall)* — while you Hold, a blow aimed at a friend behind you lands on you · **Last Door** *(after Shove)* — hold on with no breath left, paid in health. Carrying the wounded waits for `M5-T01`.
+> **Hold can be seen (ADR-272):** a lunge with the shield raised square, a thump when it lands, and your own eye dropping behind the shield.
 **Cost:** loud, slow, and the Hunt finds them easily.
 
 ### 2. Völva — *Seeress*
@@ -94,6 +97,9 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Unique verb — Snare:** place traps that hold, wound, or misdirect — **including against the Hunter**, the only reliable way to buy time during the Sealing.
 > **Built at `M3-T11` as *hold* alone** (ADR-123). Wound and misdirect are **absent, not stubbed**: trap *variety* is listed under this class's Rite themes below, so it belongs to the tree (`M3-T01`). One trap, one live at a time, and placing a second removes the first — a decision about *where* rather than a resource to count, which is also why it needs no ammunition economy to exist. It is silent to set and **loud when it fires**, so a trap in the doorway you are leaving through is a mistake you can make.
 **Rite themes:** silent movement, trap variety, ranged precision, reading tracks (who came through here, and when).
+
+> **The slice's Rite (ADR-273), four nodes, opening at Pact Rank 3:** **Lure** — your snare steps until something comes · **Gag** — what it holds cannot call · **Pinning Shot** *(after Lure)* — an arrow into something unaware pins it, springing your snare · **Cover of the Snap** *(after Gag)* — silent for a few seconds after your snare fires. Reading tracks waits for `M5-T01`.
+> **Setting a snare can be seen (ADR-272):** the ring grows at your feet as you kneel to it, a set snare breathes, and a sprung one snaps shut.
 **Cost:** poor in a straight fight; a Stalker who is cornered is usually dead.
 
 ### 6. Haugbrjótr — *Mound-Breaker*

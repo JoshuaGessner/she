@@ -10316,4 +10316,84 @@ reports, supports an established client plus another late arrival, and keeps
 all peers alive until every report is sampled. Normal connected-party scene
 transitions continue to adopt their connection without reauthentication.
 
+## ADR-272 — The two verbs can be seen
+
+**Date:** 2026-09-28 · **Status:** accepted · **Advances `M4-T03`** · **Developer's call on scope: verbs first, then Rites** · **Look only: nothing new crosses the wire**
+
+**Context:** ADR-238 left `M4-T03` open with the two classes *"complete in kit and verb at blockout fidelity"*, and `DES-011` rule 5 says a class should be recognisable *"from 10 seconds of watching"*. Measured before changing anything, neither verb could be watched. **A Húskarl's Hold changed a collision layer and nothing else**, so a teammate holding a door looked exactly like one standing in it, and planting made no sound. **Setting a snare showed nothing** until the trap appeared, because `_setting` never leaves the machine that is setting it.
+
+**Decision:** each verb gets a look and a sound, driven only by values the game already has.
+
+- **A Hold is a lunge with the shield up.** A teammate's body steps into it from the replicated `planted`: lead foot forward, back foot braced, a lean, and the shield arm raised. The hips sink 0.06 m ⟨tune⟩ at most. The collider does not move, and a silhouette lower than its collider is `PRO-005` §5's unexplainable hit.
+- **The shield stays square.** Raising the arm first tipped the shield flat like a tray, and then carried it a metre over the head, because both the item's rotation and its offset swung with the forearm. While braced, the shield is held at the angle and offset it had hanging at rest, relative to the body, so it rides the arm up as a shield.
+- **From inside,** your eye drops 0.10 m ⟨tune⟩ and your shield comes across the view as a raised guard does.
+- **The plant is heard once,** a heavy thump when the Hold lands, on every peer. The brace is its visual twin (`DES-018`).
+- **Setting a snare:** the ring it will be grows at your feet, and you kneel, your eye dropping 0.35 m ⟨tune⟩ as the setting fills. The ring is opaque and dim. A see-through one is drawn and then painted over by the ink pass: measured, it vanished. A small click when the jaws set is heard by you only; setting stays silent to the floor (ADR-123).
+- **A set snare breathes** (±4 % at 0.6 Hz ⟨tune⟩), so it reads as live rather than as a decal, **and a sprung one snaps shut** from 1.6× its size in 0.14 s.
+
+**Measured:** `--verbs-probe`, headless, in the sweep.
+
+- The shield hand rises 0.39 m, turns 0°, and the hips sink 0.048 m.
+- The plant is heard once over 0.8 s planted, and the shield comes back down on release.
+- Your eye drops 0.10 m and returns, and your hands brace.
+- Setting a snare: at 0.52 of the way the ring is 0.66 across and you have knelt 0.18 m; both are gone when you stop.
+- An armed snare moves; a sprung one goes 1.60 → 1.00.
+
+**Seven plants, seven caught:** a rig that ignores the brace, a shield not squared, a silent plant, no eye drop, no ghost ring, a still snare, and no snap. The first count of the plant sound found nothing, because headless audio finishes a one-shot at once and it had gone before it was counted. It is counted as it is added now. `--verbs-shot` photographs a teammate standing and holding, from the front and the side, your own Hold, and a snare half set.
+
+## ADR-273 — Each class has a path of its own, and a Hold that never ran out
+
+**Date:** 2026-09-28 · **Status:** accepted · **Closes `M4-T03`** · **Developer's call: 4 Rite nodes per class, all eight signed off as proposed** · **Builds `DES-011`'s Rite for the slice's two classes** · **Amends `DES-011`**
+
+**Context:** `DES-011` gives each class a **Rite**, a class-only branch of about seven nodes that opens at Pact Rank 3 (ADR-060). No task had it: the tree built at `M3-T01` has Aspects only, and only two of the five. So a Húskarl's whole tree was the Hoard, and nothing about either slice class grew as a class. By the developer's call the slice gets **four nodes a class**, built only from systems that already exist; `M5-T01` fills the Rites to seven when the other four classes arrive.
+
+**Decision: the Rite is a node that names its class.** `AspectNode.sworn` is the class whose Rite it is. A node is in an Aspect or a Rite, never both, and a Rite has no keystone. A Rite opens as a whole at `RITE_RANK` = 3 ⟨tune⟩, and it does not use `rank_required`: that field marks *her* loudest gifts, which also wait on her demand (ADR-243). A Rite is the class's own path. **A Rite node does nothing in another class's life** (`AspectNode.applies_to`). This is `DES-011`'s Legacy rule, and it is asked wherever a tree becomes a body's rules. The Pact screen draws your Rite under your Aspects, shut rows included, with the rank each waits on written on it.
+
+| Class | Node | Tier | What it lets you do | Its price |
+|---|---|---|---|---|
+| Húskarl | **Shield Wall** | lesser | While you Hold, a raised shield also stops blows from the sides (90° either way ⟨tune⟩) | Only while planted, and you cannot move |
+| Húskarl | **Shove** | lesser | Letting go of a full Hold throws what is in front of you back 1.2 m ⟨tune⟩ and staggers it | Loud, and 25 breath ⟨tune⟩ |
+| Húskarl | **Take the Blow** *(needs Shield Wall)* | greater | While you Hold, a blow aimed at a friend within 3 m ⟨tune⟩ behind you lands on you | You take it, through your guard |
+| Húskarl | **Last Door** *(needs Shove)* | greater | Keep holding with no breath left | 6 health a second ⟨tune⟩, which a run never gives back |
+| Veiðimaðr | **Lure** | lesser | Your snare steps every 3 s ⟨tune⟩ until something comes, heard by you and noticed by the floor | It calls anything, the Gold-Sick too |
+| Veiðimaðr | **Gag** | lesser | What your snare holds cannot call its kin while held | — |
+| Veiðimaðr | **Pinning Shot** *(needs Lure)* | greater | An arrow into something that has not noticed you pins it as your snare would | It springs any snare you have set |
+| Veiðimaðr | **Cover of the Snap** *(needs Gag)* | greater | You make no sound for 4 s ⟨tune⟩ after your snare fires | You have to be near a loud trap |
+
+**Where each one lives.** Everything a node changes is host-side, as every consequence is (`TEC-004`).
+
+- **Take the Blow** reroutes a blow before it resolves, once. A redirected blow is borne and never passed on again, so two Húskarls cannot chain one hit between them.
+- **Shove** is asked of the host when the owner lets go.
+- **Last Door's** blood is owed where the empty bar is known, the owner's machine, and taken on the host a point at a time, checked against the replicated Hold and the node.
+- The snare's three are read from the placer's effects when it is made and carried in its spawn payload. **Cover** is a hush that walks with you, and **Gag** rides the hold.
+
+### Found on the way: a Hold never ran out
+
+Hold paid for itself with `Stamina.spend`, which refuses an amount larger than what is left and then does not restart the regeneration delay. So once the bar was below one frame's cost (≈0.27), it stopped falling, **refilled while you held, and a Hold lasted forever**. `DES-011` makes the Hold's cost a clock running while you stand in the doorway, and that clock had never stopped anybody. It pays through `Stamina.drain` now, the call written for things held down. It found the bug by failing: Last Door's first run showed a plain Hold still planted with an empty bar. Asserted now: at empty, a plain Hold lets go.
+
+### Measured
+
+`--rite-probe`, headless, in the sweep. Every node is asserted against the same act without it.
+
+- **Gates:** refused at rank 1, *"your Rite opens at pact rank 3"*; open at rank 3; the greater node *"needs Shield Wall first"*; the other class's Rite *"only a Veiðimaðr may walk this Rite"*.
+- **Legacy:** the Rite applies to its own class and not to another.
+- **Shield Wall:** a side blow is faced walled, and not plain or unplanted.
+- **Take the Blow:** a loose friend in front, you take 10; a planted one, they take 10 and you nothing.
+- **Shove:** 1.20 m and a stagger with the node, nothing without.
+- **Last Door:** at empty, plain is not planted and bleeds nothing; with the node, planted, 2.2 health in 0.8 s.
+- **Lure:** two steps baited, none plain.
+- **Gag:** gagged only while held, and a call under way is stopped by a gag and only by one.
+- **Pinning Shot:** held and the snare sprung with the node, neither without.
+- **Cover:** hushed and a noise raising nothing, then worn off; plain raises 5.
+
+**Fourteen plants, fourteen caught**: the rank gate, the class gate, the Legacy filter, the arc, the redirect, the push, the empty-breath allowance, the lure, the gag on the hold, the gag on the call, the pin, the cover, and the old `spend` restored. `data_probe` now checks that a Rite's class exists and that a Rite's `requires` stay inside it. `--pact-shot` photographs a rank-3 Húskarl's tree with the Rite under it.
+
+### Still not done
+
+- **Seven nodes a Rite** is `M5-T01`, with trap variety and carrying the wounded, which need systems.
+- **The Aspects a class may enter** are still only Hoard and Wing (`M5-T03`). A Húskarl can walk the Hoard and its Rite, and nothing else.
+- **The numbers** — every one above is ⟨tune⟩, and none has met a person.
+
+*Entries below to be added as design decisions are signed off.*
+
 *Entries below to be added as design decisions are signed off.*

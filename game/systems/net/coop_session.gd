@@ -1411,7 +1411,9 @@ func _my_effects() -> PackedStringArray:
 	var tags := PackedStringArray()
 	for id: StringName in GameState.taken:
 		var node: AspectNode = AspectCatalogue.by_id(id)
-		if node == null:
+		# A Rite kept through a Legacy slot into a life of another class does
+		# nothing (ADR-273) — asked here, where a tree becomes a body's rules.
+		if node == null or not node.applies_to(GameState.class_id):
 			continue
 		for tag: StringName in node.effect_tags:
 			if not tags.has(String(tag)):
@@ -1526,6 +1528,10 @@ func spawn_snare(at: Vector3, placer: int) -> Snare:
 	var made: Snare = _spawner.spawn({
 		"kind": "snare", "index": _next_snare, "at": at, "placer": placer,
 		"hold": tuning.snare_hold_seconds, "clamor": tuning.snare_clamor_trigger,
+		# The placer's Rite, read once and carried (ADR-273).
+		"lures": effects_of(placer).has("snare_lures"),
+		"gags": effects_of(placer).has("snare_gags"),
+		"covers": effects_of(placer).has("snare_covers"),
 	}) as Snare
 	_next_snare += 1
 	if made != null:
@@ -1540,6 +1546,9 @@ func _build_snare(payload: Dictionary) -> Node:
 	made.placer = int(payload["placer"])
 	made.hold_seconds = float(payload["hold"])
 	made.clamor_trigger = float(payload["clamor"])
+	made.lures = bool(payload.get("lures", false))
+	made.gags = bool(payload.get("gags", false))
+	made.covers = bool(payload.get("covers", false))
 	made.configure_replication()
 	return made
 

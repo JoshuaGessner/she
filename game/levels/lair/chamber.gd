@@ -166,6 +166,8 @@ func _ready() -> void:
 			_leave_soon()
 		elif arg.begins_with("--chamber-shot="):
 			_chamber_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--pact-shot="):
+			_pact_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
 			_tithe_probe()
 		elif arg == "--respec-probe":
@@ -708,6 +710,32 @@ func _the_offer() -> String:
 		return "none yet — %d more tribute over the tithe buys the first" % short
 	return "%d unspent — hold %s at the pile" % [
 		GameState.boon, ControlsScreen.glyphs_for("interact")]
+
+
+## **`--pact-shot=PATH`** (ADR-273): the tree a rank-3 Húskarl sees, with their
+## Rite open under the Aspects — one node taken, the greater one it opened, the
+## other waiting on its own lesser. Photographed at the top and at the foot,
+## because the Rite is drawn last and a screen that ran out before it would
+## hide the whole branch.
+func _pact_shot(path: String) -> void:
+	GameState.class_id = &"huskarl"
+	GameState.taken.clear()
+	for id: StringName in [&"hrd_weight_of_kings", &"hrd_ballast", &"hrd_quiet_hands",
+			&"rit_hk_shield_wall"]:
+		GameState.taken.append(id)
+	GameState.boon = 3
+	_open_the_pact()
+	await get_tree().create_timer(0.6).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-top.png"))
+	for scroll: Node in _pact.find_children("*", "ScrollContainer", true, false):
+		var bar := (scroll as ScrollContainer).get_v_scroll_bar()
+		(scroll as ScrollContainer).scroll_vertical = int(bar.max_value)
+	await get_tree().create_timer(0.3).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-rite.png"))
+	print("[pact] shot — %s" % path.get_file())
+	get_tree().quit()
 
 
 ## The tree, over the room rather than instead of it (ADR-102's habit): the

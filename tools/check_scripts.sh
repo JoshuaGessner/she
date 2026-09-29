@@ -1476,6 +1476,35 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The two verbs can be seen** (ADR-272). Hold changed a collision layer
+	# and nothing anyone could see; Snare's setting was invisible until the trap
+	# appeared. A teammate's shield comes up square in a lunge, the plant is
+	# heard once, your own eye drops and your shield comes across, a ring grows
+	# at your feet as you kneel to set one, and a set snare breathes and snaps.
+	verbs="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --verbs-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[verbs\] the two verbs can be seen' <<<"$verbs" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$verbs"; then
+		echo "FAIL the two verbs can be seen" >&2
+		printf '%s\n' "$verbs" | grep -E '\[verbs\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
+	# **Each class has a path of its own** (ADR-273). The two slice Rites: a
+	# Rite opens at rank 3, to its own class only, lesser before greater, and
+	# does nothing in another class's life; and each of its eight nodes against
+	# a control without it — a side blow walled, a blow taken for a friend, a
+	# shove, a Hold past empty paid in blood, a lure, a gag, a pinning shot and
+	# a snap's cover. Also where a Hold that never ran out was found (ADR-273).
+	rite="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --rite-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[rite\] each class has a path of its own' <<<"$rite" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$rite"; then
+		echo "FAIL each class has a path of its own" >&2
+		printf '%s\n' "$rite" | grep -E '\[rite\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Two pages, five classes, and the modeller decides the lines** (ADR-269).
 	# The ink's half that is true without a pixel: one pass per class, each on
 	# the stencil value its class is; the Lair a print and the Deep not; every

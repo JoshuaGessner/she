@@ -58,9 +58,23 @@ static func of_aspect(aspect: StringName) -> Array[AspectNode]:
 static func authored() -> Array[StringName]:
 	var seen: Array[StringName] = []
 	for node: AspectNode in all():
-		if not seen.has(node.aspect):
+		if node.sworn == &"" and not seen.has(node.aspect):
 			seen.append(node.aspect)
 	return seen
+
+
+## **One class's Rite** (ADR-273), lesser nodes first and then the greater ones
+## that stand on them — the order a player walks it in.
+static func rite_of(class_id: StringName) -> Array[AspectNode]:
+	var found: Array[AspectNode] = []
+	for node: AspectNode in all():
+		if node.sworn == class_id and class_id != &"":
+			found.append(node)
+	found.sort_custom(func(a: AspectNode, b: AspectNode) -> bool:
+		if a.tier != b.tier:
+			return a.tier < b.tier
+		return String(a.id) < String(b.id))
+	return found
 
 
 static func ids() -> Array[String]:

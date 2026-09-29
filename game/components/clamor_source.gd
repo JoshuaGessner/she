@@ -46,6 +46,8 @@ var level: float = 0.0
 ## permanent 13.6 m audible radius against a 16 m enemy vision range, and
 ## *"hide and let it pass"* is on `DES-005`'s own list of things that must work.
 var carried_floor: float = 0.0
+## Seconds left of a walking hush (ADR-273).
+var _hushed_left: float = 0.0
 
 
 func _process(delta: float) -> void:
@@ -56,6 +58,8 @@ func _process(delta: float) -> void:
 	# debug ring disagree with the ears that actually heard you.
 	if not multiplayer.is_server():
 		return
+	if _hushed_left > 0.0:
+		_hushed_left = maxf(0.0, _hushed_left - delta)
 	if is_equal_approx(level, carried_floor):
 		return
 	# Linear decay, not exponential: a decay curve with a long tail leaves a
@@ -69,7 +73,7 @@ func _process(delta: float) -> void:
 
 
 func add(amount: float) -> void:
-	if amount <= 0.0:
+	if amount <= 0.0 or _hushed_left > 0.0:
 		return
 	# **Inside a broken hush rune, the sound never happens** (`M4-T32`,
 	# ADR-221). Here, before the level moves, so the field is never told either:
@@ -96,9 +100,21 @@ func audible_radius() -> float:
 	# stopped moving, so refusing `add` alone would leave it audible inside the
 	# circle. Nothing inside carries (ADR-221); the level is kept, and is heard
 	# again the moment you step out.
-	if Hush.silences(global_position):
+	if Hush.silences(global_position) or _hushed_left > 0.0:
 		return 0.0
 	return level * Config.tuning.clamor_metres_per_unit
+
+
+## **Make no sound at all for a while** (`M4-T03`, ADR-273) — the Veiðimaðr's
+## Cover of the Snap: a hush rune's circle that walks with you, for seconds.
+## Host-side like every level, and `maxf` rather than additive, for the reason
+## `Rooted.hold_for` gives.
+func hush_for(seconds: float) -> void:
+	_hushed_left = maxf(_hushed_left, seconds)
+
+
+func hushed() -> bool:
+	return _hushed_left > 0.0
 
 
 ## As quiet as this actor can currently get — which is not zero once it is

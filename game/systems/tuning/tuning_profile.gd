@@ -218,6 +218,31 @@ extends Resource
 ## one frame is the same fault as a mix that does.
 @export var reverb_fade_seconds: float = 1.2
 
+@export_group("Rite")
+## **The two slice Rites** (`M4-T03`, `DES-011`, ADR-273), every number ⟨tune⟩.
+## Each node lets a class do something new; these say how much of it, and none
+## of them is a node's reason to exist.
+##
+## Shield Wall: half-angle a planted, raised shield covers — the sides as well as
+## the front, and never behind.
+@export var rite_flank_arc_degrees: float = 90.0
+## Shove: how far in front of a letting-go Húskarl it reaches, how far it throws,
+## what it costs in breath and how loud it is.
+@export var rite_shove_reach: float = 2.5
+@export var rite_shove_metres: float = 1.2
+@export var rite_shove_stamina: float = 25.0
+@export var rite_shove_clamor: float = 3.0
+## Take the Blow: how far behind you a friend may stand and still be covered.
+@export var rite_cover_reach: float = 3.0
+## Last Door: health a second while held past empty — `DES-009` lets none of it
+## back during a run, so this is the price in the one currency that is final.
+@export var rite_last_door_bleed: float = 6.0
+## Lure: seconds between the footsteps a baited snare makes, and how loud each is.
+@export var rite_lure_every: float = 3.0
+@export var rite_lure_clamor: float = 0.8
+## Cover of the Snap: seconds of silence after your own snare fires.
+@export var rite_snap_cover_seconds: float = 4.0
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a

@@ -741,7 +741,7 @@ func has_taken(id: StringName) -> bool:
 func has_effect(tag: StringName) -> bool:
 	for id: StringName in taken:
 		var node: AspectNode = AspectCatalogue.by_id(id)
-		if node != null and node.effect_tags.has(tag):
+		if node != null and node.applies_to(class_id) and node.effect_tags.has(tag):
 			return true
 	return false
 
@@ -775,7 +775,17 @@ func why_not(id: StringName) -> String:
 	var body: ClassResource = ClassCatalogue.by_id(class_id)
 	if body == null:
 		return "no life has been sworn yet"
-	if not body.aspects.has(node.aspect):
+	# **A Rite is its class's alone** (`DES-011`, ADR-273), and opens as a
+	# whole at `RITE_RANK` — ADR-060's second identity beat, placed where the
+	# first keystone stops feeling new.
+	if node.sworn != &"":
+		if node.sworn != class_id:
+			var its: ClassResource = ClassCatalogue.by_id(node.sworn)
+			return "only a %s may walk this Rite" % (its.display()
+				if its != null else String(node.sworn))
+		if pact_rank < AspectNode.RITE_RANK:
+			return "your Rite opens at pact rank %d" % AspectNode.RITE_RANK
+	elif not body.aspects.has(node.aspect):
 		return "%s may not enter the %s" % [body.display(), node.aspect]
 	# One keystone, ever, and it names the build. `DES-004` allows a secondary
 	# Aspect's greater and lesser nodes but never its keystone.

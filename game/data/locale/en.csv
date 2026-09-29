@@ -169,3 +169,19 @@ calamity.cal_the_drowning.name,The Drowning
 calamity.cal_the_sealing.name,The Walling
 calamity.cal_the_turning.name,The Turning
 calamity.cal_the_waking.name,The Waking
+node.rit_hk_shield_wall.name,"Shield Wall"
+node.rit_hk_shield_wall.desc,"While you Hold, your raised shield stops blows from the sides as well as the front. You still cannot move."
+node.rit_hk_shove.name,"Shove"
+node.rit_hk_shove.desc,"Letting go of a Hold throws everything in front of you back a step and staggers it. It is loud, and it takes your breath."
+node.rit_hk_take_the_blow.name,"Take the Blow"
+node.rit_hk_take_the_blow.desc,"While you Hold, a blow aimed at a friend standing behind you lands on you instead."
+node.rit_hk_last_door.name,"Last Door"
+node.rit_hk_last_door.desc,"You can keep holding with no breath left. Every moment you hold past empty costs you blood, and it does not come back down here."
+node.rit_vd_lure.name,"Lure"
+node.rit_vd_lure.desc,"Your snare makes a small footstep every few seconds until something steps in. It calls anything — the Gold-Sick too."
+node.rit_vd_gag.name,"Gag"
+node.rit_vd_gag.desc,"Whatever your snare holds cannot call its kin while it is held."
+node.rit_vd_pinning_shot.name,"Pinning Shot"
+node.rit_vd_pinning_shot.desc,"An arrow into something that has not noticed you pins it where it stands, as your snare would. Loosing one springs any snare you have set."
+node.rit_vd_cover_of_the_snap.name,"Cover of the Snap"
+node.rit_vd_cover_of_the_snap.desc,"For a few seconds after your snare fires, you make no sound at all."

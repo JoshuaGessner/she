@@ -959,6 +959,12 @@ func _ready() -> void:
 			_hands_probe()
 		elif arg.begins_with("--hands-shot="):
 			_hands_shot(arg.split("=", true, 1)[1])
+		elif arg == "--verbs-probe":
+			_verbs_probe()
+		elif arg == "--rite-probe":
+			_rite_probe()
+		elif arg.begins_with("--verbs-shot="):
+			_verbs_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ink-probe":
 			_ink_probe()
 		elif arg.begins_with("--threat-shot="):
@@ -15625,6 +15631,506 @@ func _screen_rect(camera: Camera3D, root: Node3D) -> Rect2:
 			rect = Rect2(seen, Vector2.ZERO) if first else rect.expand(seen)
 			first = false
 	return rect
+
+
+## **`--rite-probe`** (`M4-T03`, ADR-273): the two slice Rites, gate and effect.
+##
+## Every node is asserted against a control — the same act without the node —
+## because an effect that fires either way is not the node's, and the gate rows
+## are asked through `why_not`, the sentence a player reads on the node.
+func _rite_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	var tuning: TuningProfile = Config.tuning
+
+	# ─ 1. the gates ─
+	GameState.class_id = &"huskarl"
+	GameState.taken.clear()
+	GameState.boon = 20
+	var early: String = GameState.why_not(&"rit_hk_shield_wall")
+	# Rank 3 is 8 boon spent at 4 a rank: a keystone and two greater nodes.
+	for id: StringName in [&"hrd_weight_of_kings", &"hrd_ballast", &"hrd_quiet_hands"]:
+		GameState.taken.append(id)
+	var rank: int = GameState.pact_rank
+	var open: String = GameState.why_not(&"rit_hk_shield_wall")
+	var stacked: String = GameState.why_not(&"rit_hk_take_the_blow")
+	var theirs: String = GameState.why_not(&"rit_vd_lure")
+	var took: bool = GameState.take_node(&"rit_hk_shield_wall")
+	var then: String = GameState.why_not(&"rit_hk_take_the_blow")
+	print(("[rite] gates       rank 1: '%s' · rank %d: '%s' · greater first: '%s' "
+		+ "· another's: '%s' · taken %s, then '%s'")
+		% [early, rank, open, stacked, theirs, took, then])
+	if not early.contains("rank %d" % AspectNode.RITE_RANK):
+		problems.append("a Rite at rank 1 was refused for '%s', not its rank" % early)
+	if open != "" or not took:
+		problems.append("a Húskarl at rank %d could not take their own Rite: '%s'"
+			% [rank, open])
+	if not stacked.contains("needs"):
+		problems.append("a greater Rite node was offered before the lesser it stands on")
+	if not theirs.contains("only a"):
+		problems.append("a Húskarl was offered the Veiðimaðr's Rite: '%s'" % theirs)
+	if then != "":
+		problems.append("the greater node stayed shut after its lesser was taken: '%s'" % then)
+	# A Rite kept into a life of another class does nothing (`DES-011` Legacy).
+	var mine: bool = GameState.has_effect(&"hold_guards_flanks")
+	GameState.class_id = &"veidimadr"
+	var kept: bool = GameState.has_effect(&"hold_guards_flanks")
+	GameState.class_id = &"huskarl"
+	print("[rite] legacy      own class %s, another class %s" % [mine, kept])
+	if not mine or kept:
+		problems.append("a Rite applied to the wrong life (own %s, other %s)" % [mine, kept])
+	var shown: Array[AspectNode] = AspectCatalogue.rite_of(&"huskarl")
+	if shown.size() != 4 or AspectCatalogue.authored().has(&""):
+		problems.append(("the Húskarl's Rite lists %d node(s), and the Aspects "
+			+ "list a nameless one: %s") % [shown.size(), AspectCatalogue.authored().has(&"")])
+	GameState.taken.clear()
+
+	var ahead: Vector3 = -body.global_transform.basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var side: Vector3 = ahead.cross(Vector3.UP)
+	var here: Vector3 = body.global_position
+
+	# ─ 2. Shield Wall: a blow from the side stops on a planted shield ─
+	var striker := Node3D.new()
+	add_child(striker)
+	striker.global_position = here + (ahead * 0.35 + side).normalized() * 2.0
+	body.planted = 1.0
+	body.effects = PackedStringArray()
+	var bare: bool = body._guard_faces(striker)
+	body.effects = PackedStringArray(["hold_guards_flanks"])
+	var walled: bool = body._guard_faces(striker)
+	body.planted = 0.0
+	var loose: bool = body._guard_faces(striker)
+	print("[rite] wall        a blow from the side: plain %s, walled %s, walled but loose %s"
+		% [bare, walled, loose])
+	if bare or not walled or loose:
+		problems.append("Shield Wall faced a side blow plain=%s walled=%s loose=%s"
+			% [bare, walled, loose])
+
+	# ─ 3. Take the Blow: a planted friend in front takes it ─
+	var guard: Player = _session.spawn_player(2, here + ahead * 1.5)
+	if guard == null:
+		problems.append("no second body to stand in front")
+	else:
+		for _i: int in 4:
+			await get_tree().physics_frame
+		guard.net_position = here + ahead * 1.5
+		guard.global_position = guard.net_position
+		guard.net_yaw = atan2(-ahead.x, -ahead.z)
+		guard.rotation.y = guard.net_yaw
+		striker.global_position = here + ahead * 4.0
+		guard.effects = PackedStringArray(["hold_takes_blows"])
+		var readings: Array[float] = []
+		for held: float in [0.0, 1.0]:
+			guard.planted = held
+			body.health.restore()
+			guard.health.restore()
+			await get_tree().physics_frame
+			body._on_hurt(10.0, striker)
+			readings.append(body.health.maximum - body.health.current)
+			readings.append(guard.health.maximum - guard.health.current)
+		print("[rite] cover       loose: you took %.0f, they %.0f · planted: you %.0f, they %.0f"
+			% readings)
+		if readings[0] <= 0.0 or readings[2] > 0.0 or readings[3] <= 0.0:
+			problems.append(("Take the Blow: loose you %.0f / they %.0f, planted "
+				+ "you %.0f / they %.0f") % readings)
+		guard.planted = 0.0
+		guard.queue_free()
+	body.health.restore()
+
+	# ─ 4. Shove: letting go throws what is in front back and staggers it ─
+	var pushed: Array = []
+	for with_node: bool in [false, true]:
+		_session.clear_enemies()
+		_session.spawn_enemy(here + ahead * 1.6)
+		await _hold(0.3)
+		var enemy: Enemy = null
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			enemy = node as Enemy
+		if enemy == null:
+			problems.append("no enemy to shove")
+			break
+		enemy.global_position = here + ahead * 1.6
+		body.face_toward(enemy.global_position + Vector3.UP)
+		var before: float = enemy.global_position.distance_to(here)
+		body.effects = PackedStringArray(["hold_shove"] if with_node else [])
+		body._shove()
+		await get_tree().physics_frame
+		pushed.append([enemy.global_position.distance_to(here) - before,
+			enemy.state() == Enemy.State.STAGGERED])
+	print("[rite] shove       plain: moved %.2f m, staggered %s · shoved: %.2f m, %s"
+		% [pushed[0][0], pushed[0][1], pushed[1][0], pushed[1][1]])
+	if pushed.size() < 2 or pushed[0][1] or not pushed[1][1] \
+			or float(pushed[1][0]) < tuning.rite_shove_metres * 0.5:
+		problems.append("Shove did not throw back and stagger only with the node: %s" % str(pushed))
+	_session.clear_enemies()
+
+	# ─ 5. Last Door: hold on empty breath, and pay in blood ─
+	body.sworn = &"huskarl"
+	var doors: Array = []
+	for with_node: bool in [false, true]:
+		body.effects = PackedStringArray(["hold_past_breath"] if with_node else [])
+		body.health.restore()
+		body.stamina.refill()
+		# Two left, spent the way a body spends — so the delay starts now and
+		# the bar is empty an eighth of a second into the Hold.
+		body.stamina.spend(body.stamina.current - 2.0)
+		Input.action_press("verb")
+		# Inside the regeneration delay, so what is measured is the Hold at
+		# empty and not the bar coming back.
+		await _hold(0.8)
+		doors.append([body.planted, body.health.maximum - body.health.current])
+		Input.action_release("verb")
+		await _hold(0.2)
+	print(("[rite] door        at empty, plain: planted %.1f, bled %.1f · with the "
+		+ "node: planted %.1f, bled %.1f")
+		% [doors[0][0], doors[0][1], doors[1][0], doors[1][1]])
+	if float(doors[0][0]) > 0.0 or float(doors[1][0]) < 1.0 or float(doors[1][1]) < 1.0 \
+			or float(doors[0][1]) > 0.0:
+		problems.append("Last Door: %s" % str(doors))
+	body.health.restore()
+	body.stamina.refill()
+
+	# ─ 6. Lure: a baited snare steps and is heard ─
+	var steps: Array[int] = [0]
+	var bait := Snare.new()
+	bait.lures = true
+	bait.position = here + ahead * 3.0
+	var step_sound: AudioStreamWAV = Foley.stream_for(Foley.Sound.STEP)
+	bait.child_entered_tree.connect(func(child: Node) -> void:
+		var voice := child as AudioStreamPlayer3D
+		if voice != null and voice.stream == step_sound:
+			steps[0] += 1)
+	add_child(bait)
+	var plain := Snare.new()
+	plain.position = here - ahead * 3.0
+	var quiet: Array[int] = [0]
+	plain.child_entered_tree.connect(func(child: Node) -> void:
+		if child is AudioStreamPlayer3D:
+			quiet[0] += 1)
+	add_child(plain)
+	await _hold(tuning.rite_lure_every + 0.3)
+	print("[rite] lure        baited stepped %d time(s), plain %d" % [steps[0], quiet[0]])
+	if steps[0] < 1 or quiet[0] > 0:
+		problems.append("Lure: baited %d, plain %d" % [steps[0], quiet[0]])
+	plain.queue_free()
+
+	# ─ 7. Gag: held and silent, and only while held ─
+	var gagged := Rooted.new()
+	add_child(gagged)
+	gagged.hold_for(0.3, true)
+	var while_held: bool = gagged.gagged()
+	await _hold(0.45)
+	var after: bool = gagged.gagged()
+	gagged.hold_for(0.3)
+	var plain_hold: bool = gagged.gagged()
+	print("[rite] gag         gagged while held %s, after %s, by a plain hold %s"
+		% [while_held, after, plain_hold])
+	if not while_held or after or plain_hold:
+		problems.append("Gag: held %s, after %s, plain %s" % [while_held, after, plain_hold])
+	gagged.queue_free()
+	# And the body it holds: a call under way is cut short by a gag and only by
+	# one. The call's tick is driven directly, with the sight it needs set, so
+	# the only thing that differs between the two is the gag.
+	var calls: Array[bool] = []
+	for gag: bool in [false, true]:
+		_session.clear_enemies()
+		_session.spawn_enemy(here + ahead * 4.0)
+		await _hold(0.2)
+		var ringer: Enemy = null
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			ringer = node as Enemy
+		ringer._begin_call(tuning)
+		if gag:
+			ringer.rooted.hold_for(2.0, true)
+		ringer._sees = true
+		ringer._tick_call(0.016, tuning)
+		calls.append(ringer.state() == Enemy.State.CALLING)
+	print("[rite] gag         a call under way: free %s, gagged %s"
+		% ["goes on" if calls[0] else "STOPPED", "stopped" if not calls[1] else "GOES ON"])
+	if not calls[0] or calls[1]:
+		problems.append("a gag did not stop a call, or something else did: %s" % str(calls))
+	_session.clear_enemies()
+
+	# ─ 8. Pinning Shot: an unaware body is pinned, and your snare springs ─
+	var pins: Array = []
+	for with_node: bool in [false, true]:
+		_session.clear_enemies()
+		_session.spawn_enemy(here + ahead * 5.0)
+		await _hold(0.3)
+		var mark: Enemy = null
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			mark = node as Enemy
+		var mine_set := Snare.new()
+		mine_set.placer = body.get_multiplayer_authority()
+		mine_set.position = here - ahead * 4.0
+		add_child(mine_set)
+		body.effects = PackedStringArray(["arrow_pins"] if with_node else [])
+		var shaft := Arrow.new()
+		shaft.shooter = body.get_multiplayer_authority()
+		add_child(shaft)
+		var box: Hurtbox = null
+		for child: Node in mark.get_children():
+			if child is Hurtbox:
+				box = child as Hurtbox
+		shaft._on_hit(box)
+		await get_tree().physics_frame
+		pins.append([mark.rooted.held(), mine_set.sprung])
+		if is_instance_valid(mine_set):
+			mine_set.queue_free()
+	print("[rite] pin         plain: held %s, snare sprung %s · pinning: %s, %s"
+		% [pins[0][0], pins[0][1], pins[1][0], pins[1][1]])
+	if pins[0][0] or pins[0][1] or not pins[1][0] or not pins[1][1]:
+		problems.append("Pinning Shot: %s" % str(pins))
+	_session.clear_enemies()
+
+	# ─ 9. Cover of the Snap: the placer goes silent as it fires ─
+	var covers: Array = []
+	for with_node: bool in [false, true]:
+		body.clamor.silence()
+		var set_trap := Snare.new()
+		set_trap.placer = body.get_multiplayer_authority()
+		set_trap.covers = with_node
+		set_trap.position = here + ahead * 6.0
+		add_child(set_trap)
+		_session.spawn_enemy(here + ahead * 6.0)
+		await _hold(0.3)
+		var caught: Enemy = null
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			caught = node as Enemy
+		set_trap._on_stepped_in(caught)
+		var level_before: float = body.clamor.level
+		body.clamor.add(5.0)
+		covers.append([body.clamor.hushed(), body.clamor.level - level_before])
+		_session.clear_enemies()
+	await _hold(tuning.rite_snap_cover_seconds + 0.2)
+	var worn_off: bool = not body.clamor.hushed()
+	print("[rite] snap        plain: hushed %s, a noise raised %.1f · covered: %s, %.1f · worn off %s"
+		% [covers[0][0], covers[0][1], covers[1][0], covers[1][1], worn_off])
+	if covers[0][0] or float(covers[0][1]) <= 0.0 or not covers[1][0] \
+			or float(covers[1][1]) > 0.0 or not worn_off:
+		problems.append("Cover of the Snap: %s, worn off %s" % [str(covers), worn_off])
+
+	striker.queue_free()
+	body.effects = PackedStringArray()
+	for problem: String in problems:
+		printerr("[rite] FAIL %s" % problem)
+	print("[rite] each class has a path of its own")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **`--verbs-probe`** (`M4-T03`, ADR-272): the two unique verbs can be *seen*.
+##
+## `DES-011` rule 5 — *"a player should recognize each class from 10 seconds of
+## watching"* — was true of the Húskarl's Hold in the physics and in nobody's
+## eyes: planting changed a collision layer and nothing else, so a teammate
+## holding a door looked exactly like one standing in it. Every row here is a
+## thing that must move, and each is asserted by where it ends as well as that
+## it started, because a pose that never lets go is the other way to fail.
+##
+## 1. A teammate's Hold lifts the shield arm, and sinks the hips no further
+##    than `BRACE_DROP` — the collider does not move, so neither may much else.
+## 2. The plant is heard once, when it lands, and not again while it holds.
+## 3. Your own Hold drops your eye and brings your shield across; letting go
+##    gives both back.
+## 4. Setting a snare shows the ring it will be, growing, and kneels you;
+##    stopping takes both away.
+## 5. A set snare breathes, and a sprung one snaps shut from wider than itself.
+func _verbs_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	var ahead: Vector3 = -body.global_transform.basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+
+	# ─ 1. a teammate's Hold is a pose ─
+	var mate: Player = _session.spawn_player(2, body.global_position + ahead * 2.4)
+	if mate == null:
+		printerr("[verbs] FAIL no teammate could be spawned")
+		get_tree().quit(1)
+		return
+	mate.sworn = &"huskarl"
+	mate.equipment.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_round_shield"), 9700))
+	await _hold(0.3)
+	var rig: BodyRig = mate.rig()
+	var shield_low: float = rig.socket_at(Enums.Slot.OFF_HAND).y - mate.global_position.y
+	var hips_low: float = rig.pelvis_height()
+	var facing_low: Vector3 = rig.worn_on(Enums.Slot.OFF_HAND).global_basis.z.normalized()
+	# Counted as they are made, not as they stand: a one-shot frees itself when
+	# it finishes, and headless it finishes at once.
+	var plants: Array[int] = [0]
+	var thump: AudioStreamWAV = Foley.stream_for(Foley.Sound.THUMP)
+	mate.child_entered_tree.connect(func(child: Node) -> void:
+		var voice := child as AudioStreamPlayer3D
+		if voice != null and voice.stream == thump \
+				and is_equal_approx(voice.pitch_scale, 0.7):
+			plants[0] += 1)
+	mate.planted = 1.0
+	await _hold(0.3)
+	var shield_high: float = rig.socket_at(Enums.Slot.OFF_HAND).y - mate.global_position.y
+	var sunk: float = hips_low - rig.pelvis_height()
+	# The shield rides the arm up **as a shield**: it faces where it faced
+	# hanging. Its first draft tipped with the forearm into a tray.
+	var turned: float = rad_to_deg(facing_low.angle_to(
+		rig.worn_on(Enums.Slot.OFF_HAND).global_basis.z.normalized()))
+	print("[verbs] square      the shield turned %.0f° as the arm came up" % turned)
+	if turned > VERBS_SHIELD_TURN:
+		problems.append(("a Hold turned the shield %.0f° from how it hung — it "
+			+ "lies flat in the raised hand instead of facing the door") % turned)
+	print("[verbs] brace       shield hand %.2f → %.2f m, hips sink %.3f m, braced %.1f"
+		% [shield_low, shield_high, sunk, rig.braced()])
+	if shield_high - shield_low < VERBS_SHIELD_RISE:
+		problems.append(("a teammate's Hold raised their shield %.2f m — a door "
+			+ "being held has to look held from across the room") % (shield_high - shield_low))
+	if sunk > BodyRig.BRACE_DROP + 0.02:
+		problems.append(("a Hold sank the hips %.3f m against a collider that does "
+			+ "not move — the silhouette is now shorter than the body") % sunk)
+
+	# ─ 2. the plant is heard once ─
+	await _hold(0.5)
+	var planted_sounds: int = plants[0]
+	print("[verbs] plant       heard %d time(s) over 0.8 s planted" % planted_sounds)
+	if planted_sounds != 1:
+		problems.append("the plant was heard %d times — once, when it lands" % planted_sounds)
+	mate.planted = 0.0
+	await _hold(0.3)
+	var let_go: float = rig.socket_at(Enums.Slot.OFF_HAND).y - mate.global_position.y
+	if absf(let_go - shield_low) > 0.03:
+		problems.append("the shield arm stayed up %.2f m after the Hold ended"
+			% (let_go - shield_low))
+
+	# ─ 3. your own Hold, from inside ─
+	var head: Node3D = body.get_node(^"Head") as Node3D
+	body.sworn = &"huskarl"
+	body.equipment.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_round_shield"), 9701))
+	await _hold(0.2)
+	var eye_up: float = head.position.y
+	Input.action_press("verb")
+	await _hold(Config.tuning.hold_plant_seconds + 0.3)
+	var eye_braced: float = head.position.y
+	var hands_braced: float = body.hands().braced
+	Input.action_release("verb")
+	await _hold(0.2)
+	print("[verbs] hold        eye %.2f → %.2f m, hands braced %.1f, back to %.2f m"
+		% [eye_up, eye_braced, hands_braced, head.position.y])
+	if absf((eye_up - eye_braced) - Player.BRACE_EYE_DROP) > 0.01 or hands_braced < 1.0:
+		problems.append(("your own Hold dropped the eye %.2f m and braced the hands "
+			+ "%.1f — want %.2f m and 1") % [eye_up - eye_braced, hands_braced,
+				Player.BRACE_EYE_DROP])
+	if absf(head.position.y - eye_up) > 0.005:
+		problems.append("the eye stayed down after the Hold ended")
+
+	# ─ 4. setting a snare, seen ─
+	body.sworn = &"veidimadr"
+	await _hold(0.1)
+	Input.action_press("verb")
+	await _hold(Config.tuning.snare_place_seconds * 0.5)
+	var ghost: MeshInstance3D = body.snare_ghost()
+	var grown: float = ghost.scale.x if ghost != null and ghost.visible else 0.0
+	var kneel: float = eye_up - head.position.y
+	var partway: float = body.setting()
+	Input.action_release("verb")
+	await _hold(0.1)
+	var gone: bool = ghost == null or not ghost.visible
+	print("[verbs] setting     %.2f of the way, ring at %.2f, knelt %.2f m; gone after %s"
+		% [partway, grown, kneel, "yes" if gone else "NO"])
+	if grown <= 0.3 or grown >= 1.0:
+		problems.append("the ring being set was %.2f across — it should be growing" % grown)
+	if absf(kneel - partway * Player.KNEEL_EYE_DROP) > 0.03:
+		problems.append("setting a snare knelt you %.2f m, want %.2f"
+			% [kneel, partway * Player.KNEEL_EYE_DROP])
+	if not gone or absf(head.position.y - eye_up) > 0.005:
+		problems.append("stopping left the ring or the kneel behind")
+
+	# ─ 5. armed breathes, sprung snaps ─
+	var snare := Snare.new()
+	snare.position = body.global_position + ahead * 3.0
+	add_child(snare)
+	await _hold(0.25)
+	var first: float = snare.ring_scale()
+	await _hold(0.4)
+	var breathed: float = absf(snare.ring_scale() - first)
+	snare.sprung = true
+	await get_tree().process_frame
+	var snapped: float = snare.ring_scale()
+	await _hold(Snare.SNAP_SECONDS + 0.2)
+	var settled: float = snare.ring_scale()
+	print("[verbs] snare       armed moves %.3f; sprung %.2f → %.2f"
+		% [breathed, snapped, settled])
+	if breathed < 0.005:
+		problems.append("a set snare lies still — it reads as a decal, not a trap")
+	if snapped < 1.2 or absf(settled - 1.0) > 0.02:
+		problems.append("a sprung snare did not snap shut (%.2f → %.2f)" % [snapped, settled])
+	snare.queue_free()
+
+	for problem: String in problems:
+		printerr("[verbs] FAIL %s" % problem)
+	print("[verbs] the two verbs can be seen")
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## How far a teammate's shield hand must rise when they plant, metres.
+const VERBS_SHIELD_RISE: float = 0.15
+## How far a braced shield may turn from how it hung, degrees.
+const VERBS_SHIELD_TURN: float = 15.0
+
+
+## **`--verbs-shot=PATH`** (ADR-272): a Húskarl holding, from the front and
+## from the side, beside the same body standing; your own Hold from inside; and
+## a snare half set at your feet.
+func _verbs_shot(path: String) -> void:
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	var ahead: Vector3 = -player.global_transform.basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var mate: Player = _session.spawn_player(2, player.global_position + ahead * 2.4)
+	for _i: int in 6:
+		await get_tree().physics_frame
+	mate.net_position = player.global_position + ahead * 2.6
+	mate.global_position = mate.net_position
+	mate.net_yaw = atan2(ahead.x, ahead.z)
+	mate.sworn = &"huskarl"
+	for id: StringName in [&"wpn_seax", &"arm_round_shield", &"arm_spangen_helm"]:
+		mate.equipment.equip(ItemInstance.of(ItemCatalogue.by_id(id), 9710))
+	player.equipment.equip(ItemInstance.of(ItemCatalogue.by_id(&"tol_horn_lantern"), 9712))
+	player.lit = true
+	player.face_toward(mate.global_position + Vector3.UP * 1.0)
+	for pose: Array in [["standing", 0.0, 0.0], ["holding", 1.0, 0.0],
+			["holding-side", 1.0, -PI * 0.5]]:
+		mate.planted = pose[1]
+		mate.net_yaw = atan2(ahead.x, ahead.z) + float(pose[2])
+		await _hold(0.4)
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(
+			path.replace(".png", "-%s.png" % pose[0]))
+		print("[verbs] %s" % pose[0])
+	mate.queue_free()
+	player.sworn = &"huskarl"
+	player.equipment.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_round_shield"), 9713))
+	player.face_toward(player.global_position + ahead * 4.0 + Vector3.UP * 1.2)
+	Input.action_press("verb")
+	await _hold(Config.tuning.hold_plant_seconds + 0.4)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-fp-hold.png"))
+	print("[verbs] fp-hold")
+	Input.action_release("verb")
+	player.sworn = &"veidimadr"
+	player.equipment.equip(ItemInstance.of(ItemCatalogue.by_id(&"tol_horn_lantern"), 9714))
+	player.face_toward(player.global_position + ahead * 1.5)
+	await _hold(0.3)
+	Input.action_press("verb")
+	await _hold(Config.tuning.snare_place_seconds * 0.6)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-fp-setting.png"))
+	print("[verbs] fp-setting")
+	Input.action_release("verb")
+	get_tree().quit()
 
 
 ## **`--hands-shot=PATH`** (ADR-267): what you see in your hands, and what lies

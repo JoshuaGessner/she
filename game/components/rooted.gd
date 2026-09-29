@@ -46,6 +46,8 @@ extends Node
 ## because the transform it is being sent stops changing.
 
 var _left: float = 0.0
+## Whether this hold also stops a call (**Gag**, ADR-273). Ends with the hold.
+var _gag: bool = false
 
 
 func _physics_process(delta: float) -> void:
@@ -54,19 +56,26 @@ func _physics_process(delta: float) -> void:
 	_left -= delta
 	if _left <= 0.0:
 		_left = 0.0
+		_gag = false
 
 
 ## Hold for at least this long. Deliberately `maxf` rather than additive: two
 ## snares in a doorway should not stack into a permanent hold, which is the
 ## shape every "stun-lock" complaint in every game with a stun has.
-func hold_for(seconds: float) -> void:
+func hold_for(seconds: float, gag: bool = false) -> void:
 	if seconds <= 0.0:
 		return
 	_left = maxf(_left, seconds)
+	_gag = _gag or gag
 
 
 func held() -> bool:
 	return _left > 0.0
+
+
+## Held, and unable to call its kin while it is (`M4-T03`, ADR-273).
+func gagged() -> bool:
+	return _gag and _left > 0.0
 
 
 ## Let go early. Called when a body dies: a corpse is not being held in place by
@@ -75,3 +84,4 @@ func held() -> bool:
 ## exists.
 func release() -> void:
 	_left = 0.0
+	_gag = false

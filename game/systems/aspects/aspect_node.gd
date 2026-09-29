@@ -54,10 +54,23 @@ extends Resource
 ## `DES-004`'s three, and the cost of each is `TuningProfile.node_cost`.
 enum Tier { LESSER, GREATER, KEYSTONE }
 
+## **The Pact Rank a Rite opens at** (ADR-060) ⟨tune⟩ — the whole branch, not
+## node by node. Not `rank_required`, deliberately: that field marks *her*
+## loudest gifts, which also wait on her demand (ADR-243), and a Rite is the
+## class's own path rather than something she hands down. A Rite has no
+## keystone either — `DES-004`'s one-keystone rule belongs to the Aspects.
+const RITE_RANK: int = 3
+
 @export var id: StringName = &""
 ## Which of `DES-004`'s five this belongs to. Validated against
 ## `ClassResource.ASPECTS` so there is one list of Aspect names in the project.
+## Empty for a Rite node, which belongs to a class instead.
 @export var aspect: StringName = &""
+## **The class whose Rite this is** (`DES-011`, `M4-T03`, ADR-273), or empty for
+## an Aspect node. A Rite is the class-only branch — *"nobody else can take
+## these"* — so the one field that says whose it is is also the gate, and a
+## node cannot be in an Aspect and a Rite at once.
+@export var sworn: StringName = &""
 @export var tier: Tier = Tier.LESSER
 
 @export_group("Text")
@@ -96,6 +109,15 @@ func display() -> String:
 	return tr(String(name_key)) if name_key != &"" else String(id)
 
 
+## **Whether this node does anything for a body sworn to `class_id`.** An Aspect
+## node always does. A Rite node only for its own class — `DES-011`'s Legacy
+## rule: *"class Rite nodes can occupy a Legacy slot, but only apply if the next
+## life is the same class"*. Asked wherever a tree becomes effects, so there is
+## one answer.
+func applies_to(class_id: StringName) -> bool:
+	return sworn == &"" or sworn == class_id
+
+
 ## Checked at boot by `AspectCatalogue`, in the shape the item and class
 ## resources established: a malformed node should stop the build rather than
 ## reach a player as a purchase that does nothing.
@@ -103,7 +125,20 @@ func validate() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
 	if id == &"":
 		problems.append("a node with no id cannot be taken or saved")
-	if not ClassResource.ASPECTS.has(aspect):
+	if sworn != &"":
+		# **A Rite node** (ADR-273). Its class is checked against the catalogue
+		# by `data_probe`, which can see it; here, only its own shape.
+		if aspect != &"":
+			problems.append("%s is in the %s Aspect and %s's Rite at once"
+				% [id, aspect, sworn])
+		if not String(id).begins_with("rit_"):
+			problems.append("%s is a Rite node and should be named 'rit_…'" % id)
+		if tier == Tier.KEYSTONE:
+			problems.append("%s is a Rite keystone — a Rite has none" % id)
+		if rank_required > 0:
+			problems.append(("%s gates on rank %d — a Rite opens as a whole at "
+				+ "RITE_RANK and waits on no demand") % [id, rank_required])
+	elif not ClassResource.ASPECTS.has(aspect):
 		problems.append(("%s belongs to '%s', which is not one of DES-004's "
 			+ "five — a sixth Aspect is a design change needing an ADR")
 			% [id, aspect])
@@ -123,7 +158,8 @@ func validate() -> PackedStringArray:
 			+ "stick `DES-004` rule 2 forbids") % id)
 	# The id says which Aspect it is in, so a node can be placed by eye in a
 	# folder of a hundred and a save file naming one is legible in a bug report.
-	if id != &"" and aspect != &"" and not String(id).begins_with(_prefix(aspect)):
+	if id != &"" and sworn == &"" and aspect != &"" \
+			and not String(id).begins_with(_prefix(aspect)):
 		problems.append("%s is a %s node and should be named '%s…'"
 			% [id, aspect, _prefix(aspect)])
 	for other: StringName in requires:

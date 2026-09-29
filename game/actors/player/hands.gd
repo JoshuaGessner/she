@@ -51,6 +51,10 @@ var _off_item: ItemResource = null
 var _off_look: Node3D = null
 var _off: Node3D = null
 var _guard: float = 0.0
+## How planted a Húskarl's Hold is, 0 to 1 (ADR-272). Set by the body each
+## frame: a Hold brings the shield across the chest exactly as a raised guard
+## does, because in the hand that is what holding a door looks like.
+var braced: float = 0.0
 var _open: float = 0.0
 var _busy: float = 0.0
 
@@ -156,7 +160,7 @@ func step(delta: float, lit: bool, guarding: bool, mending: float,
 	var rate: float = clampf(delta * EASE, 0.0, 1.0)
 	_open = lerpf(_open, 1.0 if lit else 0.0, rate)
 	var shield: bool = _off_item != null and _off_item.has_trait(ShieldTrait)
-	_guard = lerpf(_guard, 1.0 if guarding and shield else 0.0, rate)
+	_guard = lerpf(_guard, 1.0 if (guarding or braced > 0.0) and shield else 0.0, rate)
 
 	# What the hands are busy with, if anything.
 	var using: ItemResource = null

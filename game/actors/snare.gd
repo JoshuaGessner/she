@@ -56,8 +56,26 @@ const REPLICATION_HZ: float = 10.0
 ## spent rings.
 const LINGER: float = 3.0
 
+## **An armed trap breathes; a sprung one snaps** (`M4-T03`, ADR-272). Look
+## only, on every peer, from the replicated `sprung`. The breath is slow and a
+## few per cent — enough that a set snare reads as *live* rather than as a
+## decal — and the snap is the ring closing from wider than itself, so the
+## catch reads as a motion and not as a colour change.
+const BREATH_HZ: float = 0.6
+const BREATH: float = 0.04
+const SNAP_FROM: float = 1.6
+const SNAP_SECONDS: float = 0.14
+
 ## The peer that set it, so a player can find and clear their own.
 var placer: int = 0
+## **What the placer's Rite adds** (`M4-T03`, ADR-273), read from their effects
+## once, when the snare is made, and carried in its spawn payload so every
+## peer's copy agrees. Lure makes it call; Gag stops what it holds from
+## calling; Cover hushes the placer when it fires.
+var lures: bool = false
+var gags: bool = false
+var covers: bool = false
+var _lure_in: float = 0.0
 var hold_seconds: float = 3.0
 var clamor_trigger: float = 2.6
 
@@ -67,6 +85,10 @@ var sprung: bool = false:
 			return
 		sprung = value
 		_dress()
+		if sprung and _ring != null and is_inside_tree():
+			_ring.scale = Vector3(SNAP_FROM, 1.0, SNAP_FROM)
+			create_tween().tween_property(_ring, "scale", Vector3.ONE,
+				SNAP_SECONDS).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 		# **On every peer**, because this is the setter a replicated value
 		# arrives through. Putting the cue where it fires would have played it
 		# on the host alone — the host being the only machine that decides a
@@ -76,6 +98,7 @@ var sprung: bool = false:
 
 var _field: ClamorField = null
 var _ring: MeshInstance3D = null
+var _age: float = 0.0
 
 
 func configure_replication() -> void:
@@ -122,6 +145,47 @@ func _ready() -> void:
 	body_entered.connect(_on_stepped_in)
 
 
+func _process(delta: float) -> void:
+	if sprung or _ring == null:
+		return
+	_lure(delta)
+	_age += delta
+	var breath: float = 1.0 + sin(_age * TAU * BREATH_HZ) * BREATH
+	_ring.scale = Vector3(breath, 1.0, breath)
+
+
+## **Lure** (ADR-273): a small footstep, every few seconds, until something
+## steps in. The sound on every peer — it is a sound a player should hear coming
+## from their own trap — and the noise the floor hears on the host alone.
+func _lure(delta: float) -> void:
+	if not lures:
+		return
+	_lure_in -= delta
+	if _lure_in > 0.0:
+		return
+	_lure_in = Config.tuning.rite_lure_every
+	Foley.at(self, Foley.Sound.STEP, 0.9)
+	if multiplayer.is_server() and _field != null:
+		_field.deposit(global_position, Config.tuning.rite_lure_clamor)
+
+
+## Close on nothing (`Pinning Shot`, ADR-273): the snare springs where it lies,
+## loud as ever and holding nobody, and clears as a sprung one does.
+func spring_empty() -> void:
+	if sprung or not multiplayer.is_server():
+		return
+	sprung = true
+	set_deferred("monitoring", false)
+	if _field != null:
+		_field.deposit(global_position, clamor_trigger)
+	get_tree().create_timer(LINGER).timeout.connect(queue_free)
+
+
+## The ring's size right now, for `--verbs-probe`.
+func ring_scale() -> float:
+	return _ring.scale.x if _ring != null else 0.0
+
+
 ## Blockout, per ADR-046: an open ring on the floor and a tight bright one once
 ## it has fired. Two states, both readable from standing height, no animation.
 func _dress() -> void:
@@ -153,7 +217,13 @@ func _on_stepped_in(body: Node3D) -> void:
 	# state change from there — *"Function blocked during in/out signal"*. The
 	# same rule that already defers a corpse dropping its collision layer.
 	set_deferred("monitoring", false)
-	caught.hold_for(hold_seconds)
+	caught.hold_for(hold_seconds, gags)
+	# **Cover of the Snap** (ADR-273): the placer goes silent as it fires.
+	if covers:
+		for node: Node in get_tree().get_nodes_in_group("player"):
+			var body_of := node as Player
+			if body_of != null and body_of.get_multiplayer_authority() == placer:
+				body_of.clamor.hush_for(Config.tuning.rite_snap_cover_seconds)
 	# **Noise where the trap is, not where the Stalker is.** Straight into the
 	# field for the reason `Arrow._land` gives: a `ClamorSource` made and freed
 	# inside one frame is never absorbed, and it would carry party scaling that
