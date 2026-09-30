@@ -589,6 +589,21 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **A haul comes home to her** (ADR-278). What a run carried out waits in
+	# `GameState.carried` and reaches the hands only in the Chamber, so a camp
+	# that did not open it showed an empty bag and a room nobody pointed at.
+	# Asserted on PASS for the crossing's reason: an arrival that dies prints
+	# no FAIL line.
+	settle="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/threshold.tscn -- --settle-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[settle\] PASS' <<<"$settle" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$settle"; then
+		echo "FAIL a haul has to arrive at the hoard, in the hands" >&2
+		printf '%s\n' "$settle" | grep -E '\[settle\]|ERROR' \
+			| sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Darkness is a mechanic** (`M4-T13`, ADR-188, `ART-001`).
 	#
 	# Six rows, and the second is the one that matters: an enemy standing at a

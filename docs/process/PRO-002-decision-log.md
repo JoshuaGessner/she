@@ -10491,4 +10491,25 @@ the skeleton's articulation would be a separate decision.
 
 **Planted:** removing `_sate()`, a near range of 999 and a ceiling of 9 fail each row in turn.
 
+## ADR-278 — A haul comes home to her: the Chamber opens on arrival
+
+**Date:** 2026-09-30 · **Status:** accepted · **Amends `DES-014`, ADR-021** · **Developer's report: *"when I get to the third floor and leave my inventory is empty and I don't see any way to offer anything to the dragon"*** · **Developer's call: arrive in the Chamber**
+
+**Context:** extracting worked, and nothing about the result was visible.
+- What a run carried out goes into `GameState.carried`, and it reaches the hands only inside the Chamber.
+- The Chamber is behind a pale slab at the camp that nothing points to.
+- So every run ended at the fire with an **empty bag**, which reads exactly like a lost haul.
+- The gesture that gives tribute, dropping a thing from the bag at the pile, was prompted only inside the pile's 2.6 m, and it never named the bag's key.
+
+A second cause was ADR-277's: the Hunter took the richest item every 0.9 s. A long run could arrive home genuinely empty.
+
+**Decision:**
+- **A haul goes straight to the hoard.** When the camp loads with undecided loot, and there is no death for the Legacy screen to face first, it opens the Chamber on its own, with the haul in your bag. Walking out through her door returns you to the fire as before. *Reference: Hades, which returns you to the House, where the things you brought are spent. The hub is where the decision is made, not somewhere you have to remember to go.* `DES-019`'s Settle beat is *"made physically at the hoard"*, and now the run ends there.
+- **She says what it is for**, once, on arrival and in her own voice, unless she has a demand to name: *"Open your bag (key) and put down what you brought. The pile is mine. The chest is yours."*
+- **The pile and chest prompts name the bag's key.**
+
+**Unchanged:** the gesture itself, ADR-021's private room, the Legacy screen's precedence after a death, and leaving by the door.
+
+**Measured:** `--settle-probe`, which is new and in the sweep, seeds one coin as a carried haul at the camp. It asserts that the Chamber opened with the coin in the body's bag. Planted, a camp that does not open the room fails it. `--lair-probe` shows her line and the new pile prompt, and still passes its prompt rows.
+
 *Entries below to be added as design decisions are signed off.*

@@ -185,6 +185,14 @@ func _ready() -> void:
 	# **She names her demand when a life first comes before her** (ADR-243),
 	# and says when it is met — in the one voice this room has.
 	_she_says(GameState.take_demand_heard())
+	# **And she says what the haul is for** (ADR-278), when there is one — the
+	# bag opened on arrival holding a run's worth of things and nothing in the
+	# room said the pile ahead was where they went. Once, in her voice, and
+	# the demand wins the line if she has one to name.
+	if _refusal == "" and _player.inventory.count() > 0:
+		_she_says("Open your bag (%s) and put down what you brought. The pile "
+			% ControlsScreen.glyphs_for("bag")
+			+ "is mine. The chest is yours.")
 
 
 ## A body, instantiated rather than spawned. See the class note: the absence of
@@ -684,17 +692,19 @@ func _tell_the_reticle(at_the_pile: bool, at_the_chest: bool) -> void:
 	if at_the_chest:
 		# The chest has no verb of its own — it is a drop target, not an
 		# interaction — so the prompt names the gesture rather than a key.
-		_mark.offer("drag from the bag — yours, until you die")
+		_mark.offer("open the bag (%s), drag it here — yours, until you die"
+			% ControlsScreen.glyphs_for("bag"))
 		return
 	if not at_the_pile:
 		_mark.offer("")
 		return
 	if GameState.boon > 0:
-		_mark.offer("hold %s — her aspects (%d unspent) · drag from the bag to give"
-			% [ControlsScreen.glyphs_for("interact"), GameState.boon])
+		_mark.offer("hold %s — her aspects (%d unspent) · open the bag (%s), drag here to give"
+			% [ControlsScreen.glyphs_for("interact"), GameState.boon,
+				ControlsScreen.glyphs_for("bag")])
 		return
-	_mark.offer("hold %s — the hoard, and what she is owed · drag from the bag to give"
-		% ControlsScreen.glyphs_for("interact"))
+	_mark.offer("hold %s — the hoard, and what she is owed · open the bag (%s), drag here to give"
+		% [ControlsScreen.glyphs_for("interact"), ControlsScreen.glyphs_for("bag")])
 
 
 ## What is on offer, or why nothing is. Beside the Tithe on purpose — the two

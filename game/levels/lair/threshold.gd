@@ -206,6 +206,21 @@ func _ready() -> void:
 			_board_probe()
 		elif arg == "--again":
 			_again()
+		elif arg == "--settle-probe":
+			_settle_probe()
+	# **A haul comes home to her, not to the fire** (ADR-278). What you
+	# carried out waits in `GameState.carried` and only reaches your hands in
+	# the Chamber, so arriving at the camp showed an empty bag and a room behind
+	# a pale slab nothing pointed at — reported from play as *"my inventory is
+	# empty and I don't see any way to offer anything to the dragon"*. A probe
+	# or the extraction smoke is watching the camp itself, so they are left
+	# standing in it; `--settle-probe` walks this path on purpose.
+	var watching: bool = _probing
+	for arg: String in OS.get_cmdline_user_args():
+		if arg == "--extraction" or arg == "--abandoned":
+			watching = true
+	if not watching:
+		_bring_the_haul_to_her()
 
 
 ## **The three ways a run can end up somewhere it cannot come back from**
@@ -1898,6 +1913,61 @@ const CHAMBER_REACH: float = 40.0
 var _chamber: Chamber = null
 ## False from the moment you step onto the slab until you step off it again.
 var _chamber_armed: bool = true
+
+
+## **Straight to the hoard with what you brought** (ADR-278) — `DES-019`'s
+## Settle beat, *"the keep-or-give decision made physically at the hoard"*,
+## opened on arrival rather than left for a player to discover. Only when
+## there is something to decide and no life to mourn first: the Legacy screen
+## owns a death, and a camp visit with empty hands has nothing to settle.
+##
+## Waits for the body, because `_open_the_chamber` takes it out of the world
+## and a body that has not arrived yet cannot leave.
+func _bring_the_haul_to_her() -> void:
+	if GameState.carried.is_empty() or not GameState.last_life.is_empty():
+		return
+	# A frame first, always: this can run from `_ready`, while the root is
+	# still adding children and refuses one more.
+	await get_tree().process_frame
+	var waited: float = 0.0
+	while _session != null and _session.local_player() == null and waited < 5.0:
+		await get_tree().process_frame
+		waited += get_process_delta_time()
+	if not is_inside_tree() or _session == null or _session.local_player() == null:
+		return
+	print("[camp] %d thing(s) came home — to her, first" % GameState.carried.size())
+	_open_the_chamber()
+
+
+## **`--settle-probe`** (ADR-278): a haul arrives, and the room it is decided in
+## opens on its own with the haul in your hands. Called rather than waited for,
+## because `_probing` holds every other probe at the fire — which is exactly
+## why this one exists: the arrival path is the thing under test.
+func _settle_probe() -> void:
+	var problems := PackedStringArray()
+	var coin: ItemResource = ItemCatalogue.by_id(&"glt_hoard_coin")
+	GameState.last_life = {}
+	GameState.carried.clear()
+	GameState.carried.append(ItemInstance.of(coin, 4242))
+	await _bring_the_haul_to_her()
+	for _frame: int in 4:
+		await get_tree().process_frame
+	var room := get_tree().root.get_node_or_null(CHAMBER_NODE) as Chamber
+	var inside: Player = room.get_node_or_null("chamber_body") as Player \
+		if room != null else null
+	var held: int = inside.inventory.count() if inside != null else -1
+	print("[settle] chamber opened=%s, the haul in hand=%d of 1" % [room != null, held])
+	if room == null:
+		problems.append("a haul came home and her room stayed shut — the player "
+			+ "stands at the fire with an empty bag and no idea where it went")
+	elif held != 1:
+		problems.append("her room opened but what came home is not in the bag "
+			+ "(%d item(s)) — there is nothing to give her" % held)
+	GameState.carried.clear()
+	for problem: String in problems:
+		printerr("[settle] FAIL %s" % problem)
+	print("[settle] %s" % ("PASS" if problems.is_empty() else "FAIL"))
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 func _open_the_chamber() -> void:
