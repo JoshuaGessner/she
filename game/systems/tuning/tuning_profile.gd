@@ -320,7 +320,15 @@ extends Resource
 ## As a float it silently narrowed at every call site, including inside `maxi`.
 @export var hunter_wealth_floor: int = 20
 @export var hunter_walk_speed: float = 1.9
-@export var hunter_pursue_speed: float = 3.1
+## Below `walk_speed` since ADR-277, and held there by the ceiling below:
+## `DES-017` says *"it moves badly because of the weight"*, and at 3.1 + 0.28 a
+## minute it outran a walking player inside the first minute of a Hunt. Now an
+## unburdened player walking away always gets away, and what lets it catch you
+## is **your** weight — greed, not the clock, is what it punishes.
+@export var hunter_pursue_speed: float = 2.8
+## The fastest it ever goes, as a fraction of `walk_speed` ⟨tune⟩ (ADR-277).
+## Escalation still makes it faster; it just never outwalks an empty bag.
+@export var hunter_speed_ceiling: float = 0.92
 ## Radians a second it turns toward where it is going ⟨tune⟩. It borrowed the
 ## enemy's per-tick rate times eight until that rate became each archetype's own
 ## (ADR-231); 0.96 is the same turn, stated as the Gold-Sick's.
@@ -329,6 +337,27 @@ extends Resource
 ## gets faster and reads you more accurately the longer you stay."*
 @export var hunter_speed_per_minute: float = 0.28
 @export var hunter_range_per_minute: float = 3.0
+## Where escalation stops widening its reckoning ⟨tune⟩ (ADR-277).
+@export var hunter_wealth_range_max: float = 48.0
+## **Inside this, it feels you continuously**, through walls (ADR-277) ⟨tune⟩.
+## Beyond it and out of sight it only *reckons*: once every
+## `hunter_reckon_seconds` it feels for the richest body in `wealth_range()`,
+## takes where that body **was**, and walks there. It is the same rule as the
+## clamor field — it arrives where you were, never where you are — applied to
+## gold, and it is what lets a player who moves between reckonings lose it.
+@export var hunter_near_range: float = 14.0
+## How far it sees an unobstructed body ⟨tune⟩. Sight is live, like the near
+## sense: a Hunter looking at you is not guessing.
+@export var hunter_sight_range: float = 18.0
+## Seconds between reckonings ⟨tune⟩. **Heard**: a reckoning that finds someone
+## is a heave of coin loud across the floor, and the Ear's Hunter mark rises
+## with the Coursing it starts — the pulse is a beat you can play around.
+@export var hunter_reckon_seconds: float = 16.0
+## Seconds it withdraws after it gets gold ⟨tune⟩ (ADR-277) — from your bag or
+## from the floor. *Alien: Isolation*'s lesson: pressure that never lets go is
+## not pressure, it is weather. It goes back to where it came from to count what
+## it took, it ignores you while it does, and then it starts again.
+@export var hunter_sated_seconds: float = 35.0
 ## Seconds it keeps coming after losing you. Long, on purpose: `DES-017` says
 ## it does not lose interest quickly, and a pursuer you can shake in two
 ## seconds is a patrol.

@@ -3528,6 +3528,62 @@ func _hunt_probe() -> void:
 	# `target_position` starts at the origin and is only ever written by that
 	# block, so a non-zero value is proof it ran — and by this point in the
 	# probe the Hunter has been chasing a thrown purse for seconds.
+	# **Paid, it goes home** (ADR-277). The purse above reaches it, it
+	# stoops, and gold in its hands ends the encounter: Distant, walking away,
+	# deaf to a hoard beside it until the withdrawal runs out.
+	var paid_by: float = 0.0
+	while paid_by < 16.0 and hunter.sated_for() <= 0.0:
+		await _hold(0.25)
+		paid_by += 0.25
+	var sated_at: Vector3 = hunter.global_position
+	player.teleport(sated_at + Vector3(1.0, 0.0, 0.0), 0.0)
+	await _hold(1.0)
+	print("[hunt] sated         %.0f s to go after %.1f s, state %s, target %s" % [
+		hunter.sated_for(), paid_by, Gullsjukr.State.keys()[hunter.state_index],
+		"none" if hunter.target() == null else String(hunter.target().name)])
+	if hunter.sated_for() <= 0.0:
+		problems.append("the Hunter got the purse and went on hunting — ADR-277: "
+			+ "gold in its hands has to end the encounter, or contact is a leash")
+	elif hunter.target() != null or hunter.state() != Gullsjukr.State.DISTANT:
+		problems.append("a sated Hunter still wanted the rich body standing next "
+			+ "to it (%s)" % Gullsjukr.State.keys()[hunter.state_index])
+	# **Far off, it reckons; it does not know** (ADR-277). Held in place so it
+	# cannot walk into sight, a Hunter out of its near range reckons once, and
+	# then the body moves: its goal must stay where the body **was**.
+	hunter.set("_sated_left", 0.0)
+	hunter.global_position = Vector3(-9.0, 0.1, -22.0)
+	hunter.rooted.hold_for(3.0)
+	var was_at: Vector3 = Vector3(9.4, 0.1, -8.0)
+	player.teleport(was_at, 0.0)
+	player.clamor.silence()
+	hunter.set("_reckon_in", 0.05)
+	await _hold(0.3)
+	var reckoned: bool = hunter.goal().distance_to(was_at) < 1.5
+	var moved_to: Vector3 = Vector3(9.0, 0.1, -20.0)
+	player.teleport(moved_to, 0.0)
+	player.clamor.silence()
+	await _hold(0.6)
+	var kept: float = hunter.goal().distance_to(was_at)
+	var followed: float = hunter.goal().distance_to(moved_to)
+	print("[hunt] the reckoning found=%s, goal %.1f m from where they were, %.1f m from where they went"
+		% [reckoned, kept, followed])
+	if not reckoned:
+		problems.append("a reckoning with a rich body in range did not send it "
+			+ "there — the far sense stopped working altogether")
+	elif followed < kept:
+		problems.append("between reckonings it followed the body to where it went "
+			+ "— the far sense is a leash again, not a beat")
+	hunter.rooted.release()
+	# **It never outwalks an empty bag** (ADR-277), however old the Hunt.
+	var was_age: float = hunter.age
+	hunter.age = 3600.0
+	var top: float = hunter.speed_for(true)
+	hunter.age = was_age
+	print("[hunt] top speed     %.2f m/s an hour in, against a walk of %.2f"
+		% [top, Config.tuning.walk_speed])
+	if top >= Config.tuning.walk_speed:
+		problems.append("an hour-old Hunt outwalks an unburdened player — only "
+			+ "weight should let it catch you")
 	var agent := hunter.get_node_or_null("Nav") as NavigationAgent3D
 	var asked: bool = agent != null and agent.target_position != Vector3.ZERO
 	print("[hunt] the path      agent=%s, target asked for=%s" % [agent != null, asked])

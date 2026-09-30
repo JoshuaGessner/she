@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-29 · 49 documents_
+_Regenerated 2026-09-30 · 49 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -29,7 +29,7 @@ _What the game is._
 | `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-09-16 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-13 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
-| `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-14 | DES-005, DES-013, DES-008, DES-014, DES-018 |
+| `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-30 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-16 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
 | `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-09-16 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-09-28 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |

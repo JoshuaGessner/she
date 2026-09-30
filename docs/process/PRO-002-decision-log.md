@@ -10468,4 +10468,27 @@ the skeleton's articulation would be a separate decision.
 
 **Measured:** with the guard removed, the probe prints `SCRIPT ERROR: Cannot call method 'is_server' on a null value` at `_physics_process` after the descent, and the sweep's crossing row fails on it. With the guard in place the crossing is clean and every carried value arrives. The Waystone guard has no probe of its own, because every extraction probe swaps the scene change for `_reset_floor`.
 
+## ADR-277 — The Hunter lets go: sated after gold, a reckoning instead of a leash, and never faster than an empty bag
+
+**Date:** 2026-09-30 · **Status:** accepted · **Amends `DES-017`, ADR-112, ADR-039** · **Developer's report: *"the hunter just follows you around non stop once he gets to you and he's more of an annoyance than a gameplay mechanic"*** · **Developer's call: the full cycle**
+
+**Context:** the build had turned `DES-017`'s hunter into a leash, through three independent causes.
+- **It knew where you were from anywhere.** The wealth sense read your position every frame through walls, out to 26 m plus 3 m for every minute of Hunt. That age carries down floors (ADR-185), so by the second floor its range covered the whole floor.
+- **It outwalked you.** It pursued at 3.1 m/s plus 0.28 a minute, so it passed a 3.4 m/s walk inside the first minute of a Hunt. `DES-017` says *"it moves badly because of the weight"*.
+- **Contact never ended.** In reach it took the richest thing in the bag every 0.9 s, stooped over it for 4.5 s, then came back for the next one. It kept doing this until the bag was empty. That is also a plain explanation for the report of arriving home with nothing.
+
+**Decision:** three changes.
+- **Paid, it withdraws.** Gold that reaches its hands sates it for 35 s ⟨tune⟩. That covers gold it tore out of your bag, once the stoop over it finishes, and gold you threw. While sated it reads as Distant and walks back to where it came onto the floor. It ignores bodies, noise and purses while it counts, and then it starts again. One loss, then quiet. Snatching the taken item back during the stoop keeps your gold and keeps it hunting you, and that is the decision. *Reference: Alien: Isolation, whose director pulls the alien back after sustained close pressure. Menace that never releases stops being felt as menace.*
+- **Near, it knows; far, it reckons.** Within 14 m ⟨tune⟩, or in sight within 18 m ⟨tune⟩, it tracks you through walls exactly as before. Beyond that it **reckons** every 16 s ⟨tune⟩. It feels once for the richest body in range, takes where that body **was**, and walks there, then searches on patience and noise when it arrives. This is the clamor field's rule applied to gold: it arrives where you were. A reckoning that finds someone is a heave of coin heard across the floor. The Coursing it starts is what the Ear draws, so the beat exists for a muted player too (`DES-018`). The range still grows with age, now up to 48 m ⟨tune⟩.
+- **It never outwalks an empty bag.** Pursuit speed is 2.8 m/s ⟨tune⟩ plus the same escalation, capped at 0.92 of `walk_speed` ⟨tune⟩. An unburdened player walking away gets away. A player carrying capacity walks at 0.55 of that speed and is caught. **Greed, not the clock, is what it punishes** (principle 2).
+
+**Kept:** the take and its 0.9 s telegraph, baiting and ADR-039's proportional bar, the ember exemption, the clamor gradient, Snares, and every reason `DES-017` gives for any of them.
+
+**Measured:** `--hunt-probe` gains three rows.
+- **Paid, it goes home:** the thrown purse sates it within 4 s, and it stays Distant with no target while a rich body stands a metre away.
+- **The reckoning:** a Hunter held 23 m off reckons a body, and when the body moves 12 m its goal stays where the body was.
+- **Top speed:** an hour-old Hunt tops out at 3.13 m/s against a 3.40 walk.
+
+**Planted:** removing `_sate()`, a near range of 999 and a ceiling of 9 fail each row in turn.
+
 *Entries below to be added as design decisions are signed off.*

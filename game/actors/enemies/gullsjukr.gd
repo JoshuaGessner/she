@@ -194,6 +194,19 @@ var _shrug_left: float = 0.0
 var visual_phase: int = EnemyVisual.HunterPresentation.NONE
 var visual_progress: float = 0.0
 
+## **Sated** (ADR-277): seconds left walking home to count what it got. While
+## this runs it wants nothing — no gold, no noise, no one — and reads as
+## Distant, because to the score and the Ear that is exactly what it is.
+var _sated_left: float = 0.0
+## Where it came onto the floor. A sated Hunter goes back there, which is the
+## one place on the floor it has a reason to be.
+var _home: Vector3 = Vector3.ZERO
+var _has_home: bool = false
+## Seconds to its next reckoning, and where the last one said someone was.
+var _reckon_in: float = 0.0
+var _scent_at: Vector3 = Vector3.ZERO
+var _has_scent: bool = false
+
 ## Held by a Snare (`M3-T11`). The same component the ordinary enemies
 ## carry, and the reason `DES-011` gives the Veiðimaðr the verb at all.
 var rooted: Rooted = null
@@ -335,13 +348,20 @@ func goal() -> Vector3:
 ## them yet, it makes the one you have better at finding you.
 func wealth_range() -> float:
 	var tuning: TuningProfile = Config.tuning
-	return tuning.hunter_wealth_range + tuning.hunter_range_per_minute * (age / 60.0)
+	return minf(tuning.hunter_wealth_range + tuning.hunter_range_per_minute * (age / 60.0),
+		maxf(tuning.hunter_wealth_range, tuning.hunter_wealth_range_max))
 
 
 func speed_for(pursuing: bool) -> float:
 	var tuning: TuningProfile = Config.tuning
 	var base: float = tuning.hunter_pursue_speed if pursuing else tuning.hunter_walk_speed
-	return base + tuning.hunter_speed_per_minute * (age / 60.0)
+	return minf(base + tuning.hunter_speed_per_minute * (age / 60.0),
+		tuning.walk_speed * tuning.hunter_speed_ceiling)
+
+
+## Seconds of withdrawal left, for probes and the overlay (ADR-277).
+func sated_for() -> float:
+	return _sated_left
 
 
 ## The richest player inside wealth range, or `null`.
@@ -465,6 +485,8 @@ func _bait_worth_taking() -> WorldItem:
 
 
 func _can_see(player: Player) -> bool:
+	if global_position.distance_to(player.global_position) > Config.tuning.hunter_sight_range:
+		return false
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	var from: Vector3 = global_position + Vector3.UP * 1.5
 	var to: Vector3 = player.global_position + Vector3.UP * 1.0
@@ -504,6 +526,10 @@ func _process(delta: float) -> void:
 
 
 func _think(delta: float) -> void:
+	if not _has_home:
+		_home = global_position
+		_has_home = true
+		_reckon_in = Config.tuning.hunter_reckon_seconds
 	# Gold first, always, and before anything else can claim its attention.
 	# `DES-017`: *"it will stop and pick it up. Every time. It cannot help
 	# itself."* A Hunter that finished its current thought before noticing a
@@ -511,6 +537,12 @@ func _think(delta: float) -> void:
 	# is worse than none — the player stops trusting it and stops using it.
 	if state() == State.COLLECTING:
 		_tick_collecting(delta)
+		return
+	# **Sated, it goes home** (ADR-277). Nothing else is asked — not even a
+	# purse on the floor, because it has just been paid.
+	if _sated_left > 0.0:
+		_sated_left -= delta
+		_withdraw()
 		return
 	var bait: WorldItem = _bait_worth_taking()
 	if bait != null:
@@ -521,12 +553,19 @@ func _think(delta: float) -> void:
 		state_index = State.COLLECTING
 		return
 
+	_reckon_in -= delta
 	var rich: Player = _richest_in_range()
-	if rich != null:
+	# **Close, or in sight, it knows** (ADR-277). Beyond that it only reckons:
+	# the far sense used to be continuous, so from the second floor on it knew
+	# where you stood from anywhere on the floor and walked straight at you for
+	# the rest of the run. That was a leash, not a hunt.
+	if rich != null and (global_position.distance_to(rich.global_position)
+			<= Config.tuning.hunter_near_range or _can_see(rich)):
 		_target = rich
 		_patience_left = Config.tuning.hunter_patience
 		_goal = rich.global_position
 		_has_goal = true
+		_has_scent = false
 		# **Arriving has to cost you something** (`M2-T19`, ADR-112). It used to
 		# walk up, stop at 24 cm, and stand inside you for as long as you let
 		# it: measured over fourteen seconds, health 100 → 100 and the bag
@@ -540,10 +579,25 @@ func _think(delta: float) -> void:
 		# Out of reach again — a stoop that was interrupted starts over, so
 		# backing away is a real answer rather than a delay.
 		_taking = 0.0
-		# Wealth-sensing does not need line of sight; sight only changes how it
-		# *reads*, not whether it is coming.
 		state_index = State.SIGHTED if _can_see(rich) else State.COURSING
 		return
+	_taking = 0.0
+
+	# **The reckoning** (ADR-277): a beat, not a leash. It feels for the
+	# richest body in range once, takes where they *were*, and goes there.
+	if _reckon_in <= 0.0:
+		_reckon_in = Config.tuning.hunter_reckon_seconds
+		if rich != null:
+			_reckon(rich)
+	if _has_scent:
+		if global_position.distance_to(_scent_at) > 1.2:
+			_goal = _scent_at
+			_has_goal = true
+			state_index = State.COURSING
+			return
+		# Arrived where they were, and they are not here. Searching now.
+		_has_scent = false
+		_patience_left = Config.tuning.hunter_patience
 
 	# Nothing worth having in range. Fall back to the noise, which is the sense
 	# that has no idea who or what made it.
@@ -553,6 +607,47 @@ func _think(delta: float) -> void:
 		return
 	_target = null
 	_follow_noise(State.DISTANT)
+
+
+## Feel for gold across the floor, once (ADR-277). **Heard where it stands**:
+## a heave of coin that carries the floor, so a player learns the beat — and
+## the Coursing it starts is what the Ear draws, so a muted player learns it
+## too (`DES-018`).
+func _reckon(rich: Player) -> void:
+	_target = rich
+	_scent_at = rich.global_position
+	_has_scent = true
+	_patience_left = Config.tuning.hunter_patience
+	state_index = State.COURSING
+	print("[hunt] it reckoned %s's gold from %.0f m" % [
+		rich.name, global_position.distance_to(rich.global_position)])
+	_heave.rpc()
+
+
+@rpc("authority", "call_local", "unreliable")
+func _heave() -> void:
+	Foley.at(self, Foley.Sound.STALK, 0.62, 6.0, Config.tuning.hunter_wealth_range_max)
+
+
+## Paid, it withdraws (ADR-277). Called once when gold reaches it.
+func _sate() -> void:
+	_sated_left = Config.tuning.hunter_sated_seconds
+	_target = null
+	_has_scent = false
+	_patience_left = 0.0
+	_taking = 0.0
+	_reckon_in = Config.tuning.hunter_reckon_seconds
+	state_index = State.DISTANT
+	print("[hunt] sated — it goes to count it for %.0f s" % _sated_left)
+
+
+func _withdraw() -> void:
+	state_index = State.DISTANT
+	if global_position.distance_to(_home) > 1.5:
+		_goal = _home
+		_has_goal = true
+	else:
+		_has_goal = false
 
 
 ## Walk up the clamor gradient. **The only thing it knows is where noise was.**
@@ -681,6 +776,13 @@ func _tick_collecting(delta: float) -> void:
 		# vanished would read as a bug, and `DES-017` is explicit that it is
 		# *accumulating* — still carrying its hoard, still trying to pay.
 		_bait.queue_free()
+		_bait = null
+		# **And now it has what it came for** (ADR-277). Whether you threw it
+		# or it tore it out of your bag, gold in its hands ends the encounter:
+		# one loss, then quiet. Snatching it back during the stoop keeps your
+		# gold and keeps it hunting you — that is the decision.
+		_sate()
+		return
 	_bait = null
 	state_index = State.LOST
 

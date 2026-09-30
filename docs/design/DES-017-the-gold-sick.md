@@ -4,7 +4,7 @@ title: The Gold-Sick — the Hunter
 status: accepted
 owner: design
 tags: [hunter, pressure, ai, theme, clamor, extraction]
-updated: 2026-09-14
+updated: 2026-09-30
 related: [DES-005, DES-013, DES-008, DES-014, DES-018]
 ---
 
@@ -55,6 +55,8 @@ This is the mechanical core and the thing that distinguishes it.
 | **Near** | **Carried tribute value.** It can feel gold through a wall *— unless the body has Her Reckoning, or wears Ótr's pelt (ADR-226)*. |
 | **Contact** | Sight and sound, normally |
 
+> **AMENDED (ADR-277): near it knows, far it reckons.** The through-walls sense is continuous only within 14 m ⟨tune⟩, or in sight within 18 m ⟨tune⟩. Beyond that it **reckons** every 16 s ⟨tune⟩. It feels once for the richest body in range, walks to where that body *was*, and searches from there. A reckoning that finds someone is a heave of coin you can hear, and the Ear shows the Coursing it starts. Built as a continuous read, it had your position from anywhere on the floor by floor two, which was a leash, not a hunt.
+
 **Built at `M2-T02`**, and the far sense is built the hard way on purpose: it navigates `TEC-001`'s **clamor field by gradient**, never a player transform. It walks up the noise and arrives where the noise *was*. `--hunt-probe` asserts exactly that — make a sound, move away silently, and the Hunter must go to the sound — and the check was verified by handing it the player's position and watching it fail. That is the shortcut this design cannot survive, because players test it directly.
 
 The middle sense is what makes going quiet insufficient, and it is now literal: a silent player carrying 316 tribute is found through walls; the same player, having put it all down, is not.
@@ -99,6 +101,7 @@ Reuses the `DES-013` awareness ladder for consistency:
 | **Sighted** | It has you | Full mix. It does not lose interest quickly. |
 | **Collecting** | Distracted by thrown gold | Everything drops back for a few seconds — *your window* |
 | **Lost** | Searching your last known position | Tension holds, then decays |
+| **Sated** *(ADR-277)* | Gold reached its hands — taken from you or thrown to it. It walks back to where it came onto the floor for 35 s ⟨tune⟩ and wants nothing while it counts. Shown as Distant | The score drops away: your window to finish |
 
 ## Where it appears
 
@@ -110,7 +113,7 @@ Under ADR-015 a run is three floors, so escalation maps onto the Calamity struct
 | **2 — The Retreat** | **Arrives reliably**, announced. This is where the run turns. |
 | **3 — The Cause** | **Already there when you land.** No grace period. |
 
-Escalation on a floor: it gets faster and reads you more accurately the longer you stay; eventually a second one joins; the Sealing proceeds alongside (`DES-005`).
+Escalation on a floor: it gets faster and reads you more accurately the longer you stay. **It never outwalks an unburdened player (ADR-277)**: its speed is capped at 0.92 of a walk ⟨tune⟩, so the thing that lets it catch you is your own weight; eventually a second one joins; the Sealing proceeds alongside (`DES-005`).
 
 > **RESOLVES Q9:** the Hunt **persists across floors** — descending does not reset it. Going quiet and giving up carried value can cause it to lose you, but the floor transition itself grants nothing. Descent is a commitment.
 
