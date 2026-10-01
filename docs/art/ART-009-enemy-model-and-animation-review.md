@@ -95,3 +95,8 @@ so an UNAWARE enemy walking back to its post glided with its feet still. Those
 states walk while moving now, at the walk's stride, and the animation probe
 asserts moving and still clips for every travelling state, and half a cycle for
 half a stride.
+
+**ADR-280:** the first-person hands are closed fists built round each hand's
+grip socket, not an open carrying curl. The seax is held up and in, so its
+edge is in view. The shield rests on its rim at the left edge and on guard
+covers only the left half of the view.

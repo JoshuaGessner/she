@@ -16263,6 +16263,9 @@ func _hands_shot(path: String) -> void:
 		path.replace(".png", "-shut.png"))
 	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_round_shield"), 9803))
 	await _hold(0.6)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-shield.png"))
 	body.set_physics_process(false)
 	body.hands().step(1.0, false, true, 0.0, 0.0, body.weapon.grip())
 	await RenderingServer.frame_post_draw

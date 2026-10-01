@@ -1,8 +1,13 @@
 """Six DES-020 class arm pairs, sharing the permanent humanoid bind pose.
 
-Fingers are authored in a relaxed carrying curl: the shared production rig has
-hand bones rather than finger bones. The forearm and wrist still deform with
-the actual shared animation skeleton. Never add a competing armature hierarchy.
+**Closed fists around the grip** (ADR-280). The shared rig has hand bones and
+no finger bones, so the fingers are posed once, in the mesh, and the pose that
+matters in first person is the one holding something: every item the hands
+carry is hung from `sock_hand_*`, so the fist is built around that socket's
+axis. The old relaxed curl left the handle running through the middle of the
+palm and read, from the seat, as a claw or a cuff. The forearm and wrist still
+deform with the actual shared animation skeleton. Never add a competing armature
+hierarchy.
 """
 import sys
 import math
@@ -61,30 +66,47 @@ def build(kind):
             t=max(0,min(1,((p-end).dot(axis)+.035)/.065))
             return {bone:1-t,hand:t}
         a.loft(f'{kind}_forearm_{side}',rows,'skin',weights,smooth=True)
-        # Palm and four separated fingers curl toward the palm, with visible
-        # knuckles. Their common hand weight follows the rig's grip exactly.
+        # **A fist around the socket** (ADR-280). `u` runs down the hand bone,
+        # `w` is the grip axis (the socket's own forward, character-forward is
+        # -w), and `n` is the back of the hand. `n` is mirrored per side: the
+        # old curl used one cross product for both hands and closed the left
+        # hand's fingers outward.
         h=a.RIG.data.bones[hand]
-        origin=h.head_local.copy(); direction=(h.tail_local-origin).normalized()
-        width=Vector((0,1,0))
-        palm_normal=width.cross(direction).normalized()
+        origin=h.head_local.copy(); u=(h.tail_local-origin).normalized()
+        w=Vector((0,1,0))
+        n=w.cross(u).normalized()*(1 if side=='r' else -1)
+        sock=a.RIG.data.bones[f'sock_hand_{side}'].head_local
+        grip=origin+u*(sock-origin).dot(u)
+        handle=.016; finger_r=.0105; wrap=handle+finger_r
+        def around(theta, along):
+            return grip+w*along+wrap*(math.cos(theta)*u+math.sin(theta)*n)
+        # The palm: from the wrist, where it meets the forearm's own size, out
+        # to the knuckles on the back of the fist, broadening as it goes.
+        knuckle=around(math.radians(96),0)+n*.004
         rows=[]
-        for t,w,d in ((-.012,.027,.023),(.01,.032,.023),(.04,.038,.026),
-                      (.065,.035,.021),(.075,.030,.014)):
-            c=origin+direction*t
-            rows.append([c+width*(w*math.sin(v))+palm_normal*(d*math.cos(v))
-                         for v in [i*math.tau/20 for i in range(20)]])
+        for t,hw,ht in ((0,.030,.023),(.22,.038,.022),(.5,.043,.020),(.8,.045,.019),(1.0,.044,.017)):
+            c=(origin-u*.03).lerp(knuckle,t)
+            rows.append([c+w*(hw*math.sin(v))+n*(ht*math.cos(v))
+                         for v in [i*math.tau/22 for i in range(22)]])
         a.loft(f'{kind}_palm_{side}',rows,'skin',{hand:1},smooth=True)
-        for j,offset in enumerate((-.027,-.009,.009,.027)):
-            length=(.050,.058,.055,.043)[j]
-            root=origin+direction*.060+width*offset
-            points=[root,root+direction*(length*.44),root+direction*(length*.77)-palm_normal*.013,
-                    root+direction*(length*.73)-palm_normal*.033,root+direction*(length*.48)-palm_normal*.039]
-            tube(f'{kind}_finger_{side}_{j}',points,[.009,.010,.009,.008,.0035],
+        # Four fingers closed round the handle: from the knuckle over the far
+        # side of the grip and tucked back under it, index at the blade end.
+        ends=(-122,-116,-110,-100)
+        for j,along in enumerate((-.031,-.0105,.0105,.030)):
+            thetas=[math.radians(96+(ends[j]-96)*k/6) for k in range(7)]
+            points=[around(t,along) for t in thetas]
+            radii=[.0115,.0112,.0108,.0104,.0098,.009,.0078]
+            if j==3:
+                radii=[r*.9 for r in radii]
+            tube(f'{kind}_finger_{side}_{j}',points,radii,
                  'ink' if kind=='skald' and j<3 else 'skin',{hand:1},10)
-        root=origin+direction*.015+width*.028
-        tube(f'{kind}_thumb_{side}',[root,root+width*.022+direction*.018,
-             root+width*.024+direction*.043-palm_normal*.014,
-             root+width*.01+direction*.052-palm_normal*.022], [.015,.013,.011,.005],'skin',{hand:1})
+        # The thumb comes round the palm side from the heel of the hand and
+        # locks over the first two fingers — the part of a grip you can see.
+        g=grip
+        tube(f'{kind}_thumb_{side}',[origin+u*.004-w*.030-n*.010,
+             g-u*.020-w*.040-n*.022, g-u*.004-w*.036-n*(wrap+.006),
+             g+u*.010-w*.022-n*(wrap+.008), g+u*.016-w*.006-n*(wrap+.004)],
+             [.0145,.0135,.012,.0105,.008],'skin',{hand:1})
 
         def ring(t,r):
             c=start.lerp(end,t)
@@ -97,10 +119,11 @@ def build(kind):
                 a.skin_mesh(f'healed_cut_{side}_{t}',[c+across*x+axis*z for x,z in
                     ((-.021,-.008),(.020,.008),(.020,.011),(-.021,-.005))],[(0,1,2,3)],'scar',{bone:1})
         elif kind=='veidimadr':
-            # Finger tabs protect the draw fingers without a full glove.
-            for j,off in enumerate((-.027,-.009,.009)):
-                root=origin+direction*.062+width*off
-                tube(f'draw_finger_wrap_{side}_{j}',[root,root+direction*.026], [.011,.0105], 'linen',{hand:1},10)
+            # Finger tabs protect the draw fingers without a full glove —
+            # over the first joint, where the string sits.
+            for j,along in enumerate((-.031,-.0105,.0105)):
+                tube(f'draw_finger_wrap_{side}_{j}',[around(math.radians(92),along),
+                     around(math.radians(40),along)], [.0128,.0124], 'linen',{hand:1},10)
             a.loft(f'draw_wrist_tape_{side}',[ring(.92,.032),ring(.98,.031)],'linen',weights)
         elif kind=='volva':
             a.loft(f'inked_wrist_band_{side}',[ring(.91,.032),ring(.935,.032)],'ink',weights)

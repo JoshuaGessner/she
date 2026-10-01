@@ -36,8 +36,11 @@ extends Node3D
 
 ## Where the off-hand item rests — (position, rotation in degrees), head frame.
 const OFF_REST: Array = [Vector3(-0.42, -0.22, -0.64), Vector3(0, 158, 4)]
+## Where a shield hangs at rest (ADR-280): low at the left edge, on its rim,
+## so the eye reads *shield* without it standing in front of the room.
+const OFF_SHIELD_REST: Array = [Vector3(-0.44, -0.40, -0.52), Vector3(-8, 70, 10)]
 ## Where a shield comes to while the guard is up: across the body, face out.
-const OFF_GUARD: Array = [Vector3(-0.12, -0.20, -0.42), Vector3(6, 4, -8)]
+const OFF_GUARD: Array = [Vector3(-0.30, -0.16, -0.56), Vector3(4, 24, -6)]
 ## Where the off hand goes while both hands are busy with something else.
 const OFF_AWAY: Array = [Vector3(-0.46, -0.72, -0.50), Vector3(-30, 158, 4)]
 ## Where a thing being used is held: low and central, in both hands.
@@ -176,7 +179,7 @@ func step(delta: float, lit: bool, guarding: bool, mending: float,
 	_busy = lerpf(_busy, 1.0 if using != null else 0.0, rate)
 
 	# The off hand: at rest, up across the body on guard, or out of the way.
-	var off_at: Array = _blend(OFF_REST, OFF_GUARD, _guard)
+	var off_at: Array = _blend(OFF_SHIELD_REST if shield else OFF_REST, OFF_GUARD, _guard)
 	_place(_off, off_at, OFF_AWAY, _busy)
 	if _off_look != null and _off_item.has_trait(LightTrait):
 		HeldLook.lantern(_off_look, _open)

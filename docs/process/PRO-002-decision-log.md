@@ -10542,4 +10542,32 @@ Every existing swing probe still measures the light swing, because none of them 
 
 **Absent:** particles.
 
+## ADR-280 — Hands that hold things: closed fists round the grip, and a weapon and shield framed to be seen
+
+**Date:** 2026-09-30 · **Status:** accepted · **Advances `M4-T10`** · **Developer's report: *"Huskarl hands on sword and shield look like crap"***
+
+**Context:** `--hands-shot`, read in first person, showed four faults.
+- **The hands were open claws.** `build_class_arms.py` posed the fingers in a *relaxed carrying curl* around nothing. The grip socket's axis ran through the middle of the palm, so a held seax came out of the back of a half-open hand. The left hand curled outward, because one cross product served both sides.
+- **The seax stood on end at the edge of the screen,** pointing straight ahead, so its blade foreshortened to a stub behind the fist.
+- **The raised shield filled two thirds of the view, face-on.**
+- **At rest the shield used the lantern's pose** and lay flat, like a tray.
+
+**Decision:**
+- **Closed fists built round the socket.** Each hand is posed in the mesh, since the rig has no finger bones, around the axis of `sock_hand_*`.
+  - Four fingers close over the far side of the grip and tuck under it, with the index finger at the blade end.
+  - The thumb locks over the first two fingers.
+  - The palm runs from the forearm's own wrist out to a knuckle row on the back of the fist.
+  - The back of the hand is mirrored per side.
+  - The Veiðimaðr's finger tabs sit over the first joint, where a string does.
+
+  All six classes are rebuilt from the same script, because they share it.
+- **The weapon at rest is held up and in,** tipped 32° and turned 7° toward the centre, so the whole edge is in view and the fist is not hidden at the frame's edge.
+- **The shield has its own rest pose,** low at the left edge and on its rim. On guard it comes to centre-left and turns 24°, so it covers the left half of the view and leaves the right half clear.
+
+All poses are ⟨tune⟩ and were set against `--hands-shot`, which now also saves the shield at rest.
+
+**Measured:** `rig_probe` (skin weights, bones and sockets on every class arm) and `--hands-probe` (every hand motion starts and ends) pass on the rebuilt meshes. The shots show the fist closed on the seax's grip, the shield's rim at rest, and on guard the forearm on the shield's grip with the right half of the room visible.
+
+**Not settled here:** the forearm and bracer still enter from the screen's corners. Whether that reads well in a fight is `M4-T10`'s judgement in play, not a probe's.
+
 *Entries below to be added as design decisions are signed off.*

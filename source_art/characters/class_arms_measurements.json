@@ -1,6 +1,6 @@
 {
   "huskarl": {
-    "triangles": 1856,
+    "triangles": 2256,
     "mesh_parts": 18,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",
@@ -12,7 +12,7 @@
     ]
   },
   "veidimadr": {
-    "triangles": 2176,
+    "triangles": 2576,
     "mesh_parts": 22,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",
@@ -24,7 +24,7 @@
     ]
   },
   "volva": {
-    "triangles": 2140,
+    "triangles": 2540,
     "mesh_parts": 28,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",
@@ -36,7 +36,7 @@
     ]
   },
   "skald": {
-    "triangles": 1960,
+    "triangles": 2360,
     "mesh_parts": 16,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",
@@ -48,7 +48,7 @@
     ]
   },
   "ulfhedinn": {
-    "triangles": 1960,
+    "triangles": 2360,
     "mesh_parts": 16,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",
@@ -60,7 +60,7 @@
     ]
   },
   "haugbrjotr": {
-    "triangles": 2040,
+    "triangles": 2440,
     "mesh_parts": 20,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",

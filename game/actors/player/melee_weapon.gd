@@ -46,8 +46,8 @@ const ARC_RAYS: int = 5
 ##
 ## Straight lerps, no easing curves and no anticipation overshoot, for the same
 ## reason: an eased swing would flatter the timings being judged.
-const POSE_REST: Array = [Vector3(0.42, -0.34, -0.62), Vector3(6, -12, -22)]
-const POSE_RAISED: Array = [Vector3(0.52, -0.02, -0.44), Vector3(-38, 28, -58)]
+const POSE_REST: Array = [Vector3(0.33, -0.28, -0.50), Vector3(32, 7, -16)]
+const POSE_RAISED: Array = [Vector3(0.44, 0.02, -0.40), Vector3(-30, 30, -58)]
 const POSE_STRUCK: Array = [Vector3(-0.34, -0.30, -0.72), Vector3(14, -34, 40)]
 ## Drawn right back for a heavy blow (ADR-279): higher, further out, and
 ## turned so the whole edge shows — the wind-up a teammate reads as *heavy*.
