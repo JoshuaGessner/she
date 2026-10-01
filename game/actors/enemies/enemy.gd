@@ -158,6 +158,10 @@ var net_position: Vector3 = Vector3.ZERO
 var net_yaw: float = 0.0
 
 var _poise: float = 0.0
+## The shove the last blow gave it (ADR-279), spent over a fraction of a second.
+var _knock: Vector3 = Vector3.ZERO
+## Health last frame, on every peer, so a drop can be drawn as a flinch.
+var _health_seen: float = 0.0
 
 ## How long this body has held a target without losing it. Reset the moment it
 ## drops back to SUSPICIOUS, so a player who breaks contact genuinely resets the
@@ -444,6 +448,11 @@ func take_test_hit(amount: float, from: Node = null) -> void:
 ## exactly the player who is not hosting.
 func _process(delta: float) -> void:
 	_update_sense_markers()
+	# **Struck, it flinches** (ADR-279) — read off the replicated health rather
+	# than the host's damage signal, so every peer sees every blow land.
+	if health.current < _health_seen - 0.01 and _state != State.DEAD:
+		_visual.flinch(0.55 + (_health_seen - health.current) / maxf(health.maximum, 1.0) * 2.0)
+	_health_seen = health.current
 	# **Only where the wire is the authority.** The host moves this body with
 	# `move_and_slide`; a host that also eased would be two things arguing
 	# about one transform. `DEAD` is excluded because `_fall_over` owns the
@@ -544,6 +553,12 @@ func _physics_process(delta: float) -> void:
 	else:
 		_act(delta, tuning)
 
+	# **A blow's shove** (ADR-279), on top of whatever it meant to do, and
+	# spent at the floor's own friction so a heavy blow buys a step, not a slide.
+	if _knock.length_squared() > 0.0001:
+		velocity.x += _knock.x
+		velocity.z += _knock.z
+		_knock = _knock.move_toward(Vector3.ZERO, tuning.ground_friction * delta)
 	var was_at: Vector3 = global_position
 	move_and_slide()
 	# **A Wretch led across scree is heard** (ADR-230, ADR-236). An enemy makes
@@ -977,6 +992,16 @@ func _throw() -> void:
 
 func _on_hurt(amount: float, from: Node) -> void:
 	health.apply_damage(amount, from)
+	# **A blow makes space** (ADR-279, `DES-009`: *"defense is positional"*).
+	# Pushed away from whoever struck it — a little for a light blow, a step
+	# for a heavy one — on the host, which owns this body's motion.
+	var striker := from as Hitbox
+	if striker != null and striker.actor() != null:
+		var away: Vector3 = global_position - striker.actor().global_position
+		away.y = 0.0
+		if away.length() > 0.01:
+			_knock = away.normalized() * (Config.tuning.knock_heavy if striker.heavy
+				else Config.tuning.knock_light)
 	# **Dead armour rings** (ADR-232). Through its own `ClamorSource`, so the
 	# floor hears it as it hears the call — and before the death check, since a
 	# killing blow on a Hall-Warden is as loud as any other.

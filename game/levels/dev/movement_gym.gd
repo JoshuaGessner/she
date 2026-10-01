@@ -77,6 +77,8 @@ func _ready() -> void:
 			_fight_probe(player)
 		elif arg == "--swarm-probe":
 			_swarm_probe(player)
+		elif arg == "--feel-probe":
+			_feel_probe(player)
 		elif arg.begins_with("--capture-top="):
 			_capture_top(player, arg.split("=", true, 1)[1])
 		elif arg == "--lifecycle-probe":
@@ -687,6 +689,100 @@ func _build() -> void:
 ##
 ## Both passes must see the enemy land a blow. Before poise neither did:
 ## 24 swings, zero damage taken, ten seconds.
+## **Does a blow land like one?** (ADR-279, `DES-009` §2.)
+##
+## Three rows for the feedback layer and three for the heavy blow, each read
+## through the real path — the attack key pressed and held as a player holds
+## it, the enemy's own replicated health — rather than by calling the parts:
+##
+## - a light swing that connects **holds the blade** (hitstop), **kicks the
+##   view**, and **the struck body flinches**;
+## - the same key **held through the wind-up** makes the swing heavy, takes
+##   longer, and lands harder than the light one did;
+## - a tap stays light.
+func _feel_probe(player: Player) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var problems := PackedStringArray()
+	var tuning: TuningProfile = Config.tuning
+	var enemy: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	var edge: WieldableTrait = player.weapon.held()
+	for _i: int in range(20):
+		await get_tree().physics_frame
+	var rows: Array[Dictionary] = []
+	for mode: String in ["light", "heavy", "tap"]:
+		player.teleport(enemy.global_position + Vector3(0, 0.1, -1.3), PI)
+		player.health.restore()
+		player.stamina.refill()
+		enemy.health.restore()
+		for _i: int in range(8):
+			await get_tree().physics_frame
+		var before: float = enemy.health.current
+		var breath: float = player.stamina.current
+		var row: Dictionary = {"stopped": 0.0, "kicked": 0.0, "flinched": 0.0,
+			"heavy": false, "windup_ms": 0}
+		Input.action_press("attack")
+		var started: int = Time.get_ticks_msec()
+		var released: bool = false
+		var frames: int = 0
+		while frames < 2 or player.weapon.is_busy():
+			await get_tree().physics_frame
+			frames += 1
+			if not released and (mode == "light" and frames >= 2
+					or mode == "tap" and frames >= 3
+					or mode == "heavy" and player.weapon.phase() == MeleeWeapon.Phase.ACTIVE):
+				Input.action_release("attack")
+				released = true
+			if player.weapon.phase() == MeleeWeapon.Phase.ACTIVE and row["windup_ms"] == 0:
+				row["windup_ms"] = Time.get_ticks_msec() - started
+			row["stopped"] = maxf(float(row["stopped"]), player.weapon.stopped_for())
+			row["kicked"] = maxf(float(row["kicked"]), player.view_kick().length())
+			var visual := enemy.get("_visual") as EnemyVisual
+			if visual != null:
+				row["flinched"] = maxf(float(row["flinched"]), visual.flinching())
+			row["heavy"] = bool(row["heavy"]) or player.weapon.is_heavy()
+			if frames > 600:
+				break
+		if not released:
+			Input.action_release("attack")
+		row["dealt"] = before - enemy.health.current
+		row["breath"] = breath - player.stamina.current
+		rows.append(row)
+		print("[feel] %-5s heavy=%s wind-up %3d ms, dealt %.1f, breath %.0f, held %.0f ms, kick %.3f m, flinch %.2f"
+			% [mode, row["heavy"], row["windup_ms"], row["dealt"], row["breath"],
+				float(row["stopped"]) * 1000.0, row["kicked"], row["flinched"]])
+		for _i: int in range(30):
+			await get_tree().physics_frame
+	var light: Dictionary = rows[0]
+	var heavy: Dictionary = rows[1]
+	var tap: Dictionary = rows[2]
+	if float(light["dealt"]) <= 0.0:
+		problems.append("the light swing never connected, so nothing below means anything")
+	else:
+		if float(light["stopped"]) <= 0.0:
+			problems.append("a blow landed and the blade did not hold — no hitstop")
+		if float(light["kicked"]) <= 0.0:
+			problems.append("a blow landed and the view did not move — no kick")
+		if float(light["flinched"]) <= 0.0:
+			problems.append("a blow landed and the body it hit did not flinch")
+		if bool(light["heavy"]):
+			problems.append("a released press became a heavy blow")
+	if not bool(heavy["heavy"]):
+		problems.append("attack held through the wind-up did not draw back into a heavy blow")
+	else:
+		if int(heavy["windup_ms"]) < int((edge.windup + tuning.heavy_extra_windup) * 900.0):
+			problems.append("the heavy blow came as fast as a light one (%d ms)" % int(heavy["windup_ms"]))
+		if float(heavy["dealt"]) <= float(light["dealt"]):
+			problems.append("the heavy blow dealt %.1f against a light %.1f"
+				% [heavy["dealt"], light["dealt"]])
+		if float(heavy["breath"]) <= float(light["breath"]):
+			problems.append("the heavy blow cost no more breath than a light one")
+	if bool(tap["heavy"]):
+		problems.append("a tap became a heavy blow")
+	for problem: String in problems:
+		print("[feel] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
 func _fight_probe(player: Player) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var tuning: TuningProfile = Config.tuning

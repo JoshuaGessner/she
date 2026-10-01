@@ -49,6 +49,8 @@ enum Sound {
 	GRIND,      # stone dragged over stone: a barrow opening (ADR-242)
 	PING,       # a mark placed for the party (ADR-244) — interface, never world
 	STALK,      # the Hunter's own weight, moving (ADR-249) — never the score's note
+	CLANG,      # a blow on mail or plate (ADR-279) — the metal half of an impact
+	CRUNCH,     # a blow into flesh (ADR-279) — the body half of an impact
 }
 
 ## How far a one-shot carries by default: roughly the Deep's scale, audible
@@ -126,6 +128,7 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 		Sound.GRIND: seconds = 1.6
 		Sound.STALK: seconds = 2.4
 		Sound.PING: seconds = 0.3
+		Sound.CLANG: seconds = 0.6
 	var frames: int = int(float(RATE) * seconds)
 	var data := PackedByteArray()
 	data.resize(frames * 2)
@@ -218,6 +221,18 @@ static func _sample(sound: Sound, at_second: float, seconds: float) -> float:
 				+ sin(TAU * 3300.0 * at_second) * 0.15) * pow(tread, 14.0)
 			return (sin(TAU * 38.0 * at_second) * 0.45
 				+ _noise(at_second * 0.35) * 0.25 + coin * 0.4) * weight
+		Sound.CLANG:
+			# **Struck metal** (ADR-279, `DES-009`: *"the hit must sound like
+			# what it looked like"*). A bright transient and three inharmonic
+			# partials ringing off slowly: armour that has been hit, not a bell.
+			return (_noise(at_second * 2.0) * exp(-at_second * 60.0) * 0.5
+				+ (sin(TAU * 1180.0 * at_second) * 0.28
+				+ sin(TAU * 1735.0 * at_second) * 0.2
+				+ sin(TAU * 2890.0 * at_second) * 0.12) * exp(-at_second * 7.0))
+		Sound.CRUNCH:
+			# **Into a body**: a low, wet-dry thump with grit in it and no ring.
+			return (sin(TAU * 70.0 * at_second) * 0.6 * exp(-at_second * 18.0)
+				+ _noise(at_second * 0.7) * 0.45 * exp(-at_second * 30.0))
 		Sound.PING:
 			# Two soft falling notes: a word for the party, clearly not a
 			# thing in the world noticing you (which rises, `NOTICED`).

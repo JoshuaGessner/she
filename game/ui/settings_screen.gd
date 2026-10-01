@@ -53,6 +53,7 @@ func _ready() -> void:
 		func(on: bool) -> void:
 			Settings.invert_look = on
 			Settings.save()))
+	column.add_child(_motion_row())
 	column.add_child(_toggle_row("Fullscreen", Settings.fullscreen,
 		func(on: bool) -> void:
 			Settings.fullscreen = on
@@ -123,6 +124,33 @@ func _sensitivity_row() -> HBoxContainer:
 		Settings.mouse_sensitivity = value
 		Settings.save()
 		readout.text = "%.2fx" % value)
+	return row
+
+
+## **Camera motion** (ADR-279): how far a blow pushes the view. `DES-009` and
+## `DES-018` both require it be adjustable, down to nothing.
+func _motion_row() -> HBoxContainer:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var name_label: Label = MenuStyle.line("camera motion", MenuStyle.BODY_TEXT)
+	name_label.custom_minimum_size = Vector2(110.0, 0.0)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(name_label)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = Settings.camera_motion
+	slider.custom_minimum_size = Vector2(200.0, 20.0)
+	row.add_child(slider)
+	var readout: Label = MenuStyle.line(_percent(slider.value))
+	readout.custom_minimum_size = Vector2(48.0, 0.0)
+	readout.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	row.add_child(readout)
+	slider.value_changed.connect(func(value: float) -> void:
+		Settings.camera_motion = value
+		Settings.save()
+		readout.text = _percent(value))
 	return row
 
 

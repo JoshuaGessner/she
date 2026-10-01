@@ -632,6 +632,45 @@ extends Resource
 ## `DES-009`'s committal swing is what makes a price mean anything.
 @export var glance_recovery_scale: float = 1.5
 
+@export_group("Combat feel")
+## **The feedback layer `DES-009` ordered and never got** (ADR-279). The M1
+## protocol built the control unjuiced on purpose and said to add hitstop,
+## sound and camera *afterwards, one at a time*; M1 cleared and nothing came
+## after. Every number here is presentation on the owner's machine except the
+## heavy blow's, which are the blow.
+##
+## Hitstop, seconds the striker's weapon holds at the moment of impact ⟨tune⟩ —
+## `DES-009`: *"dagger ~40 ms, hammer ~120 ms"*. Scaled between these by the
+## weapon's `stagger`, which is the number that already says how heavy it is.
+@export var hitstop_light: float = 0.045
+@export var hitstop_heavy: float = 0.12
+## The `stagger` values the two ends above belong to ⟨tune⟩.
+@export var hitstop_stagger_light: float = 20.0
+@export var hitstop_stagger_heavy: float = 90.0
+## **Positional kick, never rotation** (`DES-009`: rotational shake in first
+## person causes motion sickness). Metres the view is pushed when your blow
+## lands and when one lands on you, and how fast it settles, per second ⟨tune⟩.
+## Scaled by `Settings.camera_motion`, which a player can turn to zero.
+@export var kick_on_hit: float = 0.022
+@export var kick_on_hurt: float = 0.05
+@export var kick_settle: float = 12.0
+## **The heavy blow** (ADR-279, `DES-009`: *"light (fast, low stagger,
+## quiet-ish) vs. heavy (slow, staggers, loud)"*). Keep attack held through
+## the wind-up and the swing draws back further instead of striking: this much
+## longer ⟨tune⟩, for this much more stamina as a fraction of the swing's own
+## cost, and it lands harder, breaks guard and poise, and is louder. No new
+## button: `DES-009` keeps the count tiny, and a hold is a decision you can
+## still take back by letting go before the wind-up ends.
+@export var heavy_extra_windup: float = 0.32
+@export var heavy_stamina_scale: float = 1.0
+@export var heavy_damage_scale: float = 1.6
+@export var heavy_stagger_scale: float = 2.2
+@export var heavy_clamor_scale: float = 1.8
+## How far a blow shoves what it hits, metres a second at impact ⟨tune⟩ —
+## light and heavy. Space is `DES-009`'s defence, and a heavy blow makes some.
+@export var knock_light: float = 0.6
+@export var knock_heavy: float = 3.2
+
 @export_group("Light")
 ## How much light the floor gives you for free ⟨tune⟩ (`M4-T13`, `ART-001`).
 ##

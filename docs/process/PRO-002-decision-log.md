@@ -10512,4 +10512,34 @@ A second cause was ADR-277's: the Hunter took the richest item every 0.9 s. A lo
 
 **Measured:** `--settle-probe`, which is new and in the sweep, seeds one coin as a carried haul at the camp. It asserts that the Chamber opened with the coin in the body's bag. Planted, a camp that does not open the room fails it. `--lair-probe` shows her line and the new pile prompt, and still passes its prompt rows.
 
+## ADR-279 — A blow lands like one: hitstop, kick, impact sound, flinch, and a heavy blow on hold
+
+**Date:** 2026-09-30 · **Status:** accepted · **Advances `M4-T05`** · **Amends `DES-009`** · **Developer's report: *"combat feels stale"*** · **Developer's call: the feedback pass plus a heavy attack**
+
+**Context:** combat was still the M1 prototype. `DES-009`'s protocol built control unjuiced, on purpose, and said to add hitstop, sound and camera *afterwards, one at a time*. M1 cleared and nothing came after. The build had:
+- one attack, posed by straight lerps;
+- no hitstop, no impact sound, and no camera kick;
+- a struck enemy that did not react unless its poise broke.
+
+The *"light vs. heavy"* line of `DES-009` had never been built for the player.
+
+**Decision:** the three features `DES-009` §2 names as dominant (hitstop, sound coherence and camera control), plus the heavy blow. All of it is ⟨tune⟩.
+- **Hitstop:** 45 ms for the lightest weapon up to 120 ms for the heaviest or a heavy blow, scaled by the weapon's `stagger`. It is applied on the **striker's machine only**. The host decides the hit and tells the owner. The owner's phase machine holds, so the stop is felt as well as seen, and no other peer's timing moves (`DES-009`'s co-op rule).
+- **Camera kick:** positional only, never rotation. It fires when your blow lands and when one lands on you, and it settles in about a tenth of a second. **A new *camera motion* slider** in Settings scales it down to zero (`DES-018`).
+- **Sound coherence:** a struck body gives a low crunch, and mail or plate gives a clang of three inharmonic partials. These are layered over the existing hit.
+- **Eased swings:** the wind-up rises fast and settles, so the top of it is a held beat. The strike starts at full speed. The recovery eases at both ends.
+- **Flinch and knockback:** a struck enemy tilts back and jolts away on every peer, read off its replicated health. The host shoves it away from the striker, 0.6 m/s for a light blow and 3.2 m/s for a heavy one, so a heavy blow buys a step.
+- **The heavy blow:** keep attack held through the wind-up and the swing draws back further instead of striking. That adds 0.32 s and the swing's own stamina cost again. It lands at 1.6× damage and 2.2× stagger, and it is `heavy`, so it breaks guards the way an enemy's heavy blow does (ADR-238). It is 1.8× as loud. Let go before the wind-up ends and it is the light swing unchanged. **No new button.**
+
+**Measured:** `--feel-probe` is new and in the gym sweep. It uses the real key press on a Wretch.
+- **Light:** 144 ms wind-up, 15 dealt, a 47 ms hold, and a 0.04 m kick. The body flinches.
+- **Held:** heavy, with a 470 ms wind-up, 24 dealt, twice the breath, and a 120 ms hold.
+- **A tap:** stays light.
+
+Every existing swing probe still measures the light swing, because none of them holds the key.
+
+**Planted:** removing the hitstop, the flinch, or the hold each fails its row.
+
+**Absent:** particles.
+
 *Entries below to be added as design decisions are signed off.*

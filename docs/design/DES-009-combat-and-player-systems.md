@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-09-16
+updated: 2026-09-30
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -45,6 +45,7 @@ That single position resolves a dozen downstream questions. It's why avoidance m
 **Attacking**
 - Wind-up → swing → recovery. Attacks **commit**; you cannot cancel out of a heavy.
 - Light (fast, low stagger, quiet-ish) vs. heavy (slow, staggers, loud).
+  > **The player's heavy blow is built (ADR-279).** Keep attack held through the wind-up and the swing draws back further instead of striking. It costs 0.32 s ⟨tune⟩ and the swing's stamina again, and it lands at 1.6× damage and 2.2× stagger ⟨tune⟩, as a `heavy` blow that breaks guards. Let go before the wind-up ends and it stays light. No new button.
 
 > **BUILT (ADR-194), and it ran backwards until it was.** This line implies
 > stagger is a *weapon* property, and it was one number on `TuningProfile`
@@ -128,6 +129,8 @@ That is an unusually actionable result for a solo project — it says where to s
 - **Rotational screen shake in first person causes motion sickness.** Use **positional kick** — a small translation — never rotation.
 - **In first person the hands and weapon carry the impact, not the camera.** The arm animation absorbing a blow does more than any shake, and costs no comfort.
 - Must remain **independently adjustable** for accessibility (`DES-018`).
+
+> **Built (ADR-279).** Hitstop is owner-side, 45 ms to 120 ms scaled by the weapon's `stagger` ⟨tune⟩. The camera kick is positional only and scaled by a *camera motion* setting that goes to zero. Impact sound is layered by material: a crunch for flesh, a clang for mail and plate. A struck enemy flinches on every peer and is shoved away from the blow. Particles remain absent.
 
 ### 3. Attack anatomy, and the 250 ms floor
 

@@ -3,21 +3,20 @@ extends Node3D
 
 ## The one weapon (`M1-T02`). Wind-up → swing → recovery, and it commits.
 ##
-## **Unjuiced, per DES-009's M1 protocol step 1.** No hitstop, no impact sound,
-## no camera kick, no particles. The protocol is explicit that those are added
-## *afterwards, one at a time, measuring each* — and that if swinging does not
-## feel decent without them, the fix is the control, not the feedback. Every
-## one of those layers is absent rather than stubbed (ADR-064).
+## **Unjuiced until ADR-279, per DES-009's M1 protocol step 1.** The protocol
+## built the control first and said to add hitstop, impact sound and camera
+## kick *afterwards*; M1 cleared and nothing came after, which is most of why a
+## fight felt stale. Now: the blade **holds at impact** (hitstop, owner-side),
+## poses are **eased** with an anticipation beat, and keeping the attack held
+## through the wind-up draws a **heavy** blow. Particles remain absent.
 ##
 ## What is here that might look like polish but is not: **input buffering**.
 ## DES-009 §4 lists it under Forgiveness, and is blunt about why — without it a
 ## committal system reads as *unresponsive* rather than *weighty*. It is part
 ## of the control layer, not the polish layer.
 ##
-## Also deliberately absent: the heavy attack, block, shove and throw. One
-## attack built completely answers the gate question — "does a tester
-## voluntarily swing at something they could have walked past?" — and four
-## verbs built partly does not.
+## Block, shove and throw live on the body; the heavy blow lives here, as a
+## longer wind-up of the same swing rather than a second weapon state.
 
 signal swing_started
 signal connected(hurtbox: Hurtbox)
@@ -29,6 +28,10 @@ signal swing_refused
 ## raises it from its own copy of the swing, like `swing_started`; the host's is
 ## the one whose hitbox was therefore never armed.
 signal glanced
+## This swing became heavy (ADR-279): its owner kept attack held through the
+## wind-up and paid for it. Raised on the owner, so the body can tell the
+## other peers — the host's copy is the one whose blow counts.
+signal went_heavy
 enum Phase { IDLE, WINDUP, ACTIVE, RECOVERY }
 
 ## Lines cast across a swing's path to find a wall in it. Five across 24° leave
@@ -46,6 +49,18 @@ const ARC_RAYS: int = 5
 const POSE_REST: Array = [Vector3(0.42, -0.34, -0.62), Vector3(6, -12, -22)]
 const POSE_RAISED: Array = [Vector3(0.52, -0.02, -0.44), Vector3(-38, 28, -58)]
 const POSE_STRUCK: Array = [Vector3(-0.34, -0.30, -0.72), Vector3(14, -34, 40)]
+## Drawn right back for a heavy blow (ADR-279): higher, further out, and
+## turned so the whole edge shows — the wind-up a teammate reads as *heavy*.
+const POSE_HEAVY: Array = [Vector3(0.60, 0.10, -0.30), Vector3(-62, 44, -80)]
+
+## **Held by the owner, each frame** (ADR-279): whether attack is still down.
+## Read once, as the wind-up ends. Probes that call `request_swing` never set
+## it, so every existing swing measurement stays a light one.
+var holding: bool = false
+var _heavy: bool = false
+## Seconds left on the blade holding at impact. Owner-side and visual: the host
+## decides every hit, and its copy of someone else's swing never stops.
+var _stop_left: float = 0.0
 
 var _phase: Phase = Phase.IDLE
 var _remaining: float = 0.0
@@ -164,12 +179,21 @@ func _dress() -> void:
 		_hitbox.disarm()
 		return
 	_hitbox.damage = _held.damage * (Config.tuning.scarred_power if _scarred else 1.0)
+	_hitbox.heavy = false
 	# Unscaled by `scarred_power` on purpose: a Scar is `DES-003`'s tax on
 	# damage, and letting it also erode stagger would quietly change which
 	# weapons can interrupt a telegraph — a scarred hammer would stop being a
 	# hammer, which is a change to `DES-009`'s light/heavy rule rather than to
 	# a number, and ADR-058 puts that behind an ADR.
 	_hitbox.stagger = _held.stagger
+	if _heavy:
+		# **The heavy blow is the blow** (ADR-279). Set here, on every copy
+		# that knows the swing went heavy, so the host's hitbox — the only one
+		# that decides — carries it. `heavy` is what a guard reads (ADR-238).
+		var tuning: TuningProfile = Config.tuning
+		_hitbox.damage *= tuning.heavy_damage_scale
+		_hitbox.stagger *= tuning.heavy_stagger_scale
+		_hitbox.heavy = true
 	# A seax cuts and a hammer crushes (ADR-219). Recorded on every weapon since
 	# weapons became data, and this is the line that finally carries it to the
 	# thing it strikes.
@@ -199,16 +223,26 @@ func _pose(from: Array, to: Array, t: float) -> void:
 func _update_pose() -> void:
 	# How far through the current phase we are, 0 at its start and 1 at its end.
 	var t: float = 1.0 - clampf(_remaining / maxf(_duration, 0.0001), 0.0, 1.0)
+	# **Eased since ADR-279.** M1 kept these straight so an easing curve could
+	# not flatter the timings being judged; they are judged. The wind-up rises
+	# fast and settles, so the top of it is a held beat (anticipation); the
+	# strike starts at full speed and brakes into the target; the recovery
+	# eases both ends.
 	match _phase:
 		Phase.WINDUP:
-			_pose(POSE_REST, POSE_RAISED, t)
+			if _heavy:
+				_pose(POSE_RAISED, POSE_HEAVY, smoothstep(0.0, 1.0, t))
+			else:
+				_pose(POSE_REST, POSE_RAISED, 1.0 - pow(1.0 - t, 2.0))
 		Phase.ACTIVE:
-			_pose(POSE_RAISED, POSE_STRUCK, t)
+			_pose(POSE_HEAVY if _heavy else POSE_RAISED, POSE_STRUCK,
+				1.0 - pow(1.0 - t, 3.0))
 		Phase.RECOVERY:
 			# A glance rebounds from the raised pose: the blade stopped where
 			# it met the wall, and the strike was never made (`DES-018`'s twin
 			# of the clang).
-			_pose(POSE_RAISED if _glancing else POSE_STRUCK, POSE_REST, t)
+			_pose(POSE_RAISED if _glancing else POSE_STRUCK, POSE_REST,
+				smoothstep(0.0, 1.0, t))
 		Phase.IDLE:
 			_pose(POSE_REST, POSE_REST, 0.0)
 			lower_by_draw(_model, 1.0 - _drawn)
@@ -252,6 +286,39 @@ func phase() -> Phase:
 
 func is_busy() -> bool:
 	return _phase != Phase.IDLE
+
+
+## Whether the swing under way is a heavy one (ADR-279).
+func is_heavy() -> bool:
+	return _heavy
+
+
+## Seconds the blade is still holding at impact, for `--feel-probe`.
+func stopped_for() -> float:
+	return _stop_left
+
+
+## **The blade holds where it met something** (ADR-279, `DES-009`'s hitstop:
+## *"the pause sells the collision as something that cost energy"*). Called on
+## the owner's machine when the host says the blow landed. The whole phase
+## machine holds, which is what makes it felt rather than only seen — and it
+## is the owner's copy, so the host's timing and every other peer's are
+## untouched (`DES-009`: hitstop must never pause simulation).
+func hitstop(seconds: float) -> void:
+	_stop_left = maxf(_stop_left, seconds)
+
+
+## The swing another peer's owner drew back into a heavy blow (ADR-279).
+func become_heavy() -> void:
+	if _phase != Phase.WINDUP or _heavy:
+		return
+	_draw_back()
+
+
+func _draw_back() -> void:
+	_heavy = true
+	_dress()
+	_enter(Phase.WINDUP, Config.tuning.heavy_extra_windup)
 
 
 ## Called by the owner on input. Returns false if the swing was refused, which
@@ -334,6 +401,9 @@ func _enter(next: Phase, duration: float) -> void:
 		_drawn = 1.0
 	if next != Phase.RECOVERY:
 		_glancing = false
+	if next == Phase.IDLE and _heavy:
+		_heavy = false
+		_dress()
 	_phase = next
 	_remaining = duration
 	_duration = duration
@@ -352,6 +422,9 @@ func advance(delta: float, stamina: Stamina) -> void:
 	_refusal_gap = maxf(0.0, _refusal_gap - delta)
 	if _phase == Phase.IDLE:
 		return
+	if _stop_left > 0.0:
+		_stop_left -= delta
+		return
 	var tuning: TuningProfile = Config.tuning
 	_remaining -= delta
 	_update_pose()
@@ -360,7 +433,14 @@ func advance(delta: float, stamina: Stamina) -> void:
 
 	match _phase:
 		Phase.WINDUP:
-			if _meets_the_world():
+			# **Still held, it draws back instead** (ADR-279) — once, and only
+			# if the breath is there for it. Let go before the wind-up ends and
+			# it is the light swing it always was.
+			if holding and not _heavy \
+					and stamina.spend(_held.stamina_cost * tuning.heavy_stamina_scale):
+				_draw_back()
+				went_heavy.emit()
+			elif _meets_the_world():
 				_glance(tuning)
 			else:
 				_enter(Phase.ACTIVE, _held.active)

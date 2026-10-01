@@ -397,6 +397,9 @@ var _attention: Array[StringName] = []
 ## dozen call sites ask this every frame and none of them care who is holding
 ## it — only whether anybody is.
 var _driving: bool = true
+## The view's positional kick (ADR-279), and health as last seen, per frame.
+var _kick: Vector3 = Vector3.ZERO
+var _health_seen: float = 0.0
 ## What `_apply_pointer` last decided about the cursor. See `pointer_captured`.
 var _pointer_captured: bool = true
 
@@ -691,6 +694,7 @@ func _ready() -> void:
 	weapon.swing_started.connect(_on_swing_started)
 	weapon.glanced.connect(_on_swing_glanced)
 	weapon.connected.connect(_on_swing_connected)
+	weapon.went_heavy.connect(_on_went_heavy)
 	# Before `_redress()`, which equips the class kit and therefore lights the
 	# lamp: a body that learned about its own lantern afterwards would measure
 	# its first exposure against a light it did not know it was holding.
@@ -806,13 +810,90 @@ func _on_swing_glanced() -> void:
 		clamor.add(swung.clamor_hit)
 
 
-func _on_swing_connected(_hurtbox_hit: Hurtbox) -> void:
+func _on_swing_connected(hurtbox_hit: Hurtbox) -> void:
 	# DES-009: blunt weapons are loudest, and connecting is the loud part. This
 	# is the main combat-to-pressure coupling — a whiff is cheap, a fight is not.
 	# Reached only on the host, for the same reason `_on_hurt` is.
 	var landed: WieldableTrait = weapon.held()
+	var heavy: bool = weapon.is_heavy()
 	if landed != null:
-		clamor.add(landed.clamor_hit)
+		clamor.add(landed.clamor_hit
+			* (Config.tuning.heavy_clamor_scale if heavy else 1.0))
+	# **The striker feels it land** (ADR-279). The host decides every hit, so
+	# the host tells the one peer whose hands it was — directly when that is
+	# itself, which is every solo game.
+	var armour: int = int(hurtbox_hit.armour) if hurtbox_hit != null else 0
+	if get_multiplayer_authority() == multiplayer.get_unique_id():
+		_feel_the_blow(heavy, armour)
+	else:
+		_feel_the_blow.rpc_id(get_multiplayer_authority(), heavy, armour)
+
+
+## The owner drew this swing back into a heavy blow (ADR-279). Tell the other
+## peers — the host's copy is the one whose hitbox counts — and charge the
+## wind-up's extra noise where noise is decided.
+func _on_went_heavy() -> void:
+	if _is_local:
+		_replay_heavy.rpc()
+	if multiplayer.is_server():
+		var swung: WieldableTrait = weapon.held()
+		if swung != null:
+			clamor.add(swung.clamor_swing * (Config.tuning.heavy_clamor_scale - 1.0))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _replay_heavy() -> void:
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	weapon.become_heavy()
+	_on_went_heavy()
+
+
+## **Hitstop, a kick, and the sound of what it met** (ADR-279, `DES-009` §2:
+## *"hitstop · sound coherence · camera control — neglecting any one of the
+## three significantly diminishes"*). On the striker's machine only: every
+## other peer already hears the hit land through `Health`.
+@rpc("any_peer", "call_remote", "unreliable")
+func _feel_the_blow(heavy: bool, armour: int) -> void:
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != CoopSession.HOST_PEER:
+		return
+	var tuning: TuningProfile = Config.tuning
+	var held: WieldableTrait = weapon.held()
+	var weight: float = 1.0 if heavy else clampf(inverse_lerp(
+		tuning.hitstop_stagger_light, tuning.hitstop_stagger_heavy,
+		held.stagger if held != null else 0.0), 0.0, 1.0)
+	weapon.hitstop(lerpf(tuning.hitstop_light, tuning.hitstop_heavy, weight))
+	_kick_view(Vector3(0.0, -0.3, 1.0).normalized() * tuning.kick_on_hit * (1.0 + weight))
+	var metal: bool = armour != Enums.ArmourClass.UNARMOURED
+	Foley.at(weapon, Foley.Sound.CLANG if metal else Foley.Sound.CRUNCH,
+		randf_range(0.93, 1.06) * (0.82 if heavy else 1.0), 2.0 if heavy else -2.0)
+
+
+## Push the view, positionally (`DES-009`: never rotate a first-person camera
+## for impact). Accumulates, and is capped so a flurry cannot shove the eye
+## out of the head.
+func _kick_view(by: Vector3) -> void:
+	_kick = (_kick + by).limit_length(0.12)
+
+
+## How far the view is pushed right now, for `--feel-probe`.
+func view_kick() -> Vector3:
+	return _kick
+
+
+## The view's kick settles every frame, and a blow landing on you starts one —
+## read off the replicated health, so a client is kicked by the hit the host
+## decided exactly as the host is (ADR-279).
+func _process(delta: float) -> void:
+	if not _is_local:
+		return
+	var tuning: TuningProfile = Config.tuning
+	if health.current < _health_seen - 0.01:
+		_kick_view(Vector3(0.0, -0.25, 1.0).normalized() * tuning.kick_on_hurt)
+	_health_seen = health.current
+	_kick = _kick.lerp(Vector3.ZERO, clampf(delta * tuning.kick_settle, 0.0, 1.0))
+	_camera.position = _kick * Settings.camera_motion
 
 
 ## **Whether a blow arrives inside the guard's arc** (ADR-238).
@@ -2469,6 +2550,11 @@ func _physics_process(delta: float) -> void:
 		lit = false
 	if multiplayer.is_server() and has_effect(&"recall_on_damage"):
 		_drop_a_crumb(delta)
+	# **Held, the swing draws back** (ADR-279). Read here, where the press was,
+	# and only by the body's own peer — a remote copy learns it from the wire.
+	if _is_local:
+		weapon.holding = _driving and not bag_is_open() and not is_incapacitated() \
+			and Input.is_action_pressed("attack")
 	weapon.advance(delta, stamina)
 	if ranged != null:
 		# Anything that takes your hands abandons the draw, on the same rule the

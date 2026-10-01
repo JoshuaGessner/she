@@ -117,9 +117,38 @@ func set_tint(tint: Color) -> void:
 			material.albedo_color = base * (0.6 + tint.r * 0.8)
 
 
+## **A struck body flinches** (ADR-279). A tilt back and a jolt away from the
+## blow, over whatever it is animating, settling in a fifth of a second — so a
+## blow that does not stagger still visibly *arrives*. Every peer, read off the
+## replicated health, so a teammate's hit reads on your screen too.
+const FLINCH_TILT: float = 0.22
+const FLINCH_PUSH: float = 0.07
+const FLINCH_SETTLE: float = 6.0
+var _flinch: float = 0.0
+
+
+func flinch(strength: float) -> void:
+	_flinch = clampf(maxf(_flinch, strength), 0.0, 1.0)
+
+
+## How far into a flinch it is, for `--feel-probe`.
+func flinching() -> float:
+	return _flinch
+
+
+func _apply_flinch(delta: float) -> void:
+	if _flinch <= 0.0 and rotation.x == 0.0:
+		return
+	_flinch = maxf(0.0, _flinch - delta * FLINCH_SETTLE)
+	var eased: float = _flinch * _flinch
+	rotation.x = FLINCH_TILT * eased
+	position.z = FLINCH_PUSH * eased
+
+
 func present_enemy(state: int, attack: int, state_progress: float,
 		attack_progress: float, at: Vector3, delta: float) -> void:
 	_delta = delta
+	_apply_flinch(delta)
 	if _sling_stone != null:
 		_sling_stone.visible = attack != ATTACK_ACTIVE and not (
 			attack == ATTACK_RECOVERY and attack_progress < 0.75)

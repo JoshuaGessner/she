@@ -934,7 +934,7 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# never asks whether the enemy lands a blow. It did not, for four of the
 	# five weapons in the table, and every number `combat` printed stayed true
 	# throughout.
-	for gym_probe in clamor combat fight swarm; do
+	for gym_probe in clamor combat fight swarm feel; do
 		gym="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 			levels/dev/movement_gym.tscn -- "--$gym_probe-probe" 2>&1)"
 		if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$gym"; then

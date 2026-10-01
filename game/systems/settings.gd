@@ -39,6 +39,9 @@ static var volumes: Dictionary = {}
 static var mouse_sensitivity: float = 1.0
 static var invert_look: bool = false
 static var fullscreen: bool = false
+## **How much the view is pushed by blows** (ADR-279, `DES-009`: camera feedback
+## *"must remain independently adjustable for accessibility"*). 0 is none.
+static var camera_motion: float = 1.0
 ## **What the player rebound** (`M4-T06`, ADR-245): action → `{keys, pad}`,
 ## each a list of `Bindings.describe` rows. Only what was changed, so a default
 ## moved by a later build still moves for every verb nobody touched.
@@ -70,6 +73,8 @@ static func load_once() -> void:
 			float(file.get_value("input", "mouse_sensitivity", 1.0)), 0.1, 4.0)
 		invert_look = bool(file.get_value("input", "invert_look", false))
 		fullscreen = bool(file.get_value("video", "fullscreen", false))
+		camera_motion = clampf(
+			float(file.get_value("video", "camera_motion", 1.0)), 0.0, 1.0)
 		# A file from before rebinding has no section, which is true of it.
 		if file.has_section("bindings"):
 			for action: String in file.get_section_keys("bindings"):
@@ -98,6 +103,7 @@ static func save() -> void:
 	file.set_value("input", "mouse_sensitivity", mouse_sensitivity)
 	file.set_value("input", "invert_look", invert_look)
 	file.set_value("video", "fullscreen", fullscreen)
+	file.set_value("video", "camera_motion", camera_motion)
 	for action: String in bindings:
 		file.set_value("bindings", action, bindings[action])
 	file.save(PATH)
