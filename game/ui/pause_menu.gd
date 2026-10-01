@@ -65,13 +65,11 @@ func _ready() -> void:
 	_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_root.visible = false
 	add_child(_root)
-	_root.add_child(MenuStyle.backdrop())
-
-	var centre := CenterContainer.new()
-	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_root.add_child(centre)
-	_column = MenuStyle.column(12)
-	centre.add_child(_column)
+	# **The run stays in view** (ADR-289): the world goes on behind a pause in
+	# a game with no pause (`DES-019`), so the menu is laid down the left
+	# edge over a shade, as the title screen is, not over a blackout.
+	_root.add_child(MenuStyle.shade())
+	_column = MenuStyle.left_column(_root)
 	_rebuild()
 
 

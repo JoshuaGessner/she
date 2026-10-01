@@ -93,7 +93,9 @@ const WARM: StringName = &"Warm"
 ## letter-spaced and a fine line is a sentence, so they are never mistaken for
 ## each other — and a footnote that sits *under* a column of `Caption` rows has
 ## to be quieter than them, which 13 would not be.
-const TITLE: StringName = &"Title"  ## 44, the first screen of a flow.
+const TITLE: StringName = &"Title"  ## 52, the first screen of a flow.
+## 120, the game's own name on the title screen and nowhere else (ADR-289).
+const MASTHEAD: StringName = &"Masthead"
 const SCREEN_TITLE: StringName = &"ScreenTitle"  ## 34.
 const DIALOG_TITLE: StringName = &"DialogTitle"  ## 30, a question asked over a screen.
 const HEADING: StringName = &"Heading"  ## 11, the name of a region.
@@ -157,6 +159,10 @@ const RULE: StringName = &"Rule"
 const BACKDROP: StringName = &"Backdrop"
 ## A backdrop you can still half see through, for a banner laid over a room.
 const SCRIM: StringName = &"Scrim"
+## The reticle's word for what is in reach (ADR-288): no panel, and lettering
+## with a dark outline so it reads over lit stone and over the dark alike.
+const PROMPT: StringName = &"Prompt"
+const PROMPT_TEXT: StringName = &"PromptText"
 
 
 ## ## The two grounds, and the flip at the Descent (TEC-009 §5.5)
@@ -389,6 +395,54 @@ static func backdrop(role: StringName = BACKDROP) -> Control:
 	# that would otherwise reach it.
 	rect.mouse_filter = Control.MOUSE_FILTER_STOP
 	return rect
+
+
+## **The left-hand page** (ADR-288, ADR-289): a shade that darkens the left of
+## the screen and fades out across it, so lettering laid down that edge reads
+## over whatever is behind it — her on the title screen, the world under the
+## pause menu — without a panel being put over the picture.
+static func shade() -> TextureRect:
+	var rect := TextureRect.new()
+	var fade := Gradient.new()
+	fade.set_color(0, Color(0.0, 0.0, 0.0, 0.88))
+	fade.set_color(1, Color(0.0, 0.0, 0.0, 0.0))
+	fade.set_offset(1, 0.62)
+	var ramp := GradientTexture2D.new()
+	ramp.gradient = fade
+	ramp.width = 256
+	ramp.height = 4
+	rect.texture = ramp
+	rect.stretch_mode = TextureRect.STRETCH_SCALE
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	# It also swallows the clicks a menu sits over, as `backdrop` does.
+	rect.mouse_filter = Control.MOUSE_FILTER_STOP
+	return rect
+
+
+## A column down the left edge of `into`, vertically centred.
+static func left_column(into: Control, gap: int = 4) -> VBoxContainer:
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 110)
+	into.add_child(margin)
+	var centre := CenterContainer.new()
+	centre.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	margin.add_child(centre)
+	var stack: VBoxContainer = column(gap)
+	stack.custom_minimum_size = Vector2(380.0, 0.0)
+	centre.add_child(stack)
+	return stack
+
+
+## Set every label and choice in `stack` to the left edge, like a colophon.
+static func left_align(stack: Container) -> void:
+	for child: Node in stack.get_children():
+		var label := child as Label
+		if label != null:
+			label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var choice := child as Button
+		if choice != null:
+			choice.alignment = HORIZONTAL_ALIGNMENT_LEFT
 
 
 ## A vertical stack, centred, with room to breathe.

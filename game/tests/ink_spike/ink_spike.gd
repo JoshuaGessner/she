@@ -280,7 +280,7 @@ func _apply_mode(mode: Mode) -> void:
 		Mode.WOBBLE:
 			_post.set_parameter("wobble_amount", 1.1)
 			_post.set_parameter("weight_variation", 0.55)
-			_post.set_parameter("boil_fps", 0.0)  # 60 fps shimmer
+			_post.set_parameter("boil_fps", 60.0)  # 60 fps shimmer
 		Mode.INK:
 			_post.set_parameter("wobble_amount", 1.1)
 			_post.set_parameter("weight_variation", 0.55)

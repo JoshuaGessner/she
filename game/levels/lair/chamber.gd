@@ -69,7 +69,8 @@ signal left()
 
 const HOARD_AT: Vector3 = Vector3(0.0, 0.0, -4.0)
 const STASH_AT: Vector3 = Vector3(-5.0, 0.0, 1.0)
-const DOOR_AT: Vector3 = Vector3(0.0, 0.0, 6.0)
+## Inside the passage cut in the south wall (ADR-282).
+const DOOR_AT: Vector3 = Vector3(0.0, 0.0, 9.61)
 const SPAWN_AT: Vector3 = Vector3(0.0, 0.1, 4.0)
 
 ## How close you have to be for a thing you put down to mean something.
@@ -89,6 +90,24 @@ const PACT_CLAIM: StringName = &"pact"
 ## without becoming a mesh budget. `DES-014` costs it at *"a growing-pile-of-
 ## meshes system and nothing else"*, and this is the number that keeps it that.
 const VALUE_PER_LUMP: int = 25
+const HER_MODEL: PackedScene = preload("res://art/heroes/her.glb")
+## The boxes she was, kept as what she is to a body (ADR-284): size, then
+## centre relative to the hoard.
+const HER_SHAPE: Array = [
+	[Vector3(11.0, 3.2, 3.0), Vector3(0.0, 1.6, -2.4)],
+	[Vector3(4.0, 2.0, 2.4), Vector3(-3.4, 1.0, -0.6)],
+	[Vector3(4.0, 2.0, 2.4), Vector3(3.4, 1.0, -0.6)],
+	[Vector3(2.0, 3.0, 2.0), Vector3(0.0, 2.9, -1.4)],
+	[Vector3(2.2, 1.5, 5.0), Vector3(-5.2, 0.75, 1.0)],
+]
+## **What the pile is made of** (ADR-284): the treasure a run brings back, not
+## brown bricks. Picked by a fixed sequence so the pile is the same pile every
+## visit and only grows.
+const HOARD_PIECES: Array[StringName] = [
+	&"glt_hoard_coin", &"glt_hoard_coin", &"glt_hoard_coin", &"glt_gilt_bead",
+	&"glt_hoard_coin", &"glt_altar_plate", &"glt_hoard_coin", &"glt_gilded_torc",
+	&"glt_hoard_coin", &"glt_raw_gemstone", &"glt_hoard_coin", &"glt_coin_chest",
+]
 const MAX_LUMPS: int = 400
 
 var _player: Player = null
@@ -425,9 +444,22 @@ func _build_room() -> void:
 		Vector3(-half.x, WALL_HEIGHT * 0.5, 0.0), STONE, DelvingsKit.WALL)
 	_slab(Vector3(0.6, WALL_HEIGHT, ROOM.y),
 		Vector3(half.x, WALL_HEIGHT * 0.5, 0.0), STONE, DelvingsKit.WALL)
-	_slab(Vector3(ROOM.x, WALL_HEIGHT, 0.6),
-		Vector3(0.0, WALL_HEIGHT * 0.5, half.y), STONE, DelvingsKit.WALL)
+	# The way back out is a door in this wall now, not a pad (ADR-282), and
+	# the camp's fire shows through it.
+	LairPassage.cut(self, _slab, half.y, 1.0, ROOM.x, WALL_HEIGHT, 0.6, STONE,
+		Color(0.12, 0.11, 0.11), Color(1.0, 0.62, 0.3), 0.9)
 
+	# **Her hall is a hall** (ADR-286): a vault overhead rather than a grey
+	# nothing, a row of piers along each wall, and a brazier either side of
+	# her, so she is lit from below by fire the way a thing you kneel to is.
+	_slab(Vector3(ROOM.x, 0.5, ROOM.y), Vector3(0.0, WALL_HEIGHT + 0.25, 0.0),
+		STONE, DelvingsKit.CEILING)
+	for flank: float in [-1.0, 1.0]:
+		for z: float in [-5.0, -1.0, 3.0]:
+			_slab(Vector3(0.9, WALL_HEIGHT, 0.9),
+				Vector3(flank * (half.x - 0.75), WALL_HEIGHT * 0.5, z), STONE,
+				DelvingsKit.WALL)
+		Hearth.brazier(self, HOARD_AT + Vector3(flank * 5.6, 0.0, 1.4))
 	var lamp := OmniLight3D.new()
 	lamp.position = Vector3(0.0, 4.2, -1.0)
 	lamp.omni_range = 20.0
@@ -480,28 +512,39 @@ func _build_room() -> void:
 ## against a wall.
 func _build_her() -> void:
 	var skin: Color = her_colour(GameState.descents)
-	# The long mass, half in the back wall.
-	_slab(Vector3(11.0, 3.2, 3.0), HOARD_AT + Vector3(0.0, 1.6, -2.4), skin)
-	# Forelimbs, set wide enough that the hoard between them stays reachable.
-	_slab(Vector3(4.0, 2.0, 2.4), HOARD_AT + Vector3(-3.4, 1.0, -0.6), skin)
-	_slab(Vector3(4.0, 2.0, 2.4), HOARD_AT + Vector3(3.4, 1.0, -0.6), skin)
-	# Neck and head. The head sits **above a standing body's eye line** so it
-	# looms rather than blocks: the walk to the hoard is unchanged and the thing
-	# you are giving to is over you while you do it.
-	_slab(Vector3(2.0, 3.0, 2.0), HOARD_AT + Vector3(0.0, 2.9, -1.4), skin)
-	_slab(Vector3(2.4, 1.4, 3.2), HOARD_AT + Vector3(0.0, 3.6, 0.4), skin)
-	# The snout, tipped down over the pile she is owed.
-	_slab(Vector3(1.6, 0.8, 1.6), HOARD_AT + Vector3(0.0, 3.0, 1.6), skin)
-	# A tail around one side, which is what stops the room reading as symmetrical
-	# furniture and gives the eye somewhere to travel.
-	_slab(Vector3(2.2, 1.5, 5.0), HOARD_AT + Vector3(-5.2, 0.75, 1.0), skin)
+	# **Her, not seven boxes** (ADR-284): `her.glb`, swept from curves so the
+	# silhouette carries across a dark hall — the coil behind the pile, a neck
+	# arching over it, a horned head looking down at what you bring, wings
+	# folded, a tail round the left. The boxes she used to be stay as her
+	# collision, unseen, so where a body can stand has not moved.
+	var body: Node3D = HER_MODEL.instantiate() as Node3D
+	body.name = "Her"
+	body.position = HOARD_AT
+	add_child(body)
+	var scales := StandardMaterial3D.new()
+	scales.albedo_color = skin
+	scales.roughness = 0.9
+	# Her wings are a single membrane, seen from either side.
+	scales.cull_mode = BaseMaterial3D.CULL_DISABLED
+	for node: Node in body.find_children("*", "MeshInstance3D", true, false):
+		var piece := node as MeshInstance3D
+		for surface: int in piece.mesh.get_surface_count():
+			var was: Material = piece.mesh.surface_get_material(surface)
+			if was == null or was.resource_name != "eye":
+				piece.set_surface_override_material(surface, scales)
+	for block: Array in HER_SHAPE:
+		var solid := StaticBody3D.new()
+		solid.collision_layer = CollisionLayers.WORLD
+		solid.collision_mask = 0
+		var shape := CollisionShape3D.new()
+		var box := BoxShape3D.new()
+		box.size = block[0] as Vector3
+		shape.shape = box
+		solid.add_child(shape)
+		solid.position = HOARD_AT + (block[1] as Vector3)
+		add_child(solid)
 
 
-## **What a lineage has done to her**, as a colour (ADR-050, ADR-255).
-##
-## Held apart from `_build_her` so the progression can be asserted without
-## standing a room up — and so the one place it is decided is the one place it
-## is read.
 static func her_colour(descents: int) -> Color:
 	var gone: float = clampf(float(descents) / float(FUSED_AFTER), 0.0, 1.0)
 	return HER_NEW.lerp(HER, gone)
@@ -525,38 +568,55 @@ func _rebuild_hoard() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0x5E1F
 	var gold: StandardMaterial3D = _material(GOLD)
-	gold.roughness = 0.35
-	# Her hoard is the one colour in a finished print (`ART-005`), so the
-	# page is never laid over it (ADR-269).
+	gold.roughness = 0.3
+	gold.metallic = 0.85
+	# A low glow, so gold reads as gold in a dim hall — `ART-005` spends
+	# saturated colour on treasure, and treasure no one can see is not spent.
+	gold.emission_enabled = true
+	gold.emission = GOLD * 0.35
 	InkPass.stamp(gold, InkPass.Class.GOLD)
+	# **The mound** (ADR-284): loose coin under everything, rising with the
+	# pile, so many lives' worth reads as a heap rather than as scattered parts.
+	if lumps > 0:
+		var heap := MeshInstance3D.new()
+		var dome := SphereMesh.new()
+		var across: float = 1.0 + sqrt(float(lumps)) * 0.13
+		dome.radius = across
+		dome.height = across * 2.0
+		dome.is_hemisphere = true
+		heap.mesh = dome
+		heap.material_override = gold
+		heap.scale = Vector3(1.0, clampf(0.12 + float(lumps) * 0.0025, 0.12, 0.3), 1.0)
+		_hoard_root.add_child(heap)
 	for index: int in range(lumps):
-		var lump := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		var size: float = rng.randf_range(0.22, 0.42)
-		box.size = Vector3(size, size * 0.45, size)
-		lump.mesh = box
-		lump.material_override = gold
-		# Piled: dense in the middle, thinning outward, and taller as it grows.
+		var piece: ItemResource = ItemCatalogue.by_id(HOARD_PIECES[index % HOARD_PIECES.size()])
+		var look: Node3D = piece.look() if piece != null else null
+		if look == null:
+			continue
+		for node: Node in look.find_children("*", "MeshInstance3D", true, false):
+			(node as MeshInstance3D).material_override = gold
 		var spread: float = 1.4 + sqrt(float(index)) * 0.22
 		var angle: float = rng.randf_range(0.0, TAU)
 		var radius: float = sqrt(rng.randf()) * spread
-		lump.position = Vector3(cos(angle) * radius,
+		look.position = Vector3(cos(angle) * radius,
 			rng.randf_range(0.0, 0.12) + maxf(0.0, (spread - radius) * 0.22),
 			sin(angle) * radius)
-		lump.rotation.y = rng.randf_range(0.0, TAU)
-		_hoard_root.add_child(lump)
+		look.rotation = Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(0.0, TAU),
+			rng.randf_range(-0.5, 0.5))
+		_hoard_root.add_child(look)
 
 
 func _build_stash() -> void:
-	_slab(Vector3(1.8, 1.0, 1.2), STASH_AT + Vector3(0.0, 0.5, 0.0), STASH_COLOUR)
+	# A chest (ADR-287), not a box.
+	CampDressing.chest(self, STASH_AT, STASH_COLOUR)
 
 
 ## The way out, to the Threshold. `DES-014`'s flow is Chamber → Threshold →
 ## Descent, identical solo and in company; the only difference is whether
 ## anybody is standing out there.
 func _build_door() -> void:
-	_slab(Vector3(2.6, 0.1, 2.6), DOOR_AT + Vector3(0.0, 0.02, 0.0),
-		Color(0.42, 0.40, 0.36))
+	# Cut in `_build_room` (ADR-282); nothing is laid on the floor.
+	pass
 
 
 ## **What she expects, and when** (`M3-T04`, ADR-029).
@@ -897,7 +957,7 @@ func _build_readout() -> void:
 	# wide inside a 323 px region. Caught by `HudFrame.escapes` on its first run,
 	# which is the entire argument for having written it.
 	_way_back = Label.new()
-	_way_back.text = "the pale slab behind you returns to the Threshold"
+	_way_back.text = "the door behind you returns to the Threshold"
 	_way_back.theme_type_variation = MenuStyle.FINE_DIM
 	_way_back.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	place_body.add_child(MenuStyle.rule())

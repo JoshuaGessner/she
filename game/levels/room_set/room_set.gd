@@ -8811,6 +8811,9 @@ func _door_light(at: Vector3) -> void:
 	# floor with the shutter closed.
 	light.add_to_group(Lantern.LIGHT_GROUP)
 	_world.add_child(light)
+	# And the lamp that gives it (ADR-291) — the light was always here; now
+	# so is the thing it comes from.
+	Hearth.door_lamp(_world, at, PALE)
 
 
 func _spawn_actors() -> void:

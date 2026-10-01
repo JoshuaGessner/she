@@ -10570,4 +10570,200 @@ All poses are ⟨tune⟩ and were set against `--hands-shot`, which now also sav
 
 **Not settled here:** the forearm and bracer still enter from the screen's corners. Whether that reads well in a fight is `M4-T10`'s judgement in play, not a probe's.
 
+## ADR-281 — The page holds still: no boil, creases drawn lighter and nearer, hatching gone before it shimmers
+
+**Date:** 2026-10-01 · **Status:** accepted · **Amends `ART-005`, ADR-269** · **Developer's report: *"there's some glitchy and flashy surfaces in dungeons"***
+
+**Context:** the ink pass drew every normal break at full weight, and the kit's walls and floors are made of normal breaks.
+- **Seams were drawn like silhouettes.** Every brick seam and flagstone joint got the same bone-white line as a wall's corner, so a room became a white grid.
+- **The boil made the grid flash.** Every line was re-jittered ten times a second, and over a wall of seams that read as the surface flashing.
+- **Distance made it worse.** Beyond a few metres the floor joints aliased into dashes that changed with every step.
+- **Hatching shimmered.** Its strokes stayed on until they were nearly a pixel wide, and shimmered at range.
+
+*Reference: Return of the Obra Dinn. Lucas Pope's devlog records the same failure, a screen-space pattern swimming and flickering as the camera moves. The answer there was to hold the pattern still relative to what it draws, not to animate it.*
+
+**Decision:**
+- **The boil stops.** `InkPass.BOIL_FPS` is 0, and 0 now means *held*, not 60 fps. The wobble stays as a hand's line, reduced from 1.1 to 0.6 px, and it no longer moves.
+- **Creases are not contours.** A normal break is drawn at 0.4 ⟨tune⟩ of a silhouette's weight and fades out between 3 and 9 m ⟨tune⟩. A depth break (a wall's corner, a doorway, a prop, a body) keeps the full line at any range the falloff allows.
+- **Hatching leaves sooner.** A stroke fades out from 0.16 to 0.42 of a pixel's footprint, where it used to fade from 0.3 to 0.8. It is also lighter in the Deep: `deep_stroke` drops from 0.42 to 0.28 ⟨tune⟩, because under the lantern the floor at your feet was a field of bright stripes.
+
+**Seen:** `--ink-shot` before and after on seed 1's entrance, Shaft and prize. The walls read as stone with a light joint pattern, the doorway's outline is the strongest line on screen, and the far floor no longer breaks into dashes. `--ink-probe` passes.
+
+## ADR-282 — A way out is a door you walk through
+
+**Date:** 2026-10-01 · **Status:** accepted · **Amends `DES-014`, ADR-255, ADR-278** · **Developer's report: *"I want there to be an actual wall cave opening or something that you walk into for going between the lair [and the rest]. The pads on the floor are weird."***
+
+**Context:** the Lair's three ways between places were coloured slabs on the floor: the Descent, the door to your Chamber, and the Chamber's door back. They read as debug markers rather than places, and the camp's own text had to tell you to *"walk back onto the pale slab"*.
+
+**Decision:** each is an opening cut in a wall by `LairPassage`.
+- The opening is framed by the Delvings' own doorway module.
+- A short passage behind it, 4.2 m ⟨tune⟩ deep, is closed at its far end and lit to say what is through there: cold for the way down, warm for her hall.
+- **The trigger stands inside the passage,** so leaving is something you do with your feet.
+
+The Descent is the mine mouth in the camp's north wall, at the end of the throat, with a lamp on its frame. Her door is in the south wall behind the fire. The Chamber's way back is in its own south wall. The camp's and Chamber's text now say *door*.
+
+**Kept:** ADR-255's closed camp. `--edges-probe` still finds 0 of 80 bearings open, because every passage ends in a wall. Its landmark row now counts a passage as part of the camp. `--chamber-probe`, `--settle-probe` and `--lair-probe` pass with the triggers moved.
+
+## ADR-283 — Fire is fire: a pit, flames, embers, and light that breathes
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`**
+
+**Context:** the camp's fire, the only safe light in the game, was an orange cone under a steady omni light. A steady light reads as an electric bulb.
+
+**Decision:**
+- **The fire pit:** a ring of nine stones, four crossed logs, a bed of embers, and two flame tongues.
+- **The flame shader:** `flame.gdshader` is alpha-scissored, so it is opaque. The ink pass paints over transparent geometry, and an additive flame vanished under it. It writes stencil class 4 (gold) so its colour survives the page, and it turns to face the camera about the vertical, so it stands up from any side.
+- **Sparks** rise on a particle system.
+- **`FlickerLight`** breathes on two slow unrelated waves and a small fast one. The swing is 14% ⟨tune⟩, so a lit thing stays lit (`ART-001`), and it is seeded by position so two lights never pulse together. The fire's light now casts shadows. `FlickerLight` is a component, so a torch anywhere can use it.
+
+## ADR-284 — Her, and a hoard made of treasure
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T10`** · **Developer's ask: *"move further out of the blockout state"***
+
+**Context:** she was seven grey boxes, and the hoard was brown bricks scattered on the floor. Both are the room's whole reason to exist. `DES-014` asks for *"a neck, a head that looms over the hoard and a tail"*, and ADR-255 already reached for silhouette over colour.
+
+**Decision:**
+- **`her.glb`, built by `source_art/heroes/build_her.py`.** She is swept from curves, 13,524 triangles against the 40,000 hero budget.
+  - Her body is coiled behind the pile and tapers into a haunch.
+  - She has two clawed forelegs resting either side of the pile, and two hind legs.
+  - Her neck arches over the hoard. Her head has a long snout, a heavy brow, fangs, swept-back horns and cheek spikes, and looks down at what you bring.
+  - Her wings are folded along her back, with spines down her back and tail. The tail curls round the left side.
+
+  She is static: nothing in the slice asks her to move. ADR-050's fusing into the stone is unchanged, because the Chamber overrides her material with `her_colour(descents)` every visit, leaving only her eyes. **Her old boxes stay as her collision, unseen,** so where a body can stand has not moved.
+- **The hoard is treasure.** A low mound of loose gold grows with the hoard's value, and the pile on it is the game's own treasure models: coin, bead, plate, torc, gem and chest, in a fixed sequence so it is the same pile every visit and only grows. Gold is metallic with a low glow, so it reads as gold in a dim hall (`ART-005` spends saturated colour on treasure).
+
+**Measured:** `art_probe` passes `her.glb` (scale, applied transforms, budget, vertex colours). `--lair-probe` and `--demand-probe` pass. **Found on the way:** every hand-wound sweep came out inside out, which Blender's renderer hid by drawing both sides. The build now makes every normal point out before export.
+
+## ADR-285 — Stone that has been somewhere, and dust in the light
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`**
+
+**Context:** every kit surface was a single flat albedo, so a wall of two hundred blocks read as one grey sheet.
+
+**Decision:**
+- **`weathered.gdshader` replaces every world-class kit material** at its own colour, through `DelvingsKit._weather`, with one material per authored one. It adds a fine mottle, a slow warm-to-cool stain, a grime line at the foot of every wall up to 0.9 m ⟨tune⟩, and a trace of green in the dampest low places. All of it is in world space and smooth, so nothing swims (ADR-281). A first version used hard per-block cells on the world grid; they cut across the kit's bricks and read as a fault, so they were removed.
+- **`DustMotes`:** seventy opaque specks drift in world space around the local player's head. They are lit, never glowing, so they show only in the lantern's throw and the dark stays dark (`ART-001`).
+
+**Seen:** `--ink-shot` and `--hands-shot`. `--ink-probe` passes.
+
+## ADR-286 — The Lair is a place: a sky over the camp, a camp with things in it, and a hall for her
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`** · **Developer's ask: *"continue working on some of the visual stuff"***
+
+**Context:** after ADR-282 to ADR-284 the Lair had doors, a fire and a dragon, and still read as a box built in a test level.
+- Above the camp's walls was a flat grey, though the camp is the one place in the game that is outdoors.
+- The camp's floor was bare apart from the fire and a sign.
+- Her hall had four plain walls and no ceiling.
+
+**Decision:**
+- **`Hearth`** builds fire in one place: the ember bed, flames, sparks and breathing light the camp pit had in ADR-283. The camp and the braziers share it.
+- **The camp is under a night sky.** `night_sky.gdshader` goes from deep blue to black overhead, with small fixed stars and a pale glow low on one side, where the moon is behind the rock.
+- **The camp is dressed with delivered props.** Two logs are drawn up to the fire as seats. The ore cart, a rope coil and broken bracing sit by the mine mouth, with a spoil heap in the throat. There are guttered candles at the Lodge's board, and rubble and old iron in the far corners. Everything is solid, and none of it stands on a spawn or between the fire and a door.
+- **Her hall has a beamed vault, three piers along each wall, and a brazier either side of her.** She is lit from below by fire, the way a thing you kneel to is.
+- **Dust stays in the Deep.** On the Lair's paper page a speck's shaded side prints as ink, so `DustMotes` removes itself outside a `RoomSet`.
+
+**Measured:** `--edges-probe` (still 0 of 80 bearings open), `--chamber-probe`, `--settle-probe`, `--lair-probe` and `--hands-probe` pass. Seen in `--threshold-shot` and `--chamber-shot`.
+
+## ADR-287 — The camp is a hollow in a hillside, with four campsites round the fire
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`** · **Developer's ask: *"we really need to work on the camp and making it feel more like our vision where it's alive"***
+
+**Context:** `DES-014`'s target for the Threshold is Diablo's Rogue Encampment, *"tiny, dense, warm, and unforgettable"*, with four personal campsites ringed round the Lodge's fire. After ADR-286 the camp had a sky and a fire, but it was still a nine-metre box of the mine's own brick on a floor of flagstones. Nothing in it said anyone lived there.
+
+**Decision:** `CampDressing`, built in code from the shapes the woodcut reads cleanest.
+- **The hillside.** The camp's walls take `cliff.gdshader`: bedding planes across the face, cracks running down it, a darker foot and lichen where it is damp. Boulders sit at the foot of the walls, and larger ones run along their tops, so the line against the sky is broken rather than ruled. The ground is packed earth (`weathered.gdshader` at an earth colour), and the flagstones begin at the mine. The mine mouth's dressed-stone frame now reads as a portal cut into rock.
+- **Four campsites**, one per plot, each opening toward the fire. Each has:
+  - an A-frame tent on a ridge pole, in one of four muted dyes (`ART-005` keeps saturation for treasure), with a closed back;
+  - a bedroll and groundsheet, a pack and a pot at the door;
+  - a banner on a pole moving in the wind (`cloth.gdshader`, opaque and two-sided).
+
+  The tents are solid, and none stands on a spawn or a path to a door.
+- **The Lodge's board:** two posts under a small gabled roof, a backing of planks, and four notices pinned to it.
+- **The fire is heard.** A looped crackle (`Foley.Sound.CRACKLE`: a low breath with sparse dry pops) plays on the world bus from the pit.
+- **The stash is a chest:** an arched lid, iron bands and a lock.
+
+**Absent, not stubbed (ADR-064):** the NPC Bound who will hold the empty plots, and the Lineage-earned customisation of each plot. The tents are where they will live, and nothing pretends to be them.
+
+**Measured:** `--edges-probe` still finds 0 of 80 bearings open. `--threshold-probe`, `--board-probe`, `--chamber-probe`, `--settle-probe` and `--lair-probe` pass. Seen in `--threshold-shot`.
+
+## ADR-288 — The interface is lettered and set in the world: real type, a title screen with her on it, an Ear that is an instrument
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`, `M4-T11`** · **Developer's report: *"I still don't like the UI — it doesn't feel like a game at all besides the Ear, and that's a little too plain also"***
+
+**Context:** the game shipped **no font at all**, so every word on every screen was Godot's default sans. The main menu was a centred column of boxed buttons on a flat dark ground. The prompt under the crosshair was a framed panel, and the Ear was three flat circles. Each of those read as an application rather than a game.
+
+**References.**
+- **Pentiment and Darkest Dungeon** for lettering that belongs to the world's own print culture. `ART-005` already committed us to the woodcut.
+- **Hunt: Showdown, Darkest Dungeon and the Souls games** for a title screen that is a living scene, with the menu laid over one side as text that is framed only when chosen.
+- **Hunt and Dark and Darker** for prompts that are outlined lettering over the world rather than panels.
+
+**Decision:**
+- **Type.**
+  - Titles, banners and the menu's choices are set in **IM Fell English SC**, a revival of the Fell types cut in the 1670s, the printing culture `ART-005` draws on.
+  - Body text is **Alegreya**, a calligraphic serif that stays readable at small sizes.
+  - Region headings are **Alegreya SC Bold**, and the voice lines are **IM Fell English Italic**.
+
+  All four are SIL Open Font License, shipped in `game/ui/fonts/` with their licences, and set once in `interface_theme.tres` per role. No screen sets a font.
+- **The title screen is her.** `MenuTableau` puts a small 3D scene behind the menu, drawn through the Deep's ink pass: her neck and head rising over the hoard between two braziers, lit from below, under a camera that drifts too slowly to notice. The menu runs down the left edge over a shade, with *SHE* at 120 px.
+- **Every menu choice is lettering until it is chosen.** `MenuAction`'s resting frame is now transparent, and its focus and hover frames are unchanged, so a list reads as a list rather than a stack of boxes. This holds on every screen.
+- **The prompt is outlined lettering** (`Prompt` and `PromptText`), with no panel.
+- **The Ear is an instrument.** A worked iron dish with a bronze lip and the eight notches it reads its sectors by, an ember with a halo for your noise, and a gold wedge pointing in from the rim for the Hunter. What it reports and how is unchanged: the bezel carries no information, which is why it may be ornate.
+
+**Measured:** `--menu-probe`, `--class-probe`, `--rebind-probe`, `--hud-probe`, `--ear-probe`, `--bagui-probe` and `--lair-probe` pass. Seen in `--menu-shot`, `--ink-shot`, `--threshold-shot` and `--bag-shot`. **Found on the way, and not this change's:** `--bag-shot`'s overload frame photographs the ordinary state twice and reports so. It did before this change too. It is not in the sweep.
+
+**Next:** the camp's two text panels (`ADR-139`'s card and the readout) are still blocks of text in the new type. They want laying out as a plate, not a list.
+
+## ADR-289 — Plates, not printouts: the camp's panels, the pause menu over the world, the bag's name, and a masthead of its own
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`** · **Continues ADR-288**
+
+**Context:** after ADR-288 every screen was set in real type, but four places still read as printouts.
+- **The camp's readout** was a monospaced table (`"descent    1"`) in a proportional face, so its columns wandered.
+- **The camp's control card** packed two verbs to a line as `wasd/Left Stick move   up/left/…/Right Stick look`, so the word you were looking for was never at the edge.
+- **The pause menu** blacked the world out under a centred column.
+- **The bag** labelled itself in the body face.
+
+ADR-288 also broke something. Enlarging `Title` to 120 px for the title screen enlarged every screen that uses `Title`, and *THE ASHEN LODGE* ran off the Lodge screen and put a scrollbar under it.
+
+**Decision:**
+- **The camp's readout is a plate.** *The Threshold* is set in the display face, and its figures sit in two columns: what a thing is, then what it stands at, using tab stops rather than spaces. The directions are two short lines, *ahead, the dark goes down* and *behind the fire, your Chamber*.
+- **The control card is one verb to a line, verb first,** with the keys in a column. `ControlsScreen.verb_lines()` generates it, and both the card and `--threshold-probe`'s every-verb-is-taught row read it. `compact_lines` had no other caller and is gone. The card is still ADR-139's, at the fire.
+- **The pause menu keeps the run in view.** It uses the title screen's left-hand page, so the world goes on behind it, which `DES-019` already says it does. `MenuStyle.shade`, `left_column` and `left_align` are shared by both menus.
+- **The bag's name is in the display face.**
+- **`Masthead` is the game's name and nothing else** (120 px). `Title` returns to 52 px.
+
+**Measured:** `--threshold-probe`, `--board-probe`, `--edges-probe`, `--menu-probe`, `--class-probe`, `--bagui-probe`, `--hud-probe`, `--pause-probe` and `--pad-menu-probe` pass. The camp's own layout check caught the first version of the card at 397 px in a 342 px region, overlapping the readout. It now fits with no overlaps.
+
+## ADR-290 — The oath is a choice between two cards, and the death speaks in the house style
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`**
+
+**Context:** three screens are reached only by playing: the oath (`ClassScreen`), the death (`LegacyScreen`) and the end of a run (`RunOverScreen`). None of them had ever been photographed.
+- **The oath** was a list: a full-width button per class with two centred lines under it.
+- **The death screen** was older than the theme's roles. It drew its lines in the engine's own label and its choices in the engine's own grey button with a white border, the one screen in the game that never took the house style (ADR-216 named it). It said *"That life was a huskarl"*, the class's id rather than its name.
+
+**Decision:**
+- **`--screens-shot=DIR`** photographs all three from the title screen, with a dead life seeded for the death.
+- **The oath is two cards side by side**, as a choice between lives reads in Darkest Dungeon's hamlet or Hades' mirror: things you compare, not a list. Each card is a carved slate holding the class's name as the choice, a rule, what they are, and in the italic voice how they get out.
+- **The death screen takes the house style.** Its lines use the body role, its choices are `MenuStyle.button` at their own width rather than the screen's, and it names the class as the class (*Húskarl*).
+- **The end of a run** already read correctly in the new type, so it is unchanged.
+
+**Measured:** `--class-probe`, `--menu-probe`, `--lineage-probe`, `--threshold-probe`, `--legacy-probe` and `--pad-menu-probe` pass. A pad still reaches every choice.
+
+## ADR-291 — The Lodge is a board of notices, and the Delvings' door lights have lamps
+
+**Date:** 2026-10-01 · **Status:** accepted · **Advances `M4-T05`**
+
+**Context:**
+- **The Lodge's screen was one centred column.** Each contract was a full-width button reading *"Put it down — the second floor · trust 2, favour 2"*, with its brief in small type under it, and the favours were listed under the contracts.
+- **The Delvings' door lights had no source.** A pale glow hung over every doorway with nothing in it.
+
+**Decision:**
+- **Notices and favours side by side.** The board's work is on the left, as notices pinned to it, and the Lodge's favours are on the right. Each one is a carved card: the title is the choice, then where it is and what it pays in the warm caption, then what they said, then where you stand with it. *Reference: Darkest Dungeon's hamlet and stagecoach, which lay a choice out to compare rather than to scroll.*
+- **`--board-probe` still presses the real buttons.** It now finds them by the offer each button carries rather than by its text, so the text could shrink to the title.
+- **`Hearth.door_lamp`:** an iron cage on a short chain holding a cold flame in the door light's own pale colour. The light is unchanged in colour, energy, range and groups, so `--light-probe` and `--sight-probe` measure exactly what they measured. Only its source is new.
+- **Dust specks are halved to 6 mm.** At 12 mm the nearest ones read as small squares.
+
+**Measured:** `--board-probe`, `--light-probe`, `--ink-probe`, `--delvings-probe` and `--sight-probe` pass. Seen in `--board-shot` and `--ink-shot`.
+
 *Entries below to be added as design decisions are signed off.*

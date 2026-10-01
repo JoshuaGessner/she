@@ -98,8 +98,8 @@ const MARK: Shader = preload("res://art/shaders/ink_mark.gdshader")
 static var _mark: ShaderMaterial = null
 
 ## ART-005: "Update that jitter at 8-12 fps, not 60. This is *the* trick."
-const BOIL_FPS: float = 10.0
-const WOBBLE_AMOUNT: float = 1.1
+const BOIL_FPS: float = 0.0
+const WOBBLE_AMOUNT: float = 0.6
 const WEIGHT_VARIATION: float = 0.55
 
 ## **Where the linework stops, in metres** (`ART-005` §"The readability risk").

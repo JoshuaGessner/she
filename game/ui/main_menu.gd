@@ -36,14 +36,12 @@ var _controls: ControlsScreen
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(MenuStyle.backdrop())
-
-	var centre := CenterContainer.new()
-	centre.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(centre)
-
-	_column = MenuStyle.column(12)
-	centre.add_child(_column)
+	# **She is the title screen** (ADR-288): a living tableau behind the menu,
+	# and the menu laid down its left side over a shade, as Hunt: Showdown and
+	# Darkest Dungeon do — not a column of boxes on a flat colour.
+	add_child(MenuTableau.new())
+	add_child(MenuStyle.shade())
+	_column = MenuStyle.left_column(self)
 	_show_root()
 
 	for arg: String in OS.get_cmdline_user_args():
@@ -59,6 +57,8 @@ func _ready() -> void:
 			_lineage_probe()
 		elif arg.begins_with("--menu-shot="):
 			_menu_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--screens-shot="):
+			_screens_shot(arg.split("=", true, 1)[1])
 
 
 ## Photograph every screen (`--menu-shot=DIR`).
@@ -99,6 +99,35 @@ func _menu_shot(directory: String) -> void:
 	get_tree().quit()
 
 
+## **The screens a run opens and closes on** (`--screens-shot=DIR`, ADR-290):
+## the oath, the death, and the end of the run. None of them is reached from the
+## title screen without playing, so none of them was ever photographed — and
+## two were still in the engine's own grey when ADR-288 lettered everything else.
+func _screens_shot(directory: String) -> void:
+	DirAccess.make_dir_recursive_absolute(directory)
+	var was: Dictionary = GameState.last_life
+	GameState.last_life = {"class_id": "huskarl", "rank": 3}
+	for named: String in ["class", "legacy", "runover"]:
+		var screen: Control = null
+		match named:
+			"class": screen = ClassScreen.new()
+			"legacy": screen = LegacyScreen.new()
+			"runover": screen = RunOverScreen.new()
+		var layer := CanvasLayer.new()
+		layer.layer = 9
+		layer.add_child(screen)
+		add_child(layer)
+		for _frame: int in 6:
+			await RenderingServer.frame_post_draw
+		var path: String = "%s/screen_%s.png" % [directory, named]
+		get_viewport().get_texture().get_image().save_png(path)
+		print("[menu] shot %s" % path)
+		layer.queue_free()
+		await get_tree().process_frame
+	GameState.last_life = was
+	get_tree().quit()
+
+
 ## Removed *and* freed. `queue_free` alone lands at the end of the frame, so
 ## for one frame both screens are children of the same column — which stacks
 ## the old buttons under the new ones and, less visibly, made `--menu-probe`
@@ -111,9 +140,9 @@ func _clear() -> void:
 
 func _show_root() -> void:
 	_clear()
-	_column.add_child(MenuStyle.title("SHE"))
+	_column.add_child(MenuStyle.title("SHE", MenuStyle.MASTHEAD))
 	_column.add_child(MenuStyle.line(
-		"a hoard-dragon buys your soul one run at a time"))
+		"a hoard-dragon buys your soul one run at a time", MenuStyle.SUB_DIM))
 	var said: Array = lineage_line(SaveFile.standing())
 	if not said.is_empty():
 		_column.add_child(_gap(6))
@@ -158,6 +187,8 @@ func _show_root() -> void:
 	var quit: Button = MenuStyle.button("QUIT")
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	_column.add_child(quit)
+	# Down the left edge, like a title page's colophon, not centred on nothing.
+	MenuStyle.left_align(_column)
 	play.grab_focus()
 
 	# Why the last attempt ended, if it ended badly. `CoopSession` sends people

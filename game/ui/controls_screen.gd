@@ -384,26 +384,19 @@ const COMPACT_KEY: Dictionary = {
 }
 
 
-## The whole list as running text, `per_line` prompts to a line, for readouts
-## that are a `Label` rather than a screen. The Threshold uses this.
-static func compact_lines(per_line: int = 4) -> PackedStringArray:
-	var prompts := PackedStringArray()
+## **One verb to a line, the verb first** (ADR-289): `verb<TAB>keys`, for a
+## panel that sets tab stops so the keys line up in a column. A reference card
+## read across a room wants the word you are looking for at the left edge.
+static func verb_lines() -> PackedStringArray:
+	var out := PackedStringArray()
 	for group: Array in GROUPS:
 		for row: Array in (group[1] as Array):
 			var actions: PackedStringArray = PackedStringArray(row[2] as Array)
 			if actions.is_empty():
 				continue
-			prompts.append("%s %s" % [glyphs_for_all(actions), String(row[1])])
-	var out := PackedStringArray()
-	var line := PackedStringArray()
-	for prompt: String in prompts:
-		line.append(prompt)
-		if line.size() >= maxi(1, per_line):
-			out.append("   ".join(line))
-			line = PackedStringArray()
-	if not line.is_empty():
-		out.append("   ".join(line))
+			out.append("%s\t%s" % [String(row[1]), glyphs_for_all(actions)])
 	return out
+
 
 
 ## The window the game is configured to open at, which is **not** the viewport

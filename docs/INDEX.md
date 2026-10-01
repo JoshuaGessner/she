@@ -2,7 +2,7 @@
 
 # Project SHE — Documentation Index
 
-_Regenerated 2026-09-30 · 49 documents_
+_Regenerated 2026-10-01 · 49 documents_
 
 Start with [DES-001 Vision & Pillars](design/DES-001-vision-and-pillars.md), then [DES-002 Core Loop](design/DES-002-core-loop.md).
 Live unresolved decisions: [OPEN-QUESTIONS.md](OPEN-QUESTIONS.md).
@@ -26,12 +26,12 @@ _What the game is._
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-09-28 | DES-004, DES-003, DES-012, DES-009 |
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-09-16 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
 | `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-09-14 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
-| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-09-30 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
+| `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-10-01 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-09-13 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-30 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-16 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
-| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-09-16 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-10-01 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-09-28 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
 | `DES-023` | [Items — the Slice's List](design/DES-023-items-the-slice-list.md) | ✔ accepted | 2026-09-16 | DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004 |
@@ -78,7 +78,7 @@ _Visual and audio direction._
 | `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-09-01 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-09-01 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 | `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-09-28 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
-| `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-09-28 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
+| `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-10-01 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
 | `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-09-28 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
 | `ART-007` | [Asset Quality Review — First Delivered Library](art/ART-007-asset-quality-review.md) | ✔ accepted | 2026-09-28 | ART-006, ART-004, ART-005, DES-020, PRO-002 |
 | `ART-008` | [Worn Armour, Class Arms and Depth Variants — Review](art/ART-008-worn-armour-and-depth-review.md) | ◆ proposed | 2026-09-28 | ART-004, ART-006, ART-007, DES-020, TEC-008 |

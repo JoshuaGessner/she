@@ -51,6 +51,7 @@ enum Sound {
 	STALK,      # the Hunter's own weight, moving (ADR-249) — never the score's note
 	CLANG,      # a blow on mail or plate (ADR-279) — the metal half of an impact
 	CRUNCH,     # a blow into flesh (ADR-279) — the body half of an impact
+	CRACKLE,    # the camp's fire (ADR-287), looped — a world sound, never the score
 }
 
 ## How far a one-shot carries by default: roughly the Deep's scale, audible
@@ -129,6 +130,7 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 		Sound.STALK: seconds = 2.4
 		Sound.PING: seconds = 0.3
 		Sound.CLANG: seconds = 0.6
+		Sound.CRACKLE: seconds = 2.0
 	var frames: int = int(float(RATE) * seconds)
 	var data := PackedByteArray()
 	data.resize(frames * 2)
@@ -229,6 +231,15 @@ static func _sample(sound: Sound, at_second: float, seconds: float) -> float:
 				+ (sin(TAU * 1180.0 * at_second) * 0.28
 				+ sin(TAU * 1735.0 * at_second) * 0.2
 				+ sin(TAU * 2890.0 * at_second) * 0.12) * exp(-at_second * 7.0))
+		Sound.CRACKLE:
+			# Wood burning: a low breath of air under it, and sparse dry pops
+			# of different sizes, so a two-second loop does not tick.
+			var slot: float = floor(at_second * 37.0)
+			var chance: float = fposmod(sin(slot * 91.7) * 43758.5, 1.0)
+			var since: float = at_second - slot / 37.0
+			var pop: float = _noise(at_second * 4.0) * exp(-since * 160.0) \
+				* (1.0 if chance >= 0.82 else 0.0) * (0.4 + 0.6 * fposmod(chance * 7.0, 1.0))
+			return _noise(at_second * 0.25) * 0.05 + pop * 0.7
 		Sound.CRUNCH:
 			# **Into a body**: a low, wet-dry thump with grit in it and no ring.
 			return (sin(TAU * 70.0 * at_second) * 0.6 * exp(-at_second * 18.0)

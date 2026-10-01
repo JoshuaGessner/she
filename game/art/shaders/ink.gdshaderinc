@@ -33,6 +33,15 @@ uniform float wobble_amount : hint_range(0.0, 12.0) = 1.1;
 uniform float wobble_scale : hint_range(0.5, 20.0) = 4.0;
 uniform float boil_fps : hint_range(0.0, 60.0) = 10.0;
 uniform float weight_variation : hint_range(0.0, 1.0) = 0.55;
+// **Creases are not contours** (ADR-281). A normal break inside a surface — a
+// brick seam, a flagstone joint, a bevel — is drawn this much as strongly as a
+// silhouette, and only this near: every seam in a wall at full weight made the
+// room a white grid, and at range the grid broke into dashes that flickered as
+// the view moved. Silhouettes (depth breaks) keep the full line at any range
+// the falloff below allows.
+uniform float crease_weight : hint_range(0.0, 1.0) = 0.4;
+uniform float crease_near : hint_range(0.5, 30.0) = 3.0;
+uniform float crease_far : hint_range(1.0, 60.0) = 9.0;
 
 // Legibility controls ART-005 makes mandatory: distant geometry must lose its
 // lines rather than degenerate into scribble.
@@ -67,7 +76,7 @@ uniform float hatch_width : hint_range(0.02, 0.45) = 0.16;
 // what it reads as is pale strokes, laid densest where the light is strongest:
 // a white-line engraving, where light is the thing that is cut.
 uniform float deep_keep : hint_range(0.0, 1.0) = 0.55;
-uniform float deep_stroke : hint_range(0.0, 1.0) = 0.42;
+uniform float deep_stroke : hint_range(0.0, 1.0) = 0.28;
 
 // The print's fill: tone mapped onto the page between solid ink and bare
 // paper, in display space so the two ends mean what they look like.
@@ -133,7 +142,9 @@ float hatch_line(float coordinate) {
 	float footprint = max(fwidth(coordinate), 0.0001);
 	float distance_to_line = abs(fract(coordinate) - 0.5);
 	float stroke = 1.0 - smoothstep(hatch_width - footprint, hatch_width + footprint, distance_to_line);
-	return stroke * (1.0 - smoothstep(0.3, 0.8, footprint));
+	// Gone before it can alias (ADR-281): a stroke narrower than about a
+	// pixel and a half shimmered at every step the body took.
+	return stroke * (1.0 - smoothstep(0.16, 0.42, footprint));
 }
 
 
@@ -155,8 +166,12 @@ void fragment() {
 	// Boil: hold the jitter for a whole 1/boil_fps beat, then jump. Setting
 	// boil_fps to 0 disables the hold and gives the sterile 60 fps shimmer,
 	// which is exactly the comparison the gate needs to be able to see.
-	float beat = boil_fps > 0.0 ? floor(t * boil_fps) : t * 60.0;
-	vec2 boil = vec2(hash11(beat), hash11(beat + 37.0)) * 32.0;
+	// **Zero is still, not 60 fps** since ADR-281: the boil re-jittered every
+	// line on screen ten times a second, and over a wall of seams that read as
+	// the surface flashing. The wobble stays — it is a hand's line — but held.
+	vec2 boil = boil_fps > 0.0
+		? vec2(hash11(floor(t * boil_fps)), hash11(floor(t * boil_fps) + 37.0)) * 32.0
+		: vec2(0.0);
 
 	vec2 wob = texture(noise_tex, SCREEN_UV * wobble_scale + boil).rg * 2.0 - 1.0;
 	vec2 uv = SCREEN_UV + wob * wobble_amount * texel;
@@ -206,7 +221,8 @@ void fragment() {
 	float normal_delta = (length(na - nb) + length(nc - nd)) / edge_width;
 	float normal_edge = smoothstep(normal_threshold * 0.4, normal_threshold, normal_delta);
 
-	float edge = max(depth_edge, normal_edge) * edge_weight;
+	float crease = crease_weight * (1.0 - smoothstep(crease_near, crease_far, centre));
+	float edge = max(depth_edge, normal_edge * crease) * edge_weight;
 
 	// ART-005: "distant geometry loses its outlines rather than becoming a
 	// scribble." Non-negotiable — Principle 6, legibility beats realism.

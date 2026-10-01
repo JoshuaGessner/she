@@ -65,8 +65,11 @@ const THROAT_HALF: float = 5.5
 ## How far in front of the Descent the throat opens ⟨tune⟩.
 const THROAT_FROM: float = -5.0
 const FIRE_AT: Vector3 = Vector3(0.0, 0.0, 0.0)
-const DESCENT_AT: Vector3 = Vector3(0.0, 0.0, -9.0)
-const CHAMBER_AT: Vector3 = Vector3(0.0, 0.0, 7.5)
+## Inside the passages `LairPassage` cuts (ADR-282): the north wall's mine
+## mouth and the south wall's door to her. Derived there and stated here, so
+## the probes and the triggers read one number.
+const DESCENT_AT: Vector3 = Vector3(0.0, 0.0, -15.11)
+const CHAMBER_AT: Vector3 = Vector3(0.0, 0.0, 13.11)
 ## **The Lodge's board** (`M4-T04`, ADR-241), beside its fire and short of the
 ## hole — the last thing you pass on the way down, and the first on the way
 ## back.
@@ -81,7 +84,6 @@ const ROCK: Color = Color(0.19, 0.185, 0.19)
 const FIRE_COLOUR: Color = Color(1.0, 0.62, 0.24)
 ## The Descent is a hole. It is the only thing here that is not lit.
 const DESCENT_COLOUR: Color = Color(0.04, 0.04, 0.05)
-const CHAMBER_DOOR: Color = Color(0.42, 0.40, 0.36)
 
 const SESSION_SCENE: PackedScene = preload("res://systems/net/coop_session.tscn")
 ## The Legacy screen's claim on the body (ADR-146). Named, so the pause
@@ -303,7 +305,7 @@ func _edges_probe() -> void:
 		# Appended rather than reported on its own: an early exit that replaces
 		# the list throws away everything found above it, and the finding it
 		# discards is usually the more precise one.
-		problems.append("walking onto the pale slab did not open the Chamber "
+		problems.append("walking into her door did not open the Chamber "
 			+ "— nothing below this could be checked")
 		_report_edges(problems)
 		return
@@ -492,8 +494,12 @@ func _edges_probe() -> void:
 	var outside := PackedStringArray()
 	for what: String in named:
 		var at: Vector3 = named[what]
-		if absf(at.x) > half_wide or at.z < GROUND_AT - half_deep \
-				or at.z > GROUND_AT + half_deep:
+		var in_a_door: bool = LairPassage.holds(at,
+				GROUND_AT - half_deep - WALL_THICK * 0.5, -1.0, WALL_THICK) \
+			or LairPassage.holds(at, GROUND_AT + half_deep + WALL_THICK * 0.5,
+				1.0, WALL_THICK)
+		if not in_a_door and (absf(at.x) > half_wide
+				or at.z < GROUND_AT - half_deep or at.z > GROUND_AT + half_deep):
 			outside.append("%s at %s" % [what, str(at.round())])
 	print("[edges] and holds its own  %d thing(s) outside the ground" % outside.size())
 	if outside.size() > 0:
@@ -922,7 +928,7 @@ func _threshold_probe() -> void:
 	# shows every line the table produces"*, so both halves have to be asking
 	# about the same rendering — comparing 4-wide lines against a 2-wide panel
 	# would fail for a formatting reason and teach nothing about completeness.
-	var taught: PackedStringArray = ControlsScreen.compact_lines(2)
+	var taught: PackedStringArray = ControlsScreen.verb_lines()
 	var missing := PackedStringArray()
 	# **Reads the control panel, not the readout** (`M4-T20`). The table moved
 	# into a frame of its own; the assertion is unchanged — does the fire render
@@ -1190,24 +1196,23 @@ func _process(delta: float) -> void:
 	_said_it_lost_the_body = false
 	if _readout != null:
 		_readout.text = "\n".join(saving_lines() + PackedStringArray([
-			"descent    %d" % GameState.descents,
-			"stash      %d item(s), %d tribute" % [
+			"descent\t%d" % GameState.descents,
+			"stash\t%d item(s) · %d tribute" % [
 				GameState.stash.size(), GameState.stash_value()],
-			"the hoard  %d" % GameState.hoard_value,
-			"the Lodge  trust %d, favour %d, work %d of %d" % [
+			"the hoard\t%d" % GameState.hoard_value,
+			"the Lodge\ttrust %d · favour %d · work %d of %d" % [
 				GameState.lodge_trust, GameState.lodge_favour,
 				GameState.contracts.size(), ContractBoard.TAKEN_MAX],
 			# Who is actually here. The host presses OPEN THE THRESHOLD and then
 			# has no way to tell whether anybody arrived — and descending alone
 			# by accident is a wasted run and a confusing bug report.
-			"party      %d of %d%s" % [
+			"party\t%d of %d%s" % [
 				_session.players().size(), Player.MAX_PARTY,
 				"" if multiplayer.get_peers().size() > 0 or not _session.is_host()
 					else "   (nobody has joined yet)"],
 			"",
-			"the fire behind you is the Lodge's",
-			"walk into the dark ahead to descend",
-			"walk back onto the pale slab for your Chamber",
+			"ahead, the dark goes down",
+			"behind the fire, your Chamber",
 		]))
 		# **The table renders into its own panel now** (`M4-T20`), and it is
 		# still generated rather than typed.
@@ -1230,8 +1235,8 @@ func _process(delta: float) -> void:
 		# fraction of the screen wide, and a reference that runs the width of
 		# the window is one you read instead of the room.
 		_control_lines.text = "\n".join(
-			Array(ControlsScreen.compact_lines(2)) + [
-				"esc menu, and the full list with it",
+			Array(ControlsScreen.verb_lines()) + [
+				"menu\tesc — and every control with it",
 			])
 		# **Back into their corners** (`M4-T20`). The control table's height
 		# depends on how many verbs are bound, and the party line gains a
@@ -1515,16 +1520,20 @@ func _build_ground() -> void:
 	var half_wide: float = GROUND_WIDE * 0.5
 	var half_deep: float = GROUND_DEEP * 0.5
 	var mid: float = WALL_HIGH * 0.5
-	var across := Vector3(GROUND_WIDE + WALL_THICK * 2.0, WALL_HIGH, WALL_THICK)
 	var along := Vector3(WALL_THICK, WALL_HIGH, GROUND_DEEP + WALL_THICK * 2.0)
 	# **Nine metres of wall out of a seven metre panel**, and that needs no
 	# decision: the kit has no texture to stretch (ADR-263), so the panel goes
 	# up at 1.29 and its courses come out at 0.64 m — which is the coursing a
 	# nine metre rampart ought to have anyway.
-	_slab(across, Vector3(0.0, mid, GROUND_AT - half_deep - WALL_THICK * 0.5),
-		ROCK, DelvingsKit.WALL)
-	_slab(across, Vector3(0.0, mid, GROUND_AT + half_deep + WALL_THICK * 0.5),
-		ROCK, DelvingsKit.WALL)
+	# **Both ends are doors now** (ADR-282): the way down in the north wall, at
+	# the end of the throat, and the way to her in the south wall behind the
+	# fire. Each is cut by `LairPassage`, which builds the wall around it.
+	LairPassage.cut(self, _slab, GROUND_AT - half_deep - WALL_THICK * 0.5, -1.0,
+		GROUND_WIDE + WALL_THICK * 2.0, WALL_HIGH, WALL_THICK, ROCK,
+		DESCENT_COLOUR, Color(0.55, 0.62, 0.78), 0.5)
+	LairPassage.cut(self, _slab, GROUND_AT + half_deep + WALL_THICK * 0.5, 1.0,
+		GROUND_WIDE + WALL_THICK * 2.0, WALL_HIGH, WALL_THICK, ROCK,
+		Color(0.16, 0.13, 0.10), Color(1.0, 0.74, 0.36), 1.4)
 	_slab(along, Vector3(-half_wide - WALL_THICK * 0.5, mid, GROUND_AT), ROCK,
 		DelvingsKit.WALL)
 	_slab(along, Vector3(half_wide + WALL_THICK * 0.5, mid, GROUND_AT), ROCK,
@@ -1541,7 +1550,13 @@ func _build_ground() -> void:
 
 	var environment := WorldEnvironment.new()
 	var world := Environment.new()
-	world.background_mode = Environment.BG_COLOR
+	# **A sky over the camp** (ADR-286): the one place that is outdoors.
+	var night := ShaderMaterial.new()
+	night.shader = preload("res://art/shaders/night_sky.gdshader")
+	var sky := Sky.new()
+	sky.sky_material = night
+	world.background_mode = Environment.BG_SKY
+	world.sky = sky
 	world.background_color = NIGHT
 	world.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	world.ambient_light_color = Color(0.16, 0.17, 0.22)
@@ -1554,40 +1569,121 @@ func _build_ground() -> void:
 ## sound in the game"* is this camp, and the light is the visual half of that
 ## — `M2-T09` writes the other half.
 func _build_fire() -> void:
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = 0.5
-	mesh.bottom_radius = 0.8
-	mesh.height = 0.7
-	var glow := StandardMaterial3D.new()
-	glow.albedo_color = FIRE_COLOUR
-	glow.emission_enabled = true
-	glow.emission = FIRE_COLOUR
-	glow.emission_energy_multiplier = 1.2
-	# `ART-005`'s *her fire*: gold, and kept so on a white page (ADR-269).
-	InkPass.stamp(glow, InkPass.Class.GOLD)
-	var node := MeshInstance3D.new()
-	node.mesh = mesh
-	node.material_override = glow
-	node.position = FIRE_AT + Vector3(0.0, 0.35, 0.0)
-	add_child(node)
+	# **A fire pit, not a cone** (ADR-283): a ring of stones, crossed logs, two
+	# tongues of flame that stand up from any side, embers going up, and a
+	# light that breathes. Everything a player reads as *fire* before reading
+	# anything else — the camp is the one safe place in the game, and it should
+	# look like somewhere you would sit down.
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color(0.2, 0.19, 0.19)
+	stone.roughness = 1.0
+	for i: int in 9:
+		var angle: float = TAU * float(i) / 9.0 + 0.2
+		var rock := MeshInstance3D.new()
+		var box := BoxMesh.new()
+		box.size = Vector3(0.3, 0.17 + 0.05 * float(i % 3), 0.24)
+		rock.mesh = box
+		rock.material_override = stone
+		rock.position = FIRE_AT + Vector3(cos(angle) * 0.72, 0.09, sin(angle) * 0.72)
+		rock.rotation = Vector3(0.12 * float(i % 2), -angle, 0.08 * float(i % 3 - 1))
+		add_child(rock)
+	var wood := StandardMaterial3D.new()
+	wood.albedo_color = Color(0.22, 0.14, 0.09)
+	wood.roughness = 1.0
+	for i: int in 4:
+		var branch := MeshInstance3D.new()
+		var trunk := CylinderMesh.new()
+		trunk.top_radius = 0.07
+		trunk.bottom_radius = 0.08
+		trunk.height = 1.05
+		branch.mesh = trunk
+		branch.material_override = wood
+		var angle: float = PI * 0.5 * float(i) + 0.4
+		branch.position = FIRE_AT + Vector3(cos(angle) * 0.12, 0.22, sin(angle) * 0.12)
+		branch.rotation = Vector3(deg_to_rad(64.0), -angle, 0.0)
+		add_child(branch)
+	Hearth.flames(self, FIRE_AT, 1.0)
+	Hearth.light(self, FIRE_AT + Vector3(0.0, 1.4, 0.0), FIRE_COLOUR, 2.4, 16.0, true)
+	_dress_the_camp()
 
-	var light := OmniLight3D.new()
-	light.position = FIRE_AT + Vector3(0.0, 1.4, 0.0)
-	light.omni_range = 16.0
-	light.light_color = FIRE_COLOUR
-	light.light_energy = 2.4
-	add_child(light)
+
+## **Somewhere people stop** (ADR-286): logs drawn up to the fire, the mine's
+## gear left by the way down, candles at the Lodge's board, and the rubble of a
+## camp dug out of a hillside. All delivered dressing (`ART-004`), each solid,
+## none of it on a spawn or a path between the fire and a door.
+const CAMP_DRESSING: Array = [
+	[&"dressing_ore_cart", Vector3(-3.3, 0.0, -10.4), 0.4],
+	[&"dressing_rope_coil", Vector3(3.0, 0.0, -11.0), 0.0],
+	[&"dressing_broken_bracing", Vector3(4.6, 0.0, -7.4), -1.57],
+	[&"dressing_spoil_heap", Vector3(-4.4, 0.0, -6.6), 0.8],
+	[&"dressing_guttered_candles", Vector3(2.7, 0.0, -1.7), 0.0],
+	[&"dressing_fallen_masonry", Vector3(-8.4, 0.0, 7.6), 2.2],
+	[&"dressing_rusted_fittings", Vector3(8.2, 0.0, 7.0), -0.6],
+]
 
 
-## A post and a board, pale in the fire's light (ADR-241).
+func _dress_the_camp() -> void:
+	# **Rock, tents and banners** (ADR-287): the hollow, the four plots ringed
+	# round the fire, and boulders broken along the skyline.
+	var half_wide: float = GROUND_WIDE * 0.5
+	var clear: Array[Vector3] = [DESCENT_AT, CHAMBER_AT,
+		Vector3(0.0, 0.0, GROUND_AT - GROUND_DEEP * 0.5),
+		Vector3(0.0, 0.0, GROUND_AT + GROUND_DEEP * 0.5)]
+	CampDressing.rocks(self, half_wide, GROUND_AT - GROUND_DEEP * 0.5,
+		GROUND_AT + GROUND_DEEP * 0.5, WALL_HIGH, clear)
+	for i: int in CampDressing.PLOTS.size():
+		var plot: Array = CampDressing.PLOTS[i]
+		CampDressing.campsite(self, plot[0] as Vector3, plot[1] as Color, FIRE_AT,
+			float(i) * 1.7)
+	var crackle := AudioStreamPlayer3D.new()
+	crackle.stream = Foley.looping_stream_for(Foley.Sound.CRACKLE)
+	crackle.bus = "diegetic"
+	crackle.volume_db = -6.0
+	crackle.max_distance = 18.0
+	crackle.position = FIRE_AT + Vector3(0.0, 0.4, 0.0)
+	crackle.autoplay = true
+	add_child(crackle)
+	for row: Array in CAMP_DRESSING:
+		var packed := load("res://art/props/%s.glb" % row[0]) as PackedScene
+		if packed == null:
+			push_error("[camp] no dressing `%s`" % row[0])
+			continue
+		var piece := packed.instantiate() as Node3D
+		piece.position = row[1] as Vector3
+		piece.rotation.y = float(row[2])
+		InkPass.classify(piece)
+		add_child(piece)
+	var bark := StandardMaterial3D.new()
+	bark.albedo_color = Color(0.24, 0.17, 0.11)
+	bark.roughness = 1.0
+	for seat: Array in [[Vector3(-2.5, 0.0, -0.9), 0.4], [Vector3(2.4, 0.0, 0.6), -0.3]]:
+		var log_seat := MeshInstance3D.new()
+		var trunk := CylinderMesh.new()
+		trunk.top_radius = 0.2
+		trunk.bottom_radius = 0.22
+		trunk.height = 1.7
+		log_seat.mesh = trunk
+		log_seat.material_override = bark
+		log_seat.position = (seat[0] as Vector3) + Vector3(0.0, 0.2, 0.0)
+		log_seat.rotation = Vector3(0.0, float(seat[1]), PI * 0.5)
+		var solid := StaticBody3D.new()
+		solid.collision_layer = CollisionLayers.WORLD
+		solid.collision_mask = 0
+		var shape := CollisionShape3D.new()
+		var girth := CylinderShape3D.new()
+		girth.radius = 0.21
+		girth.height = 1.7
+		shape.shape = girth
+		solid.add_child(shape)
+		log_seat.add_child(solid)
+		add_child(log_seat)
+
+
 func _build_board() -> void:
-	_slab(Vector3(0.18, 2.0, 0.18), BOARD_AT + Vector3(0.0, 1.0, 0.0), ROCK)
-	_slab(Vector3(1.4, 0.9, 0.08), BOARD_AT + Vector3(0.0, 1.5, 0.12),
-		Color(0.46, 0.43, 0.38))
+	# A board with a roof and notices on it (ADR-287), not a plank on a post.
+	CampDressing.board(self, BOARD_AT, 4)
 
 
-## **Stand at the board and be told what it is**, and open it on `interact` —
-## the Chamber's pile, one room over (ADR-164).
 func _offer_the_board(player: Player) -> void:
 	var near: bool = player.global_position.distance_to(BOARD_AT) <= BOARD_REACH
 	if _mark != null and is_instance_valid(_mark):
@@ -1619,11 +1715,15 @@ func open_the_board() -> LodgeScreen:
 
 
 func _build_doors() -> void:
-	# The Descent: unlit, and deliberately the darkest thing on screen.
-	_slab(Vector3(3.6, 0.1, 3.6), DESCENT_AT + Vector3(0.0, 0.02, 0.0),
-		DESCENT_COLOUR)
-	_slab(Vector3(2.6, 0.1, 2.6), CHAMBER_AT + Vector3(0.0, 0.02, 0.0),
-		CHAMBER_DOOR)
+	# The pads are gone (ADR-282) — the doors are cut into the walls in
+	# `_build_ground`. What is left here is the sign of each: a lamp hung on
+	# the mine mouth's frame, so the way down is found by its light.
+	var lamp := FlickerLight.new()
+	lamp.light_color = Color(1.0, 0.72, 0.4)
+	lamp.light_energy = 1.1
+	lamp.omni_range = 7.0
+	lamp.position = Vector3(1.9, 3.1, GROUND_AT - GROUND_DEEP * 0.5 + 0.6)
+	add_child(lamp)
 
 
 ## **Two framed panels and a voice, where there was one column** (`M4-T20`,
@@ -1667,9 +1767,16 @@ func _build_readout() -> void:
 	_place.theme = MenuStyle.LAIR
 	var body := VBoxContainer.new()
 	body.add_theme_constant_override("separation", 5)
-	body.add_child(MenuStyle.heading("The Threshold"))
+	# **A plate, not a printout** (ADR-289): the place's name in the display
+	# type, and its figures set in two columns — the name of a thing, then
+	# what it stands at — rather than a monospaced table in a proportional face.
+	var title := Label.new()
+	title.text = "The Threshold"
+	title.theme_type_variation = MenuStyle.DISPLAY_WARM
+	body.add_child(title)
 	_readout = Label.new()
 	_readout.theme_type_variation = MenuStyle.CAPTION_TEXT
+	_readout.tab_stops = PackedFloat32Array([92.0])
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	body.add_child(_readout)
 	_place.add_child(body)
@@ -1688,6 +1795,9 @@ func _build_readout() -> void:
 	keys.add_child(MenuStyle.heading("Controls"))
 	_control_lines = Label.new()
 	_control_lines.theme_type_variation = MenuStyle.FINE_DIM
+	_control_lines.tab_stops = PackedFloat32Array([88.0])
+	# Set close, like a printed table, so a verb to a line still fits its corner.
+	_control_lines.add_theme_constant_override("line_spacing", -5)
 	# **Wrapped, so it cannot outgrow its region.** The first render was ten
 	# pixels wider than `BODY` — harmless on its own, and exactly how a
 	# collision starts once anything else is drawn nearby. A region is a promise
@@ -1825,7 +1935,20 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	shape.shape = box
 	body.add_child(shape)
 	node.add_child(body)
-	if clad != &"":
+	if clad == DelvingsKit.FLOOR and colour == ROCK:
+		# Packed earth underfoot (ADR-287): the camp is outdoors, and the
+		# mine's flagstones begin at the mine.
+		var earth := ShaderMaterial.new()
+		earth.shader = DelvingsKit.WEATHERED
+		earth.set_shader_parameter("albedo", Color(0.30, 0.25, 0.19))
+		earth.set_shader_parameter("mottle", 0.22)
+		earth.set_shader_parameter("stain", 0.3)
+		node.material_override = earth
+	elif clad == DelvingsKit.WALL and colour == ROCK:
+		# The camp's own walls are the hillside (ADR-287), not the mine's
+		# brick; a passage's interior keeps the kit.
+		node.material_override = CampDressing.cliff_material()
+	elif clad != &"":
 		DelvingsKit.clad(node, clad)
 	add_child(node)
 

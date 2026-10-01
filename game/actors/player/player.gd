@@ -760,6 +760,8 @@ func _ready() -> void:
 		# reports what *this* player is emitting and what has noticed them, so
 		# a teammate's copy would be answering someone else's question.
 		Ear.attach(self)
+		# Dust in the light you carry (ADR-285): your own view only.
+		_head.add_child(DustMotes.new())
 	else:
 		_camera.current = false
 

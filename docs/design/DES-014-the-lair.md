@@ -4,7 +4,7 @@ title: The Lair
 status: accepted
 owner: design
 tags: [hub, lair, retention, social, co-op, ui, progression, networking]
-updated: 2026-09-30
+updated: 2026-10-01
 related: [DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004]
 ---
 
@@ -35,6 +35,8 @@ Pacts are individual (`DES-012`). So a shared hub has no obvious owner: whose La
 > The **Settle beat** landed with it: tribute is the same drag-out-of-the-bag gesture that abandons loot on a dungeon floor, and **the place you are standing decides what it means** — at the hoard she keeps it, at the stash you do, anywhere else it is on the floor. `DES-019` refuses a confirmation dialog and asks for the decision to be physical; this is what physical costs, and nothing new had to be built for it. The game now boots into the Threshold.
 >
 > **AMENDED (ADR-278): a haul comes home to her.** Extracted loot waits in the Chamber, so ending every run at the fire showed an empty bag. Now a camp that loads with undecided loot opens the Chamber on its own, with the haul in your bag. She says once what the pile and the chest are for, and her door leads back to the fire.
+>
+> **AMENDED (ADR-282): doors, not pads.** The Descent is a mine mouth in the camp's north wall. Her door is in the south wall behind the fire, and the Chamber's way back is in its own south wall. Each has a short passage you walk into, and the floor slabs are gone.
 
 ### Your Chamber — private, local, always yours
 
@@ -264,3 +266,9 @@ Cheap. High impact. Prototype it early.
 > **DECIDED (ADR-050):** **Yes** — further fused into the stone with each lineage, a long-horizon signal of what the pact is doing to her as well as to you.
 
 > **OPEN (Q56):** If refusal is a real ending, it lives here. Where, and does the Threshold show it?
+
+> **AMENDED (ADR-284): her, not boxes.** She is a modelled dragon coiled round the hoard. Her neck arches over it and her head looks down at what you bring, with her wings folded and her tail round the left. She keeps ADR-050's fusing into the stone. The hoard is a mound of gold carrying the game's own treasure models, growing with its value.
+
+> **AMENDED (ADR-286): a place.** The camp stands under a night sky, with logs drawn up to the fire, the mine's gear by the way down and candles at the board. Her hall has a beamed vault, piers along its walls and a brazier either side of her.
+
+> **AMENDED (ADR-287): alive before anyone speaks.** The camp is a hollow in rock, with boulders along its skyline and packed earth underfoot. The four campsites each have a tent opening toward the fire, a bedroll, gear at the door and a banner in the wind. The Lodge's board has a roof and notices, and the fire can be heard. The NPC Bound who will hold the plots are still to come.

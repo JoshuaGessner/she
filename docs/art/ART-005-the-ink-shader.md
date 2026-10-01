@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-09-28
+updated: 2026-10-01
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -306,3 +306,5 @@ Descent.
 > **OPEN (Q102):** Does the object-ID buffer get built, or do we live with missing coplanar edges? Prototype the ink-ID mitigation first; only build the ID pass if it visibly fails.
 >
 > **Still open after `M1-T09`.** The spike staged two flush, coplanar, identically-oriented faces on purpose, but they are not legible in the captures — so nothing was learned either way. This needs a dedicated test that isolates the case, not an inference from a busy frame (ADR-070).
+
+> **AMENDED (ADR-281): the page holds still.** The boil is off: lines keep their hand-drawn wobble, but it no longer moves. Creases (brick seams, flagstone joints, bevels) are drawn at 0.4 of a silhouette's weight and fade out by 9 m ⟨tune⟩. Hatching fades before it can alias. A wall of seams boiling at full weight read as a flashing surface.

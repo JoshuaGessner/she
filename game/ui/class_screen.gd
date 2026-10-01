@@ -37,7 +37,7 @@ extends Control
 signal chosen(id: StringName)
 
 const MARGIN: float = 48.0
-const CARD_WIDTH: float = 520.0
+const CARD_WIDTH: float = 420.0
 
 
 func _ready() -> void:
@@ -69,9 +69,16 @@ func _ready() -> void:
 	column.add_child(MenuStyle.line(
 		"Chosen once, and kept until you die.", MenuStyle.BODY_WARM))
 
+	# **Cards laid side by side** (ADR-290), as a choice between lives reads in
+	# Darkest Dungeon's hamlet or Hades' mirror — two things you compare, not
+	# a list you scroll down.
 	var sworn: Array[ClassResource] = ClassCatalogue.all()
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 28)
+	column.add_child(row)
 	for entry: ClassResource in sworn:
-		column.add_child(_card(entry))
+		row.add_child(_card(entry))
 
 	if sworn.is_empty():
 		# Not a friendly empty state — a loud one. An export whose class table
@@ -86,20 +93,28 @@ func _ready() -> void:
 
 ## One class, led by how it gets out (`DES-011`).
 func _card(entry: ClassResource) -> Control:
+	var plate := PanelContainer.new()
+	plate.theme_type_variation = MenuStyle.SLATE
+	plate.custom_minimum_size = Vector2(CARD_WIDTH, 260.0)
 	var card := VBoxContainer.new()
-	card.add_theme_constant_override("separation", 4)
-	card.custom_minimum_size = Vector2(CARD_WIDTH, 0.0)
+	card.add_theme_constant_override("separation", 10)
+	plate.add_child(card)
 
 	var pick: Button = MenuStyle.button(entry.display())
-	pick.custom_minimum_size = Vector2(CARD_WIDTH, 44.0)
+	pick.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, 48.0)
 	pick.pressed.connect(func() -> void: _commit(entry))
 	card.add_child(pick)
+	card.add_child(MenuStyle.rule())
 
 	if entry.description_key != &"":
-		card.add_child(MenuStyle.line(tr(String(entry.description_key))))
+		var about: Label = MenuStyle.line(tr(String(entry.description_key)), MenuStyle.BODY_TEXT)
+		about.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, 0.0)
+		card.add_child(about)
 	if entry.exit_key != &"":
-		card.add_child(MenuStyle.line(tr(String(entry.exit_key)), MenuStyle.CAPTION_DIM))
-	return card
+		var way: Label = MenuStyle.line(tr(String(entry.exit_key)), MenuStyle.SUB_DIM)
+		way.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, 0.0)
+		card.add_child(way)
+	return plate
 
 
 func _commit(entry: ClassResource) -> void:

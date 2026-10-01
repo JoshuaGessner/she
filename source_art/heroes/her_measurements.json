@@ -1,0 +1,8 @@
+{
+  "asset": "her",
+  "triangles": 13524,
+  "parts": 69,
+  "units": "metres",
+  "forward": "Blender -Y / Godot +Z",
+  "origin": "centre of the hoard pile"
+}

@@ -79,6 +79,9 @@ func _line(text: String) -> void:
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	# In the house style (ADR-290): this screen was built before the theme had
+	# roles and drew in the engine's own label until now.
+	label.theme_type_variation = MenuStyle.BODY_TEXT
 	_column.add_child(label)
 
 
@@ -93,9 +96,10 @@ func _show_what_you_learned() -> void:
 	_line(tr("legacy.learned.body") % GameState.lineage_progress)
 	var went: Dictionary = GameState.last_life
 	_line(tr("legacy.learned.life") % [
-		String(went.get("class_id", "")), int(went.get("rank", 1))])
-	var onward := Button.new()
-	onward.text = tr("legacy.learned.next")
+		_class_name(StringName(went.get("class_id", ""))), int(went.get("rank", 1))])
+	var onward: Button = MenuStyle.button(tr("legacy.learned.next"))
+	onward.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	onward.custom_minimum_size = Vector2(360.0, 44.0)
 	onward.pressed.connect(_show_the_slots)
 	_column.add_child(onward)
 	MenuStyle.focus_first.call_deferred(self)
@@ -108,15 +112,18 @@ func _show_the_slots() -> void:
 	_heading(tr("legacy.keep.title") % Config.tuning.legacy_slot_count)
 	_line(tr("legacy.keep.body"))
 	for row: Dictionary in offers():
-		var button := Button.new()
+		var button: Button = MenuStyle.button("")
+		button.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		button.custom_minimum_size = Vector2(360.0, 44.0)
 		var kind := String(row["kind"])
 		var id := StringName(row["id"])
 		button.text = "%s — %s" % [row["name"], tr("legacy.kind.%s" % kind)]
 		button.pressed.connect(func() -> void: _take(kind, id))
 		button.disabled = GameState.why_not_keep(kind, id) != ""
 		_column.add_child(button)
-	var onward := Button.new()
-	onward.text = tr("legacy.keep.next")
+	var onward: Button = MenuStyle.button(tr("legacy.keep.next"))
+	onward.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	onward.custom_minimum_size = Vector2(360.0, 44.0)
 	onward.pressed.connect(_show_the_next_life)
 	_column.add_child(onward)
 	MenuStyle.focus_first.call_deferred(self)
@@ -199,3 +206,9 @@ func advance() -> void:
 			_show_the_slots()
 		1:
 			_show_the_next_life()
+
+
+## The class by its own name (*Húskarl*), not its id (*huskarl*) (ADR-290).
+static func _class_name(id: StringName) -> String:
+	var entry: ClassResource = ClassCatalogue.by_id(id)
+	return entry.display() if entry != null else String(id)

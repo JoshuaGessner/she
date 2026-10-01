@@ -71,14 +71,18 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-	_prompt = MenuStyle.frame()
+	# **Lettering, not a box** (ADR-288): the prompt is ink with a dark edge laid
+	# over the world, as Hunt and Dark and Darker draw theirs — a framed panel
+	# under the crosshair read as a dialog that had opened.
+	_prompt = PanelContainer.new()
+	_prompt.theme_type_variation = MenuStyle.PROMPT
 	# `MenuStyle.line` defaults to a menu-column width.  At the reticle that
 	# would make a framed one-line prompt cover a third of the view, so use a
 	# compact measure and let the rare longer offer wrap below itself.
 	_prompt.custom_minimum_size = Vector2(280.0, 0.0)
 	add_child(_prompt)
 
-	_name = MenuStyle.line("", MenuStyle.BODY_TEXT)
+	_name = MenuStyle.line("", MenuStyle.PROMPT_TEXT)
 	_name.custom_minimum_size = Vector2(260.0, 0.0)
 	_name.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_prompt.add_child(_name)

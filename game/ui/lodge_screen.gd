@@ -23,7 +23,8 @@ extends Control
 ## about the first number.
 
 const MARGIN: float = 40.0
-const ROW_WIDTH: float = 620.0
+const ROW_WIDTH: float = 540.0
+const CARD_PAD: float = 20.0
 
 var _column: VBoxContainer = null
 
@@ -65,15 +66,32 @@ func _redraw() -> void:
 	if lodge == null:
 		return
 
-	_column.add_child(MenuStyle.line("THE BOARD", MenuStyle.SUB_DIM))
+	# **The board and what the Lodge will give, side by side** (ADR-291): work
+	# on the left as notices pinned to it, favours on the right, each a card —
+	# Darkest Dungeon's stagecoach and its hamlet buildings read a choice the
+	# same way, as things laid out to compare, not a list to scroll.
+	var halves := HBoxContainer.new()
+	halves.alignment = BoxContainer.ALIGNMENT_CENTER
+	halves.add_theme_constant_override("separation", 32)
+	_column.add_child(halves)
+	var work := VBoxContainer.new()
+	work.add_theme_constant_override("separation", 12)
+	halves.add_child(work)
+	var board_head: Label = MenuStyle.line("The Board", MenuStyle.DISPLAY_WARM)
+	board_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	work.add_child(board_head)
 	for offer: Contract in GameState.board():
-		_column.add_child(_offer_row(offer, lodge))
-
-	_column.add_child(MenuStyle.line("FAVOURS", MenuStyle.SUB_DIM))
-	_column.add_child(MenuStyle.line(
+		work.add_child(_offer_row(offer, lodge))
+	var gifts := VBoxContainer.new()
+	gifts.add_theme_constant_override("separation", 12)
+	halves.add_child(gifts)
+	var gift_head: Label = MenuStyle.line("Favours", MenuStyle.DISPLAY_WARM)
+	gift_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	gifts.add_child(gift_head)
+	gifts.add_child(MenuStyle.line(
 		"Given at your next descent, one of each.", MenuStyle.CAPTION_DIM))
 	for offered: FavourResource in lodge.favours:
-		_column.add_child(_favour_row(offered))
+		gifts.add_child(_favour_row(offered))
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -88,40 +106,66 @@ func _offer_label(offer: Contract, lodge: FactionResource) -> String:
 		lodge.favour_for(offer.grade)]
 
 
-func _offer_row(offer: Contract, lodge: FactionResource) -> Control:
+## A notice pinned to the board (ADR-291): its title is the choice, then where
+## and what it pays, then what they said, then where you stand with it.
+func _card() -> Array:
+	var plate := PanelContainer.new()
+	plate.theme_type_variation = MenuStyle.SLATE
+	plate.custom_minimum_size = Vector2(ROW_WIDTH, 0.0)
 	var row := VBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
-	row.custom_minimum_size = Vector2(ROW_WIDTH, 0.0)
+	row.add_theme_constant_override("separation", 4)
+	plate.add_child(row)
+	return [plate, row]
+
+
+func _offer_row(offer: Contract, lodge: FactionResource) -> Control:
+	var made: Array = _card()
+	var row: VBoxContainer = made[1]
 	var held: bool = GameState.has_contract(offer)
 	var refused: String = "" if held else GameState.why_not_contract(offer)
-	var take: Button = MenuStyle.button(("put it back — " if held else "")
-		+ _offer_label(offer, lodge))
-	take.custom_minimum_size = Vector2(ROW_WIDTH, 38.0)
+	var take: Button = MenuStyle.button(("Put it back — " if held else "") + offer.title())
+	take.set_meta(&"lodge_offer", _offer_label(offer, lodge))
+	take.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	take.custom_minimum_size = Vector2(ROW_WIDTH - CARD_PAD * 2.0, 38.0)
 	take.disabled = refused != ""
 	take.pressed.connect(func() -> void: _toggle(offer))
 	row.add_child(take)
-	row.add_child(MenuStyle.line(offer.brief(), MenuStyle.CAPTION_DIM))
+	var terms: Label = MenuStyle.line("%s · trust %d, favour %d" % [
+		Contract.FLOORS[offer.floor_index], lodge.trust_for(offer.grade),
+		lodge.favour_for(offer.grade)], MenuStyle.CAPTION_WARM)
+	terms.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	row.add_child(terms)
+	var said: Label = MenuStyle.line(offer.brief(), MenuStyle.BODY_TEXT)
+	said.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	said.custom_minimum_size = Vector2(ROW_WIDTH - CARD_PAD * 2.0, 0.0)
+	row.add_child(said)
 	if held:
-		row.add_child(MenuStyle.line("taken — failing it costs %d trust" % lodge.trust_lost,
-			MenuStyle.CAPTION_WARM))
+		var taken: Label = MenuStyle.line("taken — failing it costs %d trust" % lodge.trust_lost,
+			MenuStyle.SUB_WARM)
+		taken.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.add_child(taken)
 	elif refused != "":
-		row.add_child(MenuStyle.line(refused, MenuStyle.CAPTION_DIM))
-	return row
+		var why: Label = MenuStyle.line(refused, MenuStyle.CAPTION_DIM)
+		why.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.add_child(why)
+	return made[0]
 
 
 func _favour_row(offered: FavourResource) -> Control:
-	var row := VBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
-	row.custom_minimum_size = Vector2(ROW_WIDTH, 0.0)
+	var made: Array = _card()
+	var row: VBoxContainer = made[1]
 	var refused: String = GameState.why_not_favour(offered)
 	var ask: Button = MenuStyle.button(_favour_label(offered))
-	ask.custom_minimum_size = Vector2(ROW_WIDTH, 34.0)
+	ask.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	ask.custom_minimum_size = Vector2(ROW_WIDTH - CARD_PAD * 2.0, 34.0)
 	ask.disabled = refused != ""
 	ask.pressed.connect(func() -> void: _ask(offered))
 	row.add_child(ask)
 	if refused != "":
-		row.add_child(MenuStyle.line(refused, MenuStyle.CAPTION_DIM))
-	return row
+		var why: Label = MenuStyle.line(refused, MenuStyle.CAPTION_DIM)
+		why.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.add_child(why)
+	return made[0]
 
 
 func _favour_label(offered: FavourResource) -> String:
@@ -149,7 +193,7 @@ func press_offer(offer: Contract) -> bool:
 	var label: String = _offer_label(offer, lodge)
 	for child: Node in find_children("*", "Button", true, false):
 		var take := child as Button
-		if take == null or not take.text.ends_with(label) or take.disabled \
+		if take == null or String(take.get_meta(&"lodge_offer", "")) != label or take.disabled \
 				or take.is_queued_for_deletion():
 			continue
 		take.pressed.emit()

@@ -86,6 +86,9 @@ const CORE_EMPTY: Color = Color(0.16, 0.15, 0.14, 0.55)
 const RING_IDLE: Color = Color(0.34, 0.33, 0.31, 0.55)
 const RING_ATTENDING: Color = Color(0.86, 0.84, 0.78, 0.92)
 const HUNTER_MARK: Color = Color(0.93, 0.75, 0.28, 1.0)
+const BEZEL_IRON: Color = Color(0.11, 0.10, 0.09, 0.92)
+const BEZEL_DISH: Color = Color(0.05, 0.045, 0.04, 0.9)
+const BEZEL_LIP: Color = Color(0.66, 0.52, 0.32, 0.9)
 
 var _mix: HuntMix = HuntMix.new()
 ## Drives the guttering. Advanced by clamor rather than by wall-clock, so a
@@ -135,9 +138,30 @@ func _draw() -> void:
 	var centre := Vector2(
 		screen.x - MARGIN - SIZE * 0.5,
 		MARGIN + SIZE * 0.5)
+	_draw_bezel(centre, grown)
 	_draw_ring(centre, grown)
 	_draw_core(centre, grown)
 	_draw_hunter(centre, grown)
+
+
+## **An instrument, not a diagram** (ADR-288). The Ear was three flat circles,
+## which is how a debug overlay draws. This is the thing it stands for — a
+## worked iron dish with a bronze lip and the eight notches it reads its
+## sectors by, so the mark it makes sits on something. The readings drawn over
+## it are unchanged: the bezel says nothing, which is why it may be ornate.
+func _draw_bezel(centre: Vector2, grown: float) -> void:
+	var outer: float = (RING_RADIUS + 14.0) * grown
+	draw_circle(centre, outer + 3.0, Color(0.0, 0.0, 0.0, 0.35))
+	draw_circle(centre, outer, BEZEL_IRON)
+	draw_circle(centre, outer - 7.0, BEZEL_DISH)
+	draw_arc(centre, outer - 0.8, 0.0, TAU, 72, BEZEL_LIP, 1.6, true)
+	draw_arc(centre, outer - 6.5, 0.0, TAU, 72, Color(BEZEL_LIP, 0.45), 1.0, true)
+	for i: int in SECTORS:
+		var angle: float = TAU * float(i) / float(SECTORS)
+		var toward := Vector2(sin(angle), -cos(angle))
+		var long: float = 5.0 if i % 2 == 0 else 3.0
+		draw_line(centre + toward * (outer - 1.5), centre + toward * (outer - 1.5 - long),
+			BEZEL_LIP, 1.6 if i % 2 == 0 else 1.0, true)
 
 
 ## The world half: how alert it is, and roughly where from.
@@ -186,6 +210,10 @@ func _draw_core(centre: Vector2, grown: float) -> void:
 	# for loud not reading as powerful.
 	var gutter: float = 1.0 + sin(_flicker * 9.0) * 0.06 * _mix.clamor
 	var colour: Color = CORE_QUIET.lerp(CORE_LOUD, _mix.clamor)
+	# An ember, not a disc: a soft halo stepped out from the coal (ADR-288).
+	for step: int in 4:
+		var halo: float = filled * gutter * (1.0 + 0.16 * float(4 - step))
+		draw_circle(centre, halo, Color(colour, 0.08 * float(step + 1)))
 	draw_circle(centre, filled * gutter, colour)
 	# Thin, broken edge as it gets loud — the ember blown about rather than
 	# burning brighter.
@@ -220,10 +248,16 @@ func _draw_hunter(centre: Vector2, grown: float) -> void:
 		return
 	var span: float = TAU / float(SECTORS)
 	var angle: float = round(_mix.bearing / span) * span
-	var at: Vector2 = centre + Vector2(sin(angle), -cos(angle)) * radius
-	draw_circle(at, heavy, HUNTER_MARK)
+	var toward := Vector2(sin(angle), -cos(angle))
+	var at: Vector2 = centre + toward * radius
+	# A gold wedge pointing in from the rim (ADR-288), heavier as it closes —
+	# a shape nothing else on the instrument has, so it survives a glance.
+	var side := Vector2(-toward.y, toward.x)
+	var wedge := PackedVector2Array([at + toward * heavy * 0.6 + side * heavy,
+		at + toward * heavy * 0.6 - side * heavy, at - toward * heavy * 1.3])
+	draw_colored_polygon(wedge, HUNTER_MARK)
 	# While it is stooped over a bait the mark hollows out. That is the visual
 	# twin of the mix dropping away — the beat has to exist in both channels or
 	# a muted player never gets their window (`DES-018`).
 	if _mix.collecting:
-		draw_circle(at, heavy * 0.55, Color(0.10, 0.10, 0.10, 0.9))
+		draw_circle(at, heavy * 0.45, Color(0.10, 0.10, 0.10, 0.9))

@@ -820,7 +820,9 @@ func _draw_header(panel: Rect2) -> void:
 	var capacity: float = _player.carried.capacity()
 	var at: Vector2 = panel.position + Vector2(PADDING, PADDING + 14.0)
 
-	draw_string(font, at, "BAG", HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT,
+	# The bag's name in the display type (ADR-289), as every screen's title is.
+	draw_string(get_theme_font(&"font", MenuStyle.DISPLAY_WARM), at + Vector2(0.0, 2.0),
+		"Bag", HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT + 4,
 		palette()[&"dim"] as Color)
 	# Through `_header_summary` so the string the panel was *sized* against and
 	# the string actually drawn cannot drift apart, and clipped to the room it

@@ -200,6 +200,7 @@ static func mesh_of(module: StringName) -> Mesh:
 			# nothing — and is here so the day one is not, the R channel is
 			# what decides rather than this file (ADR-269).
 			InkPass.classify_mesh(built)
+			_weather(built)
 			found = built
 		else:
 			push_error("[kit] module `%s` has no render mesh" % module)
@@ -218,6 +219,33 @@ static func mesh_of(module: StringName) -> Mesh:
 ## The box stays: a centimetre behind the stone it is what seals the joint where
 ## two runs meet, so a tiling fault can show a dark course and never a hole
 ## through the world.
+## **Weathered, not flat** (ADR-285). Every world-class surface of a module —
+## the stone, the timber, everything the ink pass draws as world — trades its
+## flat authored material for `weathered.gdshader` at the same colour, so blocks
+## differ from their neighbours and the foot of a wall carries its grime. One
+## material per authored one, cached, so a floor of four hundred tiles is still
+## a handful of materials. Anything stamped with an ink class, transparent, or
+## textured keeps what it was authored with.
+static var _weathered: Dictionary = {}
+const WEATHERED: Shader = preload("res://art/shaders/weathered.gdshader")
+
+
+static func _weather(built: ArrayMesh) -> void:
+	for surface: int in built.get_surface_count():
+		var authored := built.surface_get_material(surface) as BaseMaterial3D
+		if authored == null or authored.stencil_mode != BaseMaterial3D.STENCIL_MODE_DISABLED \
+				or authored.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED \
+				or authored.albedo_texture != null:
+			continue
+		if not _weathered.has(authored):
+			var worn := ShaderMaterial.new()
+			worn.shader = WEATHERED
+			worn.set_shader_parameter("albedo", authored.albedo_color)
+			worn.set_shader_parameter("roughness", authored.roughness)
+			_weathered[authored] = worn
+		built.surface_set_material(surface, _weathered[authored])
+
+
 static func recess(node: MeshInstance3D) -> void:
 	var box := node.mesh as BoxMesh
 	if box == null:
