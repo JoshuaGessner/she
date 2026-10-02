@@ -194,13 +194,13 @@ def core_body():
                  .011, 'skin_ashen', {'hand_'+side:1}, 8, True)
     for side in ("l", "r"):
         sign = 1 if side == "l" else -1
-        leg_rings = []
-        for z, rx, ry in ((.23, .087, .090), (.36, .083, .087), (.55, .094, .094), (.77, .104, .097), (.93, .107, .098)):
-            leg_rings.append(ring(sign * .09, .016, z, rx, ry, 24, .02))
-        def leg_weight(point, side=side):
-            blend = max(0.0, min(1.0, (point.z - .48) / .16))
-            return {"calf_" + side: 1.0 - blend, "thigh_" + side: blend}
-        armour.loft("bound_trouser_" + side, leg_rings, "bound_cloth", leg_weight, smooth=True)
+        # The same thigh and calf as every enemy, bound as a Wretch's are:
+        # it was one of them before the gold (ADR-305).
+        enemy_mesh.PARTS = []
+        enemy_mesh.PALETTE["bound_cloth"] = (armour.PALETTE["bound_cloth"][0], .6, 0)
+        enemy_mesh.articulated_limb(side, "thigh", "calf", "bound_cloth", .100)
+        enemy_mesh.bindings(side, "thigh", "calf", .100, (.30, .45, .60, .75), "bound_cloth")
+        armour.PARTS.extend(enemy_mesh.PARTS)
         # Low, broad boots show a dragged gait without growing the navigation radius.
         boot_rings = []
         for z, rx, front, back in ((.018, .100, -.205, .070), (.050, .108, -.220, .078),

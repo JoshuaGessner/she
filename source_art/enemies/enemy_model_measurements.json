@@ -1,30 +1,30 @@
 {
   "wretch": {
-    "triangles": 4462,
+    "triangles": 5668,
     "mesh_parts": 1,
     "bones": 28,
     "source_rig": "humanoid_rig.blend"
   },
   "sling_wretch": {
-    "triangles": 4734,
+    "triangles": 5308,
     "mesh_parts": 2,
     "bones": 28,
     "source_rig": "humanoid_rig.blend"
   },
   "bellringer": {
-    "triangles": 4554,
+    "triangles": 5930,
     "mesh_parts": 1,
     "bones": 28,
     "source_rig": "humanoid_rig.blend"
   },
   "hall_warden": {
-    "triangles": 4852,
+    "triangles": 5080,
     "mesh_parts": 1,
     "bones": 28,
     "source_rig": "humanoid_rig.blend"
   },
   "hoard_keeper": {
-    "triangles": 5818,
+    "triangles": 5174,
     "mesh_parts": 1,
     "bones": 28,
     "source_rig": "humanoid_rig.blend"

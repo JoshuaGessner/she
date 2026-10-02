@@ -10986,4 +10986,28 @@ Every other binding is unchanged, and the keyboard is untouched. A player's own 
 
 **Honest scale:** doorways crowd room corners, so on a typical floor about a third of eligible rooms take a shape. It shows from eye height as a wall that jogs or a pier of rock standing into the room, and from above as a softer change. **The other half of the developer's call is not this ADR:** a central hub per floor needs the mission graph to place one, which changes what every floor *is* rather than what its rooms look like.
 
+## ADR-305 — Six bodies, not one mannequin six times: limbs with anatomy, and a silhouette per kind
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T10`; continues ART-009, ADR-302** · **Developer's call: "enemy bodies" first, approved after the Hall-Warden pilot**
+
+**Context:** *"We need to improve all player and enemy models and feel."* Seen side by side in a generated room, five enemy kinds were one body in five outfits. Every arm and leg was a round tube on one width profile shared by both, so the build read before the kit did. The Sling-Wretch and the Bellringer were the same hooded figure holding different things. The hood's brow was a flat plank that read as a visor. The Hoard-Keeper's breast rings read as a grid of buttons at game distance. `DES-013` asks each kind to be told apart by its job (attrition, missile, alarm, blocker, guardian), and `CLAUDE.md` §2.6 says that is done by silhouette before anything else.
+
+**Decision:** two parts, both in `build_enemy_models.py`.
+- **Limbs with anatomy** (`LIMB_PROFILES`): each limb has its own profile along both of its bones, as (t, width, depth) over an elliptical section. A deltoid caps the shoulder, the upper arm and forearm swell and narrow to the wrist, and the thigh tapers to a knee above a calf that swells over a narrow ankle. Every kind and the Gullsjúkr share it.
+- **A silhouette per kind**, from Norse finds: the shapes, not the decoration.
+  - **Wretch**, pitiable before it is dangerous: a hood with a cape and a long tail (the Skjoldehamn and Bocksten hoods), its hem torn. A tunic that ends in torn tongues. Bare gaunt arms with the forearms bound in rag, wrapped calves (the leg wraps of the Viking finds), and the seax.
+  - **Sling-Wretch**, lopsided on purpose: bareheaded, hair bound under a band with a braid down the spine. A hide over the left shoulder only, a strap across the chest to the stone bag, and the sling hanging from the fist to the knee.
+  - **Bellringer**, a Wretch that stood up: hooded like its kin but in a robe to the shins. An iron collar, a chain worn across the body, and two small bells at the belt besides the one in its hand.
+  - **Hall-Warden**, the door that does not open: a conical spangenhelm with a nasal and the Gjermundbu helm's eye guard. A mail curtain open at the face, lamellar plates stepping down each shoulder, a hauberk to the knee, and the hammer.
+  - **Hoard-Keeper**, which does not leave the gold: a rounded helm with a crest from brow to nape and brow arches (the Vendel and Valsgärde helms). A byrnie to the knee and a cloak from both shoulders to the calf, swept behind the arms so a thrust never passes through it. Arm rings wound on both forearms, and the spear.
+  - **Gullsjúkr** keeps its hoard, chains and sacks, and gains the same legs, bound as a Wretch's are.
+- **Shared pieces, one of each:** `hood_shell` gains a rolled rim in place of the plank. It is used by `gugel` (Wretch and Bellringer). Also new: `tattered_hem`, `bindings`, `tube`, `sheet` and `skirt_weight`. `mail_details` is **deleted**: the mail material says mail.
+- **Nothing covers the eyes.** The senses are drawn there (ADR-295), so the Keeper's eye guard became brow arches. The stone keeps its name, `sling_stone`, which the visual and its probe find it by.
+
+**`--roster-shot=DIR` (new):** every kind stood at one post on a generated floor, lit by your own lantern at 2.6 m under the ink, facing you and turned away. The Blender sheets show a model under studio light and `enemy_review.gd` a printed-page lineup. Neither shows a body where it is met, nor two kinds in the same light.
+
+**Measured:** triangles 5,668 / 5,308 / 5,930 / 5,080 / 5,174 (Wretch, Sling-Wretch, Bellringer, Hall-Warden, Hoard-Keeper), all under the 6,000 budget, and 31,998 for the Gullsjúkr. `rig_probe`, `art_probe` and `enemy_animation_probe` report 0 failures on all six. Every clip was rebaked onto the new meshes, unchanged.
+
+**Honest scale:** these are bind-pose meshes on the shared rig, so a cape or a robe follows the bones it is weighted to and does not swing. Cloth simulation is not built and not planned. The faces are the shared head and differ only by what frames them. Final visual sign-off is still the developer's (`M4-T10` stays open).
+
 *Entries below to be added as design decisions are signed off.*

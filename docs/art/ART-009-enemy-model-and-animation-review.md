@@ -4,7 +4,7 @@ title: Enemy Model and Animation Review
 status: draft
 owner: art
 tags: [art, enemies, animation, review, blender]
-updated: 2026-09-29
+updated: 2026-10-02
 related: [ART-004, ART-005, ART-006, DES-013, DES-017, PRO-001, PRO-002]
 ---
 
@@ -100,3 +100,31 @@ half a stride.
 grip socket, not an open carrying curl. The seax is held up and in, so its
 edge is in view. The shield rests on its rim at the left edge and on guard
 covers only the left half of the view.
+
+## Silhouettes (ADR-305)
+
+Five kinds were one body in five outfits, and two of them were one hooded
+figure. Each limb now has its own anatomical profile (`LIMB_PROFILES`), and
+each kind has a silhouette taken from Norse finds, recognisable before its
+weapon is:
+
+| Kind | Reads as | Built from |
+|---|---|---|
+| Wretch | small, ragged, many | hood with a tail and torn cape, tongued hem, bound forearms and calves |
+| Sling-Wretch | lopsided, the one that stays back | bare bound head and braid, hide on the left shoulder only, a sling hanging to the knee |
+| Bellringer | long and narrow | hood, robe to the shins, chain across the body, bells at the belt |
+| Hall-Warden | square and heavy | conical spangenhelm, mail curtain, lamellar shoulders, hauberk |
+| Hoard-Keeper | tall and closed | crested round helm, byrnie, cloak to the calf, arm rings, spear |
+| Gullsjúkr | lopsided under a hoard | unchanged above the waist; the shared legs, bound |
+
+Nothing worn may cover the eyes, where the senses are drawn (ADR-295).
+Cloth follows the bones it is weighted to; nothing simulates.
+
+`--roster-shot=DIR` stands every kind at one post on a generated floor, lit by
+the player's lantern at 2.6 m under the production ink, facing the camera and
+turned away. It is the review this section's claims were checked against.
+Windowed, because a headless render has no pixels.
+
+Standard-enemy exports now contain 5,668 / 5,308 / 5,930 / 5,080 / 5,174
+triangles (Wretch, Sling-Wretch, Bellringer, Hall-Warden, Hoard-Keeper) and
+the Gold-Sick 31,998. Visual sign-off remains the developer's.

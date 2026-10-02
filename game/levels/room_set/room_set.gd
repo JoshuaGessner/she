@@ -969,6 +969,8 @@ func _ready() -> void:
 			_verbs_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ink-probe":
 			_ink_probe()
+		elif arg.begins_with("--roster-shot="):
+			_roster_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--threat-shot="):
 			_threat_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--threat-dark-shot="):
@@ -15605,6 +15607,75 @@ static func _contrast(a: Color, b: Color) -> float:
 	var la: float = a.srgb_to_linear().get_luminance()
 	var lb: float = b.srgb_to_linear().get_luminance()
 	return (maxf(la, lb) + 0.05) / (minf(la, lb) + 0.05)
+
+
+## **`--roster-shot=DIR`** (ADR-305): every enemy kind stood at one post on a
+## generated floor, lit by your own lantern at `ROSTER_SIGHT`, under the ink —
+## once facing you and once turned away. The Blender review sheets show a
+## model under studio light; a body is judged by how it reads where it is met,
+## and the five kinds are judged against each other, so they share one frame.
+## Windowed, because a headless render has no pixels (ADR-198's split).
+const ROSTER_SIGHT: float = 2.6
+
+
+func _roster_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var player: Player = _session.local_player()
+	player.show_ink(true)
+	player.lit = true
+	for layer: Node in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		node.process_mode = Node.PROCESS_MODE_DISABLED
+		(node as Node3D).visible = false
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var ground: Vector3 = Vector3.INF
+	var eye: Vector3 = Vector3.INF
+	for post: Vector3 in _floor.enemy_posts():
+		ground = _standing_at(post)
+		if ground == Vector3.INF:
+			continue
+		for turn: int in 8:
+			var along := Vector3.FORWARD.rotated(Vector3.UP, TAU * float(turn) / 8.0)
+			var from: Vector3 = ground + Vector3(0.0, 1.2, 0.0)
+			var ray := PhysicsRayQueryParameters3D.create(from, from + along * (ROSTER_SIGHT + 1.0))
+			ray.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_ray(ray).is_empty():
+				continue
+			var under: Vector3 = _standing_at(ground + along * ROSTER_SIGHT)
+			if under != Vector3.INF and absf(under.y - ground.y) < 0.3:
+				eye = under
+				break
+		if eye != Vector3.INF:
+			break
+	if eye == Vector3.INF:
+		printerr("[roster] FAIL no post with a clear %.1f m line" % ROSTER_SIGHT)
+		get_tree().quit(1)
+		return
+	var to: Vector3 = ground - eye
+	player.teleport(eye + Vector3(0.0, 0.1, 0.0), atan2(-to.x, -to.z))
+	for enemy: EnemyResource in EnemyCatalogue.all():
+		_session.spawn_enemy(ground, atan2(to.x, to.z), enemy.id)
+		await _hold(0.8)
+		var body: Node3D = null
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			if node.process_mode != Node.PROCESS_MODE_DISABLED:
+				body = node as Node3D
+		if body == null:
+			printerr("[roster] FAIL %s did not spawn" % enemy.id)
+			continue
+		body.process_mode = Node.PROCESS_MODE_DISABLED
+		body.global_position = ground
+		for side: String in ["front", "rear"]:
+			if side == "rear":
+				body.rotate_y(PI * 0.8)
+			await RenderingServer.frame_post_draw
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(
+				"%s/%s_%s.png" % [dir, enemy.id, side])
+		print("[roster] %s at %s" % [enemy.id, ground])
+		body.queue_free()
+	get_tree().quit(0)
 
 
 ## **`--threat-shot=PATH`** (`M4-T08`, ADR-269): a body standing in the dark,

@@ -181,20 +181,40 @@ def torso_weights(point: Vector) -> dict[str, float]:
     return {"chest": 1.0}
 
 
+## **Limbs with anatomy, not tubes** (ADR-305). Every enemy's arms and legs
+## were round tubes on one width profile shared by arm and leg, which is what
+## made five kinds read as one mannequin. Each limb now has its own profile —
+## (t along the bones, width across, depth front-to-back), as fractions of the
+## limb's radius — and an elliptical section, so a deltoid caps the shoulder,
+## a bicep and a forearm swell and pinch to a wrist, a thigh tapers to a knee
+## and a calf swells above a narrow ankle. A body reads by these silhouettes
+## before it reads by anything worn on it.
+LIMB_PROFILES = {
+    "upper_arm": (((-.10, .98, .92), (.12, 1.12, 1.02), (.34, .96, 1.04),
+                   (.62, .90, .98), (.88, .74, .76), (1.0, .70, .72)),
+                  ((.10, .72, .74), (.30, .84, .86), (.55, .70, .70),
+                   (.85, .52, .46), (1.05, .46, .40))),
+    "thigh": (((-.10, 1.08, 1.0), (.18, 1.10, 1.04), (.50, .96, .94),
+               (.82, .76, .80), (1.0, .70, .74)),
+              ((.10, .70, .74), (.30, .80, .86), (.55, .66, .70),
+               (.85, .48, .52), (1.05, .44, .48))),
+}
+
+
 def articulated_limb(side: str, upper: str, lower: str, kind: str, radius: float) -> None:
     """One continuous surface across the joint, with a soft two-bone blend."""
     a, b = RIG.data.bones[f'{upper}_{side}'], RIG.data.bones[f'{lower}_{side}']
     joint = b.head_local
     rows = []
-    for bone, points in ((a, ((-.10,.85),(.20,1),(.62,.82),(.88,.74),(1,.70))),
-                         (b, ((.12,.73),(.40,.76),(.75,.58),(1.05,.44)))):
+    upper_profile, lower_profile = LIMB_PROFILES[upper]
+    for bone, points in ((a, upper_profile), (b, lower_profile)):
         axis = (bone.tail_local-bone.head_local).normalized()
         front = Vector((0,-1,0))
         across = axis.cross(front).normalized()
-        for t, width in points:
+        for t, wide, deep in points:
             center = bone.head_local.lerp(bone.tail_local,t)
-            rows.append([center+radius*width*(math.cos(i*math.tau/16)*front+
-                         math.sin(i*math.tau/16)*across) for i in range(16)])
+            rows.append([center+radius*(deep*math.cos(i*math.tau/16)*front+
+                         wide*math.sin(i*math.tau/16)*across) for i in range(16)])
     axis = (b.tail_local-joint).normalized()
     def weight(p):
         t = max(0,min(1,.5+(p-joint).dot(axis)/.13))
@@ -245,6 +265,7 @@ def oriented_prism(name: str, center: Vector, forward: Vector, length: float, wi
 
 
 def body(kind: str, stature: float = 1.0, broad: float = 1.0, mail: bool = False,
+         flaps: bool = True,
          hood: bool = False, bare_arms: bool = False) -> None:
     """A complete sculpted body: expressive head, hands, boots, and layered clothes."""
     assert RIG is not None
@@ -259,7 +280,8 @@ def body(kind: str, stature: float = 1.0, broad: float = 1.0, mail: bool = False
                     for a in [i*math.tau/24 for i in range(24)]])
     loft("shaped_torso", torso_rows, cloth, torso_weights, smooth=not mail)
     # Separate layered flap gives every wretch cloth that catches a hatch edge.
-    for side in (-1, 1):
+    # Not under a hauberk, which hangs over where they would (ADR-305).
+    for side in ((-1, 1) if flaps else ()):
         points = [Vector((side * .05, -.155, 1.04)), Vector((side * .18 * broad, -.12, .98)),
                   Vector((side * .17 * broad, -.11, .77)), Vector((side * .035, -.14, .73))]
         mesh(f"tunic_split_flap_{side}", points, [(0, 1, 2, 3)], kind, torso_weights, False)
@@ -278,27 +300,41 @@ def body(kind: str, stature: float = 1.0, broad: float = 1.0, mail: bool = False
         ellipsoid(f"lower_lid_{side}", Vector((side*.046, -.115, 1.704)), (.026,.009,.007), "flesh", {"head":1}, True, 8, 3)
     ellipsoid("set_mouth", Vector((0,-.115,1.617)), (.052,.012,.009), "dark", {"head":1}, True, 8, 3)
     if hood:
-        hood_mesh = ellipsoid("torn_hood", Vector((0, .018, 1.70)), (.16 * broad, .15, .205), kind,
-                  {"head": 1}, True, 12, 7)
-        # Remove the front panels; a closed ellipsoid would hide the face.
-        import bmesh
-        bm = bmesh.new()
-        bm.from_mesh(hood_mesh.data)
-        remove = [face for face in bm.faces if face.calc_center_median().y < -.05
-                  and face.calc_center_median().z < 1.82]
-        bmesh.ops.delete(bm, geom=remove, context='FACES')
-        bm.to_mesh(hood_mesh.data)
-        bm.free()
-        # Cut open face achieved with a thick brow and jaw visible forward.
-        oriented_prism("hood_brow", Vector((0, -.145, 1.80)), Vector((0, -1, 0)), .04, .22, .045, kind, {"head": 1}, .9)
+        hood_shell(kind, broad)
     for side in ("l", "r"):
         arm_kind = "flesh" if bare_arms else kind
         articulated_limb(side, 'upper_arm', 'forearm', arm_kind, .083*broad)
         hand(side)
         leg(side, kind, broad)
-    if mail:
-        mail_details(broad)
     belt(broad)
+
+
+def hood_shell(kind: str, broad: float) -> None:
+    """A hood shell open over the face, its brow thick enough to shade the eyes."""
+    hood_mesh = ellipsoid("torn_hood", Vector((0, .018, 1.70)), (.16 * broad, .15, .205), kind,
+              {"head": 1}, True, 12, 7)
+    # Remove the front panels; a closed ellipsoid would hide the face.
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(hood_mesh.data)
+    remove = [face for face in bm.faces if face.calc_center_median().y < -.05
+              and face.calc_center_median().z < 1.82]
+    bmesh.ops.delete(bm, geom=remove, context='FACES')
+    bm.to_mesh(hood_mesh.data)
+    bm.free()
+    # A rolled rim round the opening frames the face and hides the stepped
+    # edge the cut leaves; a flat brow plank read as a visor.
+    def on_shell(y: float, z: float) -> Vector:
+        inside = max(0.0, 1 - ((y - .018) / .15) ** 2 - ((z - 1.70) / .205) ** 2)
+        return Vector((.16 * broad * math.sqrt(inside) * 1.04, y, z))
+    side_path = [on_shell(-.055, z) for z in (1.53, 1.60, 1.68, 1.75)]
+    top = [Vector((x, .018 - .15 * 1.04 * math.sqrt(max(0.0, 1 - (x / (.16 * broad)) ** 2
+                                                       - ((1.815 - 1.70) / .205) ** 2)), 1.815))
+           for x in (.085, .045, 0.0, -.045, -.085)]
+    left = [p for p in side_path]
+    right = [Vector((-p.x, p.y, p.z)) for p in reversed(side_path)]
+    rim = left + top + right
+    tube("hood_rim", rim, [.018] * len(rim), kind, head_to_chest, 6)
 
 
 def hand(side: str) -> None:
@@ -342,25 +378,6 @@ def belt(broad: float) -> None:
     box("belt_buckle", Vector((0, -.145, 1.04)), (.064, .018, .052), "iron", torso_weights, .005)
 
 
-def mail_details(broad: float) -> None:
-    # Open linked rings across the breast read as mail in silhouette and normal
-    # edges. A sparse patch avoids spending the budget on hidden shirt surfaces.
-    for row,z in enumerate((1.08,1.16,1.24,1.32)):
-        for col in range(5):
-            x=(col-2)*.069*broad+(row%2)*.012
-            verts=[]; faces=[]
-            for i in range(8):
-                a=i*math.tau/8
-                for j in range(4):
-                    b=j*math.tau/4
-                    verts.append(Vector((x+(.030+.004*math.cos(b))*math.cos(a),
-                                -.157+.004*math.sin(b),z+(.023+.004*math.cos(b))*math.sin(a))))
-            for i in range(8):
-                for j in range(4):
-                    faces.append((i*4+j,((i+1)%8)*4+j,((i+1)%8)*4+(j+1)%4,i*4+(j+1)%4))
-            mesh(f'mail_link_{row}_{col}',verts,faces,'mail',torso_weights,False)
-
-
 def weapon_seax() -> None:
     # Right-hand grip, blade forward in the permanent rig's Blender -Y space.
     weight = {"hand_r": 1}
@@ -371,16 +388,15 @@ def weapon_seax() -> None:
 
 
 def sling_and_pouch() -> None:
-    # Held sling is a U of leather, ready to silhouette against the hand.
+    """Two cords from the fist to a cup at the knee, the stone in it: a sling
+    hangs long, and the length is what reads as a sling and not a club."""
     weight = {"hand_r": 1}
-    points = [Vector((-.49, -.07, 1.09)), Vector((-.45, -.18, 1.01)), Vector((-.40, -.24, .96)),
-              Vector((-.35, -.18, 1.01)), Vector((-.31, -.07, 1.09))]
-    for index, (a, b) in enumerate(zip(points, points[1:])):
-        direction = b - a
-        midpoint = (a + b) / 2
-        ellipsoid(f"sling_cord_{index}", midpoint, (.014, direction.length / 2, .014), "leather", weight, True, 6, 3)
-    ellipsoid("sling_cup", Vector((-.40, -.24, .96)), (.075, .028, .045), "leather", weight, True, 8, 4)
-    ellipsoid("sling_stone", Vector((-.40, -.24, .965)), (.035, .026, .031), "stone", weight, False, 7, 4)
+    for index, x in enumerate((-.462, -.438)):
+        tube(f"sling_cord_{index}", [Vector((x, -.040, 1.065)), Vector((x - .006 * (1 - 2 * index), -.050, .92)),
+                                     Vector((x - .016 * (1 - 2 * index), -.058, .785))],
+             [.0065, .0065, .0065], "leather", weight, 5)
+    ellipsoid("sling_cup", Vector((-.45, -.060, .765)), (.052, .032, .030), "leather", weight, True, 8, 4)
+    ellipsoid("sling_stone", Vector((-.45, -.060, .785)), (.032, .026, .028), "stone", weight, False, 7, 4)
     ellipsoid("stone_pouch", Vector((.17, .11, 1.00)), (.105, .052, .13), "leather", {"pelvis": 1}, True, 10, 5)
     loft("pouch_lip", [ring(Vector((.17, .06, 1.09)), .087, .026, 10), ring(Vector((.17, .055, 1.105)), .078, .021, 10)], "leather", {"pelvis": 1}, False)
 
@@ -422,70 +438,395 @@ def spear() -> None:
     loft("spear_ferrule", [ring(Vector((-.45, -1.00, 1.09)), .043, .043, 8), ring(Vector((-.45, -1.08, 1.09)), .038, .038, 8)], "iron", weight, False)
 
 
+def limb_section(upper: str, lower: bool, t: float, radius: float) -> tuple[float, float]:
+    """The limb's (wide, deep) in metres at t along one of its two bones."""
+    points = LIMB_PROFILES[upper][1 if lower else 0]
+    for (t0, w0, d0), (t1, w1, d1) in zip(points, points[1:]):
+        if t0 <= t <= t1:
+            f = (t - t0) / (t1 - t0)
+            return radius * (w0 + (w1 - w0) * f), radius * (d0 + (d1 - d0) * f)
+    raise ValueError(f"{t} outside the {upper} profile")
+
+
+def bindings(side: str, upper: str, bone: str, radius: float, spans: tuple[float, ...], kind: str) -> None:
+    """Rag wound round a limb in turns tilted alternately, like the leg wraps
+    (winingas) of the Viking finds. Each turn sits just proud of the limb's
+    own profile at that point, so it reads as cloth on an arm, not a ring."""
+    b = RIG.data.bones[f"{bone}_{side}"]
+    axis = (b.tail_local - b.head_local).normalized()
+    front = Vector((0, -1, 0))
+    across = axis.cross(front).normalized()
+    for index, t in enumerate(spans):
+        wide, deep = limb_section(upper, bone != upper, t, radius)
+        wide, deep = wide * 1.13 + .004, deep * 1.13 + .004
+        center = b.head_local.lerp(b.tail_local, t)
+        tilt = .016 if index % 2 else -.016
+        rows = [[center + axis * (lift + tilt * math.sin(a)) + deep * math.cos(a) * front
+                 + wide * math.sin(a) * across for a in (i * math.tau / 12 for i in range(12))]
+                for lift in (0.0, .026)]
+        loft(f"binding_{bone}_{side}_{index}", rows, kind, {f"{bone}_{side}": 1.0}, False, cap=False)
+
+
+def tube(name: str, points: list[Vector], radii: list[float], kind: str, weights: Weights,
+         sides: int = 8) -> bpy.types.Object:
+    """A tapering round section swept along a polyline."""
+    rows = []
+    for index, at in enumerate(points):
+        tangent = (points[min(index + 1, len(points) - 1)] - points[max(index - 1, 0)]).normalized()
+        u = Vector((1, 0, 0)) if abs(tangent.x) < .9 else Vector((0, 1, 0))
+        v = tangent.cross(u).normalized()
+        u = v.cross(tangent).normalized()
+        rows.append([at + radii[index] * (math.cos(i * math.tau / sides) * u + math.sin(i * math.tau / sides) * v)
+                     for i in range(sides)])
+    return loft(name, rows, kind, weights, True)
+
+
+def sheet(name: str, rows: list[list[Vector]], kind: str, weights: Weights) -> bpy.types.Object:
+    """A grid of quads open on every edge."""
+    count = len(rows[0])
+    verts = [point for row in rows for point in row]
+    faces = [(r * count + c, r * count + c + 1, (r + 1) * count + c + 1, (r + 1) * count + c)
+             for r in range(len(rows) - 1) for c in range(count - 1)]
+    return mesh(name, verts, faces, kind, weights, False)
+
+
+def head_to_chest(p: Vector) -> dict[str, float]:
+    """Hangs from the head above the jaw, from the chest below the collar."""
+    t = max(0.0, min(1.0, (p.z - 1.55) / .15))
+    return {"head": t, "chest": 1.0 - t}
+
+
+def cape_weight(p: Vector) -> dict[str, float]:
+    """A shoulder cape on the chest, its edges riding the upper arms."""
+    side = "l" if p.x > 0 else "r"
+    t = max(0.0, min(.6, (abs(p.x) - .20) / .15))
+    return {"chest": 1.0 - t, f"upper_arm_{side}": t} if t > 0 else {"chest": 1.0}
+
+
+def gugel(kind: str, broad: float, tail: float, drop: float, ragged: float) -> None:
+    """**The hood with a cape and a tail** — the Skjoldehamn and Bocksten finds'
+    hood: an open-faced shell, a cape on the shoulders, and a tail (liripipe)
+    down the back. `tail` is how far the tail falls below the crown, `drop`
+    how far the cape hangs below the shoulder, `ragged` how torn its hem is."""
+    hood_shell(kind, broad)
+    crown = Vector((0, .10, 1.84))
+    path = [crown, Vector((0, .175, 1.79)), Vector((0, .235, 1.70))]
+    for step in range(1, 4):
+        path.append(Vector((0, .252 - .004 * step, 1.70 - tail * step / 3)))
+    tube("gugel_tail", path, [.062, .044, .032, .024, .017, .008], kind, head_to_chest)
+    # A yoke first, nearly flat over the deltoids, then the fall: the cape
+    # must clear the shoulder caps the limb profile gives every arm.
+    rows = []
+    for z, rx, ry in ((1.585, .118, .108), (1.575, .225, .17), (1.50, .335, .212), (1.43, .365, .222)):
+        row = ring(Vector((0, .01, z)), rx, ry, 20)
+        if z > 1.55:
+            # Under the chin the cape's collar dips, clear of the jaw and beard.
+            row = [p - Vector((0, 0, .06 * max(0.0, -(p.y - .01) / ry))) for p in row]
+        rows.append(row)
+    hem = []
+    for i in range(20):
+        a = i * math.tau / 20
+        torn = ragged * (.5 + .5 * ((i * 7) % 5) / 4) if i % 2 else 0.0
+        hem.append(Vector((.375 * math.cos(a), .01 + .228 * math.sin(a), 1.43 - drop - torn)))
+    rows.append(hem)
+    loft("gugel_cape", rows, kind, cape_weight, False, cap=False)
+
+
+def tattered_hem(kind: str, broad: float, hang: float, torn: float) -> None:
+    """A tunic below the belt that ends in torn tongues, not a straight edge."""
+    rows = [ring(Vector((0, 0, z)), rx * broad, ry, 20) for z, rx, ry in
+            ((.97, .225, .150), (.88, .245, .162), (.97 - hang * .6, .262, .170))]
+    bottom = .97 - hang
+    hem = []
+    for i in range(20):
+        a = i * math.tau / 20
+        tongue = torn * (.45 + .55 * ((i * 11) % 7) / 6) if i % 2 == 0 else -.01
+        hem.append(Vector((.27 * broad * math.cos(a), .175 * math.sin(a), bottom - tongue)))
+    rows.append(hem)
+    loft("tattered_hem", rows, kind, skirt_weight, False, cap=False)
+
+
 def wretch() -> bpy.types.Object:
+    """**Pitiable before it is dangerous** (ADR-305). A Dvergar survivor gone
+    to rags: a hood whose tail hangs to the shoulder blades and whose cape is
+    torn at the hem, a tunic that ends in tongues, bare gaunt arms with the
+    forearms bound in rag, and wrapped calves. The seax is the one whole
+    thing it owns. Thin, so a crowd of them reads as many small threats."""
     rig = begin()
-    body("rag", stature=.96, broad=.87, hood=False, bare_arms=True)
+    broad = .84
+    body("rag", stature=.96, broad=broad, flaps=False, hood=False, bare_arms=True)
+    gugel("rag", broad, tail=.40, drop=.10, ragged=.07)
+    tattered_hem("rag", broad, hang=.30, torn=.10)
+    for side in ("l", "r"):
+        bindings(side, "upper_arm", "forearm", .083 * broad, (.22, .40, .58, .76), "rag")
+        bindings(side, "thigh", "calf", .107 * broad, (.30, .45, .60, .75), "rag")
+    # A rope end knotted at the belt, the only thing it has to tie anything with.
+    tube("belt_rope_end", [Vector((.07, -.150, 1.03)), Vector((.085, -.162, .95)), Vector((.09, -.168, .86))],
+         [.012, .010, .008], "leather", torso_weights, 6)
     weapon_seax()
-    # Wound-tight wrap and scavenged shoulder pad make the basic attrition unit
-    # feel pitiable rather than a generic bandit.
-    ellipsoid("wretch_shoulder_pad", Vector((-.20, .005, 1.43)), (.105, .09, .065), "leather", {"chest": 1}, False, 8, 4)
-    # A ragged, split beard and shoulder mantle give the survivor a weathered
-    # Dvergar read instead of the bare head and plain shirt of a mannequin.
     for i in range(5):
         x = (i-2)*.030
         loft(f'beard_lock_{i}', [ring(Vector((x,-.103,1.617)),.022,.018,8),
              ring(Vector((x*1.1,-.114,1.568)),.020,.016,8),
              ring(Vector((x*.85,-.100,1.508+abs(i-2)*.016)),.004,.005,8)],
              'dark',{'head':1},True)
-    for side in (-1,1):
-        verts=[Vector((side*x,y,z)) for x,y,z in ((.06,-.085,1.52),(.21,-.10,1.43),
-               (.235,-.14,1.30),(.14,-.166,1.23),(.055,-.15,1.34))]
-        mesh(f'torn_mantle_{side}',verts,[(0,1,2,3,4)],'leather',torso_weights,False)
     return rig
 
 
 def sling_wretch() -> bpy.types.Object:
+    """**The one that keeps its distance** (ADR-305). Bareheaded where the
+    Wretch is hooded: hair bound back under a band and a braid down the
+    spine, a hide mantle over the left shoulder only, a strap across the chest
+    to a stone bag, and the sling hanging long from the right hand. Lopsided
+    on purpose — a thrower's body, which reads across a room as the one that
+    will not close."""
     rig = begin()
-    body("cloth", stature=.94, broad=.82, hood=True, bare_arms=True)
+    broad = .80
+    body("rag", stature=.94, broad=broad, flaps=False, hood=False, bare_arms=True)
+    head = {"head": 1}
+    hair = ellipsoid("bound_hair", Vector((0, .016, 1.70)), (.108, .131, .166), "dark", head, True, 14, 8)
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(hair.data)
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_center_median().y < -.02
+                               and f.calc_center_median().z < 1.80], context="FACES")
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_center_median().z < 1.62
+                               and f.calc_center_median().y < .06], context="FACES")
+    bm.to_mesh(hair.data)
+    bm.free()
+    loft("head_band", [ring(Vector((0, .014, 1.742)), .113, .134, 14),
+                       ring(Vector((0, .014, 1.768)), .110, .131, 14)], "leather", head, False, cap=False)
+    tube("hair_braid", [Vector((0, .13, 1.70)), Vector((0, .165, 1.62)), Vector((0, .185, 1.52)),
+                        Vector((0, .19, 1.42)), Vector((0, .185, 1.36))],
+         [.034, .030, .026, .020, .010], "dark", head_to_chest, 6)
+    # The mantle: a hide over the left shoulder, front to back, hem torn.
+    rows = []
+    for z, rx, ry, drop in ((1.585, .118, .108, 0.0), (1.575, .225, .17, 0.0),
+                            (1.50, .335, .212, 0.0), (1.40, .355, .222, .03), (1.31, .37, .228, .07)):
+        row = []
+        for i in range(11):
+            a = math.radians(-82 + 164 * i / 10)
+            torn = drop * ((i * 7) % 4) / 3
+            row.append(Vector((rx * math.cos(a), .01 + ry * math.sin(a), z - torn)))
+        rows.append(row)
+    sheet("hide_mantle", rows, "leather", cape_weight)
+    # The strap from the left shoulder to the bag on the right hip.
+    strap = [Vector((.13, -.140, 1.47)), Vector((.03, -.162, 1.33)), Vector((-.08, -.163, 1.18)),
+             Vector((-.17, -.14, 1.05))]
+    tube("bag_strap", strap, [.013] * len(strap), "leather", torso_weights, 6)
+    tattered_hem("rag", broad, hang=.20, torn=.06)
+    for side in ("l", "r"):
+        bindings(side, "thigh", "calf", .107 * broad, (.30, .48, .66), "rag")
+    bindings("l", "upper_arm", "forearm", .083 * broad, (.30, .55, .80), "rag")
     sling_and_pouch()
     return rig
 
 
 def bellringer() -> bpy.types.Object:
+    """**The one that has learned what the chains are for** (ADR-305). A Wretch
+    that stood up: hooded like its kin, but in a robe to the shins where they
+    wear tunics to the knee, a chain worn across the body from an iron collar,
+    and two small bells at the belt besides the one in its hand. The robe is
+    the silhouette: a long narrow shape among short ragged ones."""
     rig = begin()
-    body("rag", stature=1.0, broad=.93, hood=True, bare_arms=False)
+    broad = .90
+    body("rag", stature=1.0, broad=broad, flaps=False, hood=False, bare_arms=False)
+    gugel("rag", broad, tail=.18, drop=.05, ragged=.035)
+    tattered_hem("rag", broad, hang=.66, torn=.06)
     bell_and_striker()
-    # An iron shoulder collar makes the alarm device visually inevitable.
-    loft("bellringer_collar", [ring(Vector((0, 0, 1.46)), .20, .14, 14), ring(Vector((0, 0, 1.50)), .14, .10, 14)], "iron", torso_weights, False)
+    loft("bellringer_collar", [ring(Vector((0, .01, 1.555)), .132, .118, 14),
+                               ring(Vector((0, .01, 1.585)), .126, .112, 14)], "iron", head_to_chest, False)
+    # The chain: links alternately flat and edge-on, from the collar's left
+    # side across the chest to the right hip and round the back again.
+    track = [Vector((.11, -.10, 1.55)), Vector((.05, -.165, 1.40)), Vector((-.06, -.175, 1.25)),
+             Vector((-.17, -.15, 1.10)), Vector((-.235, -.02, 1.03)), Vector((-.20, .13, 1.10)),
+             Vector((-.07, .175, 1.27)), Vector((.06, .16, 1.42)), Vector((.11, .09, 1.55))]
+    links = 0
+    for a, b in zip(track, track[1:]):
+        steps = max(1, round((b - a).length / .085))
+        for step in range(steps):
+            at = a.lerp(b, (step + .5) / steps)
+            along = (b - a).normalized()
+            outward = Vector((at.x, at.y, 0)).normalized()
+            spin = along.cross(outward).normalized() if links % 2 else outward
+            other = along.cross(spin).normalized()
+            verts, faces = [], []
+            for i in range(6):
+                t = i * math.tau / 6
+                for j in range(3):
+                    s = j * math.tau / 3
+                    radial = .036 * math.cos(t) * along + .020 * math.sin(t) * other
+                    tube_dir = (math.cos(t) * along + math.sin(t) * other).normalized()
+                    verts.append(at + radial + .007 * (math.cos(s) * tube_dir + math.sin(s) * spin))
+            for i in range(6):
+                for j in range(3):
+                    faces.append((i * 3 + j, ((i + 1) % 6) * 3 + j, ((i + 1) % 6) * 3 + (j + 1) % 3, i * 3 + (j + 1) % 3))
+            mesh(f"alarm_chain_{links}", verts, faces, "iron", torso_weights, False)
+            links += 1
+    for index, x in enumerate((.10, -.02)):
+        rows = [ring(Vector((x, -.168, z)), r, r * .9, 8) for z, r in ((.93, .036), (.965, .028), (.995, .012))]
+        loft(f"belt_bell_{index}", rows, "iron", {"pelvis": 1}, False, cap=False)
     return rig
 
 
 def hall_warden() -> bpy.types.Object:
+    """**The door that does not open** (ADR-305). A Dvergar housecarl kept at
+    his post after the hall emptied: a conical spangenhelm with a nasal and a
+    mail curtain to the shoulders, a mail hauberk split to the knees, lamellar
+    shoulders in overlapping plates, and the hammer. *Reference: the Gjermundbu
+    helm and the Birka mail finds* — the shapes, not the decoration. Broad and
+    heavy in silhouette, so it reads as the blocker it plays."""
     rig = begin()
-    body("cloth", stature=1.03, broad=1.28, mail=False, hood=False, bare_arms=False)
-    # Plate is intentionally layered in large planes. It has hard normals and
-    # avoids fake micro-detail that would turn into visual scribble.
-    for side in (-1, 1):
-        ellipsoid(f"warden_pauldrons_{side}", Vector((side * .28, .00, 1.43)), (.17, .14, .095), "iron", {"chest": 1}, False, 10, 5)
-    for index, z in enumerate((1.13, 1.23, 1.33, 1.42)):
-        loft(f"warden_breast_lame_{index}", [ring(Vector((0, -.02, z)), .27, .17, 14), ring(Vector((0, -.04, z + .055)), .255, .155, 14)], "iron", torso_weights, False)
-    ellipsoid("warden_helm", Vector((0, .01, 1.70)), (.18, .16, .20), "iron", {"head": 1}, False, 12, 7)
-    for side in (-1, 1):
-        oriented_prism(f'warden_eye_slit_{side}', Vector((side*.058,-.147,1.713)),
-                       Vector((0,-1,0)), .018,.067,.014,'dark',{'head':1},.8)
-    oriented_prism("warden_nasal", Vector((0, -.16, 1.69)), Vector((0, -1, 0)), .045, .045, .18, "iron", {"head": 1}, .85)
+    body("cloth", stature=1.03, broad=1.24, mail=False, flaps=False, hood=False, bare_arms=False)
+    spangenhelm()
+    aventail()
+    lamellar_shoulders()
+    hauberk_skirt()
     war_hammer()
     return rig
 
 
-def hoard_keeper() -> bpy.types.Object:
-    rig = begin()
-    body("cloth", stature=1.02, broad=.87, mail=True, hood=False, bare_arms=False)
-    # Narrow cone helm and lamellar skirt distinguish the stationary guardian.
-    ellipsoid("keeper_conical_helm", Vector((0, .01, 1.76)), (.145, .14, .22), "iron", {"head": 1}, False, 10, 6)
+def spangenhelm() -> None:
+    """A cone in four ribbed plates on a brow band, with a nasal and the
+    Gjermundbu helm's spectacle guard."""
+    head = {"head": 1}
+    helm_rows = []
+    for z, r in ((1.70, .150), (1.76, .148), (1.82, .132), (1.88, .103), (1.93, .064), (1.965, .022)):
+        helm_rows.append(ring(Vector((0, .008, z)), r * 1.02, r, 16))
+    loft("warden_spangenhelm", helm_rows, "iron", head, False)
+    loft("warden_brow_band", [ring(Vector((0, .008, 1.695)), .158, .156, 16),
+                              ring(Vector((0, .008, 1.735)), .158, .156, 16)], "iron", head, False)
+    for quarter in range(4):
+        a = quarter * math.tau / 4 + math.tau / 8
+        base = Vector((.150 * math.cos(a), .008 + .148 * math.sin(a), 1.72))
+        tip = Vector((0, .008, 1.95))
+        oriented_prism(f"warden_helm_rib_{quarter}", base.lerp(tip, .5), (tip - base), (tip - base).length,
+                       .022, .014, "iron", head, .4)
+    oriented_prism("warden_nasal", Vector((0, -.166, 1.665)), Vector((0, 0, -1)), .13, .036, .016, "iron", head, .7)
+    # Spectacle guard over the eyes, the Gjermundbu helm's mark.
     for side in (-1, 1):
-        for row, z in enumerate((.83, .89, .95)):
-            box(f"keeper_lamella_{side}_{row}", Vector((side * .12, -.13, z)), (.13, .025, .075), "iron", {"pelvis": 1}, .005)
+        loft(f"warden_spectacle_{side}", [ring(Vector((side * .050, -.150, 1.705)), .036, .010, 10),
+                                          ring(Vector((side * .050, -.168, 1.705)), .036, .010, 10)], "iron", head, False)
+
+
+def aventail() -> None:
+    """A mail curtain from the helm's rim to the shoulders, open over the face."""
+    curtain = []
+    for z, r in ((1.70, .152), (1.62, .160), (1.54, .190), (1.48, .235)):
+        row = []
+        for i in range(18):
+            a = math.tau * i / 18
+            # Open over the face: at the front the curtain drops under the
+            # chin as a gorget, so the helm's rim frames the eyes and nasal.
+            front: float = max(0.0, -math.sin(a))
+            row.append(Vector((r * math.cos(a), .01 + r * .95 * math.sin(a),
+                               min(z, 1.70 - front * .16 - (1.70 - z) * .4))))
+        curtain.append(row)
+    loft("warden_aventail", curtain, "mail", lambda p: {"head": .6, "chest": .4} if p.z > 1.58 else {"chest": 1.0}, False, cap=False)
+
+
+def lamellar_shoulders() -> None:
+    """Three overlapping curved plates each side, stepping down the arm."""
+    # Each lame is a strip arched over the shoulder cap from the front of the
+    # chest to the back, its upper edge tucked under the one above and its
+    # lower edge flaring out over the arm.
+    for side in (-1, 1):
+        for lame in range(3):
+            upper, lower = [], []
+            for i in range(9):
+                y = -.14 + .28 * i / 8
+                arch = 1.0 - (y / .14) ** 2
+                x = side * (.25 + lame * .045)
+                z = 1.50 - lame * .065 + .035 * arch
+                upper.append(Vector((x, y * 1.05, z)))
+                lower.append(Vector((x + side * .05, y * 1.12, z - .085)))
+            faces = [(i, i + 1, 10 + i, 9 + i) if side > 0 else (i, 9 + i, 10 + i, i + 1) for i in range(8)]
+            weights = {"chest": .5, f"upper_arm_{'l' if side > 0 else 'r'}": .5} if lame > 0 else {"chest": 1}
+            mesh(f"warden_lame_{side}_{lame}", upper + lower, faces, "iron", weights, False)
+
+
+def skirt_weight(p: Vector) -> dict[str, float]:
+    """A skirt hangs from the waist and follows each thigh toward its hem."""
+    if p.z > .95:
+        return torso_weights(p)
+    side = "l" if p.x > 0 else "r"
+    t = max(0.0, min(1.0, (.95 - p.z) / .35))
+    return {"pelvis": 1 - t * .7, f"thigh_{side}": t * .7}
+
+
+def hauberk_skirt() -> None:
+    """Mail from the waist to the knee, following the thighs as they move."""
+    skirt = []
+    for z, rx, ry in ((1.06, .225, .155), (.92, .245, .165), (.74, .265, .175), (.56, .275, .18)):
+        skirt.append(ring(Vector((0, 0, z)), rx, ry, 20))
+    loft("warden_hauberk_skirt", skirt, "mail", skirt_weight, False, cap=False)
+
+
+def hoard_keeper() -> bpy.types.Object:
+    """**It does not leave the gold** (ADR-305). The last of the hoard's
+    guard, kept at its post as the Warden is at the door, and as old: a
+    rounded helm with a crest from brow to nape and the Vendel and Valsgärde
+    helms' eye-guards, a byrnie to the knee under a cloak that hangs from
+    both shoulders to the calf, and the spear. The cloak is the silhouette — a
+    tall closed shape the Warden's square one is not — and the arm rings,
+    wound one above another, are what it took from the hoard and kept."""
+    rig = begin()
+    broad = .95
+    body("cloth", stature=1.04, broad=broad, mail=True, flaps=False, hood=False, bare_arms=False)
+    head = {"head": 1}
+    helm = [ring(Vector((0, .010, z)), r * 1.02, r, 16) for z, r in
+            ((1.70, .146), (1.76, .145), (1.82, .128), (1.87, .098), (1.90, .055), (1.912, .012))]
+    loft("keeper_helm", helm, "iron", head, False)
+    loft("keeper_helm_rim", [ring(Vector((0, .010, 1.695)), .154, .151, 16),
+                             ring(Vector((0, .010, 1.725)), .154, .151, 16)], "iron", head, False)
+    crest = [Vector((0, -.150, 1.74)), Vector((0, -.120, 1.84)), Vector((0, -.040, 1.915)),
+             Vector((0, .060, 1.915)), Vector((0, .140, 1.84)), Vector((0, .165, 1.74))]
+    tube("keeper_crest", crest, [.017, .019, .019, .019, .019, .017], "iron", head, 6)
+    # Brow arches over each eye and a nasal between them, never across the
+    # eyes: the senses are drawn there (ADR-295).
+    for side in (-1, 1):
+        arch = [Vector((side * (.008 + .092 * u), -.160 + .022 * u * u, 1.728 + .020 * math.sin(math.pi * u)))
+                for u in (i / 5 for i in range(6))]
+        tube(f"keeper_brow_arch_{side}", arch, [.010] * len(arch), "iron", head, 6)
+    oriented_prism("keeper_nasal", Vector((0, -.168, 1.67)), Vector((0, 0, -1)), .11, .030, .014, "iron", head, .7)
+    # Mail from the helm's rim round the sides and back, open at the face.
+    rows = [[Vector((rx * math.cos(a), oy + ry * math.sin(a), z))
+             for a in (math.radians(-35 + 250 * i / 12) for i in range(13))]
+            for z, rx, ry, oy in ((1.69, .150, .146, .02), (1.58, .165, .150, .04), (1.50, .20, .16, .04))]
+    sheet("keeper_aventail", rows, "mail", lambda p: {"head": .6, "chest": .4} if p.z > 1.58 else {"chest": 1.0})
+    hauberk_skirt()
+    # The cloak: from both shoulders, open at the front, to the calf.
+    rows = []
+    # Over the shoulders at the top, then swept behind the arms, so a thrust
+    # never passes an arm through it.
+    for z, rx, ry, a0, a1 in ((1.56, .15, .12, -30, 210), (1.50, .30, .20, -10, 190),
+                              (1.30, .31, .23, 25, 155), (.95, .32, .25, 22, 158), (.50, .34, .27, 20, 160)):
+        row = []
+        for i in range(13):
+            a = math.radians(a0 + (a1 - a0) * i / 12)
+            row.append(Vector((rx * math.cos(a), .02 + ry * math.sin(a), z)))
+        rows.append(row)
+    rows[-1] = [p - Vector((0, 0, .03 * ((i * 5) % 3))) for i, p in enumerate(rows[-1])]
+
+    def cloak_weight(p: Vector) -> dict[str, float]:
+        if p.z > 1.0:
+            return cape_weight(p) if p.z > 1.38 else torso_weights(p)
+        side = "l" if p.x > 0 else "r"
+        t = max(0.0, min(1.0, (1.0 - p.z) / .5)) * .45
+        return {"pelvis": 1 - t, f"thigh_{side}": t}
+    sheet("keeper_cloak", rows, "cloth", cloak_weight)
+    # Arm rings wound on the forearms: what it took from the hoard and kept.
+    for side in ("l", "r"):
+        b = RIG.data.bones[f"forearm_{side}"]
+        axis = (b.tail_local - b.head_local).normalized()
+        front = Vector((0, -1, 0))
+        across = axis.cross(front).normalized()
+        for index, t in enumerate((.50, .62, .74)):
+            wide, deep = limb_section("upper_arm", True, t, .083 * broad)
+            center = b.head_local.lerp(b.tail_local, t)
+            rows = [[center + axis * lift + (deep + .010) * math.cos(a) * front + (wide + .010) * math.sin(a) * across
+                     for a in (i * math.tau / 10 for i in range(10))] for lift in (0.0, .018)]
+            loft(f"arm_ring_{side}_{index}", rows, "iron", {f"forearm_{side}": 1}, False, cap=False)
     spear()
     return rig
 
