@@ -26,18 +26,24 @@ static func flames(into: Node3D, at: Vector3, size: float) -> void:
 	bed.material_override = glow
 	bed.position = at + Vector3(0.0, 0.03 * size, 0.0)
 	into.add_child(bed)
-	for i: int in 2:
+	# **Four tongues, not two** (ADR-299): narrow, of different heights, stood
+	# a hand apart round the middle. Two wide cards read as one cone of flame;
+	# a fire is several licks rising at once, each at its own pace.
+	for i: int in 4:
 		var tongue := MeshInstance3D.new()
 		var quad := QuadMesh.new()
-		quad.size = Vector2(0.62 - 0.18 * float(i), 1.5 - 0.4 * float(i)) * size
+		quad.size = Vector2(0.40 - 0.05 * float(i), 1.35 - 0.22 * float(i)) * size
 		quad.center_offset = Vector3(0.0, quad.size.y * 0.5, 0.0)
 		tongue.mesh = quad
 		var burn := ShaderMaterial.new()
 		burn.shader = FLAME
 		burn.set_shader_parameter("seed", float(i) * 0.37 + at.x * 0.11)
-		burn.set_shader_parameter("speed", 1.5 + 0.4 * float(i))
+		burn.set_shader_parameter("speed", 1.4 + 0.3 * float(i))
 		tongue.material_override = burn
-		tongue.position = at + Vector3(0.06 * float(i), 0.12, -0.04 * float(i)) * size
+		# The tallest in the middle, the rest round it.
+		var bearing: float = TAU * float(i) / 3.0 + 0.6
+		var out: float = 0.0 if i == 0 else 0.11
+		tongue.position = at + Vector3(cos(bearing) * out, 0.12, sin(bearing) * out) * size
 		tongue.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		into.add_child(tongue)
 	var sparks := GPUParticles3D.new()

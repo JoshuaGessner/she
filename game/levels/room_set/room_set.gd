@@ -1073,6 +1073,7 @@ func _build_probe() -> void:
 	var raised: Array[Node3D] = []
 	var alcoves: int = 0
 	var ledges: int = 0
+	var shored: int = 0
 	for depth: int in 3:
 		var graph: MissionGraph = MissionGraph.build(31337, depth)
 		var lore := ExpeditionHistory.roll(31337, calamities, kinds)
@@ -1088,6 +1089,7 @@ func _build_probe() -> void:
 		built += 1
 		alcoves += int(census["alcoves"])
 		ledges += int(census["ledges"])
+		shored += int(census["shored"])
 		print("[build] floor %d     %d room(s), %d corridor cell(s), %d slab(s), "
 			% [depth, census["rooms"], census["corridor"], census["slabs"]]
 			+ "roughness %.1f" % census["roughness"])
@@ -1115,8 +1117,13 @@ func _build_probe() -> void:
 	# other row here passing about a floor that had gone back to boxes and
 	# corridors. That is `TEC-007` §1's population rule, and this row is what it
 	# looks like when it is applied before the fact rather than after.
-	print("[build] devices     %d alcove(s), %d ledge(s) across 3 floors"
-		% [alcoves, ledges])
+	print("[build] devices     %d alcove(s), %d ledge(s), %d timber set(s) across 3 floors"
+		% [alcoves, ledges, shored])
+	# And the corridors' beat (ADR-301): a run of identical cells with nothing
+	# in it is the corridor reading as drawn rather than dug.
+	if shored == 0:
+		problems.append("no corridor on any of three floors was shored — every "
+			+ "corridor is a run of identical cells again")
 	if alcoves == 0:
 		problems.append("no room on any of three floors was given an alcove — "
 			+ "every large room is a rectangle again, which is the wall line "
@@ -1134,8 +1141,10 @@ func _build_probe() -> void:
 	var chamfers: PackedInt32Array = PackedInt32Array()
 	for root: Node3D in raised:
 		var cut: int = 0
+		# By role, not by any rotation: a corridor's timber set is turned to
+		# face along it (ADR-301) and is not a cut corner.
 		for child: Node in root.get_children():
-			if absf((child as Node3D).rotation.y) > 0.01:
+			if String(child.name).begins_with("chamfer_"):
 				cut += 1
 		chamfers.append(cut)
 	print("[build] gradient    cut corners by depth: %d, %d, %d"
@@ -3800,6 +3809,10 @@ func _delvings_shot(path: String, ink: bool = false) -> void:
 	if dressed != null and not dressed.dressing_view().is_empty():
 		views.append(["dressing", dressed.dressing_view()["at"],
 			dressed.dressing_view()["look"]])
+	# And down a shored corridor (ADR-301).
+	if dressed != null and not dressed.shore_view().is_empty():
+		views.append(["corridor", dressed.shore_view()["at"],
+			dressed.shore_view()["look"]])
 	for view: Array in views:
 		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
 		var look: Vector3 = view[2] as Vector3

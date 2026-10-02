@@ -185,6 +185,8 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--threshold-shot="):
 			_threshold_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--camp-shot="):
+			_camp_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--board-shot="):
 			_board_shot(arg.split("=", true, 1)[1])
 		elif arg == "--threshold-probe":
@@ -1480,12 +1482,13 @@ func _build_ground() -> void:
 	# **Both ends are doors now** (ADR-282): the way down in the north wall, at
 	# the end of the throat, and the way to her in the south wall behind the
 	# fire. Each is cut by `LairPassage`, which builds the wall around it.
+	# Each framed in mine timber (ADR-299): the camp is a hillside.
 	LairPassage.cut(self, _slab, GROUND_AT - half_deep - WALL_THICK * 0.5, -1.0,
 		GROUND_WIDE + WALL_THICK * 2.0, WALL_HIGH, WALL_THICK, ROCK,
-		DESCENT_COLOUR, Color(0.55, 0.62, 0.78), 0.5)
+		DESCENT_COLOUR, Color(0.55, 0.62, 0.78), 0.5, CAMP_MINE_SET)
 	LairPassage.cut(self, _slab, GROUND_AT + half_deep + WALL_THICK * 0.5, 1.0,
 		GROUND_WIDE + WALL_THICK * 2.0, WALL_HIGH, WALL_THICK, ROCK,
-		Color(0.16, 0.13, 0.10), Color(1.0, 0.74, 0.36), 1.4)
+		Color(0.16, 0.13, 0.10), Color(1.0, 0.74, 0.36), 1.4, CAMP_MINE_SET)
 	_slab(along, Vector3(-half_wide - WALL_THICK * 0.5, mid, GROUND_AT), ROCK,
 		DelvingsKit.WALL)
 	_slab(along, Vector3(half_wide + WALL_THICK * 0.5, mid, GROUND_AT), ROCK,
@@ -1526,34 +1529,13 @@ func _build_fire() -> void:
 	# light that breathes. Everything a player reads as *fire* before reading
 	# anything else — the camp is the one safe place in the game, and it should
 	# look like somewhere you would sit down.
-	var stone := StandardMaterial3D.new()
-	stone.albedo_color = Color(0.2, 0.19, 0.19)
-	stone.roughness = 1.0
-	for i: int in 9:
-		var angle: float = TAU * float(i) / 9.0 + 0.2
-		var rock := MeshInstance3D.new()
-		var box := BoxMesh.new()
-		box.size = Vector3(0.3, 0.17 + 0.05 * float(i % 3), 0.24)
-		rock.mesh = box
-		rock.material_override = stone
-		rock.position = FIRE_AT + Vector3(cos(angle) * 0.72, 0.09, sin(angle) * 0.72)
-		rock.rotation = Vector3(0.12 * float(i % 2), -angle, 0.08 * float(i % 3 - 1))
-		add_child(rock)
-	var wood := StandardMaterial3D.new()
-	wood.albedo_color = Color(0.22, 0.14, 0.09)
-	wood.roughness = 1.0
-	for i: int in 4:
-		var branch := MeshInstance3D.new()
-		var trunk := CylinderMesh.new()
-		trunk.top_radius = 0.07
-		trunk.bottom_radius = 0.08
-		trunk.height = 1.05
-		branch.mesh = trunk
-		branch.material_override = wood
-		var angle: float = PI * 0.5 * float(i) + 0.4
-		branch.position = FIRE_AT + Vector3(cos(angle) * 0.12, 0.22, sin(angle) * 0.12)
-		branch.rotation = Vector3(deg_to_rad(64.0), -angle, 0.0)
-		add_child(branch)
+	# The pit itself is authored (ADR-299, `build_camp.py`): fieldstones,
+	# an ash bed with charcoal, and split logs burned down to a point — nine
+	# boxes and four cylinders were the last of the camp built in code.
+	var pit := CAMP_HEARTH.instantiate() as Node3D
+	pit.position = FIRE_AT
+	InkPass.classify(pit)
+	add_child(pit)
 	Hearth.flames(self, FIRE_AT, 1.0)
 	Hearth.light(self, FIRE_AT + Vector3(0.0, 1.4, 0.0), FIRE_COLOUR, 2.4, 16.0, true)
 	_dress_the_camp()
@@ -1563,6 +1545,9 @@ func _build_fire() -> void:
 ## gear left by the way down, candles at the Lodge's board, and the rubble of a
 ## camp dug out of a hillside. All delivered dressing (`ART-004`), each solid,
 ## none of it on a spawn or a path between the fire and a door.
+const CAMP_HEARTH: PackedScene = preload("res://art/props/camp_hearth.glb")
+const CAMP_LOG: PackedScene = preload("res://art/props/camp_log.glb")
+const CAMP_MINE_SET: PackedScene = preload("res://art/props/mine_set.glb")
 const CAMP_DRESSING: Array = [
 	[&"dressing_ore_cart", Vector3(-3.3, 0.0, -10.4), 0.4],
 	[&"dressing_rope_coil", Vector3(3.0, 0.0, -11.0), 0.0],
@@ -1605,29 +1590,13 @@ func _dress_the_camp() -> void:
 		piece.rotation.y = float(row[2])
 		InkPass.classify(piece)
 		add_child(piece)
-	var bark := StandardMaterial3D.new()
-	bark.albedo_color = Color(0.24, 0.17, 0.11)
-	bark.roughness = 1.0
+	# Logs drawn up to the fire (ADR-299): authored, solid by their own
+	# collision box, where two bare cylinders lay.
 	for seat: Array in [[Vector3(-2.5, 0.0, -0.9), 0.4], [Vector3(2.4, 0.0, 0.6), -0.3]]:
-		var log_seat := MeshInstance3D.new()
-		var trunk := CylinderMesh.new()
-		trunk.top_radius = 0.2
-		trunk.bottom_radius = 0.22
-		trunk.height = 1.7
-		log_seat.mesh = trunk
-		log_seat.material_override = bark
-		log_seat.position = (seat[0] as Vector3) + Vector3(0.0, 0.2, 0.0)
-		log_seat.rotation = Vector3(0.0, float(seat[1]), PI * 0.5)
-		var solid := StaticBody3D.new()
-		solid.collision_layer = CollisionLayers.WORLD
-		solid.collision_mask = 0
-		var shape := CollisionShape3D.new()
-		var girth := CylinderShape3D.new()
-		girth.radius = 0.21
-		girth.height = 1.7
-		shape.shape = girth
-		solid.add_child(shape)
-		log_seat.add_child(solid)
+		var log_seat := CAMP_LOG.instantiate() as Node3D
+		log_seat.position = seat[0] as Vector3
+		log_seat.rotation.y = float(seat[1])
+		InkPass.classify(log_seat)
 		add_child(log_seat)
 
 
@@ -1867,6 +1836,48 @@ func _threshold_shot(path: String) -> void:
 	for fault: String in faults:
 		printerr("[camp] FAIL %s" % fault)
 	get_tree().quit(1 if faults.size() > 0 else 0)
+
+
+## **`--camp-shot=DIR`** (ADR-299): the camp from seven places — the spawn,
+## the fire close, both doors from inside, the Lodge's board, the camp's two
+## flanks — each with its `FlashMap`, the lettering hidden. Her hall has had
+## this since ADR-297; the camp is the other room every life walks through.
+func _camp_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	await get_tree().create_timer(0.8).timeout
+	for layer: Node in find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	var eye := Camera3D.new()
+	eye.fov = 70.0
+	eye.add_child(InkPass.new())
+	add_child(eye)
+	eye.current = true
+	var stand: float = 1.6
+	var views: Array = [
+		["spawn", SPAWNS[0] + Vector3(0.0, stand, 0.0), FIRE_AT + Vector3(0.0, 0.8, 0.0)],
+		["fire", FIRE_AT + Vector3(1.6, 1.3, 1.8), FIRE_AT + Vector3(0.0, 0.5, 0.0)],
+		["way_down", FIRE_AT + Vector3(0.0, stand, -4.0), DESCENT_AT + Vector3(0.0, 1.5, 0.0)],
+		["way_home", FIRE_AT + Vector3(0.0, stand, 4.0), CHAMBER_AT + Vector3(0.0, 1.5, 0.0)],
+		["board", BOARD_AT + Vector3(-1.2, stand, 2.2), BOARD_AT + Vector3(0.0, 1.4, 0.0)],
+		["flank_left", Vector3(-7.5, stand, 2.0), Vector3(4.0, 1.2, -4.0)],
+		["flank_right", Vector3(7.5, stand, 2.0), Vector3(-4.0, 1.2, -4.0)],
+	]
+	get_tree().paused = true
+	for view: Array in views:
+		eye.position = view[1] as Vector3
+		eye.look_at(view[2] as Vector3)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var still: Image = get_viewport().get_texture().get_image()
+		still.save_png(dir.path_join("camp-%s.png" % view[0]))
+		eye.rotate_object_local(Vector3.UP, FlashMap.TURN)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		print("[camp] shot %-11s %.2f%% of the view flashes" % [view[0],
+			FlashMap.measure(still, get_viewport().get_texture().get_image(),
+				dir.path_join("camp-%s-flash.png" % view[0])) * 100.0])
+	print("[camp] shot %d view(s) in %s" % [views.size(), dir])
+	get_tree().quit(0)
 
 
 ## Send the **client** into its own Chamber and back (`run_doorway.py`).

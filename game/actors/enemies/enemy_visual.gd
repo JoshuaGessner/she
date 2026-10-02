@@ -90,6 +90,13 @@ func _configure(path: String) -> void:
 	else:
 		_player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	_snapshot_materials()
+	# **Out of step with its neighbours** (ADR-302). Every body started its
+	# loops at zero, so a room of them breathed, glanced and shifted their
+	# weight in unison — a chorus line rather than a crowd. Offset by the
+	# body's own position, so every peer sees the same offset without sending
+	# one, and a body spawned at the same place twice keeps its habits.
+	var at: Vector3 = global_position if is_inside_tree() else position
+	_loop_time = fposmod(at.x * 1.37 + at.z * 2.11, 12.0)
 
 
 func _snapshot_materials() -> void:

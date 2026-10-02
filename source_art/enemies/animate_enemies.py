@@ -18,7 +18,7 @@ from mathutils import Quaternion, Vector
 SRC = Path(__file__).resolve().parent
 ROOT = SRC.parents[1]
 KINDS = ('wretch', 'sling_wretch', 'bellringer', 'hall_warden', 'hoard_keeper', 'gullsjukr')
-CLIPS = {'idle': 4, 'search': 3, 'walk': 1, 'run': 1, 'telegraph': 1,
+CLIPS = {'idle': 6, 'search': 3, 'walk': 1, 'run': 1, 'telegraph': 1,
          'attack': 1, 'recovery': 1, 'stagger': 1, 'death': 1,
          'call': 1, 'collect': 1, 'take': 1, 'shrug': 1}
 LOOPS = {'idle', 'search', 'walk', 'run', 'collect'}
@@ -53,10 +53,12 @@ def pose(kind, clip, t):
         for i, v in enumerate((x, y, z)):
             row[i] += v
     # Hands hang around the modeled grips; the sternum breathes separately.
-    if clip in ('idle', 'search'):
+    if clip == 'idle':
+        idle(kind, t, add)
+    elif clip == 'search':
         breath = math.sin(t*math.tau)
         add('chest', .016*breath)
-        add('head', -.012*breath, 0, .30*math.sin(t*math.tau) if clip == 'search' else .025*breath)
+        add('head', -.012*breath, 0, .30*math.sin(t*math.tau))
         add('upper_arm_l', .025*breath)
         add('upper_arm_r', -.018*breath)
     elif clip in ('walk', 'run'):
@@ -152,6 +154,64 @@ def pose(kind, clip, t):
         add('upper_arm_l', -.25*reach)
         root.z = -.15*reach
     return p, root
+
+
+def idle(kind, t, add):
+    """**A body standing still is not still** (ADR-302). Six seconds, three
+    breaths, one shift of weight from foot to foot, a glance each way — and a
+    habit of its own per kind, so a room of them reads as several creatures
+    rather than one pose copied. Every term is periodic in `t` with a whole
+    number of cycles, so the loop has no seam.
+
+    Axes are the world's, as `pose` uses them: x pitches forward, y rolls
+    about the facing, z turns."""
+    w = math.tau
+    breath = math.sin(3*w*t)
+    shift = math.sin(w*t)
+    # A glance that lingers at each end: the turn eases rather than swings.
+    glance = math.sin(w*t) + .35*math.sin(3*w*t)
+    # Weight onto one hip: the pelvis rolls, the far knee eases, the chest
+    # counters so the head stays over the feet.
+    add('pelvis', 0, .045*shift, 0)
+    add('spine_01', 0, -.03*shift, 0)
+    add('chest', .018*breath, -.02*shift, 0)
+    add('thigh_l', -.03*max(0.0, shift))
+    add('calf_l', .07*max(0.0, shift))
+    add('thigh_r', -.03*max(0.0, -shift))
+    add('calf_r', .07*max(0.0, -shift))
+    add('upper_arm_l', .02*breath)
+    add('upper_arm_r', -.015*breath)
+    if kind in ('wretch', 'sling_wretch'):
+        # Twitchy: quick small turns of the head, a shoulder that hitches,
+        # fingers that will not settle.
+        add('head', -.02*breath, .10*math.sin(2*w*t)**3, .22*glance)
+        add('upper_arm_r', -.08*max(0.0, math.sin(4*w*t))**4)
+        add('forearm_l', .10*math.sin(5*w*t))
+        add('forearm_r', .06*math.sin(4*w*t + 1.0))
+    elif kind == 'bellringer':
+        # Fretful with the bell: it rocks the hand that holds it.
+        add('head', -.02*breath, .05*math.sin(2*w*t), .18*glance)
+        add('forearm_l', .14*math.sin(2*w*t))
+        add('hand_l', .20*math.sin(2*w*t + .6))
+    elif kind == 'hall_warden':
+        # Stoic: a slow heavy breath, a guard that does not move, and a scan
+        # across the hall rather than a glance.
+        add('chest', .022*breath)
+        add('head', -.015*breath, 0, .12*math.sin(w*t))
+    elif kind == 'hoard_keeper':
+        # Hunched over what it carries, one hand patting at it.
+        add('spine_01', .06)
+        add('chest', .05)
+        add('head', -.03*breath, 0, .14*glance)
+        add('forearm_l', .16*max(0.0, math.sin(3*w*t))**2)
+    elif kind == 'gullsjukr':
+        # Weary under the gold: the shoulders sag and lift on a long breath,
+        # and the head hangs and comes up.
+        heave = math.sin(w*t)
+        add('chest', .06*heave)
+        add('head', .10 + .08*heave, 0, .10*glance)
+        add('upper_arm_l', 0, -.05*heave, 0)
+        add('upper_arm_r', 0, .05*heave, 0)
 
 
 def animate(rig, kind):

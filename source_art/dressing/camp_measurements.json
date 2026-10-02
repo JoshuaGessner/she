@@ -1,0 +1,56 @@
+[
+  {
+    "name": "camp_hearth",
+    "triangles": 1540,
+    "bounds_blender_xyz_m": [
+      [
+        -0.872,
+        0.872
+      ],
+      [
+        -0.855,
+        0.855
+      ],
+      [
+        0.0,
+        0.696
+      ]
+    ]
+  },
+  {
+    "name": "camp_log",
+    "triangles": 180,
+    "bounds_blender_xyz_m": [
+      [
+        -0.85,
+        0.85
+      ],
+      [
+        -0.249,
+        0.249
+      ],
+      [
+        0.0,
+        0.541
+      ]
+    ]
+  },
+  {
+    "name": "mine_set",
+    "triangles": 392,
+    "bounds_blender_xyz_m": [
+      [
+        -1.52,
+        1.52
+      ],
+      [
+        -0.202,
+        0.202
+      ],
+      [
+        0.0,
+        3.36
+      ]
+    ]
+  }
+]

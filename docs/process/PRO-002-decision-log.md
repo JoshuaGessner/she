@@ -10880,4 +10880,76 @@ Every other binding is unchanged, and the keyboard is untouched. A player's own 
 
 **Cost:** 17,828 triangles against the 40,000 ceiling. Two nodes. The title-screen tableau (ADR-288) uses the same model.
 
+## ADR-299 — The camp is out of the blockout: an authored hearth, logs to sit on, and its ways out are mine mouths
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T05`; amends ADR-282, ADR-283, ADR-286**
+
+**Context:** *"Make sure we improve all player accessible areas along with the dungeon kits so the feel stays the same."* `--camp-shot=DIR` (new) photographs the camp from seven places, with a `FlashMap` for each. Nothing in the camp flashes (**0.00–0.06 %**). What it showed instead was the last of the camp built in code:
+- **The fire** was nine boxes, four plain cylinders and two wide cards of flame, which read as one orange cone.
+- **The logs drawn up to it** were bare cylinders.
+- **Both ways out** were the Delvings' dressed-stone door surround standing in a natural cliff. The playtest asked for *"an actual wall cave opening"* (ADR-282), and a pale masonry block set into a hillside read as a box stuck to it.
+
+**Decision:**
+- **`build_camp.py`** authors the camp's own pieces on the dressing pipeline (`build_dressing.py`'s helpers): base-centre origin, flat material families, hard edges, the `ink` attribute, a collision box each, and `art_probe.gd` holding them to `ART-004` with everything else.
+  - **`camp_hearth`:** eleven rounded fieldstones, no two alike; a dished ash bed with charcoal; five split logs leaning into a point and burned down at the top (1,540 triangles).
+  - **`camp_log`:** a felled log with bark facets and branch stubs (180 triangles).
+  - **`mine_set`:** a mine adit's timber set — two posts on stone footings, a cap, knee braces (392 triangles). It carries its posts as `-colonly` solids, as `ART-004` asks of every placed piece, and is placed look-only (`DelvingsKit.look_of`), as the kit's own modules are, because the rock around it is the solid. Its first build had no solid, and the sweep's art census failed it; that is how this was found.
+  - The camp's wood is dark **bark** on the timber family's material identifier: live wood, not the Delvings' weathered grey.
+- **The camp's two doors are mine mouths.** `LairPassage.cut` takes an optional timber set. The camp frames each opening with one and shores the passage once more inside. Her hall is worked stone and keeps the stone surround. The set's posts stand 4 cm proud of the passage walls and its cap 4 cm under the ceiling, so no face of it shares a plane with the rock (ADR-297).
+- **A fire is several tongues** (`Hearth.flames`): four narrow licks of different heights, the tallest in the middle, where there were two wide cards. Her hall's braziers burn the same way, from the same builder.
+
+**What this is not:** colour. The Lair is ART-005's white-ground page, so lit surfaces print as paper, and form and shadow carry the camp, not hue. The cliff's own drawing (the sinuous lines a playtester might read as panelling) is the next pass of this one.
+
+**Measured:** `art_probe.gd` passes all 73 models. `--threshold-probe` passes, with 0 gaps under both doors and no panel over the camp. `--edges-probe` and `--board-probe` pass. `--camp-shot` flashes at 0.00–0.06 % of each of seven views.
+
+## ADR-300 — The camp's walls are a cliff, not panelling: outcrops on the faces and level strata
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T05`; amends ADR-287**
+
+**Context:** ADR-287 made the camp's walls rock rather than the mine's brick, using a shader that paints bedding planes, cracks, a dark foot and damp lichen on a flat nine-metre box. Seen from inside (`--camp-shot`), the faces read as **wood panelling**. The bands were warped hard enough to wind, and on a flat plane with no other edges the ink pass drew them as long sinuous grain lines.
+
+**Decision:**
+- **Outcrops stand out of the faces.** Faceted rock masses (`CampDressing.boulder`, the camp's own seeded rock) are half buried in each face, shallow across the face, tall up it and wide along it, standing out up to a metre. A cliff is read by its masses, not by lines painted on it.
+  - They sit **above head height** (`OUTCROP_LOWEST`, 2.3 m), so nothing a body can walk into is unseen and none needs a collider, and they stay off both doors.
+  - They are placed after the boulders, so the boulders' seeded layout is unchanged.
+- **The strata lie nearly level.** The warp drops from 1.6 to 0.55 at a longer wavelength, and the bands widen slightly. Sedimentary bedding is close to flat and bends gently; it is the wind in the old bands that read as grain.
+
+**Measured:** `--threshold-probe` and `--edges-probe` pass. `--camp-shot` flashes at 0.00–0.05 % of each view. Seen in `--camp-shot`'s flank views, where the faces now read as rock.
+
+## ADR-301 — The Delvings' corridors are shored: a mine's timber set every third cell
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T10`; continues ADR-263, ADR-299**
+
+**Context:** *"We need to improve the level kit models and textures further visually and for fitment."* `--delvings-shot` on a generated floor (`--delvings`) showed the kit's rooms holding up: flagstones, coursed walls, beamed ceilings, door lights. The corridors were a run of identical 2 m cells of coursed wall with nothing to mark one from the next. A corridor that reads as drawn is the one place the kit looked like a tile set. The Delvings are a Dvergar mine (DES-006), and a mine's passages are shored.
+
+**Decision:**
+- **`mine_set`**, the timber set ADR-299 authored for the camp's mouths, stands in every third straight, level, walled corridor cell (`FloorBuilder._shore`, `SHORE_EVERY` ⟨tune⟩). It is scaled to the corridor: posts 8 cm inside the cell's half-width, so they stand proud of the walls, and the cap 4 cm under `CORRIDOR_CEILING`, so no face shares a plane with the rock (ADR-297).
+- **Look only.** No solid, occluder or navmesh changes. `--kit-probe` counts the same **5,523** solids, and `--nav-probe`, `--walk-probe` and the dressing probe pass unchanged.
+- **Placed by position, not by stream:** the cell's coordinates choose it, so no seeded layout downstream shifts.
+- `--build-probe` counts the sets (**58** across three floors) and fails if none are laid. Its cut-corner count now reads corners by role (`chamfer_`) rather than by any rotation. A timber set is turned to face along its corridor, and counting rotation had read it as a cut corner (*"floor 1 cut 6 corners"*), a false failure.
+- `--delvings-shot` gains a `corridor` view looking down a shored run.
+
+**Measured:** `--build-probe`, `--kit-probe`, `--nav-probe`, `--walk-probe` and the dressing probe pass. On a generated floor, `--ink-shot`'s six views flash at **0.03–0.16 %**. Seen in `gen_corridor`.
+
+## ADR-302 — A body standing still is not still: an idle per kind, and no two in step
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T10`; continues ADR-274**
+
+**Context:** *"We need more and better animations for idle, etc. so things feel more alive and readable."* Every enemy kind and the Gullsjúkr shared one 4-second idle, which was a breath and nothing else. Every body also started its loops at time zero, so a room of them breathed and glanced in unison: a chorus line, not a crowd.
+
+**Decision:**
+- **`animate_enemies.py` bakes a 6-second idle per kind.** All kinds get three breaths, a shift of weight from hip to hip with the far knee easing and the chest countering, and a glance each way that lingers at its ends. Each kind then gets a habit of its own:
+  - **Wretch and Sling-Wretch:** twitchy, with quick small turns of the head, a hitching shoulder and restless fingers.
+  - **Bellringer:** fretful with the bell; the hand that holds it rocks.
+  - **Hall-Warden:** stoic, with a slow heavy breath, a guard that does not move, and a slow scan across the hall.
+  - **Hoard-Keeper:** hunched over what it carries, one hand patting at it.
+  - **Gullsjúkr:** weary under the gold; the shoulders sag and lift and the head hangs.
+
+  Every term has a whole number of cycles, so the loop has no seam. The amounts are ⟨tune⟩.
+- **No two in step.** `EnemyVisual` starts each body's loop clock at an offset taken from where it stands. Every peer computes the same offset, so nothing is sent.
+
+**Not this:** new locomotion or combat clips. Walk, run and the attack phases are unchanged, and the gameplay-driven sampling (ADR-274) is untouched.
+
+**Measured:** `rig_probe.gd` 0 failures. `enemy_animation_probe` passes every state on every kind, idle still and walk moving. Rendered side by side, four kinds stand in four different phases of four different idles.
+
 *Entries below to be added as design decisions are signed off.*

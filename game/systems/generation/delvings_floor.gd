@@ -67,6 +67,8 @@ var _vista_asked: bool = false
 var _vista_why: String = ""
 var _solids: Array = []
 var _dressing: Array[Dictionary] = []
+## Where a shored corridor is seen from — see `shore_view`.
+var _shore_view: Dictionary = {}
 ## The dressing's footprints grown by a body's reach: where nothing is drawn.
 var _kept_out: Array[Rect2] = []
 
@@ -195,8 +197,15 @@ func problems() -> PackedStringArray:
 
 
 func build(into: Node3D) -> void:
-	FloorBuilder.build(_plan, _graph, _seed, _depth, into, _machines)
+	_shore_view = FloorBuilder.build(_plan, _graph, _seed, _depth, into,
+		_machines)["shore_view"]
 	dress(into)
+
+
+## Somewhere to stand to see a shored corridor, for `--delvings-shot`
+## (ADR-301): `{"at", "look"}`, or empty if no corridor was shored.
+func shore_view() -> Dictionary:
+	return _shore_view
 
 
 ## **The clutter, stood up** (`M4-T10`, ADR-265) — `FloorDressing.raise` over

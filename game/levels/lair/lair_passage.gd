@@ -29,9 +29,15 @@ const DEEP: float = 4.2
 ## the wall it builds are made the same way.
 ##
 ## Returns the point inside the passage where the way through is taken.
+##
+## **`timber`** (ADR-299): a timber set to frame the opening with, and to shore
+## the passage once more inside, in place of the Delvings' dressed-stone
+## surround. Her hall is worked stone and keeps the surround; the camp's ways
+## out are a mine's mouth in a hillside, and a stone doorway standing in a
+## cliff read as a box set against it.
 static func cut(into: Node3D, slab: Callable, wall_z: float, outward: float,
 		span: float, high: float, thick: float, stone: Color, dark: Color,
-		glow: Color, glow_energy: float) -> Vector3:
+		glow: Color, glow_energy: float, timber: PackedScene = null) -> Vector3:
 	var side: float = span * 0.5 - HALF
 	for flank: float in [-1.0, 1.0]:
 		slab.call(Vector3(side, high, thick),
@@ -40,10 +46,16 @@ static func cut(into: Node3D, slab: Callable, wall_z: float, outward: float,
 	var over: float = high - HIGH
 	slab.call(Vector3(HALF * 2.0, over, thick),
 		Vector3(0.0, HIGH + over * 0.5, wall_z), stone, DelvingsKit.WALL)
-	DelvingsKit.doorway(into, Vector3(0.0, 0.0, wall_z - outward * thick * 0.5),
-		0.0 if outward < 0.0 else PI)
-
 	var start: float = wall_z + outward * thick * 0.5
+	if timber == null:
+		DelvingsKit.doorway(into, Vector3(0.0, 0.0, wall_z - outward * thick * 0.5),
+			0.0 if outward < 0.0 else PI)
+	else:
+		for at: float in [wall_z - outward * thick * 0.5, start + outward * 1.6]:
+			var timbers: Node3D = DelvingsKit.look_of(timber)
+			timbers.position = Vector3(0.0, 0.0, at)
+			into.add_child(timbers)
+
 	var middle: float = start + outward * DEEP * 0.5
 	var wall: float = 0.4
 	# **The floor runs back through the wall** (ADR-293). It began at the

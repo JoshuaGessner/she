@@ -135,6 +135,52 @@ static func rocks(into: Node3D, half_wide: float, north: float, south: float,
 			var bulk := SphereShape3D.new()
 			bulk.radius = radius * 0.8
 			_solid(into, bulk, rock.position)
+	# After the boulders, so their seeded layout is the one it always was.
+	_outcrops(into, rng, stone, half_wide, north, south, high, keep_clear)
+
+
+## **Outcrops on the faces** (ADR-300). The walls were flat nine-metre planes
+## with bedding painted on them, and a flat plane with lines on it reads as
+## panelling — the ink pass draws the strata as the only edges there are.
+## Rock stands out of a cliff: faceted masses half buried in each face,
+## standing out up to a metre, above head height so nothing a body walks into
+## is unseen and nothing needs a collider. Kept off the doors.
+const OUTCROP_LOWEST: float = 2.3
+
+
+static func _outcrops(into: Node3D, rng: RandomNumberGenerator, stone: Material,
+		half_wide: float, north: float, south: float, high: float,
+		keep_clear: Array[Vector3]) -> void:
+	var faces: Array = []
+	for i: int in 6:
+		var z: float = lerpf(north + 2.2, south - 2.2, (float(i) + rng.randf_range(-0.25, 0.25)) / 5.0)
+		faces.append([Vector3(-half_wide, 0.0, z), Vector3(1.0, 0.0, 0.0)])
+		faces.append([Vector3(half_wide, 0.0, z), Vector3(-1.0, 0.0, 0.0)])
+	for i: int in 4:
+		var x: float = lerpf(-half_wide + 2.4, half_wide - 2.4, float(i) / 3.0)
+		faces.append([Vector3(x, 0.0, north), Vector3(0.0, 0.0, 1.0)])
+		faces.append([Vector3(x, 0.0, south), Vector3(0.0, 0.0, -1.0)])
+	for face: Array in faces:
+		var at: Vector3 = face[0]
+		var blocked: bool = false
+		for clear: Vector3 in keep_clear:
+			if Vector2(at.x - clear.x, at.z - clear.z).length() < 3.2:
+				blocked = true
+		if blocked:
+			continue
+		var out: Vector3 = face[1]
+		var radius: float = rng.randf_range(1.2, 1.8)
+		var tall: float = rng.randf_range(1.3, 1.9)
+		var rock := MeshInstance3D.new()
+		rock.mesh = boulder(rng, radius)
+		rock.material_override = stone
+		# Shallow across the face's normal, tall up it, wide along it.
+		var lowest: float = OUTCROP_LOWEST + radius * tall * 1.18
+		rock.position = at + Vector3(0.0, rng.randf_range(lowest, maxf(lowest, high - 1.2)), 0.0)
+		rock.basis = Basis.looking_at(-out, Vector3.UP) \
+			* Basis(Vector3.UP, rng.randf_range(-0.2, 0.2)) \
+			* Basis.from_scale(Vector3(rng.randf_range(1.0, 1.5), tall, 0.5))
+		into.add_child(rock)
 
 
 ## **A campsite** (`DES-014`): an A-frame tent opening toward the fire, a

@@ -263,6 +263,19 @@ static func recess(node: MeshInstance3D) -> void:
 	box.size.z -= PROUD * 2.0
 
 
+## **A delivered piece, drawn and nothing else** (ADR-301). Every placed piece
+## carries its authored solid (`ART-004`), and `mesh_of` already leaves the
+## kit's behind for the same reason this does: where the room's own boxes are
+## the solid, a second set would narrow a corridor and hand Recast a world to
+## disagree with. The piece's `-colonly` bodies are freed as it is made.
+static func look_of(packed: PackedScene) -> Node3D:
+	var piece := packed.instantiate() as Node3D
+	for body: Node in piece.find_children("*", "CollisionObject3D", true, false):
+		body.free()
+	InkPass.classify(piece)
+	return piece
+
+
 ## Lay the kit over one solid box, in the box's own frame.
 ##
 ## **Nothing here makes or moves a collider.** The box stays the solid; this

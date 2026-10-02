@@ -35,10 +35,12 @@ void vertex() {
 }
 
 void fragment() {
-	float warp = noise3(world_pos * 0.4) * 1.6 + noise3(world_pos * 1.3) * 0.4;
+	// Gently bent rather than wound: strongly warped bands read as wood grain
+	// under the ink pass, and strata are nearly level (ADR-300).
+	float warp = noise3(world_pos * 0.25) * 0.55 + noise3(world_pos * 1.3) * 0.12;
 	// Bedding planes: bands across the face, bent by the warp so they are
 	// strata rather than shelves.
-	float layer = fract((world_pos.y + warp) * 0.55);
+	float layer = fract((world_pos.y + warp) * 0.42);
 	float plane = smoothstep(0.0, 0.08, layer) * (1.0 - smoothstep(0.86, 1.0, layer));
 	vec3 colour = mix(bed, rock, plane);
 	colour *= 0.85 + 0.3 * noise3(world_pos * 2.2);

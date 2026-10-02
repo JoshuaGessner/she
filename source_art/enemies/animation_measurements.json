@@ -1,7 +1,7 @@
 {
   "wretch": {
     "clips": {
-      "idle": 4,
+      "idle": 6,
       "search": 3,
       "walk": 1,
       "run": 1,
@@ -21,7 +21,7 @@
   },
   "sling_wretch": {
     "clips": {
-      "idle": 4,
+      "idle": 6,
       "search": 3,
       "walk": 1,
       "run": 1,
@@ -41,7 +41,7 @@
   },
   "bellringer": {
     "clips": {
-      "idle": 4,
+      "idle": 6,
       "search": 3,
       "walk": 1,
       "run": 1,
@@ -62,7 +62,7 @@
   },
   "hall_warden": {
     "clips": {
-      "idle": 4,
+      "idle": 6,
       "search": 3,
       "walk": 1,
       "run": 1,
@@ -82,7 +82,7 @@
   },
   "hoard_keeper": {
     "clips": {
-      "idle": 4,
+      "idle": 6,
       "search": 3,
       "walk": 1,
       "run": 1,
@@ -102,7 +102,7 @@
   },
   "gullsjukr": {
     "clips": {
-      "idle": 4,
+      "idle": 6,
       "search": 3,
       "walk": 1,
       "run": 1,

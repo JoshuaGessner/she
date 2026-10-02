@@ -264,6 +264,8 @@ var _alcoves_cut: int = 0
 var _ledges_raised: int = 0
 var _fallen_laid: int = 0
 var _hazards_laid: int = 0
+var _shored: int = 0
+var _shore_view: Dictionary = {}
 ## Every solid slab laid, as `[Transform3D, size, role]` — see `occluders`.
 var _occluders: Array = []
 
@@ -319,6 +321,8 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		"ledges": builder._ledges_raised,
 		"fallen": builder._fallen_laid,
 		"hazards": builder._hazards_laid,
+		"shored": builder._shored,
+		"shore_view": builder._shore_view,
 		"occluders": builder._occluders,
 	}
 
@@ -922,6 +926,48 @@ func _tunnel(plan: FloorPlan, cell: Vector2i, enters: float, leaves: float,
 		var out := Vector3(step.x, 0.0, step.y) * (CELL * 0.5 + WALL_THICK * 0.5)
 		_slab(thick, mid + out + Vector3(0.0, height + CORRIDOR_CEILING * 0.5, 0.0),
 			RUBBLE[_depth], 0.0, "wall")
+	_shore(plan, cell, mid, raised, rise, travel)
+
+
+## **The Delvings are a mine, and a mine's corridors are shored** (ADR-301).
+## Every third straight, level, walled cell carries a timber set — the camp's
+## `mine_set`, sized to the corridor — so a run of identical cells has a beat
+## to it and a corridor reads as dug rather than drawn. Look only: its posts
+## stand 6 cm proud of the walls and its cap 4 cm under the ceiling, so no
+## solid, occluder or navmesh changes, and no face of it shares a plane with
+## the rock (ADR-297).
+const SHORE_EVERY: int = 3
+const MINE_SET: PackedScene = preload("res://art/props/mine_set.glb")
+## The set as authored: posts centred 1.30 m out, its cap's top at 3.36 m.
+const SET_POSTS: float = 1.30
+const SET_TOP: float = 3.36
+
+
+func _shore(plan: FloorPlan, cell: Vector2i, mid: Vector3, raised: bool,
+		rise: float, travel: Vector2i) -> void:
+	if raised or absf(rise) > 0.01 or travel == Vector2i.ZERO:
+		return
+	if posmod(cell.x + cell.y, SHORE_EVERY) != 0:
+		return
+	# Straight and walled: open ahead and behind, rock to both sides.
+	var across := Vector2i(travel.y, travel.x)
+	if not plan.holds(cell + travel) or not plan.holds(cell - travel) \
+			or plan.holds(cell + across) or plan.holds(cell - across):
+		return
+	_shored += 1
+	# Somewhere to see one from, for `--delvings-shot`: a step and a half
+	# behind the first set, looking on down the corridor through it.
+	if _shore_view.is_empty():
+		var ahead := Vector3(travel.x, 0.0, travel.y)
+		_shore_view = {"at": mid - ahead * CELL * 1.5, "look": mid + ahead * CELL * 3.0}
+	if _into == null:
+		return
+	var timbers: Node3D = DelvingsKit.look_of(MINE_SET)
+	timbers.position = mid
+	timbers.rotation.y = 0.0 if travel.x == 0 else PI * 0.5
+	timbers.scale = Vector3((CELL * 0.5 + 0.08) / SET_POSTS,
+		(CORRIDOR_CEILING - 0.04) / SET_TOP, 1.0)
+	_into.add_child(timbers)
 
 
 ## **The arrangement** (`M4-T01` step 6, `DES-015` Layer 3).
