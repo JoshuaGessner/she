@@ -1,8 +1,13 @@
 {
   "asset": "her",
-  "triangles": 13524,
-  "parts": 69,
+  "triangles": 17828,
+  "parts": 87,
   "units": "metres",
   "forward": "Blender -Y / Godot +Z",
-  "origin": "centre of the hoard pile"
+  "origin": "centre of the hoard pile",
+  "form": "ormr \u2014 wingless, fused into the back wall (ADR-298)",
+  "nodes": {
+    "her_body": "everything but the head",
+    "her_head": "pivoted at the top of the neck, [0.62, -0.72, 3.7]"
+  }
 }

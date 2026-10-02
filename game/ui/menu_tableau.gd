@@ -45,7 +45,6 @@ func _ready() -> void:
 	var scales := StandardMaterial3D.new()
 	scales.albedo_color = Chamber.her_colour(0)
 	scales.roughness = 0.9
-	scales.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for node: Node in her.find_children("*", "MeshInstance3D", true, false):
 		var piece := node as MeshInstance3D
 		for surface: int in piece.mesh.get_surface_count():

@@ -10849,6 +10849,35 @@ Every other binding is unchanged, and the keyboard is untouched. A player's own 
 
 **Decision:** `recess` pulls the box in by `PROUD` on both horizontal axes. A centimetre at the ends is hidden behind the caps and gives the depth test one answer. No collider moves.
 
-**Measured:** the share of each view that flashes, before → after: door **0.68 → 0.05 %**, quarter views **0.54/0.52 → 0.08/0.07 %**, above **0.99 → 0.04 %**, head **0.68 → 0.03 %**. The two flank views read 1.1–1.7 %. What remains there is the near brick wall's mortar and the brazier, inside a metre of the camera, which genuinely move more than two pixels on a 2 cm step, plus the animated flame. The map is a tool and not an assertion, because parallax up close is not a fault.
+**The measurement had to be fixed before it could be believed.** Its first form stepped the camera 2 cm with the world running. A lit wall then flashed with every flicker of a lamp, and a wall a metre away moved 14 pixels for its parallax. In the Delvings' corridors that read as **5–6 % of the view** and looked like a disaster. Now the world is paused and the camera is *turned* a tenth of a degree, which moves every pixel about one place whatever its depth. `FlashMap` is the shared tool. `--her-shot` and the Delvings' `--delvings-shot` / `--ink-shot` both draw a map per view.
+
+**Measured, turned and paused:** with the old `recess` → with this one. Her hall: door **0.59 → 0.16 %**, quarters **0.96/0.75 → 0.06/0.06 %**, flanks **0.39/0.13 → 0.14/0.12 %**, above **1.21 → 0.16 %**, head **0.72 → 0.01 %**. The Delvings' four anchor views (entrance, spawn door, Shaft, Prize) read **0.01–0.15 % either way**: their walls end in corners and openings where the caps are buried. So this fix is the Chamber's, and the Delvings were not flashing where the shots stand. A tool rather than an assertion, read alongside its map.
+
+## ADR-298 — She is an ormr: wingless, fused into her mountain, with a stave-church head
+
+**Date:** 2026-10-02 · **Status:** accepted · **Supersedes ADR-284's form; continues ADR-050 and DES-006**
+
+**Context:** *"The dragon still looks pretty terrible. Make sure you are looking at it from different angles and do some research on nordic dragons."* Seen from seven places (`--her-shot`, ADR-297), ADR-284's model was a smooth grey tube with a dog's muzzle on a stalk of neck. Its folded wings could not be seen from any angle, its legs splayed like a lizard's on a rug, and its skin carried no line for the ink pass to draw.
+
+**The references, and what each gives her:**
+- **The Ramsund carving** (Sigurd's stone, c. 1030): Fáfnir is an *ormr*, a serpent whose body is the band the runes run along. Her pattern is his (DES-006), so her form is his.
+- **Urnes-style beasts** (the Urnes stave church, 11th–12th c.): long ribbon bodies with a raised rim along each flank, interlaced and ending in spiral curls. They give her the double contour down her body and the curl of her tail.
+- **The stave-church gable heads** (Borgund, Urnes) and **the Oseberg ship's animal posts**: an open-jawed carved head with the upper lip rolled up into a spiral, an almond eye under a heavy brow, a lappet streaming back off the skull, and a crest down the neck.
+- **Wingless**, as an ormr and a lindworm are. She *cannot leave her mountain* (DES-001). Wings say the opposite, and they cost the most surface while reading from no angle.
+
+**Decision:** `build_her.py` rebuilds her from those references.
+- **She is fused into the mountain.** Her chest comes out of the back wall at the right, her tail out of it at the left, and an arch of her rises out of the floor behind the pile, as if the rest of her is the stone. ADR-050's fusing with each lineage was colour only. The shape says it now from the first visit, and it is also the only way a 16 m hall holds her, with 2.7 m behind the pile.
+- **The way in stays open.** Nothing of her stands below 2.6 m in the 2.4 m-wide way from the door to the pile. Her head looms over the front of the hoard, looking down at whoever kneels there.
+- **Her eyes are gold** (`eye`, emissive), the one saturated colour on her, because she wants what glitters. Her hide stays the one `her` material the Chamber recolours each visit (ADR-050).
+- **Her head is a node of its own**, pivoted at the top of the neck, so the Chamber turns it toward you, and her body breathes. That is the cheapest way to make her alive: no skeleton and no clips. ⟨tune⟩ limits.
+- **Her collision is redrawn to her new body**, and the old boxes for wings and the left-hand tail are gone.
+
+**And her room's plates go, as the camp's did (ADR-294).** *The Chamber* and *The Tithe* stay as words and lose their boxes: the Lair theme's `Frame` draws no paper, band or corners, and the Lair's four tones carry a paper-coloured halo (`outline_size` 6). Dark ink on the white page then reads over the room and over her alike. ADR-029's cycle line is still in its own corner and still unmissable.
+
+**And ADR-297's flash map is corrected, in this commit, because it misled.** It is now the shared `FlashMap`, run paused and turned rather than stepped, and the Delvings' shots draw it too. The numbers in ADR-297 are the corrected ones.
+
+**Measured:** `--lair-probe` passes: the walk from the door to the hoard is clear and there is 0 gap under the door. `--ink-probe` reads the Lair's ink at **15.7 / 7.0 / 5.9 / 6.4 : 1** against the paper it is haloed in. `--hud-probe` and `--menu-probe` pass. `--chamber-shot` lays out three regions with no overlap. `--her-shot` flashes at **0.01–0.16 %** of each of seven views. Seen in `--her-shot`, `--chamber-shot` and `--menu-shot`. The gaze limits, breath and brow are ⟨tune⟩ against a walk-up in play.
+
+**Cost:** 17,828 triangles against the 40,000 ceiling. Two nodes. The title-screen tableau (ADR-288) uses the same model.
 
 *Entries below to be added as design decisions are signed off.*

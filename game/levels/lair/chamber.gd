@@ -93,13 +93,35 @@ const VALUE_PER_LUMP: int = 25
 const HER_MODEL: PackedScene = preload("res://art/heroes/her.glb")
 ## The boxes she was, kept as what she is to a body (ADR-284): size, then
 ## centre relative to the hoard.
+## Redrawn to the ormr (ADR-298), each box round one part of her, and none
+## of them in the way from the door to the pile (|x| < 1.2).
 const HER_SHAPE: Array = [
-	[Vector3(11.0, 3.2, 3.0), Vector3(0.0, 1.6, -2.4)],
-	[Vector3(4.0, 2.0, 2.4), Vector3(-3.4, 1.0, -0.6)],
-	[Vector3(4.0, 2.0, 2.4), Vector3(3.4, 1.0, -0.6)],
-	[Vector3(2.0, 3.0, 2.0), Vector3(0.0, 2.9, -1.4)],
-	[Vector3(2.2, 1.5, 5.0), Vector3(-5.2, 0.75, 1.0)],
+	# her chest, out of the wall at the right
+	[Vector3(2.2, 2.0, 5.4), Vector3(3.8, 1.0, -0.9)],
+	# where her neck leaves it
+	[Vector3(1.6, 1.4, 1.2), Vector3(2.6, 1.6, 1.8)],
+	# the outer foreleg, and the inner
+	[Vector3(1.2, 1.2, 2.4), Vector3(4.0, 0.6, 2.5)],
+	[Vector3(1.3, 1.0, 1.8), Vector3(2.05, 0.5, 3.0)],
+	# her tail, out of the wall at the left, and its curl
+	[Vector3(1.6, 1.4, 4.2), Vector3(-4.0, 0.7, -0.6)],
+	[Vector3(2.4, 0.7, 1.6), Vector3(-2.4, 0.35, 2.6)],
+	# the arch of her behind the pile
+	[Vector3(4.2, 2.0, 1.4), Vector3(0.0, 1.0, -2.5)],
 ]
+## **She is alive** (ADR-298): a breath every few seconds, and her head turning
+## after you about the top of her neck — slowly, because she is old and has all
+## the time there is. Limits and rates ⟨tune⟩.
+const BREATH_SECONDS: float = 5.5
+const BREATH_HEAVE: float = 0.012
+const GAZE_YAW: float = 18.0
+const GAZE_PITCH: float = 14.0
+const GAZE_EASE: float = 0.9
+## Which way her head points at rest, in her own frame — `build_her.py` aims
+## it 38° to her left and 24° down, so from the door she is seen in three-
+## quarter profile and watches you with one eye — and her gaze turns only part
+## of the way, so she keeps it.
+const GAZE_REST: Vector3 = Vector3(-0.563, -0.407, 0.720)
 ## **What the pile is made of** (ADR-284): the treasure a run brings back, not
 ## brown bricks. Picked by a fixed sequence so the pile is the same pile every
 ## visit and only grows.
@@ -114,6 +136,11 @@ var _player: Player = null
 ## The Settle beat's banner, while it is up (`M3-T08`).
 var _deeds_banner: DeedsBanner = null
 var _hoard_root: Node3D = null
+var _her: Node3D = null
+var _her_head: Node3D = null
+var _her_head_rest: Transform3D = Transform3D.IDENTITY
+var _her_time: float = 0.0
+var _gaze: Vector2 = Vector2.ZERO
 ## The three regions the readout was split into (`M4-T20`). Held rather than
 ## rebuilt each frame: only the values change, and a container rebuilt every
 ## frame is one that cannot hold focus or animate.
@@ -514,20 +541,25 @@ func _build_room() -> void:
 ## against a wall.
 func _build_her() -> void:
 	var skin: Color = her_colour(GameState.descents)
-	# **Her, not seven boxes** (ADR-284): `her.glb`, swept from curves so the
-	# silhouette carries across a dark hall — the coil behind the pile, a neck
-	# arching over it, a horned head looking down at what you bring, wings
-	# folded, a tail round the left. The boxes she used to be stay as her
-	# collision, unseen, so where a body can stand has not moved.
+	# **An ormr, fused into her mountain** (ADR-298): `her.glb`, built from the
+	# Ramsund carving's Fáfnir, the Urnes beasts and the stave-church gable
+	# heads — her chest and tail coming out of the back wall, an arch of her
+	# out of the floor, two forelegs on the stone before the pile, and a carved
+	# head with gold eyes looming over it. Her collision is boxes round each
+	# part (`HER_SHAPE`), unseen, and none of them in the way to the pile.
 	var body: Node3D = HER_MODEL.instantiate() as Node3D
 	body.name = "Her"
 	body.position = HOARD_AT
 	add_child(body)
+	_her = body
+	_her_head = body.find_child("her_head", true, false) as Node3D
+	if _her_head == null:
+		push_error("Chamber: her model has no `her_head` to turn toward you")
+	else:
+		_her_head_rest = _her_head.transform
 	var scales := StandardMaterial3D.new()
 	scales.albedo_color = skin
 	scales.roughness = 0.9
-	# Her wings are a single membrane, seen from either side.
-	scales.cull_mode = BaseMaterial3D.CULL_DISABLED
 	for node: Node in body.find_children("*", "MeshInstance3D", true, false):
 		var piece := node as MeshInstance3D
 		for surface: int in piece.mesh.get_surface_count():
@@ -545,6 +577,31 @@ func _build_her() -> void:
 		solid.add_child(shape)
 		solid.position = HOARD_AT + (block[1] as Vector3)
 		add_child(solid)
+
+
+## Her breath and her gaze, every frame (ADR-298). The breath lifts her a
+## little and lets her down; her head turns after `toward`, within limits, as
+## slowly as something that old turns. Look only — nothing here is solid.
+func _tend_her(delta: float, toward: Vector3) -> void:
+	if _her == null:
+		return
+	_her_time += delta
+	var breath: float = sin(_her_time * TAU / BREATH_SECONDS)
+	_her.scale = Vector3(1.0, 1.0 + BREATH_HEAVE * breath, 1.0 + BREATH_HEAVE * 0.5 * breath)
+	if _her_head == null:
+		return
+	var from: Vector3 = _her.global_transform * _her_head_rest.origin
+	var look: Vector3 = (_her.global_basis.inverse() * (toward - from)).normalized()
+	var want := Vector2(
+		clampf(atan2(look.x, look.z) - atan2(GAZE_REST.x, GAZE_REST.z),
+			-deg_to_rad(GAZE_YAW), deg_to_rad(GAZE_YAW)),
+		clampf(asin(clampf(look.y, -1.0, 1.0)) - asin(GAZE_REST.y),
+			-deg_to_rad(GAZE_PITCH), deg_to_rad(GAZE_PITCH)))
+	_gaze = _gaze.lerp(want, clampf(delta * GAZE_EASE, 0.0, 1.0))
+	var across: Vector3 = Vector3.UP.cross(GAZE_REST).normalized()
+	_her_head.transform = Transform3D(
+		Basis(Vector3.UP, _gaze.x) * Basis(across, -_gaze.y) * _her_head_rest.basis,
+		_her_head_rest.origin)
 
 
 static func her_colour(descents: int) -> Color:
@@ -676,6 +733,7 @@ func _fill_the_tithe() -> void:
 func _process(delta: float) -> void:
 	if _player == null or _place == null:
 		return
+	_tend_her(delta, _player.global_position + Vector3(0.0, 1.6, 0.0))
 	if _refusal_left > 0.0:
 		_refusal_left = maxf(0.0, _refusal_left - delta)
 		if _refusal_left <= 0.0:
@@ -1383,6 +1441,8 @@ func _her_shot(dir: String) -> void:
 		["above", Vector3(0.0, 5.6, 3.0), HOARD_AT + Vector3(0.0, 0.5, -0.5)],
 		["head", head + Vector3(1.4, -0.4, 2.6), head],
 	]
+	# Paused, so the braziers' flicker is not counted as a surface flashing.
+	get_tree().paused = true
 	for view: Array in views:
 		eye.position = view[1] as Vector3
 		eye.look_at(view[2] as Vector3)
@@ -1390,44 +1450,16 @@ func _her_shot(dir: String) -> void:
 		await RenderingServer.frame_post_draw
 		var still: Image = get_viewport().get_texture().get_image()
 		still.save_png(dir.path_join("her-%s.png" % view[0]))
-		# **Where it flashes** — the same view a step of 2 cm to the side. A
-		# true edge moves a pixel or two; two faces fighting over one plane
-		# swap whole runs of pixels, so what changes far more than a 2 cm step
-		# can explain is painted red over a dimmed copy of the view.
-		eye.position += eye.global_basis.x * 0.02
+		# **Where it flashes** — the same view turned a hair (`FlashMap`).
+		eye.rotate_object_local(Vector3.UP, FlashMap.TURN)
 		await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		var stepped: Image = get_viewport().get_texture().get_image()
 		print("[lair] her shot %-13s %.2f%% of the view flashes"
-			% [view[0], _flashing(still, stepped, dir.path_join(
+			% [view[0], FlashMap.measure(still, stepped, dir.path_join(
 				"her-%s-flash.png" % view[0])) * 100.0])
 	print("[lair] her shot %d view(s) in %s" % [views.size(), dir])
 	get_tree().quit(0)
-
-
-## The share of `a` that changes past what a 2 cm step explains, with a map of
-## where saved to `path`. A pixel counts when it differs from `b` at the same
-## place *and* at every neighbour within two pixels — so an edge that slid by a
-## pixel is not counted, and a face that swapped is.
-static func _flashing(a: Image, b: Image, path: String) -> float:
-	var size: Vector2i = a.get_size()
-	var map := Image.create(size.x, size.y, false, Image.FORMAT_RGB8)
-	var flashing: int = 0
-	for y: int in range(2, size.y - 2):
-		for x: int in range(2, size.x - 2):
-			var here: Color = a.get_pixel(x, y)
-			var nearest: float = INF
-			for dy: int in range(-2, 3):
-				for dx: int in range(-2, 3):
-					var there: Color = b.get_pixel(x + dx, y + dy)
-					nearest = minf(nearest, absf(here.get_luminance() - there.get_luminance()))
-			var shown: Color = here.darkened(0.6)
-			if nearest > 0.18:
-				flashing += 1
-				shown = Color(1.0, 0.1, 0.1)
-			map.set_pixel(x, y, shown)
-	map.save_png(path)
-	return float(flashing) / float(size.x * size.y)
 
 
 func _hold(seconds: float) -> void:

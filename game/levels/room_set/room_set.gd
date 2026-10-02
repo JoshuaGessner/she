@@ -3815,8 +3815,23 @@ func _delvings_shot(path: String, ink: bool = false) -> void:
 		await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		var shot: String = "%s_%s.png" % [path.trim_suffix(".png"), view[0]]
-		get_viewport().get_texture().get_image().save_png(shot)
-		print("[delvings] %-9s → %s" % [view[0], shot.get_file()])
+		# **And where it flashes** (ADR-297): the same view turned a hair, with
+		# the world paused so a door lamp's flicker is not counted as a fault.
+		get_tree().paused = true
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var still: Image = get_viewport().get_texture().get_image()
+		still.save_png(shot)
+		# From where the body has settled, not from `at`: it was put down a
+		# hand above the floor and has since landed.
+		player.teleport(player.global_position, yaw + FlashMap.TURN)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var flashes: float = FlashMap.measure(still,
+			get_viewport().get_texture().get_image(), shot.replace(".png", "-flash.png"))
+		get_tree().paused = false
+		print("[delvings] %-9s → %s, %.2f%% of the view flashes"
+			% [view[0], shot.get_file(), flashes * 100.0])
 	get_tree().quit()
 
 
