@@ -1206,9 +1206,9 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# being remembered is one that gets broken by whoever needs a nice sound
 	# late one night, months after anybody reads `ART-003`.
 	#
-	# `[camp] ground` is required as well as clean: the camp's two panels are on
-	# the hub's palette because they carry it (ADR-216), and a panel built
-	# without it draws the Deep's colours with every other row still green.
+	# `[camp] ground` is required as well as clean: the camp draws no panel
+	# over itself and its lettering carries an outline (ADR-294), and a row
+	# that never printed would leave that unasked with every other row green.
 	camp="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/lair/threshold.tscn -- --threshold-probe 2>&1)"
 	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$camp" \

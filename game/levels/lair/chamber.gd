@@ -159,7 +159,7 @@ func _ready() -> void:
 		if arg == "--saving-probe":
 			SaveFile.plant_a_newer_one()
 			GameState.load_profile()
-		if arg.begins_with("--chamber-shot="):
+		if arg.begins_with("--chamber-shot=") or arg.begins_with("--her-shot="):
 			GameState.hoard_value = 2400
 			# And her longest demand, part given, so the row is photographed
 			# at the widest it runs (ADR-243).
@@ -185,6 +185,8 @@ func _ready() -> void:
 			_leave_soon()
 		elif arg.begins_with("--chamber-shot="):
 			_chamber_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--her-shot="):
+			_her_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--pact-shot="):
 			_pact_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
@@ -1353,6 +1355,79 @@ func _chamber_shot(path: String) -> void:
 	for fault: String in faults:
 		printerr("[lair] FAIL %s" % fault)
 	get_tree().quit(1 if faults.size() > 0 else 0)
+
+
+## **`--her-shot=DIR`** (ADR-297): her, and the hall she lies in, from seven
+## places — the door, both quarters, both flanks, above, and close on her head
+## — with the readouts hidden. A dragon judged from the one view the door gives
+## was judged by her best side; a surface that flashes as you walk is found by
+## looking at it from more than one place.
+func _her_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	await _hold(0.6)
+	for layer: Node in find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	var eye := Camera3D.new()
+	eye.fov = 70.0
+	# Drawn as the player sees it: the ink pass is the art style (ADR-269).
+	eye.add_child(InkPass.new())
+	add_child(eye)
+	eye.current = true
+	var head: Vector3 = HOARD_AT + Vector3(0.0, 3.6, 1.6)
+	var views: Array = [
+		["door", SPAWN_AT + Vector3(0.0, 1.5, 0.0), HOARD_AT + Vector3(0.0, 2.0, 0.0)],
+		["quarter_left", Vector3(-5.5, 2.2, 2.5), HOARD_AT + Vector3(0.0, 1.8, 0.0)],
+		["quarter_right", Vector3(5.5, 2.2, 2.5), HOARD_AT + Vector3(0.0, 1.8, 0.0)],
+		["flank_left", Vector3(-7.2, 1.6, -4.0), HOARD_AT + Vector3(0.0, 1.6, -0.5)],
+		["flank_right", Vector3(7.2, 1.6, -4.0), HOARD_AT + Vector3(0.0, 1.6, -0.5)],
+		["above", Vector3(0.0, 5.6, 3.0), HOARD_AT + Vector3(0.0, 0.5, -0.5)],
+		["head", head + Vector3(1.4, -0.4, 2.6), head],
+	]
+	for view: Array in views:
+		eye.position = view[1] as Vector3
+		eye.look_at(view[2] as Vector3)
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var still: Image = get_viewport().get_texture().get_image()
+		still.save_png(dir.path_join("her-%s.png" % view[0]))
+		# **Where it flashes** — the same view a step of 2 cm to the side. A
+		# true edge moves a pixel or two; two faces fighting over one plane
+		# swap whole runs of pixels, so what changes far more than a 2 cm step
+		# can explain is painted red over a dimmed copy of the view.
+		eye.position += eye.global_basis.x * 0.02
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var stepped: Image = get_viewport().get_texture().get_image()
+		print("[lair] her shot %-13s %.2f%% of the view flashes"
+			% [view[0], _flashing(still, stepped, dir.path_join(
+				"her-%s-flash.png" % view[0])) * 100.0])
+	print("[lair] her shot %d view(s) in %s" % [views.size(), dir])
+	get_tree().quit(0)
+
+
+## The share of `a` that changes past what a 2 cm step explains, with a map of
+## where saved to `path`. A pixel counts when it differs from `b` at the same
+## place *and* at every neighbour within two pixels — so an edge that slid by a
+## pixel is not counted, and a face that swapped is.
+static func _flashing(a: Image, b: Image, path: String) -> float:
+	var size: Vector2i = a.get_size()
+	var map := Image.create(size.x, size.y, false, Image.FORMAT_RGB8)
+	var flashing: int = 0
+	for y: int in range(2, size.y - 2):
+		for x: int in range(2, size.x - 2):
+			var here: Color = a.get_pixel(x, y)
+			var nearest: float = INF
+			for dy: int in range(-2, 3):
+				for dx: int in range(-2, 3):
+					var there: Color = b.get_pixel(x + dx, y + dy)
+					nearest = minf(nearest, absf(here.get_luminance() - there.get_luminance()))
+			var shown: Color = here.darkened(0.6)
+			if nearest > 0.18:
+				flashing += 1
+				shown = Color(1.0, 0.1, 0.1)
+			map.set_pixel(x, y, shown)
+	map.save_png(path)
+	return float(flashing) / float(size.x * size.y)
 
 
 func _hold(seconds: float) -> void:

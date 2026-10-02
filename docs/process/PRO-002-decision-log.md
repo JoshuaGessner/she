@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-01
+updated: 2026-10-02
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -10799,5 +10799,56 @@ Every other binding is unchanged, and the keyboard is untouched. A player's own 
 - **`LairPassage.floor_gaps`** casts down across each threshold at the middle and both sides, every 10 cm. The camp's `--threshold-probe` asks it of both doors, and the Chamber's `--lair-probe` asks it of the door back.
 
 **Measured:** `--threshold-probe` reports *0 gap(s) under the way down, 0 under the way to her*. With the old floor restored as a plant, it reports **21 and 21** and fails. `--lair-probe` reports 0 under the Chamber's door. Seen in `--hands-shot`: the guard frame shows the fist closed on the bar behind the boss.
+
+## ADR-294 — The camp draws no plates, and its controls live in settings
+
+**Date:** 2026-10-02 · **Status:** accepted · **Reverses ADR-139's control card at the fire; amends ADR-198, ADR-289**
+
+**Context:** a playtest: *"I don't like the white boxes with text in the camp screen. We don't need controls on screen when in the camp. They can be viewed and changed in settings."* The camp drew two framed panels: its state (descent, stash, hoard, the Lodge, party, two directions) at the top left, and the full control card at the bottom left. ADR-139 had put the card at the fire because testers first needed the controls under pressure. Since then, rebinding (ADR-245) made the settings screen the place a player learns *and changes* them, and it is one key away from anywhere (ADR-137).
+
+**Decision:** the developer's call.
+- **The control card is gone from the camp.** `ControlsScreen` is now the only rendering of the table, so there is no second list to go stale and nothing for the probe to keep in step.
+- **What stays is outlined lettering, not a panel:** the not-saving warning when it applies, the descent, and the party count only when the camp is open to others. It is set in the reticle's `PromptText`, pale with a dark outline, which reads over the fire and the dark alike.
+- **Dropped from the camp:** the stash and the hoard (shown in her Chamber), the Lodge's standing (shown on its board), and the two direction lines (the doors are lit and say it themselves, ADR-282).
+
+**Measured:** `--threshold-probe`'s `[camp] ground` row now asserts no panel over the camp and lettering with an outline: *8 px, 0 panels*. Its control-card rows are deleted with the card. The camp's layout check passes windowed with two regions and no overlaps. **Still to do in the same pass:** the Chamber's two panels, *The Chamber* and *The Tithe*, which carry load-bearing state (ADR-029), and are restyled with her room.
+
+## ADR-295 — An enemy's senses are on its body: eyes that kindle, a head that listens
+
+**Date:** 2026-10-02 · **Status:** accepted · **Amends DES-013's presentation; replaces the sense lamps**
+
+**Context:** a playtest asked to *"remove the debug cubes above enemy heads."* They were the two sense lamps, sight and hearing, and the only way to tell *it saw you* from *it only heard something*. That is the difference between being spotted and being able to bluff (DES-013).
+
+**Decision:** the developer chose to move the signal onto the body. *Reference: Thief's guards and Dishonored's, whose attention is read off the body rather than over it.*
+- **Its eyes kindle while it sees you:** two small self-lit eyes on the shared rig's head bone, cold until sight. They light themselves, so the dark does not hide them. They read as value, not hue (ART-005).
+- **Its head cocks and sweeps while it only hears:** a tilt and a slow turn layered over whatever clip is playing.
+- Both run on every peer, off the `_sees` and `_hears` flags that were already replicated. Nothing new is sent.
+
+**Measured:** the cubes, `SENSE_ON`/`SENSE_OFF` and `_build_lamp` are deleted. Rendered on the Wretch, Hall-Warden, Bellringer and Hoard-Keeper: eyes at full brightness when seeing and listening at full when only hearing, with eyes cold and head still when unaware. Size and placement are ⟨tune⟩ against a playtest at range.
+
+## ADR-296 — A bow is held in the left fist and drawn with the right; a thing in use sits on an open hand
+
+**Date:** 2026-10-02 · **Status:** accepted · **Continues ADR-280 and ADR-293**
+
+**Context:** *"The hands are weird placement on other items as well … the hand placement on bow for instance."* Two faults:
+- **The bow was in the weapon hand.** The right fist gripped the stave at the right of the view while the left hung empty beside a two-handed weapon.
+- **The binding and the Waystone faced their fist at the camera.** With ADR-293's wrist rule, the forearm followed the fist round, so the eye looked straight down the bracer's open cuff.
+
+**Decision:**
+- **The bow** stands at the left, canted top-right, in the left fist. The right hand is on the string. The string and the nocked arrow ride back together as it is drawn, and the bow comes up toward the eye line. *Reference: Skyrim's bow.* Poses and draw length are ⟨tune⟩.
+- **A thing in use rests on the left palm.** The hand comes up from below with its elbow along the tuned forearm direction (`Hands/Palm`), and the item sits on it.
+- `--hands-shot` gains a frame mid-draw (`-drawn.png`).
+
+**Measured:** `--hands-probe` passes. Its binding row now asks the wrist about the palm it is posed to (*0.000 m, 0.0°*) and the palm about the roll it holds (*0.081 m*, inside `PALM_UNDER`).
+
+## ADR-297 — Wall ends are recessed under their masonry, and a flash map finds what fights
+
+**Date:** 2026-10-02 · **Status:** accepted · **Amends ADR-263's cladding**
+
+**Context:** *"The dragon room still has some flashing textures."* A photograph from the door shows nothing wrong, because a flicker is something seen while moving. `--her-shot=DIR` now photographs her hall from seven places, then steps each view 2 cm to the side and maps in red what changed by more than a 2 cm step can explain. The red was solid down every pier and at every wall end. `DelvingsKit.recess` pulled a clad wall's box in under its long faces only, so each panel's end cap was drawn on the same plane as the box's end.
+
+**Decision:** `recess` pulls the box in by `PROUD` on both horizontal axes. A centimetre at the ends is hidden behind the caps and gives the depth test one answer. No collider moves.
+
+**Measured:** the share of each view that flashes, before → after: door **0.68 → 0.05 %**, quarter views **0.54/0.52 → 0.08/0.07 %**, above **0.99 → 0.04 %**, head **0.68 → 0.03 %**. The two flank views read 1.1–1.7 %. What remains there is the near brick wall's mortar and the brazier, inside a metre of the camera, which genuinely move more than two pixels on a 2 cm step, plus the animated flame. The map is a tool and not an assertion, because parallax up close is not a fault.
 
 *Entries below to be added as design decisions are signed off.*

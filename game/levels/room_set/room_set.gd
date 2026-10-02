@@ -15197,22 +15197,28 @@ func _hands_probe() -> void:
 	body.mending = 0.5
 	await _hold(0.5)
 	var roll: Node3D = hands.use_look() if hands != null else null
-	var left_use: float = _hand_grip_distance(arm_skeleton, &"sock_hand_l",
-		hands.get_node_or_null(^"InUse") as Node3D if hands != null else null)
+	# The left hand holds it from below (ADR-296), so the wrist is asked about
+	# the palm the arm is posed to — and the palm about the thing it holds.
+	var palm: Node3D = hands.get_node_or_null(^"Palm") as Node3D if hands != null else null
+	var held: Node3D = hands.get_node_or_null(^"InUse") as Node3D if hands != null else null
+	var on_palm: float = palm.global_position.distance_to(held.global_position) \
+		if palm != null and held != null else INF
+	var left_use: float = _hand_grip_distance(arm_skeleton, &"sock_hand_l", palm)
 	var right_use: float = _hand_grip_distance(arm_skeleton, &"sock_hand_r",
 		body.weapon.grip())
-	var left_use_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_l",
-		hands.get_node_or_null(^"InUse") as Node3D if hands != null else null)
+	var left_use_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_l", palm)
 	var right_use_turn: float = _hand_grip_turn(arm_skeleton, &"sock_hand_r",
 		body.weapon.grip())
 	var shrunk: float = roll.scale.x if roll != null else 1.0
 	body.mending = 0.0
 	await _hold(0.8)
 	var put_away: bool = hands != null and hands.use_look() == null
-	print("[hands] binding     %s, at %.2f of its size half-tied, wrists %.3f/%.3f m %.1f/%.1f°, %s" % [
+	print("[hands] binding     %s, at %.2f of its size half-tied, wrists %.3f/%.3f m %.1f/%.1f°, %.3f m off the palm, %s" % [
 		"in hand" if roll != null else "nothing", shrunk, left_use, right_use,
-		left_use_turn, right_use_turn,
+		left_use_turn, right_use_turn, on_palm,
 		"put away" if put_away else "still held"])
+	if on_palm > Hands.PALM_UNDER.length() + 0.01:
+		problems.append("the binding is %.3f m from the palm holding it" % on_palm)
 	if roll == null or shrunk > 0.95 or not put_away or left_use > 0.015 or right_use > 0.015 \
 			or left_use_turn > 3.0 or right_use_turn > 3.0:
 		problems.append("a binding half-tied showed %s and was %s afterwards"
@@ -16280,6 +16286,13 @@ func _hands_shot(path: String) -> void:
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(
 		path.replace(".png", "-bow.png"))
+	# Most of the way through a draw (ADR-296): the left fist on the stave and
+	# the right hand back on the string, where a bow at rest hides it.
+	body.ranged.begin_owned_draw()
+	await _hold(body.ranged.kit().draw_seconds * 0.85)
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(
+		path.replace(".png", "-drawn.png"))
 	print("[hands] shot %s" % path)
 	get_tree().quit(0)
 

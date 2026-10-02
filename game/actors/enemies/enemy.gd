@@ -48,11 +48,6 @@ const TINTS: Dictionary = {
 	State.DEAD: Color(0.12, 0.12, 0.13),
 }
 const TELEGRAPH_TINT: Color = Color(0.95, 0.95, 0.95)
-## Sense lamps read as value, not hue: ART-005 reserves saturated colour for
-## treasure, and a green/red pair here would compete with the one thing in the
-## game allowed to be coloured.
-const SENSE_ON: Color = Color(1.0, 1.0, 1.0)
-const SENSE_OFF: Color = Color(0.14, 0.14, 0.15)
 
 ## Replication rate, matching the player's. ADR-068 measured the budget at
 ## 20 Hz and put the ceiling at ~29 continuously-moving entities; a room set
@@ -190,8 +185,6 @@ var _target: Node3D = null
 var rooted: Rooted = null
 var _agent: NavigationAgent3D = null
 var _repath_in: float = 0.0
-var _sight_lamp: StandardMaterial3D = null
-var _hearing_lamp: StandardMaterial3D = null
 
 var _heard_for: float = 0.0
 var _hearing_now: bool = false
@@ -298,30 +291,15 @@ func _ready() -> void:
 	_hurtbox.hit.connect(_on_hurt)
 	health.died.connect(_on_died)
 	_visual.configure_enemy(_kind)
-	_sight_lamp = _build_lamp(Vector3(-0.16, 2.1, 0))
-	_hearing_lamp = _build_lamp(Vector3(0.16, 2.1, 0))
 	# A threat outlines at full weight wherever it stands, lit or not
-	# (`ART-005`, ADR-269) — the body and its sense lamps both.
+	# (`ART-005`, ADR-269).
 	InkPass.mark(self)
 	# Applied from whatever `_state` already holds rather than assuming
 	# UNAWARE. Spawn state can land either side of `_ready` depending on how
 	# the spawn packet is applied, and an enemy that arrived dead must not
 	# stand back up because this ran in the wrong order.
 	_apply_state()
-	_update_sense_markers()
-
-
-func _build_lamp(offset: Vector3) -> StandardMaterial3D:
-	var box := BoxMesh.new()
-	box.size = Vector3(0.22, 0.22, 0.22)
-	var material := StandardMaterial3D.new()
-	material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-	var lamp := MeshInstance3D.new()
-	lamp.mesh = box
-	lamp.material_override = material
-	lamp.position = offset
-	add_child(lamp)
-	return material
+	_visual.senses(_sees, _hears)
 
 
 ## Poise remaining, 0–1. For probes and for `M4-T02`'s archetypes, which will
@@ -440,14 +418,15 @@ func take_test_hit(amount: float, from: Node = null) -> void:
 	_on_hurt(amount, from)
 
 
-## The sense lamps, every frame, on every peer.
+## What it senses, every frame, on every peer — its eyes and its head
+## (ADR-295), where the two lamps over it were.
 ##
 ## Moved out of `_physics_process` by `M1-T05`: that function now belongs to
-## the host, and DES-013 requires every transition to be legible — a lamp that
-## only lit on the host's screen would make the awareness ladder unreadable for
-## exactly the player who is not hosting.
+## the host, and DES-013 requires every transition to be legible — a sign that
+## only showed on the host's screen would make the awareness ladder unreadable
+## for exactly the player who is not hosting.
 func _process(delta: float) -> void:
-	_update_sense_markers()
+	_visual.senses(_sees, _hears)
 	# **Struck, it flinches** (ADR-279) — read off the replicated health rather
 	# than the host's damage signal, so every peer sees every blow land.
 	if health.current < _health_seen - 0.01 and _state != State.DEAD:
@@ -1145,14 +1124,3 @@ func _fall_over() -> void:
 func _apply_tint() -> void:
 	var tint: Color = TELEGRAPH_TINT if _attack == Attack.TELEGRAPH else TINTS[_state]
 	_visual.set_tint(tint)
-
-
-## Two lamps over the head: left is sight, right is hearing. Separate marks
-## rather than one "aware" light, because the whole point of splitting the
-## senses is being able to see *which* one has you — sight means you are
-## spotted, hearing alone means the enemy is guessing at a position.
-func _update_sense_markers() -> void:
-	if _sight_lamp == null:
-		return
-	_sight_lamp.albedo_color = SENSE_ON if _sees else SENSE_OFF
-	_hearing_lamp.albedo_color = SENSE_ON if _hears else SENSE_OFF

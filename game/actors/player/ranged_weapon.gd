@@ -43,10 +43,22 @@ enum Phase { IDLE, DRAWING, RECOVERY }
 ## Blockout poses, as (position, rotation-in-degrees), on `MeleeWeapon`'s
 ## convention. The draw is the whole telegraph — ADR-053's 250 ms floor exists
 ## so an enemy can read one — so it has to be visible as travel, not as a state.
-const POSE_REST: Array = [Vector3(0.34, -0.30, -0.66), Vector3(4, -8, -6)]
-const POSE_DRAWN: Array = [Vector3(0.16, -0.16, -0.48), Vector3(-2, -26, -2)]
-## How far behind the grip the nocked arrow's middle sits, metres ⟨tune⟩.
-const NOCK_BACK: float = 0.2
+##
+## **Held in the left fist and drawn with the right** (ADR-296), as an archer
+## holds one. The stave stood at the right in the weapon hand, so the right fist
+## gripped a bow and the left hung empty beside a two-handed weapon. It is at
+## the left now, canted top-right the way a right-handed archer cants it, and
+## comes up toward the eye line as it is drawn. *Reference: Skyrim's bow, the
+## shipped first-person draw where both hands read at a glance.*
+const POSE_REST: Array = [Vector3(-0.32, -0.34, -0.62), Vector3(8, 10, -12)]
+const POSE_DRAWN: Array = [Vector3(-0.22, -0.13, -0.70), Vector3(0, 8, -10)]
+## Where the string lies behind the grip, braced and at full draw, in the
+## stave's frame (the model's string is at +Z), metres ⟨tune⟩. The draw hand
+## and the arrow's nock travel between them.
+const STRING_REST: float = 0.174
+const STRING_DRAWN: float = 0.38
+## Half the nocked arrow's length — it rides with its nock on the string.
+const ARROW_HALF: float = 0.31
 
 var _phase: Phase = Phase.IDLE
 var _remaining: float = 0.0
@@ -59,6 +71,8 @@ var _stave: ItemResource = null
 var _shown: Node3D = null
 ## How far the bow has risen into view since it was taken in hand, 0 to 1.
 var _drawn: float = 1.0
+## How far the string is pulled, 0 braced to 1 at full draw.
+var _pull: float = 0.0
 
 
 func _ready() -> void:
@@ -81,7 +95,7 @@ func _ready() -> void:
 	shaft.height = 0.62
 	_nock.mesh = shaft
 	_nock.rotation_degrees.x = 90.0
-	_nock.position.z = NOCK_BACK
+	_nock.position.z = STRING_REST - ARROW_HALF
 	_model.add_child(_nock)
 
 	_pose(POSE_REST, POSE_REST, 0.0)
@@ -139,11 +153,15 @@ func _update_pose() -> void:
 	match _phase:
 		Phase.DRAWING:
 			_pose(POSE_REST, POSE_DRAWN, t)
+			_pull = t
 		Phase.RECOVERY:
 			_pose(POSE_DRAWN, POSE_REST, t)
+			# The string goes home the instant it is loosed.
+			_pull = 0.0
 		Phase.IDLE:
 			_pose(POSE_REST, POSE_REST, 0.0)
 			MeleeWeapon.lower_by_draw(_model, 1.0 - _drawn)
+			_pull = 0.0
 	_update_nock()
 
 
@@ -152,8 +170,14 @@ func _update_nock() -> void:
 		return
 	# An arrow is on the string while drawing and gone the instant it is
 	# loosed, which is what makes the recovery legible as *reloading* rather
-	# than as input being eaten.
+	# than as input being eaten. Its nock rides the string back.
 	_nock.visible = _phase == Phase.DRAWING
+	_nock.position.z = string_back() - ARROW_HALF
+
+
+## How far behind the grip the string is now, in the stave's frame.
+func string_back() -> float:
+	return lerpf(STRING_REST, STRING_DRAWN, _pull)
 
 
 ## Called by the owner on input. Deliberately **not** buffered, unlike

@@ -114,12 +114,8 @@ var _readout: Label = null
 var _mark: Reticle = null
 ## The board, while it is open.
 var _board: LodgeScreen = null
-## The regions the camp's one column became (`M4-T20`).
-var _place: PanelContainer = null
-var _controls: PanelContainer = null
-## The generated control table, in its own panel. The ADR-139 probe reads this
-## rather than `_readout` — the same assertion, one container along.
-var _control_lines: Label = null
+## The camp's lettering at the top left (`M4-T20`, ADR-294).
+var _place: VBoxContainer = null
 var _speech: Label = null
 ## Seconds left on whatever the camp last said. The Chamber holds its refusals
 ## the same way (`REFUSAL_SECONDS`), and for the same reason: a message with no
@@ -915,44 +911,7 @@ func _threshold_probe() -> void:
 			+ "that sounds the same on descent 1 and descent 8 is a looping "
 			+ "file rather than a driver"))
 
-	# ─ the fire teaches every verb, and teaches the same ones the screen does ─
-	#
-	# **The row that catches a second list going stale** (ADR-139). These three
-	# lines were hand-typed, keyboard-only, and omitted `block` and `verb` —
-	# two combat verbs a player at this fire could not learn existed. Nothing
-	# could have failed over that: a hand-written list is always internally
-	# consistent, and the only way to ask whether it is *complete* is to compare
-	# it against the table the screen renders.
 	await get_tree().process_frame
-	# At the density the panel actually renders. The assertion is *"the fire
-	# shows every line the table produces"*, so both halves have to be asking
-	# about the same rendering — comparing 4-wide lines against a 2-wide panel
-	# would fail for a formatting reason and teach nothing about completeness.
-	var taught: PackedStringArray = ControlsScreen.verb_lines()
-	var missing := PackedStringArray()
-	# **Reads the control panel, not the readout** (`M4-T20`). The table moved
-	# into a frame of its own; the assertion is unchanged — does the fire render
-	# every line `ControlsScreen` knows about — and it is still the only thing
-	# that can catch a second list going stale.
-	for line: String in taught:
-		if not _control_lines.text.contains(line):
-			missing.append(line)
-	var names_the_verb: bool = _control_lines.text.contains(
-		ControlsScreen.glyphs_for("verb"))
-	print("[camp] the controls %d line(s), %d missing, names the verb=%s" % [
-		taught.size(), missing.size(), names_the_verb])
-	if taught.is_empty():
-		problems.append("the control table renders nothing, so the two rows "
-			+ "below are about an empty string")
-	if missing.size() > 0:
-		problems.append(("the fire's readout is missing %d line(s) the control "
-			+ "screen teaches (%s) — two lists again, and the hand-written one "
-			+ "is always internally consistent right up until it is wrong")
-			% [missing.size(), ", ".join(missing)])
-	if not names_the_verb:
-		problems.append(("the readout never names the class verb — it did not "
-			+ "for the whole of `M3`, so `F` was a built verb with no way of "
-			+ "being discovered, which is maintenance paid for nothing"))
 
 	# ─ **and nothing at the fire is drawn on top of anything else** ─
 	#
@@ -962,9 +921,25 @@ func _threshold_probe() -> void:
 	# absent is a check with nothing in it.
 	for fault: String in await layout_faults():
 		problems.append(fault)
-	# ─ **and both panels are on the hub's ground** (ADR-216) ─
-	problems.append_array(MenuStyle.off_the_lair_ground("camp",
-		{"PLACE": _place, "CONTROLS": _controls}))
+	# ─ **and the fire is lettering over the world, not a plate** (ADR-294) ─
+	#
+	# The controls are in the settings screen, which `ControlsScreen` renders
+	# and is the only list there is, so the fire has nothing left to keep in
+	# step with it. What it asserts instead is the playtest's complaint: no
+	# panel drawn over the camp, and lettering outlined so it reads over the
+	# fire and the dark without one.
+	var panels: int = get_node("CampReadout").find_children(
+		"*", "PanelContainer", true, false).size()
+	var outline: int = _readout.get_theme_constant(&"outline_size")
+	print("[camp] ground     lettering outlined %d px, %d panel(s) over the camp (want >0, 0)"
+		% [outline, panels])
+	if panels > 0:
+		problems.append("the camp draws %d panel(s) over itself — the playtest "
+			% panels + "read them as a printout over the one place meant to "
+			+ "feel lived in")
+	if outline <= 0:
+		problems.append("the camp's lettering has no outline, so with no panel "
+			+ "under it it vanishes against the fire or the dark")
 	# ─ **and there is floor all the way through both doors** (ADR-293) ─
 	var half_deep: float = GROUND_DEEP * 0.5
 	var down_gaps: int = LairPassage.floor_gaps(self,
@@ -1207,54 +1182,19 @@ func _process(delta: float) -> void:
 	_without_a_body = 0.0
 	_said_it_lost_the_body = false
 	if _readout != null:
-		_readout.text = "\n".join(saving_lines() + PackedStringArray([
-			"descent\t%d" % GameState.descents,
-			"stash\t%d item(s) · %d tribute" % [
-				GameState.stash.size(), GameState.stash_value()],
-			"the hoard\t%d" % GameState.hoard_value,
-			"the Lodge\ttrust %d · favour %d · work %d of %d" % [
-				GameState.lodge_trust, GameState.lodge_favour,
-				GameState.contracts.size(), ContractBoard.TAKEN_MAX],
-			# Who is actually here. The host presses OPEN THE THRESHOLD and then
-			# has no way to tell whether anybody arrived — and descending alone
-			# by accident is a wasted run and a confusing bug report.
-			"party\t%d of %d%s" % [
+		var lines: PackedStringArray = saving_lines()
+		lines.append("descent\t%d" % GameState.descents)
+		# Who is actually here, once the camp is open to anyone. The host
+		# presses OPEN THE THRESHOLD and then has no way to tell whether anybody
+		# arrived — and descending alone by accident is a wasted run and a
+		# confusing bug report. Alone, there is nobody to count.
+		if not multiplayer.multiplayer_peer is OfflineMultiplayerPeer:
+			lines.append("party\t%d of %d%s" % [
 				_session.players().size(), Player.MAX_PARTY,
 				"" if multiplayer.get_peers().size() > 0 or not _session.is_host()
-					else "   (nobody has joined yet)"],
-			"",
-			"ahead, the dark goes down",
-			"behind the fire, your Chamber",
-		]))
-		# **The table renders into its own panel now** (`M4-T20`), and it is
-		# still generated rather than typed.
-		#
-		# The Deep lists these and the camp did not, so the first time a tester
-		# needed them was the first time they were under pressure. `M2-T13`:
-		# attack, throw and the waystone were on no list anywhere in the game. A
-		# verb a tester cannot discover is worse than one that does not exist —
-		# it is maintenance paid for nothing, and it makes every report about the
-		# run describe a smaller game than the one that was built.
-		#
-		# **Generated, not typed** (ADR-139). The three lines this replaced were
-		# hand-written, keyboard-only, and omitted **block** and **the class
-		# verb** — two combat verbs a player at this fire could not learn
-		# existed. `ControlsScreen` is the one table; this is one rendering of
-		# it, and a verb added there appears here without anybody remembering to
-		# come back.
-		#
-		# Two verbs to a line rather than four: the panel is bottom-left and a
-		# fraction of the screen wide, and a reference that runs the width of
-		# the window is one you read instead of the room.
-		_control_lines.text = "\n".join(
-			Array(ControlsScreen.verb_lines()) + [
-				"menu\tesc — and every control with it",
-			])
-		# **Back into their corners** (`M4-T20`). The control table's height
-		# depends on how many verbs are bound, and the party line gains a
-		# parenthetical when nobody has joined — both change what fits.
+					else "   (nobody has joined yet)"])
+		_readout.text = "\n".join(lines)
 		var screen: Vector2 = get_viewport().get_visible_rect().size
-		HudFrame.settle(_controls, HudFrame.Region.REFERENCE, screen)
 		HudFrame.settle(_speech, HudFrame.Region.SPEECH, screen)
 		# Whatever the camp last said goes on its own, rather than sitting under
 		# a condition that stopped being true several seconds ago.
@@ -1738,88 +1678,42 @@ func _build_doors() -> void:
 	add_child(lamp)
 
 
-## **Two framed panels and a voice, where there was one column** (`M4-T20`,
-## TEC-009 §5.2, ADR-198).
+## **A few outlined lines and a voice** (`M4-T20`, TEC-009 §5.2, ADR-198,
+## ADR-294).
 ##
-## The camp printed its state and six generated lines of keybindings into a
-## single `Label` at `(18, 18)`, in one weight and one colour, over a third of
-## the screen — and then **appended to it** from two other places, which is the
-## growth nothing bounded.
-##
-## ## The controls stay, against TEC-009's recommendation
-##
-## TEC-009 §5.2 proposed moving them behind the pause menu's `CONTROLS` screen,
-## which already exists and is already one key away (ADR-137). **Declined**, and
-## the reason is ADR-139: they are at the fire because a playtest found that
-## *"the first time a tester needed them was the first time they were under
-## pressure"*, and the camp is the one place in the game with no pressure at all.
-## Removing them would trade a real, evidenced discoverability win for a tidier
-## screenshot.
-##
-## What was actually wrong was never that they are shown — it is that they were
-## in the same column, weight and colour as the Tithe and the party count, so
-## nothing on the screen was grouped as anything. Gestalt common region fixes
-## that without deleting anything: **two panels, each with one job.**
-##
-## The ADR-139 probe follows them into `_controls` rather than being dropped.
-## Same assertion, same table, one container along — *"a probe rewritten to
-## match the new code asserts nothing"*, and this one still asks whether the
-## fire renders every line `ControlsScreen` knows about.
+## The camp once printed its state and its keybindings into one `Label` over a
+## third of the screen; ADR-198 split that into two framed panels. A later
+## playtest asked for neither: the panels read as a printout over the camp, and
+## the controls belong in settings, where `ControlsScreen` renders them and a
+## player can change them. That reverses ADR-139's control card at the fire,
+## by the developer's call — the pause menu's CONTROLS is one key away (ADR-137)
+## and the Deep's arrival brief still shows the verbs a run starts with.
 func _build_readout() -> void:
 	var layer := CanvasLayer.new()
 	layer.name = "CampReadout"
 	add_child(layer)
 	var screen: Vector2 = get_viewport().get_visible_rect().size
 
-	# ─ PLACE — the camp, and what is yours ─
+	# ─ PLACE — lettering over the world, not a plate (ADR-294) ─
 	#
-	# Both panels on the hub's ground (`MenuStyle.LAIR`), carried by the panel
-	# rather than set for the whole game and restored on the way out.
-	_place = MenuStyle.frame()
-	_place.theme = MenuStyle.LAIR
-	var body := VBoxContainer.new()
-	body.add_theme_constant_override("separation", 5)
-	# **A plate, not a printout** (ADR-289): the place's name in the display
-	# type, and its figures set in two columns — the name of a thing, then
-	# what it stands at — rather than a monospaced table in a proportional face.
-	var title := Label.new()
-	title.text = "The Threshold"
-	title.theme_type_variation = MenuStyle.DISPLAY_WARM
-	body.add_child(title)
+	# The camp's state was a white panel at the top left and its controls a
+	# second at the bottom, and a playtest read both as a printout laid over
+	# the one place in the game meant to feel lived in. What stays is what a
+	# player at the fire needs and cannot see anywhere else: whether the game
+	# is saving, the descent, and — only once the camp is open to others — who
+	# has come. The stash and the hoard are in her Chamber, the Lodge's
+	# standing is on its board, and the two doors say where they go by their
+	# own light. Set in the reticle's outlined lettering, which reads over the
+	# fire and over the dark alike.
+	_place = VBoxContainer.new()
+	_place.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_readout = Label.new()
-	_readout.theme_type_variation = MenuStyle.CAPTION_TEXT
-	_readout.tab_stops = PackedFloat32Array([92.0])
+	_readout.theme_type_variation = MenuStyle.PROMPT_TEXT
+	_readout.tab_stops = PackedFloat32Array([110.0])
 	_readout.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	body.add_child(_readout)
-	_place.add_child(body)
+	_place.add_child(_readout)
 	layer.add_child(_place)
 	HudFrame.place(_place, HudFrame.Region.PLACE, screen)
-
-	# ─ BODY — the quick reference, in a panel of its own ─
-	#
-	# Bottom-left and narrow: two verbs to a line rather than four, because the
-	# region is a fraction of the width and a reference you have to read across
-	# the screen is one you read instead of the room.
-	_controls = MenuStyle.frame()
-	_controls.theme = MenuStyle.LAIR
-	var keys := VBoxContainer.new()
-	keys.add_theme_constant_override("separation", 3)
-	keys.add_child(MenuStyle.heading("Controls"))
-	_control_lines = Label.new()
-	_control_lines.theme_type_variation = MenuStyle.FINE_DIM
-	_control_lines.tab_stops = PackedFloat32Array([88.0])
-	# Set close, like a printed table, so a verb to a line still fits its corner.
-	_control_lines.add_theme_constant_override("line_spacing", -5)
-	# **Wrapped, so it cannot outgrow its region.** The first render was ten
-	# pixels wider than `BODY` — harmless on its own, and exactly how a
-	# collision starts once anything else is drawn nearby. A region is a promise
-	# about width and this is what makes the promise true for generated text
-	# whose length depends on how many verbs happen to be bound.
-	_control_lines.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	keys.add_child(_control_lines)
-	_controls.add_child(keys)
-	layer.add_child(_controls)
-	HudFrame.place(_controls, HudFrame.Region.REFERENCE, screen)
 
 	# ─ SPEECH — the refusals, which used to be appended to the readout ─
 	#
@@ -1886,7 +1780,6 @@ func layout_faults() -> PackedStringArray:
 func relayout(screen: Vector2) -> void:
 	set_process(false)
 	HudFrame.place(_place, HudFrame.Region.PLACE, screen)
-	HudFrame.place(_controls, HudFrame.Region.REFERENCE, screen)
 	HudFrame.place(_speech, HudFrame.Region.SPEECH, screen)
 	# **Three frames, not one.** A wrapped `Label`'s height is a function of its
 	# width, and a `PanelContainer` gets its width from the child it is sizing
@@ -1896,7 +1789,6 @@ func relayout(screen: Vector2) -> void:
 	# mid-flight rather than a real overflow.
 	for _i: int in range(3):
 		await get_tree().process_frame
-	HudFrame.settle(_controls, HudFrame.Region.REFERENCE, screen)
 	HudFrame.settle(_speech, HudFrame.Region.SPEECH, screen)
 	await get_tree().process_frame
 
@@ -1915,8 +1807,6 @@ static func saving_lines() -> PackedStringArray:
 func hud_claims() -> Dictionary:
 	return {
 		"PLACE": [HudFrame.Region.PLACE, HudFrame.occupied_by(_place)],
-		"CONTROLS": [HudFrame.Region.REFERENCE,
-			HudFrame.occupied_by(_controls)],
 		"SPEECH": [HudFrame.Region.SPEECH, HudFrame.occupied_by(_speech)],
 	}
 

@@ -52,6 +52,7 @@ var _sling_stone: MeshInstance3D = null
 
 func configure_enemy(kind: EnemyResource) -> void:
 	_configure(kind.visual_path)
+	_build_eyes()
 
 
 func configure_hunter() -> void:
@@ -145,7 +146,94 @@ func _apply_flinch(delta: float) -> void:
 	position.z = FLINCH_PUSH * eased
 
 
+## **What it senses, on its body** (ADR-295). The two lamps over its head read
+## as debug cubes in play; the same two facts are now the body's own. Its
+## **eyes kindle** while it sees you, and while it only hears, its **head
+## cocks and turns** as it listens. Separate signs still, because the whole
+## point of splitting the senses (DES-013) is knowing *which* one has you:
+## eyes on you means you are spotted, a listening head means it is guessing.
+## *Reference: Thief's guards and Dishonored's, whose attention is read off
+## the body rather than over it.*
+##
+## The eyes light themselves, so the dark that hides the body does not hide
+## them, as the lamps did; they read as value, not hue (ART-005 keeps
+## saturated colour for treasure). Placed on the shared rig's head bone ⟨tune⟩.
+const EYE_AT: Vector3 = Vector3(0.042, 0.155, 0.112)
+const EYE_RADIUS: float = 0.032
+const EYE_COLD: Color = Color(0.10, 0.10, 0.11)
+const EYE_KINDLED: Color = Color(1.0, 0.98, 0.92)
+## How far a listening head tips to the side and sweeps, in degrees, and how
+## fast it sweeps ⟨tune⟩.
+const LISTEN_TILT: float = 16.0
+const LISTEN_SWEEP: float = 32.0
+const LISTEN_RATE: float = 1.1
+## How fast eyes and head come to what the senses say, per second ⟨tune⟩.
+const SENSE_EASE: float = 8.0
+
+var _sees: bool = false
+var _hears: bool = false
+var _kindled: float = 0.0
+var _listening: float = 0.0
+var _eye_material: StandardMaterial3D = null
+var _head: int = -1
+
+
+## The two senses, from the replicated flags. Called down by `Enemy` every
+## frame on every peer.
+func senses(sees: bool, hears: bool) -> void:
+	_sees = sees
+	_hears = hears
+
+
 func present_enemy(state: int, attack: int, state_progress: float,
+		attack_progress: float, at: Vector3, delta: float) -> void:
+	_present_enemy(state, attack, state_progress, attack_progress, at, delta)
+	_apply_senses(delta, state != ENEMY_DEAD)
+
+
+func _apply_senses(delta: float, alive: bool) -> void:
+	var rate: float = clampf(delta * SENSE_EASE, 0.0, 1.0)
+	_kindled = lerpf(_kindled, 1.0 if _sees and alive else 0.0, rate)
+	_listening = lerpf(_listening, 1.0 if _hears and not _sees and alive else 0.0, rate)
+	if _eye_material != null:
+		_eye_material.albedo_color = EYE_COLD.lerp(EYE_KINDLED, _kindled)
+	if _rig == null or _head < 0 or _listening < 0.01:
+		return
+	var sweep: float = sin(_loop_time * LISTEN_RATE) * deg_to_rad(LISTEN_SWEEP)
+	var cock := Quaternion(Vector3.UP, sweep * _listening) \
+		* Quaternion(Vector3.BACK, deg_to_rad(LISTEN_TILT) * _listening)
+	_rig.set_bone_pose_rotation(_head, _rig.get_bone_pose_rotation(_head) * cock)
+
+
+## Two eyes on the head bone, cold until it sees you.
+func _build_eyes() -> void:
+	_head = _rig.find_bone("head") if _rig != null else -1
+	if _head < 0:
+		push_error("enemy visual has no head bone to carry its eyes")
+		return
+	var socket := BoneAttachment3D.new()
+	socket.name = "Eyes"
+	socket.bone_name = "head"
+	_rig.add_child(socket)
+	_eye_material = StandardMaterial3D.new()
+	_eye_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	_eye_material.albedo_color = EYE_COLD
+	var ball := SphereMesh.new()
+	ball.radius = EYE_RADIUS
+	ball.height = EYE_RADIUS * 2.0
+	ball.radial_segments = 10
+	ball.rings = 5
+	for side: float in [-1.0, 1.0]:
+		var eye := MeshInstance3D.new()
+		eye.name = "Eye"
+		eye.mesh = ball
+		eye.material_override = _eye_material
+		eye.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		eye.position = Vector3(EYE_AT.x * side, EYE_AT.y, EYE_AT.z)
+		socket.add_child(eye)
+
+
+func _present_enemy(state: int, attack: int, state_progress: float,
 		attack_progress: float, at: Vector3, delta: float) -> void:
 	_delta = delta
 	_apply_flinch(delta)

@@ -384,20 +384,6 @@ const COMPACT_KEY: Dictionary = {
 }
 
 
-## **One verb to a line, the verb first** (ADR-289): `verb<TAB>keys`, for a
-## panel that sets tab stops so the keys line up in a column. A reference card
-## read across a room wants the word you are looking for at the left edge.
-static func verb_lines() -> PackedStringArray:
-	var out := PackedStringArray()
-	for group: Array in GROUPS:
-		for row: Array in (group[1] as Array):
-			var actions: PackedStringArray = PackedStringArray(row[2] as Array)
-			if actions.is_empty():
-				continue
-			out.append("%s\t%s" % [String(row[1]), glyphs_for_all(actions)])
-	return out
-
-
 
 ## The window the game is configured to open at, which is **not** the viewport
 ## the probe measures. Godot's headless dummy renderer reports 64×64, so a fit

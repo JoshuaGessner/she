@@ -51,11 +51,21 @@ const WRIST_BEND: float = 40.0
 ## Where the off hand goes while both hands are busy with something else.
 const OFF_AWAY: Array = [Vector3(-0.46, -0.72, -0.50), Vector3(-30, 158, 4)]
 ## Where a thing being used is held: low and central, in both hands.
-const USE_HELD: Array = [Vector3(0.0, -0.30, -0.46), Vector3(8, 0, 0)]
+const USE_HELD: Array = [Vector3(-0.04, -0.20, -0.46), Vector3(8, 0, 0)]
 ## Where it starts from as it is brought up.
 const USE_BELOW: Array = [Vector3(0.0, -0.78, -0.40), Vector3(-40, 0, 0)]
 ## How fast poses chase what they want, per second ⟨tune⟩.
 const EASE: float = 9.0
+## **The two fists on a bow** (ADR-296), in the stave's frame: the stave runs
+## up its Y and the string lies behind it at +Z. Each fist closes along the
+## stave or the string (the socket's grip axis, Z) with its elbow (the
+## socket's +Y) back toward the archer and out to its own side ⟨tune⟩.
+const BOW_FIST: Basis = Basis(Vector3(-0.94, 0.0, -0.35), Vector3(-0.35, 0.0, 0.94),
+	Vector3(0.0, 1.0, 0.0))
+const STRING_FIST: Basis = Basis(Vector3(-0.89, 0.0, 0.45), Vector3(0.45, 0.0, 0.89),
+	Vector3(0.0, 1.0, 0.0))
+## Where the palm sits under a thing being used, from its middle ⟨tune⟩.
+const PALM_UNDER: Vector3 = Vector3(-0.05, -0.06, 0.02)
 
 var _off_item: ItemResource = null
 var _off_look: Node3D = null
@@ -71,6 +81,8 @@ var _busy: float = 0.0
 var _use: Node3D = null
 var _use_item: ItemResource = null
 var _use_look: Node3D = null
+## Where the left hand is while it holds the thing in use — see `_palm_under`.
+var _palm: Node3D = null
 var _raised: float = 0.0
 
 ## The first-person presentation has its own scene instance because it lives in
@@ -93,6 +105,9 @@ func _ready() -> void:
 	_use = Node3D.new()
 	_use.name = "InUse"
 	add_child(_use)
+	_palm = Node3D.new()
+	_palm.name = "Palm"
+	add_child(_palm)
 	_place(_off, OFF_AWAY, OFF_AWAY, 0.0)
 	_place(_use, USE_BELOW, USE_BELOW, 0.0)
 
@@ -196,6 +211,7 @@ func step(delta: float, lit: bool, guarding: bool, mending: float,
 	# The thing in use, and what doing it looks like.
 	_place(_use, USE_BELOW, USE_HELD, _raised)
 	_use.visible = _raised > 0.02
+	_palm.transform = _palm_under(_use.transform)
 	if _use_look != null and _use_item != null:
 		if _use_item.has_trait(ExtractionTrait):
 			HeldLook.waystone(_use_look, done)
@@ -218,6 +234,17 @@ func _align_visible_arms(main_grip: Node3D) -> void:
 	if _arms_skeleton == null:
 		return
 	_arms_skeleton.reset_bone_poses()
+	# **A bow takes both hands, the left on the stave** (ADR-296). Held in the
+	# weapon hand like a sword, the right fist gripped a bow while the left
+	# hung empty beside a two-handed weapon.
+	var bow: RangedWeapon = main_grip.get_parent() as RangedWeapon \
+		if main_grip != null else null
+	if bow != null:
+		var stave: Transform3D = main_grip.global_transform
+		_pose_arm("l", stave * Transform3D(BOW_FIST, Vector3.ZERO))
+		_pose_arm("r", stave * Transform3D(STRING_FIST,
+			Vector3(0.0, 0.0, bow.string_back())))
+		return
 	if main_grip != null:
 		_pose_arm("r", main_grip.global_transform)
 	else:
@@ -225,7 +252,7 @@ func _align_visible_arms(main_grip: Node3D) -> void:
 		lowered.x = -lowered.x
 		_pose_arm("r", global_transform * Transform3D(Basis.IDENTITY, lowered))
 	if _use.visible and _use_look != null:
-		_pose_arm("l", _use.global_transform)
+		_pose_arm("l", _palm.global_transform, false)
 	elif _off_look != null:
 		# A lantern hangs from a fist the tuned forearm already suits; only a
 		# shield's handle turns the fist far enough to need the wrist cap.
@@ -300,6 +327,20 @@ func _bring(item: ItemResource) -> void:
 			child.free()
 		_use.add_child(pivot)
 		_use_look = pivot
+
+
+## **A thing being used sits on an open hand** (ADR-296). The left fist took
+## the binding's or the Waystone's own turn, which faced it at the camera, and
+## with ADR-293's wrist rule the forearm followed it round — so the eye looked
+## straight down the bracer's open cuff. The hand comes up from below instead,
+## its elbow along the tuned forearm direction and its grip across the body,
+## and the thing rests on it.
+func _palm_under(held: Transform3D) -> Transform3D:
+	var elbow: Vector3 = Config.tuning.first_person_elbow_direction
+	elbow.x = -elbow.x
+	elbow = elbow.normalized()
+	var across: Vector3 = (Vector3.RIGHT - elbow * Vector3.RIGHT.dot(elbow)).normalized()
+	return Transform3D(Basis(elbow.cross(across), elbow, across), held.origin + PALM_UNDER)
 
 
 static func _bounds(look: Node3D) -> AABB:

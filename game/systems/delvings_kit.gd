@@ -246,14 +246,21 @@ static func _weather(built: ArrayMesh) -> void:
 		built.surface_set_material(surface, _weathered[authored])
 
 
+## Pull a clad wall's drawn box in under its masonry.
+##
+## **Its ends as well as its faces** (ADR-297). The panels are laid against the
+## box's two long faces, and each panel's end cap finishes flush with the box's
+## end — so at every wall end, every doorway jamb and every pier, the box's end
+## face and the panels' caps were drawn on one plane and fought over it. In the
+## Chamber that was a striped flicker down each pier; a 2 cm step of the camera
+## swapped whole strips of pixels. A centimetre in at the ends is invisible
+## behind the caps and gives the depth test one answer.
 static func recess(node: MeshInstance3D) -> void:
 	var box := node.mesh as BoxMesh
 	if box == null:
 		return
-	if box.size.x >= box.size.z:
-		box.size.z -= PROUD * 2.0
-	else:
-		box.size.x -= PROUD * 2.0
+	box.size.x -= PROUD * 2.0
+	box.size.z -= PROUD * 2.0
 
 
 ## Lay the kit over one solid box, in the box's own frame.
