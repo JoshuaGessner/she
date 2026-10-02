@@ -166,9 +166,9 @@ func _apply_flinch(delta: float) -> void:
 ## them, as the lamps did; they read as value, not hue (ART-005 keeps
 ## saturated colour for treasure). Placed on the shared rig's head bone ⟨tune⟩.
 const EYE_AT: Vector3 = Vector3(0.042, 0.155, 0.112)
-const EYE_RADIUS: float = 0.032
+const EYE_RADIUS: float = 0.021
 const EYE_COLD: Color = Color(0.10, 0.10, 0.11)
-const EYE_KINDLED: Color = Color(1.0, 0.98, 0.92)
+const EYE_KINDLED: Color = Color(0.96, 0.93, 0.82)
 ## How far a listening head tips to the side and sweeps, in degrees, and how
 ## fast it sweeps ⟨tune⟩.
 const LISTEN_TILT: float = 16.0

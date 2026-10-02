@@ -833,6 +833,8 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--plan-shot="):
+			_plan_shot(arg.split("=", true, 1)[1])
 		elif arg == "--route-probe":
 			_route_probe()
 		elif arg == "--sight-probe":
@@ -9621,6 +9623,52 @@ func _party_shot(path: String) -> void:
 			+ "for") % PartyFrames.state_of(seen[0]))
 	print("[party] wrote %s" % path)
 	_report(problems, "party")
+
+
+## **`--plan-shot=PATH`**: the generated floor from straight above, ceilings
+## lifted, framed to whatever the generator built. `--capture-top` is framed
+## for the hand-built Deep; a generated floor lands anywhere, and judging a
+## layout means seeing all of it at once.
+func _plan_shot(path: String) -> void:
+	_session.local_player().show_ink(false)
+	var box := AABB()
+	var first: bool = true
+	for node: Node in _world.find_children("*", "MeshInstance3D", true, false):
+		var mesh := node as MeshInstance3D
+		if String(mesh.name).begins_with("ceiling_"):
+			mesh.visible = false
+			continue
+		if not String(mesh.name).begins_with("floor_"):
+			continue
+		var at: AABB = mesh.global_transform * mesh.get_aabb()
+		box = at if first else box.merge(at)
+		first = false
+	var camera := Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = maxf(box.size.x, box.size.z) + 4.0
+	camera.far = 200.0
+	# Its own sky: the Deep's fog and darkness are a player's, not a plan's.
+	var flat := Environment.new()
+	flat.background_mode = Environment.BG_COLOR
+	flat.background_color = Color(0.08, 0.08, 0.09)
+	flat.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	flat.ambient_light_color = Color(1, 1, 1)
+	flat.ambient_light_energy = 0.8
+	camera.environment = flat
+	add_child(camera)
+	camera.global_position = box.get_center() + Vector3(0.0, 60.0, 0.0)
+	camera.rotation_degrees = Vector3(-90, 0, 0)
+	camera.make_current()
+	var light := DirectionalLight3D.new()
+	light.rotation_degrees = Vector3(-90, 0, 0)
+	add_child(light)
+	for i: int in range(4):
+		await get_tree().physics_frame
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
+	print("[plan] %.0f × %.0f m → %s" % [box.size.x, box.size.z, path.get_file()])
+	get_tree().quit()
 
 
 func _capture_top(path: String) -> void:

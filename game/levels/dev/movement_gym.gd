@@ -79,6 +79,8 @@ func _ready() -> void:
 			_swarm_probe(player)
 		elif arg == "--feel-probe":
 			_feel_probe(player)
+		elif arg.begins_with("--feel-shot="):
+			_feel_shot(player, arg.split("=", true, 1)[1])
 		elif arg.begins_with("--capture-top="):
 			_capture_top(player, arg.split("=", true, 1)[1])
 		elif arg == "--lifecycle-probe":
@@ -740,6 +742,7 @@ func _feel_probe(player: Player) -> void:
 			if visual != null:
 				row["flinched"] = maxf(float(row["flinched"]), visual.flinching())
 			row["heavy"] = bool(row["heavy"]) or player.weapon.is_heavy()
+			row["smeared"] = maxi(int(row.get("smeared", 0)), player.weapon.smear().drawn())
 			if frames > 600:
 				break
 		if not released:
@@ -747,9 +750,10 @@ func _feel_probe(player: Player) -> void:
 		row["dealt"] = before - enemy.health.current
 		row["breath"] = breath - player.stamina.current
 		rows.append(row)
-		print("[feel] %-5s heavy=%s wind-up %3d ms, dealt %.1f, breath %.0f, held %.0f ms, kick %.3f m, flinch %.2f"
+		print("[feel] %-5s heavy=%s wind-up %3d ms, dealt %.1f, breath %.0f, held %.0f ms, kick %.3f m, flinch %.2f, arc %d"
 			% [mode, row["heavy"], row["windup_ms"], row["dealt"], row["breath"],
-				float(row["stopped"]) * 1000.0, row["kicked"], row["flinched"]])
+				float(row["stopped"]) * 1000.0, row["kicked"], row["flinched"],
+				int(row.get("smeared", 0))])
 		for _i: int in range(30):
 			await get_tree().physics_frame
 	var light: Dictionary = rows[0]
@@ -766,6 +770,9 @@ func _feel_probe(player: Player) -> void:
 			problems.append("a blow landed and the body it hit did not flinch")
 		if bool(light["heavy"]):
 			problems.append("a released press became a heavy blow")
+		# ADR-303: the strike draws the arc it travelled.
+		if int(light.get("smeared", 0)) < 2:
+			problems.append("the strike drew no arc behind the blade")
 	if not bool(heavy["heavy"]):
 		problems.append("attack held through the wind-up did not draw back into a heavy blow")
 	else:
@@ -781,6 +788,53 @@ func _feel_probe(player: Player) -> void:
 	for problem: String in problems:
 		print("[feel] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **`--feel-shot=PATH`** (ADR-303): a light blow on the gym's Wretch,
+## photographed mid-strike (the arc) and just after it lands (the burst).
+## Windowed, because neither draws headless; `--feel-probe` counts the arc.
+func _feel_shot(player: Player, path: String) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var enemy: Enemy = get_tree().get_first_node_in_group("enemies") as Enemy
+	for _i: int in range(20):
+		await get_tree().physics_frame
+	player.teleport(enemy.global_position + Vector3(0, 0.1, -1.3), PI)
+	# One swing first, unphotographed: the first burst compiles its shaders
+	# and the frame it lands in runs long.
+	for swing: int in 2:
+		for _i: int in range(40 if swing > 0 else 8):
+			await get_tree().physics_frame
+		if swing == 1:
+			break
+		Input.action_press("attack")
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		Input.action_release("attack")
+	enemy.health.restore()
+	var before: float = enemy.health.current
+	Input.action_press("attack")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	Input.action_release("attack")
+	# Every frame from the strike's start until the burst has spread, numbered,
+	# so the arc is seen at whatever frame it is widest.
+	var struck: bool = false
+	var landed: bool = false
+	var shot: int = 0
+	for _i: int in range(240):
+		await RenderingServer.frame_post_draw
+		if player.weapon.smear().drawn() >= 1:
+			struck = true
+		if struck and shot < 8:
+			get_viewport().get_texture().get_image().save_png(
+				path.replace(".png", "-%d.png" % shot))
+			shot += 1
+		if enemy.health.current < before:
+			landed = true
+		if shot >= 8:
+			break
+	print("[feel] shot arc=%s burst=%s" % [struck, landed])
+	get_tree().quit(0 if struck and landed else 1)
 
 
 func _fight_probe(player: Player) -> void:

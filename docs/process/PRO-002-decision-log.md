@@ -10952,4 +10952,20 @@ Every other binding is unchanged, and the keyboard is untouched. A player's own 
 
 **Measured:** `rig_probe.gd` 0 failures. `enemy_animation_probe` passes every state on every kind, idle still and walk moving. Rendered side by side, four kinds stand in four different phases of four different idles.
 
+## ADR-303 — A blow is seen to land: a cut that sweeps, the arc behind it, and sparks or chips where it meets
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T05`; continues ADR-279** · **Developer's report: *"improve combat feel further so it's more playable"***
+
+**Context:** ADR-279 gave a landed blow its hitstop, kick, sound and flinch, and listed what it left absent: particles. Photographing a strike frame by frame (`--feel-shot`, new) found a deeper fault than missing particles. **The light swing was a jab drawn sideways:** its raised and struck poses pointed the blade along nearly the same line, so the blade slid along its own length from right to left. Nothing about it read as a cut, and a trail drawn behind it had no width.
+
+**Decision:**
+- **A cut, not a jab.** The blade is raised over the right shoulder pointing up, and the strike pitches it down and across to the lower left, so the edge sweeps the view diagonally the way a forehand cut does. The heavy wind-up draws further back past the shoulder. The hitbox is its own sphere (ADR-222), so what a swing can reach is unchanged. *Reference: Skyrim's and Dark Messiah's first-person cuts, which read by arc.* All poses are ⟨tune⟩.
+- **The arc behind the blade** (`SwingSmear`): a ribbon from the blade's middle to its tip over the last 85 ms ⟨tune⟩ of the strike, in world space. It narrows to a sliver instead of fading, because the ink pass paints over anything blended, and it stands on `BARE`, so no line is drawn round it. *Reference: Dark Messiah's and Chivalry's swing smears.*
+- **Where it lands** (`ImpactBurst`): sparks off mail and plate and dark chips off hide and cloth, at chest height on the side the viewer sees. A blow that takes a quarter of the body or more throws twice as many, further. Both are opaque and shrink rather than fade: the sparks on the fire's ink class, which keeps its colour, and the chips on `BARE`. Every peer raises its own burst from the replicated health that already drives the flinch, so nothing new is sent.
+- **The enemy's kindled eyes are smaller** (ADR-295's ⟨tune⟩): up close at the size first set, they read as goggles.
+
+**Found on the way:** a top-level node keeps the global transform it had, so the smear's world-space ribbon was first drawn a weapon's transform away from the weapon. `SwingSmear` pins itself to the origin.
+
+**Measured:** `--feel-probe` adds an *arc* row; the light and heavy blows each draw 4 stretches, and a strike that draws none fails. `--feel-probe`, `--combat-probe`, `--fight-probe`, `--swarm-probe`, `--hands-probe` (the grip stays on the hand through the new arc, 0.0000 m) and `--body-probe` pass. Seen frame by frame in `--feel-shot`.
+
 *Entries below to be added as design decisions are signed off.*

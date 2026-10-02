@@ -430,7 +430,9 @@ func _process(delta: float) -> void:
 	# **Struck, it flinches** (ADR-279) — read off the replicated health rather
 	# than the host's damage signal, so every peer sees every blow land.
 	if health.current < _health_seen - 0.01 and _state != State.DEAD:
-		_visual.flinch(0.55 + (_health_seen - health.current) / maxf(health.maximum, 1.0) * 2.0)
+		var dealt: float = (_health_seen - health.current) / maxf(health.maximum, 1.0)
+		_visual.flinch(0.55 + dealt * 2.0)
+		_burst(dealt)
 	_health_seen = health.current
 	# **Only where the wire is the authority.** The host moves this body with
 	# `move_and_slide`; a host that also eased would be two things arguing
@@ -447,6 +449,24 @@ func _process(delta: float) -> void:
 	if DisplayServer.get_name() != "headless":
 		_visual.present_enemy(int(_state), int(_attack), visual_progress.x,
 				visual_progress.y, global_position, delta)
+
+
+## **Where it was struck, seen** (ADR-303): sparks off mail and plate, chips
+## off hide, at chest height on the side this peer's camera sees. A blow that
+## took a quarter of it or more throws the heavy burst.
+const BURST_HEAVY_SHARE: float = 0.25
+
+
+func _burst(dealt: float) -> void:
+	var eye: Camera3D = get_viewport().get_camera_3d() if is_inside_tree() else null
+	if eye == null:
+		return
+	var chest: Vector3 = global_position + Vector3(0.0, 1.25, 0.0)
+	var toward: Vector3 = eye.global_position - chest
+	toward.y = 0.0
+	var point: Vector3 = chest + toward.normalized() * 0.28 if toward.length() > 0.01 else chest
+	ImpactBurst.at(get_tree().current_scene, point, eye.global_position,
+		_kind.armour_class != Enums.ArmourClass.UNARMOURED, dealt >= BURST_HEAVY_SHARE)
 
 
 ## Timers are only sampled on the authority. Remote peers receive normalized

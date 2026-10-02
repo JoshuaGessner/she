@@ -44,14 +44,20 @@ const ARC_RAYS: int = 5
 ## *readable*. This is the primary representation of the mechanic — the polish
 ## layer is the arm absorbing impact and the camera kick, both still absent.
 ##
-## Straight lerps, no easing curves and no anticipation overshoot, for the same
-## reason: an eased swing would flatter the timings being judged.
+## **A cut, not a jab** (ADR-303). The strike ran from a raised pose to a
+## struck one that pointed the blade along nearly the same line, so the blade
+## slid along its own length from right to left — a thrust drawn sideways. A
+## swing reads by its **arc**: the blade is raised over the right shoulder
+## pointing up, and the strike pitches it down and across to the lower left,
+## so the edge sweeps the view diagonally the way a forehand cut does. The
+## hitbox is its own sphere (ADR-222), so what a swing can reach is unchanged.
+## Eased since ADR-279; all four poses ⟨tune⟩.
 const POSE_REST: Array = [Vector3(0.33, -0.28, -0.50), Vector3(32, 7, -16)]
-const POSE_RAISED: Array = [Vector3(0.44, 0.02, -0.40), Vector3(-30, 30, -58)]
-const POSE_STRUCK: Array = [Vector3(-0.34, -0.30, -0.72), Vector3(14, -34, 40)]
-## Drawn right back for a heavy blow (ADR-279): higher, further out, and
-## turned so the whole edge shows — the wind-up a teammate reads as *heavy*.
-const POSE_HEAVY: Array = [Vector3(0.60, 0.10, -0.30), Vector3(-62, 44, -80)]
+const POSE_RAISED: Array = [Vector3(0.36, 0.06, -0.40), Vector3(75, 20, -10)]
+const POSE_STRUCK: Array = [Vector3(-0.28, -0.32, -0.52), Vector3(-20, 58, -25)]
+## Drawn right back for a heavy blow (ADR-279): higher, further back, and
+## turned past the shoulder — the wind-up a teammate reads as *heavy*.
+const POSE_HEAVY: Array = [Vector3(0.46, 0.18, -0.26), Vector3(100, 32, -15)]
 
 ## **Held by the owner, each frame** (ADR-279): whether attack is still down.
 ## Read once, as the wind-up ends. Probes that call `request_swing` never set
@@ -90,12 +96,20 @@ var _shown: ItemResource = null
 ## How far the blade has come up into view since it was put in the hand, 0 to 1.
 var _drawn: float = 1.0
 
+## The arc behind the blade while it strikes (ADR-303).
+var _smear: SwingSmear = null
+## How far the held model runs out from the grip, metres — see `_show`.
+var _blade: float = 0.0
+
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _model: Node3D = $Model
 
 
 func _ready() -> void:
 	_hitbox.struck.connect(_on_struck)
+	_smear = SwingSmear.new()
+	_smear.name = "Smear"
+	add_child(_smear)
 	_pose(POSE_REST, POSE_REST, 0.0)
 	_dress()
 
@@ -169,6 +183,12 @@ func _show(item: ItemResource) -> void:
 	var look: Node3D = item.look()
 	if look != null:
 		_model.add_child(look)
+		# How far the model runs out from the grip along −Z, for the smear.
+		_blade = 0.0
+		for node: Node in look.find_children("*", "MeshInstance3D", true, false):
+			var mesh := node as MeshInstance3D
+			var box: AABB = look.transform * mesh.transform * mesh.get_aabb()
+			_blade = maxf(_blade, -box.position.z)
 
 
 ## Reach is a weapon stat (`DES-009`: *"space is a weapon stat"*), so the hitbox
@@ -237,6 +257,11 @@ func _update_pose() -> void:
 		Phase.ACTIVE:
 			_pose(POSE_HEAVY if _heavy else POSE_RAISED, POSE_STRUCK,
 				1.0 - pow(1.0 - t, 3.0))
+			# The arc behind it, from the blade's middle to its tip (ADR-303):
+			# the model points along −Z from its grip (ART-006).
+			if _smear != null and _blade > 0.0:
+				_smear.sample(_model.global_transform * Vector3(0.0, 0.0, -_blade * 0.62),
+					_model.global_transform * Vector3(0.0, 0.0, -_blade))
 		Phase.RECOVERY:
 			# A glance rebounds from the raised pose: the blade stopped where
 			# it met the wall, and the strike was never made (`DES-018`'s twin
@@ -282,6 +307,11 @@ static func lower_by_draw(node: Node3D, amount: float) -> void:
 
 func phase() -> Phase:
 	return _phase
+
+
+## The arc drawn behind the blade, for `--feel-probe`.
+func smear() -> SwingSmear:
+	return _smear
 
 
 func is_busy() -> bool:
