@@ -951,10 +951,12 @@ func _rebind_probe() -> void:
 	var pair_ok: bool = refused == "" and pad_one.call("ping") == "Y" \
 		and pad_one.call("verb") == ping_was and pad_one.call("use_item") == ping_was
 	var bad: String = Bindings.rebind("block", _pad(JOY_BUTTON_LEFT_SHOULDER))
-	var untouched: bool = pad_one.call("block") == "RB" and pad_one.call("bag") == "LB"
-	print("[rebind] shared inputs    ping on %s, verb and use on %s and %s; block to LB refused '%s', block %s, bag %s (want Y, ping's old button twice, a reason, RB, LB)"
+	# LB is the shutter's: taking it would hand the shutter the left trigger,
+	# which `rotate_item` holds — two unrelated verbs on one input.
+	var untouched: bool = pad_one.call("block") == "LT" and pad_one.call("shutter") == "LB"
+	print("[rebind] shared inputs    ping on %s, verb and use on %s and %s; block to LB refused '%s', block %s, shutter %s (want Y, ping's old button twice, a reason, LT, LB)"
 		% [pad_one.call("ping"), pad_one.call("verb"), pad_one.call("use_item"), bad,
-			pad_one.call("block"), pad_one.call("bag")])
+			pad_one.call("block"), pad_one.call("shutter")])
 	if not pair_ok:
 		problems.append("a designed pair did not move together to the input given up")
 	if bad == "" or not untouched:
@@ -965,9 +967,12 @@ func _rebind_probe() -> void:
 	trigger.axis = JOY_AXIS_TRIGGER_LEFT
 	trigger.axis_value = 1.0
 	refused = Bindings.rebind("attack", trigger)
-	print("[rebind] a trigger        attack %s, throw %s (want LT, RT)"
-		% [pad_one.call("attack"), pad_one.call("throw")])
-	if refused != "" or pad_one.call("attack") != "LT" or pad_one.call("throw") != "RT":
+	# The left trigger is block's and rotate's, a designed pair, so both take
+	# the right one together.
+	print("[rebind] a trigger        attack %s, block %s, turn %s (want LT, RT, RT)"
+		% [pad_one.call("attack"), pad_one.call("block"), pad_one.call("rotate_item")])
+	if refused != "" or pad_one.call("attack") != "LT" or pad_one.call("block") != "RT" \
+			or pad_one.call("rotate_item") != "RT":
 		problems.append("a trigger could not be taken, or its swap went wrong")
 
 	# ─ 6. through the screen ─

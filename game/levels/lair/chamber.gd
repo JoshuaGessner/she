@@ -1324,6 +1324,13 @@ func _lair_probe() -> void:
 		problems.append("something stands between the door and the hoard at "
 			+ "body height — she has been given a mass that walls off the one "
 			+ "thing this room is for")
+	# ─ **and there is floor all the way through the door** (ADR-293) ─
+	var door_gaps: int = LairPassage.floor_gaps(self, ROOM.y * 0.5, 1.0, 0.6)
+	print("[lair] door floor     %d gap(s) under the way back (want 0)" % door_gaps)
+	if door_gaps > 0:
+		problems.append(("the door back to the camp has %d place(s) with no "
+			+ "floor under it — a player walking through falls out of the world")
+			% door_gaps)
 
 	for problem: String in problems:
 		printerr("[lair] FAIL %s" % problem)

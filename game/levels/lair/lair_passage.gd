@@ -46,8 +46,14 @@ static func cut(into: Node3D, slab: Callable, wall_z: float, outward: float,
 	var start: float = wall_z + outward * thick * 0.5
 	var middle: float = start + outward * DEEP * 0.5
 	var wall: float = 0.4
-	slab.call(Vector3(HALF * 2.0 + wall * 2.0, 0.4, DEEP),
-		Vector3(0.0, -0.2, middle), dark, DelvingsKit.FLOOR)
+	# **The floor runs back through the wall** (ADR-293). It began at the
+	# wall's outer face while the room's floor ends at its inner one, so the
+	# opening stood over a strip the wall's own thickness wide with nothing
+	# under it — and a player walking through it fell out of the world. It now
+	# starts a hand's breadth inside the room, under the threshold itself.
+	var sill: float = thick + 0.2
+	slab.call(Vector3(HALF * 2.0 + wall * 2.0, 0.4, DEEP + sill),
+		Vector3(0.0, -0.2, middle - outward * sill * 0.5), dark, DelvingsKit.FLOOR)
 	for flank: float in [-1.0, 1.0]:
 		slab.call(Vector3(wall, HIGH, DEEP),
 			Vector3(flank * (HALF + wall * 0.5), HIGH * 0.5, middle), dark,
@@ -70,6 +76,25 @@ static func cut(into: Node3D, slab: Callable, wall_z: float, outward: float,
 		light.position = Vector3(0.0, 1.2, start + outward * (DEEP - 0.6))
 		into.add_child(light)
 	return Vector3(0.0, 0.0, start + outward * DEEP * 0.55)
+
+
+## **How many places across a passage's threshold have no floor under them**
+## (ADR-293), from a hand's breadth inside the room to the passage's far end,
+## at its middle and both sides. A player who falls through a door cannot say
+## why, so the probes ask rather than the playtest.
+static func floor_gaps(into: Node3D, wall_z: float, outward: float, thick: float) -> int:
+	var space: PhysicsDirectSpaceState3D = into.get_world_3d().direct_space_state
+	var inner: float = wall_z - outward * thick * 0.5
+	var gaps: int = 0
+	for step: int in range(-5, int((thick + DEEP) / 0.1)):
+		var z: float = inner + outward * float(step) * 0.1
+		for x: float in [-HALF + 0.3, 0.0, HALF - 0.3]:
+			var ray := PhysicsRayQueryParameters3D.create(
+				into.to_global(Vector3(x, 0.5, z)), into.to_global(Vector3(x, -0.5, z)),
+				CollisionLayers.WORLD)
+			if space.intersect_ray(ray).is_empty():
+				gaps += 1
+	return gaps
 
 
 ## Whether `at` stands inside a passage cut by `cut` in the wall at `wall_z`.

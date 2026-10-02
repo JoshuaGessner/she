@@ -36,11 +36,18 @@ extends Node3D
 
 ## Where the off-hand item rests — (position, rotation in degrees), head frame.
 const OFF_REST: Array = [Vector3(-0.42, -0.22, -0.64), Vector3(0, 158, 4)]
-## Where a shield hangs at rest (ADR-280): low at the left edge, on its rim,
-## so the eye reads *shield* without it standing in front of the room.
-const OFF_SHIELD_REST: Array = [Vector3(-0.44, -0.40, -0.52), Vector3(-8, 70, 10)]
-## Where a shield comes to while the guard is up: across the body, face out.
-const OFF_GUARD: Array = [Vector3(-0.30, -0.16, -0.56), Vector3(4, 24, -6)]
+## Where the fist on a shield's handle is at rest (ADR-280, ADR-293): low at
+## the left edge with the board turned out to the left, so the eye reads
+## *shield* without it standing in front of the room. These are the hand's
+## poses, not the board's — the board hangs from the fist by its handle
+## (`_by_the_handle`), palm down and knuckles into the boss.
+const OFF_SHIELD_REST: Array = [Vector3(-0.44, -0.40, -0.52), Vector3(0, -24, -81)]
+## Where that fist comes to while the guard is up: across the body, the board's
+## face out and a little in toward the middle.
+const OFF_GUARD: Array = [Vector3(-0.30, -0.16, -0.56), Vector3(0, -98.5, -95.6)]
+## How far a first-person wrist bends from its fist before the forearm turns
+## to follow it, in degrees ⟨tune⟩ (ADR-293).
+const WRIST_BEND: float = 40.0
 ## Where the off hand goes while both hands are busy with something else.
 const OFF_AWAY: Array = [Vector3(-0.46, -0.72, -0.50), Vector3(-30, 158, 4)]
 ## Where a thing being used is held: low and central, in both hands.
@@ -108,6 +115,8 @@ func hold(item: ItemResource) -> void:
 	var box: AABB = _bounds(_off_look)
 	if item.has_trait(LightTrait):
 		_off_look.position = Vector3(0.0, -box.end.y, 0.0)
+	elif item.has_trait(ShieldTrait):
+		_off_look.transform = _by_the_handle(_off_look)
 	else:
 		_off_look.position = -box.get_center()
 	_off.add_child(_off_look)
@@ -218,12 +227,14 @@ func _align_visible_arms(main_grip: Node3D) -> void:
 	if _use.visible and _use_look != null:
 		_pose_arm("l", _use.global_transform)
 	elif _off_look != null:
-		_pose_arm("l", _off.global_transform)
+		# A lantern hangs from a fist the tuned forearm already suits; only a
+		# shield's handle turns the fist far enough to need the wrist cap.
+		_pose_arm("l", _off.global_transform, _off_item.has_trait(ShieldTrait))
 	else:
 		_pose_arm("l", global_transform * Transform3D(Basis.IDENTITY, OFF_AWAY[0] as Vector3))
 
 
-func _pose_arm(side: String, grip: Transform3D) -> void:
+func _pose_arm(side: String, grip: Transform3D, follows: bool = true) -> void:
 	var hand: int = _arms_skeleton.find_bone("hand_" + side)
 	var forearm: int = _arms_skeleton.find_bone("forearm_" + side)
 	var socket: int = _arms_skeleton.find_bone("sock_hand_" + side)
@@ -237,6 +248,16 @@ func _pose_arm(side: String, grip: Transform3D) -> void:
 	var along: Vector3 = -(_arms_skeleton.global_basis.inverse() \
 		* global_basis * back).normalized()
 	var rest_along: Vector3 = (hand_rest.origin - fore_rest.origin).normalized()
+	# **The forearm gives way to the fist** (ADR-293). Laid along the tuned
+	# direction alone, a seax held point-up met a forearm coming from below at
+	# 110° of wrist — a hand folded back on itself, which is what read as
+	# broken. The direction is kept as far as a wrist can bend from the way the
+	# fist is turned, and no further.
+	var own: Vector3 = (hand_at.basis * (hand_rest.basis.inverse() * rest_along)).normalized()
+	var bend: float = own.angle_to(along)
+	var most: float = deg_to_rad(WRIST_BEND)
+	if follows and bend > most:
+		along = own.slerp(along, most / bend).normalized()
 	var turn := Basis(Quaternion(rest_along, along))
 	var fore_at := Transform3D(turn * fore_rest.basis,
 		hand_at.origin - along * fore_rest.origin.distance_to(hand_rest.origin))
@@ -290,6 +311,22 @@ static func _bounds(look: Node3D) -> AABB:
 		out = box if first else out.merge(box)
 		first = false
 	return out
+
+
+## **A shield is held by its handle** (ADR-293), the bar behind the boss that
+## the model names `*handgrip*`. Held by its middle, the fist sat in the board
+## turned the way a sword is held, so a hand gripped nothing at the board's
+## centre. The bar goes along the socket's grip axis (Z, the way a weapon's
+## grip lies in the fist) and the board's face (−Z in the model, ART-006) out
+## past the knuckles (−Y, away from the elbow).
+static func _by_the_handle(look: Node3D) -> Transform3D:
+	var holds := Basis(Vector3(0, 0, 1), Vector3(1, 0, 0), Vector3(0, 1, 0))
+	for node: Node in look.find_children("*handgrip*", "MeshInstance3D", true, false):
+		var bar := node as MeshInstance3D
+		var at: Vector3 = (bar.transform * bar.get_aabb()).get_center()
+		return Transform3D(holds, -(holds * at))
+	push_error("Hands: a shield model with no handgrip mesh to hold it by")
+	return Transform3D(Basis.IDENTITY, -_bounds(look).get_center())
 
 
 static func _skeleton_under(node: Node) -> Skeleton3D:

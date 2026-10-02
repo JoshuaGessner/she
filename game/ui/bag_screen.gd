@@ -194,6 +194,8 @@ var _held_rotated: bool = false
 ## Cursor cell minus the held item's origin cell, so a dragged item does not
 ## snap its corner to the pointer the instant you grab it.
 var _grab: Vector2i = Vector2i.ZERO
+## Whether `rotate_item` is still held from the pull that last turned the item.
+var _turn_pulled: bool = false
 
 
 ## Build a bag for one player and hang it off them. A `CanvasLayer` in between
@@ -331,8 +333,15 @@ func _unhandled_input(event: InputEvent) -> void:
 			_release()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("rotate_item"):
-		_turn()
+		# One pull is one turn. On the pad this is the left trigger (ADR-292),
+		# and an axis reports *pressed* on every motion event past the dead zone
+		# — so held, it would spin the item every frame the trigger moved.
+		if not _turn_pulled:
+			_turn()
+		_turn_pulled = true
 		get_viewport().set_input_as_handled()
+	elif event.is_action_released("rotate_item"):
+		_turn_pulled = false
 	elif event.is_action_pressed("use_item"):
 		_use_at_cursor()
 		get_viewport().set_input_as_handled()

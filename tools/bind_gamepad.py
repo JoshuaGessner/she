@@ -57,59 +57,59 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # does: neither suits every hand.
     "crouch": [(BUTTON, B, 0.0)],
     "crouch_toggle": [(BUTTON, RIGHT_STICK, 0.0)],
+    # **The two hands on the two triggers** (ADR-292): the weapon in the right
+    # hand on the right trigger, the shield in the left on the left — Skyrim's
+    # pad, the one first-person melee settled on, because each hand is under
+    # the finger on its own side. Hold the right one for the heavy blow.
     "attack": [(AXIS, AXIS_TRIGGER_RIGHT, 1.0)],
     # The bag (`M2-T01`, DES-019). Opening it is a vulnerable act, so it sits on
-    # a shoulder rather than a face button — nothing you press by accident while
-    # fighting. Moving items needs no bindings of its own: `Player` suspends
-    # look while the bag is open and hands the right stick to the cell cursor,
-    # and `interact` is take-and-place there exactly as it is reach-for-it in
-    # the world. One verb, one button, two contexts.
-    "bag": [(BUTTON, LEFT_SHOULDER, 0.0)],
+    # `BACK` (View), where every console game keeps the screen that is not the
+    # world (ADR-292). It sat on the left shoulder until a playtest opened it
+    # mid-fight, over and over, reaching for a blow — a shoulder is a combat
+    # input, and the hand looking for one finds it. Moving items needs no
+    # bindings of its own: `Player` suspends look while the bag is open and
+    # hands the right stick to the cell cursor, and `interact` is
+    # take-and-place there exactly as it is reach-for-it in the world.
+    "bag": [(BUTTON, BACK, 0.0)],
     "drop": [(BUTTON, DPAD_DOWN, 0.0)],
-    "rotate_item": [(BUTTON, RIGHT_SHOULDER, 0.0)],
+    # On the trigger with `block`: the shield's finger turns what is in the
+    # bag, and BagScreen counts one pull as one turn.
+    "rotate_item": [(AXIS, AXIS_TRIGGER_LEFT, 1.0)],
     # **Using a binding or a rune** (`M4-T32`, ADR-221). Only ever read by
     # BagScreen while it is open, so it shares `Y` with the class verb the way
-    # `rotate_item` shares a shoulder with `block` — the pad still has no free
-    # button, and the bag is the context that keeps the two apart.
+    # `rotate_item` shares a trigger with `block` — the bag is the context that
+    # keeps the two apart.
     "use_item": [(BUTTON, Y, 0.0)],
-    # Baiting the Gullsjúkr (`M2-T02`, DES-017). On the trigger opposite attack,
-    # because it is the other thing you do with a full hand under pressure and
-    # the two must never be confused at the moment it matters.
-    "throw": [(AXIS, AXIS_TRIGGER_LEFT, 1.0)],
+    # Baiting the Gullsjúkr (`M2-T02`, DES-017). On the right shoulder, over
+    # the attack trigger: the other thing the weapon hand does (ADR-292). It
+    # gave the left trigger to `block`.
+    "throw": [(BUTTON, RIGHT_SHOULDER, 0.0)],
     # Spending the way home (`M2-T04`, ADR-015). Deliberately off on the d-pad,
     # away from the face buttons and the triggers: it ends the run, and the one
     # input you must never press by accident should not sit under your thumb.
     "use_waystone": [(BUTTON, DPAD_UP, 0.0)],
     # **Working the shutter** (`M4-T13`, ADR-188) — see, or be unseen. Pressed
-    # constantly and reflexively while crossing a floor, so it belongs on the
-    # d-pad beside the other two things you do with a full hand under pressure
-    # rather than on a face button your thumb has left to reach it.
-    #
-    # It took `DPAD_LEFT` from `debug_reset`, which moved to `START`, and that
-    # is ADR-137's argument applied a second time rather than a new one: *a
-    # debug toggle does not get to hold prime real estate while a gameplay verb
-    # goes unbound.* `START` is where a rarely-pressed developer key belongs,
-    # and the pad has no other free input — the layout pass that fixes that
-    # properly is still `M4-T06`.
-    "shutter": [(BUTTON, DPAD_LEFT, 0.0)],
+    # constantly and reflexively while crossing a floor, so it is on the left
+    # shoulder (ADR-292), under a finger, where a thumb on the d-pad had to
+    # leave the move stick to reach it — the lamp is the left hand's other
+    # job, beside the shield.
+    "shutter": [(BUTTON, LEFT_SHOULDER, 0.0)],
     "debug_reset": [(BUTTON, START, 0.0)],
-    # Off the face buttons and onto `BACK` (ADR-137), which nothing was using.
-    # A debug toggle does not get to hold prime real estate while a class verb
-    # goes unbound — and `GUIDE` stays empty deliberately, because it is the
-    # system button and the OS eats it.
-    "debug_ink": [(BUTTON, BACK, 0.0)],
+    # On `GUIDE` (ADR-292), which the OS often keeps for itself — and for a
+    # debug view that is the point: a playtester cannot turn it on by
+    # accident, and the keyboard keys are the developer's way in. `BACK`, which
+    # it held from ADR-137, went to the bag.
+    "debug_ink": [(BUTTON, GUIDE, 0.0)],
     # The diagnostic overlay (`M2-T13`, ADR-105). Beside the other two debug
     # keys, because it is one: vision cones and the clamor field are for tuning,
     # and they were drawn in every session including a playtester's.
     #
-    # **It shares `BACK` with `debug_ink` now** (ADR-244): the ping took
-    # `DPAD_RIGHT`, on ADR-137's argument a third time — a debug toggle does not
-    # hold a button a gameplay verb needs. Both are views of what the screen
-    # draws, so on a pad they turn over together; the keyboard keeps them apart.
-    "debug_overlays": [(BUTTON, BACK, 0.0)],
+    # **It shares a button with `debug_ink`** (ADR-244, now `GUIDE` by
+    # ADR-292). Both are views of what the screen draws, so on a pad they turn
+    # over together; the keyboard keeps them apart.
+    "debug_overlays": [(BUTTON, GUIDE, 0.0)],
     # **The ping** (`M4-T05`, ADR-244, `DES-012`) — tap to mark, hold for the
-    # four gestures. On the d-pad beside the shutter, the other thing you do
-    # with a full hand, and never a face button a fight needs.
+    # four gestures. On the d-pad, and never a face button a fight needs.
     "ping": [(BUTTON, DPAD_RIGHT, 0.0)],
     "interact": [(BUTTON, X, 0.0)],
     # **Hold and Snare** (`M3-T02`, `M3-T11`, `DES-011`) — the class verb, on
@@ -129,8 +129,9 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # `debug_ink`. A debug toggle was holding a face button while a combat verb
     # was not reachable. That is the trade that actually existed.
     "verb": [(BUTTON, Y, 0.0)],
-    # **Blocking** (`M3-T02`, `DES-009`). Right mouse, and on the pad it shares
-    # RIGHT_SHOULDER with `rotate_item` — the two contexts are disjoint, since
+    # **Blocking** (`M3-T02`, `DES-009`). Right mouse, and on the pad the left
+    # trigger (ADR-292), shared with `rotate_item` — the two contexts are
+    # disjoint, since
     # you cannot raise a shield while rummaging and cannot turn an item while
     # fighting. Precedent is `interact`, which is already take-and-place in the
     # bag and reach-for-it in the world.
@@ -140,7 +141,7 @@ BINDINGS: dict[str, list[tuple[str, int, float]]] = {
     # spoken for, while `DES-009`'s five combat verbs are attack, heavy,
     # block, shove and throw — of which three are still unbound. The layout
     # pass that fixes that properly belongs with rebinding at `M4-T06`.
-    "block": [(BUTTON, RIGHT_SHOULDER, 0.0)],
+    "block": [(AXIS, AXIS_TRIGGER_LEFT, 1.0)],
     # **The menu's two keys** (`M4-T06`, ADR-245). Godot 4.7 ships `ui_accept`
     # as Enter, keypad Enter and Space and `ui_cancel` as Escape, with no pad
     # button on either — so from ADR-075 until here a pad could move focus

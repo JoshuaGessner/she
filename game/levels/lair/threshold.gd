@@ -965,6 +965,18 @@ func _threshold_probe() -> void:
 	# ─ **and both panels are on the hub's ground** (ADR-216) ─
 	problems.append_array(MenuStyle.off_the_lair_ground("camp",
 		{"PLACE": _place, "CONTROLS": _controls}))
+	# ─ **and there is floor all the way through both doors** (ADR-293) ─
+	var half_deep: float = GROUND_DEEP * 0.5
+	var down_gaps: int = LairPassage.floor_gaps(self,
+		GROUND_AT - half_deep - WALL_THICK * 0.5, -1.0, WALL_THICK)
+	var home_gaps: int = LairPassage.floor_gaps(self,
+		GROUND_AT + half_deep + WALL_THICK * 0.5, 1.0, WALL_THICK)
+	print("[camp] door floors     %d gap(s) under the way down, %d under the way to her (want 0, 0)"
+		% [down_gaps, home_gaps])
+	if down_gaps > 0 or home_gaps > 0:
+		problems.append(("a doorway out of the camp has %d place(s) with no floor "
+			+ "under it — a player walking through falls out of the world")
+			% (down_gaps + home_gaps))
 
 	for problem: String in problems:
 		printerr("[camp] FAIL %s" % problem)

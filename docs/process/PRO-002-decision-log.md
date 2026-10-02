@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-09-29
+updated: 2026-10-01
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -10765,5 +10765,39 @@ ADR-288 also broke something. Enlarging `Title` to 120 px for the title screen e
 - **Dust specks are halved to 6 mm.** At 12 mm the nearest ones read as small squares.
 
 **Measured:** `--board-probe`, `--light-probe`, `--ink-probe`, `--delvings-probe` and `--sight-probe` pass. Seen in `--board-shot` and `--ink-shot`.
+
+## ADR-292 — The two hands on the two triggers: block moves to the left trigger, and the bag leaves the shoulder
+
+**Date:** 2026-10-01 · **Status:** accepted · **Amends ADR-137, ADR-244, ADR-245's default pad layout**
+
+**Context:** a playtest on a pad reported two faults. *"The attack button kept hitting my inventory"*, and *"block needs to be left trigger instead of right bumper."* The bag sat on the left shoulder, which is a combat input: a hand reaching for a blow finds it. The input code was read and is right. No log names the pad, so nothing showed the pad itself sending the wrong button, and the shoulder is the explanation that fits. Block sat on the right shoulder, under the finger that was also attacking.
+
+**Decision:** the default pad layout, written by `tools/bind_gamepad.py`:
+- **Right trigger** is attack, held for the heavy blow (unchanged). **Left trigger** is block. *Reference: Skyrim's pad, where each hand's action is under the finger on its own side. That is the layout first-person melee settled on.*
+- **Right shoulder** is throw (baiting the Gullsjúkr), the weapon hand's other job. It gave the left trigger to block.
+- **Left shoulder** is the lantern's shutter, the left hand's other job. It leaves the d-pad, where reaching it took the thumb off the move stick.
+- **Back (View)** is the bag, where console games keep the screen that is not the world.
+- **Rotating an item in the bag** is on the left trigger with block. The bag is the context that keeps the two apart. An axis reports *pressed* on every motion past the dead zone, so `BagScreen` counts one pull as one turn.
+- **The two debug views go to Guide.** The OS often keeps that button for itself, which is the point: a tester cannot turn them on by accident, and the keyboard keys stay the developer's way in.
+
+Every other binding is unchanged, and the keyboard is untouched. A player's own rebinds are overrides per action (ADR-245), so they survive this.
+
+**Measured:** `bind_gamepad.py --check` binds all 29 actions. `--rebind-probe` passes against the new layout. Its shared-inputs row now asserts block on LT and shutter on LB, and that block to LB is refused because the shutter would be left sharing the trigger with `rotate_item`.
+
+## ADR-293 — A shield is held by its handle, the fist leads the forearm, and every Lair door has floor under it
+
+**Date:** 2026-10-01 · **Status:** accepted · **Continues ADR-280 and ADR-282**
+
+**Context:** the same playtest found two more faults.
+- **The hand was oriented wrong on the shield's handle.** `Hands` placed the shield by its centre and posed the fist the way a sword is held, so the hand gripped nothing. The seax had a related fault: held point-up, its forearm came from below at about 110°, and the wrist folded.
+- **The camp's two doorways had a gap the player fell through.** `LairPassage.cut` started the passage floor at the wall's outer face, while the room's floor ends at its inner face. That left a strip the wall's thickness wide with nothing under the opening. The Chamber's door is cut by the same code.
+
+**Decision:**
+- **A shield hangs from the fist by its handle** (`Hands._by_the_handle`). It finds the model's `*handgrip*` bar and lays it along the socket's grip axis, palm down, with the board's face out past the knuckles. `OFF_SHIELD_REST` and `OFF_GUARD` are now the hand's poses, not the board's ⟨tune⟩.
+- **The forearm gives way to the fist** past `WRIST_BEND` (40° ⟨tune⟩). A lantern's grip is exempt, because the tuned forearm already suits it.
+- **The passage floor runs back through the wall** to a hand's breadth inside the room (`sill` = wall thickness + 0.2 m).
+- **`LairPassage.floor_gaps`** casts down across each threshold at the middle and both sides, every 10 cm. The camp's `--threshold-probe` asks it of both doors, and the Chamber's `--lair-probe` asks it of the door back.
+
+**Measured:** `--threshold-probe` reports *0 gap(s) under the way down, 0 under the way to her*. With the old floor restored as a plant, it reports **21 and 21** and fails. `--lair-probe` reports 0 under the Chamber's door. Seen in `--hands-shot`: the guard frame shows the fist closed on the bar behind the boss.
 
 *Entries below to be added as design decisions are signed off.*
