@@ -208,6 +208,22 @@ func shore_view() -> Dictionary:
 	return _shore_view
 
 
+## Somewhere to stand to see a room that is not a rectangle, for
+## `--delvings-shot` (ADR-304): the middle of the first room with a corner
+## left as rock, looking at that corner. Empty if none was carved.
+func shape_view() -> Dictionary:
+	for node: int in _graph.size():
+		var blocks: Array = _plan.notches_of(node)
+		if blocks.is_empty():
+			continue
+		var block: Rect2i = blocks[0]
+		var rock: Vector3 = FloorBuilder.at(block.position) + Vector3(
+			block.size.x * FloorBuilder.CELL * 0.5, 1.2,
+			block.size.y * FloorBuilder.CELL * 0.5)
+		return {"at": _anchors.centre_of(node), "look": rock}
+	return {}
+
+
 ## **The clutter, stood up** (`M4-T10`, ADR-265) — `FloorDressing.raise` over
 ## `dressing()`. Its own call, after the architecture and before anything bakes
 ## a navmesh, so a check that builds the bare geometry itself can lay the same

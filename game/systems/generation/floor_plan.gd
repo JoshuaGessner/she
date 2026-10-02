@@ -173,6 +173,9 @@ var _slot: Array[Vector2i] = []
 var _rect: Array[Rect2i] = []
 ## Fine cell → node, for room interiors. Lookup only, never iterated to decide.
 var _cells: Dictionary = {}
+## Room cells left as rock, and each room's corner blocks — see `_carve`.
+var _rock: Dictionary = {}
+var _notches: Dictionary = {}
 ## Fine cell → the routes crossing it, as indices into the sorted edge list.
 ## Two entries is a bridge: one corridor over the other, never joined.
 var _corridor: Dictionary = {}
@@ -216,9 +219,190 @@ static func build(graph: MissionGraph, run_seed: int, floor_index: int,
 		var rng := RandomNumberGenerator.new()
 		rng.seed = _sub_seed(run_seed, floor_index, attempt)
 		if plan._attempt(rng, modules):
+			plan._carve(run_seed, floor_index)
 			return plan
 	plan._exhausted = true
 	return plan
+
+
+## **A room is not a rectangle** (ADR-304). Every room was one, so a floor
+## read as boxes on a string however its graph was wired (`TEC-008` §2.2's
+## finding, and the playtest's). Corners of a plain room are left as rock,
+## after routing and from a stream of their own, so the interior stands as an
+## **L** (one corner), a **T** (two on one side) or a **cross** (all four) —
+## and some stay rectangles, because a floor of nothing but crosses is a
+## pattern too.
+##
+## Carved *out of* the rectangle rather than grown beyond it, so nothing a
+## route, a door, the lattice or the digest reads moves: the rectangle is
+## still the room's claim on the grid. What changes is which of its cells are
+## floor (`holds`), and every caller that places something inside a room asks
+## `notched` first.
+##
+## Never the entrance, the prize or the shaft — each is read by a rule that
+## wants its whole interior — nor a room under three cells either way, and a
+## great hall only as an L. A corner is never carved where a door or the
+## room's middle is.
+const SHAPE_STREAM: int = 0x5A4E
+## How likely each shape is, out of the whole: rectangle, L, T, cross ⟨tune⟩.
+const SHAPE_WEIGHTS: Array[int] = [3, 3, 2, 2]
+
+
+func _carve(run_seed: int, floor_index: int) -> void:
+	_rock = {}
+	_notches = {}
+	var rng := RandomNumberGenerator.new()
+	rng.seed = MissionGraph._mix(
+		MissionGraph.stage_seed(run_seed, floor_index) + STAGE + SHAPE_STREAM)
+	var special: Array[int] = [_graph.node_with(MissionGraph.Role.ENTRANCE),
+		_graph.node_with(MissionGraph.Role.PRIZE), _graph.node_with(MissionGraph.Role.SHAFT)]
+	var total: int = 0
+	for weight: int in SHAPE_WEIGHTS:
+		total += weight
+	for node: int in _graph.size():
+		# Drawn for every room, carved or not, so one room's eligibility cannot
+		# shift another's shape.
+		var roll: int = rng.randi_range(0, total - 1)
+		var turn: int = rng.randi_range(0, 3)
+		var module: RoomModule = _mods[node]
+		var rect: Rect2i = _rect[node]
+		if special.has(node) or module == null \
+				or rect.size.x < 3 or rect.size.y < 3:
+			continue
+		var shape: int = 0
+		while roll >= SHAPE_WEIGHTS[shape]:
+			roll -= SHAPE_WEIGHTS[shape]
+			shape += 1
+		if shape == 0:
+			continue
+		# A great hall is only ever an L: its ledge runs a whole wall corner to
+		# corner (`FloorBuilder._ledge`), and one corner of rock leaves the two
+		# walls opposite it whole for one.
+		if module.volume == RoomModule.Volume.GREAT:
+			shape = 1
+		# **How much rock, by shape.** The room's middle point — where its
+		# centre, its spawns and its rings are measured from — is always left
+		# on floor. An L takes half the room each way, which is what makes it
+		# read as an L rather than a nicked rectangle; a T takes half across
+		# and just under half along its shared side, so the stem stays open; a
+		# cross takes just under half both ways.
+		var half := Vector2i(rect.size.x / 2, rect.size.y / 2)
+		var under := Vector2i(maxi(1, (rect.size.x - 1) / 2), maxi(1, (rect.size.y - 1) / 2))
+		var corners: Array[Vector2i] = [Vector2i(0, 0), Vector2i(1, 0), Vector2i(1, 1), Vector2i(0, 1)]
+		# The shape in the first orientation its doors allow, from `turn` on —
+		# a door in the way turns the shape rather than cancelling it. A cross
+		# keeps whichever corners are clear, and is a T or an L when fewer are.
+		var picked: Array[Rect2i] = []
+		for offset: int in 4:
+			var first: int = (turn + offset) % 4
+			var second: int = (first + 1) % 4
+			if shape == 1:
+				var block: Rect2i = _corner_block(rect, corners[first], half)
+				if _can_be_rock(node, rect, module, corners[first], block):
+					picked = [block]
+			elif shape == 2:
+				# Two corners sharing a side: under half along it, half across.
+				var along_x: bool = corners[first].y == corners[second].y
+				var deep := Vector2i(under.x, half.y) if along_x else Vector2i(half.x, under.y)
+				var a: Rect2i = _corner_block(rect, corners[first], deep)
+				var b: Rect2i = _corner_block(rect, corners[second], deep)
+				if _can_be_rock(node, rect, module, corners[first], a) \
+						and _can_be_rock(node, rect, module, corners[second], b):
+					picked = [a, b]
+			if not picked.is_empty():
+				break
+		if shape == 3:
+			for corner: Vector2i in corners:
+				var block: Rect2i = _corner_block(rect, corner, under)
+				if _can_be_rock(node, rect, module, corner, block):
+					picked.append(block)
+		for block: Rect2i in picked:
+			var held: Array = _notches.get(node, [])
+			held.append(block)
+			_notches[node] = held
+			for x: int in range(block.position.x, block.end.x):
+				for y: int in range(block.position.y, block.end.y):
+					_rock[Vector2i(x, y)] = node
+
+
+## The block of `rect` at `corner` (each axis 0 low, 1 high), `deep` cells.
+static func _corner_block(rect: Rect2i, corner: Vector2i, deep: Vector2i) -> Rect2i:
+	return Rect2i(rect.position + Vector2i(
+			0 if corner.x == 0 else rect.size.x - deep.x,
+			0 if corner.y == 0 else rect.size.y - deep.y), deep)
+
+
+## Whether `block` may be left as rock: no door opens onto it, and a great
+## hall still has a wall for its ledge.
+func _can_be_rock(node: int, rect: Rect2i, module: RoomModule, corner: Vector2i,
+		block: Rect2i) -> bool:
+	if not _block_is_clear(block, node):
+		return false
+	if module.volume == RoomModule.Volume.GREAT:
+		return _keeps_a_ledge_wall(node, rect, corner)
+	return true
+
+
+## Whether a corner block of `node` can be rock: no door opens onto any of its
+## cells from outside, so every way in still arrives on floor.
+func _block_is_clear(block: Rect2i, node: int) -> bool:
+	for door: Vector2i in doors_of(node):
+		for step: Vector2i in STEPS:
+			if block.has_point(door + step):
+				return false
+	return true
+
+
+## Whether a wall `FloorBuilder._ledge` could use is left whole once `corner`
+## of `rect` is rock: long enough for a ramp and a deck, no doorway along it,
+## and not one of the two walls that corner touches. The builder's own rule,
+## asked early, so carving never costs a great hall its ledge.
+func _keeps_a_ledge_wall(node: int, rect: Rect2i, corner: Vector2i) -> bool:
+	var doors: Array[Vector2i] = doors_of(node)
+	# Sides as `FloorBuilder._strip` numbers them: 0 top, 1 bottom, 2 left, 3 right.
+	var touched: Array[int] = [0 if corner.y == 0 else 1, 2 if corner.x == 0 else 3]
+	for side: int in 4:
+		if touched.has(side):
+			continue
+		var cells: Array[Vector2i] = []
+		var out := Vector2i.ZERO
+		match side:
+			0:
+				out = Vector2i(0, -1)
+				for x: int in range(rect.position.x, rect.end.x):
+					cells.append(Vector2i(x, rect.position.y))
+			1:
+				out = Vector2i(0, 1)
+				for x: int in range(rect.position.x, rect.end.x):
+					cells.append(Vector2i(x, rect.end.y - 1))
+			2:
+				out = Vector2i(-1, 0)
+				for y: int in range(rect.position.y, rect.end.y):
+					cells.append(Vector2i(rect.position.x, y))
+			_:
+				out = Vector2i(1, 0)
+				for y: int in range(rect.position.y, rect.end.y):
+					cells.append(Vector2i(rect.end.x - 1, y))
+		if cells.size() < FloorBuilder.LEDGE_RAMP_CELLS + 2:
+			continue
+		var whole: bool = true
+		for cell: Vector2i in cells:
+			if doors.has(cell + out):
+				whole = false
+				break
+		if whole:
+			return true
+	return false
+
+
+## The corner blocks of `node` left as rock (ADR-304).
+func notches_of(node: int) -> Array:
+	return _notches.get(node, [])
+
+
+## Whether `cell` is inside a room's rectangle but left as rock (ADR-304).
+func notched(cell: Vector2i) -> bool:
+	return _rock.has(cell)
 
 
 func _reset() -> void:
@@ -799,7 +983,7 @@ func over_of(route: int) -> Array[Vector2i]:
 ## `FloorBuilder` asks so it can decide where a tunnel needs a wall. A side that
 ## opens onto more floor stays open; everything else is rock.
 func holds(cell: Vector2i) -> bool:
-	return _cells.has(cell) or _corridor.has(cell)
+	return (_cells.has(cell) and not _rock.has(cell)) or _corridor.has(cell)
 
 
 ## No cell at all, for a question about two rooms nothing joins.

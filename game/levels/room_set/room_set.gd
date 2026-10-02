@@ -1076,6 +1076,7 @@ func _build_probe() -> void:
 	var alcoves: int = 0
 	var ledges: int = 0
 	var shored: int = 0
+	var notched: int = 0
 	for depth: int in 3:
 		var graph: MissionGraph = MissionGraph.build(31337, depth)
 		var lore := ExpeditionHistory.roll(31337, calamities, kinds)
@@ -1092,6 +1093,7 @@ func _build_probe() -> void:
 		alcoves += int(census["alcoves"])
 		ledges += int(census["ledges"])
 		shored += int(census["shored"])
+		notched += int(census["notched"])
 		print("[build] floor %d     %d room(s), %d corridor cell(s), %d slab(s), "
 			% [depth, census["rooms"], census["corridor"], census["slabs"]]
 			+ "roughness %.1f" % census["roughness"])
@@ -1119,8 +1121,8 @@ func _build_probe() -> void:
 	# other row here passing about a floor that had gone back to boxes and
 	# corridors. That is `TEC-007` §1's population rule, and this row is what it
 	# looks like when it is applied before the fact rather than after.
-	print("[build] devices     %d alcove(s), %d ledge(s), %d timber set(s) across 3 floors"
-		% [alcoves, ledges, shored])
+	print("[build] devices     %d alcove(s), %d ledge(s), %d timber set(s), %d corner(s) left as rock across 3 floors"
+		% [alcoves, ledges, shored, notched])
 	# And the corridors' beat (ADR-301): a run of identical cells with nothing
 	# in it is the corridor reading as drawn rather than dug.
 	if shored == 0:
@@ -3811,10 +3813,13 @@ func _delvings_shot(path: String, ink: bool = false) -> void:
 	if dressed != null and not dressed.dressing_view().is_empty():
 		views.append(["dressing", dressed.dressing_view()["at"],
 			dressed.dressing_view()["look"]])
-	# And down a shored corridor (ADR-301).
+	# And down a shored corridor (ADR-301), and across a shaped room (ADR-304).
 	if dressed != null and not dressed.shore_view().is_empty():
 		views.append(["corridor", dressed.shore_view()["at"],
 			dressed.shore_view()["look"]])
+	if dressed != null and not dressed.shape_view().is_empty():
+		views.append(["shaped", dressed.shape_view()["at"],
+			dressed.shape_view()["look"]])
 	for view: Array in views:
 		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
 		var look: Vector3 = view[2] as Vector3

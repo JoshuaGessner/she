@@ -385,7 +385,14 @@ func spots_in(node: int, count: int) -> Array[Vector3]:
 		return out
 	for index: int in count:
 		var angle: float = TAU * float(index) / float(count)
-		out.append(middle + Vector3(cos(angle), 0.0, sin(angle)) * reach)
+		var spot: Vector3 = middle + Vector3(cos(angle), 0.0, sin(angle)) * reach
+		# A ring point that falls in a corner left as rock (ADR-304) comes in
+		# along its own spoke, which keeps the ring's separation by angle.
+		for _pull: int in 4:
+			if not _plan.notched(FloorBuilder.cell_of(spot)):
+				break
+			spot = middle.lerp(spot, 0.6)
+		out.append(spot)
 	return out
 
 
@@ -425,7 +432,8 @@ func _is_open(point: Vector3) -> bool:
 	for rect: Rect2 in _kept_out:
 		if rect.has_point(Vector2(point.x, point.z)):
 			return false
-	return true
+	# Nor in a corner of the room left as rock (ADR-304).
+	return not _plan.notched(FloorBuilder.cell_of(point))
 
 
 ## Hops from `from` to `to` across the graph, or -1 if unreachable.

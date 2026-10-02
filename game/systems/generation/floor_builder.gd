@@ -265,6 +265,7 @@ var _ledges_raised: int = 0
 var _fallen_laid: int = 0
 var _hazards_laid: int = 0
 var _shored: int = 0
+var _notched: int = 0
 var _shore_view: Dictionary = {}
 ## Every solid slab laid, as `[Transform3D, size, role]` — see `occluders`.
 var _occluders: Array = []
@@ -322,6 +323,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		"fallen": builder._fallen_laid,
 		"hazards": builder._hazards_laid,
 		"shored": builder._shored,
+		"notched": builder._notched,
 		"shore_view": builder._shore_view,
 		"occluders": builder._occluders,
 	}
@@ -345,6 +347,11 @@ static func occluders(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 ## Where a cell's near corner sits in metres.
 static func at(cell: Vector2i) -> Vector3:
 	return Vector3(cell.x * CELL, 0.0, cell.y * CELL)
+
+
+## The cell a point in metres stands in — `at`'s inverse.
+static func cell_of(point: Vector3) -> Vector2i:
+	return Vector2i(floori(point.x / CELL), floori(point.z / CELL))
 
 
 ## The basis that tilts a slab so it **rises** toward `along`.
@@ -395,6 +402,8 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 	_wall_z(plan, rect, doors, alcoves, height, false)
 	for cell: Vector2i in alcoves:
 		_alcove(rect, cell)
+	for block: Rect2i in plan.notches_of(node):
+		_notch(rect, block, height)
 
 	# Corners cut back as the working gives way to the seam. At roughness 0
 	# this emits nothing at all, which is what makes floor 1 read as built.
@@ -419,6 +428,10 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 				Vector2(1, 1)]:
 			var low_x: bool = corner.x < 0.5
 			var low_z: bool = corner.y < 0.5
+			# A corner left as rock (ADR-304) has nothing to cut.
+			if plan.notched(Vector2i(rect.position.x if low_x else rect.end.x - 1,
+					rect.position.y if low_z else rect.end.y - 1)):
+				continue
 			var z_line: int = rect.position.y - 1 if low_z else rect.end.y
 			var x_line: int = rect.position.x - 1 if low_x else rect.end.x
 			var clear: float = minf(
@@ -446,7 +459,7 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 
 	# A great room gets somewhere to see it from before you are in it.
 	if module != null and module.volume == RoomModule.Volume.GREAT:
-		_ledge(rect, doors, rng)
+		_ledge(plan, rect, doors, rng)
 
 
 ## Which cells beside `rect` become alcoves (`TEC-008` §3.3.3).
@@ -486,6 +499,11 @@ func _alcoves(plan: FloorPlan, rect: Rect2i,
 			if not rect.has_point(side) and plan.holds(side):
 				sealed = false
 				break
+			# Its mouth must open onto floor, not onto a corner left as rock
+			# (ADR-304) — a recess behind rock is a hole nobody can reach.
+			if rect.has_point(side) and plan.notched(side):
+				sealed = false
+				break
 		if sealed:
 			pocket.append(cell)
 	if pocket.is_empty():
@@ -522,6 +540,61 @@ func _alcove(rect: Rect2i, cell: Vector2i) -> void:
 		var out := Vector3(step.x, 0.0, step.y) * (CELL * 0.5 - WALL_THICK * 0.5)
 		_slab(thick, mid + out + Vector3(0.0, ALCOVE_CEILING * 0.5, 0.0),
 			STONE[_depth], 0.0, "wall")
+
+
+## **A corner of the room left as rock** (ADR-304). A solid the room's full
+## height fills the block, and each face of it that looks into the room is a
+## clad wall — the room's walls still run behind it, buried. The filler is
+## pulled in off the faces by a wall's thickness so the two never share a
+## plane (ADR-297), and it reaches the ceiling, so Recast finds no floor on
+## top of it.
+func _notch(rect: Rect2i, block: Rect2i, height: float) -> void:
+	var low: Vector3 = at(block.position)
+	var span := Vector3(block.size.x * CELL, 0.0, block.size.y * CELL)
+	# Which of the block's sides face into the room: the ones not on the
+	# rectangle's edge.
+	var east: bool = block.end.x < rect.end.x
+	var west: bool = block.position.x > rect.position.x
+	var south: bool = block.end.y < rect.end.y
+	var north: bool = block.position.y > rect.position.y
+	var core_low: Vector3 = low
+	var core_span: Vector3 = span
+	if west:
+		core_low.x += WALL_THICK
+		core_span.x -= WALL_THICK
+	if east:
+		core_span.x -= WALL_THICK
+	if north:
+		core_low.z += WALL_THICK
+		core_span.z -= WALL_THICK
+	if south:
+		core_span.z -= WALL_THICK
+	_slab(Vector3(core_span.x, height, core_span.z),
+		core_low + Vector3(core_span.x * 0.5, height * 0.5, core_span.z * 0.5),
+		RUBBLE[_depth], 0.0, "notch")
+	var mid_y: float = height * 0.5
+	# The faces running along z stop short of any face running along x, so
+	# the two meet end to face rather than overlapping on one plane.
+	var z_from: float = WALL_THICK if north else 0.0
+	var z_to: float = span.z - (WALL_THICK if south else 0.0)
+	var z_mid: float = (z_from + z_to) * 0.5
+	if east:
+		_slab(Vector3(WALL_THICK, height, z_to - z_from),
+			low + Vector3(span.x - WALL_THICK * 0.5, mid_y, z_mid),
+			STONE[_depth], 0.0, "wall")
+	if west:
+		_slab(Vector3(WALL_THICK, height, z_to - z_from),
+			low + Vector3(WALL_THICK * 0.5, mid_y, z_mid),
+			STONE[_depth], 0.0, "wall")
+	if south:
+		_slab(Vector3(span.x, height, WALL_THICK),
+			low + Vector3(span.x * 0.5, mid_y, span.z - WALL_THICK * 0.5),
+			STONE[_depth], 0.0, "wall")
+	if north:
+		_slab(Vector3(span.x, height, WALL_THICK),
+			low + Vector3(span.x * 0.5, mid_y, WALL_THICK * 0.5),
+			STONE[_depth], 0.0, "wall")
+	_notched += 1
 
 
 ## The cells of `rect` lying against one of its four walls, in order.
@@ -577,7 +650,7 @@ func _outward(side: int) -> Vector2i:
 ## 144 floors), and a ledge is the vista rule's delivery mechanism. Refusing only
 ## both-ends walls costs 3% (281). Turning a one-doorway ledge so its deck faces
 ## the door was tried as well and changed nothing measurable, so it is not here.
-func _ledge(rect: Rect2i, doors: Array[Vector2i],
+func _ledge(plan: FloorPlan, rect: Rect2i, doors: Array[Vector2i],
 		rng: RandomNumberGenerator) -> void:
 	var sides: Array[int] = []
 	for side: int in 4:
@@ -587,7 +660,8 @@ func _ledge(rect: Rect2i, doors: Array[Vector2i],
 			continue
 		var clear: bool = true
 		for cell: Vector2i in wall:
-			if doors.has(cell + _outward(side)):
+			# Nor along a wall with a corner left as rock (ADR-304).
+			if doors.has(cell + _outward(side)) or plan.notched(cell):
 				clear = false
 				break
 		if _door_at_end(wall, doors, true) and _door_at_end(wall, doors, false):
@@ -1032,6 +1106,15 @@ func _fallen(plan: FloorPlan, node: int, machine: MachineResource,
 		var at_z: float = clampf(
 			middle.z + rng.randfn(0.0, FALLEN_SPREAD),
 			corner.z + FALLEN_INSET, corner.z + FALLEN_INSET + span.y)
+		# Never inside a corner left as rock (ADR-304): drawn back toward the
+		# middle, which is always floor, until it lies on floor.
+		var spot := Vector3(at_x, 0.0, at_z)
+		for _pull: int in 4:
+			if not plan.notched(cell_of(spot)):
+				break
+			spot = spot.lerp(Vector3(middle.x, 0.0, middle.z), 0.5)
+		at_x = spot.x
+		at_z = spot.z
 		var yaw: float = heading
 		if machine.facing == MachineResource.Facing.SCATTERED:
 			yaw = rng.randf() * TAU

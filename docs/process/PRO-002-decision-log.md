@@ -10968,4 +10968,22 @@ Every other binding is unchanged, and the keyboard is untouched. A player's own 
 
 **Measured:** `--feel-probe` adds an *arc* row; the light and heavy blows each draw 4 stretches, and a strike that draws none fails. `--feel-probe`, `--combat-probe`, `--fight-probe`, `--swarm-probe`, `--hands-probe` (the grip stays on the hand through the new arc, 0.0000 m) and `--body-probe` pass. Seen frame by frame in `--feel-shot`.
 
+## ADR-304 — Rooms are not all rectangles: corners left as rock make Ls, Ts and crosses
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T01`; continues ADR-175, TEC-008** · **Developer's call: "room shapes and hubs", shapes first**
+
+**Context:** *"We need to improve the level generator to design out the levels a little better."* `--plan-shot` (new) draws a generated floor from straight above with its ceilings lifted. Floor 1 of seed 7 is one great ring of small rectangles strung on straight runs around an empty middle, and floor 3 branches more but is still rectangles joined by corridors. ADR-175's finding still held at the scale of the room: every room was one rectangle, so no amount of graph variety read as anything but boxes on a string.
+
+**Decision:** a room's interior can be an **L** (one corner left as rock), a **T** (two corners on one side) or a **cross** (all four), and some stay rectangles. The weights are ⟨tune⟩ 3 : 3 : 2 : 2.
+- **Carved out of the rectangle, never grown beyond it** (`FloorPlan._carve`). The rectangle is still the room's claim on the grid, so no route, door, lattice cell or digest moves. It runs after routing, on a stream of its own, so no seeded layout shifts. What changes is which of the rectangle's cells are floor: `holds`, plus `notched` and `notches_of` for every caller that places something inside a room.
+- **Sized by shape:** an L takes half the room each way, so it reads as an L rather than a nicked rectangle. A T takes half across and just under half along its side, so its stem stays open. A cross takes just under half both ways. The room's middle point, where centres, spawns and rings are measured, is always floor.
+- **Where it may not go:** never the entrance, prize or shaft, nor a room under three cells either way. Never onto a corner a doorway opens beside; a door in the way **turns** the shape rather than cancelling it. A great hall is only ever an L, and only where a door-free wall long enough for its ledge stays whole. Without that rule ledges fell from 7 to 5 across the probe's three floors, the loss ADR-213 refused; with it they stay at 7.
+- **Built as rock** (`FloorBuilder._notch`): a solid the room's full height, so Recast finds no floor on it, faced by clad walls pulled clear of it and of each other (ADR-297). No chamfer, alcove or ledge is laid into a carved corner, and evidence marks, loot draws and placement rings are pulled back onto floor.
+
+**Tried and reverted:** ordering a route's seed cells middle-of-wall first, so doorways would leave corners free. It spread doorways onto every wall: carved corners fell to 9, ledges to 4, and floor 3's corridors grew from 148 cells to 176. The corner bias of routing is load-bearing for ledges.
+
+**Measured:** `--build-probe` counts **14 corners left as rock** across three floors, with ledges unchanged at 7. `--plan-probe`, `--graph-probe`, `--machine-probe`, `--delvings-probe` (both depths), `--vista-probe` (both depths), `--nav-probe`, `--walk-probe`, `--route-probe`, `--population-probe`, `kit_probe` and the dressing probe pass. `check_determinism.py`: two processes, one hash. `--delvings-shot` gains a `shaped` view, which flashes at 0.00–0.03 %.
+
+**Honest scale:** doorways crowd room corners, so on a typical floor about a third of eligible rooms take a shape. It shows from eye height as a wall that jogs or a pier of rock standing into the room, and from above as a softer change. **The other half of the developer's call is not this ADR:** a central hub per floor needs the mission graph to place one, which changes what every floor *is* rather than what its rooms look like.
+
 *Entries below to be added as design decisions are signed off.*
