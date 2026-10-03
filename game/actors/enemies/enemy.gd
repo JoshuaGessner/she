@@ -428,11 +428,20 @@ func take_test_hit(amount: float, from: Node = null) -> void:
 func _process(delta: float) -> void:
 	_visual.senses(_sees, _hears)
 	# **Struck, it flinches** (ADR-279) — read off the replicated health rather
-	# than the host's damage signal, so every peer sees every blow land.
-	if health.current < _health_seen - 0.01 and _state != State.DEAD:
+	# than the host's damage signal, so every peer sees every blow land — and
+	# **hears** it (ADR-311), which only the host and the striker used to.
+	#
+	# **The killing blow included.** The dead were skipped whole here, and the
+	# blow that kills is in the same frame as the death on the host — so the
+	# one hit a player most wants to feel threw no sparks and made no sound but
+	# the corpse's thump. A corpse does not flinch; it does show and sound the
+	# blow that made it one.
+	if health.current < _health_seen - 0.01:
 		var dealt: float = (_health_seen - health.current) / maxf(health.maximum, 1.0)
-		_visual.flinch(0.55 + dealt * 2.0)
+		if _state != State.DEAD:
+			_visual.flinch(0.55 + dealt * 2.0)
 		_burst(dealt)
+		_sound_the_blow(dealt)
 	_health_seen = health.current
 	# **Only where the wire is the authority.** The host moves this body with
 	# `move_and_slide`; a host that also eased would be two things arguing
@@ -455,6 +464,17 @@ func _process(delta: float) -> void:
 ## off hide, at chest height on the side this peer's camera sees. A blow that
 ## took a quarter of it or more throws the heavy burst.
 const BURST_HEAVY_SHARE: float = 0.25
+
+
+## The blow's material, heard where it landed: a clang off mail and plate, a
+## crunch into flesh (ADR-279's pair), heavier for a blow the burst calls heavy.
+## Every peer, the striker included — the striker used to hear it from their own
+## hand, and the rest of the party not at all (ADR-311).
+func _sound_the_blow(dealt: float) -> void:
+	var heavy: bool = dealt >= BURST_HEAVY_SHARE
+	var metal: bool = _kind.armour_class != Enums.ArmourClass.UNARMOURED
+	Foley.at(self, Foley.Sound.CLANG if metal else Foley.Sound.CRUNCH,
+		randf_range(0.93, 1.06) * (0.82 if heavy else 1.0), 2.0 if heavy else -2.0)
 
 
 func _burst(dealt: float) -> void:

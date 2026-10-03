@@ -397,6 +397,45 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
     # which is precisely the bug it is here to catch.
     heard = host["walk_clamor_peak"].get(client_body, 0.0)
     echoed = client["walk_clamor_peak"].get(client_body, 0.0)
+    # A blow the host decided, felt by the client it landed on (ADR-310): the
+    # message arrived, it carried where the blow came from, and the client's
+    # own screen drew it on the left, which is where the host stood.
+    struck = client.get("struck", {})
+    events = struck.get("events", [])
+    bearing = struck.get("bearing", {})
+    rows.append(check(
+        "the client felt a blow the host decided",
+        len(events) == 1 and events[0].get("taken", 0.0) > 0.0
+        and events[0].get("placed", False),
+        f"{len(events)} blow(s) arrived"
+        + (f", {events[0].get('taken', 0.0):.0f} taken" if events else "")))
+    rows.append(check(
+        "and its screen drew it on the side it came from",
+        bool(bearing.get("placed")) and bearing.get("x", 0.0) < -0.25
+        and not bearing.get("behind", True),
+        f"bearing x {bearing.get('x', 0.0):+.2f}, "
+        f"{'behind' if bearing.get('behind') else 'ahead'}"))
+    # A guard is paid from the client's own breath (ADR-313). The host decides
+    # the guard; the client's bar is what pays for it, or stamina is two pools.
+    guard = client.get("guard", {})
+    rows.append(check(
+        "a client's guard took the blow",
+        guard.get("guarded", 0.0) > 0.0, f"{guard.get('guarded', 0.0):.1f} turned"))
+    rows.append(check(
+        "and the client paid for it from its own breath",
+        guard.get("paid", 0.0) >= guard.get("cost", 1.0) * 0.8,
+        f"{guard.get('paid', 0.0):.1f} of {guard.get('cost', 0.0):.0f} paid"))
+
+    # What the client heard (ADR-311). The host decides a pickup and a blow,
+    # and played their sounds where it decided them — so a client never heard
+    # its own loot go into the bag, nor itself hurt.
+    sounds = client.get("heard", {})
+    rows.append(check(
+        "the client heard its own pickup",
+        sounds.get("CLINK", 0) >= 1, f"{sounds.get('CLINK', 0)} clink(s)"))
+    rows.append(check(
+        "and heard itself hurt",
+        sounds.get("HURT", 0) >= 1, f"{sounds.get('HURT', 0)} hurt"))
     rows.append(check(
         "the host heard the client walk",
         heard > 0.0, f"peak {heard:.2f}"))

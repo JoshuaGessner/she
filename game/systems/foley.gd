@@ -59,6 +59,10 @@ enum Sound {
 const REACH: float = 28.0
 
 static var _cache: Dictionary = {}
+## How many of each sound this peer has played in the world, by `Sound` —
+## counted so `--coop-probe` can ask what a client *heard*, which is the
+## question ADR-311 was about and the one no number on the wire answers.
+static var played: Dictionary = {}
 
 
 ## A one-shot at a place in the world. 3D so it carries direction and distance,
@@ -77,6 +81,7 @@ static func at(where: Node3D, sound: Sound, pitch: float = 1.0,
 	player.unit_size = 6.0 * reach / REACH
 	player.max_distance = reach
 	where.add_child(player)
+	played[sound] = int(played.get(sound, 0)) + 1
 	# Measured before it is heard, not on the next tick (`M4-T12`).
 	Acoustics.heard(player)
 	player.play()

@@ -42,13 +42,12 @@ func apply_damage(amount: float, from: Node = null) -> void:
 	if _dead or amount <= 0.0:
 		return
 	current = maxf(0.0, current - amount)
-	# Every peer plays its own from replicated state — `TEC-004` never
-	# replicates sounds. The owner of the body hears it as *being hurt*;
-	# everyone else hears a hit land, which is the same event from outside.
-	var body := get_parent() as Node3D
-	if body != null:
-		Foley.at(body, Foley.Sound.HURT if body.is_multiplayer_authority()
-			else Foley.Sound.HIT)
+	# **Silent** (ADR-311). This ran only on the host — the host decides every
+	# blow — so the sound it played was heard on the host's machine and on no
+	# other: a client never heard itself hurt, and a teammate never heard an
+	# enemy struck beside them. Every peer now plays a blow from what it can
+	# see: the replicated health of the body it landed on (`Enemy`, `Player`),
+	# and the struck body's own `struck`.
 	damaged.emit(amount, current, from)
 	if current <= 0.0:
 		_dead = true

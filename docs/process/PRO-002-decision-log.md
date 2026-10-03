@@ -11129,4 +11129,142 @@ Seen along a corridor wall, every joint was two surfaces arguing over one depth.
 
 **Honest scale:** amplitudes are ⟨tune⟩ and small on purpose. This is the felt half of "alive". The readable half, an enemy's idle that says what it is, was ADR-302's.
 
+## ADR-310 — A blow is felt where it lands: on a client, too
+
+**Date:** 2026-10-03 · **Status:** accepted · **Fixes ADR-105 and `M3-T02` for every seat but the host's** · **Developer's call: "continue researching and improving gameplay polish and feel"**
+
+**Context:** auditing feel against `DES-009`'s research found the three impact channels built (ADR-279), the swing seen to land (ADR-303), and a wound vignette that flashes on the side a blow came from (ADR-105). Principle 4's *"never sniped by something offscreen"* is that flash's whole job. The vignette listened to `Health.damaged`, and its block flare to `Player.blocked`.
+
+**Both signals fire only on the host.** The host decides every blow (`TEC-004`); a client learns of one through `Health:current` replicating down, and replication raises no signal. So in every seat but the host's:
+- **A hit flashed nothing.** The only feedback was the view kick, which polls health.
+- **No bearing reached the screen.** "Something got me from behind" could not be said truthfully.
+- **No block was seen landing,** though the comment on `blocked` promised *"a client sees its own block land because the host said it did"*.
+- **The player never heard themselves hurt.** `Health.apply_damage` plays `HURT` on the body's authority, and on the host that is the client, so the host played `HIT`.
+
+Nothing caught it, because the co-op smoke test asserted the health number, and the number was right.
+
+**Decision:**
+- **The host tells the body's own peer.** `Player.struck(taken, from_point, guarded)` is raised on the peer playing the body: directly for the host's own, by a reliable message from the host for a client's.
+  - It carries what got through, where the blow came from (`Vector3.INF` when nothing in the world struck it), and what a raised guard took.
+  - On a client it also plays `HURT`.
+  - `blocked` is **deleted**: `struck` carries the guard.
+  - **Only an owner that is connected is told.** The first sweep failed `--rite-probe`: it gives a stand-in teammate a peer id with nobody behind it, and a message addressed there is an engine error. Such a body has nobody to tell.
+- **The vignette reads both.**
+  - It flashes on any drop in the health it can see, which every peer is sure to get, so a bleed or a fall still flashes.
+  - It takes its bearing and the guard flare from `struck`.
+  - The two take different routes and either may land first, so a drop and a blow within `STRUCK_PAIRING` (0.25 s) are one event.
+  - A drop with no blow near it flashes without a side rather than reusing the last one.
+
+**Measured:**
+- **`run_coop.py` gains two rows.** The host strikes the client once from its left; the client reports *1 blow arrived, 10 taken*, and its own screen's bearing is *x −1.00, ahead*.
+- **Planted:** with the message not sent, both rows fail (*0 blows arrived*, *bearing x +0.00*).
+- **The first version of the probe was flaky.** It listened for a fixed window, and the two peers keep their own clocks, so the blow fell outside it one run in three, in either direction. It now uses a handshake: the client listens *before* it moves to its spot, and the host strikes only once it sees the body arrive there. Each side waits for its half, bounded. Four runs in a row pass.
+- **No regressions:** the rest of the smoke test is unchanged.
+
+**Honest scale:** this changes nothing a solo player or a host sees. It makes the game's most important feedback reach the other three seats of a four-stack, which is the half of the game `M4`'s gate is played as.
+
+## ADR-311 — Every peer hears what it can see, and the killing blow lands
+
+**Date:** 2026-10-03 · **Status:** accepted · **Continues ADR-310; serves `ART-002`'s first test** · **Developer's call: "continue researching and improving gameplay polish and feel"**
+
+**Context:** ADR-310 found one host-only feedback path, so the audit asked the same question of every sound. `TEC-004` says each peer plays its own sounds from what it can see; six did not, because they were played where the host made a decision, and the host is one machine:
+- **A pickup** (`CLINK`, or `EMBER` for a life) played in the host's `_take`. A client never heard its own loot go into the bag. `ART-002` puts this above all other sound work: *"close your eyes and hear how rich you are."*
+- **A throw and a thing set down** (`SWING`, `THUMP`) played the same way.
+- **A blow on anything** played in `Health.apply_damage`, on the host only:
+  - A teammate standing beside a struck enemy heard nothing.
+  - On the host, an enemy's pain played `HURT`, the sound meant for *that was you*.
+  - The comment on the striker's feedback said every other peer heard the hit *"through `Health`"*.
+- **The Shaft's climb** ticked a sound every quarter in the host's `advance`, so a client extracting heard nothing from the Shaft they stood in.
+
+The audit found a second fault on the way. An enemy's flinch, its sparks and now its sound come from its replicated health, and that path skipped the dead. The killing blow lands in the same frame as the death, so **the hit a player most wants to feel threw no sparks and made no sound** but the corpse's thump.
+
+**Decision:**
+- **`Health` is silent.** Sound comes from what each peer can see:
+  - **An enemy's blow** is heard from its replicated health, on every peer. It is a clang off mail and plate or a crunch into flesh (ADR-279's pair), heavier for a blow the burst calls heavy.
+  - **The striker** hears it the same way: `_feel_the_blow` keeps the hitstop and the kick and no longer plays a sound of its own.
+  - **A struck player's own peer** hears `HURT` from `struck` (ADR-310), and every other peer hears `HIT` from that body's replicated health.
+- **What the host decides about a body is broadcast:** a pickup, a throw and a thing set down play on the host and by message on every other peer (`_sound_for_all`).
+- **The Shaft ticks from its replicated progress,** on every peer.
+- **The killing blow is shown and heard:** a corpse does not flinch, but it does burst and sound the blow that made it one.
+- **`Foley.played`** counts each sound a peer plays, so a probe can ask what a client *heard*: the question no number on the wire answers.
+
+**Measured:**
+- **`run_coop.py` gains two rows:** the client heard its own pickup (*1 clink*) and heard itself hurt.
+  - Planted: with the broadcast removed, the pickup row fails (*0 clinks*).
+- **ADR-310's handshake** carries over, and four runs in a row pass.
+- **No regressions:** `--combat-probe`, `--fight-probe`, `--clamor-probe`, `--swarm-probe`, `--acoustics-probe`, `--ear-probe`, `--hands-probe`, `--body-probe` and `enemy_animation_probe` pass.
+
+## ADR-312 — The killing blow is felt by the hands that dealt it
+
+**Date:** 2026-10-03 · **Status:** accepted · **Continues ADR-279, ADR-311** · **Developer's call: "continue researching and improving gameplay polish and feel"**
+
+**Context:** ADR-279 built `DES-009`'s three impact channels. Hitstop holds from 45 ms to 120 ms according to the weapon's weight. The kill got nothing of its own. A light blow that finished something held exactly as long as one that did not, and the only difference in the striker's hands was a body falling a frame later. ADR-311 made the killing blow burst and sound where it lands; this is the other half, in the hands.
+
+**Reference:** marking the kill is near-universal in melee games that are praised for their feel. Vermintide 2 confirms a kill with its own sound. Hades holds its last hit longer than the rest. *"What Features Influence Impact Feel?"* (IEEE GEM 2022, cited in `DES-009`) ranks hitstop first of three channels, and the kill is the blow a player most needs to *know* landed. Our context does not differ: the kill is also the moment a fight's decision is answered.
+
+**Decision:**
+- **The host already decides the blow,** and by the time the hitbox says it connected, the damage is dealt. So it reads the target's `Health` and tells the striker whether the blow killed, alongside whether it was heavy.
+- **A killing blow holds `hitstop_kill` (150 ms ⟨tune⟩),** longer than a heavy blow's 120 ms, and pushes the view with a heavy blow's kick, whatever weapon dealt it.
+- **The message stays unreliable,** like the rest of `_feel_the_blow`. A lost kill message is a kill felt as an ordinary hit, and never a kill felt twice.
+
+**Measured:**
+- **`--feel-probe` gains a fourth swing:** a light blow into a body it finishes.
+  - It held **150 ms against a light blow's 47 ms**, and its impact was heard where it landed.
+  - The probe also asserts that an ordinary blow is heard where it lands (ADR-311).
+- **Planted:**
+  - With the kill held like a light blow, the probe fails (*45 ms, no longer than 47*).
+  - With the dead skipped again, it fails (*no sound where it landed*).
+
+**Honest scale:** 105 ms of extra hold and a slightly harder kick, on one blow in several. The number is ⟨tune⟩, and the developer's hands decide it.
+
+## ADR-313 — Breath is one pool, the owner's: a client's guard is paid from it
+
+**Date:** 2026-10-03 · **Status:** accepted · **Fixes `M3-T02`'s guard for every seat but the host's; restates `TEC-004`'s split for stamina** · **Developer's call: "continue researching and improving gameplay polish and feel"**
+
+**Context:** auditing why stamina has no mark on the HUD (`DES-019` puts it in the Body region beside the wounds) found that a client's stamina was **two pools that never met**:
+- **On the owner's machine:** a swing, a heavy blow, a draw, a sprint and the Húskarl's Hold all spend the stamina of the body's own peer. The Hold's comment says so outright: *"health is the host's, stamina is not."*
+- **On the host:** a guard was charged against the host's copy of the body, which nothing else touched and which refilled on its own.
+
+So in every seat but the host's, the guard was neither bound by stamina nor paid from it:
+- A client who had sprinted and swung itself empty still guarded at full, because the host's copy had never heard of the spending.
+- A client who guarded all fight drained a bar its own screen never showed.
+
+A stamina mark drawn on a client would have been drawing the wrong number.
+
+**Decision:**
+- **Breath is the owner's.** `Stamina:current` rides `MotionSync` with the rest of what the owning peer sends.
+- **The host reads it.** When it decides a guard (the `block_stamina_minimum` check), it reads the breath the owner last sent, about 50 ms old.
+- **The owner pays for it.** The host charges the guard to the owner by a reliable message (`_pay_for_guard`), and the owner spends it as solo always has.
+- **A copy does not breathe on its own.** Only the owner's `Stamina` refills locally, so a copy shows what the owner last sent and does not argue with the wire.
+
+**Measured:**
+- **`run_coop.py` gains a guarded blow.**
+  - The client turns to face the host and raises its guard.
+  - The host strikes once it sees the guard up.
+  - The client reports *6.0 turned*, and *22.0 of 22 paid* from its own bar.
+  - The ADR-310 flare rides the same blow.
+- **Planted:** with the host spending its own copy again, the row fails (*0.0 of 22 paid*).
+- **No regressions:** `--class-probe`, `--rite-probe`, `--verbs-probe`, `--combat-probe`, `--fight-probe` and `--feel-probe` pass. A solo or host body is one pool, as it always was.
+
+**What it unblocks:** a stamina mark in `DES-019`'s Body region can now be truthful in every seat.
+
+## ADR-314 — Breath is drawn: a line under the wounds, and a tick where the guard stops holding
+
+**Date:** 2026-10-03 · **Status:** accepted · **Builds `DES-019` Layer 2's missing third; rests on ADR-313** · **Developer's call: "continue researching and improving gameplay polish and feel"**
+
+**Context:** `DES-019` Layer 2 is *"Health, stamina, wounds"*. Health is the vignette's (ADR-105) and the wounds are marks (ADR-239). **Stamina was drawn nowhere** outside the debug readout. A guard on empty breath lets the whole blow through (the combat probe asserts *"guard on empty stamina: 30 through"*), so the player who blocked and took it all had nothing to read but the result. That is principle 4's *"the game glitched"*: a rule the player could not see until it had cost them. ADR-313 made a client's breath one pool, which makes a line on a client's screen tell the truth.
+
+**Decision:** the Body region draws breath on its floor, beneath the wounds.
+- **The line:** it shortens as breath is spent, over a faint line that is the whole of it. There is no number (`DES-019` rule 2).
+- **The guard tick:** a tick marks `block_stamina_minimum`, the point below which a guard will not hold. Below the tick the line drops to the faint tone and beats, so *my guard will not hold* is on the screen before the blow.
+- **When it shows:** only while breath is spent, and gone a second after it is whole again (`BREATH_LINGER` ⟨tune⟩), so a calm screen stays empty, as the wound marks' header asks.
+- **Placement:** in the same drawer as the wounds, because `HudFrame` gives a region one element and `DES-019` makes these one layer. The wounds now stand on the breath line, and the line on the floor of the region.
+
+**Measured:**
+- **`--party-shot`:** the body is put under the guard minimum beside its wounds and Scar. The line is drawn and photographed under the two named wounds, dimmed, with its tick.
+- **Planted:** with breath read as always whole, the shot fails (*not drawn, 0.00*).
+- **`--hud-probe`** passes: the taller region still fits its corner, clear of every other.
+
+**Honest scale:** a thin line in a corner, on the screen only while it matters. Whether it reads in a fight is a question for the developer's eyes. The tick is the part with the rule in it.
+
 *Entries below to be added as design decisions are signed off.*

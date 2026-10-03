@@ -6688,6 +6688,21 @@ var _probe_damage_events: int = 0
 ## A clean *disconnect*, reported as a replication failure. The client writes
 ## its own file, tells the host to write its own while it is demonstrably still
 ## connected, and only then drops.
+## Every sound this peer played in the world, by name, for `--coop-probe`.
+func _heard_census() -> Dictionary:
+	var named: Dictionary = {}
+	for sound: int in Foley.played.keys():
+		named[Foley.Sound.keys()[sound]] = Foley.played[sound]
+	return named
+
+
+## What a blow the host decided left on the client (ADR-310), and how hard.
+var _probe_struck: Dictionary = {}
+## What a guarded blow cost the client's own breath (ADR-313).
+var _probe_guard: Dictionary = {}
+const PROBE_STRIKE: float = 10.0
+
+
 func _coop_probe(out: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	var host: bool = multiplayer.is_server()
@@ -6904,13 +6919,75 @@ func _coop_probe(out: String) -> void:
 	#    offer one — a rescuer that is itself incapacitated cannot revive
 	#    anybody, and the check failed for a reason with nothing to do with
 	#    replication. Every enemy claim above has already been sampled by here.
+	# **A blow is felt where it lands** (ADR-310). Before the fall, the host
+	# strikes the client once from its left — the host decides it, as it decides
+	# every blow — and the client says what reached it: the message, and which
+	# side its own screen drew. Until ADR-310 a client got its health going down
+	# and nothing else.
+	#
+	# **A handshake, not a schedule.** The two peers keep their own clocks, and
+	# a fixed window missed the blow one run in three, in either direction. So
+	# the client listens *before* it moves to its spot, and the host strikes
+	# only once it sees the body arrive there — which it cannot see before the
+	# client is listening. Each side then waits for its half, bounded.
+	var felt: Array = []
+	var on_struck := func(taken: float, from_point: Vector3, guarded: float) -> void:
+		felt.append({"taken": taken, "placed": from_point.is_finite(), "guarded": guarded})
+	var spot: Vector3 = PROBE_RESCUE_AT + Vector3(1.4, 0.0, 0.0)
 	if not host:
-		mine.teleport(PROBE_RESCUE_AT + Vector3(1.4, 0.0, 0.0), 0.0)
+		mine.struck.connect(on_struck)
+		mine.teleport(spot, 0.0)
 	if host:
 		_session.clear_enemies()
 		mine.restore_for_descent()
 		mine.teleport(PROBE_RESCUE_AT, 0.0)
 	await _hold(0.6)
+	if host:
+		var target: Player = _client_body()
+		if target != null and await _hold_until(func() -> bool:
+				return target.global_position.distance_to(spot) < 0.5, 4.0):
+			target._on_hurt(PROBE_STRIKE, mine)
+		await _hold(0.4)
+	else:
+		await _hold_until(func() -> bool: return not felt.is_empty(), 6.0)
+		await _hold(0.1)
+	if not host:
+		var screen_now: WoundVignette = get_tree().root.find_children(
+			"*", "WoundVignette", true, false).front() as WoundVignette \
+			if not get_tree().root.find_children("*", "WoundVignette", true, false).is_empty() \
+			else null
+		_probe_struck = {"events": felt.duplicate(),
+			"bearing": screen_now.last_bearing() if screen_now != null else {}}
+
+	# **A guard is paid from the client's own breath** (ADR-313). The client
+	# turns to face the host and raises its guard; the host strikes again,
+	# once it sees the guard up; the client says what the guard took and what
+	# it cost the bar on its own screen. The host used to pay a client's guard
+	# out of a copy of the client's stamina that nothing else ever touched.
+	var guard_from: float = 0.0
+	if not host:
+		mine.teleport(spot, PI * 0.5)
+		mine.stamina.refill()
+		await _hold(0.3)
+		Input.action_press("block")
+		await _hold(0.3)
+		guard_from = mine.stamina.current
+	if host:
+		var guarded: Player = _client_body()
+		if guarded != null and await _hold_until(func() -> bool:
+				return guarded.blocking, 4.0):
+			await _hold(0.3)
+			guarded._on_hurt(PROBE_STRIKE, mine)
+		await _hold(0.4)
+	else:
+		await _hold_until(func() -> bool: return felt.size() >= 2, 6.0)
+		await _hold(0.3)
+		Input.action_release("block")
+		_probe_guard = {"guarded": float(felt[1]["guarded"]) if felt.size() >= 2 else 0.0,
+			"paid": guard_from - mine.stamina.current,
+			"cost": Config.tuning.block_stamina_cost}
+	if not host:
+		mine.struck.disconnect(on_struck)
 	if host:
 		var fallen: Player = _client_body()
 		if fallen != null:
@@ -7096,6 +7173,10 @@ func _probe_report(host: bool) -> Dictionary:
 		"bags": _probe_bags,
 		"downed": _probe_downed,
 		"revived": _probe_revived,
+		"struck": _probe_struck,
+		"guard": _probe_guard,
+		# What this peer heard, by sound name (ADR-311).
+		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,
 		"binding_done": _probe_binding_done,
 		"pings": _probe_pings,
@@ -9601,12 +9682,18 @@ func _party_shot(path: String) -> void:
 	player.wound(Enums.Wound.GASHED_LEG)
 	player.wound(Enums.Wound.CONCUSSED)
 	player.scars = 1 << Enums.Wound.BROKEN_ARM
-	for i: int in range(8):
+	# **And short of breath** (ADR-314): under the guard's minimum, so the line
+	# is photographed dimmed and beating under the wounds.
+	player.stamina.current = Config.tuning.block_stamina_minimum * 0.5
+	for i: int in range(12):
 		await get_tree().process_frame
 	if _wound_marks.shown().size() != 2 or _wound_marks.scars_shown().size() != 1:
 		problems.append(("the body marks show %s and Scars %s, for a gash and a "
 			+ "concussion over a scarred arm") % [_wound_marks.shown(),
 			_wound_marks.scars_shown()])
+	if _wound_marks.breath_shown() < 0.9:
+		problems.append("the body is short of breath and the line under its "
+			+ "wounds is not drawn (%.2f)" % _wound_marks.breath_shown())
 
 	# ─ 1. the empty mark, which is the one with the consequence ─
 	if _waystone.carried():

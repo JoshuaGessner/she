@@ -43,6 +43,10 @@ extends Control
 ## Seconds a hit stays legible. Long enough to notice while being hit again,
 ## short enough that two hits read as two.
 const FLASH_SECONDS: float = 0.55  # ⟨tune⟩
+## How long a blow's bearing waits for its health drop, and the drop for its
+## blow, before they are counted as two events. They take different routes —
+## a reliable message and replicated state — and either may land first.
+const STRUCK_PAIRING: float = 0.25
 const FLASH_STRENGTH: float = 0.62  # ⟨tune⟩
 
 ## Health fraction below which the standing vignette begins. Above this you are
@@ -96,6 +100,13 @@ var _flash: float = 0.0
 ## right, and the sign of `_from_behind` says whether it was in front.
 var _from_x: float = 0.0
 var _from_behind: bool = false
+## Health as last seen, so a drop flashes on every peer — the replicated number
+## is the one thing every peer is sure to get (ADR-310).
+var _health_seen: float = -1.0
+## Seconds since a blow told us where it came from. A drop arriving with no
+## blow near it (a bleed, a fall) flashes without a side rather than reusing
+## the last one.
+var _struck_age: float = INF
 ## Seconds of guard-flare left, drawn over the same edges a wound uses.
 var _guard: float = 0.0
 ## The haze's own clock, so it swims whether or not anything else moves.
@@ -112,6 +123,13 @@ func _process(delta: float) -> void:
 		_bind()
 		if _health == null:
 			return
+	_struck_age += delta
+	if _health_seen >= 0.0 and _health.current < _health_seen - 0.01:
+		_flash = 1.0
+		if _struck_age > STRUCK_PAIRING:
+			_from_x = 0.0
+			_from_behind = false
+	_health_seen = _health.current
 	if _flash > 0.0:
 		_flash = maxf(0.0, _flash - delta / FLASH_SECONDS)
 	if _guard > 0.0:
@@ -128,20 +146,28 @@ func _bind() -> void:
 	if _body == null:
 		return
 	_health = _body.health
-	_health.damaged.connect(_on_damaged)
-	_body.blocked.connect(_on_blocked)
+	_health_seen = _health.current
+	_body.struck.connect(_on_struck)
 
 
 ## Direction is computed **here, from the camera**, rather than being handed
 ## down from the hit. The same blow is on your left or your right depending on
 ## which way you are facing when it lands, so a bearing baked in at damage time
 ## would be wrong by the time it was drawn.
-func _on_damaged(_amount: float, _remaining: float, from: Node) -> void:
+##
+## **From the body's `struck`, on every peer** (ADR-310). This listened to
+## `Health.damaged` and the old `blocked` signal, and both fired only on the
+## host — a client's screen never flashed a side or a guard.
+func _on_struck(taken: float, from_point: Vector3, guarded: float) -> void:
+	if guarded > 0.0:
+		_guard = 1.0
+	if taken <= 0.0:
+		return
 	_flash = 1.0
+	_struck_age = 0.0
 	_from_x = 0.0
 	_from_behind = false
-	var source := from as Node3D
-	if source == null or not is_instance_valid(source):
+	if not from_point.is_finite():
 		# Damage with no source in the world — a fall, or a thing that has
 		# already been freed. Flash without a direction rather than inventing
 		# one: a lie about where you were hit from is worse than silence.
@@ -149,7 +175,7 @@ func _on_damaged(_amount: float, _remaining: float, from: Node) -> void:
 	var camera: Camera3D = get_viewport().get_camera_3d()
 	if camera == null:
 		return
-	var to_source: Vector3 = source.global_position - camera.global_position
+	var to_source: Vector3 = from_point - camera.global_position
 	to_source.y = 0.0
 	if to_source.length_squared() < 0.0001:
 		return
@@ -161,6 +187,13 @@ func _on_damaged(_amount: float, _remaining: float, from: Node) -> void:
 	right.y = 0.0
 	_from_x = clampf(right.normalized().dot(to_source), -1.0, 1.0)
 	_from_behind = forward.dot(to_source) < 0.0
+
+
+## How the last flash came about, for `--coop-probe`: whether a blow said where
+## it came from, and which side it drew.
+func last_bearing() -> Dictionary:
+	return {"placed": _struck_age < STRUCK_PAIRING or _from_x != 0.0 or _from_behind,
+		"x": _from_x, "behind": _from_behind}
 
 
 func _draw() -> void:
@@ -259,10 +292,7 @@ func _draw_daze(screen: Vector2) -> void:
 ## different one, *did that work?*, and the answer is not directional. Drawn
 ## unlike a wound on purpose: `DES-018` asks every audio channel for a visual
 ## twin, and a block that looked like a hit would be a twin that lies.
-func _on_blocked(_stopped: float, _from: Node) -> void:
-	_guard = 1.0
-
-
+##
 ## The pale flare, over the same edges. Called from `_draw` after the wound so a
 ## block landing on a hurt player reads as both, in the order they happened.
 func _draw_guard(screen: Vector2) -> void:

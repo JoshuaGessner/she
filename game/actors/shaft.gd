@@ -237,13 +237,7 @@ func advance(delta: float) -> void:
 		# Stepped out. `DES-005` wants the Shaft dangerous, not sticky.
 		_reset()
 		return
-	var before: float = _progress
 	_progress += delta / maxf(channel_seconds(), 0.001)
-	# A tick every quarter of the climb, so holding it *sounds* like progress.
-	# `DES-018` wants every audio channel to have a visual twin and vice versa;
-	# a channel with a bar and no sound is the same failure from the other side.
-	if int(before * 4.0) != int(_progress * 4.0):
-		Foley.at(self, Foley.Sound.CHANNEL, 0.9 + _progress * 0.5)
 	# Loud the whole time, not once at the end. The noise is what makes using a
 	# known location dangerous, and a single deposit at the finish would be a
 	# cost you only pay after you have already got away with it.
@@ -266,12 +260,26 @@ func begin(player: Player) -> void:
 	_progress = 0.0
 
 
+## The last quarter of the climb this peer has heard.
+var _ticked: int = 0
+
+
 func _reset() -> void:
 	_claimant = null
 	_progress = 0.0
 
 
 func _process(_delta: float) -> void:
+	# A tick every quarter of the climb, so holding it *sounds* like progress.
+	# `DES-018` wants every audio channel to have a visual twin and vice versa;
+	# a channel with a bar and no sound is the same failure from the other side.
+	# **Off the replicated progress, on every peer** (ADR-311): it was ticked in
+	# the host's `advance`, so a client extracting heard nothing from the Shaft
+	# they were standing in.
+	var quarter: int = int(_progress * 4.0)
+	if quarter > _ticked:
+		Foley.at(self, Foley.Sound.CHANNEL, 0.9 + _progress * 0.5)
+	_ticked = quarter
 	if _material == null:
 		return
 	# Brightens as it works. Every peer can see it, because a teammate standing

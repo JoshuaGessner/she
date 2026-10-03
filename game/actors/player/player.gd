@@ -102,12 +102,17 @@ signal extracted(player: Player)
 ## life ends up is the level's business and the body is past having opinions.
 signal died_here(player: Player, at: Vector3)
 
-## A blow that a raised guard took the weight of (`M3-T02`), carrying how much
-## never reached you. Raised host-side, where the decision is made — the Foley
-## and the shield-shake that `DES-018` will want a visual twin for hang off
-## this rather than off the input, so a client sees its own block land because
-## the host said it did.
-signal blocked(stopped: float, from: Node)
+## **A blow landed on this body** (ADR-310), raised on the peer playing it:
+## what got through, where it came from (`Vector3.INF` when nothing in the world
+## struck it), and what a raised guard took off it.
+##
+## The host decides every blow (`TEC-004`), and until this the only thing a
+## client learned of one was its health going down. `Health.damaged` and the
+## old `blocked` signal fired on the host's copy of the body and nowhere else —
+## so a player in a client's seat never saw which side a hit came from, never
+## saw a block land, and never heard themselves hurt, though the comment on
+## `blocked` promised a client would. Signals do not cross the wire; this does.
+signal struck(taken: float, from_point: Vector3, guarded: float)
 
 ## Metres per second a thrown item leaves the hand at, and how far the arc is
 ## tilted up from where you are looking ⟨tune⟩. `DES-017` wants a purse to go
@@ -143,6 +148,12 @@ const MOTION_PROPERTIES: Dictionary = {
 	# not — which is the case `ON_CHANGE` is actually for.
 	".:stance": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:grounded": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **Breath is the owner's** (ADR-313). Every spend but one was already made
+	# on the peer playing the body — a swing, a heavy blow, a draw, a sprint, a
+	# Hold — and the one made on the host (a guard) went into a second pool that
+	# never met the first. Sent from here, the host reads the body's real breath
+	# when it decides a guard, and charges the guard back to the owner.
+	"Stamina:current": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# Idles the same way: a guard is up or it is not (`M3-T02`).
 	".:blocking": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# **The shutter** (`M4-T13`, ADR-188). Owner-driven for `blocking`'s exact
@@ -644,6 +655,10 @@ func _build_sync(sync_name: String, authority: int,
 func _ready() -> void:
 	add_to_group("player")
 	_is_local = is_multiplayer_authority()
+	# Only the owner's breath comes back by itself (ADR-313); a copy's is what
+	# the owner last sent, or it would refill between packets and argue with
+	# the wire.
+	stamina.set_process(_is_local)
 	if _is_local:
 		# One group for "every player" and one for "the body this process is
 		# playing". The debug views want the second; the enemies want the
@@ -826,11 +841,15 @@ func _on_swing_connected(hurtbox_hit: Hurtbox) -> void:
 	# **The striker feels it land** (ADR-279). The host decides every hit, so
 	# the host tells the one peer whose hands it was — directly when that is
 	# itself, which is every solo game.
-	var armour: int = int(hurtbox_hit.armour) if hurtbox_hit != null else 0
+	# **Did it kill** (ADR-312): the hitbox has already dealt the damage by the
+	# time it says it connected, so the target's health answers.
+	var struck_health: Health = hurtbox_hit.owner.get_node_or_null("Health") as Health \
+		if hurtbox_hit != null and hurtbox_hit.owner != null else null
+	var killed: bool = struck_health != null and struck_health.is_dead()
 	if get_multiplayer_authority() == multiplayer.get_unique_id():
-		_feel_the_blow(heavy, armour)
+		_feel_the_blow(heavy, killed)
 	else:
-		_feel_the_blow.rpc_id(get_multiplayer_authority(), heavy, armour)
+		_feel_the_blow.rpc_id(get_multiplayer_authority(), heavy, killed)
 
 
 ## The owner drew this swing back into a heavy blow (ADR-279). Tell the other
@@ -855,10 +874,15 @@ func _replay_heavy() -> void:
 
 ## **Hitstop, a kick, and the sound of what it met** (ADR-279, `DES-009` §2:
 ## *"hitstop · sound coherence · camera control — neglecting any one of the
-## three significantly diminishes"*). On the striker's machine only: every
-## other peer already hears the hit land through `Health`.
+## three significantly diminishes"*). On the striker's machine only. The sound
+## is not here: it is the struck enemy's, heard on every peer (ADR-311) — this
+## said every other peer heard it through `Health`, which ran on the host alone.
+##
+## **A kill holds longest** (ADR-312): `hitstop_kill`, and the kick of a heavy
+## blow. Unreliable like the rest, so a kill message lost is a kill felt as an
+## ordinary hit — never a kill felt twice.
 @rpc("any_peer", "call_remote", "unreliable")
-func _feel_the_blow(heavy: bool, armour: int) -> void:
+func _feel_the_blow(heavy: bool, killed: bool = false) -> void:
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != CoopSession.HOST_PEER:
 		return
@@ -867,11 +891,11 @@ func _feel_the_blow(heavy: bool, armour: int) -> void:
 	var weight: float = 1.0 if heavy else clampf(inverse_lerp(
 		tuning.hitstop_stagger_light, tuning.hitstop_stagger_heavy,
 		held.stagger if held != null else 0.0), 0.0, 1.0)
-	weapon.hitstop(lerpf(tuning.hitstop_light, tuning.hitstop_heavy, weight))
+	if killed:
+		weight = 1.0
+	weapon.hitstop(tuning.hitstop_kill if killed
+		else lerpf(tuning.hitstop_light, tuning.hitstop_heavy, weight))
 	_kick_view(Vector3(0.0, -0.3, 1.0).normalized() * tuning.kick_on_hit * (1.0 + weight))
-	var metal: bool = armour != Enums.ArmourClass.UNARMOURED
-	Foley.at(weapon, Foley.Sound.CLANG if metal else Foley.Sound.CRUNCH,
-		randf_range(0.93, 1.06) * (0.82 if heavy else 1.0), 2.0 if heavy else -2.0)
 
 
 ## Push the view, positionally (`DES-009`: never rotate a first-person camera
@@ -891,6 +915,12 @@ func view_kick() -> Vector3:
 ## decided exactly as the host is (ADR-279).
 func _process(delta: float) -> void:
 	if not _is_local:
+		# **A teammate struck, heard by the rest of the party** (ADR-311), off
+		# the replicated health every peer has. Being hurt is the struck body's
+		# own sound (`_feel_struck`); this is the same blow from outside.
+		if health.current < _health_seen - 0.01:
+			Foley.at(self, Foley.Sound.HIT)
+		_health_seen = health.current
 		return
 	var tuning: TuningProfile = Config.tuning
 	if health.current < _health_seen - 0.01:
@@ -988,6 +1018,82 @@ func _on_hurt(amount: float, from: Node) -> void:
 	_bear(amount, from)
 
 
+## **A guard is paid from the owner's breath** (ADR-313). The host decides the
+## guard, against the breath the owner last sent; the owner pays it. Before,
+## the host spent its own copy of a client's stamina — a pool the client never
+## saw and its swings and sprints never touched — so a client who had run and
+## swung itself empty still guarded at full, and one who guarded all fight
+## drained a bar its own screen showed full.
+func _pay_for_guard(cost: float) -> void:
+	if is_multiplayer_authority() or not _owner_connected():
+		stamina.spend(cost)
+	else:
+		_charge_guard.rpc_id(get_multiplayer_authority(), cost)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _charge_guard(cost: float) -> void:
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != CoopSession.HOST_PEER:
+		return
+	stamina.spend(cost)
+
+
+## Is the peer playing this body connected to this one? A body whose owner is
+## not here — a stand-in a probe gives a peer id with no peer behind it — has
+## nobody to tell, and a message addressed to it is an engine error.
+func _owner_connected() -> bool:
+	return multiplayer.get_peers().has(get_multiplayer_authority())
+
+
+## Tell the peer playing this body that a blow landed on it (ADR-310). On the
+## host's own body that is here; on a client's it is a message, sent by the
+## one peer that decided the blow.
+func _tell_struck(taken: float, from: Node, guarded: float) -> void:
+	var source := from as Node3D
+	var placed: bool = source != null and is_instance_valid(source)
+	var at: Vector3 = source.global_position if placed else Vector3.ZERO
+	if is_multiplayer_authority():
+		_feel_struck(taken, at if placed else Vector3.INF, guarded)
+	elif _owner_connected():
+		_struck_here.rpc_id(get_multiplayer_authority(), taken, at, placed, guarded)
+
+
+## The blow, arrived on the peer it landed on.
+@rpc("any_peer", "call_remote", "reliable")
+func _struck_here(taken: float, at: Vector3, placed: bool, guarded: float) -> void:
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != CoopSession.HOST_PEER:
+		return
+	_feel_struck(taken, at if placed else Vector3.INF, guarded)
+
+
+## The body it landed on hears being hurt; everyone else hears it land, from
+## the replicated health (`_process`, ADR-311).
+func _feel_struck(taken: float, from_point: Vector3, guarded: float) -> void:
+	if taken > 0.0:
+		Foley.at(self, Foley.Sound.HURT)
+	struck.emit(taken, from_point, guarded)
+
+
+## **Heard by every peer, not only the one that decided it** (ADR-311). The
+## host decides a pickup, a throw and a thing set down, and played their sound
+## where it decided them — so the player who did it, unless they were the host,
+## heard nothing. `ART-002`'s first test of this whole layer is *"close your eyes
+## and hear how rich you are"*, and in three seats of four you could not.
+func _sound_for_all(sound: Foley.Sound, pitch: float) -> void:
+	Foley.at(self, sound, pitch)
+	_heard.rpc(sound, pitch)
+
+
+@rpc("any_peer", "call_remote", "unreliable")
+func _heard(sound: int, pitch: float) -> void:
+	var sender: int = multiplayer.get_remote_sender_id()
+	if sender != 0 and sender != CoopSession.HOST_PEER:
+		return
+	Foley.at(self, sound as Foley.Sound, pitch)
+
+
 ## The blow, borne by this body — its own, or one it stepped in front of. Kept
 ## apart from `_on_hurt` so a blow is redirected once and never chained from
 ## one Húskarl to the next.
@@ -1014,16 +1120,17 @@ func _bear(amount: float, from: Node) -> void:
 		var tuning: TuningProfile = Config.tuning
 		# **A scarred arm guards dearer** (ADR-240): the broken arm's *no guard*,
 		# worn down to a price.
-		stamina.spend(tuning.block_stamina_cost
+		_pay_for_guard(tuning.block_stamina_cost
 			* (tuning.heavy_block_stamina_multiplier if heavy else 1.0)
 			* (tuning.scarred_arm_guard_multiplier
 				if has_scar(Enums.Wound.BROKEN_ARM) else 1.0))
 		var through: float = amount * (1.0 - tuning.block_damage_fraction)
-		blocked.emit(amount - through, from)
 		health.apply_damage(through, from)
+		_tell_struck(through, from, amount - through)
 		_try_to_recall(global_position)
 		return
 	health.apply_damage(amount, from)
+	_tell_struck(amount, from, 0.0)
 	if heavy:
 		_wound_from(from as Hitbox, raised)
 	# **After the blow lands, not instead of it** (`M3-T12`, `DES-004`). You
@@ -1508,7 +1615,7 @@ func _take(path: NodePath) -> void:
 	clamor.add(_handling_clamor(definition))
 	# Pitched by how heavy the thing is, so a plate and a gemstone are not the
 	# same event (`ART-002` — the player should hear what they are carrying).
-	Foley.at(self, Foley.Sound.EMBER if taken.is_ember() else Foley.Sound.CLINK,
+	_sound_for_all(Foley.Sound.EMBER if taken.is_ember() else Foley.Sound.CLINK,
 		lerpf(1.35, 0.75, clampf(definition.weight / 12.0, 0.0, 1.0)))
 	item.queue_free()
 
@@ -1653,7 +1760,7 @@ func _throw_held(aim: Vector3) -> void:
 	# flight is already clear of the thrower's own body.
 	dropped.emit(held, _head.global_position + travel * 0.5, rotation.y,
 		travel * hurl.speed)
-	Foley.at(self, Foley.Sound.SWING, 0.8)
+	_sound_for_all(Foley.Sound.SWING, 0.8)
 
 
 @rpc("any_peer", "reliable")
@@ -1700,7 +1807,7 @@ func _put_down(instance_id: int, thrown: bool) -> void:
 	# A throw is lighter and sharper than setting something down; both are the
 	# sound of your bag getting lighter, which `DES-005` wants to feel like
 	# relief rather than loss.
-	Foley.at(self, Foley.Sound.THUMP, 1.3 if thrown else 0.95)
+	_sound_for_all(Foley.Sound.THUMP, 1.3 if thrown else 0.95)
 
 
 ## Ask to move something within the grid. Host-authoritative like everything

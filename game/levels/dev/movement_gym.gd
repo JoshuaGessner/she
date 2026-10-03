@@ -711,15 +711,23 @@ func _feel_probe(player: Player) -> void:
 	for _i: int in range(20):
 		await get_tree().physics_frame
 	var rows: Array[Dictionary] = []
-	for mode: String in ["light", "heavy", "tap"]:
+	for mode: String in ["light", "heavy", "tap", "kill"]:
 		player.teleport(enemy.global_position + Vector3(0, 0.1, -1.3), PI)
 		player.health.restore()
 		player.stamina.refill()
 		enemy.health.restore()
+		# **The killing blow** (ADR-312): a light swing into a body it will
+		# finish, which has to hold longer than a light one that does not, and
+		# be heard and seen to land though the body it lands on is dead
+		# (ADR-311) — the one hit the flinch path used to skip.
+		if mode == "kill":
+			enemy.health.current = 1.0
 		for _i: int in range(8):
 			await get_tree().physics_frame
 		var before: float = enemy.health.current
 		var breath: float = player.stamina.current
+		var impacts: int = int(Foley.played.get(Foley.Sound.CLANG, 0)) \
+			+ int(Foley.played.get(Foley.Sound.CRUNCH, 0))
 		var row: Dictionary = {"stopped": 0.0, "kicked": 0.0, "flinched": 0.0,
 			"heavy": false, "windup_ms": 0}
 		Input.action_press("attack")
@@ -729,7 +737,7 @@ func _feel_probe(player: Player) -> void:
 		while frames < 2 or player.weapon.is_busy():
 			await get_tree().physics_frame
 			frames += 1
-			if not released and (mode == "light" and frames >= 2
+			if not released and ((mode == "light" or mode == "kill") and frames >= 2
 					or mode == "tap" and frames >= 3
 					or mode == "heavy" and player.weapon.phase() == MeleeWeapon.Phase.ACTIVE):
 				Input.action_release("attack")
@@ -749,6 +757,8 @@ func _feel_probe(player: Player) -> void:
 			Input.action_release("attack")
 		row["dealt"] = before - enemy.health.current
 		row["breath"] = breath - player.stamina.current
+		row["heard"] = int(Foley.played.get(Foley.Sound.CLANG, 0)) \
+			+ int(Foley.played.get(Foley.Sound.CRUNCH, 0)) - impacts
 		rows.append(row)
 		print("[feel] %-5s heavy=%s wind-up %3d ms, dealt %.1f, breath %.0f, held %.0f ms, kick %.3f m, flinch %.2f, arc %d"
 			% [mode, row["heavy"], row["windup_ms"], row["dealt"], row["breath"],
@@ -759,6 +769,7 @@ func _feel_probe(player: Player) -> void:
 	var light: Dictionary = rows[0]
 	var heavy: Dictionary = rows[1]
 	var tap: Dictionary = rows[2]
+	var kill: Dictionary = rows[3]
 	if float(light["dealt"]) <= 0.0:
 		problems.append("the light swing never connected, so nothing below means anything")
 	else:
@@ -785,6 +796,16 @@ func _feel_probe(player: Player) -> void:
 			problems.append("the heavy blow cost no more breath than a light one")
 	if bool(tap["heavy"]):
 		problems.append("a tap became a heavy blow")
+	if not enemy.health.is_dead():
+		problems.append("the killing swing did not kill, so its row means nothing")
+	else:
+		if float(kill["stopped"]) <= float(light["stopped"]) + 0.02:
+			problems.append("the killing blow held %.0f ms, no longer than a light one's %.0f ms"
+				% [float(kill["stopped"]) * 1000.0, float(light["stopped"]) * 1000.0])
+		if int(kill["heard"]) < 1:
+			problems.append("the killing blow made no sound where it landed")
+	if int(light.get("heard", 0)) < 1:
+		problems.append("a blow landed and was not heard where it landed")
 	for problem: String in problems:
 		print("[feel] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)

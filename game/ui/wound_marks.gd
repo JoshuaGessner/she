@@ -49,11 +49,23 @@ const STROKE: float = 2.0
 ## Seconds a newly taken wound stands out for ⟨tune⟩. A wound arrives in the
 ## middle of a blow, and a mark that simply appeared would be missed there.
 const FRESH_SECONDS: float = 1.4
+## **Breath** (ADR-314): `DES-019`'s third thing in this region, and the one
+## nothing drew. A line on the region's floor that shortens as you spend, with a
+## tick where a guard stops holding; below the tick it dims and beats, so *my
+## guard will not hold* is on the screen before the blow rather than explained
+## after it. No number. Shown while it is spent and gone a moment after it is
+## whole again, so a calm screen stays empty.
+const BREATH_ROW: float = 14.0
+const BREATH_WIDTH: float = 120.0
+const BREATH_LINGER: float = 1.0
 
 var _body: Player = null
 ## The bits already seen, so a new one can be told from an old one.
 var _seen: int = 0
 var _fresh: Dictionary = {}
+var _breath_shown: float = 0.0
+var _whole_for: float = 0.0
+var _beat: float = 0.0
 
 
 func _ready() -> void:
@@ -64,7 +76,7 @@ func _ready() -> void:
 ## resized as wounds came and went would move the marks at the moment somebody
 ## is reading them, and `settle` grows a control but never shrinks one.
 func _get_minimum_size() -> Vector2:
-	return Vector2(0.0, ROW * float(ORDER.size()))
+	return Vector2(0.0, ROW * float(ORDER.size()) + BREATH_ROW)
 
 
 func _process(delta: float) -> void:
@@ -79,7 +91,27 @@ func _process(delta: float) -> void:
 	_seen = now
 	for kind: Variant in _fresh.keys():
 		_fresh[kind] = maxf(0.0, float(_fresh[kind]) - delta / FRESH_SECONDS)
+	_beat += delta
+	if _body != null and _breath() < 0.999:
+		_whole_for = 0.0
+		_breath_shown = move_toward(_breath_shown, 1.0, delta * 6.0)
+	else:
+		_whole_for += delta
+		if _whole_for > BREATH_LINGER:
+			_breath_shown = move_toward(_breath_shown, 0.0, delta * 2.0)
 	queue_redraw()
+
+
+## The local body's breath as a share of its whole, or whole if there is none.
+func _breath() -> float:
+	if _body == null or not is_instance_valid(_body):
+		return 1.0
+	return clampf(_body.stamina.current / maxf(_body.stamina.maximum(), 0.001), 0.0, 1.0)
+
+
+## How much of the breath line is drawn, 0 to 1 — for `--party-shot`.
+func breath_shown() -> float:
+	return _breath_shown
 
 
 ## The wounds the local body carries, in `ORDER`. Public because the probe asks
@@ -108,13 +140,15 @@ func scars_shown() -> Array[Enums.Wound]:
 func _draw() -> void:
 	var marks: Array[Enums.Wound] = shown()
 	var old: Array[Enums.Wound] = scars_shown()
-	if marks.is_empty() and old.is_empty():
-		return
 	var ink: Color = MenuStyle.tone(self, MenuStyle.TEXT)
 	var faint: Color = MenuStyle.tone(self, MenuStyle.DIM)
+	_draw_breath(ink, faint)
+	if marks.is_empty() and old.is_empty():
+		return
 	var font: Font = get_theme_default_font()
-	# Bottom-anchored, like the region: the last mark sits on the floor of it.
-	var top: float = size.y - ROW * float(marks.size() + old.size())
+	# Bottom-anchored, like the region: the last mark sits on the breath line,
+	# which sits on the floor of it.
+	var top: float = size.y - BREATH_ROW - ROW * float(marks.size() + old.size())
 	for kind: Enums.Wound in ORDER:
 		if old.has(kind):
 			draw_glyph(self, kind, Rect2(0.0, top + (ROW - GLYPH) * 0.5, GLYPH, GLYPH),
@@ -134,6 +168,25 @@ func _draw() -> void:
 			var share: float = clampf(_body.dazed / whole, 0.0, 1.0)
 			draw_rect(Rect2(name_at.x, top + ROW - 3.0, 90.0 * share, 2.0), faint)
 		top += ROW
+
+
+## The breath line (ADR-314): the whole, faint; what is left, inked; a tick at
+## the guard's minimum; and below it, the line dims and beats.
+func _draw_breath(ink: Color, faint: Color) -> void:
+	if _breath_shown <= 0.01 or _body == null or not is_instance_valid(_body):
+		return
+	var share: float = _breath()
+	var whole: float = maxf(_body.stamina.maximum(), 0.001)
+	var short: bool = _body.stamina.current < Config.tuning.block_stamina_minimum
+	var y: float = size.y - BREATH_ROW * 0.5
+	var base := Color(faint, faint.a * 0.45 * _breath_shown)
+	draw_rect(Rect2(0.0, y - 1.0, BREATH_WIDTH, 2.0), base)
+	var left: Color = faint if short else ink
+	var beat: float = 0.55 + 0.45 * absf(sin(_beat * PI * 2.0)) if short else 1.0
+	draw_rect(Rect2(0.0, y - 2.0, BREATH_WIDTH * share, 4.0),
+		Color(left, left.a * beat * _breath_shown))
+	var at: float = BREATH_WIDTH * clampf(Config.tuning.block_stamina_minimum / whole, 0.0, 1.0)
+	draw_rect(Rect2(at - 1.0, y - 5.0, 2.0, 10.0), Color(faint, faint.a * _breath_shown))
 
 
 ## **Scars by where they are**, for the Chamber's row: `arm · head · leg`, or

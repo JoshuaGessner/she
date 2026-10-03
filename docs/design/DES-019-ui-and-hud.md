@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-10-01
+updated: 2026-10-03
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
@@ -93,6 +93,8 @@ Without this rule the Ear becomes a wallhack, players stare at the corner instea
 Health, stamina, wounds. Health does not regenerate (`DES-009`), so it reads as a **depleting resource**, not a bar that refills.
 
 > **Wounds are the first thing placed here (ADR-239).** Each is a mark and its name — a snapped bar, a cracked head, three slashes — stacked from the bottom of the region in a fixed order, so a mark never moves because another arrived. Shape before word and word before colour (`DES-018`); no number, and the concussion's clock is a line under its name that shortens. A newly taken wound is drawn heavier for a moment, since it arrives in the middle of a blow. The same three shapes, smaller, sit on every party frame (Layer 4). A concussion also swims the screen's edges with a pale haze, and takes the Ear's bearing (Layer 1) for as long as it lasts.
+>
+> **Breath is drawn beneath them (ADR-314).** A line on the region's floor that shortens as stamina is spent, with a tick at the guard's minimum; below the tick it dims and beats, so *my guard will not hold* is visible before the blow. No number, and it shows only while breath is spent. It is true on a client's screen because breath is one pool, the owner's (ADR-313).
 >
 > **A Scar is the same shape, faint and without its name (ADR-240)** — a fact of the life, there to be recognised rather than read; a fresh wound on the same limb shows the wound. The Lair's Chamber names them on its `PLACE` panel (`scars  arm · leg`), and party frames draw a teammate's faint beside their wounds.
 

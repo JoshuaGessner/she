@@ -2,7 +2,7 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-10-02_
+<!-- generated-stamp --> _Regenerated 2026-10-03_
 
 **Current milestone: M4 — Vertical Slice**
 
@@ -53,7 +53,7 @@ _None. Sequencing is clean._
 | `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30, M3-T31, M3-T34, M3-T35, M3-T38, M3-T39, M4-T16) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33, M3-T37, M3-T38, M3-T42, M4-T33) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-005 is fully implemented (M1-T01, M1-T04, M2-T01, M2-T02, M2-T04, M2-T14, M2-T17, M2-T18, M3-T11, M3-T12, M4-T01, M4-T15) but still has 8 ⟨tune⟩ marker(s) |
-| `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19, M4-T16, M4-T17, M4-T32, M4-T27, M4-T29) but still has 14 ⟨tune⟩ marker(s) |
+| `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19, M4-T16, M4-T17, M4-T32, M4-T27, M4-T29) but still has 15 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08, M4-T01) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-017 is fully implemented (M2-T02, M2-T03, M2-T19, M2-T21, M3-T04, M3-T21, M3-T22, M4-T01) but still has 8 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
@@ -193,6 +193,6 @@ _None. Sequencing is clean._
 
 ---
 
-_49 docs (46 accepted) · 309 ADRs · 0 open questions · 321 ⟨tune⟩ markers._
+_49 docs (46 accepted) · 314 ADRs · 0 open questions · 325 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

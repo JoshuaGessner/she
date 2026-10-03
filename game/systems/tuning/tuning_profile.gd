@@ -644,6 +644,11 @@ extends Resource
 ## weapon's `stagger`, which is the number that already says how heavy it is.
 @export var hitstop_light: float = 0.045
 @export var hitstop_heavy: float = 0.12
+## **The killing blow holds longest** (ADR-312), and pushes the view as a heavy
+## one does whatever weapon dealt it ⟨tune⟩. The kill is the one blow a player
+## needs to *know* landed, and the only difference it made was a body falling a
+## frame later.
+@export var hitstop_kill: float = 0.15
 ## The `stagger` values the two ends above belong to ⟨tune⟩.
 @export var hitstop_stagger_light: float = 20.0
 @export var hitstop_stagger_heavy: float = 90.0

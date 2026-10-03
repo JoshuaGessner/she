@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-09-30
+updated: 2026-10-03
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -131,6 +131,8 @@ That is an unusually actionable result for a solo project — it says where to s
 - Must remain **independently adjustable** for accessibility (`DES-018`).
 
 > **Built (ADR-279).** Hitstop is owner-side, 45 ms to 120 ms scaled by the weapon's `stagger` ⟨tune⟩. The camera kick is positional only and scaled by a *camera motion* setting that goes to zero. Impact sound is layered by material: a crunch for flesh, a clang for mail and plate. A struck enemy flinches on every peer and is shoved away from the blow. Particles remain absent.
+>
+> **The killing blow holds longest (ADR-312)**, 150 ms ⟨tune⟩ against a heavy blow's 120, with a heavy blow's kick whatever the weapon. And since ADR-311 the blow is heard and seen where it lands on every peer, the killing one included: the flinch path used to skip the dead, so the kill made no sound but the corpse's.
 
 ### 3. Attack anatomy, and the 250 ms floor
 
