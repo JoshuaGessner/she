@@ -11107,4 +11107,26 @@ Seen along a corridor wall, every joint was two surfaces arguing over one depth.
 - **Probes:** `rig_probe`, `art_probe` and `enemy_animation_probe` report 0 failures.
 - **Byrnie:** 3,880 triangles, bracers 2,184.
 
+## ADR-309 — What you hold breathes, and keeps step with your feet
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T05`; respects `DES-009`'s unjuiced controller** · **Developer's call: "more and better animations for idle, etc so things feel more alive"**
+
+**Context:** ADR-302 gave every enemy an idle. The player's own view was the last still thing. At rest the weapon and off hand stood in front of the camera as a photograph, and walking, they glided as if on a rail. A still view reads as a paused one.
+
+**Decision:** `CarrySway` moves what the hands carry, and nothing else.
+- **At rest it breathes:** a 4 mm lift and half a degree of pitch, at the body's own breath rate (`BodyRig.BREATH_HZ`).
+- **Walking it keeps step:**
+  - An 11 mm dip at each footfall and an 8 mm sway with a degree of roll to each side.
+  - It is driven by distance travelled, at `BodyRig`'s stride, so the dip lands on the footfall a teammate sees, at any speed, and it eases out as you stop.
+  - Halved crouched, and gone in the air.
+- **The camera does not move:** `Player` has no head bob by `DES-009`'s rule and still has none. This is the half of view motion that does not make people sick, and it is scaled by `Settings.camera_motion`, the accessibility slider ADR-279 made for every motion of the view. At 0 the hands are still.
+- **Where it applies:** the weapon's drawn **model** moves, never its node, because the swing's hitbox hangs off that node. A reach that changed with your breathing would be one nobody could learn. The off hand moves with the `Hands` node, and the first-person arms follow both grips as they always have.
+
+**Measured:**
+- The `--hands-probe` draw-in row now asks for the rest pose under the carry: the weapon still rises into view and stops where it rests.
+- `--combat-probe` and `--fight-probe` pass unchanged; a block, a guard and poise all cost what they did.
+- The hands render as they did: lantern, seax, and the bow in two fists.
+
+**Honest scale:** amplitudes are ⟨tune⟩ and small on purpose. This is the felt half of "alive". The readable half, an enemy's idle that says what it is, was ADR-302's.
+
 *Entries below to be added as design decisions are signed off.*

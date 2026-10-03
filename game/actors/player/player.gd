@@ -526,6 +526,8 @@ var ranged: RangedWeapon = null
 ## Your own off hand and whatever you are using, in first person (ADR-267).
 ## Only on the body this process plays; see `Hands`.
 var _hands: Hands = null
+## The breath and step of what the hands hold (ADR-309), likewise local only.
+var _sway: CarrySway = CarrySway.new()
 ## How far through setting a Snare, 0 to 1. **Not replicated**, unlike the
 ## Húskarl's `planted`: that one crosses the wire because it changes a collision
 ## layer and the host's enemies have to collide with it. This changes nothing
@@ -2599,6 +2601,14 @@ func _physics_process(delta: float) -> void:
 		_tick_bleeding(delta)
 	# Pose after weapons and use actions have advanced, so grips are this frame's.
 	if _is_local and _hands != null:
+		var ground_speed: float = Vector2(velocity.x, velocity.z).length()
+		var carry: Transform3D = _sway.step(delta, ground_speed * delta,
+			ground_speed / maxf(tuning.walk_speed, 0.01), is_on_floor(), stance,
+			Settings.camera_motion)
+		weapon.carry = carry
+		if ranged != null:
+			ranged.carry = carry
+		_hands.transform = carry
 		_hands.step(delta, lit, blocking, mending, leaving,
 			ranged.grip() if ranged != null and ranged.kit() != null else weapon.grip())
 

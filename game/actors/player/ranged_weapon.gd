@@ -139,6 +139,14 @@ func is_busy() -> bool:
 	return _phase != Phase.IDLE
 
 
+## **How the hands carry it this frame** (ADR-309): `CarrySway`'s breath and
+## step, composed onto the model and never onto this node, whose hitbox it is.
+var carry: Transform3D = Transform3D.IDENTITY:
+	set(value):
+		carry = value
+		if _phase == Phase.IDLE and _model != null:
+			_update_pose()
+
 func _pose(from: Array, to: Array, t: float) -> void:
 	_model.position = (from[0] as Vector3).lerp(to[0] as Vector3, t)
 	_model.rotation = Vector3(
@@ -146,6 +154,7 @@ func _pose(from: Array, to: Array, t: float) -> void:
 		deg_to_rad(lerpf((from[1] as Vector3).y, (to[1] as Vector3).y, t)),
 		deg_to_rad(lerpf((from[1] as Vector3).z, (to[1] as Vector3).z, t))
 	)
+	_model.transform = carry * _model.transform
 
 
 func _update_pose() -> void:

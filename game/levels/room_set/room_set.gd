@@ -15204,8 +15204,10 @@ func _hands_probe() -> void:
 	var starting: float = body.weapon.drawn()
 	await _hold(MeleeWeapon.DRAW_SECONDS + 0.15)
 	var model := body.weapon.get_node(^"Model") as Node3D
-	var at_rest: bool = model.position.is_equal_approx(
-		MeleeWeapon.POSE_REST[0] as Vector3)
+	# Where it rests under the breath the hands carry it with (ADR-309): the
+	# carry taken back off, so a weapon that breathes still rests.
+	var at_rest: bool = (body.weapon.carry.affine_inverse() * model.transform).origin \
+		.is_equal_approx(MeleeWeapon.POSE_REST[0] as Vector3)
 	print("[hands] drawn       %.2f at the start, %.2f after, %s" % [
 		starting, body.weapon.drawn(), "at rest" if at_rest else "not at rest"])
 	if starting > 0.5 or body.weapon.drawn() < 1.0 or not at_rest:
