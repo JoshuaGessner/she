@@ -64,6 +64,11 @@ enum Volume {
 ## How many corridors it can carry. The graph decides how many a node needs;
 ## this says whether the module can take them.
 @export var max_links: int = 4
+## **Serves the floor's hub and nothing else** (ADR-306). A hub module claims
+## two lattice cells each way, so it may be up to `FloorPlan.HUB_FOOTPRINT`
+## across, and its footprint is even so that its middle falls on a cell
+## corner and its pillars stand symmetric about it.
+@export var hub: bool = false
 
 @export_group("History")
 ## Room flavours this module carries, matched against the Calamity's own tags
@@ -97,11 +102,18 @@ func validate() -> PackedStringArray:
 	if footprint.x < 1 or footprint.y < 1:
 		problems.append("`%s` has a %d×%d footprint — a room occupies cells"
 			% [id, footprint.x, footprint.y])
-	if footprint.x > FloorPlan.MAX_FOOTPRINT \
-			or footprint.y > FloorPlan.MAX_FOOTPRINT:
+	var limit: int = FloorPlan.HUB_FOOTPRINT if hub else FloorPlan.MAX_FOOTPRINT
+	if footprint.x > limit or footprint.y > limit:
 		problems.append(("`%s` is %d×%d, past the %d-cell limit — a room "
 			+ "larger than its lattice cell reaches into its neighbour's")
-			% [id, footprint.x, footprint.y, FloorPlan.MAX_FOOTPRINT])
+			% [id, footprint.x, footprint.y, limit])
+	if hub and (footprint.x % 2 == 1 or footprint.y % 2 == 1):
+		problems.append(("`%s` is a hub %d×%d — a hub's sides are even, so "
+			+ "its middle is a cell corner and its pillars stand round it")
+			% [id, footprint.x, footprint.y])
+	if hub and not roles.is_empty():
+		problems.append("`%s` is a hub and claims a role — a hub is ordinary space"
+			% id)
 	if max_links < 1:
 		problems.append("`%s` accepts no corridors, so nothing could reach it"
 			% id)
@@ -130,7 +142,10 @@ func validate() -> PackedStringArray:
 
 ## Can this module stand in for `node`? Everything the placer needs to know
 ## before it tries a position, so a candidate that cannot fit is never tried.
-func fits(role: int, links: int, held: bool, floor_index: int) -> bool:
+func fits(role: int, links: int, held: bool, floor_index: int,
+		is_hub: bool = false) -> bool:
+	if hub != is_hub:
+		return false
 	if links > max_links:
 		return false
 	if held and not held_capable:

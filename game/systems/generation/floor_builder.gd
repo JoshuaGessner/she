@@ -105,6 +105,9 @@ const CEILING_DRIFT: float = 1.0
 ## flat floor keeps its exact footprint: rendering that lap as well draws two
 ## coplanar surfaces at room/corridor and corridor/corridor joins (z-fighting).
 const FLOOR_LAP: float = 0.4
+## How far a ramp runs on past its head into the level floor it climbs to
+## (ADR-306): an overlap for the seam, too short to stand proud of it ⟨tune⟩.
+const RAMP_HEAD_LAP: float = 0.05
 ## How high a crossing corridor rides over the one beneath. Clears the lower
 ## tunnel's ceiling and its slab, so the two decks never intersect.
 const BRIDGE_LIFT: float = CORRIDOR_CEILING + WALL_THICK + 0.4
@@ -160,6 +163,8 @@ const ALCOVE_MOUTH: float = 1.5
 const ALCOVE_CEILING: float = 2.2
 ## Most alcoves any one room may be given ⟨tune⟩.
 const ALCOVE_MAX: int = 2
+## A hub pillar's side, in metres: the kit's `delvings_pillar` (ADR-306).
+const PILLAR: float = 0.8
 ## How far a ledge ramp overshoots the deck it meets, in metres.
 ##
 ## Deliberately **under one navmesh voxel of height**: enough that the two solids
@@ -247,6 +252,7 @@ const SURFACES: Dictionary = {
 	"ceiling": DelvingsKit.CEILING,
 	"wall": DelvingsKit.WALL,
 	"chamfer": DelvingsKit.CHAMFER,
+	"pillar": DelvingsKit.PILLAR,
 }
 
 var _into: Node3D = null
@@ -266,6 +272,7 @@ var _fallen_laid: int = 0
 var _hazards_laid: int = 0
 var _shored: int = 0
 var _notched: int = 0
+var _pillared: int = 0
 var _shore_view: Dictionary = {}
 ## Every solid slab laid, as `[Transform3D, size, role]` — see `occluders`.
 var _occluders: Array = []
@@ -324,6 +331,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		"hazards": builder._hazards_laid,
 		"shored": builder._shored,
 		"notched": builder._notched,
+		"pillared": builder._pillared,
 		"shore_view": builder._shore_view,
 		"occluders": builder._occluders,
 	}
@@ -404,6 +412,8 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 		_alcove(rect, cell)
 	for block: Rect2i in plan.notches_of(node):
 		_notch(rect, block, height)
+	if node == plan.hub():
+		_pillars(plan, height)
 
 	# Corners cut back as the working gives way to the seam. At roughness 0
 	# this emits nothing at all, which is what makes floor 1 read as built.
@@ -597,6 +607,20 @@ func _notch(rect: Rect2i, block: Rect2i, height: float) -> void:
 	_notched += 1
 
 
+## **The hub's pillars** (ADR-306), floor to ceiling where the plan puts them.
+##
+## A hall twenty metres across with nothing in it is a box you can see the far
+## side of from the door; pillars are what make it a hall: cover to break a
+## sightline in a fight (`DES-009`), something to circle, and the roof the
+## room's span says it must have. Solid, so the navmesh bakes round them, and
+## clad in the kit's pillar, which had stood on the shelf since ADR-263.
+func _pillars(plan: FloorPlan, height: float) -> void:
+	for corner: Vector2i in plan.pillars():
+		_slab(Vector3(PILLAR, height, PILLAR), at(corner) + Vector3(0.0, height * 0.5, 0.0),
+			STONE[_depth], 0.0, "pillar")
+		_pillared += 1
+
+
 ## The cells of `rect` lying against one of its four walls, in order.
 func _strip(rect: Rect2i, side: int) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
@@ -674,7 +698,20 @@ func _ledge(plan: FloorPlan, rect: Rect2i, doors: Array[Vector2i],
 	var cells: Array[Vector2i] = _strip(rect,
 		sides[rng.randi_range(0, sides.size() - 1)])
 	# Which end you climb from is half of what makes two ledges read differently.
-	if rng.randi_range(0, 1) == 1:
+	#
+	# **Never toward a doorway** (ADR-306). A wall with a doorway at one end
+	# is allowed a ledge (ADR-213 refuses both), on the understanding that
+	# the ramp's foot is turned away from it — and it was a coin toss. Half
+	# the time the corridor opened onto the foot, which stands `LEDGE_FOOT`
+	# off the end wall: a person steps round it and the Gullsjúkr, 1.1 m
+	# across, cannot (seed 57721 floor 1). The coin is still drawn, so no
+	# other room's ledge moves; a doorway overrules it.
+	var reverse: bool = rng.randi_range(0, 1) == 1
+	if _door_at_end(cells, doors, true):
+		reverse = true
+	elif _door_at_end(cells, doors, false):
+		reverse = false
+	if reverse:
 		cells.reverse()
 	var step: Vector2i = cells[1] - cells[0]
 	var along := Vector3(step.x, 0.0, step.y)
@@ -955,32 +992,77 @@ func _route(plan: FloorPlan, route: int) -> int:
 		var leaves: float = float(rises[i + 1]) * HALF_RISER
 		var travel: Vector2i = path[mini(i + 1, path.size() - 1)] \
 			- path[maxi(i - 1, 0)]
-		_tunnel(plan, path[i], enters, leaves, travel)
+		# The sides of this cell its own corridor continues through, split by
+		# whether it runs on level or slopes away (ADR-306).
+		var level: Array[Vector2i] = []
+		var sloped: Array[Vector2i] = []
+		if i > 0:
+			(level if rises[i - 1] == rises[i] else sloped).append(path[i - 1] - path[i])
+		if i + 1 < path.size():
+			(level if rises[i + 1] == rises[i + 2] else sloped).append(path[i + 1] - path[i])
+		_tunnel(plan, path[i], enters, leaves, travel, level, sloped)
 	return path.size()
 
 
 ## One cell of corridor, its floor running from `enters` to `leaves`.
 func _tunnel(plan: FloorPlan, cell: Vector2i, enters: float, leaves: float,
-		travel: Vector2i) -> void:
+		travel: Vector2i, level: Array[Vector2i] = [],
+		sloped: Array[Vector2i] = []) -> void:
 	var mid: Vector3 = at(cell) + Vector3(CELL * 0.5, 0.0, CELL * 0.5)
 	var height: float = (enters + leaves) * 0.5
 	var raised: bool = height > 0.01
 	var rise: float = leaves - enters
 	if absf(rise) < 0.01 or travel == Vector2i.ZERO:
-		_slab(Vector3(CELL + FLOOR_LAP * 2.0, WALL_THICK, CELL + FLOOR_LAP * 2.0),
-			mid + Vector3(0.0, height - WALL_THICK * 0.5, 0.0), RUBBLE[_depth],
-			0.0, "floor")
+		# **No lap over another level** (ADR-306). A flat slab laps its
+		# neighbours by `FLOOR_LAP` so Recast meets no seam. Lapped over a ramp
+		# — its own corridor's climbing up to it, or a neighbour's running
+		# beside a deck — its edge stood 0.4 m out over the slope at its own
+		# height: a 0.08–0.26 m lip. The navmesh steps 0.30 m and never
+		# noticed; the player's capsule, which steps nothing, stopped against
+		# it. So no side laps onto its own corridor's slope — that ramp's box
+		# is lengthened past its foot and closes the seam from below — and a
+		# raised slab laps only onto rock or its own corridor running on level.
+		var low := Vector2(FLOOR_LAP, FLOOR_LAP)
+		var high := Vector2(FLOOR_LAP, FLOOR_LAP)
+		var trimmed: Array[Vector2i] = sloped.duplicate()
+		if raised:
+			for side: Vector2i in FloorPlan.STEPS:
+				if not level.has(side) and plan.holds(cell + side):
+					trimmed.append(side)
+		for side: Vector2i in trimmed:
+			if side.x < 0:
+				low.x = 0.0
+			elif side.x > 0:
+				high.x = 0.0
+			if side.y < 0:
+				low.y = 0.0
+			elif side.y > 0:
+				high.y = 0.0
+		_slab(Vector3(CELL + low.x + high.x, WALL_THICK, CELL + low.y + high.y),
+			mid + Vector3((high.x - low.x) * 0.5, height - WALL_THICK * 0.5,
+				(high.y - low.y) * 0.5), RUBBLE[_depth], 0.0, "floor")
 	else:
 		# Tilted about the axis across the direction of travel, and lengthened
 		# by 1/cos so the sloped box still covers the whole cell.
+		#
+		# **Lengthened at its foot, not at its head** (ADR-306). Past its foot
+		# the slope runs on *down*, under the floor it meets, and closes the
+		# seam from below. Past its head it ran on *up*: 0.55 m of slope standing
+		# 0.19–0.22 m out of the deck or landing it climbs to — a ridge the
+		# navmesh steps over and the player's capsule stopped against. The head
+		# keeps `RAMP_HEAD_LAP`, enough to overlap the seam and no more.
 		var along := Vector3(travel.x, 0.0, travel.y).normalized()
 		var pitch: float = atan2(rise, CELL)
-		var span: float = CELL / cos(pitch) + WALL_THICK + FLOOR_LAP * 2.0
+		var foot: float = WALL_THICK * 0.5 + FLOOR_LAP
+		var span: float = CELL / cos(pitch) + foot + RAMP_HEAD_LAP
 		var size := Vector3(span, WALL_THICK, CELL + FLOOR_LAP * 2.0) \
 			if absf(along.x) > 0.5 \
 			else Vector3(CELL + FLOOR_LAP * 2.0, WALL_THICK, span)
-		_slab(size, mid + Vector3(0.0, height - WALL_THICK * 0.5, 0.0),
-			RUBBLE[_depth], 0.0, "ramp", rise_toward(along, rise, CELL))
+		var tilt: Basis = rise_toward(along, rise, CELL)
+		var downhill: Vector3 = tilt * (-along * signf(rise))
+		_slab(size, mid + Vector3(0.0, height - WALL_THICK * 0.5, 0.0)
+			+ downhill * (foot - RAMP_HEAD_LAP) * 0.5,
+			RUBBLE[_depth], 0.0, "ramp", tilt)
 	# A raised deck is open above — you are crossing a void, and being able to
 	# see down into it is the point (`DES-015`'s visual-only vertical space).
 	if not raised:

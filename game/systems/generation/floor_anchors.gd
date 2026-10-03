@@ -67,6 +67,9 @@ const NOWHERE := Vector3.INF
 ## How many times a drawn point may land on dressing before the room's middle
 ## is used instead — see `_within`.
 const DRAWS: int = 8
+## How far a placed point keeps from a hub pillar's axis: half the pillar's
+## diagonal and a body's width (ADR-306) ⟨tune⟩.
+const PILLAR_CLEAR: float = 1.2
 
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
@@ -388,8 +391,9 @@ func spots_in(node: int, count: int) -> Array[Vector3]:
 		var spot: Vector3 = middle + Vector3(cos(angle), 0.0, sin(angle)) * reach
 		# A ring point that falls in a corner left as rock (ADR-304) comes in
 		# along its own spoke, which keeps the ring's separation by angle.
+		# So does one beside a hub pillar (ADR-306).
 		for _pull: int in 4:
-			if not _plan.notched(FloorBuilder.cell_of(spot)):
+			if not _plan.notched(FloorBuilder.cell_of(spot)) and not _by_pillar(spot):
 				break
 			spot = middle.lerp(spot, 0.6)
 		out.append(spot)
@@ -432,8 +436,18 @@ func _is_open(point: Vector3) -> bool:
 	for rect: Rect2 in _kept_out:
 		if rect.has_point(Vector2(point.x, point.z)):
 			return false
-	# Nor in a corner of the room left as rock (ADR-304).
-	return not _plan.notched(FloorBuilder.cell_of(point))
+	# Nor in a corner of the room left as rock (ADR-304), nor against a hub
+	# pillar (ADR-306).
+	return not _plan.notched(FloorBuilder.cell_of(point)) and not _by_pillar(point)
+
+
+## Within a body's width of one of the hub's pillars (ADR-306)?
+func _by_pillar(point: Vector3) -> bool:
+	for corner: Vector2i in _plan.pillars():
+		var at: Vector3 = FloorBuilder.at(corner)
+		if Vector2(point.x - at.x, point.z - at.z).length() < PILLAR_CLEAR:
+			return true
+	return false
 
 
 ## Hops from `from` to `to` across the graph, or -1 if unreachable.

@@ -1096,6 +1096,25 @@ func _build_probe() -> void:
 		ledges += int(census["ledges"])
 		shored += int(census["shored"])
 		notched += int(census["notched"])
+		# The hub (ADR-306): every floor has one, it is the largest room on the
+		# floor, and it stands on pillars — or the floor has gone back to being
+		# a ring of small rooms round nothing.
+		var hub: int = plan.hub()
+		var widest: int = 0
+		for node: int in graph.size():
+			if node != hub:
+				widest = maxi(widest, plan.rect_of(node).get_area())
+		var hub_area: int = plan.rect_of(hub).get_area() if hub >= 0 else 0
+		print("[build] hub %d       room %d, %s, %d cell(s) against the next %d, %d pillar(s)"
+			% [depth, hub, plan.module_of(hub) if hub >= 0 else &"none", hub_area,
+				widest, census["pillared"]])
+		if hub < 0:
+			problems.append("floor %d has no hub — no ordinary room off the held span" % depth)
+		elif hub_area <= widest:
+			problems.append(("floor %d's hub is %d cells against a room of %d — "
+				+ "the room the floor gathers round is not its largest") % [depth, hub_area, widest])
+		elif int(census["pillared"]) < 4:
+			problems.append("floor %d's hub stands on %d pillar(s)" % [depth, census["pillared"]])
 		print("[build] floor %d     %d room(s), %d corridor cell(s), %d slab(s), "
 			% [depth, census["rooms"], census["corridor"], census["slabs"]]
 			+ "roughness %.1f" % census["roughness"])
@@ -2658,11 +2677,12 @@ func _plan_probe() -> void:
 	for i: int in trials:
 		for depth: int in 3:
 			var graph: MissionGraph = MissionGraph.build(74000 + i, depth)
+			var hub: int = graph.hub()
 			for node: int in graph.size():
 				var role: int = graph._role[node]
-				var shape: String = "%d/%d/%d/%d" % [role,
+				var shape: String = "%d/%d/%d/%d/%d" % [role,
 					graph.neighbours(node).size(),
-					1 if graph.is_held(node) else 0, depth]
+					1 if graph.is_held(node) else 0, depth, 1 if node == hub else 0]
 				if role == MissionGraph.Role.PRIZE:
 					for kind: String in kinds:
 						demands["%s/%s" % [shape, kind]] = true
@@ -2676,16 +2696,17 @@ func _plan_probe() -> void:
 		var served: bool = false
 		for module: RoomModule in modules:
 			if not module.fits(int(bits[0]), int(bits[1]), bits[2] == "1",
-					int(bits[3])):
+					int(bits[3]), bits[4] == "1"):
 				continue
-			if bits[4] != "" and String(module.prize_kind) != bits[4]:
+			if bits[5] != "" and String(module.prize_kind) != bits[5]:
 				continue
 			served = true
 			break
 		if not served:
-			uncovered.append("role %s/%s link(s)%s on floor %s%s" % [
-				bits[0], bits[1], ", held" if bits[2] == "1" else "", bits[3],
-				", %s" % bits[4] if bits[4] != "" else ""])
+			uncovered.append("role %s/%s link(s)%s%s on floor %s%s" % [
+				bits[0], bits[1], ", held" if bits[2] == "1" else "",
+				", hub" if bits[4] == "1" else "", bits[3],
+				", %s" % bits[5] if bits[5] != "" else ""])
 	print("[plan] coverage    %d demand(s), %d unserved" % [
 		wants.size(), uncovered.size()])
 	if not uncovered.is_empty():
@@ -3822,6 +3843,9 @@ func _delvings_shot(path: String, ink: bool = false) -> void:
 	if dressed != null and not dressed.shape_view().is_empty():
 		views.append(["shaped", dressed.shape_view()["at"],
 			dressed.shape_view()["look"]])
+	# And into the hub (ADR-306).
+	if dressed != null and not dressed.hub_view().is_empty():
+		views.append(["hub", dressed.hub_view()["at"], dressed.hub_view()["look"]])
 	for view: Array in views:
 		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
 		var look: Vector3 = view[2] as Vector3

@@ -47,6 +47,7 @@ const FLOOR: StringName = &"floor"
 const CEILING: StringName = &"ceiling"
 const WALL: StringName = &"wall"
 const CHAMFER: StringName = &"chamfer"
+const PILLAR: StringName = &"pillar"
 
 ## `FloorBuilder` owns the depth morph; the kit only changes its surface family.
 ## Keeping the three families as an integer makes the pick a pure function of
@@ -326,6 +327,18 @@ static func clad(node: MeshInstance3D, role: StringName,
 					PANEL_DEEP, band) == 0:
 				return
 			recess(node)
+		PILLAR:
+			# **One piece, the solid's height**, its foot on the floor. The box
+			# stops being drawn, as a ceiling's does: the pillar is the box's
+			# own size, and both drawn would fight on every face. The module
+			# has no UVs (`ART-005`), so stretching it up stretches nothing.
+			var shape: Mesh = mesh_of(&"delvings_pillar")
+			if shape == null:
+				return
+			node.layers = 0
+			var made: Vector3 = shape.get_aabb().size
+			_piece(node, &"delvings_pillar", Vector3(0.0, -size.y * 0.5, 0.0), 0.0,
+				Vector3(size.x / made.x, size.y / made.y, size.z / made.z))
 		_:
 			push_error("[kit] nothing is clad as `%s`" % role)
 

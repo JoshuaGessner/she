@@ -4,7 +4,7 @@ title: Level Geometry & Spatial Legibility
 status: accepted
 owner: tech
 tags: [levels, geometry, blockout, metrics, legibility, procgen, research]
-updated: 2026-09-17
+updated: 2026-10-02
 related: [DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001]
 ---
 
@@ -281,6 +281,14 @@ one.
 4. **Depth as district — Lynch's districts.** The gradient of §3.1 *is* the
    district system: the player can tell which floor they are on by looking at a
    wall. No signage, no map colour, no UI.
+
+> **A fifth, by ADR-306 — the hub, Lynch's node made large.** Every floor
+> gathers round one room: the ordinary junction with the most corridors, given
+> a two-by-two block of the lattice and a hub-only module up to 13 cells
+> across, standing on a symmetric grid of the kit's pillars. Ledges and alcoves
+> make a room *seen*; the hub is the one room a floor is laid out *round*, so a
+> player has a centre to orient by. Rooms carved into Ls, Ts and crosses
+> (ADR-304) break the rectangle; the hub is never carved.
 
 ### 3.4 What blockout may and may not do
 

@@ -87,6 +87,15 @@ const LATTICE: int = 8
 ## Largest footprint a module may declare. Asserted, so an over-large `.tres`
 ## fails the build instead of silently overlapping its neighbour.
 const MAX_FOOTPRINT: int = 5
+## Largest footprint a **hub** module may declare (ADR-306). A hub claims a
+## two-by-two block of lattice cells, and keeps the same gutter to its
+## neighbours as any room keeps in one cell.
+const HUB_FOOTPRINT: int = 2 * LATTICE - (LATTICE - MAX_FOOTPRINT)
+## The hub's pillars: one every `PILLAR_STEP` cells, symmetric about its middle,
+## none nearer a wall than `PILLAR_WALL` cells and none on the middle itself,
+## where the room's centre, spawns and rings are measured from ⟨tune⟩.
+const PILLAR_STEP: int = 3
+const PILLAR_WALL: int = 2
 ## How many times an on-theme module is entered in the candidate list against
 ## a neutral one's single entry (`DES-015` step 5) ⟨tune⟩.
 ##
@@ -169,6 +178,9 @@ var _floor_index: int = 0
 var _mods: Array[RoomModule] = []
 ## Per node: lattice cell.
 var _slot: Array[Vector2i] = []
+## The graph's hub (ADR-306), which takes a two-by-two block of the lattice
+## whose top-left cell is its `_slot`. -1 if the graph has none.
+var _hub: int = -1
 ## Per node: fine-grid rectangle.
 var _rect: Array[Rect2i] = []
 ## Fine cell → node, for room interiors. Lookup only, never iterated to decide.
@@ -185,6 +197,9 @@ var _axis: Dictionary = {}
 ## Where a corridor opens into a room, as `Vector4i(cell.x, cell.y, node,
 ## route)`. Every other corridor cell is walled from whatever it runs past.
 var _doors: Array[Vector4i] = []
+## Each laid route's floor heights, `deck_rises` of its final path — kept so a
+## later route can ask whether a cell it would bridge is on the floor.
+var _rises: Dictionary = {}
 ## Route index → its cells in walking order, door to door. Kept because
 ## geometry needs to know which way a corridor *runs*, not only which cells it
 ## occupies: a crossing has to be ramped up to and down from, and a ramp is a
@@ -213,6 +228,7 @@ static func build(graph: MissionGraph, run_seed: int, floor_index: int,
 	plan._graph = graph
 	plan._history = history
 	plan._floor_index = floor_index
+	plan._hub = graph.hub()
 	for attempt: int in MAX_ROLLS:
 		plan._reset()
 		plan._rolls = attempt
@@ -254,8 +270,12 @@ func _carve(run_seed: int, floor_index: int) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = MissionGraph._mix(
 		MissionGraph.stage_seed(run_seed, floor_index) + STAGE + SHAPE_STREAM)
+	# Nor the hub (ADR-306): its shape is its pillars, and a corner of rock in
+	# it would be a pillar's worth of room lost from the one room that is meant
+	# to be open.
 	var special: Array[int] = [_graph.node_with(MissionGraph.Role.ENTRANCE),
-		_graph.node_with(MissionGraph.Role.PRIZE), _graph.node_with(MissionGraph.Role.SHAFT)]
+		_graph.node_with(MissionGraph.Role.PRIZE), _graph.node_with(MissionGraph.Role.SHAFT),
+		_hub]
 	var total: int = 0
 	for weight: int in SHAPE_WEIGHTS:
 		total += weight
@@ -415,6 +435,7 @@ func _reset() -> void:
 	_paths = {}
 	_over = {}
 	_doors = []
+	_rises = {}
 	_failure = ""
 	for i: int in _graph.size():
 		_mods.append(null)
@@ -439,13 +460,16 @@ func _attempt(rng: RandomNumberGenerator, modules: Array[RoomModule]) -> bool:
 
 
 ## One node per lattice cell, grown outward. The entrance takes the origin;
-## every later node takes a free cell beside one already assigned.
+## every later node takes a free cell beside one already assigned. The hub
+## takes a two-by-two block (ADR-306), so its neighbours have four cells'
+## worth of edge to settle against, and gather round it.
 func _assign_slots(rng: RandomNumberGenerator, order: PackedInt32Array) -> bool:
 	var taken: Dictionary = {}
 	var settled: PackedInt32Array = PackedInt32Array()
 	settled.resize(_graph.size())
 	_slot[order[0]] = Vector2i.ZERO
-	taken[Vector2i.ZERO] = order[0]
+	for cell: Vector2i in _block(order[0], Vector2i.ZERO):
+		taken[cell] = order[0]
 	settled[order[0]] = 1
 	for i: int in range(1, order.size()):
 		var node: int = order[i]
@@ -464,12 +488,13 @@ func _assign_slots(rng: RandomNumberGenerator, order: PackedInt32Array) -> bool:
 		var options: Array[Vector2i] = []
 		for reach: int in range(1, LATTICE_REACH + 1):
 			for anchor: int in anchors:
-				for dx: int in range(-reach, reach + 1):
-					var dy: int = reach - absi(dx)
-					for at: Vector2i in [_slot[anchor] + Vector2i(dx, dy),
-							_slot[anchor] + Vector2i(dx, -dy)]:
-						if not taken.has(at) and not options.has(at):
-							options.append(at)
+				for cell: Vector2i in _block(anchor, _slot[anchor]):
+					for dx: int in range(-reach, reach + 1):
+						var dy: int = reach - absi(dx)
+						for near: Vector2i in [cell + Vector2i(dx, dy), cell + Vector2i(dx, -dy)]:
+							for at: Vector2i in _seats_touching(node, near):
+								if not options.has(at) and _free(node, at, taken):
+									options.append(at)
 			if not options.is_empty():
 				break
 		if options.is_empty():
@@ -485,8 +510,30 @@ func _assign_slots(rng: RandomNumberGenerator, order: PackedInt32Array) -> bool:
 		options.sort()
 		var at: Vector2i = options[rng.randi_range(0, options.size() - 1)]
 		_slot[node] = at
-		taken[at] = node
+		for cell: Vector2i in _block(node, at):
+			taken[cell] = node
 		settled[node] = 1
+	return true
+
+
+## The lattice cells `node` claims seated at `at`: one, or the hub's four.
+func _block(node: int, at: Vector2i) -> Array[Vector2i]:
+	if node != _hub:
+		return [at]
+	return [at, at + Vector2i(1, 0), at + Vector2i(0, 1), at + Vector2i(1, 1)]
+
+
+## Every seat for `node` whose block covers `cell`.
+func _seats_touching(node: int, cell: Vector2i) -> Array[Vector2i]:
+	if node != _hub:
+		return [cell]
+	return [cell, cell - Vector2i(1, 0), cell - Vector2i(0, 1), cell - Vector2i(1, 1)]
+
+
+func _free(node: int, at: Vector2i, taken: Dictionary) -> bool:
+	for cell: Vector2i in _block(node, at):
+		if taken.has(cell):
+			return false
 	return true
 
 
@@ -507,7 +554,7 @@ func _seat_rooms(rng: RandomNumberGenerator, order: PackedInt32Array,
 			wanted = _history.prize_kind()
 		var options: Array[RoomModule] = []
 		for module: RoomModule in modules:
-			if not module.fits(role, links, held, _floor_index):
+			if not module.fits(role, links, held, _floor_index, node == _hub):
 				continue
 			if wanted != &"" and module.prize_kind != wanted:
 				continue
@@ -528,7 +575,8 @@ func _seat_rooms(rng: RandomNumberGenerator, order: PackedInt32Array,
 		if module.volume == RoomModule.Volume.CRAWL:
 			crawls[node] = true
 		var span: Vector2i = module.footprint
-		var free: Vector2i = Vector2i(LATTICE - span.x - 2, LATTICE - span.y - 2)
+		var room: int = LATTICE * (2 if node == _hub else 1)
+		var free: Vector2i = Vector2i(room - span.x - 2, room - span.y - 2)
 		var corner: Vector2i = _slot[node] * LATTICE + Vector2i.ONE \
 			+ Vector2i(rng.randi_range(0, maxi(0, free.x)),
 				rng.randi_range(0, maxi(0, free.y)))
@@ -685,6 +733,13 @@ func _route(edge: Vector2i, index: int, rng: RandomNumberGenerator) -> bool:
 				if under.size() != 1 or int(_axis.get(next, -1)) < 0:
 					continue
 				if int(_axis[next]) == _axis_of(step):
+					continue
+				# **And only where it is on the floor** (ADR-306). The corridor
+				# beneath may itself be climbing to a bridge of its own, and a deck
+				# laid over a cell of its ramp left half a metre between the slope
+				# and the deck's underside: no navmesh there, and two rooms of a
+				# held span cut off from the floor (seed 57721, floor 2).
+				if not _on_the_floor(under[0], next):
 					continue
 				land = next + STEPS[step]
 				if _cells.has(land) or _corridor.has(land):
@@ -895,6 +950,17 @@ func _lay(at: Vector2i, came: Dictionary, over: Dictionary, index: int,
 			_axis[cell] = _straight_axis(path, i)
 	_doors.append(Vector4i(at.x, at.y, to, index))
 	_doors.append(Vector4i(path[0].x, path[0].y, from, index))
+	_rises[index] = deck_rises(path, crossed)
+
+
+## Does `route` run level at floor height through `cell`, entering and leaving?
+func _on_the_floor(route: int, cell: Vector2i) -> bool:
+	var path: Array[Vector2i] = _paths.get(route, [] as Array[Vector2i])
+	var i: int = path.find(cell)
+	if i < 0 or not _rises.has(route):
+		return false
+	var rises: PackedInt32Array = _rises[route]
+	return rises[i] == 0 and rises[i + 1] == 0
 
 
 ## The axis this route runs along at `path[i]`, or -1 where it turns or ends.
@@ -953,6 +1019,35 @@ func module_of(node: int) -> StringName:
 
 func rect_of(node: int) -> Rect2i:
 	return _rect[node]
+
+
+## The floor's hub (ADR-306), or -1.
+func hub() -> int:
+	return _hub
+
+
+## **Where the hub's pillars stand**, as the cell corners they are centred on
+## (ADR-306). A grid every `PILLAR_STEP` cells, symmetric about the middle, kept
+## `PILLAR_WALL` cells off every wall so no doorway, ledge or wall-side piece of
+## dressing meets one, and never on the middle. A pure function of the hub's
+## rectangle, so the builder, the anchors and the probes cannot disagree.
+func pillars() -> Array[Vector2i]:
+	var out: Array[Vector2i] = []
+	if _hub < 0 or _mods.is_empty() or _mods[_hub] == null:
+		return out
+	var rect: Rect2i = _rect[_hub]
+	var middle: Vector2i = rect.size / 2
+	var reach: int = maxi(rect.size.x, rect.size.y) / PILLAR_STEP + 1
+	for i: int in range(-reach, reach + 1):
+		var x: int = middle.x + i * PILLAR_STEP
+		if x < PILLAR_WALL or x > rect.size.x - PILLAR_WALL:
+			continue
+		for j: int in range(-reach, reach + 1):
+			var y: int = middle.y + j * PILLAR_STEP
+			if y < PILLAR_WALL or y > rect.size.y - PILLAR_WALL or (i == 0 and j == 0):
+				continue
+			out.append(rect.position + Vector2i(x, y))
+	return out
 
 
 func corridor_cells() -> int:
@@ -1070,8 +1165,10 @@ func problems() -> PackedStringArray:
 
 	for node: int in _graph.size():
 		var span: Vector2i = _mods[node].footprint
-		if span.x > MAX_FOOTPRINT or span.y > MAX_FOOTPRINT \
-				or span.x + 2 > LATTICE or span.y + 2 > LATTICE:
+		var limit: int = HUB_FOOTPRINT if node == _hub else MAX_FOOTPRINT
+		var room: int = LATTICE * (2 if node == _hub else 1)
+		if span.x > limit or span.y > limit \
+				or span.x + 2 > room or span.y + 2 > room:
 			found.append(("module `%s` is %d×%d, which does not fit a lattice "
 				+ "cell — a room larger than its cell would reach into its "
 				+ "neighbour's") % [_mods[node].id, span.x, span.y])

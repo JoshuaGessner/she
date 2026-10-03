@@ -11010,4 +11010,44 @@ Every other binding is unchanged, and the keyboard is untouched. A player's own 
 
 **Honest scale:** these are bind-pose meshes on the shared rig, so a cape or a robe follows the bones it is weighted to and does not swing. Cloth simulation is not built and not planned. The faces are the shared head and differ only by what frames them. Final visual sign-off is still the developer's (`M4-T10` stays open).
 
+## ADR-306 — Every floor gathers round a hub: the best-joined room, twice the lattice, on pillars
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T01`; continues ADR-304, TEC-008 §2.2** · **Developer's call: "room shapes and hubs", hubs second**
+
+**Context:** ADR-304's plan shots showed the other half of the problem. Every junction, the room where an arm of the cycle leaves or rejoins the spine, was as small as any passage, because every room had to fit one 8-cell lattice slot at 5 cells across. Seen from above, a floor was small rooms strung round an empty middle. Nothing told a player where its centre of gravity was. `TEC-008` §2.2 names the missing Lynch elements as edges, districts and landmarks. A floor with no room bigger than a junction has no landmark you walk *through*.
+
+**Decision:** each floor has a **hub**, chosen from the graph, built bigger than anything else on it, and standing on pillars.
+- **Which room** (`MissionGraph.hub()`): the ordinary room with the most corridors, and among equals the one with the fewest total hops to every other room. Never the entrance, Prize, Shaft or key, and never on the held span, whose danger it would sit in the middle of. A pure function of the topology, so no stream is drawn and no graph digest moves.
+- **Twice the lattice:**
+  - The hub claims a 2×2 block of lattice cells, so its neighbours have four cells' worth of edge to settle against, and gather round it.
+  - Hub-only modules (`RoomModule.hub`) may be up to `HUB_FOOTPRINT` (13) cells across, with the same gutter to a neighbour that any room keeps. Two ship: `hub_moot_hall` (10 × 10) and `hub_pillared_crossing` (12 × 10), both `GREAT`, so each gets a ledge.
+  - Their sides are even, so the room's middle falls on a cell corner.
+- **On pillars** (`FloorPlan.pillars()`):
+  - A grid every 3 cells, symmetric about the middle, at least 2 cells (4 m) off every wall, and never on the middle itself, where the room's centre, spawns and rings are measured from.
+  - Built as solids, so the navmesh bakes round them, clad in the kit's `delvings_pillar`. That module had stood on the shelf since ADR-263 and `ART-006` had listed it as waiting for *"a pillared hall"*.
+  - They are cover that breaks a sightline in a fight, something to circle, and the roof a 24 m span says it needs.
+- **What else follows:**
+  - The hub is never carved (ADR-304): its shape is its pillars.
+  - Ring points and drawn points keep 1.2 m off a pillar, pulled in along their own spoke as they are from carved rock.
+
+**Measured:**
+- `--build-probe`: on all three floors of seed 31337 the hub is 120 cells against 20 for the next-largest room, and stands on 8 pillars. A new row asserts that every floor has a hub, that it is the largest room, and that it stands on at least 4 pillars.
+- Ledges stay at 7, and corners left as rock rise from 14 to 19.
+- `--plan-probe`: 360 floors, 0 invalid, 389 re-rolls against 398 before. The bigger block costs the placer nothing. (334 after the fixes below.)
+- Corridors run slightly longer: the 95th-percentile sightline is 11 cells (22 m), against 9 (18 m) before.
+- `kit_probe` reports 17 of 22 modules in use, the pillar newly among them.
+- `--delvings-shot` gains a `hub` view, from just inside its first door. Across five seeded floors it flashes at 0.00–0.04 %.
+
+**The sweep found three corridor faults, older than this ADR.** The hub's new layouts are what reached them, and they are fixed here because a red sweep blocks the commit:
+- **A bridge laid over another corridor's ramp.** Routing checked that a new corridor could climb to its own crossings, and never that the cell it bridged was on the floor in the corridor beneath. On seed 57721 floor 2, a deck at 2.89 m crossed a ramp at 1.24–2.06 m, leaving half a metre beneath it. No navmesh fit there, and the two rooms of the held span were cut off. A crossing is now refused unless the corridor beneath runs level at floor height through that cell (`FloorPlan._on_the_floor`).
+- **A flat slab lapping over a slope.** A flat corridor slab laps its neighbours by `FLOOR_LAP` (0.4 m). Over a ramp climbing up to it, or beside a deck, its edge stood 0.08–0.26 m above the slope. The navmesh steps 0.30 m; the player's capsule steps nothing and stopped against it (seed 31346 floors 0 and 1). No side now laps onto its own corridor's slope, and a raised slab laps only onto rock or onto its own corridor where that runs level.
+- **A ramp running on past its head.** Each ramp's box ran 0.55 m past both ends. Past its foot that slope is buried under the floor it meets; past its head it stood 0.19–0.22 m out of the deck it climbs to. It now runs past its foot as before, and only `RAMP_HEAD_LAP` (5 cm) past its head.
+- **A ledge's ramp turned toward a doorway.** ADR-213 lets a ledge stand on a wall with a doorway at one end, on the understanding that the ramp's foot is turned away from it. That was a coin toss. Half the time the corridor opened onto a foot 1 m off the end wall: a person steps round it, and the Gullsjúkr, 1.1 m across, could not (seed 57721 floor 1). A doorway now overrules the coin, which is still drawn, so no other ledge moves.
+
+With these fixes the reach panel crosses **24 of 24 floors with none refused, the player capsule crosses 9 of 9 walk floors** (693 legs), and **the Gullsjúkr routes 24 of 24**. `--plan-probe` re-rolls fall further, to **334**.
+
+**Found, not fixed here:** one corridor view, seed 7 floor 1, flashes at 1.19 %. It is an ordinary corridor out of an ordinary room, not the hub. The flicker is in the slits between recessed wall panels (ADR-297), seen up close at a grazing angle. It is a separate fix.
+
+**Honest scale:** a hub is a junction made large, not a new kind of place. Nothing about it is scripted, and what happens in it is the population's business. Its doors are only as many as the graph gives it, three on most floors, so on the plan it reads as the floor's centre more than as a crossroads.
+
 *Entries below to be added as design decisions are signed off.*

@@ -387,6 +387,51 @@ func is_held(node: int) -> bool:
 	return _held.has(node)
 
 
+## **The room the floor gathers round** (ADR-306), or -1 if none can be.
+##
+## Seen from above, a floor was a ring of small rooms around an empty middle:
+## every junction was as small as any passage, so nothing told a player where
+## the floor's centre of gravity was. The hub is the ordinary room with the most
+## corridors — where an arm leaves or rejoins the spine — and among equals the
+## one nearest everything else, by total hops. Never the entrance, Prize,
+## Shaft or key, each of which has a room of its own to be, and never on the
+## held span, whose danger the hub would otherwise sit in the middle of.
+##
+## A pure function of the topology: no stream is drawn, so no seeded graph
+## changes and `digest()` does not move. What changes is what `FloorPlan`
+## makes of the node.
+func hub() -> int:
+	var best: int = -1
+	var best_links: int = -1
+	var best_far: int = 0
+	for node: int in size():
+		if _role[node] != Role.CONNECTIVE or is_held(node):
+			continue
+		var links: int = neighbours(node).size()
+		var far: int = _hops_to_all(node)
+		if links > best_links or (links == best_links and far < best_far):
+			best = node
+			best_links = links
+			best_far = far
+	return best
+
+
+## Total hops from `node` to every other node, over the edges walkable now.
+func _hops_to_all(node: int) -> int:
+	var hops: Dictionary = {node: 0}
+	var queue: Array[int] = [node]
+	var total: int = 0
+	while not queue.is_empty():
+		var at: int = queue.pop_front()
+		for next: int in neighbours(at):
+			if hops.has(next):
+				continue
+			hops[next] = hops[at] + 1
+			total += hops[next]
+			queue.append(next)
+	return total
+
+
 func neighbours(node: int) -> PackedInt32Array:
 	return _neighbours(node, [])
 

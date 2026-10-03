@@ -224,6 +224,19 @@ func shape_view() -> Dictionary:
 	return {}
 
 
+## Somewhere to stand to see the hub (ADR-306), for `--delvings-shot`: just
+## inside its first doorway, looking at its middle — what a player sees on
+## walking in. Empty if the floor has none.
+func hub_view() -> Dictionary:
+	var hub: int = _plan.hub()
+	if hub < 0 or _plan.doors_of(hub).is_empty():
+		return {}
+	var door: Vector3 = FloorBuilder.at(_plan.doors_of(hub)[0]) + Vector3(
+		FloorBuilder.CELL * 0.5, 0.0, FloorBuilder.CELL * 0.5)
+	var middle: Vector3 = _anchors.centre_of(hub)
+	return {"at": door.move_toward(middle, 3.0), "look": middle + Vector3(0.0, 1.2, 0.0)}
+
+
 ## **The clutter, stood up** (`M4-T10`, ADR-265) — `FloorDressing.raise` over
 ## `dressing()`. Its own call, after the architecture and before anything bakes
 ## a navmesh, so a check that builds the bare geometry itself can lay the same
