@@ -83,6 +83,9 @@ const FRAME_HIGH: float = 4.0
 ## tenth of a navmesh voxel and a fiftieth of the step height, which is to say
 ## it is nothing to walk on and everything to look at.
 const PROUD: float = 0.01
+## How far a clad wall's drawn faces sit behind its masonry's: past the deepest
+## mortar joint any panel variant cuts, 0.065 m (ADR-307).
+const BED: float = 0.08
 
 ## The narrowest a 2 m panel may be squeezed and still read as coursed stone.
 ##
@@ -256,12 +259,21 @@ static func _weather(built: ArrayMesh) -> void:
 ## Chamber that was a striped flicker down each pier; a 2 cm step of the camera
 ## swapped whole strips of pixels. A centimetre in at the ends is invisible
 ## behind the caps and gives the depth test one answer.
+##
+## **And its faces behind the deepest joint** (ADR-307). A centimetre was
+## enough at the ends and not on the faces: a panel's blocks stand at 0.150 m
+## and its mortar beds at 0.122 (0.085 in the Retreat and Cause variants), so a
+## box face pulled in to 0.140 sat *inside* the joints — on the very plane some
+## of the panel's own chisel-work is cut to — and every joint flickered seen
+## along a corridor wall, 1.19 % of one frame. Behind `BED`, the joints show
+## the panel's own floor and nothing else.
 static func recess(node: MeshInstance3D) -> void:
 	var box := node.mesh as BoxMesh
 	if box == null:
 		return
-	box.size.x -= PROUD * 2.0
-	box.size.z -= PROUD * 2.0
+	var thin_x: bool = box.size.x < box.size.z
+	box.size.x = maxf(box.size.x - (BED if thin_x else PROUD) * 2.0, PROUD)
+	box.size.z = maxf(box.size.z - (PROUD if thin_x else BED) * 2.0, PROUD)
 
 
 ## **A delivered piece, drawn and nothing else** (ADR-301). Every placed piece

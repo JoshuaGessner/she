@@ -11050,4 +11050,33 @@ With these fixes the reach panel crosses **24 of 24 floors with none refused, th
 
 **Honest scale:** a hub is a junction made large, not a new kind of place. Nothing about it is scripted, and what happens in it is the population's business. Its doors are only as many as the graph gives it, three on most floors, so on the plan it reads as the floor's centre more than as a crossroads.
 
+## ADR-307 — A clad wall's drawn box sits behind its mortar, not inside it
+
+**Date:** 2026-10-02 · **Status:** accepted · **Amends ADR-297** · **Found by ADR-306's hub shots**
+
+**Context:** the developer has twice asked for the flashing to go. ADR-306's `--delvings-shot` found a corridor on seed 7 floor 1 flashing at **1.19 %** of the view. The FlashMap put all of it in the joints between stone blocks along one wall. Measured off the meshes:
+- A wall panel's blocks stand at ±0.150 m.
+- Its mortar beds sit at ±0.122 m, and at 0.085 in the Retreat and Cause variants.
+- The drawn box behind it, pulled in by ADR-297's 1 cm `PROUD`, had its faces at ±0.140. That is *inside* the joints, on the same plane as 32 vertices of the panel's own chisel-work.
+
+Seen along a corridor wall, every joint was two surfaces arguing over one depth.
+
+**Decision:** `DelvingsKit.recess` pulls a clad wall's drawn faces back by `BED`, 0.08 m, which is past the deepest joint any variant cuts. It keeps the 1 cm at its ends, which is all ADR-297 needed there. The thin axis is the one the masonry faces, so a chamfer's square box loses `BED` on its face and `PROUD` across. Nothing that collides changes: the collider keeps its size, so the navmesh, the occluders and the probes that read them see the same world.
+
+**Measured:**
+- **The corridor:** 1.19 % → **0.02 %**.
+- **Forty views across five seeded floors:** none above 0.10 %. The 0.10 % is a one-pixel seam where two panels meet end to end, which is edge shimmer, not a surface fight.
+- **Her chamber, every view the same or better than ADR-298 recorded:**
+
+  | View | ADR-298 | Now |
+  |---|---|---|
+  | door | 0.16 % | 0.15 % |
+  | quarters | 0.06 / 0.06 % | 0.04 / 0.03 % |
+  | flanks | 0.14 / 0.12 % | 0.09 / 0.08 % |
+  | above | 0.16 % | 0.05 % |
+  | head | 0.01 % | 0.01 % |
+
+- **The camp:** 0.00–0.06 %.
+- `kit_probe`: 0 wall boxes flush with their masonry, 0 bare surfaces.
+
 *Entries below to be added as design decisions are signed off.*
