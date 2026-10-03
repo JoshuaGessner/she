@@ -22,11 +22,6 @@ SRC = Path(__file__).resolve().parent
 ROOT = SRC.parents[1]
 CHARACTERS = ROOT / "source_art" / "characters"
 OUT = ROOT / "game" / "art" / "enemies"
-sys.path.insert(0, str(CHARACTERS))
-# Keep the garment builder as the one source of truth for the shared-rig
-# contract.  Its module has no import-time scene changes.
-import build_worn_armour as shared_armour  # noqa: E402
-
 RIG: bpy.types.Object | None = None
 PARTS: list[bpy.types.Object] = []
 MATERIALS: dict[str, bpy.types.Material] = {}
@@ -61,10 +56,6 @@ def begin() -> bpy.types.Object:
     assert len(RIG.data.bones) == 28
     assert {"sock_head", "sock_hand_r", "sock_hand_l", "sock_back", "sock_hip_r", "sock_hip_l", "sock_shoulders"} <= set(RIG.data.bones.keys())
     PARTS, MATERIALS = [], {}
-    # The reusable helper is safe to import but uses module globals when called.
-    shared_armour.RIG = RIG
-    shared_armour.PARTS = []
-    shared_armour.MATERIALS = {}
     return RIG
 
 
@@ -373,9 +364,11 @@ def leg(side: str, cloth: str, broad: float) -> None:
 
 
 def belt(broad: float) -> None:
-    loft("belt", [ring(Vector((0, 0, 1.025)), .20 * broad, .138, 14),
-                  ring(Vector((0, 0, 1.062)), .198 * broad, .136, 14)], "leather", torso_weights, False)
-    box("belt_buckle", Vector((0, -.145, 1.04)), (.064, .018, .052), "iron", torso_weights, .005)
+    """Proud of the torso it belts: at .200 it sat inside a tunic of .205 to
+    .225, and only the buckle ever showed (ADR-308)."""
+    loft("belt", [ring(Vector((0, 0, 1.025)), .218 * broad, .150, 14),
+                  ring(Vector((0, 0, 1.062)), .222 * broad, .152, 14)], "leather", torso_weights, False)
+    box("belt_buckle", Vector((0, -.156, 1.04)), (.064, .018, .052), "iron", torso_weights, .005)
 
 
 def weapon_seax() -> None:
@@ -573,6 +566,30 @@ def wretch() -> bpy.types.Object:
     return rig
 
 
+def bound_hair(braid: Callable[[Vector], dict[str, float]] | None = None,
+               broad: float = .80) -> None:
+    """Hair bound back under a leather band, and a braid down the spine: the
+    Sling-Wretch's, and the delvers' (ADR-308). `braid` weights the braid;
+    by default it hangs from the head and lies on the chest below the collar."""
+    head = {"head": 1}
+    width = max(.108, .122 * broad + .010)
+    hair = ellipsoid("bound_hair", Vector((0, .016, 1.70)), (width, .131, .172), "dark", head, True, 14, 8)
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(hair.data)
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_center_median().y < -.02
+                               and f.calc_center_median().z < 1.80], context="FACES")
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_center_median().z < 1.62
+                               and f.calc_center_median().y < .06], context="FACES")
+    bm.to_mesh(hair.data)
+    bm.free()
+    loft("head_band", [ring(Vector((0, .014, 1.742)), width + .005, .134, 14),
+                       ring(Vector((0, .014, 1.768)), width + .002, .131, 14)], "leather", head, False, cap=False)
+    tube("hair_braid", [Vector((0, .13, 1.70)), Vector((0, .165, 1.62)), Vector((0, .185, 1.52)),
+                        Vector((0, .19, 1.42)), Vector((0, .185, 1.36))],
+         [.034, .030, .026, .020, .010], "dark", braid or head_to_chest, 6)
+
+
 def sling_wretch() -> bpy.types.Object:
     """**The one that keeps its distance** (ADR-305). Bareheaded where the
     Wretch is hooded: hair bound back under a band and a braid down the
@@ -583,22 +600,7 @@ def sling_wretch() -> bpy.types.Object:
     rig = begin()
     broad = .80
     body("rag", stature=.94, broad=broad, flaps=False, hood=False, bare_arms=True)
-    head = {"head": 1}
-    hair = ellipsoid("bound_hair", Vector((0, .016, 1.70)), (.108, .131, .166), "dark", head, True, 14, 8)
-    import bmesh
-    bm = bmesh.new()
-    bm.from_mesh(hair.data)
-    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_center_median().y < -.02
-                               and f.calc_center_median().z < 1.80], context="FACES")
-    bmesh.ops.delete(bm, geom=[f for f in bm.faces if f.calc_center_median().z < 1.62
-                               and f.calc_center_median().y < .06], context="FACES")
-    bm.to_mesh(hair.data)
-    bm.free()
-    loft("head_band", [ring(Vector((0, .014, 1.742)), .113, .134, 14),
-                       ring(Vector((0, .014, 1.768)), .110, .131, 14)], "leather", head, False, cap=False)
-    tube("hair_braid", [Vector((0, .13, 1.70)), Vector((0, .165, 1.62)), Vector((0, .185, 1.52)),
-                        Vector((0, .19, 1.42)), Vector((0, .185, 1.36))],
-         [.034, .030, .026, .020, .010], "dark", head_to_chest, 6)
+    bound_hair()
     # The mantle: a hide over the left shoulder, front to back, hem torn.
     rows = []
     for z, rx, ry, drop in ((1.585, .118, .108, 0.0), (1.575, .225, .17, 0.0),

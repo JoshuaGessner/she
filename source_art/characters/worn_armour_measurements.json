@@ -1,7 +1,7 @@
 {
   "mail_byrnie_worn": {
-    "triangles": 3544,
-    "mesh_parts": 13,
+    "triangles": 3880,
+    "mesh_parts": 21,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",
     "weighted_bones": [

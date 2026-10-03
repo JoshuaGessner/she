@@ -11079,4 +11079,32 @@ Seen along a corridor wall, every joint was two surfaces arguing over one depth.
 - **The camp:** 0.00–0.06 %.
 - `kit_probe`: 0 wall boxes flush with their masonry, 0 bare surfaces.
 
+## ADR-308 — A teammate is a delver, not the rig's measuring stick
+
+**Date:** 2026-10-02 · **Status:** accepted · **Advances `M4-T10`; continues ADR-254, ADR-270, ADR-305** · **Developer's call: "improve all player and enemy models"**
+
+**Context:** ADR-254 put the shared rig on every teammate, and with it the only body the rig had. That body is a proxy of spheres, boxes and twelve-sided cylinders, and its own builder says what it is for: *"rig placement and measurement only; not character art"*. Under no armour a teammate was that mannequin. Under armour the byrnie hid its torso and legs, but the byrnie was built the same way: a tube torso, pad shoulders and straight tube trousers. With ADR-305 every enemy had anatomy, so the weakest body on screen was a friend's.
+
+**Decision:**
+- **`player_body.glb`**, built by `source_art/characters/build_player_body.py` on the same 28-bone rig from the enemies' anatomy (`LIMB_PROFILES`):
+  - A linen tunic to mid-thigh with a collar, cuffs and a belt that shows.
+  - Wrapped calves, boots, and hair bound back under a band with a braid.
+  - Shoulders that join the arm to the body.
+  - The shared head scaled by 0.88 about the chin, to human proportion: 1.83 m tall, upper arms 0.348 m out against the 0.35 m collider.
+  - The proxy stays `humanoid_rig.glb`'s, for `rig_probe`. `BodyRig` now instances the delver.
+- **What armour leaves showing is weighted so it stays:** `BodyRig` hides the body under gear by each vertex's dominant bone, so the neck is weighted to `neck` and not the chest. A surface armour hides completely keeps one degenerate triangle, so every surface keeps its index and its material.
+- **A teammate is still lighter than any threat:** `teammate_skin` (value 0.72) was one material on one surface. It is now copied onto every surface, shaded by how light that surface was authored and never below 0.75 of the skin, which is 0.54. That stays lighter than every enemy state (0.20–0.52), so hair and a belt read as hair and a belt without a teammate reading as a threat.
+- **The byrnie follows the body under it:**
+  - Mail sleeves on the arm's own profile, not pads.
+  - Trousers with a knee and a calf, tapered in at the top under the skirt they stood out of at the hips, with wraps over the calves.
+  - Bracers widened to clear the forearm they close on.
+- **The enemies' belt sits on the tunic it belts:** at 0.200 m it was inside a torso of 0.205–0.225, and only its buckle ever showed. All five enemies are rebuilt and rebaked; their triangle counts are unchanged.
+- **Subtraction:** `build_enemy_models.py` imported the armour builder only to reset its globals, and called nothing in it. That import is deleted, which is what lets the armour builder use the anatomy without a circular import. The Sling-Wretch's bound hair is now `bound_hair()`, shared with the delvers.
+
+**Measured:**
+- **Body:** 5,266 triangles.
+- **`--body-probe`:** gait, crouch and fold pass; 2,730 triangles stay exposed under the byrnie; helm, lantern, pack and shield sit where they did.
+- **Probes:** `rig_probe`, `art_probe` and `enemy_animation_probe` report 0 failures.
+- **Byrnie:** 3,880 triangles, bracers 2,184.
+
 *Entries below to be added as design decisions are signed off.*

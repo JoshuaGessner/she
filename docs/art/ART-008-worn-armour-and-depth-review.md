@@ -4,7 +4,7 @@ title: Worn Armour, Class Arms and Depth Variants — Review
 status: proposed
 owner: art
 tags: [art, assets, modelling, review]
-updated: 2026-09-28
+updated: 2026-10-02
 related: [ART-004, ART-006, ART-007, DES-020, TEC-008]
 ---
 
@@ -43,6 +43,16 @@ in its data validation.
 
 - [Pelt fit](../../source_art/characters/otr_pelt_worn_review.png)
 - [Pelt under a bent pose](../../source_art/characters/otr_pelt_worn_posed_review.png)
+
+## The body under the gear (ADR-308)
+
+A teammate is `player_body.glb`, built by
+`source_art/characters/build_player_body.py` on the shared rig from the
+enemies' anatomy, not the rig's proxy. It wears a linen tunic, wrapped calves,
+boots and bound hair. The proxy stays in `humanoid_rig.glb` for `rig_probe`.
+Armour hides the body by each vertex's dominant bone, so the neck is weighted
+to `neck` and survives a byrnie. The byrnie's sleeves and trousers follow the
+same limb profiles; its review renders over the delvers' body, not the proxy.
 
 ## First-person arm library
 

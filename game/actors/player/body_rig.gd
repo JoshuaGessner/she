@@ -42,9 +42,23 @@ extends Node3D
 ## re-exported. Each axis is derived from the bone's own rest basis instead, so
 ## a re-export moves the axes with it.
 
-## The rig itself. Preloaded rather than looked up: the dependency is then a
-## parse error if the art moves, instead of a body that silently fails to exist.
-const RIG: PackedScene = preload("res://art/characters/humanoid_rig.glb")
+## The body on the shared rig. Preloaded rather than looked up: the dependency
+## is then a parse error if the art moves, instead of a body that silently
+## fails to exist.
+##
+## **The delvers' body, not the rig's proxy** (ADR-308). The proxy is spheres
+## and cylinders and says it is *"rig placement and measurement only; not
+## character art"*; it stays `humanoid_rig.glb`'s, for `rig_probe`. This is the
+## same skeleton under a body built from the enemies' anatomy.
+const RIG: PackedScene = preload("res://art/characters/player_body.glb")
+## The teammate's value range across the body's surfaces (ADR-308): each is the
+## skin's colour shaded by how light it was authored, against linen at
+## `SKIN_REFERENCE`, and never darker than `SKIN_FLOOR` of the skin — 0.54 at
+## the scene's 0.72, still lighter than every enemy state (0.20–0.52), so hair
+## and a belt read as hair and a belt without a teammate reading as a threat.
+const SKIN_REFERENCE: float = 0.33
+const SKIN_FLOOR: float = 0.75
+const SKIN_CEILING: float = 1.05
 
 ## Metres of travel per complete two-step cycle ⟨tune⟩. Measured against the
 ## rig's 1.80 m and `walk_speed`; shorter reads as a scurry, longer as a stride
@@ -197,7 +211,7 @@ func _ready() -> void:
 		return
 	_mesh = _find_mesh(body)
 	if _mesh != null and teammate_skin != null:
-		_mesh.set_surface_override_material(0, teammate_skin)
+		_dress_in(teammate_skin)
 	if _mesh != null:
 		_base_body_mesh = _mesh.mesh
 	for name: String in POSED:
@@ -504,6 +518,10 @@ func _without_covered_body(source: Mesh, skin: Skin) -> Mesh:
 				kept.append_array(PackedInt32Array([
 					indices[first], indices[first + 1], indices[first + 2],
 				]))
+		# A surface armour hides entirely keeps one degenerate triangle, so the
+		# body's surfaces keep their indices and their materials (ADR-308).
+		if kept.is_empty():
+			kept = PackedInt32Array([0, 0, 0])
 		arrays[Mesh.ARRAY_INDEX] = kept
 		filtered.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		filtered.surface_set_material(filtered.get_surface_count() - 1,
@@ -712,6 +730,19 @@ func _turn(name: String, radians: float) -> void:
 	_skeleton.set_bone_pose_rotation(index,
 		_skeleton.get_bone_rest(index).basis.get_rotation_quaternion()
 			* Quaternion(_swing[name], radians))
+
+
+## Every surface of the body in the teammate's value range (ADR-308).
+func _dress_in(skin: StandardMaterial3D) -> void:
+	for surface: int in _mesh.mesh.get_surface_count():
+		var authored := _mesh.mesh.surface_get_material(surface) as BaseMaterial3D
+		var made := skin.duplicate() as StandardMaterial3D
+		if authored != null:
+			var shade: float = clampf(authored.albedo_color.get_luminance() / SKIN_REFERENCE,
+				SKIN_FLOOR, SKIN_CEILING)
+			made.albedo_color = Color(skin.albedo_color.r * shade,
+				skin.albedo_color.g * shade, skin.albedo_color.b * shade)
+		_mesh.set_surface_override_material(surface, made)
 
 
 func _find_skeleton(node: Node) -> Skeleton3D:
