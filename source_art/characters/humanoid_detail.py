@@ -23,9 +23,10 @@ def _flesh(p):
 
 
 def _hair(p):
-    # Strands falling down the face: grooves across x, wandering.
-    wander = 0.004 * S.fbm(p * np.array([1.0, 1.0, 0.25]), 0.03, 2)
-    return 0.0018 * np.sin((p[:, 0] + wander) * 2 * math.pi / 0.007) + 0.002 * S.noise(p, 0.03)
+    # Lumps, never grooves (ADR-317): any row of vertical grooves in a dark
+    # band under a nose draws under the ink as bared teeth — at 7 mm and at
+    # 18 mm alike. The beard's locks are sculpted; its surface only roughens.
+    return 0.0016 * S.fbm(p * np.array([1.0, 1.0, 0.5]), 0.03, 2)
 
 
 def _cloth(p):
@@ -43,10 +44,11 @@ def _leather(p):
 
 
 def _mail(p):
-    q = p / 0.011
-    off = q - np.round(q)
-    r = np.hypot(off[:, 0], off[:, 2])
-    return 0.0014 * np.exp(-((r - 0.32) / 0.09) ** 2)
+    # Mail as it is drawn rather than as it is made (ADR-317): rows of arcs
+    # hanging down, the illuminator's shorthand for rings. Rings at their real
+    # 8 mm are a fraction of a texel, and drew nothing; a course of arcs every
+    # 16 mm draws the lines that say mail.
+    return S.scale_height(p, 0.016, 0.0016, (0.0, 0.0, -1.0))
 
 
 def _iron(p):

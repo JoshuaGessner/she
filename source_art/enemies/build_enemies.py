@@ -204,14 +204,16 @@ def gullsjukr():
     b = Hm.Build(broad=0.95, limb=0.80, stature=1.0, beard=0.0)
     rng = random.Random(1717)
     coins = []
-    for z, count, spread in ((1.40, 14, 0.30), (1.54, 18, 0.36), (1.68, 17, 0.34), (1.82, 12, 0.26),
-                             (1.94, 7, 0.16)):
+    for z, count, spread in ((1.38, 30, 0.30), (1.46, 36, 0.34), (1.54, 40, 0.36), (1.62, 40, 0.35),
+                             (1.70, 36, 0.33), (1.78, 30, 0.28), (1.86, 22, 0.22), (1.94, 12, 0.15)):
         for i in range(count):
             arc = i / max(1, count - 1) - 0.5
             x = -0.27 + arc * spread * 0.8 + rng.uniform(-0.025, 0.025)
             y = 0.04 + rng.uniform(-0.12, 0.13)
-            r = 0.050 + rng.random() * 0.026
-            coins.append((np.array([x, y, z + rng.uniform(-0.03, 0.03)]), r, 0.010 + r * 0.12,
+            # Coins at a size a hand could close on: the hoard reads as a
+            # hoard because there are many of them, not because each is big.
+            r = 0.030 + rng.random() * 0.016
+            coins.append((np.array([x, y, z + rng.uniform(-0.03, 0.03)]), r, 0.006 + r * 0.10,
                           (rng.uniform(-40, 40), 20 + (i % 5) * 16, rng.uniform(-50, 50))))
     for x, y, z, r in ((-0.41, -0.09, 1.66, 0.10), (-0.24, -0.17, 1.47, 0.098), (-0.39, 0.11, 1.84, 0.085)):
         coins.append((np.array([x, y, z]), r, 0.026, (55.0, 0.0, 10.0)))

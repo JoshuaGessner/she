@@ -15769,7 +15769,6 @@ func _roster_shot(dir: String) -> void:
 	player.teleport(eye + Vector3(0.0, 0.1, 0.0), atan2(-to.x, -to.z))
 	for enemy: EnemyResource in EnemyCatalogue.all():
 		_session.spawn_enemy(ground, atan2(to.x, to.z), enemy.id)
-		await _hold(0.8)
 		var body: Node3D = null
 		for node: Node in get_tree().get_nodes_in_group("enemies"):
 			if node.process_mode != Node.PROCESS_MODE_DISABLED:
@@ -15777,8 +15776,15 @@ func _roster_shot(dir: String) -> void:
 		if body == null:
 			printerr("[roster] FAIL %s did not spawn" % enemy.id)
 			continue
+		# Long enough to settle into its idle, then frozen. Each kind once ran
+		# for 0.8 s, and five kinds' worth of blows killed the camera's body
+		# before the last of them was drawn — the Wretch's frame was a death
+		# screen. The actor drives its own visual, so freezing it at once
+		# would draw the bind pose instead.
+		await _hold(0.2)
 		body.process_mode = Node.PROCESS_MODE_DISABLED
 		body.global_position = ground
+		await _hold(0.6)
 		for side: String in ["front", "rear"]:
 			if side == "rear":
 				body.rotate_y(PI * 0.8)

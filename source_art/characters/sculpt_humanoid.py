@@ -161,7 +161,9 @@ def beard(p, b: Build, length=1.0, split=False):
     # Brows.
     d = S.smin(d, S.round_cone(m, V((0.016, -0.118, 1.752)), V((0.068, -0.103, 1.754)), 0.010, 0.008), 0.004)
     # Keep the mouth open to the eye: cut the hair back from the lips.
-    d = S.carve(d, S.ellipsoid(p - V((0.0, -0.125, 1.622)), V((0.030, 0.02, 0.012))), 0.006)
+    # A closed mouth: a wide-open one, ringed by moustache and beard, drew
+    # as a grimace under the ink.
+    d = S.carve(d, S.ellipsoid(p - V((0.0, -0.125, 1.622)), V((0.024, 0.014, 0.006))), 0.004)
     return d
 
 
@@ -249,7 +251,12 @@ def sleeve(p, side, b: Build, to=0.5, grow=0.014):
     axis = (wr - sh) / np.linalg.norm(wr - sh)
     beyond = (p - end) @ axis
     d = S.smax(d, beyond, 0.008)
-    cuff = S.round_cone(p, end - axis * 0.03, end, 0.06 * b.limb + grow * 1.6, 0.06 * b.limb + grow * 1.6)
+    # The cuff stands just proud of the arm where the sleeve ends (ADR-317): a
+    # fixed one was a bell round a forearm, and every long sleeve ballooned.
+    k = b.limb
+    arm_r = (0.056 + (0.044 - 0.056) * to * 2.0) * k if to <= 0.5 else (0.047 + (0.031 - 0.047) * (to - 0.5) * 2.0) * k
+    cuff_r = arm_r + grow + 0.007
+    cuff = S.round_cone(p, end - axis * 0.03, end, cuff_r, cuff_r)
     return S.smin(d, cuff, 0.01)
 
 

@@ -647,7 +647,9 @@ def review(kind: str, folder: Path = SRC) -> None:
     scene.render.resolution_percentage = 100
     scene.world.color = (.055, .055, .055)
     scene.view_settings.look = "AgX - Medium High Contrast"
-    for location, energy, size in (((-3.2, -4.0, 4.8), 500, 4.0), ((3.5, -1.0, 3.0), 240, 3.0), ((1.0, 3.0, 4.0), 400, 3.0)):
+    # Lit so a material reads at its value: brighter washed linen and mail
+    # alike to white, and a review could not tell them apart.
+    for location, energy, size in (((-3.2, -4.0, 4.8), 240, 4.0), ((3.5, -1.0, 3.0), 110, 3.0), ((1.0, 3.0, 4.0), 200, 3.0)):
         bpy.ops.object.light_add(type="AREA", location=location)
         lamp = bpy.context.object
         lamp.data.energy, lamp.data.shape, lamp.data.size = energy, "DISK", size

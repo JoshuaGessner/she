@@ -105,8 +105,12 @@ def upper(p):
 
 def upper_features(p):
     """Horns, crest plates and teeth: carved smooth, never scaled."""
+    return S.smin(horns(p), upper_teeth(p), 0.012)
+
+
+def horns(p):
+    """The horns and the plates down the back of the skull."""
     m = _mirror(p)
-    d = None
     # Horns: thick at the root, ridged, sweeping back and down, curling forward.
     horn = [(0.0, 0.0, 0.0), (0.10, 0.35, 0.16), (0.20, 0.72, 0.18), (0.26, 1.05, 0.05),
             (0.27, 1.25, -0.18), (0.24, 1.25, -0.40), (0.20, 1.10, -0.52), (0.17, 0.95, -0.52)]
@@ -117,6 +121,12 @@ def upper_features(p):
     for y, z, h in ((-0.40, 0.53, 0.10), (-0.10, 0.57, 0.15), (0.20, 0.52, 0.17), (0.48, 0.36, 0.15)):
         d = S.smin(d, _scaled(lambda q: S.round_cone(q, (0.0, y, z), (0.0, y + 0.12, z + h), 0.08, 0.02),
                               p, (0.40, 1.0, 1.0)), 0.04)
+    return d
+
+
+def upper_teeth(p):
+    m = _mirror(p)
+    d = np.full(len(p), 1e3)
     # Upper teeth: stout, curved back, a fang at each end of the row.
     for i, y in enumerate(np.linspace(-0.50, TIP + 0.10, 9)):
         fang = i in (1, 7)
@@ -151,6 +161,10 @@ def lower(p):
 
 def lower_features(p):
     """The lower teeth and the tongue."""
+    return S.smin(lower_teeth(p), tongue(p), 0.02)
+
+
+def lower_teeth(p):
     q = S.into(p, _jaw_frame())
     m = _mirror(q)
     d = None
@@ -163,13 +177,18 @@ def lower_features(p):
         tooth = S.chain(m, [(x, y, -0.24), (x * 0.99, y + 0.005, -0.22 + long * 0.55),
                             (x * 0.97, y + 0.025, -0.22 + long)], [r, r * 0.6, 0.006], 0.0)
         d = tooth if d is None else S.smin(d, tooth, 0.005)
+    return d
+
+
+def tongue(p):
+    q = S.into(p, _jaw_frame())
     # The tongue, lying in the floor and forked at its end.
     tongue = S.chain(q, [(0.0, -0.25, -0.27), (0.0, -0.85, -0.26), (0.0, -1.35, -0.22)],
                      [0.11, 0.09, 0.055], 0.05)
     for s in (-1, 1):
         tongue = S.smin(tongue, S.chain(q, [(0.0, -1.35, -0.22), (0.05 * s, -1.62, -0.19),
                                             (0.10 * s, -1.80, -0.11)], [0.05, 0.03, 0.01], 0.02), 0.02)
-    return S.smin(d, tongue, 0.02)
+    return tongue
 
 
 def skin(p):

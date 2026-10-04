@@ -150,6 +150,18 @@ are unchanged; the table above still says what each kind reads as.
 | Gullsjúkr | 17,214 | 2048² (hero row, `ART-004`) |
 
 The Gold-Sick's hoard is one fused mass of coins grown over its right shoulder,
-carried rigidly by the chest and right clavicle. Known short of finish: the
-Hall-Warden's mail reads as quilted cloth and the Gold-Sick's coins are too
-large to read as a hoard. Visual sign-off remains the developer's.
+carried rigidly by the chest and right clavicle. Visual sign-off remains the
+developer's.
+
+**ADR-317** finished what ADR-316 left short:
+- **Beards roughen; they are not combed.** Strand grooves drew as bared teeth
+  under the ink, and the mouth is closed.
+- **Mail is rows of arcs** 16 mm apart.
+- **A cuff sits just proud of the arm** where its sleeve ends, so long sleeves
+  no longer balloon.
+- **The Gold-Sick's hoard is about 250 hand-sized coins** round its three
+  medallions.
+
+`--roster-shot` now lets each kind settle into its idle for 0.2 s before
+freezing it. At 0.8 s each, the blows of five kinds killed the camera's body
+before the Wretch was drawn.

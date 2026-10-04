@@ -2,19 +2,19 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bsmlsneuy0tqt"
-path="res://.godot/imported/sling_wretch_sling_wretch_n.png-26b72c5276d627d4e2d692099ea6f63e.ctex"
+uid="uid://bpo4da4hdwg5q"
+path="res://.godot/imported/her_her_body_c.png-9c282e35a2f04741e39edca829647798.ctex"
 metadata={
 "vram_texture": false
 }
 generator_parameters={
-"md5": "9162c00f30260d9b4260033f86f9b7a6"
+"md5": "63473a94af02981e07f0082c0ac24cde"
 }
 
 [deps]
 
-source_file="res://art/enemies/sling_wretch_sling_wretch_n.png"
-dest_files=["res://.godot/imported/sling_wretch_sling_wretch_n.png-26b72c5276d627d4e2d692099ea6f63e.ctex"]
+source_file="res://art/heroes/her_her_body_c.png"
+dest_files=["res://.godot/imported/her_her_body_c.png-9c282e35a2f04741e39edca829647798.ctex"]
 
 [params]
 

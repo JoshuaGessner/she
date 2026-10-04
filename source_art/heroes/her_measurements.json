@@ -1,13 +1,16 @@
 {
   "asset": "her",
-  "triangles": 37122,
+  "triangles": 37738,
   "units": "metres",
   "forward": "Blender -Y / Godot +Z",
   "origin": "centre of the hoard pile",
   "form": "ormr \u2014 sculpted as signed distance fields, carving baked to normal maps (ADR-315)",
   "textures": {
     "her_body_n": 4096,
-    "her_head_n": 2048
+    "her_body_c": 4096,
+    "her_head_n": 2048,
+    "her_head_c": 2048,
+    "her_crest_c": 512
   },
   "head_clearance_m": 2.36,
   "nodes": {

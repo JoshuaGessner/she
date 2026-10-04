@@ -11349,4 +11349,48 @@ A stamina mark drawn on a client would have been drawing the wrong number.
 - Visual sign-off remains the developer's (`M4-T10`).
 - The delvers' body and worn armour still use ADR-308's lofts, and are next.
 
+## ADR-317 — Her value, her tail's end, her crest; and the enemies' faces, mail, sleeves and hoard
+
+**Date:** 2026-10-04 · **Status:** accepted · **Refines ADR-315 and ADR-316** · **Developer's call: "Refine everything… don't stop until production quality is reached."**
+
+**Context:** ADR-315 and ADR-316 fixed how Her and the enemies are *made*. Seen in the Chamber and the roster shot, what was left wrong was in how they *read*:
+- **Her body was one value from crest to belly.** A body of one value reads as a model rather than an animal, and the ink pass had only her outline and her normal map to draw.
+- **Her tail ended in an inner tube.** A 0.38 m tube spiralled at 0.73 → 0.2 m, so its tip vanished inside its own coil, and from the door it was a ring on the floor.
+- **Her crest was one rubber fin, stamped.** Every plate was the same dome, the same height.
+- **The enemies' faces grimaced.** Beard grooves 7 mm apart drew under the ink as a row of bared teeth, round a mouth cut open.
+- **Mail drew nothing.** Rings at their real size were a fraction of a texel, so a byrnie was a dark quilted shape.
+- **Long sleeves ballooned.** A cuff of fixed size became a bell round a forearm.
+- **The Gold-Sick's hoard was seventy coins the size of saucers**, which read as discs rather than as a hoard.
+- **The roster shot's Wretch frame was a death screen.** Each kind ran for 0.8 s before it was frozen, and the Wretch killed the camera's body.
+
+**References:**
+- **Countershading** in the Nile crocodile and the monitor lizards: a dark back, a pale belly, the line between them low on the flank.
+- **The Urnes portal's ribbon-beasts and tendrils**, which turn into spirals, and the **chameleon's coiled tail** for the proportion of one: a coil about six times the tail's own thickness.
+- **Crocodilian dorsal osteoderms** for the crest's rhythm, carved out into blades.
+- **Mail as the illuminators drew it** (the Bayeux Tapestry's rings and rows): a course of arcs, not rings.
+
+**Decision:**
+- **Her value is baked** (`her_detail.body_value`, `head_value`, `crest_value`): a map multiplied into her colour, so the Chamber's lineage colour (ADR-050) still decides her hue. The back is at 0.50 and the belly at 1.0, with the line between them on the Urnes double contour, so the carving and the colour agree on where her flank turns under. Crevices between scales are darker. Teeth are ivory; the mouth inside the tooth rows is dark red; horn is darker than bone; crest plates pale toward their edges. The glTF carries her colour as the factor and the value map as the texture.
+- **Her tail tapers the whole way** from the wall (0.80 m) to a 2 cm tip. Already slender where it lifts, it turns into an **upright spiral 0.95 m across**, facing the door. Band paths are resampled evenly, so a radius reads the same per point (the field) and by arc length (the crest, the carving). Band frames no longer lean the spine skyward where it faces the ground, so a curl does not twist.
+- **Her crest is a row of blades:** a concave leading edge rising to a tip two-thirds back, raked over the next plate, swelling and falling down the row. There is none where the spine turns under round the curl.
+- **Her head is sculpted with its normals baked from the field**, as the enemies' are: the nostril, the lids and the fillets survive decimation as light.
+- **Enemies:**
+  - Beards fall in finger-wide locks, and the mouth is closed.
+  - Mail is rows of arcs hanging down, 16 mm apart.
+  - A cuff stands just proud of the arm where the sleeve ends.
+  - The Gold-Sick's hoard is about 250 coins a hand could close on, round its three medallions.
+  - Review renders are lit at half the energy, so linen and mail stop washing out to the same white.
+- **`--roster-shot` freezes each kind the moment it spawns** and leaves its visual running, so every frame is the kind standing in its idle.
+
+**Measured:**
+- **Her:** 37,738 triangles, under the 40,000 hero ceiling. Maps: body 4096² normal and value, head 2048² normal and value, crest 512² value.
+- **Her clearance:** her head still comes down to 2.36 m over the way in.
+- **`--her-shot`:** 0.01–0.14 % of each of seven views flashes, against 0.01–0.15 % before.
+- **Enemies:** Wretch 4,349, Sling-Wretch 4,644, Bellringer 5,193, Hall-Warden 4,871, Hoard-Keeper 4,345 triangles; the Gold-Sick 17,199.
+- **`--roster-shot`:** all five kinds are drawn standing in their idle, and none dies or kills.
+
+**Honest scale:**
+- The values and the curl's size are ⟨tune⟩. How she looks from the door is the developer's to judge.
+- She is still one rigid body that breathes and turns her head.
+
 *Entries below to be added as design decisions are signed off.*

@@ -17,7 +17,8 @@ z = 0. The way in, |x| < 1.4 in front of the pile, is left clear below 2.6 m.
   down over its front — the swan-necked S every looming serpent in the
   carvings makes, and the only way a head can come at you from *above*.
 - Her **tail comes out of the wall low on the left**, lies round the left of the
-  hoard and ends in an Urnes curl in front of it.
+  hoard, tapering all the way, and lifts at its end into an upright Urnes curl
+  in front of it.
 - An **arch of her rises out of the floor** behind the pile and dives back in:
   the Midgard serpent of the Altuna stone and Thor's fishing, a body swimming
   through rock as through water.
@@ -60,33 +61,59 @@ def _neck_entry():
     return [NECK_END + back * 1.4, NECK_END + back * 0.65, NECK_END + f[:3, :3] @ np.array([0.0, -0.05, 0.0])]
 
 
+## Band paths are resampled evenly, so a radius is the same whether it is read
+## per point (`S.band`) or by arc length (the crest, the carving).
+BAND_STEP = 0.08
+
+
+def _even(path, at, radii):
+    """`path` resampled every `BAND_STEP`, and its radius interpolated at each
+    fraction of its length from (`at`, `radii`)."""
+    pts, s = B.resample(path, BAND_STEP)
+    return pts, np.interp(s / s[-1], at, radii)
+
+
+def _tail_curl(end, heading, rise, turns, shrink, steps=48):
+    """The end of her tail lifting off the floor into a spiral that stands
+    upright, facing the door: the spirals the Urnes portal's ribbon-beasts
+    and tendrils turn into, and the fiddlehead they echo. Upright so it
+    reads from the door as a tail's end, and a spiral so it tapers to a point
+    that can be seen rather than hiding in its own coil."""
+    d = np.array([heading[0], heading[1], 0.0])
+    d /= np.linalg.norm(d)
+    z = np.array([0.0, 0.0, 1.0])
+    centre = np.asarray(end, float) + z * rise
+    out = []
+    for i in range(1, steps + 1):
+        f = i / steps
+        a = -0.5 * np.pi + f * turns * 2.0 * np.pi
+        r = rise * (1.0 - shrink * f)
+        out.append(centre + r * (np.cos(a) * d + np.sin(a) * z))
+    return np.array(out)
+
+
 def bands():
     """The swept parts of her: (name, path points, radii along it)."""
     entry = _neck_entry()
     body = B.spline([(3.2, 3.4, 2.6), (3.95, 2.2, 1.85), (4.25, 0.9, 1.15), (4.15, -0.35, 1.0),
                      (3.75, -1.25, 1.40), (3.05, -1.55, 2.35), (2.25, -1.05, 3.25),
                      tuple(entry[0]), tuple(entry[1]), tuple(entry[2])], 10)
-    body_r = np.interp(np.linspace(0, 1, len(body)),
-                       [0.0, 0.18, 0.36, 0.48, 0.60, 0.72, 0.84, 0.93, 1.0],
-                       [0.90, 1.0, 1.10, 1.02, 0.80, 0.60, 0.50, 0.44, 0.40])
-    tail_path = B.spline([(-3.0, 3.5, 0.70), (-4.15, 2.0, 0.78), (-4.55, 0.2, 0.70), (-4.05, -1.55, 0.55),
-                          (-3.05, -2.55, 0.42), (-2.15, -2.85, 0.32)], 10)
-    curl = []
-    centre = np.array([-2.35, -2.15])
-    start = tail_path[-1]
-    r0 = np.linalg.norm(start[:2] - centre)
-    a0 = np.arctan2(start[1] - centre[1], start[0] - centre[0])
-    for i in range(1, 31):
-        f = i / 30
-        a = a0 + f * 1.2 * 2 * np.pi
-        rr = r0 * (1.0 - 0.72 * f)
-        curl.append((centre[0] + rr * np.cos(a), centre[1] + rr * np.sin(a), 0.32 - 0.10 * f))
-    tail = np.concatenate([tail_path, np.array(curl)])
-    tail_r = np.interp(np.linspace(0, 1, len(tail)), [0.0, 0.22, 0.50, 0.75, 1.0],
-                       [0.80, 0.70, 0.48, 0.26, 0.05])
+    body, body_r = _even(body, [0.0, 0.18, 0.36, 0.48, 0.60, 0.72, 0.84, 0.93, 1.0],
+                         [0.90, 1.0, 1.10, 1.02, 0.80, 0.60, 0.50, 0.44, 0.40])
+    lying = B.spline([(-3.0, 3.5, 0.70), (-4.15, 2.0, 0.78), (-4.55, 0.2, 0.70), (-4.05, -1.55, 0.55),
+                      (-3.25, -2.70, 0.40), (-2.55, -2.95, 0.34)], 10)
+    # Wide and slender, as a chameleon's coiled tail is: a coil about six
+    # times its own thickness reads as a tail's end from any side, a fatter
+    # one as a shell.
+    curl = _tail_curl(lying[-1], lying[-1] - lying[-4], rise=0.95, turns=1.30, shrink=0.85)
+    # Tapering the whole way, wall to tip, and already slender where it lifts:
+    # a tail that keeps its girth into its curl reads as a coil of hose, and
+    # one that is still thick where it starts to turn reads as a snail's shell.
+    tail, tail_r = _even(np.concatenate([lying, curl]), [0.0, 0.25, 0.50, 0.65, 0.80, 1.0],
+                         [0.80, 0.68, 0.44, 0.20, 0.10, 0.02])
     arch = B.spline([(2.0, 2.65, -0.55), (1.15, 2.05, 0.95), (-0.15, 1.95, 1.35), (-1.35, 2.15, 0.95),
                      (-2.15, 2.70, -0.55)], 10)
-    arch_r = np.interp(np.linspace(0, 1, len(arch)), [0.0, 0.5, 1.0], [0.70, 0.66, 0.68])
+    arch, arch_r = _even(arch, [0.0, 0.5, 1.0], [0.70, 0.66, 0.68])
     return [("body", body, body_r), ("tail", tail, tail_r), ("arch", arch, arch_r)]
 
 

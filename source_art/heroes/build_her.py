@@ -39,10 +39,12 @@ crest, plain), `eye` (gold, emissive) and `eye_slit` (the pupil). The Chamber
 leaves any material named `eye…` alone.
 """
 import json
+import math
 import os
 import sys
 from pathlib import Path
 
+import bmesh
 import bpy
 import numpy as np
 from mathutils import Vector
@@ -69,9 +71,10 @@ HEAD_VOXEL = 0.011
 BODY_TRIS = 22000
 HEAD_TRIS = 12000
 EYE_TRIS = 700
-## Normal map sizes.
+## Normal and value map sizes.
 BODY_TEXTURE = 4096
 HEAD_TEXTURE = 2048
+CREST_TEXTURE = 512
 
 COLOURS = {"her": (0.32, 0.26, 0.22, 1.0), "her_plate": (0.30, 0.25, 0.21, 1.0),
            "eye": (0.95, 0.62, 0.12, 1.0), "eye_slit": (0.02, 0.015, 0.01, 1.0)}
@@ -112,12 +115,28 @@ def crest():
             top = pts[i] + up[i] * r[i] * 0.97
             if top[1] > BODY.WALL_Y - 0.15 or top[2] < 0.25 or r[i] < 0.12:
                 continue
+            # None where the spine turns under, round her tail's curl: a
+            # plate there would stand into the coil inside it.
+            if up[i][2] < 0.5:
+                continue
+            # A slow swell and fall down the row, so it is a row of carved
+            # blades rather than one blade stamped.
+            swell = 1.0 + 0.16 * math.sin(i * 1.9) + 0.08 * math.sin(i * 0.7)
             if name == "body" and s[i] > s[-1] - 0.6:
                 continue
-            pv, pf = B.plate(top, t[i], up[i], 0.30 * r[i] + 0.10, 0.34 * r[i] + 0.06, 0.05 * r[i] + 0.015)
+            pv, pf = B.plate(top, t[i], up[i], 0.30 * r[i] + 0.10, (0.36 * r[i] + 0.06) * swell,
+                             0.035 * r[i] + 0.012)
             faces += [tuple(k + len(verts) for k in f) for f in pf]
             verts += list(pv)
-    return K.to_object("crest", np.array(verts), faces, material("her_plate"))
+    plates = K.to_object("crest", np.array(verts), faces, material("her_plate"))
+    # In triangles: a blade's face is concave, and a baked map's tangents
+    # (and the glTF's) are only defined on triangles and quads.
+    bm = bmesh.new()
+    bm.from_mesh(plates.data)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method="BEAUTY", ngon_method="EAR_CLIP")
+    bm.to_mesh(plates.data)
+    bm.free()
+    return plates
 
 
 # ── Build ────────────────────────────────────────────────────────────────
@@ -156,9 +175,15 @@ def build():
         mask = H.features(points) < H.skin(points) + 0.004
         return D.head_height(points, mask)
 
-    head_map = K.bake(head, HEAD_TEXTURE, head_at, "her_head_n")
+    head_nz = np.array([v.normal.z for v in head.data.vertices])
+
+    def head_colour(points, nearest, face):
+        return D.head_value(points, head_nz[nearest], head_at(points, nearest, face))
+
+    head_map, head_value = K.bake(head, HEAD_TEXTURE, head_at, "her_head_n", head_colour,
+                                  lambda p: H.field(p, False))
     head.data.materials.clear()
-    head.data.materials.append(material_with_map("her", head_map, "her_head_skin"))
+    head.data.materials.append(material_with_map("her", head_map, "her_head_skin", head_value))
     eyes = K.mesh_field("eyes", H.eyes, H.BOUNDS[0], H.BOUNDS[1], 0.008, material("eye"))
     pupils = K.mesh_field("pupils", H.pupils, H.BOUNDS[0], H.BOUNDS[1], 0.006, material("eye_slit"))
     for o in (eyes, pupils):
@@ -181,24 +206,52 @@ def build():
     def body_at(points, nearest, _face):
         return D.blend_band(bands, points, vert_band[nearest])
 
-    body_map = K.bake(body, BODY_TEXTURE, body_at, "her_body_n")
+    body_nz = np.array([v.normal.z for v in body.data.vertices])
+
+    def body_colour(points, nearest, face):
+        return D.body_value(bands, points, vert_band[nearest], body_nz[nearest], body_at(points, nearest, face))
+
+    body_map, body_value = K.bake(body, BODY_TEXTURE, body_at, "her_body_n", body_colour, BODY.skin)
     body.data.materials.clear()
-    body.data.materials.append(material_with_map("her", body_map, "her_body_skin"))
+    body.data.materials.append(material_with_map("her", body_map, "her_body_skin", body_value))
     plates = crest()
     K.outward(plates)
     K.unwrap(plates, 0.01)
+    _flat, plate_value = K.bake(plates, CREST_TEXTURE, lambda p, _n, _f: np.zeros(len(p)), "her_crest_n",
+                                lambda p, _n, _f: D.crest_value(p))
+    plates.data.materials.clear()
+    plates.data.materials.append(with_value(material("her_plate").copy(), plate_value))
     for o in (body, plates):
         K.ink(o)
     hide = join([body, plates], "her_body")
     return hide, skull
 
 
-def material_with_map(kind, image, name):
-    """`her` with its baked normal map, under its own name so the head's and
-    the body's maps stay apart; the Chamber recolours both."""
+def material_with_map(kind, image, name, value):
+    """`her` with its baked normal and value maps, under its own name so the
+    head's and the body's maps stay apart; the Chamber recolours both."""
     m = material(kind).copy()
     m.name = name
-    return K.with_normal_map(m, image)
+    return with_value(K.with_normal_map(m, image), value)
+
+
+def with_value(m, image):
+    """The value map multiplied into the material's own colour (ADR-317): the
+    glTF carries the colour as its factor and the map as its texture, and the
+    Chamber swaps the factor for her lineage's colour."""
+    nodes = m.node_tree.nodes
+    tex = nodes.new("ShaderNodeTexImage")
+    tex.image = image
+    mix = nodes.new("ShaderNodeMix")
+    mix.data_type = "RGBA"
+    mix.blend_type = "MULTIPLY"
+    bsdf = nodes.get("Principled BSDF")
+    factor, a, b = [s for s in mix.inputs if s.enabled]
+    factor.default_value = 1.0
+    a.default_value = tuple(bsdf.inputs["Base Color"].default_value)
+    m.node_tree.links.new(tex.outputs["Color"], b)
+    m.node_tree.links.new([o for o in mix.outputs if o.enabled][0], bsdf.inputs["Base Color"])
+    return m
 
 
 def clearance(skull):
@@ -277,7 +330,9 @@ def export():
     report = {"asset": NAME, "triangles": tris, "units": "metres",
               "forward": "Blender -Y / Godot +Z", "origin": "centre of the hoard pile",
               "form": "ormr — sculpted as signed distance fields, carving baked to normal maps (ADR-315)",
-              "textures": {"her_body_n": BODY_TEXTURE, "her_head_n": HEAD_TEXTURE},
+              "textures": {"her_body_n": BODY_TEXTURE, "her_body_c": BODY_TEXTURE,
+                           "her_head_n": HEAD_TEXTURE, "her_head_c": HEAD_TEXTURE,
+                           "her_crest_c": CREST_TEXTURE},
               "head_clearance_m": round(low, 2),
               "nodes": {"her_body": "everything but the head",
                         "her_head": "pivoted at the top of the neck, %s" % [round(float(c), 3) for c in BODY.NECK_END],

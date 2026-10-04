@@ -70,7 +70,9 @@ def frames(points):
         # Lean back toward the sky a little each step, so a long sweep does
         # not end up with its spine on its flank.
         want = np.cross(t[i], np.cross(up0, t[i]))
-        if np.linalg.norm(want) > 1e-3:
+        # Not where the spine faces the ground: over the top of a curl it is
+        # meant to, and leaning it back would twist the band through a turn.
+        if np.linalg.norm(want) > 1e-3 and up @ want > 0.0:
             want /= np.linalg.norm(want)
             up = up * 0.9 + want * 0.1
             up /= np.linalg.norm(up)
@@ -114,11 +116,15 @@ def plate(base, tangent, up, length, height, thick):
     t = tangent / np.linalg.norm(tangent)
     u = up / np.linalg.norm(up)
     sd = np.cross(t, u)
+    # A blade, not a fin: the leading edge rises concave to a tip two-thirds
+    # back, the trailing edge falls convex and short, and the tip is raked
+    # back over the next plate — the dorsal row of a crocodile's osteoderms
+    # drawn out into the carved crest of the Urnes beasts.
     outline = []
-    for f in np.linspace(0.0, 1.0, 9):
-        along = -0.5 + f
-        rise = math.sin(math.pi * f) ** 0.8 * (1.0 - 0.35 * f)
-        outline.append((along * length + 0.35 * length * rise, rise * height))
+    tip = 0.64
+    for f in np.linspace(0.0, 1.0, 13):
+        rise = (f / tip) ** 1.5 if f <= tip else ((1.0 - f) / (1.0 - tip)) ** 0.55
+        outline.append(((-0.5 + f) * length + 0.45 * length * rise, rise * height))
     verts = []
     for side_k in (-1, 1):
         for a, z in outline:

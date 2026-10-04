@@ -132,6 +132,20 @@ map** from height functions, in MikkTSpace so the map decodes as the engine
 reads it. `ART-005` draws what a normal map says, so the carving reads as line;
 a material that is recoloured at runtime keeps its normal map.
 
+**Value is baked beside it (ADR-317).** A body of one value reads as a model,
+not an animal. A recoloured asset gets a **value map** multiplied into its
+colour — dark back, pale belly, dark crevices, ivory teeth — so the runtime
+colour still decides its hue. The glTF carries the colour as its factor and
+the map as its texture. Where the field is at hand, the normal map also carries
+**the sculpt's own surface normal**, so detail lost to decimation survives as
+light.
+
+**Two things the ink pass punishes**, learned on the enemies:
+- **Rows of parallel grooves** in a dark band draw as teeth. Hair roughens; it
+  is never combed into the normal map.
+- **Detail finer than about three texels** draws nothing. Draw it as an
+  illustrator would — mail as rows of arcs, not rings.
+
 ## What the ink shader changes about authoring (`ART-005`)
 
 Three consequences, and the first is a large saving.
