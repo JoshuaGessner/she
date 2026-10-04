@@ -91,24 +91,12 @@ const PACT_CLAIM: StringName = &"pact"
 ## meshes system and nothing else"*, and this is the number that keeps it that.
 const VALUE_PER_LUMP: int = 25
 const HER_MODEL: PackedScene = preload("res://art/heroes/her.glb")
-## The boxes she was, kept as what she is to a body (ADR-284): size, then
-## centre relative to the hoard.
-## Redrawn to the ormr (ADR-298), each box round one part of her, and none
-## of them in the way from the door to the pile (|x| < 1.2).
-const HER_SHAPE: Array = [
-	# her chest, out of the wall at the right
-	[Vector3(2.2, 2.0, 5.4), Vector3(3.8, 1.0, -0.9)],
-	# where her neck leaves it
-	[Vector3(1.6, 1.4, 1.2), Vector3(2.6, 1.6, 1.8)],
-	# the outer foreleg, and the inner
-	[Vector3(1.2, 1.2, 2.4), Vector3(4.0, 0.6, 2.5)],
-	[Vector3(1.3, 1.0, 1.8), Vector3(2.05, 0.5, 3.0)],
-	# her tail, out of the wall at the left, and its curl
-	[Vector3(1.6, 1.4, 4.2), Vector3(-4.0, 0.7, -0.6)],
-	[Vector3(2.4, 0.7, 1.6), Vector3(-2.4, 0.35, 2.6)],
-	# the arch of her behind the pile
-	[Vector3(4.2, 2.0, 1.4), Vector3(0.0, 1.0, -2.5)],
-]
+## **How strongly her carving is drawn** (ADR-315): the strength her baked
+## normal maps are read at. `ADR-259` measured the ink pass drawing a normal
+## map's detail as line — 0.5 drew 5.9 % of a frame, 1.0 drew 28.9 %, which
+## is `ART-005`'s scribble — so her scales are read lightly enough to be seen
+## and not scribbled ⟨tune⟩.
+const HER_RELIEF: float = 0.55
 ## **She is alive** (ADR-298): a breath every few seconds, and her head turning
 ## after you about the top of her neck — slowly, because she is old and has all
 ## the time there is. Limits and rates ⟨tune⟩.
@@ -541,12 +529,11 @@ func _build_room() -> void:
 ## against a wall.
 func _build_her() -> void:
 	var skin: Color = her_colour(GameState.descents)
-	# **An ormr, fused into her mountain** (ADR-298): `her.glb`, built from the
-	# Ramsund carving's Fáfnir, the Urnes beasts and the stave-church gable
-	# heads — her chest and tail coming out of the back wall, an arch of her
-	# out of the floor, two forelegs on the stone before the pile, and a carved
-	# head with gold eyes looming over it. Her collision is boxes round each
-	# part (`HER_SHAPE`), unseen, and none of them in the way to the pile.
+	# **An ormr, fused into her mountain** (ADR-298, ADR-315): `her.glb`,
+	# sculpted from the Ramsund carving's Fáfnir, the Urnes beasts and the
+	# stave-church gable heads — her body out of the back wall, an arch of her
+	# out of the floor, two forelegs couchant before the pile, and a carved head
+	# with gold eyes looming over it.
 	var body: Node3D = HER_MODEL.instantiate() as Node3D
 	body.name = "Her"
 	body.position = HOARD_AT
@@ -557,26 +544,28 @@ func _build_her() -> void:
 		push_error("Chamber: her model has no `her_head` to turn toward you")
 	else:
 		_her_head_rest = _her_head.transform
-	var scales := StandardMaterial3D.new()
-	scales.albedo_color = skin
-	scales.roughness = 0.9
+	# Recoloured every visit, her carving kept: each surface's own material is
+	# copied, so her baked normal map comes with it. The eyes are left alone.
 	for node: Node in body.find_children("*", "MeshInstance3D", true, false):
 		var piece := node as MeshInstance3D
 		for surface: int in piece.mesh.get_surface_count():
-			var was: Material = piece.mesh.surface_get_material(surface)
-			if was == null or was.resource_name != "eye":
-				piece.set_surface_override_material(surface, scales)
-	for block: Array in HER_SHAPE:
-		var solid := StaticBody3D.new()
+			var was := piece.mesh.surface_get_material(surface) as BaseMaterial3D
+			if was != null and was.resource_name.begins_with("eye"):
+				continue
+			var hide := (was.duplicate() as BaseMaterial3D) if was != null else StandardMaterial3D.new()
+			hide.albedo_color = skin
+			hide.roughness = 0.9
+			hide.vertex_color_use_as_albedo = false
+			hide.normal_scale = HER_RELIEF
+			piece.set_surface_override_material(surface, hide)
+	# **Her solids ship with her** (ADR-315, ART-004's `-convcolonly`), and are
+	# taken out of her here: she breathes by scaling, and a solid that
+	# breathed would be a wall that moved under a body standing against it.
+	for node: Node in body.find_children("*", "StaticBody3D", true, false):
+		var solid := node as StaticBody3D
+		solid.reparent(self, true)
 		solid.collision_layer = CollisionLayers.WORLD
 		solid.collision_mask = 0
-		var shape := CollisionShape3D.new()
-		var box := BoxShape3D.new()
-		box.size = block[0] as Vector3
-		shape.shape = box
-		solid.add_child(shape)
-		solid.position = HOARD_AT + (block[1] as Vector3)
-		add_child(solid)
 
 
 ## Her breath and her gaze, every frame (ADR-298). The breath lifts her a
@@ -1431,7 +1420,7 @@ func _her_shot(dir: String) -> void:
 	eye.add_child(InkPass.new())
 	add_child(eye)
 	eye.current = true
-	var head: Vector3 = HOARD_AT + Vector3(0.0, 3.6, 1.6)
+	var head: Vector3 = HOARD_AT + Vector3(0.0, 4.2, 1.6)
 	var views: Array = [
 		["door", SPAWN_AT + Vector3(0.0, 1.5, 0.0), HOARD_AT + Vector3(0.0, 2.0, 0.0)],
 		["quarter_left", Vector3(-5.5, 2.2, 2.5), HOARD_AT + Vector3(0.0, 1.8, 0.0)],

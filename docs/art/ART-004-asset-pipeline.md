@@ -4,7 +4,7 @@ title: Asset Pipeline & Production Schedule
 status: accepted
 owner: art
 tags: [art, assets, pipeline, blender, godot, production, specs]
-updated: 2026-09-28
+updated: 2026-10-04
 related: [ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017]
 ---
 
@@ -119,6 +119,18 @@ Six player classes, the Bound, humanoid enemies — **one rig**. This is the dif
 - **No baked lighting or baked ambient occlusion in textures.** Lighting is dynamic and the shader owns it (`ART-001` — darkness is a mechanic).
 
 ---
+
+### Organic hero assets are sculpted, and their carving is baked (ADR-315)
+
+A creature cannot be swept along curves: no join between two swept parts is a
+join, only an overlap, and from every angle it reads as hose. Organic hero
+assets are **sculpted as signed distance fields** (`source_art/lib/sdf_sculpt.py`)
+— parts blended like clay, carved with smooth cuts, laid out from profiles —
+meshed, and decimated to the budget. Whatever is finer than the budget allows
+(scales, engraved decoration, scutes) is **baked into a tangent-space normal
+map** from height functions, in MikkTSpace so the map decodes as the engine
+reads it. `ART-005` draws what a normal map says, so the carving reads as line;
+a material that is recoloured at runtime keeps its normal map.
 
 ## What the ink shader changes about authoring (`ART-005`)
 

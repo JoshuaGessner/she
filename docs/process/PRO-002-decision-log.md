@@ -11267,4 +11267,52 @@ A stamina mark drawn on a client would have been drawing the wrong number.
 
 **Honest scale:** a thin line in a corner, on the screen only while it matters. Whether it reads in a fight is a question for the developer's eyes. The tick is the part with the rule in it.
 
+## ADR-315 — She is sculpted, not swept: signed distance fields, a couchant pose, and her carving baked to normal maps
+
+**Date:** 2026-10-04 · **Status:** accepted · **Supersedes ADR-298's construction; keeps its form and references** · **Developer's call: "The dragon still looks terrible. Refine everything. Look up valid references… don't stop until production quality is reached."**
+
+**Context:** ADR-298 gave her the right *form*: an ormr, wingless, fused into her mountain, with a stave-church head. It built that form the wrong way: as tubes swept along curves, blobs and fins, stuck together. From the door and in the Chamber's seven `--her-shot` views:
+- **A body of hose:** no join between two parts was ever a join, only an overlap. The chest, neck, tail and arch were four smooth grey tubes.
+- **A head without structure:** a dog's muzzle on a sausage, no socket under its brow, a loop of tube for a lip-curl, and a neck that met the skull from the side.
+- **Forelegs that were not legs:** two capsules splayed on the floor, with blob paws and pins for claws.
+- **A surface that said nothing:** smooth everywhere, so the ink pass had nothing to draw on her but her outline.
+
+**References**, the shapes and not the decoration, as ADR-298's were:
+- **The crocodilian and monitor-lizard skull:** eyes high and back under an overhanging brow; a jugal bar swelling into the jaw muscle; a head that is a broad wedge from above.
+- **The Oseberg ship's animal posts:** the heavy snout, the large eye, the bared teeth.
+- **The Borgund and Urnes gable heads:** the upturned snout, the lip ending in a carved scroll, the almond eye.
+- **Urnes beasts:** the curled appendages on the head (her ridged horns), the double contour down every body, the spiral at the tail's end.
+- **The lion couchant, and a resting monitor:** forelegs lying forward along the ground, elbows down.
+- **The Altuna stone's Midgard serpent:** a body rising out of the stone and diving back into it.
+
+**Decision:**
+- **Sculpted as signed distance fields** (`source_art/lib/sdf_sculpt.py`, new). Each part is a field, and parts combine with smooth unions that blend like clay and smooth cuts that carve.
+  - **The head** (`her_head_sdf`) is laid out from its profiles, as a carver works a block: plan, side and squareness at stations down the snout. On that are cut the eye socket under the brow, lids, the jugal bar, the jaw hung open on its hinge, stout curved teeth with a fang at each end of each row, ridged horns sweeping back and curling down, and crest plates down the skull.
+  - **The body** (`her_body_sdf`) is one field, so every join is a fillet. The forelegs grow out of the chest and the neck out of the shoulders. Where she goes into the wall or the floor she is cut by it, flush.
+- **The pose is couchant:** her body comes out of the wall high on the right and lies along the hoard. Her forelegs lie forward, forearms flat on the stone, each hand four clawed digits and a dewclaw. Her neck rises up and back over the pile, and the head arches forward and down over its front. It now comes into the back of her skull, as a neck carries a head, not into its side.
+- **Her carving is baked, not modelled.** The field is meshed, decimated to the hero budget and unwrapped. The **scales**, the **Urnes double contour**, the **keel**, the **belly scutes** and the lip's **engraved scroll** are height functions (`her_detail`, `her_body`), and their slope is baked into a tangent-space normal map:
+  - 4096² for the body, 2048² for the head.
+  - The scales lie along her: each is tipped toward its trailing edge so they overlap like a serpent's, larger on the back, smaller on the legs and snout.
+  - The bake uses **MikkTSpace** corner tangents, the ones the glTF carries and Godot decodes with. A per-triangle frame shattered the carving into facets along the decimated mesh's edges.
+- **The Chamber keeps her carving:** it recolours her every visit (ADR-050) by copying each material and keeping its normal map. The relief is read at `HER_RELIEF` 0.55 ⟨tune⟩, because ADR-259 measured a map at full strength drawing `ART-005`'s scribble.
+- **Her solids ship with her:** a `-convcolonly` box round each stretch of body and each foreleg. `HER_SHAPE`, a hand-kept list that had to be redrawn every time she was, is **deleted**. The Chamber takes the solids out of her, so they do not breathe with her.
+- **Clearances held by the build:**
+  - The build fails if her head comes lower than 2.3 m over the way to the pile, or above 5.85 m under the 6 m ceiling.
+  - It also fails if a solid stands in the way.
+  - The neck end is raised from 3.70 m to 4.35 m to keep the open jaw clear of a standing body.
+  - She is kept clear of the brazier at (5.6, −1.4).
+
+**Measured:**
+- **Triangles:** 37,122, under the 40,000 hero ceiling.
+- **Clearance:** her head comes down to 2.36 m over the way in and up to 5.59 m.
+- **`--lair-probe`:** the walk from the door to the hoard is clear, there are 0 door gaps, and she still fuses toward the stone over a lineage.
+- **`art_probe`:** her model passes, with vertex colours on all 5 surfaces.
+- **`--her-shot`:** 0.01–0.15 % of each of seven views flashes, against 0.01–0.14 % before.
+
+**Honest scale:**
+- Her look, from the door and kneeling at the pile, is the developer's to judge.
+- The relief strength and the scale sizes are ⟨tune⟩.
+- She is still one rigid body that breathes and turns its head, with no skeleton.
+- The pipeline is now shared (`sdf_sculpt`), and the enemies and the rest of the hero assets are next.
+
 *Entries below to be added as design decisions are signed off.*
