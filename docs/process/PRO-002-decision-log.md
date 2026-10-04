@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-02
+updated: 2026-10-04
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -11314,5 +11314,39 @@ A stamina mark drawn on a client would have been drawing the wrong number.
 - The relief strength and the scale sizes are ⟨tune⟩.
 - She is still one rigid body that breathes and turns its head, with no skeleton.
 - The pipeline is now shared (`sdf_sculpt`), and the enemies and the rest of the hero assets are next.
+
+## ADR-316 — The enemies and the Gold-Sick are sculpted: one body per kind, its materials baked
+
+**Date:** 2026-10-04 · **Status:** accepted · **Supersedes ADR-305's construction; keeps its silhouettes** · **Developer's call: "Refine everything… don't stop until production quality is reached."**
+
+**Context:** ADR-305 gave each kind a silhouette of its own, and built it the way ADR-298 built Her: lofted tubes, rings and sheets, overlapped. Close to, in the roster shot:
+- **No anatomy:** a neck was a cylinder pushed into a ball, a hand was a box, and a hood was a shell floating off a head it did not touch.
+- **No faces:** eyes were drawn on, so ADR-295's lines had nothing to sit in.
+- **No material:** mail, cloth, leather and skin were one smooth surface in four flat colours, which the ink pass drew identically.
+- **The Gold-Sick** was a body with gold *attached*: separate coins pinned to a shoulder, sacks stuck to the hips.
+
+**References**, the shapes and not the decoration:
+- **The Skjoldehamn hood and the Hedeby harbour finds** for the hood and its cape; **the Thorsberg trousers** and **leg wraps** (*winingas*) for the legs.
+- **The Gjermundbu helm** for the spangenhelm and its open face; **the Birka lamellae and mail** for the Hall-Warden's shoulders and byrnie.
+- **Figure-drawing proportion** (head height to stature, the brow line at half the head) for the shared body, with each kind's `Build` scaling breadth, limb and stature from it.
+- **Fáfnir on his gold** (`DES-006`) for the Gold-Sick: the hoard is not carried, it has grown onto him.
+
+**Decision:**
+- **One sculpted body per kind** (`source_art/enemies/build_enemies.py`, new), on ADR-315's `sdf_sculpt`. Anatomy and garments are fields in `source_art/characters/sculpt_humanoid.py` (new): trunk, neck, a head with a face, hands closed round the grip, legs and feet; tunic, hood, trousers, boots, wraps, mantle, mail coat, aventail, lamellar, cloak, crested helm, breastplate, coins and sacks. A kind is a dictionary of **material regions**, each the union of its garments; a point belongs to the nearest one.
+- **Material is baked, not modelled** (`source_art/characters/humanoid_detail.py`, new): each material has a height function (cloth folds and weave, mail rings, leather grain, the strands of a beard, struck coin faces) and a base colour, the ink palette's with a little variation through it. The body is meshed, decimated, unwrapped and baked to a **normal map and a base-colour map**. The normal map also carries the **sculpt's own surface normal**, so a body decimated to 4,300 triangles shades as the field did.
+- **Skinned by bone heat**, with a nearest-bone fallback for vertices bone heat misses, and every vertex's weights summing to one. A material *carried* rather than worn rides its bones **rigidly**, so a swinging arm does not drag part of the hoard with it.
+- **Forged things stay hard-surface** (`build_enemy_models.py`): helm plates, lamellae, chain links, bells, the hammer, the spear, the seax and the sling. A field meshed at an enemy's voxel turns a 2 mm plate to shards.
+- **The Gold-Sick is built by the same builder, as a hero asset:** a finer voxel, 2048² maps, `ART-004`'s 40,000-triangle row, its own folder. Its hoard is **one fused mass of struck coins** over its right shoulder, rising past its head, with three medallions in it — one-sided on purpose, so it moves as something carried. `build_gullsjukr.py` is **deleted**, and with it ADR-305's five kind builders in `build_enemy_models.py` and the helpers only they called.
+
+**Measured:**
+- **Triangles:** Wretch 4,350, Sling-Wretch 4,645, Bellringer 5,194, Hall-Warden 4,872, Hoard-Keeper 4,346 — under the 6,000 category budget. The Gold-Sick 17,214, under 40,000.
+- **`rig_probe`, `art_probe`, `enemy_animation_probe`:** 0 failures on all six, with ADR-305's 53 clips re-baked onto the new bodies.
+- **`--roster-shot`:** every kind reads at 2.6 m under the production ink; faces, hoods and helms hold their lines.
+
+**Honest scale:**
+- This is the pipeline, not the finish. In the review renders the Hall-Warden's mail still reads as quilted cloth, and the Gold-Sick's coins are too large to read as a hoard.
+- The material heights and map sizes are ⟨tune⟩.
+- Visual sign-off remains the developer's (`M4-T10`).
+- The delvers' body and worn armour still use ADR-308's lofts, and are next.
 
 *Entries below to be added as design decisions are signed off.*

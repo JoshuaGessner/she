@@ -4,7 +4,7 @@ title: Enemy Model and Animation Review
 status: draft
 owner: art
 tags: [art, enemies, animation, review, blender]
-updated: 2026-10-02
+updated: 2026-10-04
 related: [ART-004, ART-005, ART-006, DES-013, DES-017, PRO-001, PRO-002]
 ---
 
@@ -16,11 +16,11 @@ Hoard-Keeper and the Gold-Sick. Future-biome enemies are outside this pass.
 
 ## Source and delivery
 
-`source_art/enemies/build_enemy_models.py` builds the five standard enemies;
-`source_art/heroes/build_gullsjukr.py` builds the Gold-Sick.
-`source_art/enemies/animate_enemies.py` bakes the shared-rig performances into
-their `.blend` sources and exports the engine GLBs. Run both model builders
-before the animation builder. All use the installed Blender in background mode.
+`source_art/enemies/build_enemies.py` builds all six, the Gold-Sick into
+`source_art/heroes/` (ADR-316). `source_art/enemies/animate_enemies.py` bakes
+the shared-rig performances into their `.blend` sources and exports the engine
+GLBs, so run it after the model builder. Both use the installed Blender in
+background mode.
 
 The models retain the permanent 28-bone rest hierarchy. Export merges authored
 parts into one skinned mesh per enemy, preserving its material surfaces; the
@@ -128,3 +128,28 @@ Windowed, because a headless render has no pixels.
 Standard-enemy exports now contain 5,668 / 5,308 / 5,930 / 5,080 / 5,174
 triangles (Wretch, Sling-Wretch, Bellringer, Hall-Warden, Hoard-Keeper) and
 the Gold-Sick 31,998. Visual sign-off remains the developer's.
+
+## Sculpted bodies (ADR-316)
+
+Each kind is now **one sculpted body**: signed distance fields for anatomy and
+garments (`source_art/characters/sculpt_humanoid.py`), grouped into material
+regions per kind, meshed, decimated, and baked to a normal map and a
+base-colour map whose surfaces come from `humanoid_detail.py` — cloth folds,
+mail rings, leather grain, beard strands, struck coins. Forged things (helm
+plates, lamellae, chain, bells, weapons) stay hard-surface from
+`build_enemy_models.py`, weighted rigidly to their bones. ADR-305's silhouettes
+are unchanged; the table above still says what each kind reads as.
+
+| Kind | Triangles | Maps |
+|---|---|---|
+| Wretch | 4,350 | 1024² |
+| Sling-Wretch | 4,645 | 1024² |
+| Bellringer | 5,194 | 1024² |
+| Hall-Warden | 4,872 | 1024² |
+| Hoard-Keeper | 4,346 | 1024² |
+| Gullsjúkr | 17,214 | 2048² (hero row, `ART-004`) |
+
+The Gold-Sick's hoard is one fused mass of coins grown over its right shoulder,
+carried rigidly by the chest and right clavicle. Known short of finish: the
+Hall-Warden's mail reads as quilted cloth and the Gold-Sick's coins are too
+large to read as a hoard. Visual sign-off remains the developer's.

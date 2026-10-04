@@ -3,7 +3,7 @@
 The engine owns displacement and hit timing. These clips never move the actor
 through the world: walk/run are distance-driven, events are sampled by the
 authoritative gameplay phase. All six exports retain the permanent bind pose.
-Run in Blender after build_enemy_models.py and build_gullsjukr.py.
+Run in Blender after build_enemies.py, which builds all six.
 """
 import math
 import sys

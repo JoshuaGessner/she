@@ -15787,7 +15787,9 @@ func _roster_shot(dir: String) -> void:
 			get_viewport().get_texture().get_image().save_png(
 				"%s/%s_%s.png" % [dir, enemy.id, side])
 		print("[roster] %s at %s" % [enemy.id, ground])
-		body.queue_free()
+		# The director may already have culled it while the frames drew.
+		if is_instance_valid(body):
+			body.queue_free()
 	get_tree().quit(0)
 
 

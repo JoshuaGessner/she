@@ -177,23 +177,9 @@ def tangent_frame(n, t, sign):
     return n, t, np.cross(n, t) * sign[:, None]
 
 
-def bake(obj, size, height_at, name):
-    """Bake `height_at(points, nearest_vertex, face)`'s slope over `obj`'s UVs
-    into a normal map, and return the image."""
-    t0 = time.time()
-    pos, nrm, tan, sign, px, nearest, face = raster(obj, size)
-    nrm, tan, bit = tangent_frame(nrm, tan, sign)
-    e = SLOPE_STEP
-    h_t = (height_at(pos + tan * e, nearest, face) - height_at(pos - tan * e, nearest, face)) / (2 * e)
-    h_b = (height_at(pos + bit * e, nearest, face) - height_at(pos - bit * e, nearest, face)) / (2 * e)
-    ts = np.stack([-h_t, -h_b, np.ones_like(h_t)], axis=1)
-    ts /= np.linalg.norm(ts, axis=1)[:, None]
-    img = np.zeros((size, size, 4), np.float32)
-    filled = np.zeros((size, size), bool)
-    img[:, :, :3] = (0.5, 0.5, 1.0)
-    img[:, :, 3] = 1.0
-    img[px[:, 1], px[:, 0], :3] = ts * 0.5 + 0.5
-    filled[px[:, 1], px[:, 0]] = True
+def _dilated(img, filled, size):
+    """Grow each island's colour into its gutter, so a mip or a filter never
+    reads the empty colour across a seam."""
     for _ in range(DILATE):
         grow = np.zeros_like(img[:, :, :3])
         cnt = np.zeros((size, size))
@@ -203,15 +189,98 @@ def bake(obj, size, height_at, name):
         new = (~filled) & (cnt > 0)
         img[new, :3] = grow[new] / cnt[new][:, None]
         filled |= new
+    return img
+
+
+def _image(name, img, size, colour):
     image = bpy.data.images.new(name, size, size, alpha=False, float_buffer=False)
-    image.colorspace_settings.name = "Non-Color"
+    image.colorspace_settings.name = "sRGB" if colour else "Non-Color"
     image.pixels.foreach_set(img.ravel())
     # Saved beside the build, not in the tree: the glb carries the map.
     image.filepath_raw = str(Path(tempfile.gettempdir()) / f"{name}.png")
     image.file_format = "PNG"
     image.save()
-    log(f"baked {name}: {len(px)} texels in {time.time() - t0:.1f} s")
     return image
+
+
+## The step the sculpted surface's gradient is read with, metres.
+FIELD_STEP = 0.0015
+_TETRA = np.array([(1, -1, -1), (-1, -1, 1), (-1, 1, -1), (1, 1, 1)], float)
+
+
+def field_normals(field, points, chunk=400000):
+    """The sculpted surface's normal near each point: the field's gradient,
+    from four evaluations on a tetrahedron (Quilez)."""
+    out = np.empty_like(points)
+    for s in range(0, len(points), chunk):
+        p = points[s:s + chunk]
+        g = np.zeros_like(p)
+        for k in _TETRA:
+            g += k * field(p + k * FIELD_STEP)[:, None]
+        out[s:s + chunk] = g / np.maximum(np.linalg.norm(g, axis=1), 1e-12)[:, None]
+    return out
+
+
+def bake(obj, size, height_at, name, colour_at=None, field=None):
+    """Bake `obj`'s normal map and return the image.
+
+    Two things are baked into it. Given the `field` the mesh was meshed from,
+    **the sculpt itself**: decimation keeps the silhouette and throws away the
+    nostril, the lid and the fillet, and the field still has them, so the
+    field's own normal is written in the low mesh's frame and the decimated
+    mesh is lit as the sculpt. And over that, `height_at(points,
+    nearest_vertex, face)`'s slope — the carving too fine for any mesh.
+
+    Given `colour_at(points, nearest_vertex, face)` (linear RGB), a base colour
+    map beside it, so a boundary between two materials follows the texels
+    rather than the decimated mesh's edges; then a (normal, colour) pair."""
+    t0 = time.time()
+    pos, nrm, tan, sign, px, nearest, face = raster(obj, size)
+    nrm, tan, bit = tangent_frame(nrm, tan, sign)
+    e = SLOPE_STEP
+    h_t = (height_at(pos + tan * e, nearest, face) - height_at(pos - tan * e, nearest, face)) / (2 * e)
+    h_b = (height_at(pos + bit * e, nearest, face) - height_at(pos - bit * e, nearest, face)) / (2 * e)
+    if field is not None:
+        sculpt = field_normals(field, pos)
+        base = np.stack([np.einsum("ij,ij->i", sculpt, tan), np.einsum("ij,ij->i", sculpt, bit),
+                         np.einsum("ij,ij->i", sculpt, nrm)], axis=1)
+        # A normal pointing into the low surface means the sculpt is folded
+        # away from it there (a deep cut the decimation bridged): keep the
+        # low surface's own rather than write one that lights from inside.
+        base[base[:, 2] < 0.05] = (0.0, 0.0, 1.0)
+        base /= np.linalg.norm(base, axis=1)[:, None]
+    else:
+        base = np.tile((0.0, 0.0, 1.0), (len(pos), 1))
+    ts = base + np.stack([-h_t, -h_b, np.zeros_like(h_t)], axis=1)
+    ts /= np.linalg.norm(ts, axis=1)[:, None]
+    img = np.zeros((size, size, 4), np.float32)
+    filled = np.zeros((size, size), bool)
+    img[:, :, :3] = (0.5, 0.5, 1.0)
+    img[:, :, 3] = 1.0
+    img[px[:, 1], px[:, 0], :3] = ts * 0.5 + 0.5
+    filled[px[:, 1], px[:, 0]] = True
+    normal = _image(name, _dilated(img, filled.copy(), size), size, False)
+    log(f"baked {name}: {len(px)} texels in {time.time() - t0:.1f} s")
+    if colour_at is None:
+        return normal
+    col = np.zeros((size, size, 4), np.float32)
+    col[:, :, 3] = 1.0
+    linear = np.clip(colour_at(pos, nearest, face), 0.0, 1.0)
+    # Stored as sRGB, as a base colour texture is read.
+    srgb = np.where(linear <= 0.0031308, linear * 12.92, 1.055 * np.power(linear, 1 / 2.4) - 0.055)
+    col[px[:, 1], px[:, 0], :3] = srgb
+    colour = _image(name.replace("_n", "_c") if name.endswith("_n") else name + "_c",
+                    _dilated(col, filled.copy(), size), size, True)
+    return normal, colour
+
+
+def with_colour_map(mat, image):
+    """`mat` taking its base colour from `image`."""
+    nodes = mat.node_tree.nodes
+    tex = nodes.new("ShaderNodeTexImage")
+    tex.image = image
+    mat.node_tree.links.new(tex.outputs["Color"], nodes.get("Principled BSDF").inputs["Base Color"])
+    return mat
 
 
 def with_normal_map(mat, image):

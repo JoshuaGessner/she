@@ -215,6 +215,35 @@ def cells(p, size, jitter=0.7):
     return f1, f2, off
 
 
+def noise(p, size):
+    """Smooth value noise in [-1, 1], features about `size` across."""
+    q = p / size
+    base = np.floor(q)
+    f = q - base
+    f = f * f * (3.0 - 2.0 * f)
+    out = np.zeros(len(p))
+    for dx in (0, 1):
+        for dy in (0, 1):
+            for dz in (0, 1):
+                c = base + np.array([dx, dy, dz])
+                val = _hash3(c)[:, 0] * 2.0 - 1.0
+                w = ((f[:, 0] if dx else 1 - f[:, 0]) * (f[:, 1] if dy else 1 - f[:, 1])
+                     * (f[:, 2] if dz else 1 - f[:, 2]))
+                out += w * val
+    return out
+
+
+def fbm(p, size, octaves=3):
+    """Noise summed over octaves, each half the size and half the weight."""
+    out, amp, total = np.zeros(len(p)), 1.0, 0.0
+    for i in range(octaves):
+        out += amp * noise(p + i * 17.31, size)
+        total += amp
+        size *= 0.5
+        amp *= 0.5
+    return out / total
+
+
 def scale_height(p, size, depth, along=None):
     """**Scales, as height**: each cell domed, the border between cells a
     soft valley, and — given the direction `along` a body runs — each scale

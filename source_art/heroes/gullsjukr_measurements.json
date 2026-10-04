@@ -1,6 +1,6 @@
 {
   "asset": "gullsjukr",
-  "triangles": 31998,
+  "triangles": 17214,
   "mesh_parts": 1,
   "bones": 28,
   "source_rig": "humanoid_rig.blend",
@@ -28,5 +28,6 @@
     "thigh_r",
     "upper_arm_l",
     "upper_arm_r"
-  ]
+  ],
+  "sculpted": true
 }
