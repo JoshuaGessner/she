@@ -71,10 +71,9 @@ HEAD_VOXEL = 0.011
 BODY_TRIS = 22000
 HEAD_TRIS = 12000
 EYE_TRIS = 700
-## Normal and value map sizes.
+## Normal and region map sizes.
 BODY_TEXTURE = 4096
 HEAD_TEXTURE = 2048
-CREST_TEXTURE = 512
 
 COLOURS = {"her": (0.32, 0.26, 0.22, 1.0), "her_plate": (0.30, 0.25, 0.21, 1.0),
            "eye": (0.95, 0.62, 0.12, 1.0), "eye_slit": (0.02, 0.015, 0.01, 1.0)}
@@ -177,8 +176,8 @@ def build():
 
     head_nz = np.array([v.normal.z for v in head.data.vertices])
 
-    def head_colour(points, nearest, face):
-        return D.head_value(points, head_nz[nearest], head_at(points, nearest, face))
+    def head_colour(points, nearest, _face):
+        return D.head_value(points, head_nz[nearest])
 
     head_map, head_value = K.bake(head, HEAD_TEXTURE, head_at, "her_head_n", head_colour,
                                   lambda p: H.field(p, False))
@@ -206,39 +205,31 @@ def build():
     def body_at(points, nearest, _face):
         return D.blend_band(bands, points, vert_band[nearest])
 
-    body_nz = np.array([v.normal.z for v in body.data.vertices])
-
-    def body_colour(points, nearest, face):
-        return D.body_value(bands, points, vert_band[nearest], body_nz[nearest], body_at(points, nearest, face))
-
-    body_map, body_value = K.bake(body, BODY_TEXTURE, body_at, "her_body_n", body_colour, BODY.skin)
+    body_map = K.bake(body, BODY_TEXTURE, body_at, "her_body_n", None, BODY.skin)
     body.data.materials.clear()
-    body.data.materials.append(material_with_map("her", body_map, "her_body_skin", body_value))
+    body.data.materials.append(material_with_map("her", body_map, "her_body_skin"))
     plates = crest()
     K.outward(plates)
     K.unwrap(plates, 0.01)
-    _flat, plate_value = K.bake(plates, CREST_TEXTURE, lambda p, _n, _f: np.zeros(len(p)), "her_crest_n",
-                                lambda p, _n, _f: D.crest_value(p))
-    plates.data.materials.clear()
-    plates.data.materials.append(with_value(material("her_plate").copy(), plate_value))
     for o in (body, plates):
         K.ink(o)
     hide = join([body, plates], "her_body")
     return hide, skull
 
 
-def material_with_map(kind, image, name, value):
-    """`her` with its baked normal and value maps, under its own name so the
-    head's and the body's maps stay apart; the Chamber recolours both."""
-    m = material(kind).copy()
+def material_with_map(kind, image, name, regions=None):
+    """`her` with its baked normal map — and, for the head, its region map —
+    under its own name so the head's and the body's maps stay apart; the
+    Chamber recolours both."""
+    m = K.with_normal_map(material(kind).copy(), image)
     m.name = name
-    return with_value(K.with_normal_map(m, image), value)
+    return with_value(m, regions) if regions is not None else m
 
 
 def with_value(m, image):
-    """The value map multiplied into the material's own colour (ADR-317): the
-    glTF carries the colour as its factor and the map as its texture, and the
-    Chamber swaps the factor for her lineage's colour."""
+    """A region map multiplied into the material's own colour (ADR-317,
+    ADR-321): the glTF carries the colour as its factor and the map as its
+    texture, and the Chamber swaps the factor for her lineage's colour."""
     nodes = m.node_tree.nodes
     tex = nodes.new("ShaderNodeTexImage")
     tex.image = image
@@ -330,9 +321,8 @@ def export():
     report = {"asset": NAME, "triangles": tris, "units": "metres",
               "forward": "Blender -Y / Godot +Z", "origin": "centre of the hoard pile",
               "form": "ormr — sculpted as signed distance fields, carving baked to normal maps (ADR-315)",
-              "textures": {"her_body_n": BODY_TEXTURE, "her_body_c": BODY_TEXTURE,
-                           "her_head_n": HEAD_TEXTURE, "her_head_c": HEAD_TEXTURE,
-                           "her_crest_c": CREST_TEXTURE},
+              "textures": {"her_body_n": BODY_TEXTURE, "her_head_n": HEAD_TEXTURE,
+                           "her_head_c": HEAD_TEXTURE},
               "head_clearance_m": round(low, 2),
               "nodes": {"her_body": "everything but the head",
                         "her_head": "pivoted at the top of the neck, %s" % [round(float(c), 3) for c in BODY.NECK_END],

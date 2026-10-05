@@ -3,8 +3,13 @@
 `build_enemies` bakes these into each body's normal and base colour maps: a
 fold in cloth, the grain of leather, the rings of mail, the strands of a beard,
 the pores of skin. The base colours are `build_enemy_models.PALETTE`'s, which
-the ink pass was tuned against, with a little variation through them so a
-surface reads as a material rather than as a fill.
+the ink pass was tuned against.
+
+**Colour is flat per material** (ADR-321, amending `ART-006` ①). The map
+carries what separate materials would — one flat colour for each region of a
+single sculpted mesh — and nothing else: no variation, no darkening in a
+hollow. Value is the ink's, from light and hatching (`ART-005`); the carving is
+the normal map's.
 """
 from __future__ import annotations
 
@@ -98,10 +103,8 @@ def height(points, which, names):
 
 
 def colour(points, which, names):
+    """Each point its region's flat colour (ADR-321)."""
     out = np.zeros((len(points), 3))
-    vary = 1.0 + 0.10 * S.fbm(points, 0.05, 2)
     for i, name in enumerate(names):
-        pick = which == i
-        if pick.any():
-            out[pick] = np.asarray(MATERIALS[name][0]) * vary[pick, None]
+        out[which == i] = MATERIALS[name][0]
     return out

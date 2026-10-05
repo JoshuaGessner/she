@@ -11483,4 +11483,36 @@ Testing the sculpted arms in first person found a second fault. The worn iron br
 - The coin's size, the pieces' size and the mound's slope are ⟨tune⟩.
 - How the pile reads at a large hoard value is the developer's to judge in play.
 
+## ADR-321 — Sculpted assets may carry flat region colour and their own normal maps — nothing more
+
+**Date:** 2026-10-05 · **Status:** accepted · **Amends `ART-006` ① and checklist 9; corrects ADR-316–320** · **Developer's call: "Amend: flat regions only."**
+
+**Context:** `ART-006` ① says *"there are no albedo textures, no colour maps, no baked lighting and no ambient occlusion… A surface's value comes from hatch density driven by lighting."* ADR-259 relaxed that only to one shared, tiling normal map per material family. ADRs 316–320 baked per-asset colour and value maps without saying they were reopening the rule:
+- **ADR-316 and ADR-318:** each material region's colour, with ±10 % variation through it.
+- **ADR-317 (Her):** a countershaded back and belly, darker crevices, a mottle, and a red mouth.
+- **ADR-320 (the hoard):** darkening in the hollows between coins.
+
+The crevice darkening is baked ambient occlusion by another name. The countershading is painted light. The red mouth breaks *"gold is the only saturated hue"*. Found while planning the weapons, which would have broken the rule head-on.
+
+**Options weighed:** reverting every map to `ART-006` as written, or accepting all of it as a change of direction. Reverting would split every sculpted mesh back into a surface per material, for no difference on screen. Accepting all of it would hand value back from the ink to the texture, which is the woodcut register `ART-005` exists for.
+
+**Decision:**
+- **A sculpted asset may carry two maps of its own.**
+  - **A normal map** for carving too fine for its budget: scales, folds, struck coin.
+  - **A colour map holding flat colour per material region**: exactly what separate materials would have given.
+- **Nothing else.** No variation within a region, no painted light or shade, no darkening in a crevice. Value is the ink's.
+- **What changes:**
+  - `humanoid_detail.colour` is flat per region, for the enemies, the delvers, their worn pieces and the class arms. The Völva's ink is a region, so it stays.
+  - Her body and crest carry no colour map, just the lineage colour. Her head keeps the regions it has (teeth, mouth, tongue, horn), with the mouth and tongue taken almost to black.
+  - The hoard's mound carries no colour map; it is the hoard's gold.
+- **Parts follow `ART-006` as written.** Weapons, props, environment and dressing keep flat colour and hard normals.
+
+**Measured:**
+- **Rebuilt under the rule:** all six enemies (re-animated), the delvers' body and three worn pieces, the six class arm pairs, and Her. Triangle counts are unchanged; only the maps changed.
+- **Her:** her body and crest ship no colour map, and her head ships one region map.
+- **`--her-shot`:** 0.01–0.15 % of each view flashes, as before.
+
+**Honest scale:**
+- Her body, without its countershading, reads lighter and flatter in the Chamber. The hatch now carries her value, as it carries every other surface's.
+
 *Entries below to be added as design decisions are signed off.*

@@ -153,91 +153,43 @@ def scroll(points):
     return np.where(side, -0.018 * np.exp(-(d / 0.016) ** 2), 0.0)
 
 
-# ── Value (ADR-317) ──────────────────────────────────────────────────────
+# ── Regions (ADR-317, ADR-321) ───────────────────────────────────────────
 #
-# The Chamber colours her by lineage (ADR-050), so what is baked here is not a
-# colour but a **value map** her lineage colour is multiplied by: 1.0 where she
-# is her lineage's colour, darker where she is darker. Without it she is one
-# value from crest to belly, and a body of one value reads as a model, not an
-# animal. What it carries is what every reptile carries:
-# - **Countershading:** a dark back and a pale belly — the crocodile's and the
-#   monitor's — with the line between them on the Urnes double contour, so
-#   the carving and the colour agree on where her flank turns under.
-# - **Cavity:** dark in the cuts between scales and plates, so the carving
-#   reads under flat light, where a normal map alone says nothing.
-# - **Mottle:** a slow, faint variation, so a long band is not a gradient.
-# - On her head: ivory teeth, a dark mouth, and horn darker than the bone.
+# The Chamber colours her by lineage (ADR-050), and `ART-006` (as amended by
+# ADR-321) allows a map only flat colour per material region. Her body and crest
+# are one material each, so they carry no colour map. Her head carries the
+# regions it really has: ivory teeth, a dark red mouth and tongue, and horn —
+# what separate materials would give, multiplied by her lineage's colour.
+# ADR-317 also painted a countershaded back and belly, darkened crevices and a
+# mottle; those were value the ink owns, and are gone.
 
-def _smooth(e0, e1, x):
-    t = np.clip((x - e0) / (e1 - e0), 0.0, 1.0)
-    return t * t * (3.0 - 2.0 * t)
-
-
-BACK = 0.50
-## Linear tints at the dark and the light end, multiplied into the value: a
-## cool back and a warm belly, faint, so the lineage colour still decides.
-COOL = np.array([0.93, 0.96, 1.0])
-WARM = np.array([1.0, 0.95, 0.85])
+SKIN = np.array([1.0, 1.0, 1.0])
+TOOTH = np.array([0.95, 0.90, 0.76])
+# Dark, and only warm enough to read as flesh: gold is the one saturated hue
+# (`ART-006`), and blood and the inside of a mouth go almost to black.
+MOUTH = np.array([0.20, 0.15, 0.14])
+TONGUE = np.array([0.36, 0.26, 0.24])
+HORN = np.array([0.62, 0.62, 0.62])
 
 
-def _tinted(value):
-    light = np.clip((value - BACK) / (1.0 - BACK), 0.0, 1.0)[:, None]
-    return value[:, None] * (COOL * (1.0 - light) + WARM * light)
-
-
-def _cavity(h):
-    return 0.70 + 0.30 * np.clip(0.5 + h / 0.02, 0.0, 1.0)
-
-
-def body_value(bands, points, idx, normal_z, height):
-    """Her body's value map, in linear RGB."""
-    a = bands.dorsal(points, idx)
-    v = points - bands.c[idx]
-    along = np.einsum("ij,ij->i", v, bands.t[idx])
-    radial = np.linalg.norm(v - bands.t[idx] * along[:, None], axis=1)
-    w = np.clip((np.abs(radial - bands.r[idx]) - 0.06) / (OFF_BAND - 0.06), 0.0, 1.0)
-    on_band = BACK + (1.0 - BACK) * _smooth(1.55, 2.25, a)
-    on_limb = BACK + (1.0 - BACK) * _smooth(0.25, -0.55, normal_z)
-    value = (on_band * (1.0 - w) + on_limb * w) * _cavity(height)
-    value *= 1.0 + 0.07 * S.fbm(points, 0.7, 2)
-    return _tinted(np.clip(value, 0.0, 1.0))
-
-
-def head_value(points, normal_z, height):
-    """Her head's value map, in its own frame, in linear RGB."""
-    value = (BACK + (1.0 - BACK) * _smooth(0.25, -0.45, normal_z)) * _cavity(height)
-    value *= 1.0 + 0.06 * S.fbm(points, 0.35, 2)
-    out = _tinted(np.clip(value, 0.0, 1.0))
+def head_value(points, normal_z):
+    """Her head's regions, in its own frame, in linear RGB."""
+    out = np.tile(SKIN, (len(points), 1))
     skin = H.skin(points)
     near = 0.006
     teeth = np.minimum(H.upper_teeth(points), H.lower_teeth(points))
     horns = H.horns(points)
     tongue = H.tongue(points)
-    # The mouth: inside the line of the jaws, between the palate and the
-    # floor, and not a tooth. Dark, and red as a mouth is.
+    # The mouth: inside the rows of teeth and behind the front ones, the palate
+    # looking down and the floor up, so the outside of a lip stays skin.
     m = np.abs(points[:, 0])
     half = H._half_width(points[:, 1])
     q = S.into(points, H._jaw_frame())
-    # Inside the rows of teeth and behind the front ones: the lip and the gum
-    # outside them stay skin, or the snout wears a band of red like paint.
     inside = (m < 0.70 * half) & (points[:, 1] < 0.20) & (points[:, 1] > H.TIP + 0.30)
-    # By facing as well as by place: the palate looks down and the floor up,
-    # so the outside of a lip at the same height stays skin.
     palate = (points[:, 2] < -0.10) & (points[:, 2] > -0.27) & (normal_z < -0.35)
     floor = (q[:, 2] > -0.33) & (q[:, 2] < -0.14) & (normal_z > 0.25)
-    mouth = inside & (palate | floor)
-    out[mouth] = (0.34, 0.13, 0.12)
-    out[tongue < np.minimum(skin, teeth) + near] = (0.52, 0.20, 0.19)
-    horn = horns < skin + near
-    out[horn] = _tinted(np.full(int(horn.sum()), 0.55) * _cavity(height[horn]))
-    tooth = teeth < np.minimum(skin, tongue) + near
-    out[tooth] = (0.95, 0.90, 0.76)
+    out[inside & (palate | floor)] = MOUTH
+    out[tongue < np.minimum(skin, teeth) + near] = TONGUE
+    out[horns < skin + near] = HORN
+    out[teeth < np.minimum(skin, tongue) + near] = TOOTH
     return out
-
-
-def crest_value(points):
-    """The crest plates: dark at the root, paling toward the edge, as horn
-    does."""
-    out = BODY.skin(points)
-    value = 0.30 + 0.26 * np.clip(out / 0.45, 0.0, 1.0)
-    return _tinted(value)

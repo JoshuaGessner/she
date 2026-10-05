@@ -4,7 +4,7 @@ title: Modelling Brief — for an Agent Building Assets
 status: accepted
 owner: art
 tags: [art, assets, brief, modelling, specs, blender, gltf]
-updated: 2026-09-28
+updated: 2026-10-05
 related: [ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002]
 ---
 
@@ -34,6 +34,12 @@ What that means for you, in one line:
 > **Model the form. The surface arrives on its own.**
 
 Do not model pitting, grain, pebbling or wear as geometry — the normal map does it, at every scale, for free. **Do** model anything that changes the silhouette or is a real cut in the material: courses of masonry, chamfers, rebates, the step of a plinth, a broken edge. Those are form.
+
+> **Amended by ADR-321 for sculpted assets** (ADR-315 onward: Her, the enemies, the delvers, their worn pieces, the class arms, the hoard's mound). One sculpted mesh replaces many parts, so:
+> - **A per-asset normal map** may carry the carving too fine for its budget — scales, folds, struck coin.
+> - **A per-asset colour map** may carry **flat colour per material region** — exactly what separate materials would have given, and nothing more. No variation within a region, no painted light or shade (countershading included), and no darkening in a crevice: that is baked ambient occlusion by another name, and value is the ink's.
+>
+> Everything modelled as parts still follows ①–④ as written. Weapons, props, environment and set dressing get flat colour and hard normals.
 
 **② Hard edges are functional, not stylistic.**
 The outline pass reads the **normal buffer**. A model exported fully smooth-shaded produces weak or missing interior lines — the shader has nothing to detect, and the object reads as a blurry lump with a rim. **Split normals on everything with a defined form:** masonry, plate, timber, blades, cut stone, worked metal. Smooth only what is genuinely soft — cloth folds, flesh, organic growth, fungus.
@@ -309,7 +315,7 @@ Run through this per asset. Every line is something the build will otherwise rej
 6. **Collision node present and named with a suffix**, simplified, for anything in `environment/` or `props/`.
 7. **Footprint on the 2 m grid**, if it is in `environment/`.
 8. **Triangle count under the ceiling** for the folder.
-9. **No textures, no baked lighting, no ambient occlusion.**
+9. **No textures, no baked lighting, no ambient occlusion.** *(A sculpted asset may carry its own normal map and a flat-per-region colour map — ADR-321.)*
 10. Exported as `.glb`, Y-up, −Z forward, into the right folder.
 
 ---
