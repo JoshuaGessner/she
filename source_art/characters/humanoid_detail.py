@@ -70,6 +70,8 @@ MATERIALS = {
     "dark": ((0.050, 0.046, 0.042), 0.80, _hair),
     "cloth": ((0.105, 0.105, 0.11), 0.60, _cloth),
     "rag": ((0.15, 0.142, 0.125), 0.60, _rag),
+    # The delvers' tunic (ADR-318): undyed linen, the lightest cloth in the game.
+    "linen": ((0.36, 0.33, 0.27), 0.60, _cloth),
     "leather": ((0.16, 0.115, 0.075), 0.60, _leather),
     "iron": ((0.16, 0.175, 0.185), 0.40, _iron),
     "mail": ((0.22, 0.235, 0.245), 0.40, _mail),

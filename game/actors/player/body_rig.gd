@@ -51,14 +51,6 @@ extends Node3D
 ## character art"*; it stays `humanoid_rig.glb`'s, for `rig_probe`. This is the
 ## same skeleton under a body built from the enemies' anatomy.
 const RIG: PackedScene = preload("res://art/characters/player_body.glb")
-## The teammate's value range across the body's surfaces (ADR-308): each is the
-## skin's colour shaded by how light it was authored, against linen at
-## `SKIN_REFERENCE`, and never darker than `SKIN_FLOOR` of the skin — 0.54 at
-## the scene's 0.72, still lighter than every enemy state (0.20–0.52), so hair
-## and a belt read as hair and a belt without a teammate reading as a threat.
-const SKIN_REFERENCE: float = 0.33
-const SKIN_FLOOR: float = 0.75
-const SKIN_CEILING: float = 1.05
 
 ## Metres of travel per complete two-step cycle ⟨tune⟩. Measured against the
 ## rig's 1.80 m and `walk_speed`; shorter reads as a scurry, longer as a stride
@@ -732,16 +724,21 @@ func _turn(name: String, radians: float) -> void:
 			* Quaternion(_swing[name], radians))
 
 
-## Every surface of the body in the teammate's value range (ADR-308).
+## The body in the teammate's colour, its own value and carving kept (ADR-318).
+## The body is sculpted and baked: its value map already holds ADR-308's range
+## — each material's lightness against linen, never darker than 0.75 of the
+## teammate's colour, so hair and a belt read as hair and a belt without a
+## teammate reading as a threat — and its normal map holds the folds and the
+## face. So the teammate's colour multiplies the one, and the other is kept.
 func _dress_in(skin: StandardMaterial3D) -> void:
 	for surface: int in _mesh.mesh.get_surface_count():
 		var authored := _mesh.mesh.surface_get_material(surface) as BaseMaterial3D
 		var made := skin.duplicate() as StandardMaterial3D
 		if authored != null:
-			var shade: float = clampf(authored.albedo_color.get_luminance() / SKIN_REFERENCE,
-				SKIN_FLOOR, SKIN_CEILING)
-			made.albedo_color = Color(skin.albedo_color.r * shade,
-				skin.albedo_color.g * shade, skin.albedo_color.b * shade)
+			made.albedo_texture = authored.albedo_texture
+			made.normal_enabled = authored.normal_enabled
+			made.normal_texture = authored.normal_texture
+			made.normal_scale = authored.normal_scale
 		_mesh.set_surface_override_material(surface, made)
 
 

@@ -302,10 +302,14 @@ def spec(kind):
     return HERO.get(kind, dict(voxel=VOXEL, body_tris=BODY_TRIS, texture=TEXTURE, ceiling=6000))
 
 
-def build(kind):
-    rig = em.begin()
-    regions, hard = KINDS[kind]()
-    plan = spec(kind)
+def sculpt(name, regions, plan, rig, rigid=None, colour=None):
+    """One sculpted body on the shared rig: `regions(points)` names each
+    material's field, the body is their union, and each point is the material
+    whose field is nearest. Meshed at `plan`'s voxel, decimated to its budget,
+    baked to a normal map and a colour map — `colour(points, which, names)`,
+    or each material's own — inked by family and weighted by bone heat.
+    Shared with the delvers' body (ADR-318)."""
+    colour = colour or Dt.colour
 
     def field(p):
         return np.min(np.stack(list(regions(p).values())), axis=0)
@@ -315,7 +319,7 @@ def build(kind):
         names = list(r.keys())
         return np.argmin(np.stack([r[n] for n in names]), axis=0), names
 
-    body = K.mesh_field(f"{kind}_body", field, BOUNDS[0], BOUNDS[1], plan["voxel"], material(f"{kind}_skin"))
+    body = K.mesh_field(f"{name}_body", field, BOUNDS[0], BOUNDS[1], plan["voxel"], material(f"{name}_skin"))
     K.outward(body)
     K.decimate(body, plan["body_tris"])
     K.unwrap(body, 0.006)
@@ -326,11 +330,11 @@ def build(kind):
 
     def colour_at(points, _nearest, _face):
         w, names = which(points)
-        return Dt.colour(points, w, names)
+        return colour(points, w, names)
 
-    normal, colour = K.bake(body, plan["texture"], height_at, f"{kind}_n", colour_at, field)
+    normal, colour_map = K.bake(body, plan["texture"], height_at, f"{name}_n", colour_at, field)
     mat = body.data.materials[0]
-    K.with_colour_map(mat, colour)
+    K.with_colour_map(mat, colour_map)
     K.with_normal_map(mat, normal)
     # Ink family per corner, from the material nearest each vertex.
     co = np.array([v.co for v in body.data.vertices])
@@ -343,7 +347,6 @@ def build(kind):
     weigh(body, rig)
     # A material that is carried rather than worn rides its bones rigidly:
     # bone heat would let a swinging arm drag a share of the hoard with it.
-    rigid = RIGID.get(kind, {})
     if rigid:
         for v in body.data.vertices:
             weights = rigid.get(names[w[v.index]])
@@ -354,7 +357,13 @@ def build(kind):
             for bone, value in weights.items():
                 group = body.vertex_groups.get(bone) or body.vertex_groups.new(name=bone)
                 group.add([v.index], value, "REPLACE")
-    em.PARTS.append(body)
+    return body
+
+
+def build(kind):
+    rig = em.begin()
+    regions, hard = KINDS[kind]()
+    em.PARTS.append(sculpt(kind, regions, spec(kind), rig, RIGID.get(kind)))
     hard()
     return rig
 

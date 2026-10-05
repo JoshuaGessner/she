@@ -11393,4 +11393,38 @@ A stamina mark drawn on a client would have been drawing the wrong number.
 - The values and the curl's size are ⟨tune⟩. How she looks from the door is the developer's to judge.
 - She is still one rigid body that breathes and turns her head.
 
+## ADR-318 — The delvers are sculpted: body, mail, bracers and Ótr's pelt
+
+**Date:** 2026-10-04 · **Status:** accepted · **Supersedes ADR-308's construction; keeps its body, its masking and its value range** · **Developer's call: "Refine everything… don't stop until production quality is reached."**
+
+**Context:** ADR-316 sculpted every enemy and left the delver behind. A teammate was still ADR-308's lofted anatomy: a block of a tunic, boxes for brows, rings for wraps. The byrnie was a stack of rings, and Ótr's pelt was a box with an otter stuck to it. The one human the players look at most was the least finished human in the game.
+
+**References:**
+- **Viking-age working dress** — the Hedeby and Kragelund tunics, the Thorsberg trousers, leg wraps — for the body, the same dress the Wretches are a ruin of.
+- **The Gjermundbu mail** for the byrnie's cut.
+- **The Valsgärde vambraces and the Birka splints** for the bracers.
+- **Ótr in *Völsunga saga* and *Reginsmál***, and the living otter (flat broad skull, small ears, blunt muzzle, pale throat), for the pelt.
+
+**Decision:**
+- **The body is sculpted through the enemies' builder.** `build_enemies.sculpt` is factored out of `build`, and the delver is built through it from `sculpt_humanoid` (`build_player_body.py`): a tunic to mid-thigh with fitted sleeves to the wrist, trousers, leg wraps, turnshoes, a belt, and hair bound back with a braid. The rig's constraints hold:
+  - It stands 1.835 m tall (1.76–1.84). The bound hair sits closer to the skull to manage that.
+  - The upper arm reaches 0.348 m, inside the 0.35 m capsule, with limbs at 0.90 and a fitted sleeve.
+- **Its value is baked; its colour stays the teammate's.** The body bakes a value map: each material's lightness against linen, held to ADR-308's range (never below 0.75 of the teammate's colour, so hair and a belt never read as a threat). `BodyRig._dress_in` keeps that map and the normal map and multiplies the teammate's colour into them. `SKIN_REFERENCE`, `SKIN_FLOOR` and `SKIN_CEILING` move out of `BodyRig` into the builder, where the range is now applied.
+- **The worn pieces are sculpted over that body** (`build_worn.py`):
+  - **The byrnie** is mail to mid-thigh, split, with sleeves past the elbow.
+  - **The bracers** are forearm shells with rolled rims (`sculpt_humanoid.bracer`).
+  - **Ótr's pelt** is a thick otter hide: the head on the right shoulder looking forward, forepaws on the chest, the tail to the knees.
+  - A body piece carries the trousers, wraps and shoes it hides, as before. Its review hides the body as `BodyRig` does, by dominant bone.
+- **What they replaced is deleted:** `build_worn_pelt.py`, the mail and bracers in `build_worn_armour.py` (which keeps only the lofting helpers the class arms still use), and the thirteen lofted anatomy helpers in `build_enemy_models.py` that only the old body called.
+
+**Measured:**
+- **Triangles:** body 7,000; byrnie 7,500; bracers 1,600; pelt 9,000 — each under `ART-004`'s 10,000 for a character.
+- **Class arms:** rebuilt from the pruned module, they export byte-identical.
+- **`--body-shot`:** the teammate reads in the byrnie, in the pelt, and side-on with axe and pack.
+- **Found in this sweep:** `--verbs-probe` read a breathing snare as still (0.003) on a loaded run. It sampled the ring twice, 0.4 s apart, which measures the breath's phase as much as its size. It now takes the range over one whole breath — 0.080 on every run since — and demands at least `Snare.BREATH`, a stricter check that cannot flake.
+
+**Honest scale:**
+- The helm, the pack, the lantern and the first-person class arms are still ADR-308-era construction, and are next.
+- The value range and the fit are ⟨tune⟩.
+
 *Entries below to be added as design decisions are signed off.*

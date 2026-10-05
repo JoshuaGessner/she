@@ -4,7 +4,7 @@ title: Worn Armour, Class Arms and Depth Variants — Review
 status: proposed
 owner: art
 tags: [art, assets, modelling, review]
-updated: 2026-10-02
+updated: 2026-10-04
 related: [ART-004, ART-006, ART-007, DES-020, TEC-008]
 ---
 
@@ -25,14 +25,11 @@ pose from `humanoid_rig.blend`; neither adds sockets or changes the player
 collider. The loose pickup props retain their base-centred pivots.
 
 - [Mail fit](../../source_art/characters/mail_byrnie_worn_review.png)
-- [Mail under a bent pose](../../source_art/characters/mail_byrnie_worn_posed_review.png)
 - [Bracer fit](../../source_art/characters/iron_bracers_worn_review.png)
-- [Bracers under a bent pose](../../source_art/characters/iron_bracers_worn_posed_review.png)
 
-The pale head and uncovered limbs in the equipment reviews are the existing
-measurement body, not newly delivered character art. Covered body geometry is
-hidden when wearing the mail and restored when it is removed, so a rigid base
-leg cannot poke through a deforming trouser knee.
+Covered body geometry is hidden when wearing the mail and restored when it is
+removed, so a rigid base leg cannot poke through a deforming trouser knee. The
+reviews hide it the same way.
 
 `otr_pelt_worn.glb` supplies the other Body-slot item: Ótr’s Pelt. Its fur
 mantle sits over a complete tunic, trousers and boots so replacing mail does
@@ -42,7 +39,7 @@ is restored on unequip. Every Body/Arms item now requires a worn-model reference
 in its data validation.
 
 - [Pelt fit](../../source_art/characters/otr_pelt_worn_review.png)
-- [Pelt under a bent pose](../../source_art/characters/otr_pelt_worn_posed_review.png)
+- [Pelt from behind](../../source_art/characters/otr_pelt_worn_rear_review.png)
 
 ## The body under the gear (ADR-308)
 
@@ -53,6 +50,34 @@ boots and bound hair. The proxy stays in `humanoid_rig.glb` for `rig_probe`.
 Armour hides the body by each vertex's dominant bone, so the neck is weighted
 to `neck` and survives a byrnie. The byrnie's sleeves and trousers follow the
 same limb profiles; its review renders over the delvers' body, not the proxy.
+
+## Sculpted, as the enemies are (ADR-318)
+
+When the enemies were sculpted (ADR-316), the delver was left the one boxy
+human in the game. The body and all three worn pieces are now sculpted through
+`build_enemies.sculpt`, from `sculpt_humanoid`'s anatomy and garments:
+
+| Piece | Triangles | Built by |
+|---|---|---|
+| `player_body` | 7,000 | `build_player_body.py` |
+| `mail_byrnie_worn` | 7,500 | `build_worn.py` |
+| `iron_bracers_worn` | 1,600 | `build_worn.py` |
+| `otr_pelt_worn` | 9,000 | `build_worn.py` |
+
+- **The body** is a tunic to mid-thigh with fitted sleeves to the wrist,
+  trousers, leg wraps, turnshoes, a belt, and hair bound back with a braid.
+  It stands 1.835 m tall, and its upper arm reaches 0.348 m, inside the rig's
+  0.35 m capsule.
+- **Its colour is the teammate's.** It bakes a value map — each material's
+  lightness against linen, held to ADR-308's range of 0.75–1.0 — and
+  `BodyRig._dress_in` keeps that map and the normal map, taking only the
+  teammate's colour.
+- **The byrnie** is mail to mid-thigh, split for the stride, with sleeves past
+  the elbow.
+- **The bracers** are hammered forearm shells with rolled rims.
+- **Ótr's pelt** is a thick otter-hide mantle down the back. The head lies on
+  the right shoulder looking forward, with its pale throat; the forepaws hang
+  on the chest, and the tail runs to the knees.
 
 ## First-person arm library
 
@@ -87,9 +112,9 @@ the visual variants do not replace its collision or navigation surfaces.
 
 Run these with Blender in background mode and `--python-exit-code 1`:
 
-- `source_art/characters/build_worn_armour.py`
+- `source_art/characters/build_player_body.py`
+- `source_art/characters/build_worn.py`
 - `source_art/characters/build_class_arms.py`
-- `source_art/characters/build_worn_pelt.py`
 - `source_art/environment/build_delvings_depth.py`
 
 The measurement JSON files next to the scripts record triangle counts and

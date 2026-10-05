@@ -16416,9 +16416,23 @@ func _verbs_probe() -> void:
 	snare.position = body.global_position + ahead * 3.0
 	add_child(snare)
 	await _hold(0.25)
-	var first: float = snare.ring_scale()
-	await _hold(0.4)
-	var breathed: float = absf(snare.ring_scale() - first)
+	# The ring's range over one whole breath, sampled every frame. Two samples
+	# 0.4 s apart read the breath's phase as much as its size: a loaded sweep
+	# once caught both on the same height of the swing and read a breathing
+	# snare as still (0.003). Over a full cycle a breath is ~2 × `BREATH`
+	# wherever it starts.
+	var low: float = INF
+	var high: float = -INF
+	var until: int = Time.get_ticks_msec() + int(1000.0 / Snare.BREATH_HZ) + 100
+	while Time.get_ticks_msec() < until:
+		await get_tree().process_frame
+		low = minf(low, snare.ring_scale())
+		high = maxf(high, snare.ring_scale())
+	var breathed: float = high - low
+	# Spring it from a physics frame, as the hold before it always did: sprung
+	# from inside a process frame, the snap's tween stepped before it was read
+	# and had already swung through (`TRANS_BACK`) to 0.94.
+	await get_tree().physics_frame
 	snare.sprung = true
 	await get_tree().process_frame
 	var snapped: float = snare.ring_scale()
@@ -16426,7 +16440,7 @@ func _verbs_probe() -> void:
 	var settled: float = snare.ring_scale()
 	print("[verbs] snare       armed moves %.3f; sprung %.2f → %.2f"
 		% [breathed, snapped, settled])
-	if breathed < 0.005:
+	if breathed < Snare.BREATH:
 		problems.append("a set snare lies still — it reads as a decal, not a trap")
 	if snapped < 1.2 or absf(settled - 1.0) > 0.02:
 		problems.append("a sprung snare did not snap shut (%.2f → %.2f)" % [snapped, settled])

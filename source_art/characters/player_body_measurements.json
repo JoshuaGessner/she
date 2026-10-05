@@ -1,6 +1,7 @@
 {
-  "triangles": 5266,
-  "height_m": 1.83,
+  "triangles": 7000,
+  "height_m": 1.835,
   "upper_arm_reach_m": 0.348,
-  "bones": 28
+  "bones": 28,
+  "sculpted": true
 }

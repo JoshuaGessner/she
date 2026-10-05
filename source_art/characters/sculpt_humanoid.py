@@ -346,10 +346,12 @@ def mail_coat(p, b: Build, hem=0.56, sleeves=0.42):
     return d
 
 
-def bound_hair(p, b: Build, braid=0.30):
-    """Hair bound back under a band, a braid down the spine: the Sling-Wretch's."""
+def bound_hair(p, b: Build, braid=0.30, crown=0.0):
+    """Hair bound back under a band, a braid down the spine: the Sling-Wretch's,
+    and the delvers' — theirs sat `crown` lower, close to the skull, so a
+    delver stands inside the rig's height (ADR-318)."""
     w = b.broad
-    cap = S.ellipsoid(p - V((0.0, 0.025, 1.715)), V((0.110 * w, 0.125, 0.128 * b.stature)) + 0.008)
+    cap = S.ellipsoid(p - V((0.0, 0.025, 1.715 + crown)), V((0.110 * w, 0.125, 0.128 * b.stature)) + 0.008)
     # Off the face: the hairline runs back from the brow and down behind the ears.
     face = S.ellipsoid(p - V((0.0, -0.12, 1.66)), V((0.095 * w, 0.10, 0.10)))
     cap = S.carve(cap, face, 0.015)
@@ -466,6 +468,28 @@ def arm_rings(p, side, b: Build, at=(0.50, 0.62, 0.74)):
         rad = np.linalg.norm(q - np.outer(zt, axis), axis=1)
         r = (0.047 + (0.031 - 0.047) * f) * b.limb + 0.010
         d = np.minimum(d, np.hypot(rad - r, zt) - 0.009)
+    return d
+
+
+def bracer(p, side, b: Build, start=0.60, end=0.93, grow=0.013):
+    """A forearm guard (ADR-318): a shell over the forearm from `start` to
+    `end` (0.5 the elbow, 1.0 the wrist), its two edges rolled into a rim, as
+    the hammered iron of the Valsgärde vambraces and the Birka splints are."""
+    sx = 1.0 if side == "l" else -1.0
+    el, wr = V((0.31 * sx, 0.0, 1.35)), V((0.42 * sx, 0.0, 1.10))
+    axis = (wr - el) / np.linalg.norm(wr - el)
+    a, z = el + (wr - el) * (start - 0.5) * 2.0, el + (wr - el) * (end - 0.5) * 2.0
+    d = arm(p, side, b, grow)
+    along = (p - a) @ axis
+    span = float(np.linalg.norm(z - a))
+    d = S.smax(d, np.maximum(-along, along - span), 0.004)
+    for f in (start, end):
+        c = el + (wr - el) * (f - 0.5) * 2.0
+        q = p - c
+        zt = q @ axis
+        rad = np.linalg.norm(q - np.outer(zt, axis), axis=1)
+        r = (0.047 + (0.031 - 0.047) * (f - 0.5) * 2.0) * b.limb + grow + 0.002
+        d = S.smin(d, np.hypot(rad - r, zt) - 0.006, 0.004)
     return d
 
 

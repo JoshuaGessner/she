@@ -6,131 +6,121 @@ Run with Blender, after `build_humanoid_rig.py`:
 
 **Why this is not the rig's proxy** (ADR-308). `build_humanoid_rig.py` makes a
 proxy of spheres, boxes and cylinders and says what it is for: *"rig placement
-and measurement only; not character art"*. ADR-254 put it on every teammate
-anyway, because it was what the rig had. It stays the rig's measuring stick;
-this is the character, built from the same anatomy as every enemy
-(`build_enemy_models.py`, ADR-305) so a delver and a Wretch are one people.
+and measurement only; not character art"*. It stays the rig's measuring stick;
+this is the character.
+
+**Sculpted, as the enemies are** (ADR-318). ADR-308 built the delver from the
+enemies' lofted anatomy, and when the enemies were sculpted (ADR-316) the
+delver was left the one boxy human in the game. It is now the same sculpt —
+`sculpt_humanoid`'s anatomy and garments, through `build_enemies.sculpt` — so
+a delver and a Wretch are still one people: the Viking-age working dress the
+Wretches are a ruin of. A tunic to mid-thigh with a plain hem and sleeves to
+the wrist, trousers, leg wraps, turnshoes, a belt, and hair bound back under
+a band, with a braid.
+
+**Its colour is the teammate's.** `BodyRig` gives each teammate their colour at
+runtime, so what is baked is a **value map** it multiplies (ADR-318): each
+material's lightness against linen, held to ADR-308's range — never below
+`SKIN_FLOOR` of the teammate's colour, so hair and a belt read as hair and a
+belt without a teammate reading as a threat (every enemy state is darker).
 
 **What gear hides.** `BodyRig` hides the base body under armour by each vertex's
 dominant bone — pelvis, spine, chest, legs, feet and upper arms. So what always
-shows is weighted to what armour never covers: the head, the neck (weighted to
-`neck` here, where the enemies' is on the chest), the forearms and the hands.
+shows is weighted to what armour never covers: the head, the neck, the
+forearms and the hands.
 """
 from __future__ import annotations
 
 import json
-import math
 import sys
 from pathlib import Path
 
-import bmesh
 import bpy
-from mathutils import Vector
+import numpy as np
 
 SRC = Path(__file__).resolve().parent
 ROOT = SRC.parents[1]
 OUT = ROOT / "game" / "art" / "characters" / "player_body.glb"
 sys.path.insert(0, str(SRC.parent / "enemies"))
-import build_enemy_models as anatomy  # noqa: E402
+sys.path.insert(0, str(SRC.parent / "lib"))
+sys.path.insert(0, str(SRC))
+import build_enemies as E  # noqa: E402
+import build_enemy_models as em  # noqa: E402
+import humanoid_detail as Dt  # noqa: E402
+import sculpt_humanoid as Hm  # noqa: E402
 
-## The shared head is the enemies', drawn large for reading at range. A delver's
-## is scaled about the chin to human proportion ⟨tune⟩.
-HEAD_SCALE = 0.88
-CHIN = Vector((0.0, 0.0, 1.52))
 ## The rig's collider (`build_humanoid_rig.CAPSULE_RADIUS_M`): nothing the upper
 ## arm owns may stand outside it.
 CAPSULE = 0.35
-BROAD = 0.92
+BUILD = Hm.Build(broad=0.92, limb=0.90, stature=1.0, beard=0.0)
+## A character's budget is `ART-004`'s 10,000; the worn pieces go over it.
+PLAN = dict(voxel=0.010, body_tris=7000, texture=1024, ceiling=10000)
+## ADR-308's range, moved here from `BodyRig` (ADR-318): a material's value is
+## its lightness against linen's, never darker than `SKIN_FLOOR` of the
+## teammate's colour and never lighter than it.
+SKIN_FLOOR = 0.75
+LUMINANCE = np.array([0.2126, 0.7152, 0.0722])
 
 
-def head_weight(obj: bpy.types.Object, vertex: bpy.types.MeshVertex) -> float:
-    head = obj.vertex_groups.get("head")
-    if head is None:
-        return 0.0
-    for link in vertex.groups:
-        if link.group == head.index:
-            return link.weight
-    return 0.0
-
-
-def build() -> bpy.types.Object:
-    rig = anatomy.begin()
-    anatomy.PALETTE["linen"] = ((0.36, 0.33, 0.27, 1.0), 0.60, 0.0)
-    anatomy.body("linen", stature=1.0, broad=BROAD, flaps=False, hood=False, bare_arms=False)
-    # A tunic to mid-thigh with a plain hem, leg wraps over the trousers, and
-    # hair bound back: the Viking-age working dress the enemies are a ruin of.
-    anatomy.tattered_hem("linen", BROAD, hang=.34, torn=0.0)
+def regions(p):
+    b = BUILD
+    flesh = np.minimum(Hm.head(p, b), Hm.neck(p, b))
+    linen = Hm.tunic(p, b, hem=0.62, flare=0.06, torn=0.0, slit=True)
     for side in ("l", "r"):
-        anatomy.bindings(side, "thigh", "calf", .107 * BROAD, (.30, .45, .60, .75), "rag")
-    anatomy.bound_hair(lambda p: {"head": max(0.0, min(1.0, (p.z - 1.50) / .15)),
-                                  "neck": 1.0 - max(0.0, min(1.0, (p.z - 1.50) / .15))}
-                       if p.z > 1.50 else {"neck": 1.0}, BROAD)
-    # Shoulders that join the arm to the body. The enemies' are hidden under
-    # capes and plates; a delver in a tunic shows the deltoid standing off the
-    # torso like a pad without them.
-    for side, sign in (("l", 1), ("r", -1)):
-        anatomy.ellipsoid(f"shoulder_{side}", Vector((sign * .165, .004, 1.468)), (.098, .090, .062),
-                          "linen", {"chest": .55, f"upper_arm_{side}": .45}, True, 12, 6)
-    # A collar round the neck opening, and cuffs at the wrists: the tunic's
-    # edges, which are what make it read as a garment rather than a skin.
-    anatomy.loft("tunic_collar", [anatomy.ring(Vector((0, .006, 1.515)), .128, .106, 14),
-                                  anatomy.ring(Vector((0, .006, 1.545)), .114, .094, 14)],
-                 "leather", {"chest": 1.0}, False, cap=False)
-    for side in ("l", "r"):
-        anatomy.bindings(side, "upper_arm", "forearm", .083 * BROAD, (.80, .86), "leather")
-    # The neck is the neck's, so a byrnie does not take it off with the chest.
-    for obj in anatomy.PARTS:
-        if obj.name == "neck":
-            obj.vertex_groups.clear()
-            group = obj.vertex_groups.new(name="neck")
-            group.add(range(len(obj.data.vertices)), 1.0, "REPLACE")
-    # The head to human size, each vertex as far as the head owns it.
-    for obj in anatomy.PARTS:
-        for vertex in obj.data.vertices:
-            owned = head_weight(obj, vertex)
-            if owned > 0.0:
-                scaled = CHIN + (vertex.co - CHIN) * HEAD_SCALE
-                vertex.co = vertex.co.lerp(scaled, owned)
-        obj.data.update()
+        flesh = np.minimum(flesh, Hm.hand(p, side, b))
+        # Fitted: a loose sleeve puts the elbow outside the rig's capsule.
+        linen = np.minimum(linen, Hm.sleeve(p, side, b, to=0.94, grow=0.004))
+    return {
+        "flesh": flesh,
+        "dark": Hm.bound_hair(p, b, braid=0.30, crown=-0.016),
+        "linen": linen,
+        "cloth": Hm.trousers(p, b, bottom=0.28),
+        "rag": Hm.wraps(p, b, legs=True, arms=False),
+        "leather": np.minimum(np.minimum(Hm.boots(p, b, top=0.27), Hm.belt(p, b)),
+                              np.minimum(Hm.headband(p, b), Hm.collar(p, z=1.545, rx=0.125, ry=0.112))),
+    }
+
+
+def value(points, which, names):
+    """Each material's lightness against linen, in the teammate's range, with
+    the material's own variation through it."""
+    linen = float(np.asarray(Dt.MATERIALS["linen"][0]) @ LUMINANCE)
+    shade = np.clip((Dt.colour(points, which, names) @ LUMINANCE) / linen, SKIN_FLOOR, 1.0)
+    return np.repeat(shade[:, None], 3, axis=1)
+
+
+def build():
+    rig = em.begin()
+    body = E.sculpt("player", regions, PLAN, rig, colour=value)
+    body.name = "player_body"
+    em.PARTS.append(body)
     return rig
 
 
-def validate(rig: bpy.types.Object) -> dict[str, object]:
-    anatomy.validate()
-    top = max(v.co.z for obj in anatomy.PARTS for v in obj.data.vertices)
-    low = min(v.co.z for obj in anatomy.PARTS for v in obj.data.vertices)
-    assert abs(low) < 0.02, low
-    assert 1.76 <= top <= 1.84, top
-    reach = 0.0
-    for obj in anatomy.PARTS:
+def validate(rig):
+    em.validate(PLAN["ceiling"])
+    co = np.array([v.co for obj in em.PARTS for v in obj.data.vertices])
+    assert abs(co[:, 2].min()) < 0.02, co[:, 2].min()
+    assert 1.76 <= co[:, 2].max() <= 1.84, co[:, 2].max()
+    reach, far = 0.0, None
+    for obj in em.PARTS:
         names = {group.index: group.name for group in obj.vertex_groups}
         for vertex in obj.data.vertices:
             if not vertex.groups:
                 continue
             strongest = max(vertex.groups, key=lambda link: link.weight)
             if names[strongest.group].startswith("upper_arm"):
-                reach = max(reach, abs(vertex.co.x))
-    assert reach <= CAPSULE + 1e-6, reach
-    return {"triangles": anatomy.triangle_count(), "height_m": round(top, 3),
-            "upper_arm_reach_m": round(reach, 3), "bones": len(rig.data.bones)}
+                if abs(vertex.co.x) > reach:
+                    reach, far = abs(vertex.co.x), tuple(round(c, 3) for c in vertex.co)
+    assert reach <= CAPSULE + 1e-6, (reach, far)
+    return {"triangles": em.triangle_count(), "height_m": round(float(co[:, 2].max()), 3),
+            "upper_arm_reach_m": round(reach, 3), "bones": len(rig.data.bones), "sculpted": True}
 
 
-def export(rig: bpy.types.Object) -> None:
+def export(rig):
     bpy.ops.object.select_all(action="DESELECT")
-    for obj in anatomy.PARTS:
-        # glTF node names share a namespace with joints (see animate_enemies).
-        if obj.name in rig.data.bones:
-            obj.name = "mesh_" + obj.name
-        bm = bmesh.new()
-        bm.from_mesh(obj.data)
-        bmesh.ops.recalc_face_normals(bm, faces=list(bm.faces))
-        bm.to_mesh(obj.data)
-        bm.free()
+    for obj in em.PARTS:
         obj.select_set(True)
-    # One skinned mesh: `BodyRig` takes the first mesh it finds as the body.
-    bpy.context.view_layer.objects.active = anatomy.PARTS[0]
-    bpy.ops.object.join()
-    bpy.context.object.name = "player_body"
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
     bpy.ops.wm.save_as_mainfile(filepath=str(SRC / "player_body.blend"))
@@ -141,12 +131,11 @@ def export(rig: bpy.types.Object) -> None:
         export_attributes=True, export_extras=True)
 
 
-def main() -> None:
+def main():
     rig = build()
     report = validate(rig)
-    anatomy.SRC = SRC
-    anatomy.review("player_body")
     export(rig)
+    em.review("player_body", SRC)
     (SRC / "player_body_measurements.json").write_text(json.dumps(report, indent=2) + "\n")
     print(json.dumps(report, indent=2))
 
