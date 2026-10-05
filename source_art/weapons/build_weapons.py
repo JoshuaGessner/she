@@ -150,12 +150,20 @@ def loft(collection, name, sections, material_name, sides=10):
     return mesh_object(collection,name,verts,faces,material_name)
 
 
-def blade(collection, name, sections, fuller=False):
-    """Hexagonal forged cross-section: two keen edges and two broad bevels per side."""
+def blade(collection, name, sections, fuller=False, back=False):
+    """Hexagonal forged cross-section: two keen edges and two broad bevels per side.
+
+    With `back`, one edge only: a thick flat spine along `high` and a long
+    bevel from it down to the edge at `low`, the wedge a seax is forged to.
+    """
     verts, faces = [], []
     for y, low, high, thickness in sections:
         mid=(low+high)*.5
-        if fuller:
+        if back:
+            bevel=low+(high-low)*.55
+            verts.extend([(-.0004,y,low),(-thickness,y,bevel),(-thickness*.85,y,high),
+                          (thickness*.85,y,high),(thickness,y,bevel),(.0004,y,low)])
+        elif fuller:
             # A shallow recessed channel between two shoulders is forged form.
             span=(high-low)/2
             profile=[(-.0005,low),(-thickness,mid-span*.38),
@@ -176,10 +184,10 @@ def blade(collection, name, sections, fuller=False):
     return mesh_object(collection,name,verts,faces,"metal")
 
 
-def binding(collection, name, y0, y1, radius, turns=8):
+def binding(collection, name, y0, y1, radius, turns=8, per_turn=8):
     # A shallow continuous raised seam, not a stack of oversized grip rings.
     verts, faces = [], []
-    steps=turns*8
+    steps=turns*per_turn
     for i in range(steps+1):
         t=i/steps
         angle=math.tau*turns*t
@@ -192,6 +200,24 @@ def binding(collection, name, y0, y1, radius, turns=8):
     return mesh_object(collection,name,verts,faces,"leather")
 
 
+def plate(collection, name, outline, depth, inset, material_name):
+    """An outline in the blade's plane (z across, y along), forged to `depth`
+    either side with its faces chamfered in by `inset` — a pommel or a guard
+    plate, cut from a sheet and filed, not lathe-turned."""
+    cz=sum(z for z,_ in outline)/len(outline); cy=sum(y for _,y in outline)/len(outline)
+    rings=[(-depth,1-inset),(-depth*.45,1.0),(depth*.45,1.0),(depth,1-inset)]
+    n=len(outline); verts=[]; faces=[]
+    for x,k in rings:
+        verts.extend((x,cy+(y-cy)*k,cz+(z-cz)*k) for z,y in outline)
+    faces.append(tuple(reversed(range(n))))
+    for r in range(3):
+        for i in range(n):
+            j=(i+1)%n
+            faces.append((r*n+i,r*n+j,(r+1)*n+j,(r+1)*n+i))
+    faces.append(tuple(3*n+i for i in range(n)))
+    return mesh_object(collection,name,verts,faces,material_name)
+
+
 def seax() -> bpy.types.Collection:
     c = create_collection("seax")
     loft(c,"seax_grip",[(-.092,.014,.018,0),(-.075,.017,.020,0),
@@ -200,8 +226,12 @@ def seax() -> bpy.types.Collection:
          (-.09,.019,.025,0),(-.084,.014,.018,0)],"metal",10)
     loft(c,"seax_bolster",[(.037,.014,.025,0),(.044,.020,.035,0),
          (.055,.020,.035,0),(.061,.010,.028,0)],"metal",10)
-    blade(c,"seax_broken_back",[(.055,-.027,.028,.0055),(.13,-.031,.029,.0055),
-          (.285,-.028,.029,.004),(.326,-.022,.014,.003),(.39,-.007,-.006,.0006)])
+    # The broken-back seax (the Beagnoth seax, the Thames finds): a straight
+    # edge, a straight thick back that breaks two-thirds along and runs down in
+    # a straight clip to a point low by the edge line. One edge, a wedge.
+    blade(c,"seax_broken_back",[(.055,-.020,.016,.0034),(.10,-.025,.017,.0034),
+          (.25,-.026,.019,.0031),(.29,-.026,.020,.0029),(.34,-.024,.003,.0022),
+          (.37,-.021,-.008,.0014),(.39,-.0165,-.0150,.0005)], back=True)
     binding(c,"seax_wrap",-.079,.029,.018,7)
     return c
 
@@ -214,12 +244,19 @@ def bearded_axe() -> bpy.types.Collection:
     loft(c,"axe_grip",[(-.125,.018,.025,0),(-.07,.018,.022,-.006),
          (.025,.017,.021,-.010),(.065,.018,.023,-.010)],"leather",10)
     # Cross-sections run out from the wrapped eye into a long curved beard.
-    sections=[(.045,.46,.60,.025),(.012,.45,.62,.031),(-.035,.44,.625,.030),
-              (-.085,.41,.632,.023),(-.16,.32,.638,.014),(-.21,.28,.626,.006),
-              (-.232,.29,.60,.0008)]
+    # The skeggøx (Petersen's type B; the Mammen and Thames axes): a thick eye
+    # with lugs gripping the haft, a narrow neck, then a thin blade whose top
+    # runs straight on from the eye and whose underside sweeps down in a
+    # hollow curve to the beard; the edge is convex. Stations run from the poll
+    # (+z) to the edge (−z): (z, bottom, top, half-thickness).
+    sections=[(.034,.576,.614,.010),(.027,.562,.628,.0175),(.010,.550,.638,.0185),
+              (-.010,.550,.638,.0185),(-.027,.562,.628,.015),(-.040,.578,.625,.009),
+              (-.060,.572,.626,.0065),(-.082,.558,.629,.0050),(-.104,.530,.634,.0036),
+              (-.124,.490,.640,.0026),(-.142,.450,.646,.0017),(-.154,.436,.649,.0010),
+              (-.161,.452,.642,.0006),(-.165,.505,.618,.0003)]
     verts,faces=[],[]
     for z,lo,hi,r in sections:
-        bevel=min(.012,(hi-lo)*.15)
+        bevel=min(.008,(hi-lo)*.12)
         verts.extend([(-r*.7,lo,z),(-r,lo+bevel,z),(-r,hi-bevel,z),(-r*.7,hi,z),
                       (r*.7,hi,z),(r,hi-bevel,z),(r,lo+bevel,z),(r*.7,lo,z)])
     faces.append(tuple(reversed(range(8))))
@@ -235,14 +272,17 @@ def bearded_axe() -> bpy.types.Collection:
 def ash_spear() -> bpy.types.Collection:
     c = create_collection("ash_spear")
     loft(c,"spear_ash",[(-.16,.016,.016,0),(.0,.017,.017,0),(.75,.016,.016,0),
-         (1.45,.012,.012,0),(1.59,.010,.010,0)],"wood",12)
+         (1.40,.0125,.0125,0),(1.50,.011,.011,0)],"wood",12)
     loft(c,"spear_grip",[(-.07,.018,.018,0),(.0,.019,.019,0),
          (.16,.019,.019,0),(.22,.017,.017,0)],"leather",12)
-    loft(c,"spear_socket",[(1.46,.015,.015,0),(1.49,.016,.016,0),
-         (1.56,.012,.012,0),(1.62,.005,.016,0)],"metal",12)
-    blade(c,"spear_leaf",[(1.56,-.013,.013,.006),(1.63,-.034,.034,.007),
-          (1.69,-.040,.040,.006),(1.74,-.031,.031,.0045),
-          (1.79,-.014,.014,.003),(1.82,-.0005,.0005,.0005)])
+    # A Viking spearhead is long — a third of a metre of blade on a socket a
+    # hand long — and angular: widest low, a ridge down its middle, straight
+    # flanks to the point (Petersen's types E and K).
+    loft(c,"spear_socket",[(1.39,.0150,.0150,0),(1.40,.0158,.0158,0),
+         (1.47,.0130,.0130,0),(1.52,.0090,.0090,0)],"metal",12)
+    blade(c,"spear_leaf",[(1.50,-.010,.010,.0075),(1.56,-.030,.030,.0070),
+          (1.60,-.040,.040,.0065),(1.65,-.034,.034,.0055),
+          (1.74,-.019,.019,.0040),(1.82,-.0005,.0005,.0005)])
     loft(c,"spear_ferrule",[(-.18,.006,.006,0),(-.168,.017,.017,0),
          (-.135,.018,.018,0),(-.12,.016,.016,0)],"metal",10)
     return c
@@ -307,21 +347,29 @@ def dvergar_hammer() -> bpy.types.Collection:
 def regin_blade() -> bpy.types.Collection:
     c = create_collection("regin_blade")
     loft(c,"regin_grip",[(-.088,.015,.020,0),(-.055,.018,.023,0),
-         (.025,.019,.024,0),(.067,.015,.020,0)],"leather",12)
-    loft(c,"regin_lobed_pommel",[(-.14,.010,.021,0),(-.13,.023,.043,0),
-         (-.111,.026,.049,0),(-.092,.020,.041,0),(-.082,.013,.023,0)],"metal",12)
-    # Gently downturned quillons are a shaped forging, not a rectangular bar.
-    obj=loft(c,"regin_curved_guard",[(-.125,.012,.014,-.011),(-.11,.019,.018,-.006),
-         (-.052,.016,.019,.004),(0,.018,.021,.009),(.052,.016,.019,.004),
-         (.11,.019,.018,-.006),(.125,.012,.014,-.011)],"metal",8)
+         (.025,.019,.024,0),(.070,.015,.020,0)],"leather",12)
+    # A Viking hilt, not a knight's: a short thick guard and an upper guard
+    # boxing in a grip one hand wide, and above it a lobed pommel — Petersen's
+    # lobed types, older in the eye than anything with a cross. Its guard
+    # curves toward the blade, as the latest of them do (type Z).
+    obj=loft(c,"regin_curved_guard",[(-.068,.010,.007,.010),(-.058,.014,.009,.006),
+         (-.030,.016,.011,.001),(0,.017,.012,0),(.030,.016,.011,.001),
+         (.058,.014,.009,.006),(.068,.010,.007,.010)],"metal",8)
     for v in obj.data.vertices:
         y,z=v.co.y,v.co.z
-        v.co.y=.083+z
+        v.co.y=.079+z
         v.co.z=y
-    blade(c,"regin_forged_blade",[(.099,-.036,.036,.007),(.16,-.039,.039,.007),
-          (.32,-.038,.038,.0065),(.40,-.035,.035,.006),(.49,-.034,.034,.006),
-          (.84,-.026,.026,.0045),(1.02,-.014,.014,.003),(1.11,-.0005,.0005,.0005)], fuller=True)
-    binding(c,"regin_wrap",-.074,.05,.019,8)
+    box(c,"regin_upper_guard",-.012,.012,-.100,-.086,-.044,.044,"metal")
+    lobes=[]
+    for i in range(21):
+        a=math.pi*i/20
+        r=.034*(.80+.20*abs(math.sin(5*a)))
+        lobes.append((r*math.cos(a)*1.18,-.099-r*math.sin(a)*.95))
+    plate(c,"regin_lobed_pommel",lobes,.011,.18,"metal")
+    blade(c,"regin_forged_blade",[(.088,-.031,.031,.0065),(.30,-.030,.030,.006),
+          (.60,-.028,.028,.0055),(.85,-.025,.025,.0048),(1.00,-.019,.019,.0038),
+          (1.07,-.010,.010,.0024),(1.11,-.0005,.0005,.0005)], fuller=True)
+    binding(c,"regin_wrap",-.084,.066,.019,7,6)
     return c
 
 

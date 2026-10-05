@@ -11515,4 +11515,27 @@ The crevice darkening is baked ambient occlusion by another name. The countersha
 **Honest scale:**
 - Her body, without its countershading, reads lighter and flatter in the Chamber. The hatch now carries her value, as it carries every other surface's.
 
+## ADR-322 — The weapons are forged to their finds: a broken-back seax, a skeggøx, a Viking hilt
+
+**Date:** 2026-10-05 · **Status:** accepted · **Within `ART-006` §5.2; no rule changes**
+
+**Context:** The six weapons had the right lengths (ADR-266) and generic shapes. Three of them showed it from the first-person view, where a weapon spends the whole game:
+- **The seax was a double-edged dagger.** It had a ridge down its middle and a symmetric point.
+- **The bearded axe was a trapezoid slab.** It had no neck and no hollow under its beard, and its edge ran straight.
+- **Regin's Blade had a knight's hilt.** Its 25 cm cross belongs to a sword three centuries younger than the saga that names it.
+
+**Decision:** Each is reshaped to the finds it is named for, still as hard-normal parts in flat colour (`ART-006`, ADR-321):
+- **Seax:** a broken back, after the Beagnoth seax and the Thames finds. The edge runs straight, and the thick back breaks two-thirds along into a straight clip to a point low by the edge. It is forged as a single-edged wedge (`blade(back=True)`).
+- **Bearded axe:** Petersen's type B, after the Mammen axe. A thick eye with lugs grips the haft, then comes a 4.7 cm neck. The top of the blade runs straight on from the eye; the underside sweeps down in a hollow curve to a beard 11 cm below it; the edge is convex. The blade thins from 3.7 cm across the eye to a keen edge.
+- **Regin's Blade:** a Viking hilt, after Petersen's lobed types. A 14 cm guard curves toward the blade (type Z). An upper guard and a five-lobed pommel are cut as a chamfered plate. The blade is near-parallel with a full fuller, 6.2 cm at the hilt.
+- **Ash spear:** a third of a metre of angular blade, widest low, on a socket a hand long (Petersen's types E and K), in place of a 26 cm leaf.
+- **The hammer and the bow are unchanged.** The hammer is already octagonal-forged with poll and peen; the bow is a continuous tapered stave.
+
+**Measured:**
+- **Triangles, all under the 800 ceiling:** seax 572, axe 452, spear 444, Regin's Blade 708.
+- **Lengths unchanged.** All six are within ADR-266's 8 %.
+- **`--hands-shot`:** the seax's clipped point reads in the hand.
+
+**Honest scale:** The broken back shows from the side and from the swing, not from the rest pose. At rest the seax is seen nearly edge-on.
+
 *Entries below to be added as design decisions are signed off.*
