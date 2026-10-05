@@ -6774,12 +6774,20 @@ func _coop_probe(out: String) -> void:
 		Input.action_press("move_forward")
 	if host:
 		# Watched from the host, on the body it is not driving. See
-		# `_glide_per_packet` — this is the jitter measurement.
-		_probe_glide = await _glide_per_packet(1.0)
+		# `_glide_per_packet` — this is the jitter measurement. **For the
+		# client's walk and its hold after it, 1.4 s**, not the walk's 1.0 s:
+		# the host's copy runs behind the wire, and on a loaded machine (three
+		# packets that second) it was still catching up on the walk's last
+		# steps when a one-second window closed. The stride read 0.41 and 0.42
+		# against 0.58–0.62 unloaded — the window measuring the lag, not the
+		# legs. The glide is a ratio, so a longer window does not move it.
+		_probe_glide = await _glide_per_packet(1.4)
 	else:
+		# The walk is still one second; the client then waits out the host's
+		# extra 0.4 s, so every phase after this one starts together.
 		await _hold(1.0)
-	if not host:
 		Input.action_release("move_forward")
+		await _hold(0.4)
 	await _hold(0.4)
 	_probe_walked = _probe_drift(before, _probe_positions())
 	_probe_walk_clamor = _probe_clamor_peak.duplicate()

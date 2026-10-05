@@ -11457,4 +11457,30 @@ Testing the sculpted arms in first person found a second fault. The worn iron br
 - Four of the six arm pairs still belong to classes the game does not offer yet.
 - The voxel and the iron's marks are ⟨tune⟩.
 
+## ADR-320 — The hoard is a heap of coin, not a dome
+
+**Date:** 2026-10-05 · **Status:** accepted · **Replaces ADR-284's mound** · **Developer's call: "continue working towards production, ready for testing."**
+
+**Context:** ADR-284 laid loose coin under the hoard's pieces as a `SphereMesh` hemisphere: a smooth gold dome squashed flat. It is the one shape a heap of treasure never is, it sits under Her in the room the whole game descends toward, and from the door it read as a gold lid with chests on it.
+
+**References:**
+- **Fáfnir on his gold** (`DES-006`), and the inventories of saga hoards and of the Hoxne and Cuerdale hoards in the ground: coin by the thousand, with cups, a crown, arms and ingots in it.
+- **Loose coin's angle of repose, about 30°.** A heap poured in loads is a cone with its top rounded and its height undulating, never a dome.
+
+**Decision:**
+- **The mound is sculpted** (`source_art/heroes/build_hoard.py`, `hoard_mound.glb`): a repose-angle cone whose height swells with low noise, drifts slipping off its rim, and, half-swallowed, a goblet on its side, a crown, a sword driven in to the hilt, a shield on its rim, a helm crown-down and two ingots. Wide flat lumps for each load were tried first; they overhung the slope as ledges.
+- **The coin is baked:** three overlapping layers of round struck coins, each a plateau with a rim, so the surface reads as coin lying on coin. Voronoi cells were tried first and read as cobbles. The coin is in the normal map only: the gold is one flat material, and the hollows between coins are the ink's to darken (`ART-006`; a value map darkening them was built, and taken out as the baked ambient occlusion `ART-006` forbids).
+- **The Chamber scales it whole** with the hoard's value, so it keeps coin's slope at any size, and gives it the hoard's gold over its own normal map. The hoard's pieces now lie on the mound's slope at their distance from the middle, where they had floated at heights tuned for the dome.
+- **Housekeeping:** 32 of Blender's `.blend1` save backups were tracked beside their sources. They are removed and ignored.
+
+**Measured:**
+- **Triangles:** 14,000, with 2048² maps, under the hero row's 40,000.
+- **`--lair-probe`:** the walk from the door to the hoard is clear, and there are 0 door gaps.
+- **`--her-shot`:** 0.01–0.14 % of each of seven views flashes, as before.
+- **Found in this sweep:** the co-op check that a teammate walks rather than slides read 0.42 m against its 0.45 m floor. It had read 0.41 m once on CI, after ADR-316, and 0.58–0.62 m every time unloaded. The host watched for one second, exactly as long as the client walked, while its copy of the body ran behind the wire. On a loaded machine, with three packets that second, the window closed before the copy caught up with the walk's last strides. The host now watches for 1.4 s, the walk plus the hold after it, and the client waits out the same 0.4 s so later phases stay aligned. The 0.45 m floor (between hips dead at 0.35 m and walking at 0.63 m) is unchanged. Three runs since: 0.61–0.62 m.
+
+**Honest scale:**
+- The coin's size, the pieces' size and the mound's slope are ⟨tune⟩.
+- How the pile reads at a large hoard value is the developer's to judge in play.
+
 *Entries below to be added as design decisions are signed off.*

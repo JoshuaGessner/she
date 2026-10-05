@@ -45,3 +45,6 @@ scratch/
 # working agreement and it is checked in on purpose.
 .claude/
 .sweep.log
+
+# Blender's save-version backups: the .blend beside each is the source.
+*.blend[0-9]

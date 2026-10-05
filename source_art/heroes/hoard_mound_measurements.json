@@ -1,0 +1,9 @@
+{
+  "asset": "hoard_mound",
+  "triangles": 14000,
+  "units": "one unit across",
+  "rise": 0.4,
+  "textures": {
+    "hoard_mound_n": 2048
+  }
+}

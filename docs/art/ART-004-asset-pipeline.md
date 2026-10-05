@@ -4,7 +4,7 @@ title: Asset Pipeline & Production Schedule
 status: accepted
 owner: art
 tags: [art, assets, pipeline, blender, godot, production, specs]
-updated: 2026-10-04
+updated: 2026-10-05
 related: [ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017]
 ---
 
@@ -139,6 +139,11 @@ colour still decides its hue. The glTF carries the colour as its factor and
 the map as its texture. Where the field is at hand, the normal map also carries
 **the sculpt's own surface normal**, so detail lost to decimation survives as
 light.
+
+**Props are sculpted the same way (ADR-320).** The hoard's mound is a
+repose-angle cone of coin with a few treasures half-swallowed, its struck coins
+baked in. A primitive standing in for a heap is what makes a room read as
+blockout.
 
 **Two things the ink pass punishes**, learned on the enemies:
 - **Rows of parallel grooves** in a dark band draw as teeth. Hair roughens; it

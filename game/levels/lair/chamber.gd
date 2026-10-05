@@ -68,6 +68,10 @@ const STASH_COLOUR: Color = Color(0.38, 0.33, 0.26)
 signal left()
 
 const HOARD_AT: Vector3 = Vector3(0.0, 0.0, -4.0)
+## **The mound** (ADR-320): coin sculpted as it settles, authored one unit
+## across and `MOUND_RISE` tall (`source_art/heroes/build_hoard.py`).
+const HOARD_MOUND: PackedScene = preload("res://art/heroes/hoard_mound.glb")
+const MOUND_RISE: float = 0.40
 const STASH_AT: Vector3 = Vector3(-5.0, 0.0, 1.0)
 ## Inside the passage cut in the south wall (ADR-282).
 const DOOR_AT: Vector3 = Vector3(0.0, 0.0, 9.61)
@@ -623,18 +627,22 @@ func _rebuild_hoard() -> void:
 	gold.emission_enabled = true
 	gold.emission = GOLD * 0.35
 	InkPass.stamp(gold, InkPass.Class.GOLD)
-	# **The mound** (ADR-284): loose coin under everything, rising with the
-	# pile, so many lives' worth reads as a heap rather than as scattered parts.
+	# **The mound** (ADR-284, ADR-320): loose coin under everything, growing
+	# with the pile, so many lives' worth reads as a heap rather than as
+	# scattered parts. Scaled whole, so it keeps coin's angle of repose at any
+	# size, and given the hoard's gold over its own baked coin.
+	var across: float = 1.0 + sqrt(float(lumps)) * 0.13
 	if lumps > 0:
-		var heap := MeshInstance3D.new()
-		var dome := SphereMesh.new()
-		var across: float = 1.0 + sqrt(float(lumps)) * 0.13
-		dome.radius = across
-		dome.height = across * 2.0
-		dome.is_hemisphere = true
-		heap.mesh = dome
-		heap.material_override = gold
-		heap.scale = Vector3(1.0, clampf(0.12 + float(lumps) * 0.0025, 0.12, 0.3), 1.0)
+		var heap: Node3D = HOARD_MOUND.instantiate() as Node3D
+		heap.scale = Vector3.ONE * across
+		for node: Node in heap.find_children("*", "MeshInstance3D", true, false):
+			var surface := node as MeshInstance3D
+			var authored := surface.mesh.surface_get_material(0) as BaseMaterial3D
+			var coin := gold.duplicate() as StandardMaterial3D
+			if authored != null:
+				coin.normal_enabled = authored.normal_enabled
+				coin.normal_texture = authored.normal_texture
+			surface.material_override = coin
 		_hoard_root.add_child(heap)
 	for index: int in range(lumps):
 		var piece: ItemResource = ItemCatalogue.by_id(HOARD_PIECES[index % HOARD_PIECES.size()])
@@ -646,8 +654,10 @@ func _rebuild_hoard() -> void:
 		var spread: float = 1.4 + sqrt(float(index)) * 0.22
 		var angle: float = rng.randf_range(0.0, TAU)
 		var radius: float = sqrt(rng.randf()) * spread
+		# On the mound, where its slope is at that distance from the middle.
+		var on_heap: float = MOUND_RISE * across * maxf(0.0, 1.0 - pow(radius / across, 1.4))
 		look.position = Vector3(cos(angle) * radius,
-			rng.randf_range(0.0, 0.12) + maxf(0.0, (spread - radius) * 0.22),
+			on_heap + rng.randf_range(0.0, 0.06),
 			sin(angle) * radius)
 		look.rotation = Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(0.0, TAU),
 			rng.randf_range(-0.5, 0.5))
