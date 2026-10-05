@@ -319,7 +319,9 @@ def sculpt(name, regions, plan, rig, rigid=None, colour=None):
         names = list(r.keys())
         return np.argmin(np.stack([r[n] for n in names]), axis=0), names
 
-    body = K.mesh_field(f"{name}_body", field, BOUNDS[0], BOUNDS[1], plan["voxel"], material(f"{name}_skin"))
+    lo, hi = plan.get("bounds", BOUNDS)
+    body = K.mesh_field(f"{name}_body", field, lo, hi, plan["voxel"], material(f"{name}_skin"),
+                        sparse=plan.get("sparse", False))
     K.outward(body)
     K.decimate(body, plan["body_tris"])
     K.unwrap(body, 0.006)

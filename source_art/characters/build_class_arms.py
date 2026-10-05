@@ -1,177 +1,323 @@
-"""Six DES-020 class arm pairs, sharing the permanent humanoid bind pose.
+"""Six DES-020 class arm pairs, sculpted (ADR-319), on the permanent humanoid bind pose.
+
+Run with Blender:
+  /Applications/Blender.app/Contents/MacOS/Blender --background --python-exit-code 1 \\
+      --python source_art/characters/build_class_arms.py
+
+**The most-seen model in the game.** These are the forearms and hands in front
+of the camera for every second of every run. ADR-280 got their *pose* right
+and built them from lofted tubes; they are now sculpted as the bodies are
+(ADR-316, ADR-318), so a knuckle, a tendon and the heel of a hand are shapes,
+and what each class carries on its skin — the Völva's ink, the Húskarl's healed
+cuts — is baked into the surface rather than stuck to it.
 
 **Closed fists around the grip** (ADR-280). The shared rig has hand bones and
 no finger bones, so the fingers are posed once, in the mesh, and the pose that
 matters in first person is the one holding something: every item the hands
 carry is hung from `sock_hand_*`, so the fist is built around that socket's
-axis. The old relaxed curl left the handle running through the middle of the
-palm and read, from the seat, as a claw or a cuff. The forearm and wrist still
-deform with the actual shared animation skeleton. Never add a competing armature
-hierarchy.
+axis, read from the rig at build time. The forearm and wrist deform with the
+shared skeleton; never add a competing armature hierarchy.
 """
-import sys
-import math
+from __future__ import annotations
+
 import json
+import math
+import sys
 from pathlib import Path
+
 import bpy
+import numpy as np
 from mathutils import Vector
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-import build_worn_armour as a
+SRC = Path(__file__).resolve().parent
+OUT = SRC.parents[1] / "game" / "art" / "characters"
+sys.path.insert(0, str(SRC.parent / "enemies"))
+sys.path.insert(0, str(SRC.parent / "lib"))
+sys.path.insert(0, str(SRC))
+import build_enemies as E  # noqa: E402
+import build_enemy_models as em  # noqa: E402
+import humanoid_detail as Dt  # noqa: E402
+import sdf_sculpt as S  # noqa: E402
 
-a.PALETTE.update({
-    'skin': ((.57,.49,.40,1),.8),
-    'scar': ((.36,.29,.24,1),.8),
-    'ink': ((.11,.105,.10,1),.8),
-    'bone': ((.66,.63,.53,1),.8),
-    'fur': ((.24,.22,.19,1),.8),
-    'nail': ((.48,.44,.36,1),.8),
+
+def _skin(p):
+    # Pores, and the faint lines over the back of a hand and a wrist.
+    return 0.00025 * S.fbm(p, 0.004, 2) + 0.0004 * S.noise(p, 0.012)
+
+
+def _scar(p):
+    return 0.0006 * S.noise(p, 0.003)
+
+
+## A hand's colours (ADR-319): the class arms' palette, which ADR-280's review
+## was lit against, now with a little variation through it.
+Dt.MATERIALS.update({
+    "skin": ((0.57, 0.49, 0.40), 0.80, _skin),
+    "scar": ((0.66, 0.53, 0.45), 0.80, _scar),
+    "ink": ((0.11, 0.105, 0.10), 0.80, _skin),
+    "bone": ((0.66, 0.63, 0.53), 0.80, Dt.MATERIALS["wood"][2]),
+    "nail": ((0.62, 0.52, 0.44), 0.80, _scar),
+    "fur": ((0.24, 0.22, 0.19), 0.80, lambda p: 0.0014 * S.fbm(p * np.array([1.0, 1.0, 0.3]), 0.008, 2)),
 })
 
+## A first-person budget: most of a character's, because these are seen from
+## centimetres away; a voxel a finger can be sculpted in, and a dense map.
+PLAN = dict(voxel=0.0028, body_tris=9000, texture=1024, ceiling=10000, sparse=True)
+CLASSES = ("huskarl", "veidimadr", "volva", "skald", "ulfhedinn", "haugbrjotr")
 
-def tube(name, points, radii, kind, weights, n=12, smooth=True):
-    rows=[]
-    for j,(p,r) in enumerate(zip(points,radii)):
-        p=Vector(p)
-        tangent=Vector(points[min(j+1,len(points)-1)])-Vector(points[max(0,j-1)])
-        tangent.normalize()
-        ref=Vector((0,1,0)) if abs(tangent.y)<.95 else Vector((1,0,0))
-        u=tangent.cross(ref).normalized(); v=tangent.cross(u).normalized()
-        rows.append([p+r*(math.cos(t)*u+math.sin(t)*v) for t in [i*math.tau/n for i in range(n)]])
-    vertices=[v for row in rows for v in row]
-    faces=[(j*n+i,j*n+(i+1)%n,(j+1)*n+(i+1)%n,(j+1)*n+i)
-           for j in range(len(rows)-1) for i in range(n)]
-    # Fingers and wrist tools are solid; open tube tips read as missing skin.
-    faces += [tuple(reversed(range(n))),
-              tuple((len(rows)-1)*n+i for i in range(n))]
-    obj=a.skin_mesh(name,vertices,faces,kind,weights,smooth=smooth)
-    obj.data.polygons[-2].use_smooth=False
-    obj.data.polygons[-1].use_smooth=False
-    return obj
+
+class Side:
+    """One arm's frame, read from the rig: the forearm from `start` to `end`,
+    `front` and `across` round it, and the fist's frame — `u` down the hand
+    bone, `w` the grip axis, `n` the back of the hand — about `grip`."""
+
+    def __init__(self, rig, side):
+        fore = rig.data.bones[f"forearm_{side}"]
+        self.start, self.end = np.array(fore.head_local), np.array(fore.tail_local)
+        self.axis = (self.end - self.start) / np.linalg.norm(self.end - self.start)
+        self.front = np.array((0.0, -1.0, 0.0))
+        self.across = np.cross(self.axis, self.front)
+        self.across /= np.linalg.norm(self.across)
+        self.front = np.cross(self.across, self.axis)
+        hand = rig.data.bones[f"hand_{side}"]
+        self.origin = np.array(hand.head_local)
+        self.u = np.array(hand.tail_local) - self.origin
+        self.u /= np.linalg.norm(self.u)
+        self.w = np.array((0.0, 1.0, 0.0))
+        self.n = np.cross(self.w, self.u)
+        self.n *= (1.0 if side == "r" else -1.0) / np.linalg.norm(self.n)
+        sock = np.array(rig.data.bones[f"sock_hand_{side}"].head_local)
+        self.grip = self.origin + self.u * float((sock - self.origin) @ self.u)
+        self.wrap = 0.016 + 0.0105
+        self.side = side
+
+    def at(self, t):
+        return self.start + (self.end - self.start) * t
+
+    def around(self, theta, along):
+        return self.grip + self.w * along + self.wrap * (math.cos(theta) * self.u + math.sin(theta) * self.n)
+
+    def local(self, p):
+        """Points in the forearm's frame: across, front, along (metres)."""
+        q = p - self.start
+        return np.stack([q @ self.across, q @ self.front, q @ self.axis], axis=1)
+
+
+def forearm(p, s: Side):
+    """The forearm narrowing through the wrist: an elliptical section at each
+    station, flattening toward the wrist as the radius and ulna do, with the
+    swell of the muscles below the elbow on the thumb side."""
+    q = s.local(p)
+    length = float(np.linalg.norm(s.end - s.start))
+    t = q[:, 2] / length
+    ts = [-0.07, 0.05, 0.23, 0.46, 0.70, 0.88, 1.01]
+    rx = np.interp(t, ts, [0.046, 0.046, 0.046, 0.042, 0.035, 0.029, 0.029])
+    ry = np.interp(t, ts, [0.040, 0.042, 0.040, 0.036, 0.031, 0.025, 0.024])
+    k = np.sqrt((q[:, 0] / rx) ** 2 + (q[:, 1] / ry) ** 2)
+    d = (k - 1.0) * np.minimum(rx, ry)
+    d = S.smax(d, np.maximum(-0.07 * length - q[:, 2], q[:, 2] - 1.01 * length), 0.01)
+    swell = s.at(0.22) + s.front * 0.010 + s.across * 0.012 * (1 if s.side == "l" else -1)
+    d = S.smin(d, S.ellipsoid(p - swell, np.array((0.036, 0.034, 0.036))), 0.02)
+    return d
+
+
+def fist(p, s: Side, finger_material=None):
+    """The palm, four fingers closed round the handle, and the thumb locked
+    over the first two (ADR-280's construction, sculpted). Returns the palm
+    and thumb, and the four fingers apart, so a class can colour them."""
+    knuckle = s.around(math.radians(96), 0.0) + s.n * 0.004
+    wrist = s.origin - s.u * 0.03
+    palm = np.full(len(p), 1e3)
+    for t, hw, ht in ((0.0, 0.030, 0.023), (0.22, 0.038, 0.022), (0.5, 0.043, 0.020),
+                      (0.8, 0.045, 0.019), (1.0, 0.044, 0.017)):
+        c = wrist + (knuckle - wrist) * t
+        frame = np.stack([knuckle - wrist, s.w, s.n])
+        frame[0] /= np.linalg.norm(frame[0])
+        q = (p - c) @ frame.T
+        palm = S.smin(palm, S.ellipsoid(q, np.array((0.026, hw, ht))), 0.012)
+    fingers = np.full(len(p), 1e3)
+    ends = (-122, -116, -110, -100)
+    for j, along in enumerate((-0.031, -0.0105, 0.0105, 0.030)):
+        pts = [s.around(math.radians(96 + (ends[j] - 96) * k / 6), along) for k in range(7)]
+        radii = [0.0115, 0.0112, 0.0108, 0.0104, 0.0098, 0.009, 0.0078]
+        if j == 3:
+            radii = [r * 0.9 for r in radii]
+        finger = S.chain(p, pts, radii, 0.003)
+        # Knuckles: the joint stands proud of the finger as it bends.
+        for k in (1, 4):
+            finger = S.smin(finger, S.sphere(p - pts[k], radii[k] * 1.12), 0.004)
+        fingers = np.minimum(fingers, finger)
+    g = s.grip
+    thumb = S.chain(p, [s.origin + s.u * 0.004 - s.w * 0.030 - s.n * 0.010,
+                        g - s.u * 0.020 - s.w * 0.040 - s.n * 0.022,
+                        g - s.u * 0.004 - s.w * 0.036 - s.n * (s.wrap + 0.006),
+                        g + s.u * 0.010 - s.w * 0.022 - s.n * (s.wrap + 0.008),
+                        g + s.u * 0.016 - s.w * 0.006 - s.n * (s.wrap + 0.004)],
+                    [0.0145, 0.0135, 0.012, 0.0105, 0.008], 0.004)
+    hand = S.smin(S.smin(palm, thumb, 0.008), fingers, 0.004)
+    return hand, fingers
+
+
+def band(p, s: Side, t0, t1, r, rough=0.0):
+    """A band round the wrist from `t0` to `t1` along the forearm."""
+    q = s.local(p)
+    length = float(np.linalg.norm(s.end - s.start))
+    radial = np.hypot(q[:, 0], q[:, 1])
+    rr = r + rough * np.sin(np.arctan2(q[:, 1], q[:, 0]) * 9.0)
+    mid, half = (t0 + t1) * 0.5 * length, (t1 - t0) * 0.5 * length
+    return S.smax(radial - rr, np.abs(q[:, 2] - mid) - half, 0.003)
+
+
+def regions_for(kind, sides):
+    def regions(p):
+        out = {"skin": np.full(len(p), 1e3)}
+        extra = {}
+
+        def add(name, d):
+            extra[name] = np.minimum(extra.get(name, np.full(len(p), 1e3)), d)
+
+        for s in sides:
+            hand, fingers = fist(p, s)
+            out["skin"] = np.minimum(out["skin"], S.smin(forearm(p, s), hand, 0.012))
+            if kind == "huskarl":
+                # Two healed cuts raised across the back of the forearm.
+                for t in (0.35, 0.46):
+                    c = s.at(t) + s.front * 0.039
+                    add("scar", S.round_cone(p, c - s.across * 0.021 - s.axis * 0.006,
+                                             c + s.across * 0.020 + s.axis * 0.006, 0.0032, 0.0028))
+            elif kind == "veidimadr":
+                # Tabs over the first joint of the three draw fingers, and a
+                # taped wrist: a bowman's.
+                for along in (-0.031, -0.0105, 0.0105):
+                    add("linen", S.chain(p, [s.around(math.radians(92), along), s.around(math.radians(40), along)],
+                                         [0.0128, 0.0124], 0.0))
+                add("linen", band(p, s, 0.90, 0.99, 0.0325))
+            elif kind == "volva":
+                add("ink", band(p, s, 0.905, 0.94, 0.0322))
+                for j in range(3):
+                    c = s.end + s.front * 0.028 + s.across * ((j - 1) * 0.020)
+                    add("bone", S.round_cone(p, c, c + s.axis * 0.03, 0.006, 0.003))
+            elif kind == "ulfhedinn":
+                add("fur", band(p, s, 0.89, 1.09, 0.036, rough=0.003))
+            elif kind == "haugbrjotr":
+                add("leather", band(p, s, 0.89, 1.02, 0.0345))
+                for j in (-1, 1):
+                    c = s.end + s.across * (j * 0.021) + s.front * 0.027
+                    add("iron", S.round_cone(p, c - s.axis * 0.03, c + s.axis * 0.035, 0.004, 0.0015))
+            elif kind == "skald":
+                add("linen", band(p, s, 0.905, 0.945, 0.0322))
+                # Ink-stained fingers: a skald writes.
+                add("ink", fingers + 0.0005)
+        out.update(extra)
+        return out
+    return regions
+
+
+def tattoo(sides):
+    """The Völva's ink (ADR-319), painted into the skin's colour: two bands of
+    interlace round the forearm, the pattern of the Mammen and Jelling
+    ribbons drawn as a tattooist's line."""
+    def colour(points, which, names):
+        out = Dt.colour(points, which, names)
+        skin = which == names.index("skin")
+        for s in sides:
+            q = s.local(points)
+            length = float(np.linalg.norm(s.end - s.start))
+            t = q[:, 2] / length
+            a = np.arctan2(q[:, 1], q[:, 0])
+            line = np.zeros(len(points), bool)
+            for t0 in (0.36, 0.62):
+                wave = t0 + 0.035 * np.sin(a * 4.0)
+                line |= (np.abs(t - wave) < 0.006) | (np.abs(t - (t0 + 0.035 * np.sin(a * 4.0 + math.pi))) < 0.006)
+                line |= (np.abs(t - t0 + 0.05) < 0.003) | (np.abs(t - t0 - 0.05) < 0.003)
+            near = np.hypot(q[:, 0], q[:, 1]) < 0.06
+            out[skin & line & near] = Dt.MATERIALS["ink"][0]
+        return out
+    return colour
+
+
+def weigh(obj, sides):
+    """ADR-280's weights: the forearm to its bone, the hand to its own, mixed
+    over the wrist; each point to the side it is on."""
+    obj.vertex_groups.clear()
+    groups = {}
+    for v in obj.data.vertices:
+        p = np.array(v.co)
+        s = min(sides, key=lambda s: np.linalg.norm(p - (s.start + s.end) * 0.5))
+        t = max(0.0, min(1.0, (float((p - s.end) @ s.axis) + 0.035) / 0.065))
+        for bone, value in ((f"forearm_{s.side}", 1.0 - t), (f"hand_{s.side}", t)):
+            if value <= 0.0:
+                continue
+            group = groups.get(bone) or obj.vertex_groups.new(name=bone)
+            groups[bone] = group
+            group.add([v.index], value, "REPLACE")
 
 
 def build(kind):
-    for side in ('l','r'):
-        start,end,front,across=a.limb_basis(side,'forearm')
-        axis=(end-start).normalized()
-        bone=f'forearm_{side}'; hand=f'hand_{side}'
-        # The silhouette narrows through the wrist instead of ending in a tube.
-        rows=[]
-        for t,rx,ry in ((-.07,.046,.040),(.05,.046,.042),(.23,.046,.040),
-                       (.46,.042,.036),(.70,.035,.031),(.88,.029,.025),(1.01,.029,.024)):
-            c=start.lerp(end,t)
-            rows.append([c+front*(ry*math.cos(v))+across*(rx*math.sin(v))
-                         for v in [i*math.tau/24 for i in range(24)]])
-        def weights(p, end=end,axis=axis,bone=bone,hand=hand):
-            t=max(0,min(1,((p-end).dot(axis)+.035)/.065))
-            return {bone:1-t,hand:t}
-        a.loft(f'{kind}_forearm_{side}',rows,'skin',weights,smooth=True)
-        # **A fist around the socket** (ADR-280). `u` runs down the hand bone,
-        # `w` is the grip axis (the socket's own forward, character-forward is
-        # -w), and `n` is the back of the hand. `n` is mirrored per side: the
-        # old curl used one cross product for both hands and closed the left
-        # hand's fingers outward.
-        h=a.RIG.data.bones[hand]
-        origin=h.head_local.copy(); u=(h.tail_local-origin).normalized()
-        w=Vector((0,1,0))
-        n=w.cross(u).normalized()*(1 if side=='r' else -1)
-        sock=a.RIG.data.bones[f'sock_hand_{side}'].head_local
-        grip=origin+u*(sock-origin).dot(u)
-        handle=.016; finger_r=.0105; wrap=handle+finger_r
-        def around(theta, along):
-            return grip+w*along+wrap*(math.cos(theta)*u+math.sin(theta)*n)
-        # The palm: from the wrist, where it meets the forearm's own size, out
-        # to the knuckles on the back of the fist, broadening as it goes.
-        knuckle=around(math.radians(96),0)+n*.004
-        rows=[]
-        for t,hw,ht in ((0,.030,.023),(.22,.038,.022),(.5,.043,.020),(.8,.045,.019),(1.0,.044,.017)):
-            c=(origin-u*.03).lerp(knuckle,t)
-            rows.append([c+w*(hw*math.sin(v))+n*(ht*math.cos(v))
-                         for v in [i*math.tau/22 for i in range(22)]])
-        a.loft(f'{kind}_palm_{side}',rows,'skin',{hand:1},smooth=True)
-        # Four fingers closed round the handle: from the knuckle over the far
-        # side of the grip and tucked back under it, index at the blade end.
-        ends=(-122,-116,-110,-100)
-        for j,along in enumerate((-.031,-.0105,.0105,.030)):
-            thetas=[math.radians(96+(ends[j]-96)*k/6) for k in range(7)]
-            points=[around(t,along) for t in thetas]
-            radii=[.0115,.0112,.0108,.0104,.0098,.009,.0078]
-            if j==3:
-                radii=[r*.9 for r in radii]
-            tube(f'{kind}_finger_{side}_{j}',points,radii,
-                 'ink' if kind=='skald' and j<3 else 'skin',{hand:1},10)
-        # The thumb comes round the palm side from the heel of the hand and
-        # locks over the first two fingers — the part of a grip you can see.
-        g=grip
-        tube(f'{kind}_thumb_{side}',[origin+u*.004-w*.030-n*.010,
-             g-u*.020-w*.040-n*.022, g-u*.004-w*.036-n*(wrap+.006),
-             g+u*.010-w*.022-n*(wrap+.008), g+u*.016-w*.006-n*(wrap+.004)],
-             [.0145,.0135,.012,.0105,.008],'skin',{hand:1})
+    rig = em.begin()
+    sides = [Side(rig, "l"), Side(rig, "r")]
+    lo = np.min([np.minimum(s.start, s.grip) for s in sides], axis=0) - 0.09
+    hi = np.max([np.maximum(s.start, s.grip) for s in sides], axis=0) + 0.09
+    plan = dict(PLAN, bounds=(lo, hi))
+    arms = E.sculpt(f"{kind}_arms", regions_for(kind, sides), plan, rig,
+                    colour=tattoo(sides) if kind == "volva" else None)
+    weigh(arms, sides)
+    arms.name = f"{kind}_arms"
+    em.PARTS.append(arms)
+    return rig
 
-        def ring(t,r):
-            c=start.lerp(end,t)
-            return [c+r*(front*math.cos(v)+across*math.sin(v)) for v in [i*math.tau/28 for i in range(28)]]
-        if kind=='huskarl':
-            # Raised, pale healed cuts across the dorsal forearm, kept clear
-            # of the bracer's silhouette rather than sculpting noisy pores.
-            for t in (.35,.46):
-                c=start.lerp(end,t)+front*.038
-                a.skin_mesh(f'healed_cut_{side}_{t}',[c+across*x+axis*z for x,z in
-                    ((-.021,-.008),(.020,.008),(.020,.011),(-.021,-.005))],[(0,1,2,3)],'scar',{bone:1})
-        elif kind=='veidimadr':
-            # Finger tabs protect the draw fingers without a full glove —
-            # over the first joint, where the string sits.
-            for j,along in enumerate((-.031,-.0105,.0105)):
-                tube(f'draw_finger_wrap_{side}_{j}',[around(math.radians(92),along),
-                     around(math.radians(40),along)], [.0128,.0124], 'linen',{hand:1},10)
-            a.loft(f'draw_wrist_tape_{side}',[ring(.92,.032),ring(.98,.031)],'linen',weights)
-        elif kind=='volva':
-            a.loft(f'inked_wrist_band_{side}',[ring(.91,.032),ring(.935,.032)],'ink',weights)
-            for j in range(3):
-                c=end+front*.028+across*((j-1)*.020)
-                tube(f'bone_charm_{side}_{j}',[c,c+axis*.03], [.006,.003],'bone',{hand:1},8,False)
-            for t in (.35,.55,.70):
-                c=start.lerp(end,t)+front*(.043-.018*t)
-                a.skin_mesh(f'ink_mark_{side}_{t}',[c+across*x+axis*z for x,z in
-                    ((-.012,-.010),(0,.010),(.012,-.01),(0,-.004))],[(0,1,2,3)],'ink',{bone:1})
-        elif kind=='ulfhedinn':
-            rows=[]
-            for t,r in ((.91,.034),(1.08,.034)):
-                c=start.lerp(end,t)
-                rows.append([c+(r+.005*(i%3))*(front*math.cos(v)+across*math.sin(v))
-                             +axis*(.007*(i%2)) for i,v in enumerate([i*math.tau/28 for i in range(28)])])
-            a.loft(f'fur_wrist_wrap_{side}',rows,'fur',weights)
-        elif kind=='haugbrjotr':
-            a.loft(f'grave_worker_cuff_{side}',[ring(.90,.034),ring(1.02,.032)],'leather',weights)
-            for j in (-1,1):
-                c=end+across*(j*.021)+front*.027
-                tube(f'wrist_pick_{side}_{j}',[c-axis*.03,c+axis*.035],[.004,.0015],'iron',{hand:1},6,False)
-        elif kind=='skald':
-            a.loft(f'stained_wrist_tie_{side}',[ring(.91,.032),ring(.945,.031)],'linen',weights)
+
+def export(kind, rig):
+    em.validate(PLAN["ceiling"])
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in em.PARTS:
+        obj.select_set(True)
+    rig.select_set(True)
+    bpy.context.view_layer.objects.active = rig
+    bpy.ops.wm.save_as_mainfile(filepath=str(SRC / f"{kind}_arms.blend"))
+    bpy.ops.export_scene.gltf(filepath=str(OUT / f"{kind}_arms.glb"), export_format="GLB", use_selection=True,
+        export_yup=True, export_apply=False, export_skins=True, export_def_bones=False,
+        export_leaf_bone=False, export_animations=False, export_morph=False, export_cameras=False,
+        export_lights=False, export_vertex_color="ACTIVE", export_attributes=True, export_extras=True)
+    return {"triangles": em.triangle_count(), "mesh_parts": len(em.PARTS), "bones": len(rig.data.bones),
+            "source_rig": "humanoid_rig.blend", "sculpted": True,
+            "weighted_bones": sorted({g.name for o in em.PARTS for g in o.vertex_groups})}
+
+
+def review(kind):
+    """Close enough to read the fingers and the class work."""
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.samples = 32
+    scene.render.resolution_x, scene.render.resolution_y = 1100, 700
+    scene.render.resolution_percentage = 100
+    scene.world.color = (0.30, 0.30, 0.30)
+    scene.view_settings.look = "AgX - Medium High Contrast"
+    for loc, power in (((-2, -3, 4), 420), ((3, 1, 3), 300)):
+        bpy.ops.object.light_add(type="AREA", location=loc)
+        o = bpy.context.object
+        o.data.energy, o.data.size = power, 3
+        o.rotation_euler = (Vector((0, 0, 1.2)) - o.location).to_track_quat("-Z", "Y").to_euler()
+    bpy.ops.object.camera_add(location=(0.9, -3, 2))
+    camera = bpy.context.object
+    scene.camera = camera
+    camera.rotation_euler = (Vector((0, 0, 1.17)) - camera.location).to_track_quat("-Z", "Y").to_euler()
+    camera.data.type, camera.data.ortho_scale = "ORTHO", 1.30
+    scene.render.filepath = str(SRC / f"{kind}_arms_review.png")
+    bpy.ops.render.render(write_still=True)
 
 
 def main():
-    report={}
-    for kind in ('huskarl','veidimadr','volva','skald','ulfhedinn','haugbrjotr'):
-        a.begin(); build(kind); report[kind]=a.export(f'{kind}_arms')
-        # Review bare-arm shape close enough to read the fingers and class work.
-        scene=bpy.context.scene
-        scene.render.engine='CYCLES'; scene.cycles.samples=24
-        scene.render.resolution_x=1100; scene.render.resolution_y=700
-        scene.render.resolution_percentage=100
-        scene.world.color=(.35,.35,.35)
-        for loc,power in (((-2,-3,4),650),((3,1,3),550)):
-            bpy.ops.object.light_add(type='AREA',location=loc)
-            o=bpy.context.object;o.data.energy=power;o.data.size=3
-            o.rotation_euler=(Vector((0,0,1.2))-o.location).to_track_quat('-Z','Y').to_euler()
-        bpy.ops.object.camera_add(location=(.9,-3,2))
-        camera=bpy.context.object;scene.camera=camera
-        camera.rotation_euler=(Vector((0,0,1.17))-camera.location).to_track_quat('-Z','Y').to_euler()
-        camera.data.type='ORTHO';camera.data.ortho_scale=1.30
-        scene.render.filepath=str(a.SRC/f'{kind}_arms_review.png')
-        bpy.ops.render.render(write_still=True)
-    (a.SRC/'class_arms_measurements.json').write_text(json.dumps(report,indent=2)+'\n')
+    chosen = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else list(CLASSES)
+    path = SRC / "class_arms_measurements.json"
+    report = json.loads(path.read_text()) if path.exists() else {}
+    for kind in chosen:
+        rig = build(kind)
+        report[kind] = export(kind, rig)
+        review(kind)
+        print(kind, report[kind]["triangles"])
+    path.write_text(json.dumps(report, indent=2) + "\n")
 
 
-if __name__=='__main__':
+if __name__ == "__main__":
     main()

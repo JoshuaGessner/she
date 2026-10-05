@@ -4,7 +4,7 @@ title: Worn Armour, Class Arms and Depth Variants — Review
 status: proposed
 owner: art
 tags: [art, assets, modelling, review]
-updated: 2026-10-04
+updated: 2026-10-05
 related: [ART-004, ART-006, ART-007, DES-020, TEC-008]
 ---
 
@@ -61,7 +61,7 @@ human in the game. The body and all three worn pieces are now sculpted through
 |---|---|---|
 | `player_body` | 7,000 | `build_player_body.py` |
 | `mail_byrnie_worn` | 7,500 | `build_worn.py` |
-| `iron_bracers_worn` | 1,600 | `build_worn.py` |
+| `iron_bracers_worn` | 5,000 | `build_worn.py` |
 | `otr_pelt_worn` | 9,000 | `build_worn.py` |
 
 - **The body** is a tunic to mid-thigh with fitted sleeves to the wrist,
@@ -82,10 +82,23 @@ human in the game. The body and all three worn pieces are now sculpted through
 ## First-person arm library
 
 Six arm pairs use that same skeleton and bind pose. Each contains tapered
-forearms, shaped palms and individually modelled fingers in a carrying curl.
-The rig has hand bones rather than finger bones; the fingers do not articulate
-individually. This is a modelling limitation, not a claim of authored finger
-animation.
+forearms, shaped palms and individually modelled fingers closed round the grip
+(ADR-280). The rig has hand bones rather than finger bones; the fingers do not
+articulate individually. This is a modelling limitation, not a claim of
+authored finger animation.
+
+**Sculpted (ADR-319).** These are on screen for every second of a run, so they
+are now the most carefully made models in the game:
+- **Built like the bodies.** Each pair is sculpted through `build_enemies.sculpt`
+  at a 2.8 mm voxel, in bounds round the forearms only, and decimated to 9,000
+  triangles with 1024² maps.
+- **ADR-280's construction is kept.** The fist is still built round
+  `sock_hand_*`, read from the rig, with the same palm, finger and thumb paths.
+  It now has knuckles standing proud and a forearm that swells below the elbow.
+- **Class marks are part of the skin.** The Völva's interlace is painted into
+  the skin's colour map, and the Húskarl's scars are raised.
+- **Iron is planished:** small, shallow hammer marks. Dents 3.5 cm across read
+  as low-poly facets from the eye, on the worn bracers most of all.
 
 | Class | Authored distinction | Review |
 |---|---|---|

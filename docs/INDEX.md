@@ -59,7 +59,7 @@ _How we work, what we decided, what we must not do._
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
 | `PRO-001` | [Roadmap & Milestones](process/PRO-001-roadmap-and-milestones.md) | ✔ accepted | 2026-09-29 | DES-001, TEC-001, TEC-003 |
-| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-10-04 | DES-001, DES-003, PRO-001 |
+| `PRO-002` | [Decision Log (ADRs)](process/PRO-002-decision-log.md) | ✔ accepted | 2026-10-05 | DES-001, DES-003, PRO-001 |
 | `PRO-003` | [Glossary](process/PRO-003-glossary.md) | ✔ accepted | 2026-08-14 | DES-003, DES-004, DES-005 |
 | `PRO-004` | [IP & Legal Guardrails](process/PRO-004-ip-and-legal-guardrails.md) | ✔ accepted | 2026-08-14 | DES-006, PRO-003 |
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
@@ -81,7 +81,7 @@ _Visual and audio direction._
 | `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-10-01 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
 | `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-09-28 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
 | `ART-007` | [Asset Quality Review — First Delivered Library](art/ART-007-asset-quality-review.md) | ✔ accepted | 2026-09-28 | ART-006, ART-004, ART-005, DES-020, PRO-002 |
-| `ART-008` | [Worn Armour, Class Arms and Depth Variants — Review](art/ART-008-worn-armour-and-depth-review.md) | ◆ proposed | 2026-10-04 | ART-004, ART-006, ART-007, DES-020, TEC-008 |
+| `ART-008` | [Worn Armour, Class Arms and Depth Variants — Review](art/ART-008-worn-armour-and-depth-review.md) | ◆ proposed | 2026-10-05 | ART-004, ART-006, ART-007, DES-020, TEC-008 |
 | `ART-009` | [Enemy Model and Animation Review](art/ART-009-enemy-model-and-animation-review.md) | ✎ draft | 2026-10-04 | ART-004, ART-005, ART-006, DES-013, DES-017, PRO-001, PRO-002 |
 
 ## By Tag

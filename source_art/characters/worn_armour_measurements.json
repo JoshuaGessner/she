@@ -29,7 +29,7 @@
     ]
   },
   "iron_bracers_worn": {
-    "triangles": 1600,
+    "triangles": 4998,
     "mesh_parts": 1,
     "bones": 28,
     "source_rig": "humanoid_rig.blend",

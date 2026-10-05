@@ -52,7 +52,10 @@ def _mail(p):
 
 
 def _iron(p):
-    return -S.scale_height(p, 0.035, 0.0012)
+    # Planished, as a smith leaves it (ADR-319): small, shallow hammer marks
+    # and a little grain. Dents 3.5 cm across read from the eye as the facets
+    # of a low-poly model, not as hammering.
+    return -S.scale_height(p, 0.013, 0.00035) + 0.00015 * S.noise(p, 0.004)
 
 
 def _gold(p):

@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-04
+updated: 2026-10-05
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -11426,5 +11426,35 @@ A stamina mark drawn on a client would have been drawing the wrong number.
 **Honest scale:**
 - The helm, the pack, the lantern and the first-person class arms are still ADR-308-era construction, and are next.
 - The value range and the fit are ⟨tune⟩.
+
+## ADR-319 — The first-person arms are sculpted, and iron is planished
+
+**Date:** 2026-10-05 · **Status:** accepted · **Supersedes ADR-280's construction; keeps its fist and its socket** · **Developer's call: "continue working towards production, ready for testing."**
+
+**Context:** The six class arm pairs are the model on screen for every second of a run, and they were the last lofted human parts after ADR-318. ADR-280 got their pose right: a fist closed round `sock_hand_*`. But the forearm was a tube, the palm a stack of rings and the fingers pipes. The Völva's ink and the Húskarl's scars were quads stuck on the skin.
+
+Testing the sculpted arms in first person found a second fault. The worn iron bracers looked like a low-poly model from the eye. They weren't: their hammered dents were 3.5 cm across, and at arm's length a dent that size reads as a polygon.
+
+**References:**
+- **Forearm and hand anatomy:** the forearm flattens from elbow to wrist, the muscles swell below the elbow on the thumb side, and a closed fist's knuckles stand proud.
+- **The Mammen and Jelling ribbon interlace**, for the Völva's tattoo bands.
+- **Planished iron:** a smith's finishing blows leave small, shallow, overlapping marks, not dents the size of a coin.
+
+**Decision:**
+- **The arms are sculpted through `build_enemies.sculpt`** (`build_class_arms.py`):
+  - **Fit to the job:** a 2.8 mm voxel, bounds round the forearms only (`sculpt` now takes a plan's `bounds` and sparse sampling), 9,000 triangles, 1024² maps.
+  - **ADR-280's construction is kept exactly.** The fist is built round each hand's socket, read from the rig at build time, with the same palm, finger and thumb paths and the same weights.
+  - **Class marks are surface, not geometry:** the Völva's interlace is painted into the skin's colour map, the Húskarl's scars are raised, and the bowman's tabs, wraps, cuffs and charms are sculpted.
+- **Iron is planished:** `humanoid_detail._iron` is small, shallow hammer marks with a little grain. Every iron and plate surface is rebuilt: the bracers, the Haugbrjótr's picks, the Bellringer's collar, the Hoard-Keeper's helm and the Gold-Sick's breastplate.
+- **The worn bracers are dense enough for first person:** 5,000 triangles at a 5 mm voxel, with 1024² maps.
+- **`build_worn_armour.py` is deleted.** ADR-318 had kept its lofting helpers only because the class arms used them.
+
+**Measured:**
+- **Triangles:** 9,000 for each of the six arm pairs and 4,998 for the bracers, all under `ART-004`'s 10,000 for a character.
+- **`--hands-shot`:** the fist closes over the lantern bail with its knuckles showing, and the bracer reads as smooth iron with a rolled rim and no facets.
+
+**Honest scale:**
+- Four of the six arm pairs still belong to classes the game does not offer yet.
+- The voxel and the iron's marks are ⟨tune⟩.
 
 *Entries below to be added as design decisions are signed off.*

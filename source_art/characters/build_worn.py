@@ -122,7 +122,9 @@ def pelt(p):
 
 ITEMS = {
     "mail_byrnie_worn": (byrnie, dict(voxel=0.010, body_tris=7500, texture=1024, ceiling=10000)),
-    "iron_bracers_worn": (bracers, dict(voxel=0.008, body_tris=1600, texture=512, ceiling=10000)),
+    # Seen from the eye in first person, not only across a room: dense enough
+    # that no facet shows at arm's length (ADR-319).
+    "iron_bracers_worn": (bracers, dict(voxel=0.005, body_tris=5000, texture=1024, ceiling=10000, sparse=True)),
     "otr_pelt_worn": (pelt, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
 }
 
