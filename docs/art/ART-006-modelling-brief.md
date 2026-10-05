@@ -35,7 +35,7 @@ What that means for you, in one line:
 
 Do not model pitting, grain, pebbling or wear as geometry — the normal map does it, at every scale, for free. **Do** model anything that changes the silhouette or is a real cut in the material: courses of masonry, chamfers, rebates, the step of a plinth, a broken edge. Those are form.
 
-> **Amended by ADR-321 for sculpted assets** (ADR-315 onward: Her, the enemies, the delvers, their worn pieces, the class arms, the hoard's mound). One sculpted mesh replaces many parts, so:
+> **Amended by ADR-321 for sculpted assets** (ADR-315 onward: Her, the enemies, the delvers, their worn pieces, the class arms, the hoard's mound — and, by ADR-323, the Mail Byrnie as it lies on a floor). One sculpted mesh replaces many parts, so:
 > - **A per-asset normal map** may carry the carving too fine for its budget — scales, folds, struck coin.
 > - **A per-asset colour map** may carry **flat colour per material region** — exactly what separate materials would have given, and nothing more. No variation within a region, no painted light or shade (countershading included), and no darkening in a crevice: that is baked ambient occlusion by another name, and value is the ink's.
 >

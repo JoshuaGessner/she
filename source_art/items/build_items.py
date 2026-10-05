@@ -163,26 +163,45 @@ def coin():
         rod('struck_stave',(x-.01,.051,z),(x+.01,.051,z),.0015,'gold',4)
     collision((-.13,.13,0,.06,-.13,.13))
 
+def gable(name, outline, x0, x1, kind):
+    """A board cut to an outline in (z, y) and given its thickness along x."""
+    n=len(outline)
+    vertices=[(x,y,z) for x in (x0,x1) for z,y in outline]
+    faces=[tuple(reversed(range(n))),tuple(range(n,2*n))]
+    faces+=[(i,(i+1)%n,n+(i+1)%n,n+i) for i in range(n)]
+    return mesh_form(name,vertices,faces,kind)
+
 def chest():
-    # Separate boards follow a barrel-vault lid; bands follow that same surface.
+    # A Viking-age chest, after the Mästermyr and Oseberg chests: plank sides
+    # between two end boards that rise to a gable and run down past the floor
+    # as feet, a pitched lid of two boards meeting at a ridge, and iron straps
+    # over the ridge, nailed. The first version was a barrel-vaulted
+    # treasure chest, which no one in the sagas owned.
     for i in range(7):
         x=-.306+i*.102
-        for z in (-.21,.21): cube('chest_wall_plank',(x,.23,z),(.099,.40,.035),'timber',.007)
+        for z in (-.21,.21): cube('chest_wall_plank',(x,.25,z),(.099,.36,.035),'timber',.007)
+    cube('chest_floor',(0,.075,0),(.73,.035,.43),'timber',.006)
+    ends=[(-.232,0),(-.150,0),(-.125,.045),(.125,.045),(.150,0),(.232,0),(.232,.43),(0,.51),(-.232,.43)]
     for x in (-.358,.358):
-        cube('chest_end',(x,.23,0),(.035,.40,.42),'timber',.009)
-    cube('chest_floor',(0,.035,0),(.73,.05,.43),'timber',.008)
-    for i in range(10):
-        a0=math.pi*i/10+.008; a1=math.pi*(i+1)/10-.008
-        ring=[]
-        for x in (-.371,.371): ring.append([(x,.43+.215*math.sin(a),.215*math.cos(a)) for a in (a0,(a0+a1)/2,a1)])
-        loft('vaulted_lid_board',ring,'timber',False,.018)
-    for x in (-.27,.27):
-        ribbon('curved_iron_binding',[(x,.065,-.236),(x,.43,-.236)]+[(x,.43+.229*math.sin(a),-.229*math.cos(a)) for a in [i*math.pi/16 for i in range(17)]]+[(x,.065,.236)],.038,'metal')
-        for y in (.12,.34):
-            for z in (-.24,.24): ico('band_rivet',(x,y,z),.010,'metal',subdiv=1)
-    cube('hasp',(0,.355,-.244),(.044,.17,.016),'metal',.006)
-    torus('lock_ring',(0,.26,-.261),.031,.008,'gold',16,4,rot=(0,0,0))
-    collision((-.39,.39,0,.67,-.25,.25))
+        gable('chest_gable_end',ends,x-.019,x+.019,'timber')
+    # The lid: two boards on the gable's pitch, proud of the ends.
+    # Mästermyr's pitch is low: a ridge, not a roof.
+    run=.250
+    for side in (-1,1):
+        z0=side*run; lo=.428; hi=.514
+        loft('pitched_lid_board',[[(-.395,lo,z0),(-.395,hi,0)],[(.395,lo,z0),(.395,hi,0)]],'timber',False,.020)
+    # Iron straps over the ridge and down both faces, a nail at each end and
+    # one either side of the ridge.
+    for x in (-.25,0,.25):
+        path=[(x,.11,-.262),(x,.455,-.262),(x,.546,0),(x,.455,.262),(x,.11,.262)]
+        ribbon('ridge_strap',path,.040,'metal',thickness=.005)
+        for y,z in ((.13,-.267),(.13,.267),(.512,-.10),(.512,.10)):
+            ico('strap_nail',(x,y,z),.008,'metal',subdiv=1)
+    # Hasp from the lid down over a lock plate on the front.
+    cube('lock_plate',(.0,.33,-.236),(.11,.12,.010),'metal',.003)
+    cube('hasp',(.0,.38,-.258),(.034,.15,.010),'metal',.004)
+    torus('lock_ring',(0,.30,-.262),.024,.007,'gold',16,4,rot=(0,0,0))
+    collision((-.40,.40,0,.56,-.28,.28))
 
 def plate():
     lathe('hammered_plate',[(.0,.008),(.25,.008),(.30,.013),(.35,.036),(.38,.06),(.382,.071),(.372,.077),(.356,.066),(.30,.038),(.24,.031),(.0,.031)],'gold',32)
@@ -217,52 +236,31 @@ def gemstone():
     mesh_form('crystal_ends',rings[0]+rings[-1],[tuple(range(6,-1,-1)),tuple(range(7,14))],'stone')
     collision((-.020,.020,0,.04,-.017,.017))
 
-def byrnie():
-    # Hollow elliptical shell: chest, waist, flared split skirt, sloping shoulders.
-    n=24; rings=[]
-    for j,(y,rx,rz) in enumerate(((.035,.255,.165),(.22,.235,.145),(.42,.245,.155),(.62,.285,.16),(.735,.125,.10))):
-        ring=[]
-        for i in range(n):
-            a=i*math.tau/n
-            split=.095*max(0,1-abs(math.cos(a))/.28) if j==0 else 0
-            fold=1+.026*math.sin(6*a+j*.5)
-            ring.append((rx*math.cos(a)*fold,y+split,rz*math.sin(a)*fold))
-        rings.append(ring)
-    loft('mail_tunic_shell',rings,'metal',True,.009)
-    for side in (-1,1):
-        rings=[]
-        for x,r in ((.245,.115),(.34,.12),(.43,.105)):
-            rings.append([(side*x,.61-.18*(x-.245)+r*math.cos(i*math.tau/16),r*.88*math.sin(i*math.tau/16)) for i in range(16)])
-        loft('open_short_sleeve',rings,'metal',True,.009)
-        pts=[(side*.432,.577+.107*math.cos(i*math.tau/24),.095*math.sin(i*math.tau/24)) for i in range(25)]
-        arc('bound_sleeve_edge',pts,.010,'metal')
-    arc('neck_binding',[(.127*math.cos(i*math.tau/28),.737,.102*math.sin(i*math.tau/28)) for i in range(29)],.010,'metal')
-    # Sparse broad linked courses describe mail, leaving most of the budget to cloth form.
-    for row in range(4):
-        for col in range(9):
-            x=(col-4)*.046+(.011 if row%2 else 0); y=.24+row*.072
-            z=-.151*math.sqrt(max(.1,1-(x/.25)**2))-.003
-            torus('linked_mail_course',(x,y,z),.022,.004,'metal',6,3,rot=(0,0,0))
-    collision((-.45,.45,0,.76,-.18,.18))
-
 def helm():
-    # An open spangen shell, never a sphere occluded by a box.
+    # A spangenhelm (the Baldenheim helmets, Vendel and Valsgärde): plates
+    # riveted between bands, rising from a brow band to a point — an ogive,
+    # not a dome. The first version was a hemisphere, which is a bowl.
+    H=.235
+    def shell(t):
+        return math.cos(t*math.pi/2)**.72, .115+H*t
     rings=[]
-    for j in range(9):
-        a=.07+j*(math.pi/2-.07)/8
-        rings.append([(.162*math.sin(a)*math.cos(i*math.tau/28),.115+.20*math.cos(a),.185*math.sin(a)*math.sin(i*math.tau/28)) for i in range(28)])
+    for tt in (0,.12,.25,.38,.50,.62,.74,.86,.96):
+        s,y=shell(tt)
+        rings.append([(.162*s*math.cos(i*math.tau/28),y,.185*s*math.sin(i*math.tau/28)) for i in range(28)])
     loft('open_helm_dome',rings,'metal',True,.009)
     lathe_obj=loft('brow_band',[[(.166*math.cos(i*math.tau/28),y,.19*math.sin(i*math.tau/28)) for i in range(28)] for y in (.108,.14)],'metal',True,.006)
     for k in range(4):
         t=k*math.pi/2
-        pts=[(.168*math.sin(a)*math.cos(t),.115+.204*math.cos(a),.191*math.sin(a)*math.sin(t)) for a in [i*math.pi/2/16 for i in range(17)]]
+        # Proud of the plates by the same margin all the way up, not by a
+        # fraction of the radius — that would sink them at the point.
+        pts=[((.162*s+.011*s+.002)*math.cos(t),y+.010*(1-s),(.185*s+.011*s+.002)*math.sin(t)) for s,y in [shell(.94*i/16) for i in range(17)]]
         ribbon('spangen_ridge_band',pts,.022,'metal',(-math.sin(t),0,math.cos(t)),.004)
     ribbon('tapered_nasal_guard',[(0,.137,-.194),(0,.09,-.199),(0,.016,-.205),(0,0,-.20)],.024,'metal',thickness=.007)
     for i in range(12):
         a=i*math.tau/12
         ico('brow_rivet',(.17*math.cos(a),.124,.194*math.sin(a)),.0055,'metal',subdiv=1)
-    ico('crown_cap',(0,.316,0),.018,'metal',(1,.4,1),2)
-    collision((-.18,.18,0,.34,-.22,.20))
+    ico('crown_cap',(0,.115+H*.96+.006,0),.017,'metal',(1,.7,1),2)
+    collision((-.18,.18,0,.37,-.22,.20))
 
 def bracers():
     for side in (-1,1):
@@ -328,29 +326,42 @@ def frame():
     collision((-.28,.28,0,1.04,-.21,.27))
 
 def lantern():
-    # Eight individual translucent-horn coloured panels within an iron cage.
-    # Opaque bone colour is intentional: runtime light owns the illumination.
-    n=8
+    # A horn lantern as they were made from the Middle Ages to the 1800s, and
+    # as life-size: a round iron frame a hand and a half across, its window
+    # panes of horn scraped thin enough to pass light, under a cone with a
+    # vented chimney and a ring at the top to carry it by. The first version
+    # was a hurricane lamp — a bail, a glass chimney, a ribbed cage — at twice
+    # this size. Opaque bone colour on the horn is intentional: runtime light
+    # owns the illumination (`HeldLook` puts the flame at 0.38 of the height).
+    R=.084
+    lathe('tray_foot',[(0,.0),(.078,.0),(.090,.010),(.092,.022),(.088,.030),(0,.030)],'metal',16)
+    for y0,y1 in ((.030,.046),(.226,.242)):
+        lathe('frame_band',[(R-.004,y0),(R+.006,y0),(R+.007,y1),(R-.004,y1)],'metal',16)
+    # Six panes between six straps, the front one behind the shutter.
+    n=6
     for i in range(n):
-        a0=i*math.tau/n+.04; a1=(i+1)*math.tau/n-.04
-        loft('curved_horn_panel',[[(r*math.cos(a),y,r*math.sin(a)) for a in (a0,(a0+a1)/2,a1)] for y,r in ((.105,.105),(.20,.115),(.38,.10),(.41,.095))],'cloth',False,.004)
+        a0=i*math.tau/n+.05; a1=(i+1)*math.tau/n-.05
+        loft('horn_pane',[[(R*math.cos(a)*s,y,R*math.sin(a)*s) for a in (a0,(a0+a1)/2,a1)]
+             for y,s in ((.046,1.0),(.136,1.035),(.226,1.0))],'cloth',False,.003)
         a=i*math.tau/n
-        arc('forged_cage_rib',[(r*math.cos(a),y,r*math.sin(a)) for y,r in ((.08,.112),(.20,.121),(.40,.107),(.44,.10))],.008,'metal')
-    for y,r in ((.09,.11),(.405,.102)):
-        lathe('cage_end_ring',[(r-.012,y-.008),(r+.008,y-.008),(r+.009,y+.008),(r-.012,y+.008)],'metal',24)
-    lathe('lantern_standing_foot',[(0,.015),(.10,.015),(.125,.028),(.125,.042),(.095,.065),(.095,.09)],'metal',24)
-    lathe('sloped_weather_cap',[(.125,.417),(.128,.433),(.083,.469),(.059,.479)],'metal',24)
-    for i in range(8):
-        a=i*math.tau/8; rod('vent_post',(.048*math.cos(a),.472,.048*math.sin(a)),(.048*math.cos(a),.515,.048*math.sin(a)),.006,'metal',6)
-    lathe('vent_rain_hat',[(0,.53),(.04,.53),(.071,.518),(.071,.509)],'metal',24)
-    for side in (-1,1):
-        torus('handle_hinge',(side*.114,.405,0),.018,.005,'metal',12,4,rot=(0,0,0))
-    arc('arched_carry_bail',[(.13*math.cos(a),.411+.25*math.sin(a),0) for a in [i*math.pi/32 for i in range(33)]],.009,'metal')
-    # Moveable shutter sits on the front panel; slots expose pale horn beneath.
-    for side in (-1,1): rod('shutter_rail',(side*.043,.14,-.114),(side*.043,.36,-.109),.006,'metal',6)
-    for y in (.15,.21,.27,.33): cube('shutter_louvre',(0,y,-.116),(.08,.035,.01),'metal',.002)
-    cube('shutter_thumb',(0,.365,-.128),(.027,.016,.022),'metal',.004)
-    collision((-.145,.145,0,.68,-.135,.135))
+        arc('frame_strap',[((R+.004)*math.cos(a)*s,y,(R+.004)*math.sin(a)*s)
+             for y,s in ((.040,1.0),(.136,1.035),(.232,1.0))],.0055,'metal')
+    # The cone and its chimney: smoke out through the slots, rain kept off by
+    # the cap.
+    lathe('cone_cap',[(R+.008,.242),(R+.010,.250),(.030,.330),(.024,.334)],'metal',16)
+    for i in range(6):
+        a=i*math.tau/6+math.pi/6
+        rod('chimney_post',(.022*math.cos(a),.330,.022*math.sin(a)),(.022*math.cos(a),.362,.022*math.sin(a)),.0045,'metal',6)
+    lathe('chimney_hat',[(0,.372),(.020,.372),(.036,.362),(.036,.356),(0,.356)],'metal',16)
+    # Carried by a ring through an eye on the hat, as these always were.
+    cube('ring_eye',(0,.380,0),(.008,.016,.012),'metal')
+    torus('carry_ring',(0,.408,0),.024,.0055,'metal',14,4,rot=(0,0,0))
+    # The shutter: iron louvres on rails over the front pane (−Z), which the
+    # game turns open (`HeldLook.lantern`, `shutter_louvre*` by name).
+    for side in (-1,1): rod('shutter_rail',(side*.040,.052,-R-.012),(side*.040,.222,-R-.012),.0045,'metal',6)
+    for y in (.073,.115,.157,.199): cube('shutter_louvre',(0,y,-R-.014),(.074,.040,.006),'metal',.0015)
+    cube('shutter_thumb',(0,.226,-R-.020),(.020,.012,.016),'metal',.003)
+    collision((-.10,.10,0,.44,-.11,.10))
 
 def waystone():
     rings=[]
@@ -423,7 +434,7 @@ def pelt():
 
 ASSETS = [
     ("hoard_coin", coin), ("coin_chest", chest), ("altar_plate", plate), ("gilded_torc", torc), ("gilt_bead", bead), ("raw_gemstone", gemstone),
-    ("mail_byrnie", byrnie), ("spangen_helm", helm), ("iron_bracers", bracers), ("round_shield", shield), ("hide_satchel", satchel), ("pack_frame", frame), ("horn_lantern", lantern),
+    ("spangen_helm", helm), ("iron_bracers", bracers), ("round_shield", shield), ("hide_satchel", satchel), ("pack_frame", frame), ("horn_lantern", lantern),
     ("waystone", waystone), ("ember", ember), ("hush_rune", hush), ("linen_binding", linen), ("bog_iron", bog_iron), ("otr_pelt", pelt),
 ]
 

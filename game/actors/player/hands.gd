@@ -31,11 +31,12 @@ extends Node3D
 ##
 ## In the head's frame, like the weapon, so a lantern stays where a hand holds
 ## it when you look down at your feet. Poses are ⟨tune⟩ and were set against
-## `--hands-shot`; the lantern's is chosen so its flame sits close to where
-## `Lantern.GRIP` puts the actual light, so what you see lit is lit from there.
+## `--hands-shot`. The lantern's keeps its horn window in view (ADR-323): a
+## life-size lantern hung where the old, twice-size one hung showed only its
+## cone, so its flame now sits about 0.2 m above `Lantern.GRIP`'s light.
 
 ## Where the off-hand item rests — (position, rotation in degrees), head frame.
-const OFF_REST: Array = [Vector3(-0.42, -0.22, -0.64), Vector3(0, 158, 4)]
+const OFF_REST: Array = [Vector3(-0.40, -0.12, -0.62), Vector3(0, 158, 4)]
 ## Where the fist on a shield's handle is at rest (ADR-280, ADR-293): low at
 ## the left edge with the board turned out to the left, so the eye reads
 ## *shield* without it standing in front of the room. These are the hand's

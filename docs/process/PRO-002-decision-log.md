@@ -11538,4 +11538,48 @@ The crevice darkening is baked ambient occlusion by another name. The countersha
 
 **Honest scale:** The broken back shows from the side and from the swing, not from the rest pose. At rest the seax is seen nearly edge-on.
 
+## ADR-323 — The carried gear is drawn from its finds: a horn lantern, a gabled chest, a pointed helm, a byrnie that lies down
+
+**Date:** 2026-10-05 · **Status:** accepted · **Amends `ART-006` ① (the ADR-321 list) for one prop; adjusts `Hands.OFF_REST`**
+
+**Context:** Four of the props in `ART-006` §5.2 were the wrong object, or the right one in the wrong century:
+- **The Horn Lantern was a hurricane lamp.** It had a wire bail, a glass chimney and a ribbed cage, and stood 68 cm tall, about twice life size. `ART-006` says it *"deserves the most attention of anything in this table"*, and it hangs in the left hand in every first-person frame.
+- **The Coin-Chest was a barrel-vaulted pirate chest.**
+- **The Spangen Helm was a hemisphere.** A spangenhelm rises to a point.
+- **The Mail Byrnie stood up on its own.** It was a rigid shell with barrel sleeves, like a shirt on an invisible mannequin, and its mail was a few dozen hexagonal studs.
+
+**Decision:**
+- **Horn Lantern:** a horn lantern as they were made into the 1800s, at life size, 44 cm to the top of its ring.
+  - **Parts:** a round iron frame with six horn panes between straps, on a tray foot. A cone with a vented chimney sits on top, with a ring to carry it by.
+  - **The shutter's iron louvres are kept** on the front pane. `HeldLook.lantern` finds them by name, as before.
+- **The off-hand rest rises 10 cm** (`Hands.OFF_REST` y −0.22 → −0.12, z −0.64 → −0.62). This keeps the smaller lantern's horn window in view, as `DES-020` requires: the off hand is *seen by you: constantly*.
+  - **The cost:** its drawn flame now sits about 0.2 m above `Lantern.GRIP`'s light, where it used to sit close to it.
+- **Coin-Chest:** after the Mästermyr and Oseberg chests.
+  - Two end boards cut as gables run down past the floor as feet.
+  - A low pitched lid of two boards meets at a ridge.
+  - Three nailed iron straps go over the ridge, with a hasp over a lock plate. The lock ring stays gold.
+- **Spangen Helm:** a pointed shell rising in an ogive from the brow band (the Baldenheim helmets, Vendel and Valsgärde). Its four bands follow the shell to a crown knob.
+- **Mail Byrnie:** **sculpted**, lying on its back on the floor, after the Gjermundbu shirt.
+  - **Shape:** elbow sleeves fallen outward, a split skirt and an open neck, slumped into folds and heaped where it fell.
+  - **Rings:** baked into a normal map exactly as the worn byrnie draws them (ADR-317). Courses of arcs run toward the hem, on one flat iron material.
+  - **Why it is sculpted:** mail is too soft to model as parts, and too fine to model at all. This is ADR-321's per-asset normal map, extended to this one prop. There is still no colour map.
+  - **Source:** `build_byrnie_item.py`; `build_items.byrnie` is removed.
+
+**Measured:**
+- **Triangles, all under the 3,000 props ceiling:**
+
+  | Prop | Triangles |
+  |---|---:|
+  | lantern | 1,688 |
+  | chest | 2,400 |
+  | helm | 2,108 |
+  | byrnie | 2,800 |
+- **`art_probe`:** 0 failures. The byrnie measures 1.04 × 0.07 × 0.82 m, pivoted at its base, with collision.
+- **`--hands-probe`:** the lantern is in the hand, 4 louvres turn 78°, the flame lights, and a teammate's lantern is lit.
+- **`--hands-shot`:** the lantern's cone, horn and open louvres show below the fist.
+
+**Honest scale:**
+- From its ends the gabled chest reads a little like a house; it reads as a chest from its front.
+- Lifting the lantern by 10 cm is a pose, so it is ⟨tune⟩ like every other pose in `Hands`.
+
 *Entries below to be added as design decisions are signed off.*
