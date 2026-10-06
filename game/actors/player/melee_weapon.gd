@@ -41,8 +41,9 @@ const ARC_RAYS: int = 5
 ## Blockout poses, as (position, rotation-in-degrees). Not juice: without a
 ## visible weapon the player cannot see wind-up, strike or recovery at all, and
 ## the whole point of DES-009's attack anatomy is that those phases are
-## *readable*. This is the primary representation of the mechanic — the polish
-## layer is the arm absorbing impact and the camera kick, both still absent.
+## *readable*. This is the primary representation of the mechanic. The polish
+## layer is the camera kick (ADR-279) and the arm absorbing impact (ADR-335,
+## `CarrySway.jolt`), both laid over these poses rather than written into them.
 ##
 ## **A cut, not a jab** (ADR-303). The strike ran from a raised pose to a
 ## struck one that pointed the blade along nearly the same line, so the blade

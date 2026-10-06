@@ -133,6 +133,8 @@ That is an unusually actionable result for a solo project — it says where to s
 > **Built (ADR-279).** Hitstop is owner-side, 45 ms to 120 ms scaled by the weapon's `stagger` ⟨tune⟩. The camera kick is positional only and scaled by a *camera motion* setting that goes to zero. Impact sound is layered by material: a crunch for flesh, a clang for mail and plate. A struck enemy flinches on every peer and is shoved away from the blow. Particles came after, as step 5 of the protocol asks: **ADR-303** draws sparks off mail and plate and chips off hide where a blow lands, a heavier burst for a heavy blow, and the arc behind the swing.
 >
 > **The killing blow holds longest (ADR-312)**, 150 ms ⟨tune⟩ against a heavy blow's 120, with a heavy blow's kick whatever the weapon. And since ADR-311 the blow is heard and seen where it lands on every peer, the killing one included: the flinch path used to skip the dead, so the kill made no sound but the corpse's.
+>
+> **The hands take the blow (ADR-335).** The camera kick moved the whole frame, and the arms rode along with it, so nothing in view ever absorbed a hit. What you hold is now knocked off its pose by a spring and rings back over about a third of a second. Your own blow landing sends a recoil up the arm, more for a heavy one. A blow on you knocks the hands back and down, rolled away from the side it came from. A blow your guard took drives the shield back at your face, harder than one that got through. A glance off stone throws the blade back and out. It is scaled by *camera motion* with the rest of held-item sway.
 
 ### 3. Attack anatomy, and the 250 ms floor
 

@@ -659,6 +659,15 @@ extends Resource
 @export var kick_on_hit: float = 0.022
 @export var kick_on_hurt: float = 0.05
 @export var kick_settle: float = 12.0
+## **The hands take the blow** (ADR-335, `DES-009` §2). How far what you hold
+## is knocked off its pose, in metres: by your own blow landing (the recoil up
+## the arm), by one landing on you, and by one your guard took — the shield
+## driven back at your face. Each scales with how much the blow carried.
+## `jolt_turn` is the most it is twisted, degrees ⟨tune⟩.
+@export var jolt_on_hit: float = 0.018
+@export var jolt_on_hurt: float = 0.05
+@export var jolt_on_guard: float = 0.065
+@export var jolt_turn: float = 8.0
 ## **The heavy blow** (ADR-279, `DES-009`: *"light (fast, low stagger,
 ## quiet-ish) vs. heavy (slow, staggers, loud)"*). Keep attack held through
 ## the wind-up and the swing draws back further instead of striking: this much

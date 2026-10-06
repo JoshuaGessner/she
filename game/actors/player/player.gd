@@ -414,6 +414,8 @@ var _attention: Array[StringName] = []
 var _driving: bool = true
 ## The view's positional kick (ADR-279), and health as last seen, per frame.
 var _kick: Vector3 = Vector3.ZERO
+## The recoil the last blow you landed sent up the arm (ADR-335).
+var _recoil: float = 0.0
 var _health_seen: float = 0.0
 ## What `_apply_pointer` last decided about the cursor. See `pointer_captured`.
 var _pointer_captured: bool = true
@@ -843,6 +845,12 @@ func _replay_swing() -> void:
 ## weapon's noise — and a spear swung in a corridor tells the floor where you are
 ## without having touched anything that could have told it instead.
 func _on_swing_glanced() -> void:
+	# Stone does not give (ADR-335): a glance throws the blade back and out
+	# harder than a body does, twisted off the line it was cut along.
+	if _is_local:
+		var tuning: TuningProfile = Config.tuning
+		_sway.jolt(Vector3(0.35, 0.15, 1.0).normalized() * tuning.jolt_on_hit * 1.8,
+			Vector3(tuning.jolt_turn * 0.5, 0.0, -tuning.jolt_turn))
 	if not multiplayer.is_server():
 		return
 	var swung: WieldableTrait = weapon.held()
@@ -917,6 +925,11 @@ func _feel_the_blow(heavy: bool, killed: bool = false) -> void:
 	weapon.hitstop(tuning.hitstop_kill if killed
 		else lerpf(tuning.hitstop_light, tuning.hitstop_heavy, weight))
 	_kick_view(Vector3(0.0, -0.3, 1.0).normalized() * tuning.kick_on_hit * (1.0 + weight))
+	# The blade stops in something, and the stop comes back up the arm
+	# (ADR-335): pushed back toward you and tipped up, more for a heavy blow.
+	_recoil = tuning.jolt_on_hit * (1.0 + weight)
+	_sway.jolt(Vector3(0.0, 0.2, 1.0).normalized() * _recoil,
+		Vector3(tuning.jolt_turn * 0.4 * (1.0 + weight), 0.0, 0.0))
 
 
 ## Push the view, positionally (`DES-009`: never rotate a first-person camera
@@ -1094,7 +1107,44 @@ func _struck_here(taken: float, at: Vector3, placed: bool, guarded: float) -> vo
 func _feel_struck(taken: float, from_point: Vector3, guarded: float) -> void:
 	if taken > 0.0:
 		Foley.at(self, Foley.Sound.HURT)
+	_jolt_struck(taken, from_point, guarded)
 	struck.emit(taken, from_point, guarded)
+
+
+## **What you hold takes the blow** (ADR-335). A guarded one drives the shield
+## back at your face and tips its rim toward you; one that got through knocks
+## everything back and down, rolled away from the side it came from — so the
+## hands say *where* as well as *how hard*, which the camera kick cannot.
+## A quarter of your health in one blow is the most a jolt says.
+func _jolt_struck(taken: float, from_point: Vector3, guarded: float) -> void:
+	var tuning: TuningProfile = Config.tuning
+	var heavy_at: float = maxf(health.maximum * 0.25, 1.0)
+	if guarded > 0.0:
+		var held_off: float = clampf(guarded / heavy_at, 0.4, 1.0)
+		_sway.jolt(Vector3(0.0, -0.15, 1.0).normalized() * tuning.jolt_on_guard * held_off,
+			Vector3(tuning.jolt_turn * 0.6 * held_off, 0.0, 0.0))
+	if taken <= 0.0:
+		return
+	var through: float = clampf(taken / heavy_at, 0.35, 1.0)
+	var side: float = 0.0
+	if from_point.is_finite() and _camera != null:
+		var local: Vector3 = _camera.global_basis.inverse() \
+			* (from_point - _camera.global_position)
+		side = signf(local.x)
+	_sway.jolt(Vector3(-side * 0.35, -0.5, 1.0).normalized() * tuning.jolt_on_hurt * through,
+		Vector3(tuning.jolt_turn * 0.3 * through, 0.0, side * tuning.jolt_turn * through))
+
+
+## How far the hands are knocked off their pose right now, for `--feel-probe`.
+func hands_jolted() -> float:
+	return _sway.jolted()
+
+
+## The recoil the last blow you landed asked of the hands, metres — for
+## `--feel-probe`, whose Wretch hits back during a heavy wind-up, so the hands'
+## motion there is two blows at once and cannot compare a heavy to a light.
+func last_recoil() -> float:
+	return _recoil
 
 
 ## **Heard by every peer, not only the one that decided it** (ADR-311). The

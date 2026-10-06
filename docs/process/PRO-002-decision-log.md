@@ -12004,4 +12004,44 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 **Honest scale:**
 - **Five deeds is the whole catalogue today.** A larger catalogue in one run would need a third column or a scroll, which `ONE_COLUMN_MAX` and the measure do not yet answer.
 
+## ADR-335 — The hands take the blow
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `DES-009` §2; closes `PRO-008` row 5's impact half**
+
+**Context:**
+- **`DES-009` §2 names three things impact feel lives on: hitstop, sound coherence and camera control.** For first person it overrides the general advice: *"the hands and weapon carry the impact, not the camera. The arm animation absorbing a blow does more than any shake, and costs no comfort."*
+- **ADR-279 built hitstop and a positional camera kick; ADR-303, ADR-311 and ADR-312 built the rest.** The arm half was never built.
+  - The weapon's own header still said *"the arm absorbing impact and the camera kick, both still absent"*.
+  - The camera kick moved the whole frame, and the arms are under the head, so they rode with it. Relative to your eye the sword never moved.
+- **A guarded blow had no visual at all beyond the number going down.** The shield stayed exactly where it was while it took the hit.
+
+**Decision:**
+- **`CarrySway` gains a jolt:** a damped spring (stiffness 260, damping 0.55 ⟨tune⟩) added to the one carry transform the weapon, the bow and both hands already share (ADR-309).
+  - A jolt sets the spring's velocity so it swings out to the asked offset and turn, overshoots once, and settles in about a third of a second, like an arm catching a weight.
+  - Its gain is measured: at 60 Hz a 0.020 m jolt peaks at 0.020 m.
+  - It is capped at 9 cm and 14°, so a flurry cannot throw the hands out of view.
+- **Four causes, each from data on `TuningProfile`** (`jolt_on_hit`, `jolt_on_hurt`, `jolt_on_guard`, `jolt_turn`, all ⟨tune⟩):
+  - **Your blow lands:** pushed back toward you and tipped up, scaled by the same weight as the hitstop, so a heavy blow recoils twice as far.
+  - **A blow on you:** knocked back and down, and rolled away from the side it came from, so the hands say *where* as well as *how hard*, which a positional camera kick cannot. It scales with how much got through, capped at a quarter of your health.
+  - **A blow your guard took:** the shield driven back at your face and its rim tipped toward you, harder than an open blow.
+  - **A glance:** thrown back and out and twisted off the cut's line, harder than a body gives.
+  - *Dark Souls* and *Chivalry* sell a blocked hit almost entirely this way, with the camera barely moving.
+- **Scaled by *camera motion*** with the rest of held-item sway. At 0 the hands are still, and the blow is still heard and still marks the vignette.
+- **Owner-side only.** It lives in `CarrySway`, which only the local body steps. Nothing replicates, as `DES-009` requires of hitstop (`TEC-004`).
+
+**Measured:**
+- **`--combat-probe` (new row):**
+  - an open 30-point blow jolts the hands 0.050 m, and a guarded one 0.070 m;
+  - with the jolt removed, both rows fail.
+- **`--feel-probe` (new rows):**
+  - a light blow on the Wretch moves the hands 0.018 m, against 0.019 m asked;
+  - a heavy blow asks 0.036 m.
+  - The hands are measured only in the six frames after your blow lands and before anything lands on you. The gym's Wretch answers during a heavy wind-up, and counting its blow made a light swing read as heavy.
+- **These probes pass:** `--hands-probe`, `--body-probe`, `--verbs-probe`, `--gear-probe` and `data_probe`.
+
+**Honest scale:**
+- **How much is right is a feel question.** 2–7 cm is visible at arm's length and is ⟨tune⟩ until someone fights with it on a real screen.
+- **The heavy row's hands value is two blows.** The probe compares asked recoil there, not measured motion; the light row is the one that proves the hands move.
+- **A ranged loose has no recoil.** The bow's draw and release are their own animation, and a jolt there was not asked for.
+
 *Entries below to be added as design decisions are signed off.*

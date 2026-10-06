@@ -447,6 +447,7 @@ func _combat_probe(player: Player) -> void:
 	var open_health: float = player.health.current
 	player._on_hurt(30.0, striker)
 	var unguarded: float = open_health - player.health.current
+	var open_jolt: float = await _peak_jolt(player)
 
 	player.health.restore()
 	player.stamina.refill()
@@ -456,6 +457,17 @@ func _combat_probe(player: Player) -> void:
 	player._on_hurt(30.0, striker)
 	var guarded: float = guarded_health - player.health.current
 	var spent_stamina: float = guarded_stamina - player.stamina.current
+	var guard_jolt: float = await _peak_jolt(player)
+	# **The hands take the blow** (ADR-335, `DES-009` §2): a blow on you knocks
+	# what you hold off its pose, and one your guard took drives the shield
+	# back harder than one that got through — the guard is what met it.
+	print("[combat] hands jolted          %.3f m open, %.3f m guarded" % [open_jolt, guard_jolt])
+	if open_jolt <= 0.005:
+		problems.append("a blow landed on you and the hands did not move — the "
+			+ "camera took it alone, which `DES-009` says is the wrong half")
+	if guard_jolt <= open_jolt:
+		problems.append(("a guarded blow jolted the hands %.3f m, no more than an "
+			+ "open one's %.3f — the shield did not take it") % [guard_jolt, open_jolt])
 	print("[combat] blocked 30 damage       %.0f through vs %.0f open, %.0f stamina"
 		% [guarded, unguarded, spent_stamina])
 	if guarded >= unguarded:
@@ -492,6 +504,18 @@ func _combat_probe(player: Player) -> void:
 	for problem: String in problems:
 		printerr("[combat] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## The furthest the hands are knocked in the half second after a blow, then
+## a further half second for the spring to settle before the next is asked.
+func _peak_jolt(player: Player) -> float:
+	var peak: float = 0.0
+	for _i: int in range(30):
+		await get_tree().physics_frame
+		peak = maxf(peak, player.hands_jolted())
+	for _i: int in range(30):
+		await get_tree().physics_frame
+	return peak
 
 
 func _probe(player: Player) -> void:
@@ -746,6 +770,15 @@ func _feel_probe(player: Player) -> void:
 				row["windup_ms"] = Time.get_ticks_msec() - started
 			row["stopped"] = maxf(float(row["stopped"]), player.weapon.stopped_for())
 			row["kicked"] = maxf(float(row["kicked"]), player.view_kick().length())
+			# The recoil of *your* blow (ADR-335): the six frames after it lands,
+			# while nothing has landed on you. The Wretch answers, and its blow
+			# jolts the hands too — counted, it made a light swing read as heavy.
+			if enemy.health.current < before and not row.has("landed_at"):
+				row["landed_at"] = frames
+				row["hp_at_landing"] = player.health.current
+			if row.has("landed_at") and frames - int(row["landed_at"]) <= 6 \
+					and player.health.current >= float(row["hp_at_landing"]) - 0.01:
+				row["jolted"] = maxf(float(row.get("jolted", 0.0)), player.hands_jolted())
 			var visual := enemy.get("_visual") as EnemyVisual
 			if visual != null:
 				row["flinched"] = maxf(float(row["flinched"]), visual.flinching())
@@ -756,14 +789,15 @@ func _feel_probe(player: Player) -> void:
 		if not released:
 			Input.action_release("attack")
 		row["dealt"] = before - enemy.health.current
+		row["recoil"] = player.last_recoil()
 		row["breath"] = breath - player.stamina.current
 		row["heard"] = int(Foley.played.get(Foley.Sound.CLANG, 0)) \
 			+ int(Foley.played.get(Foley.Sound.CRUNCH, 0)) - impacts
 		rows.append(row)
-		print("[feel] %-5s heavy=%s wind-up %3d ms, dealt %.1f, breath %.0f, held %.0f ms, kick %.3f m, flinch %.2f, arc %d"
+		print("[feel] %-5s heavy=%s wind-up %3d ms, dealt %.1f, breath %.0f, held %.0f ms, kick %.3f m, recoil %.3f m (hands %.3f), flinch %.2f, arc %d"
 			% [mode, row["heavy"], row["windup_ms"], row["dealt"], row["breath"],
-				float(row["stopped"]) * 1000.0, row["kicked"], row["flinched"],
-				int(row.get("smeared", 0))])
+				float(row["stopped"]) * 1000.0, row["kicked"], float(row["recoil"]),
+				float(row.get("jolted", 0.0)), row["flinched"], int(row.get("smeared", 0))])
 		for _i: int in range(30):
 			await get_tree().physics_frame
 	var light: Dictionary = rows[0]
@@ -777,6 +811,9 @@ func _feel_probe(player: Player) -> void:
 			problems.append("a blow landed and the blade did not hold — no hitstop")
 		if float(light["kicked"]) <= 0.0:
 			problems.append("a blow landed and the view did not move — no kick")
+		# ADR-335: and the stop came back up the arm.
+		if float(light.get("jolted", 0.0)) <= 0.003:
+			problems.append("a blow landed and the hands did not recoil")
 		if float(light["flinched"]) <= 0.0:
 			problems.append("a blow landed and the body it hit did not flinch")
 		if bool(light["heavy"]):
@@ -794,6 +831,9 @@ func _feel_probe(player: Player) -> void:
 				% [heavy["dealt"], light["dealt"]])
 		if float(heavy["breath"]) <= float(light["breath"]):
 			problems.append("the heavy blow cost no more breath than a light one")
+		if float(heavy["recoil"]) <= float(light["recoil"]):
+			problems.append("the heavy blow recoiled through the arm no more than a light one (%.3f against %.3f m)"
+				% [heavy["recoil"], light["recoil"]])
 	if bool(tap["heavy"]):
 		problems.append("a tap became a heavy blow")
 	if not enemy.health.is_dead():
