@@ -131,23 +131,36 @@ static func brazier(into: Node3D, at: Vector3, energy: float = 1.6,
 	light(into, at + Vector3(0.0, 1.9, 0.0), Color(1.0, 0.66, 0.32), energy, reach, shadows)
 
 
+## Half the door lamp's cage, from its flame to its top plate.
+const DOOR_LAMP_CAGE_HALF: float = 0.23
+## The door lamp's own chain and upper cage, where nothing says otherwise.
+const DOOR_LAMP_HANG: float = 0.73
+
+
 ## **A lamp hung in a doorway** (ADR-291): an iron cage on a short chain with a
 ## cold pale flame in it. The Delvings' door lights were lights with nothing
 ## giving them — a glow from nowhere over every doorway. This is what gives
 ## them, in their own pale colour, so the light a player steers by has a
 ## source a player can see.
-static func door_lamp(into: Node3D, at: Vector3, colour: Color) -> void:
+##
+## **`hang` is how far above the flame it is hung from** (ADR-336), and the chain
+## is cut to reach it. It was a fixed half metre, which in the Delvings ran up
+## through the corridor's beams into nothing, from a cage half buried in them.
+static func door_lamp(into: Node3D, at: Vector3, colour: Color,
+		hang: float = DOOR_LAMP_HANG) -> void:
 	var iron := StandardMaterial3D.new()
 	iron.albedo_color = Color(0.1, 0.095, 0.09)
 	iron.metallic = 0.5
 	iron.roughness = 0.6
-	var chain := MeshInstance3D.new()
-	var link := BoxMesh.new()
-	link.size = Vector3(0.03, 0.5, 0.03)
-	chain.mesh = link
-	chain.material_override = iron
-	chain.position = at + Vector3(0.0, 0.48, 0.0)
-	into.add_child(chain)
+	var reach: float = hang - DOOR_LAMP_CAGE_HALF
+	if reach > 0.01:
+		var chain := MeshInstance3D.new()
+		var link := BoxMesh.new()
+		link.size = Vector3(0.03, reach, 0.03)
+		chain.mesh = link
+		chain.material_override = iron
+		chain.position = at + Vector3(0.0, DOOR_LAMP_CAGE_HALF + reach * 0.5, 0.0)
+		into.add_child(chain)
 	for corner: Vector2 in [Vector2(1, 1), Vector2(-1, 1), Vector2(1, -1), Vector2(-1, -1)]:
 		var bar := MeshInstance3D.new()
 		var rod := BoxMesh.new()

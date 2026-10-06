@@ -12044,4 +12044,33 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **The heavy row's hands value is two blows.** The probe compares asked recoil there, not measured motion; the light row is the one that proves the hands move.
 - **A ranged loose has no recoil.** The bow's draw and release are their own animation, and a jolt there was not asked for.
 
+## ADR-336 — The Delvings' door lamps hang under their ceilings, not inside them
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends ADR-291's door lamp and `FloorAnchors.LIGHT_HEIGHT`**
+
+**Context:**
+- **Every door light in the Delvings hung at 2.6 m.** That copied the authored floor's `DOOR_LIGHT_HEIGHT`, and it is `FloorBuilder.CORRIDOR_CEILING` exactly. Doorway lamps hang in corridor cells, so every lamp was buried 8 cm inside its own ceiling's beam module.
+  - Measured on three seeds: 82 lamps, all 82 at −0.08 m from their beams.
+- **ADR-291's lamp was hidden inside the ceiling.** Its iron cage is centred on the light with half a metre of chain above it, so the cage and chain sat inside the beams.
+  - The doorway glowed from nothing again: the fault ADR-291 was written to end (*"the light a player steers by has a source a player can see"*).
+- **The ceilings were never lit.** A light inside the beams cannot reach their undersides, which face away from it. At the Deep's 0.12 ambient, unlit stone draws darker than the void behind it, so the corridors' boarded ceilings read as black.
+- **How it was found:** I photographed the in-run views to choose the next polish target and took the authored test stage, which has no ceilings at all, for the played floor. That was a false lead. Built standalone, the generated floor showed its ceilings existed and were correctly shaded and lit when a light was below them, and that every lamp was not.
+
+**Decision:**
+- **`FloorAnchors.LIGHT_HEIGHT` is 2.15 m.** `LAMP_HANG` is derived, not typed: the corridor ceiling, less the beams' drop below their slab, less the light's height, which comes to 0.37 m. It no longer claims to match the authored floor, which has no ceiling to be inside.
+- **`Hearth.door_lamp` takes `hang`** and cuts its chain to reach it (0.14 m in the Delvings). Its default is the old 0.73 m, for anything with nothing overhead.
+- **`FloorSource.lamp_hang()`** says how far above a door light the thing it hangs from is. `DelvingsFloor` answers `LAMP_HANG`; the authored floor keeps the default.
+
+**Measured:**
+- **Lamp gaps:** 0 of 82 lamps at or above their beams on the same three seeds; every one hangs 0.37 m below.
+- **`--delvings --delvings-shot`, before and after, eight views of seed 0:**
+  - before, no lamp is visible in any doorway, and the corridor's beams are dark;
+  - after, every doorway shows its lamp on a short chain, and the beams and boards above it are lit.
+- **The full local sweep passes.** It runs every generated-floor probe: build, plan, delvings, route, sight, exposure and co-op.
+
+**Honest scale:**
+- **The lamps are 0.45 m lower**, so each lights a little more floor and a little less of the far wall. The light ranges and energies are unchanged and still ⟨tune⟩.
+- **The cage's foot is at 1.92 m.** The tallest enemies' heads may pass through a lamp in a doorway; lamps have no collision, as before.
+- **Rooms taller than their doorways still go dark overhead.** Their ceilings are further from any lamp. That is the Deep being dark, not a fault, and the next lighting question for someone looking at a real screen.
+
 *Entries below to be added as design decisions are signed off.*

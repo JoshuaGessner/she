@@ -168,3 +168,10 @@ func prize_id() -> StringName:
 ## exits, which `M2-T13` found is the difference between a floor you can read
 ## and six identically lit boxes.
 @abstract func door_lights() -> Array[Vector3]
+
+
+## How far above a door light the thing it hangs from is, metres — the length
+## of its chain plus the half of its cage above the flame (ADR-336). A floor
+## with no ceiling over its doors hangs the lamp's own short chain.
+func lamp_hang() -> float:
+	return Hearth.DOOR_LAMP_HANG

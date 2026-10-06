@@ -9020,7 +9020,7 @@ func _door_light(at: Vector3) -> void:
 	_world.add_child(light)
 	# And the lamp that gives it (ADR-291) — the light was always here; now
 	# so is the thing it comes from.
-	Hearth.door_lamp(_world, at, PALE)
+	Hearth.door_lamp(_world, at, PALE, _floor.lamp_hang())
 
 
 func _spawn_actors() -> void:

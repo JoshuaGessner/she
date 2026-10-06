@@ -46,9 +46,20 @@ const INSET: float = 0.9
 const SPREAD: float = 1.6
 ## How far off the floor a placed thing sits, so nothing starts intersecting it.
 const CLEARANCE: float = 0.1
-## Where a door light hangs, matching the authored floor's `DOOR_LIGHT_HEIGHT`
-## so generated and hand-built rooms light the same way (`ART-005`).
-const LIGHT_HEIGHT: float = 2.6
+## Where a door light hangs: **under** the corridor ceiling it is cut into
+## (ADR-336). It sat at 2.6 m to match the authored floor's
+## `DOOR_LIGHT_HEIGHT` — which is `FloorBuilder.CORRIDOR_CEILING` exactly, so
+## every lamp in the Delvings was buried 8 cm inside its own ceiling's beams.
+## A light inside the beams cannot reach their undersides, which face away from
+## it, and no other light comes near: every ceiling in the Deep rendered as the
+## void, and every room read as a roofless maze of free-standing walls. The
+## authored floor has no ceiling, so its 2.6 m was never wrong there.
+const LIGHT_HEIGHT: float = 2.15
+## How far above a door light the beams it hangs from are: the corridor's
+## ceiling, less the beams' drop below their slab (`DelvingsKit.BEAM_DEEP`
+## against the slab's `WALL_THICK`), less the light's own height.
+const LAMP_HANG: float = FloorBuilder.CORRIDOR_CEILING \
+	- (DelvingsKit.BEAM_DEEP - FloorBuilder.WALL_THICK) - LIGHT_HEIGHT
 ## Metres of padding around the floor's own extent for the Clamor field, so a
 ## sound made at the edge of the last room still has field to fall off in.
 const FIELD_MARGIN: float = 6.0

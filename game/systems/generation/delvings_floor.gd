@@ -405,6 +405,11 @@ func door_lights() -> Array[Vector3]:
 	return _anchors.door_lights()
 
 
+## From the corridor ceiling every door light hangs under (ADR-336).
+func lamp_hang() -> float:
+	return FloorAnchors.LAMP_HANG
+
+
 ## The Prize, the Waystone in the guarded half (`M2-T17`, ADR-110), a machine's
 ## gear, and — when the floor needs one — the glint that makes its vista.
 ##
