@@ -89,7 +89,8 @@ static func light(into: Node3D, at: Vector3, colour: Color, energy: float,
 
 ## **A brazier** (ADR-286): an iron bowl on three legs with a fire in it, solid
 ## to walk into. For her hall, where light is ceremony rather than mechanic.
-static func brazier(into: Node3D, at: Vector3) -> void:
+static func brazier(into: Node3D, at: Vector3, energy: float = 1.6,
+		reach: float = 9.0, shadows: bool = false) -> void:
 	var iron := StandardMaterial3D.new()
 	iron.albedo_color = Color(0.13, 0.12, 0.12)
 	iron.metallic = 0.6
@@ -127,7 +128,7 @@ static func brazier(into: Node3D, at: Vector3) -> void:
 	solid.position = at + Vector3(0.0, 0.6, 0.0)
 	into.add_child(solid)
 	flames(into, at + Vector3(0.0, 1.12, 0.0), 0.55)
-	light(into, at + Vector3(0.0, 1.9, 0.0), Color(1.0, 0.66, 0.32), 1.6, 9.0, false)
+	light(into, at + Vector3(0.0, 1.9, 0.0), Color(1.0, 0.66, 0.32), energy, reach, shadows)
 
 
 ## **A lamp hung in a doorway** (ADR-291): an iron cage on a short chain with a

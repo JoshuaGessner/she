@@ -480,15 +480,26 @@ func _build_room() -> void:
 			_slab(Vector3(0.9, WALL_HEIGHT, 0.9),
 				Vector3(flank * (half.x - 0.75), WALL_HEIGHT * 0.5, z), STONE,
 				DelvingsKit.WALL)
-		Hearth.brazier(self, HOARD_AT + Vector3(flank * 5.6, 0.0, 1.4))
-	var lamp := OmniLight3D.new()
-	lamp.position = Vector3(0.0, 4.2, -1.0)
-	lamp.omni_range = 20.0
-	# Warm and low. `ART-001` builds the whole look on darkness as a mechanic,
-	# and this is the one room where the light is meant to be *hers*.
-	lamp.light_color = Color(1.0, 0.82, 0.58)
-	lamp.light_energy = 1.6
-	add_child(lamp)
+		Hearth.brazier(self, HOARD_AT + Vector3(flank * 5.6, 0.0, 1.4), BRAZIER_ENERGY,
+			BRAZIER_REACH, true)
+	# **Lit from below, by fire and by gold** (ADR-329). An overhead lamp and a
+	# strong ambient lit this hall flat — and under the ink a flat-lit room is
+	# bare paper, a tiled bathroom with a dragon in it. The fire is the
+	# braziers' now, casting her shadow up the vault, and the hoard gives back
+	# a low warm light of its own; overhead is only a faint cold fill, so the
+	# vault reads as a vault and not as nothing.
+	var gold_light := OmniLight3D.new()
+	gold_light.position = HOARD_AT + Vector3(0.0, 0.6, 0.8)
+	gold_light.omni_range = HOARD_REACH
+	gold_light.light_color = Color(1.0, 0.72, 0.34)
+	gold_light.light_energy = HOARD_GLOW
+	add_child(gold_light)
+	var fill := OmniLight3D.new()
+	fill.position = Vector3(0.0, WALL_HEIGHT - 0.4, -1.0)
+	fill.omni_range = 20.0
+	fill.light_color = Color(0.70, 0.76, 0.90)
+	fill.light_energy = OVERHEAD_FILL
+	add_child(fill)
 
 	var environment := WorldEnvironment.new()
 	var world := Environment.new()
@@ -496,9 +507,19 @@ func _build_room() -> void:
 	world.background_color = Color(0.05, 0.05, 0.06)
 	world.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	world.ambient_light_color = Color(0.24, 0.21, 0.20)
-	world.ambient_light_energy = 0.6
+	world.ambient_light_energy = AMBIENT
 	environment.environment = world
 	add_child(environment)
+
+
+## Her hall's light (ADR-329) ⟨tune⟩: the braziers carry it, the hoard gives
+## a little back, and the rest is dark enough for the ink to hatch.
+const BRAZIER_ENERGY: float = 1.6
+const BRAZIER_REACH: float = 8.0
+const HOARD_GLOW: float = 0.7
+const HOARD_REACH: float = 5.0
+const OVERHEAD_FILL: float = 0.15
+const AMBIENT: float = 0.08
 
 
 ## Her, at blockout (ADR-046). Enormous, low, and **fusing into the rock over a

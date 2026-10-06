@@ -11789,4 +11789,31 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 
 **Honest scale:** `M4-T21`'s pre-mortem and the two playtest gates remain. The pre-mortem is run *at* the gate, and the gate is the developer's 25-minute slice played solo and as a four-stack.
 
+## ADR-329 — Her hall is lit from below, by fire and by gold
+
+**Date:** 2026-10-06 · **Status:** accepted · **Tunes ADR-286's lighting toward its own stated intent**
+
+**Context:**
+- **ADR-286 gave her hall braziers** so that she is *"lit from below by fire the way a thing you kneel to is"*. It also kept an overhead lamp (energy 1.6, 20 m reach) and an ambient of 0.6.
+- **Together those lit the room flat.** In `ART-005`'s woodcut, light is bare paper and shadow is hatching, so a flat-lit room is all paper. `--her-shot` showed the Chamber as a pale tiled room with a grey dragon in it, the least dramatic room in the game, though it is the one every run is played for.
+- **The Delvings read well for the opposite reason:** pools of light with dark between them.
+
+**Decision:**
+- **The braziers carry the light.** They cast shadows now: hers falls up the vault from the gold. `Hearth.brazier` takes energy, reach and shadows, with the old values as defaults, so the menu tableau's braziers are unchanged.
+- **The hoard gives a little back.** A low warm light (0.7, 5 m) from the pile lights her underside and claws: her gold lighting her.
+- **Overhead is a faint cold fill** (0.15), so the vault reads as a vault rather than as nothing.
+- **Ambient 0.6 → 0.08**, so the ink hatches the walls between the pools of light.
+- **All of it is `⟨tune⟩`** constants at the head of the hall's lighting (`BRAZIER_ENERGY` … `AMBIENT`).
+
+**Measured:**
+- **`--her-shot`, seven views:**
+  - She reads as a dark mass lit from beneath, her eyes the brightest thing on her.
+  - Her shadow is on the vault and the walls are graded, not flat.
+  - 0.03–0.15 % of each view flashes, as before.
+- **`--lair-probe`:** passes.
+
+**Honest scale:**
+- Lit like this she is mostly silhouette. Her sculpted head and scales show where the fire reaches them, at the hoard and up close, and not from the door.
+- That is the intent for a thing you approach. It is ⟨tune⟩, and the developer's first walk into the room is the check.
+
 *Entries below to be added as design decisions are signed off.*
