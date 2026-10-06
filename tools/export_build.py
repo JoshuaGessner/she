@@ -96,6 +96,13 @@ def repo_work_count() -> int:
                for folder in ("contracts", "factions", "demands"))
 
 
+def repo_sound_count() -> int:
+    """How many sounds `Foley.Sound` names, read off the file."""
+    text = (GAME / "systems" / "foley.gd").read_text(encoding="utf-8")
+    body = text.split("enum Sound {", 1)[1].split("}", 1)[0]
+    return len([l for l in body.splitlines() if re.match(r"\s*[A-Z_]+,", l)])
+
+
 def repo_theme_types() -> int:
     """How many types `ui/interface_theme.tres` declares, read off the file."""
     text = (GAME / "ui" / "interface_theme.tres").read_text(encoding="utf-8")
@@ -171,6 +178,13 @@ def probe(binary: Path) -> tuple[bool, list[str]]:
         theme_path == "res://ui/interface_theme.tres"
         and theme_types == repo_theme_types(),
         f"{theme_types} type(s), {repo_theme_types()} in repo")
+
+    # ADR-327. Every recorded take is loaded by a path built in code, so the
+    # pack is the only place that can say it holds them.
+    sounds = re.search(r"\[export\] sounds\s+(\d+) of (\d+)", log)
+    sounding = int(sounds.group(1)) if sounds else -1
+    say("every sound makes one", sounding == repo_sound_count() and sounding > 0,
+        f"{sounding} sound, {repo_sound_count()} in repo")
 
     text = re.search(r"-> '([^']*)'", log)
     resolved = text.group(1) if text else ""

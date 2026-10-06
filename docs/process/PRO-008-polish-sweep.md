@@ -81,7 +81,7 @@ build already is. The order follows what `M4` still owes before
 | 3 | Set dressing and the remaining props, each to its finds | `M4-T10` | the weapon and gear passes (ADR-322, ADR-323) | ADR-325 |
 | 4 | Production sound for the sixteen `Foley` cues | `M4-T05`, `ART-002` | *the sound of your own greed* | ADR-326 (CC0 recordings, the developer's call) |
 | 5 | The remaining UI outside the house style; impact feel per `DES-009` | `M4-T05` | ADR-256's carved plate | open |
-| 6 | Gate preparation: exported build opened (ADR-086), pre-mortem re-run | `M4-T21` | — | open |
+| 6 | Gate preparation: exported build opened (ADR-086), pre-mortem re-run | `M4-T21` | — | export ADR-328; pre-mortem at the gate |
 
 The 25-minute slice and `GATE M4 GREED` are playtests and stay the
 developer's to run. Each row lands as its own ADR, checked by the probe that

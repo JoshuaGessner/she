@@ -11762,4 +11762,31 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 
 **Honest scale:** Sound levels were matched by measurement and need a listen on speakers, as ADR-326 said. The score is still `AudioDirector`'s synthesis until `M4-T09`'s composer.
 
+## ADR-328 — The exported build is opened and asked for its sound; a missing take goes quiet rather than crashing
+
+**Date:** 2026-10-06 · **Status:** accepted · **Row 6 of `PRO-008`'s production pass (ADR-324); extends ADR-086's census**
+
+**Context:**
+- **The production pass changed what a build has to carry.** Forty-odd recorded takes and two loops (ADR-326, ADR-327) are new, and the byrnie and Ótr's pelt carry their own baked textures. `ADR-086`'s rule is that a build that boots proves the pack loads, not that it holds the game.
+- **The takes are loaded by a path built in code** (`Foley.TAKES % [sound, take]`), so no resource references them. An export filter could drop every one and the build would still launch. The census had no row that would notice.
+- **Planting that fault found a worse one.** A missing take came back `null`, and `duplicate()` on it is a script error. The packed build crashed before its census finished, on the first sound it was asked for.
+
+**Decision:**
+- **`--export-probe` asks every `Foley.Sound` for a stream inside the packed build.** `export_build.py` holds the count to the `Sound` enum in the repo (17).
+- **A take or loop missing from the pack is now a fault in the log, not a crash.**
+  - `Foley` reports it with `push_error` and plays nothing for that take.
+  - A sound with no takes at all hands back no stream. An `AudioStreamPlayer3D` with none is silent and harmless.
+
+**Measured:**
+- **`export_build.py`, both platforms:**
+  - macOS 226.2 MB: every census row passes, *17 sound, 17 in repo*, 0 error lines.
+  - Windows 104.0 MB: exported. Its packed-content run is `build.yml`'s, on a Windows runner.
+- **Planted:** `exclude_filter="audio/foley/*"` on the macOS preset.
+  - Before the fix: *no probe output*, a crash.
+  - After: *3 sound, 17 in repo — FAIL*, plus the missing-take errors. The three are the designed cues, synthesised at runtime.
+  - The preset is restored byte for byte.
+- **`--ear-probe`:** 17 of 17 sounds make one.
+
+**Honest scale:** `M4-T21`'s pre-mortem and the two playtest gates remain. The pre-mortem is run *at* the gate, and the gate is the developer's 25-minute slice played solo and as a four-stack.
+
 *Entries below to be added as design decisions are signed off.*

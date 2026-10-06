@@ -139,6 +139,8 @@ static func stream_for(sound: Sound) -> AudioStream:
 		return _looped(sound, false)
 	if RECORDED.has(sound):
 		var all: Array = _recorded(sound)
+		if all.is_empty():
+			return null
 		var next: int = int(_turn.get(sound, 0))
 		_turn[sound] = next + 1
 		return all[next % all.size()] as AudioStream
@@ -160,7 +162,11 @@ static func is_sound(stream: AudioStream, sound: Sound) -> bool:
 ## which the engine reports as a resource still in use.
 static func _looped(sound: Sound, looping: bool) -> AudioStreamOggVorbis:
 	var path: String = LOOP % (Sound.keys()[sound] as String).to_lower()
-	var recorded := (load(path) as AudioStreamOggVorbis).duplicate(true) as AudioStreamOggVorbis
+	var loaded := load(path) as AudioStreamOggVorbis
+	if loaded == null:
+		push_error("Foley: no loop at %s" % path)
+		return null
+	var recorded := loaded.duplicate(true) as AudioStreamOggVorbis
 	recorded.loop = looping
 	recorded.set_meta(&"foley", sound)
 	return recorded
@@ -182,7 +188,13 @@ static func _recorded(sound: Sound) -> Array:
 			# when the game closes would otherwise hold the file's own packets,
 			# which the engine reports as a resource still in use — an exit
 			# error, where an unpathed copy is at most a leak warning.
-			var copy := (load(TAKES % [name, take]) as AudioStream).duplicate(true) as AudioStream
+			# A take missing from the pack is a fault to report, not a crash
+			# on the first footstep: the sound goes quiet and the log says why.
+			var loaded := load(TAKES % [name, take]) as AudioStream
+			if loaded == null:
+				push_error("Foley: no take at %s" % (TAKES % [name, take]))
+				continue
+			var copy := loaded.duplicate(true) as AudioStream
 			copy.set_meta(&"foley", sound)
 			all.append(copy)
 		_takes[sound] = all

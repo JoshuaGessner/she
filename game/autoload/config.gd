@@ -87,5 +87,15 @@ func _export_probe() -> void:
 	# unchanged means the table did not ship.
 	print("[export] translation   'item.wpn_seax.name' -> '%s'"
 		% tr("item.wpn_seax.name"))
+	# Every sound the game names, made by the pack (ADR-327). The recorded
+	# takes are loaded by a path built in code — nothing references them — so
+	# an export filter could drop every one and the build would still launch,
+	# silent, with nothing in the log but a load error per footstep.
+	var sounding: int = 0
+	for sound: int in Foley.Sound.size():
+		var stream: AudioStream = Foley.stream_for(sound)
+		if stream != null and stream.get_length() >= 0.05:
+			sounding += 1
+	print("[export] sounds        %d of %d" % [sounding, Foley.Sound.size()])
 	print("[export] probe complete")
 	get_tree().quit()
