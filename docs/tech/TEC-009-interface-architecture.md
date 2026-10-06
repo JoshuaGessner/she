@@ -4,7 +4,7 @@ title: Interface Architecture
 status: accepted
 owner: tech
 tags: [ui, hud, layout, legibility, accessibility, godot, research]
-updated: 2026-09-13
+updated: 2026-10-06
 related: [DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001]
 ---
 
@@ -402,6 +402,18 @@ deeds) puts nothing on screen during play and costs one button.
 **This is a door, not a system.** No new screen is invented; three existing
 ones get a second way in. Which matters for ADR-064: nothing here is a stub,
 because nothing here is new.
+
+**The tree is drawn as a tree (ADR-331).** `PactScreen` was one scrolling
+column of rows with *"needs Sure Grip first"* written under the ones that
+stood on another, which is a tree with its shape removed and written back as
+prose. It is now a page per path, with tabs for the Aspects the class may enter
+and then its Rite. `AspectTree` lays each path out as columns by depth with the
+joins drawn, as Darkest Dungeon's hamlet upgrade pages do. A plate underneath
+says what the card in focus is, what it costs and why it is refused, and holds
+the **one** button that takes it or gives it back. Looking is not buying: hover
+does not select, so a pointer on its way to that button cannot change what it
+buys. `--pact-probe` asks every page of both classes to fit a 1152 x 648
+window.
 
 ### 5.4 The missing layers, at blockout fidelity
 

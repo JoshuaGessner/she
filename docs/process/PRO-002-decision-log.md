@@ -11862,4 +11862,56 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **Two-handers are held one-handed:** spear and hammer have no second hand on the haft.
 - **These are poses, not animation,** and remain ⟨tune⟩ until someone reads a teammate's swing across a room. That is the test Q114 named.
 
+## ADR-331 — The Pact is drawn as the tree it is, and the settings stop using the engine's controls
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `TEC-009` §5.3; `PRO-008` row 5**
+
+**Context:**
+- **The tree had no shape.** `PactScreen` was one scrolling column: every node a row, Aspect after Aspect, with *"needs Sure Grip first"* written under the ones that stood on another.
+  - Wing is seven deep, from Soft Boots to Swift Seal. The only way to see that was to read thirteen captions and assemble the tree in your head.
+  - A list throws away a tree's shape and then writes it back as prose.
+- **Every row carried its own buttons.** Each node had a *take*, and a taken one also had a *give it back*. That put about thirty buttons on the page, each a mis-click from a purchase.
+  - A lesser node's refund floors to nothing, so one button read *"give it back — 0 boon"*, which looked like a fault.
+- **It sat outside ADR-256's carved plate.** It had no panel, and the room's readouts showed through around a column of floating text. It was the last full screen in that state that a player is asked to make decisions on.
+- **The settings drew the engine's own controls.** `MenuToggle` set no icons, so *Invert vertical look* and *Fullscreen* had dark grey boxes on a dark ground, at about 1.3:1. The sliders had round white grabbers: the one rounded tool in a woodcut interface.
+
+**Decision:**
+- **A page per path.** Tabs for the Aspects the class may enter, then its Rite. Each tab says how much of that path you hold (*Hoard · 4 of 13*).
+- **`AspectTree` lays a path out as a tree.**
+  - Columns are depth: the longest chain of requirements beneath a node. Rows are branches, from a depth-first walk.
+  - Joins are drawn out of one card and into the next. A join from something taken is warm and heavier, so the path you have walked reads as one line.
+  - A keystone on two branches sits past both and is joined to each.
+  - The reference is Darkest Dungeon's hamlet upgrade pages. Hades' Mirror folds the tree flat, which suits twelve pairs and not a tree with joins.
+- **A card shows its state in shape as well as colour (`DES-018`):**
+  - taken is stamped: an amber ground and a filled seal;
+  - open has a hollow seal;
+  - not yet has no seal and dim lettering;
+  - pips hung under the card give its cost.
+  - The first photograph drew *taken* as a warm frame, which is also what focus draws, and the two could not be told apart.
+- **A plate below says what the card in focus is:** its name, tier and price, what it does, and why it is refused. It holds the one button: *Take it — 2 boon*, or *Give it back — nothing returned*. That button is framed even at rest, and dims rather than vanishing when refused.
+- **Looking is not buying.**
+  - Focus selects and hover does not, so a pointer crossing the tree on its way to the button cannot change what the button buys.
+  - Pressing a card hands focus to the button, so a pad's second press is the commitment.
+  - Read-only in the Deep (ADR-198): the plate says *bought at the pile, where you give*.
+- **Fits the window the game opens at.** The default is 1152 × 648. Cards grow to three lines when a path leaves room (Wing's *Never Where She Struck*) and shrink to one or two lines when Hoard's six rows need the height.
+- **`CarvedBox`:** a `Texture2D` drawn as geometry, as `CarvedFrame` is.
+  - The settings' tick boxes are a hard band with a filled square for *on*, so on and off differ in shape.
+  - The sliders have a square grabber on a cut track that fills warm.
+  - `check_dead`'s closed list of engine virtuals gains `Texture2D`'s four (`_get_width`, `_get_height`, `_draw_rect`, `_draw_rect_region`), because nothing in the project names them.
+- **Probes and shots:**
+  - `press` and `press_give_back` now go through the card and then the plate's button, the path a player takes.
+  - `--demand-probe` looks at the node before asking for its sentence.
+  - `--pact-probe` gains a row: every page of both classes in a 1152 × 648 window, with nothing off screen.
+  - `--pact-shot` photographs every page of both classes instead of scrolling one.
+
+**Measured:**
+- **`--pact-probe` passes.** All five pages have 0 controls off screen. With cards planted at 60 px, both Hoard pages fail, so the row catches the overflow the first layout had.
+- **These probes pass:** `--demand-probe` (says why, refuses the press), `--respec-probe` (gives back a leaf, refuses the keystone), `--lair-probe`, `--chamber-probe`, `--menu-probe` and `data_probe`.
+- **`--pact-shot` and `--menu-shot` at 1152 × 648:** Hoard, Wing and both Rites read as trees. The settings' boxes and sliders are visible and carved.
+
+**Honest scale:**
+- **The room still shows faintly through the backdrop** at the top-left, the Chamber's own readouts. The same is true of the Lodge board.
+- **The tabs need a press to change.** No shoulder button pages through them; a pad reaches them by moving focus up.
+- **Impact feel (`PRO-008` row 5's other half) is untouched.**
+
 *Entries below to be added as design decisions are signed off.*

@@ -5,6 +5,7 @@
 [ext_resource type="FontFile" path="res://ui/fonts/IMFellEnglishSC.ttf" id="font_display"]
 [ext_resource type="FontFile" path="res://ui/fonts/AlegreyaSC-Bold.ttf" id="font_heading"]
 [ext_resource type="FontFile" path="res://ui/fonts/IMFellEnglish-Italic.ttf" id="font_voice"]
+[ext_resource type="Script" path="res://ui/carved_box.gd" id="box_script"]
 
 [sub_resource type="StyleBoxEmpty" id="StyleBox_prompt"]
 
@@ -213,8 +214,148 @@ hairline = 0.0
 corner = 5.0
 corner_weight = 1.5
 
+[sub_resource type="StyleBox" id="StyleBox_chip"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_left = 10.0
+content_margin_top = 5.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.105, 0.098, 0.09, 0.97)
+ink = Color(0.34, 0.31, 0.27, 1)
+edge = Color(0.2, 0.19, 0.17, 1)
+band = 1.0
+inset = 2.0
+corner = 6.0
+corner_weight = 2.0
+
+[sub_resource type="StyleBox" id="StyleBox_chip_lit"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_left = 10.0
+content_margin_top = 5.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.14, 0.12, 0.1, 0.98)
+ink = Color(0.78, 0.55, 0.3, 1)
+edge = Color(0.42, 0.32, 0.2, 1)
+band = 2.0
+inset = 2.0
+corner = 8.0
+corner_weight = 2.0
+
+[sub_resource type="StyleBox" id="StyleBox_chip_down"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_left = 10.0
+content_margin_top = 5.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.065, 0.06, 0.055, 0.98)
+ink = Color(0.78, 0.55, 0.3, 1)
+edge = Color(0.42, 0.32, 0.2, 1)
+band = 2.0
+inset = 2.0
+corner = 8.0
+corner_weight = 2.0
+
+[sub_resource type="StyleBox" id="StyleBox_chip_taken"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_left = 10.0
+content_margin_top = 5.0
+content_margin_right = 10.0
+content_margin_bottom = 5.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.4, 0.27, 0.12, 0.98)
+ink = Color(0.66, 0.48, 0.26, 1)
+edge = Color(0.24, 0.16, 0.08, 1)
+hatch = Color(0.0, 0.0, 0.0, 0.12)
+band = 2.0
+inset = 2.0
+corner = 8.0
+corner_weight = 2.0
+
+[sub_resource type="Texture2D" id="Texture_box_off"]
+script = ExtResource("box_script")
+
+[sub_resource type="Texture2D" id="Texture_box_on"]
+script = ExtResource("box_script")
+mark = Color(0.78, 0.55, 0.3, 1)
+
+[sub_resource type="Texture2D" id="Texture_box_off_dim"]
+script = ExtResource("box_script")
+ink = Color(0.3, 0.28, 0.25, 1)
+
+[sub_resource type="Texture2D" id="Texture_box_on_dim"]
+script = ExtResource("box_script")
+ink = Color(0.3, 0.28, 0.25, 1)
+mark = Color(0.42, 0.32, 0.2, 1)
+
+[sub_resource type="StyleBox" id="StyleBox_track"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_top = 3.0
+content_margin_bottom = 3.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.05, 0.046, 0.042, 1)
+ink = Color(0.36, 0.33, 0.29, 1)
+edge = Color(0, 0, 0, 0)
+band = 1.0
+inset = 0.0
+hairline = 0.0
+corner = 0.0
+
+[sub_resource type="StyleBox" id="StyleBox_track_fill"]
+resource_local_to_scene = false
+resource_name = ""
+content_margin_top = 3.0
+content_margin_bottom = 3.0
+script = ExtResource("1_8wi2f")
+ground = Color(0.42, 0.31, 0.18, 1)
+ink = Color(0.62, 0.45, 0.25, 1)
+edge = Color(0, 0, 0, 0)
+band = 1.0
+inset = 0.0
+hairline = 0.0
+corner = 0.0
+
+[sub_resource type="Texture2D" id="Texture_grabber"]
+script = ExtResource("box_script")
+side = 14
+ground = Color(0.13, 0.12, 0.11, 1)
+ink = Color(0.87, 0.85, 0.81, 1)
+
+[sub_resource type="Texture2D" id="Texture_grabber_lit"]
+script = ExtResource("box_script")
+side = 14
+ground = Color(0.13, 0.12, 0.11, 1)
+ink = Color(0.86, 0.62, 0.36, 1)
+mark = Color(0.86, 0.62, 0.36, 1)
+inset = 2.0
+
 [resource]
 default_font = ExtResource("font_body")
+AspectChip/base_type = &"Button"
+AspectChip/colors/font_color = Color(0.87, 0.85, 0.81, 1)
+AspectChip/colors/font_disabled_color = Color(0.5, 0.48, 0.44, 1)
+AspectChip/colors/font_focus_color = Color(0.86, 0.62, 0.36, 1)
+AspectChip/colors/font_hover_color = Color(0.86, 0.62, 0.36, 1)
+AspectChip/colors/font_pressed_color = Color(0.86, 0.62, 0.36, 1)
+AspectChip/fonts/font = ExtResource("font_display")
+AspectChip/font_sizes/font_size = 17
+AspectChip/styles/focus = SubResource("StyleBox_chip_lit")
+AspectChip/styles/hover = SubResource("StyleBox_chip_lit")
+AspectChip/styles/normal = SubResource("StyleBox_chip")
+AspectChip/styles/pressed = SubResource("StyleBox_chip_down")
+AspectChipLocked/base_type = &"AspectChip"
+AspectChipLocked/colors/font_color = Color(0.5, 0.48, 0.44, 1)
+AspectChipTaken/base_type = &"AspectChip"
+AspectChipTaken/colors/font_color = Color(0.96, 0.92, 0.84, 1)
+AspectChipTaken/styles/normal = SubResource("StyleBox_chip_taken")
 Backdrop/base_type = &"Panel"
 Backdrop/styles/panel = SubResource("StyleBox_hconn")
 Bag/base_type = &"Control"
@@ -275,6 +416,12 @@ FineDim/base_type = &"Dim"
 FineDim/font_sizes/font_size = 11
 Frame/base_type = &"PanelContainer"
 Frame/styles/panel = SubResource("StyleBox_rwlvc")
+HSlider/icons/grabber = SubResource("Texture_grabber")
+HSlider/icons/grabber_disabled = SubResource("Texture_grabber")
+HSlider/icons/grabber_highlight = SubResource("Texture_grabber_lit")
+HSlider/styles/grabber_area = SubResource("StyleBox_track_fill")
+HSlider/styles/grabber_area_highlight = SubResource("StyleBox_track_fill")
+HSlider/styles/slider = SubResource("StyleBox_track")
 Heading/base_type = &"Dim"
 Heading/fonts/font = ExtResource("font_heading")
 Heading/font_sizes/font_size = 11
@@ -303,6 +450,20 @@ MenuToggle/base_type = &"CheckBox"
 MenuToggle/colors/font_color = Color(0.87, 0.85, 0.81, 1)
 MenuToggle/colors/font_hover_color = Color(0.78, 0.55, 0.3, 1)
 MenuToggle/font_sizes/font_size = 15
+MenuToggle/constants/h_separation = 10
+MenuToggle/icons/checked = SubResource("Texture_box_on")
+MenuToggle/icons/checked_disabled = SubResource("Texture_box_on_dim")
+MenuToggle/icons/unchecked = SubResource("Texture_box_off")
+MenuToggle/icons/unchecked_disabled = SubResource("Texture_box_off_dim")
+PactAct/base_type = &"MenuAction"
+PactAct/colors/font_disabled_color = Color(0.5, 0.48, 0.44, 1)
+PactAct/styles/disabled = SubResource("StyleBox_chip")
+PactAct/styles/normal = SubResource("StyleBox_chip")
+PactTab/base_type = &"MenuAction"
+PactTab/font_sizes/font_size = 19
+PactTabOpen/base_type = &"PactTab"
+PactTabOpen/colors/font_color = Color(0.86, 0.62, 0.36, 1)
+PactTabOpen/styles/normal = SubResource("StyleBox_mojyc")
 Prompt/base_type = &"PanelContainer"
 Prompt/styles/panel = SubResource("StyleBox_prompt")
 PromptText/base_type = &"Label"

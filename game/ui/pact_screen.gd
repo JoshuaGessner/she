@@ -27,11 +27,38 @@ extends Control
 ## `PRO-005` §5's unexplainable loss moved from the floor into a menu, and the
 ## reasons here are all things a player can act on: earn more, take the node
 ## before it, or reach the rank.
+##
+## ## A tree, a page, and one button (ADR-331)
+##
+## Each path is its own page — the Aspects your class may enter, then your
+## Rite — drawn by `AspectTree` as the tree it is. **Looking is not buying**:
+## moving onto a card shows it in the plate underneath, and only the plate's
+## one button takes it or gives it back. The old screen put a *take* and a
+## *give it back* on every row, so thirty buttons stood a mis-click from a
+## purchase; now the commitment is a second, deliberate press on a button that
+## names the price.
+##
+## Hover does not select. A pointer crossing the tree on its way to that button
+## would otherwise change what the button buys.
 
-const MARGIN: float = 40.0
-const ROW_WIDTH: float = 620.0
-
-var _column: VBoxContainer = null
+## The page's edge. The default window is 1152 x 648 and Hoard is six rows
+## deep, so every pixel of this is spent on purpose.
+const MARGIN: float = 18.0
+## Room the plate under the tree keeps for four lines and a button.
+const DETAIL_HEIGHT: float = 104.0
+const ACT_WIDTH: float = 300.0
+## The page that is your class's own branch rather than one of her Aspects.
+const RITE: StringName = &"rite"
+## The roles this screen draws in (ADR-216): a page's tab, the open one framed
+## as if pressed in, and the one button that spends.
+const TAB: StringName = &"PactTab"
+const TAB_OPEN: StringName = &"PactTabOpen"
+## Framed even at rest. A menu's choices are bare lettering until focused,
+## which suits a column of five; this is the one press on the page that spends
+## something, and it should look like a thing to press before it is pointed at.
+## Refused, it keeps the frame and dims, so it still says where the commitment
+## would be.
+const ACT: StringName = &"PactAct"
 
 ## **Open to be read, not to be spent** (`M4-T05`, TEC-009 §5.3, ADR-198).
 ##
@@ -54,92 +81,279 @@ var _column: VBoxContainer = null
 ## could not find out during a run.
 var viewing: bool = false
 
+var _page: VBoxContainer = null
+var _path: StringName = &""
+var _selected: AspectNode = null
+var _tree: AspectTree = null
+var _detail: VBoxContainer = null
+var _act: Button = null
+
 
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
-	# The tree is bought with a pad as well as a mouse (ADR-141, ADR-075).
-	MenuStyle.focus_first.call_deferred(self)
 
 	var backdrop: Control = MenuStyle.backdrop()
 	backdrop.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(backdrop)
 
-	var scroll := ScrollContainer.new()
-	scroll.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	scroll.offset_left = MARGIN
-	scroll.offset_right = -MARGIN
-	scroll.offset_top = MARGIN
-	scroll.offset_bottom = -MARGIN
-	add_child(scroll)
+	var margin := MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	for side: String in ["left", "right", "top", "bottom"]:
+		margin.add_theme_constant_override("margin_" + side, int(MARGIN))
+	add_child(margin)
+	_page = VBoxContainer.new()
+	_page.add_theme_constant_override("separation", 8)
+	margin.add_child(_page)
 
-	_column = VBoxContainer.new()
-	_column.add_theme_constant_override("separation", 10)
-	_column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_column)
-
+	var paths: Array[StringName] = paths_shown()
+	if not paths.is_empty():
+		_path = paths[0]
+		_selected = _first_worth_reading(_nodes_of(_path))
 	_redraw()
+	# The tree is bought with a pad as well as a mouse (ADR-141, ADR-075), and
+	# the first thing focused is the card being described, not the first tab.
+	_focus_selected.call_deferred()
+
+
+## The pages this class has: each Aspect it may enter that has nodes, then its
+## Rite. **Only the three your class may enter** (ADR-009) — a path you can see
+## and can never take is a padlock, and `DES-011` makes the lockout an identity
+## rather than a restriction.
+func paths_shown() -> Array[StringName]:
+	var shown: Array[StringName] = []
+	var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
+	if body == null:
+		return shown
+	for aspect: StringName in body.aspects:
+		if AspectCatalogue.authored().has(aspect):
+			shown.append(aspect)
+	if not AspectCatalogue.rite_of(body.id).is_empty():
+		shown.append(RITE)
+	return shown
+
+
+## Open a page, for `--pact-shot` and for the tabs.
+func show_path(path: StringName) -> void:
+	if not paths_shown().has(path):
+		return
+	_path = path
+	_selected = _first_worth_reading(_nodes_of(path))
+	_redraw()
+
+
+func _nodes_of(path: StringName) -> Array[AspectNode]:
+	if path == RITE:
+		return AspectCatalogue.rite_of(GameState.class_id)
+	return AspectCatalogue.of_aspect(path)
+
+
+func _path_name(path: StringName) -> String:
+	if path == RITE:
+		var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
+		return "The %s's Rite" % body.display()
+	return String(path).capitalize()
+
+
+## Something you could take now, or failing that the first thing in the path —
+## the page opens on a decision when there is one.
+func _first_worth_reading(nodes: Array[AspectNode]) -> AspectNode:
+	for node: AspectNode in nodes:
+		if not GameState.has_taken(node.id) and GameState.why_not(node.id) == "":
+			return node
+	return nodes[0] if not nodes.is_empty() else null
 
 
 ## Rebuilt rather than patched after every purchase. The whole screen is a
 ## function of `GameState`, and a tree that edits itself in place is a second
 ## model of what you own that can disagree with the first — which is the
 ## argument that made rank derived (ADR-125), applied to a menu.
+##
+## Removed as well as freed, so a probe searching for buttons straight after a
+## press never finds the last page's (`MainMenu._clear`'s fault).
 func _redraw() -> void:
-	for child: Node in _column.get_children():
+	for child: Node in _page.get_children():
+		_page.remove_child(child)
 		child.queue_free()
+	_tree = null
+	_detail = null
+	_act = null
 
-	_column.add_child(MenuStyle.title("WHAT SHE OFFERS"))
-	_column.add_child(MenuStyle.line(
-		"%d boon unspent · rank %d · she expects %d a cycle" % [
-			GameState.boon, GameState.pact_rank, GameState.tithe_due()],
+	_page.add_child(MenuStyle.title("WHAT SHE OFFERS", MenuStyle.SCREEN_TITLE))
+	# The coupling said out loud, on the screen where it is chosen, and on the
+	# same line as the number it moves. `DES-003`'s whole argument is that power
+	# costs obligation, and a tree that showed only the power would be teaching
+	# the opposite of the game.
+	_page.add_child(MenuStyle.line(
+		"%d boon unspent · rank %d · she expects %d a cycle, and more for everything you take"
+		% [GameState.boon, GameState.pact_rank, GameState.tithe_due()],
 		MenuStyle.BODY_WARM))
-	# The coupling said out loud, on the screen where it is chosen. `DES-003`'s
-	# whole argument is that power costs obligation, and a tree that showed only
-	# the power would be teaching the opposite of the game.
-	_column.add_child(MenuStyle.line(
-		"Everything you take raises what she expects of you.", MenuStyle.CAPTION_DIM))
-	if viewing:
-		# Said once, at the top, rather than repeated under every disabled row.
-		# `DES-003`'s coupling is the reason and it is worth stating as one.
-		_column.add_child(MenuStyle.line(
-			"You are reading this in the Deep. The Aspects are bought at the "
-			+ "pile, where you give — come back to her with tribute.",
-			MenuStyle.BODY_WARM))
 
 	var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
 	if body == null:
-		_column.add_child(MenuStyle.line("No life has been sworn yet."))
+		_page.add_child(MenuStyle.line("No life has been sworn yet."))
+		return
+	var paths: Array[StringName] = paths_shown()
+	if paths.is_empty():
+		_page.add_child(MenuStyle.line(
+			"%s may not enter any Aspect this build has written." % body.display(),
+			MenuStyle.BODY_WARM))
 		return
 
-	var shown: int = 0
-	for aspect: StringName in AspectCatalogue.authored():
-		# **Only the three your class may enter** (ADR-009). An Aspect this
-		# class is locked out of is not drawn at all, for the same reason the
-		# four unwritten ones are not: a path you can see and can never take is
-		# a padlock, and `DES-011` makes the lockout an identity rather than a
-		# restriction.
-		if not body.aspects.has(aspect):
-			continue
-		shown += 1
-		_column.add_child(MenuStyle.line(String(aspect).to_upper(), MenuStyle.SUB_DIM))
-		for node: AspectNode in AspectCatalogue.of_aspect(aspect):
-			_column.add_child(_row(node))
+	_page.add_child(_tabs(paths))
 
-	if shown == 0:
-		_column.add_child(MenuStyle.line(
-			"%s may not enter any Aspect this build has written."
-			% body.display(), MenuStyle.BODY_WARM))
+	var plate := PanelContainer.new()
+	plate.theme_type_variation = MenuStyle.SLATE
+	plate.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_page.add_child(plate)
+	_tree = AspectTree.new()
+	_tree.looked_at.connect(_look)
+	_tree.chosen.connect(_choose)
+	plate.add_child(_tree)
+	_tree.show_nodes(_nodes_of(_path))
 
-	# **Your Rite** (`DES-011`, ADR-273): the class's own branch, drawn only for
-	# the class that can walk it, and drawn even before it opens — the rank it
-	# waits on is a sentence on every row, which is the reason to show it.
-	var rite: Array[AspectNode] = AspectCatalogue.rite_of(body.id)
-	if not rite.is_empty():
-		_column.add_child(MenuStyle.line(
-			"THE %s'S RITE" % body.display().to_upper(), MenuStyle.SUB_DIM))
-		for node: AspectNode in rite:
-			_column.add_child(_row(node))
+	var under := PanelContainer.new()
+	under.theme_type_variation = MenuStyle.SLATE
+	under.custom_minimum_size = Vector2(0.0, DETAIL_HEIGHT)
+	_page.add_child(under)
+	var split := HBoxContainer.new()
+	split.add_theme_constant_override("separation", 24)
+	under.add_child(split)
+	_detail = VBoxContainer.new()
+	_detail.add_theme_constant_override("separation", 2)
+	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	split.add_child(_detail)
+	_act = MenuStyle.button("")
+	_act.custom_minimum_size = Vector2(ACT_WIDTH, 44.0)
+	_act.theme_type_variation = ACT
+	_act.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	_act.pressed.connect(_commit)
+	split.add_child(_act)
+	_describe()
+
+
+## One button per page, the open one framed as if pressed in. Each says how
+## much of it you hold, which is the question a player opens this to answer.
+func _tabs(paths: Array[StringName]) -> Control:
+	var row := HBoxContainer.new()
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 16)
+	for path: StringName in paths:
+		var nodes: Array[AspectNode] = _nodes_of(path)
+		var held: int = 0
+		for node: AspectNode in nodes:
+			held += 1 if GameState.has_taken(node.id) else 0
+		var tab: Button = MenuStyle.button("%s · %d of %d" % [_path_name(path), held, nodes.size()])
+		tab.custom_minimum_size = Vector2(0.0, 38.0)
+		tab.theme_type_variation = TAB_OPEN if path == _path else TAB
+		tab.set_meta(&"pact_path", path)
+		tab.pressed.connect(func() -> void:
+			show_path(path)
+			_focus_selected.call_deferred())
+		row.add_child(tab)
+	return row
+
+
+func _look(node: AspectNode) -> void:
+	_selected = node
+	_describe()
+
+
+## A card pressed: show it, and hand the focus to the button that would buy
+## it, so a pad's second press is the commitment and nothing else is.
+func _choose(node: AspectNode) -> void:
+	_look(node)
+	if _act != null and not _act.disabled:
+		_act.grab_focus()
+
+
+## The plate under the tree: what it is, what it costs, what it does, and
+## where you stand with it — then the one button.
+func _describe() -> void:
+	if _detail == null:
+		return
+	for child: Node in _detail.get_children():
+		_detail.remove_child(child)
+		child.queue_free()
+	var node: AspectNode = _selected
+	if node == null:
+		_act.visible = false
+		return
+	var owned: bool = GameState.has_taken(node.id)
+	var refused: String = GameState.why_not(node.id)
+	var price: int = Config.tuning.node_cost(node.tier)
+
+	_detail.add_child(_left(MenuStyle.line(node.display(), MenuStyle.DISPLAY_WARM)))
+	_detail.add_child(_left(MenuStyle.line("%s · %d boon" % [
+		String(AspectNode.Tier.keys()[node.tier]).to_lower(), price],
+		MenuStyle.CAPTION_WARM)))
+	if node.description_key != &"":
+		var said: Label = _left(MenuStyle.line(tr(String(node.description_key)),
+			MenuStyle.BODY_TEXT))
+		said.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_detail.add_child(said)
+
+	var standing: String = ""
+	_act.visible = true
+	if owned:
+		# **Respec** (`M3-T13`, `DES-004`), on the node itself rather than behind
+		# a mode: giving one back is the same kind of act as taking it.
+		var back: String = GameState.why_not_reclaim(node.id)
+		var refund: int = _refund(node)
+		_act.text = "Give it back — %s" % (
+			"%d boon returned" % refund if refund > 0 else "nothing returned")
+		_act.set_meta(&"pact_act", &"give")
+		_act.disabled = back != "" or viewing
+		standing = "Taken." + ((" " + back) if back != "" else "")
+	else:
+		_act.text = "Take it — %d boon" % price
+		_act.set_meta(&"pact_act", &"take")
+		_act.disabled = refused != "" or viewing
+		standing = refused
+	# Said once, here, rather than on every card: `DES-003` buys these at the
+	# pile, where you give, and that is the reason the button will not press.
+	if viewing and standing == "":
+		standing = "Bought at the pile, where you give — come back to her with tribute."
+	elif viewing:
+		_detail.add_child(_left(MenuStyle.line(
+			"Bought at the pile, where you give.", MenuStyle.CAPTION_DIM)))
+	if standing != "":
+		var stood: Label = _left(MenuStyle.line(standing,
+			MenuStyle.CAPTION_WARM if owned else MenuStyle.CAPTION_DIM))
+		stood.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_detail.add_child(stood)
+
+
+func _left(label: Label) -> Label:
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	return label
+
+
+func _refund(node: AspectNode) -> int:
+	return int(floor(Config.tuning.node_cost(node.tier) * Config.tuning.respec_refund))
+
+
+func _commit() -> void:
+	if _selected == null or _act == null or _act.disabled:
+		return
+	var kept: StringName = _selected.id
+	var done: bool = false
+	if StringName(_act.get_meta(&"pact_act", &"")) == &"give":
+		done = GameState.reclaim(kept)
+	else:
+		done = GameState.take_node(kept)
+	if done:
+		_redraw()
+		_focus_selected.call_deferred()
+
+
+func _focus_selected() -> void:
+	if _tree == null or _selected == null:
+		MenuStyle.focus_first(self)
+		return
+	var chip: Button = _tree.chip_of(_selected.id)
+	if chip != null and chip.is_inside_tree():
+		chip.grab_focus()
 
 
 ## Escape, or the bag key that opened nothing. No close button: `DES-019` is
@@ -151,89 +365,45 @@ func _unhandled_input(event: InputEvent) -> void:
 		queue_free()
 
 
-func _row(node: AspectNode) -> Control:
-	var row := VBoxContainer.new()
-	row.add_theme_constant_override("separation", 2)
-	row.custom_minimum_size = Vector2(ROW_WIDTH, 0.0)
-
-	var owned: bool = GameState.has_taken(node.id)
-	var refused: String = GameState.why_not(node.id)
-	var price: int = Config.tuning.node_cost(node.tier)
-	var label: String = "%s — %d boon" % [node.display(), price]
-
-	var take: Button = MenuStyle.button(label)
-	take.custom_minimum_size = Vector2(ROW_WIDTH, 38.0)
-	# Read-only in the Deep: the row still says what the node is and what it
-	# costs — that is the information the door was opened for — and refuses the
-	# purchase, because `DES-003` buys these where you give.
-	take.disabled = owned or refused != "" or viewing
-	take.pressed.connect(func() -> void: _take(node))
-	row.add_child(take)
-
-	if node.description_key != &"":
-		row.add_child(MenuStyle.line(tr(String(node.description_key)), MenuStyle.CAPTION_DIM))
-	if owned:
-		row.add_child(MenuStyle.line("taken", MenuStyle.CAPTION_WARM))
-		# **Respec** (`M3-T13`, `DES-004`). On the node itself rather than
-		# behind a mode: giving one back is the same kind of act as taking it,
-		# and a screen with a "respec mode" would make unmaking a build feel
-		# like a different system from making one.
-		var back: String = GameState.why_not_reclaim(node.id)
-		var refund: int = int(floor(price * Config.tuning.respec_refund))
-		var give: Button = MenuStyle.button("give it back — %d boon" % refund)
-		give.custom_minimum_size = Vector2(ROW_WIDTH, 30.0)
-		give.disabled = back != "" or viewing
-		give.pressed.connect(func() -> void: _give_back(node))
-		row.add_child(give)
-		if back != "":
-			row.add_child(MenuStyle.line(back, MenuStyle.CAPTION_DIM))
-	elif refused != "":
-		row.add_child(MenuStyle.line(refused, MenuStyle.CAPTION_DIM))
-	return row
-
-
-func _take(node: AspectNode) -> void:
-	if GameState.take_node(node.id):
-		_redraw()
-
-
-func _give_back(node: AspectNode) -> void:
-	if GameState.reclaim(node.id):
-		_redraw()
-
-
-## Used by `--respec-probe`: press a *give it back* without a mouse, on the same
-## rule `press` states — the check has to exercise the path a click takes.
-func press_give_back(id: StringName) -> bool:
-	var node: AspectNode = AspectCatalogue.by_id(id)
-	if node == null:
-		return false
-	var refund: int = int(floor(
-		Config.tuning.node_cost(node.tier) * Config.tuning.respec_refund))
-	var label: String = "give it back — %d boon" % refund
-	for child: Node in find_children("*", "Button", true, false):
-		var give := child as Button
-		if give == null or give.text != label or give.disabled:
-			continue
-		give.pressed.emit()
-		return true
+## Show one node in the plate, opening its page if it is on another — the path
+## a player takes by tab and card. False when this class cannot see it.
+func select(id: StringName) -> bool:
+	for path: StringName in paths_shown():
+		for node: AspectNode in _nodes_of(path):
+			if node.id != id:
+				continue
+			if path != _path:
+				_path = path
+				_selected = node
+				_redraw()
+			else:
+				_look(node)
+			return true
 	return false
 
 
-## Used by `--pact-probe`: press a row without a mouse, so the check exercises
-## the same path a click does rather than calling `take_node` past the button.
-## `M2-T18` is why that distinction is not pedantic — every rule in the bag was
-## correct and no click had ever reached one.
+## Used by `--pact-probe`: press a node's *take* without a mouse, so the check
+## exercises the same path a click does rather than calling `take_node` past
+## the button. `M2-T18` is why that distinction is not pedantic — every rule in
+## the bag was correct and no click had ever reached one. It goes through the
+## card first, as a player must.
 func press(id: StringName) -> bool:
-	var node: AspectNode = AspectCatalogue.by_id(id)
-	if node == null:
+	return _press_act(id, &"take")
+
+
+## Used by `--respec-probe`: the same, for *give it back*.
+func press_give_back(id: StringName) -> bool:
+	return _press_act(id, &"give")
+
+
+func _press_act(id: StringName, act: StringName) -> bool:
+	if not select(id) or _tree == null:
 		return false
-	var price: int = Config.tuning.node_cost(node.tier)
-	var label: String = "%s — %d boon" % [node.display(), price]
-	for child: Node in find_children("*", "Button", true, false):
-		var take := child as Button
-		if take == null or take.text != label or take.disabled:
-			continue
-		take.pressed.emit()
-		return true
-	return false
+	var chip: Button = _tree.chip_of(id)
+	if chip == null:
+		return false
+	chip.pressed.emit()
+	if _act == null or _act.disabled or StringName(_act.get_meta(&"pact_act", &"")) != act:
+		return false
+	_act.pressed.emit()
+	return true

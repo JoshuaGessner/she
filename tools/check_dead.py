@@ -72,6 +72,10 @@ ENGINE_VIRTUALS = {
     # read until the first one arrived (ADR-262). Listed as well as read, so
     # the entry point is honest even before any asset opts into it.
     "_post_import",
+    # `Texture2D`'s drawing and sizing virtuals (ADR-331). `CarvedBox` is a
+    # texture drawn as geometry, as `CarvedFrame` is a style box; a `CheckBox`
+    # and an `HSlider` draw it through these and nothing names them.
+    "_get_width", "_get_height", "_draw_rect", "_draw_rect_region",
 }
 
 

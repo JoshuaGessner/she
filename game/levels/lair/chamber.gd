@@ -862,28 +862,33 @@ func _the_offer() -> String:
 		GameState.boon, ControlsScreen.glyphs_for("interact")]
 
 
-## **`--pact-shot=PATH`** (ADR-273): the tree a rank-3 Húskarl sees, with their
-## Rite open under the Aspects — one node taken, the greater one it opened, the
-## other waiting on its own lesser. Photographed at the top and at the foot,
-## because the Rite is drawn last and a screen that ran out before it would
-## hide the whole branch.
+## **`--pact-shot=PATH`** (ADR-273, ADR-331): every page of the tree, for both
+## classes, part-walked — a lesser chain taken, a greater one it opened, and a
+## Rite node held. One photograph per page, because each path is its own page
+## and Wing, seven deep, is the one most able to run off the right edge.
 func _pact_shot(path: String) -> void:
-	GameState.class_id = &"huskarl"
-	GameState.taken.clear()
-	for id: StringName in [&"hrd_weight_of_kings", &"hrd_ballast", &"hrd_quiet_hands",
-			&"rit_hk_shield_wall"]:
-		GameState.taken.append(id)
-	GameState.boon = 3
-	_open_the_pact()
-	await get_tree().create_timer(0.6).timeout
-	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-top.png"))
-	for scroll: Node in _pact.find_children("*", "ScrollContainer", true, false):
-		var bar := (scroll as ScrollContainer).get_v_scroll_bar()
-		(scroll as ScrollContainer).scroll_vertical = int(bar.max_value)
-	await get_tree().create_timer(0.3).timeout
-	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-rite.png"))
+	var walked: Dictionary = {
+		&"huskarl": [&"hrd_sure_grip", &"hrd_steady_step", &"hrd_ballast",
+			&"hrd_coin_sense", &"rit_hk_shield_wall"],
+		&"veidimadr": [&"wng_soft_boots", &"wng_long_wind", &"wng_second_wind",
+			&"hrd_tally", &"rit_vd_lure"],
+	}
+	for sworn: StringName in walked:
+		GameState.class_id = sworn
+		GameState.taken.clear()
+		for id: StringName in walked[sworn]:
+			GameState.taken.append(id)
+		GameState.boon = 3
+		_open_the_pact()
+		for page: StringName in _pact.paths_shown():
+			_pact.show_path(page)
+			await get_tree().create_timer(0.4).timeout
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(
+				path.replace(".png", "-%s-%s.png" % [sworn, page]))
+		_pact.queue_free()
+		await get_tree().process_frame
+		await get_tree().process_frame
 	print("[pact] shot — %s" % path.get_file())
 	get_tree().quit()
 
@@ -1797,6 +1802,42 @@ func _pact_probe() -> void:
 	if buttons <= 0:
 		problems.append("the screen drew no rows, so the tree is unreachable "
 			+ "however correct the rules behind it are")
+	# **Every page on screen** (ADR-331). The tree is laid out, not scrolled, so
+	# a page with one row too many puts its *take* button under the bottom of
+	# the window — and Hoard's six rows did exactly that at 1152 x 648 in the
+	# first photograph. Asked of every page, because Wing is the wide one and
+	# Hoard the tall one.
+	# In a window of the size the game opens at, because a headless run's own
+	# viewport is 64 x 64 and every control is off that.
+	var window := SubViewport.new()
+	window.size = Vector2i(1152, 648)
+	add_child(window)
+	var view := Rect2(Vector2.ZERO, Vector2(window.size))
+	var sworn_here: StringName = GameState.class_id
+	for sworn: StringName in [&"huskarl", &"veidimadr"]:
+		GameState.class_id = sworn
+		var sized := PactScreen.new()
+		window.add_child(sized)
+		for page: StringName in sized.paths_shown():
+			sized.show_path(page)
+			await get_tree().process_frame
+			await get_tree().process_frame
+			var off: int = 0
+			for child: Node in sized.find_children("*", "Button", true, false):
+				var pressable := child as Button
+				if pressable.is_visible_in_tree() \
+						and not view.encloses(pressable.get_global_rect()):
+					off += 1
+			print("[pact] page %-9s %-5s %d control(s) off a %.0f x %.0f screen" % [
+				sworn, page, off, view.size.x, view.size.y])
+			if off > 0:
+				problems.append(("the %s's %s page put %d control(s) off a "
+					+ "%.0f x %.0f screen — a card or the take button nobody "
+					+ "can reach") % [sworn, page, off, view.size.x, view.size.y])
+		window.remove_child(sized)
+		sized.queue_free()
+	GameState.class_id = sworn_here
+	window.queue_free()
 
 	# **Pressed, not called past.** The rules were all exercised above by
 	# calling `take_node` directly; this is the only line that proves a *click*
@@ -2028,6 +2069,9 @@ func _demand_probe() -> void:
 	var screen := PactScreen.new()
 	layer.add_child(screen)
 	await get_tree().process_frame
+	# Looked at first, as a player must: the reason is said in the plate under
+	# the card being read, not under every card at once (ADR-331).
+	screen.select(loud)
 	var said_in_tree: bool = false
 	for child: Node in screen.find_children("*", "Label", true, false):
 		said_in_tree = said_in_tree or (child as Label).text == waiting
