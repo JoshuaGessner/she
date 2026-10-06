@@ -10,8 +10,9 @@ beside its files.
 | `kenney/rpg/` | RPG Audio | Kenney Vleugels | https://kenney.nl/assets/rpg-audio |
 | `kenney/impact/` | Impact Sounds | Kenney Vleugels | https://kenney.nl/assets/impact-sounds |
 | `kenney/interface/` | Interface Sounds | Kenney Vleugels | https://kenney.nl/assets/interface-sounds |
+| `opengameart/fireplace_loop_pagdev_excerpt.wav` | Fireplace Sound Loop (16 s mono excerpt) | PagDev | https://opengameart.org/content/fireplace-sound-loop |
 
-Credited although CC0 does not ask for it: thank you, Kenney.
+Credited although CC0 does not ask for it: thank you, Kenney and PagDev.
 
 Only the takes the build uses are kept. To add a sound, add its source here
 with its pack's licence and name it in `build_foley.RECORDED`; nothing here

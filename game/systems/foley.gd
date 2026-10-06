@@ -29,8 +29,9 @@ extends Object
 ## loudness of the cue it replaced, so every `volume_db` tuned against those
 ## cues still holds.
 ##
-## The rest — being noticed, a Waystone working, an ember going out, a barrow
-## grinding, the Hunter's tread, the fire — are **synthesised at boot**, as
+## The camp's fire is a recorded loop. The rest — being noticed, a Waystone
+## working, an ember going out, a barrow grinding, the Hunter's tread, a swing
+## through air — are **synthesised at boot**, as
 ## everything was at blockout: designed cues and loops with no recording that
 ## says them better. One source for each sound, never both. Callers ask for
 ## `Foley.CLINK`, not for a file, so either can change without them.
@@ -48,6 +49,10 @@ const RECORDED: Dictionary = {
 	Sound.CLICK: 5, Sound.PING: 2, Sound.CLANG: 5, Sound.CRUNCH: 5, Sound.COIN: 4,
 }
 const TAKES: String = "res://audio/foley/%s_%02d.ogg"
+## Presences rather than events, recorded as one seamless loop each at
+## `res://audio/foley/<sound>_loop.ogg`.
+const LOOPED: Array = [Sound.CRACKLE]
+const LOOP: String = "res://audio/foley/%s_loop.ogg"
 
 ## Every sound the game can make, and what it means. Kept as one table so the
 ## question "what does this game sound like" has one answer, and so a sound
@@ -175,10 +180,17 @@ static func _synthesised(sound: Sound) -> AudioStreamWAV:
 ## of that sound into a drone — the exact bug the comment below warns about,
 ## reached from the other direction. The frame arithmetic lives here because
 ## this is where the format is decided: 16-bit mono, so two bytes a frame.
-static func looping_stream_for(sound: Sound) -> AudioStreamWAV:
-	# Loops are the synthesised presences; a recorded one-shot looped would
-	# be the footstep this file's header warns of.
+static func looping_stream_for(sound: Sound) -> AudioStream:
+	# A recorded one-shot looped would be the footstep this file's header
+	# warns of; only a sound recorded *as* a loop loops.
 	assert(not RECORDED.has(sound), "Foley: %s is a recorded one-shot" % Sound.keys()[sound])
+	if LOOPED.has(sound):
+		# A deep copy: its packets become this player's own rather than the
+		# cached file's, so a player outliving the tree at quit holds nothing
+		# with a path — which the engine reports as a resource still in use.
+		var recorded := (load(LOOP % (Sound.keys()[sound] as String).to_lower()) as AudioStreamOggVorbis).duplicate(true) as AudioStreamOggVorbis
+		recorded.loop = true
+		return recorded
 	var stream: AudioStreamWAV = (_synthesised(sound).duplicate()) as AudioStreamWAV
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	stream.loop_begin = 0

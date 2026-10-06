@@ -74,6 +74,13 @@ RECORDED = {
     "coin": ([(CC0 / "rpg" / "handleCoins.ogg", s) for s in (0.0, 0.19, 0.43)]
              + [(CC0 / "rpg" / "handleCoins2.ogg", 0.0)], 0.24),
 }
+## Loops: a presence rather than an event. Sound -> (source, seconds kept,
+## seconds crossfaded tail into head so the loop has no seam).
+LOOPS = {
+    # The camp's fire: wood burning in a hearth, popping (ADR-326).
+    "crackle": (SRC / "cc0" / "opengameart" / "fireplace_loop_pagdev_excerpt.wav", 12.0, 1.0),
+}
+
 ## A sound with no synthesised cue before it: its level against one that had.
 NEW_LEVEL = {"coin": ("clink", 0.5)}
 
@@ -113,6 +120,13 @@ def synth(name: str) -> np.ndarray:
     if name in NEW_LEVEL:
         like, scale = NEW_LEVEL[name]
         return synth(like) * scale
+    if name == "crackle":
+        t = np.arange(int(SYNTH_RATE * 2.0)) / SYNTH_RATE
+        slot = np.floor(t * 37.0)
+        chance = np.mod(np.sin(slot * 91.7) * 43758.5, 1.0)
+        since = t - slot / 37.0
+        pop = _noise(t * 4.0) * np.exp(-since * 160.0) * (chance >= .82) * (.4 + .6 * np.mod(chance * 7.0, 1.0))
+        return _noise(t * .25) * .05 + pop * .7
     if name == "crunch":
         return np.sin(tau * 70 * t) * .6 * np.exp(-t * 18) + _noise(t * .7) * .45 * np.exp(-t * 30)
     raise KeyError(name)
@@ -171,6 +185,24 @@ def main() -> None:
             write(x, OUT / f"{name}_{i:02d}.ogg")
             report.append(f"{name}_{i:02d} {len(x) / rate:.2f}s gain {20 * math.log10(gain):+.1f} dB "
                           f"peak {float(np.abs(x).max()):.2f} from {path.parent.name}/{path.name}")
+    for name, (path, seconds, overlap) in LOOPS.items():
+        x, rate = mono(path)
+        keep, fade = int(rate * seconds), int(rate * overlap)
+        x = x[:keep + fade].copy()
+        # The tail fades into the head, so the end runs into the start.
+        ramp = np.linspace(0.0, 1.0, fade, dtype=np.float32)
+        x[:fade] = x[:fade] * ramp + x[keep:keep + fade] * (1.0 - ramp)
+        x = x[:keep]
+        # A loop is matched over its whole length, not its loudest moment.
+        want = float(np.sqrt(np.mean(synth(name) ** 2)))
+        gain = want / max(float(np.sqrt(np.mean(x ** 2))), 1e-6)
+        x = x * gain
+        peak = float(np.abs(x).max())
+        if peak > 0.98:
+            x *= 0.98 / peak
+        write(x, OUT / f"{name}_loop.ogg")
+        report.append(f"{name}_loop {len(x) / rate:.2f}s gain {20 * math.log10(gain):+.1f} dB "
+                      f"peak {float(np.abs(x).max()):.2f} from {path.parent.name}/{path.name}")
     (SRC / "foley_measurements.txt").write_text("\n".join(report) + "\n")
     print("\n".join(report))
     print("FOLEY_DONE", len(report))

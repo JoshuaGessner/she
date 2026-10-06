@@ -49,7 +49,7 @@ The player must *hear* what they are carrying:
 
 If a player can close their eyes and *hear how rich they are*, this system works. That feedback loop is what makes Pillar P1 felt rather than understood.
 
-> **Built (ADR-326).** Footfalls, coin, blows and the bag are CC0 recordings in several takes each, level-matched to the cues they replaced. Every footfall carries a jingle of coin set by the treasure in the bag (`Player.gilt`, replicated), so a teammate's haul is heard on every screen. Still synthesised: the designed cues (noticed, channel, ember), the fire, the barrow and the swing.
+> **Built (ADR-326).** Footfalls, coin, blows and the bag are CC0 recordings in several takes each, level-matched to the cues they replaced. Every footfall carries a jingle of coin set by the treasure in the bag (`Player.gilt`, replicated), so a teammate's haul is heard on every screen. The camp's fire is a recorded loop. Still synthesised: the designed cues (noticed, channel, ember), the barrow and the swing.
 
 ## Adaptive score — vertical remixing (ADR-035)
 

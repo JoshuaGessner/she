@@ -11702,7 +11702,8 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - `Foley.forget()` releases the loaded takes as `AudioDirector` leaves the tree. Without it, every quit reported *6 resources still in use*, which the sweep reads as an error (seen on the first run).
 
 **Honest scale:**
-- **Not yet recorded:** the fire's crackle, a barrow's grind and the swing. These are the obvious next recordings, and need a CC0 source this pass did not have.
+- **Not yet recorded:** a barrow's grind and the swing. These are the obvious next recordings, and need a CC0 source this pass did not have.
+- **The fire, recorded after the first commit.** The camp's crackle is a seamless 12 s loop: tail crossfaded into head, matched to the synthesised loop's loudness over its whole length. It is cut from PagDev's CC0 *Fireplace Sound Loop* (OpenGameArt; a mono excerpt and its licence are vendored). `Foley.LOOPED` holds sounds recorded *as* loops, and only those may loop. Each player gets a deep copy: the Threshold leaks a few nodes at quit, as before, and a shallow copy left the file's packets referenced — an exit error the sweep would read as a failure (`--threshold-probe`, seen and fixed).
 - **Not tuned by ear:** the mix was matched by measurement, not listened to on speakers here. The developer's first listen is the real check, and every level is ⟨tune⟩.
 
 *Entries below to be added as design decisions are signed off.*

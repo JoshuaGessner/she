@@ -41,3 +41,4 @@ coin_00 0.24s gain +0.9 dB peak 0.98 from rpg/handleCoins.ogg
 coin_01 0.24s gain +10.3 dB peak 0.71 from rpg/handleCoins.ogg
 coin_02 0.24s gain +17.7 dB peak 0.90 from rpg/handleCoins.ogg
 coin_03 0.24s gain +11.4 dB peak 0.94 from rpg/handleCoins2.ogg
+crackle_loop 12.00s gain +15.5 dB peak 0.64 from opengameart/fireplace_loop_pagdev_excerpt.wav
