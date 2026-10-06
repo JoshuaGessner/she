@@ -12225,4 +12225,36 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 
 **Honest scale:** this is wording and placement, not mechanism. Whether a stranger now finds boon is a playtest question, and the session notes should record the first time one does or does not.
 
+## ADR-341 — The interface is forged: an iron bar, a gilt inlay and strap-hinged corners, in the theme and nowhere else
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `TEC-009` §3.3 (the Darkest Dungeon note)**
+
+**Context:**
+- **Reported from play:** *"I don't like the style. Ours looks too basic and needs to be more Diablo-esque menus and UI elements."*
+- **What the panels were.** Every panel was ADR-216's carved plate: a 1–5 px band and a hairline on a flat fill. `TEC-009` §3.3 had taken *"about 70% of the benefit with a hairline rule and one border weight"* and deferred the rest to an asset budget.
+- **The references, read for what makes a frame look made:** Diablo II and IV, Grim Dawn, Path of Exile, Last Epoch, Darkest Dungeon. Four properties recur, and none of them is gothic:
+  - a border with a **material**;
+  - an **inlay** inside it;
+  - **corners heavier than edges**;
+  - a **ground with depth**.
+
+**Decision:**
+- **`CarvedFrame` gains a forged layer.** Every part is off by default, so only the theme opts in:
+  - `bevel` and `metal`: the border is a round iron bar, two strips per side meeting at a lit ridge, brighter where the light falls, cut from the world and from the panel by black hairlines;
+  - `sunken`: the light falls on the far side, for sockets, fields and pressed buttons;
+  - `plates`, `gilt`: iron strap-hinges at each corner, bronzed toward the gilt so they read as laid over the bar, riveted, and ending in spear-points. A gilt boss sits over each crossing. Plates under 14 px keep only the boss;
+  - `grain`, `vignette`: hammered grain (one seamless 256 px texture shared by every panel, built once) and an inner shadow at the edges;
+  - `crest`: a lozenge on the top and bottom edges, for a title plate.
+- **The period source for the ironwork is Viking-age**, chosen in place of Diablo's spikes: the Mästermyr tool chest, and the Hedared and Stillingfleet doors. They do the same job in the material this world is made of.
+- **Theme changes:**
+  - Frame, Slate, Socket, MenuAction (rest, lit, pressed), MenuField, BindingCell, the aspect chips, the slider, the scrim and the backdrop in `interface_theme.tres`;
+  - the hub's cartouche in `lair_theme.tres`, which is paper held in iron.
+  - Content margins grow by the border's width. No screen script changed.
+
+**Measured:**
+- **Screens photographed before and after** (`.claude/work/uishots.sh`): main menu, every menu page, class select, deeds, legacy, run-over, the pact pages for both classes, her page, the Chamber readouts and the bag.
+- **These probes pass:** `--bagui-probe`, `--menu-probe`, `--rebind-probe`, `--pad-menu-probe`, `--threshold-probe`, `--board-probe`, `--hud-probe`, `--lair-probe` (headless and windowed, where the overlap check means something), `--pact-probe` (every page fits 1152×648), `--offering-probe`, `--deeds-probe` and `--legacy-probe`.
+
+**Not in this ADR:** the bag's own cells are drawn by `BagScreen`, not by a theme role, so they are still hairlines. The paper-doll character screen, which replaces them, is the next piece of work.
+
 *Entries below to be added as design decisions are signed off.*

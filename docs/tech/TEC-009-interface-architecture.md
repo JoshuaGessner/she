@@ -272,6 +272,24 @@ is world*. The cost is 9-slice ornament assets — a real art budget. We can tak
 about 70% of the benefit with a hairline rule and one border weight, which is
 `MenuStyle` work rather than asset work.
 
+> **The other 30%, built without assets (ADR-341).** Reported from play: the
+> interface was still *"too basic — it needs to be more Diablo-esque"*. The
+> frame is now forged rather than ruled, and it is still geometry (`CarvedFrame`),
+> so it survives every window size and no nine-patch was authored:
+> - **The border is a round iron bar**, dark at both edges with a lit ridge, which
+>   makes it read as metal.
+> - **A gilt inlay** runs one step inside it.
+> - **Iron strap-hinges** hold the corners. They are bronzed so they read as laid
+>   over the bar, riveted, and they end in spear-points, as on the Mästermyr chest
+>   and the Hedared door.
+> - **A gilt boss** sits over each crossing.
+> - **The ground** is hammered grain under an inner vignette.
+> - **Sockets and pressed buttons are struck into the plate** (`sunken`).
+>
+> Diablo II and IV, Grim Dawn and Path of Exile were read for *why* their frames
+> look made — material, inlay, heavy corners, a ground with depth — and none of
+> their shapes was taken: no spikes, no gothic tracery, no skulls.
+
 **Inscryption.** Diegetic-adjacent, everything is objects on a table.
 **Rejected**: we are first-person with a lantern and there is no table.
 
