@@ -12187,4 +12187,42 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **Triplanar is not curvature.** On her body the cuts follow world axes, not her coils. Real direction fields are `ART-005`'s TAM route and still too much for this project.
 - **Taste.** The settings are a first judgement from photographs; the look wants a person in front of a real screen.
 
+## ADR-340 — Boon is named where it is earned: the room, her greeting and the tree say where it comes from
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `DES-004` (Boon: earning skill points)**
+
+**Context:**
+- **Reported from play:** *"it's still not apparent how to get boon accrued to buy perks."* ADR-337 built her page, which shows what a gift will do. A play-through of the room after it still found four places that said nothing:
+  - **The readout never used the word.** Her room's one boon row was labelled *aspects*. The currency a player is earning toward was not called by its name in the room where it is earned.
+  - **Her arrival line taught the old gesture.** It said *"Open your bag and put down what you brought"*, so it taught the drag. Her page at the pile is the door now (ADR-337), and the line said nothing about what giving earns.
+  - **The tree spends boon without saying where it comes from.** A first life opening it from her page sees prices and *0 boon* and nothing else.
+  - **A node refused for its price said only "5 boon".** That was the price again, under a button that already showed it.
+- **Hades' Mirror of Night** names its currency on the mirror itself, and the Darkness counter sits on the screen that spends it. **Darkest Dungeon's** hamlet buildings say which heirloom each upgrade costs on the upgrade page. In both, the place that spends a currency also says where it comes from, and our tree did not.
+
+**Decision:**
+- **The readout row is `boon`.** It reads *"N to spend · M of 30 toward the next"*.
+- **Her arrival line** (`Chamber.arrival_line`), in priority order:
+  1. A demand she has to name keeps first claim (ADR-243).
+  2. **With a haul:** *"Bring it to my pile (key). What you owe me first; past that, I pay in boon."*
+  3. **With nothing carried but boon she would spend** (`GameState.could_ask`, which is true when any node is open to this life now): *"You hold N boon. Ask it of me at my pile (key)."* Boon outlives the run that earned it, so a returning life is owed the reminder.
+  4. Otherwise she says nothing.
+- **The tree's second line** reads *"Boon is what she pays for tribute past the Tithe — M of 30 toward the next."*
+- **`why_not`'s price refusal** reads *"needs N boon — you hold M"*.
+- All new player-facing strings are `tr()` keys in `en.csv`: `her.arrive_haul`, `her.arrive_boon` and `pact.boon_source`.
+
+**Rejected:**
+- **A parting line at the door when boon is unspent.** The door takes you on contact (`DES-019` puts no verb on it), so a line said a metre from it would be gone before it could be read. Holding the door for it would be a confirmation dialog in disguise, which `DES-019` rules out.
+- **A tutorial pop-up.** `PRO-005` §8 says a permanent instruction costs every run forever. Each sentence here appears only where its condition is true.
+
+**Measured** (`--offering-probe` gains rows 6a–6c, all passing):
+- arriving with a haul names the interact key and boon;
+- a node with no boon says *"needs 1 boon — you hold 0"*;
+- the opened tree carries the source line;
+- after the gift, an empty bag and 1 boon gives *"You hold 1 boon…"*;
+- with 0 boon and nothing carried she is silent.
+
+`--pact-probe` still fits every page of both classes in 1152×648 with the added line, and `--pact-shot` confirms it. `--tithe-probe`, `--demand-probe`, `--respec-probe`, `--legacy-probe`, `--deeds-probe` and windowed `--lair-probe` pass.
+
+**Honest scale:** this is wording and placement, not mechanism. Whether a stranger now finds boon is a playtest question, and the session notes should record the first time one does or does not.
+
 *Entries below to be added as design decisions are signed off.*

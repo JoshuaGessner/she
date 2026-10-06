@@ -178,6 +178,12 @@ func _redraw() -> void:
 		"%d boon unspent · rank %d · she expects %d a cycle, and more for everything you take"
 		% [GameState.boon, GameState.pact_rank, GameState.tithe_due()],
 		MenuStyle.BODY_WARM))
+	# **And where boon comes from** (ADR-340), on the page that spends it.
+	# It was said nowhere a player could see before giving: the one sentence
+	# that turns this tree from a locked shop into a reason to bring more home.
+	_page.add_child(MenuStyle.line(tr("pact.boon_source")
+		% [GameState.boon_progress, maxi(1, Config.tuning.boon_per_tribute)],
+		MenuStyle.CAPTION_DIM))
 
 	var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
 	if body == null:

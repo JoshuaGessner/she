@@ -143,6 +143,9 @@ deeds.dismiss,"She has seen it"
 deeds.someone,"Someone"
 her.tithe_settled,"That is what you owed. You owe me nothing more this cycle."
 her.boon_earned,"More than you owed. Ask something of me."
+her.arrive_haul,"Bring it to my pile (%s). What you owe me first; past that, I pay in boon."
+her.arrive_boon,"You hold %d boon. Ask it of me at my pile (%s)."
+pact.boon_source,"Boon is what she pays for tribute past the Tithe — %d of %d toward the next."
 node.wng_soft_boots.name,Soft Boots
 node.wng_soft_boots.desc,"Crouching stops being quiet-ish and starts being silent."
 node.wng_long_wind.name,Long Wind

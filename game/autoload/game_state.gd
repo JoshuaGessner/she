@@ -827,9 +827,22 @@ func why_not(id: StringName) -> String:
 			var before: AspectNode = AspectCatalogue.by_id(needed)
 			return "needs %s first" % (before.display() if before != null else needed)
 	var price: int = Config.tuning.node_cost(node.tier)
+	# **What it costs and what you hold** (ADR-340). This read "5 boon" — a
+	# price, under a button that already said the price, and nothing about
+	# why it would not press.
 	if boon < price:
-		return "%d boon" % price
+		return "needs %d boon — you hold %d" % [price, boon]
 	return ""
+
+
+## **Is there anything she would give you right now?** Whether any node in the
+## tree is open to this life with the boon it holds — so a room can tell a
+## player who has something to spend apart from one who has a number.
+func could_ask() -> bool:
+	for node: AspectNode in AspectCatalogue.all():
+		if why_not(node.id) == "":
+			return true
+	return false
 
 
 ## Spend on a node. Returns whether it was taken.

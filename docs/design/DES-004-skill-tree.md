@@ -87,6 +87,12 @@ Eat anything: corpses, potions, cursed items, gear. Each grants its property for
     - One press gives it.
     - The preview and the gift are one function, `GameState.reckon`.
     - 30 tribute of surplus makes a Boon (was 60). At 60, the best a rank-1 cycle could ever earn was one node in three runs; ADR-060 asks for about one in two.
+  - **Named where it is earned (ADR-340).**
+    - Her room's readout labels the row **boon** (it read *aspects*).
+    - On arrival with a haul she says that giving at her pile pays in boon, and names the key.
+    - A life arriving with nothing carried but boon it could spend is told so.
+    - The tree says, under its title, that boon is what she pays for tribute past the Tithe.
+    - A node refused for its price says what you hold.
 
 > **DECIDED (ADR-030):** **~70% tribute, remainder from contracts** ⟨tune⟩. Exploration pays **Lineage only**, never Boon.
 >

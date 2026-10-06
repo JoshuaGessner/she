@@ -251,10 +251,14 @@ func _ready() -> void:
 	# bag opened on arrival holding a run's worth of things and nothing in the
 	# room said the pile ahead was where they went. Once, in her voice, and
 	# the demand wins the line if she has one to name.
-	if _refusal == "" and _player.inventory.count() > 0:
-		_she_says("Open your bag (%s) and put down what you brought. The pile "
-			% ControlsScreen.glyphs_for("bag")
-			+ "is mine. The chest is yours.")
+	#
+	# **The pile, and what giving earns** (ADR-340). The line taught the bag's
+	# drag; her page at the pile is the door now (ADR-337), and the line is
+	# where a first life learns that boon exists at all. With nothing carried
+	# and boon she would spend, she says that instead — boon outlives the run
+	# that earned it, and a returning life is owed the reminder.
+	if _refusal == "":
+		_she_says(arrival_line())
 
 
 ## A body, instantiated rather than spawned. See the class note: the absence of
@@ -422,6 +426,17 @@ func _she_says(line: String) -> void:
 	_refusal = line
 	_refusal_left = SPEECH_SECONDS
 	print("[lair] she said '%s'" % line)
+
+
+## **What she says when you come in** with nothing to name (ADR-340): what
+## to do with a haul, or what you can ask of her, or nothing.
+func arrival_line() -> String:
+	if _player != null and _player.inventory.count() > 0:
+		return tr("her.arrive_haul") % ControlsScreen.glyphs_for("interact")
+	if GameState.boon > 0 and GameState.could_ask():
+		return tr("her.arrive_boon") % [GameState.boon,
+			ControlsScreen.glyphs_for("interact")]
+	return ""
 
 
 ## What she wants of this life, and how far it has come — beside the Tithe,
@@ -899,7 +914,7 @@ func _process(delta: float) -> void:
 	_set_row("stash", "%d item(s) · %d tribute" % [
 		GameState.stash.size(), GameState.stash_value()])
 	_set_row("scars", WoundMarks.named(GameState.scars))
-	_set_row("aspects", _the_offer())
+	_set_row("boon", _the_offer())
 	_fill_the_tithe()
 	_set_row("demand", _the_demand())
 	# **Absent, not blank** (`M4-T20`). It was held as an empty line so nothing
@@ -992,7 +1007,7 @@ func _the_offer() -> String:
 	var per: int = maxi(1, Config.tuning.boon_per_tribute)
 	# Progress as a count toward the next, beside what is already there — the
 	# same two numbers her page draws as a bar (ADR-337).
-	return "%d unspent · %d of %d toward the next" % [
+	return "%d to spend · %d of %d toward the next" % [
 		GameState.boon, GameState.boon_progress, per]
 
 
@@ -1211,8 +1226,11 @@ func _build_readout() -> void:
 	# **The door to the tree, named where you can see it** (ADR-164, TEC-009
 	# §5.3). It was line thirteen of fifteen and it is the only thing on screen
 	# that says the Aspects exist at all.
-	_rows["aspects"] = MenuStyle.row("aspects", "")
-	place_body.add_child(_rows["aspects"])
+	# Named **boon**, the word her page and her voice use (ADR-340). It was
+	# labelled "aspects", so the one number a player is earning toward was
+	# never called by its name in the room where it is earned.
+	_rows["boon"] = MenuStyle.row("boon", "")
+	place_body.add_child(_rows["boon"])
 	_place.add_child(place_body)
 	layer.add_child(_place)
 	HudFrame.place(_place, HudFrame.Region.PLACE, screen)
@@ -1874,6 +1892,10 @@ func _tithe_probe() -> void:
 ## 4. **A first life can earn a boon** in one strong gift at rank 1 — the
 ##    economy half of the report (`boon_per_tribute`, ADR-337).
 ## 5. **The door to her aspects** opens the tree from the page.
+## 6. **Boon is named where it is earned** (ADR-340): her arrival line says
+##    giving at the pile pays in boon; the tree says where boon comes from; a
+##    node you cannot afford says what you hold; and a life that walks in with
+##    boon and nothing carried is told it can ask.
 func _offering_probe() -> void:
 	var problems := PackedStringArray()
 	GameState.class_id = &"huskarl"
@@ -1889,6 +1911,17 @@ func _offering_probe() -> void:
 		problems.append("the bag would not hold the plate and the seax the rows need")
 		_report_offering(problems)
 		return
+
+	# ─ 6a. what she says to a life that comes in carrying ─
+	var arriving: String = arrival_line()
+	var broke: String = GameState.why_not(&"hrd_sure_grip")
+	print("[offering] arriving, carrying '%s'" % arriving)
+	print("[offering] a node, no boon    '%s'" % broke)
+	if not arriving.contains("boon") \
+			or not arriving.contains(ControlsScreen.glyphs_for("interact")):
+		problems.append("she greets a haul without naming the pile's key or that giving pays in boon")
+	if not broke.contains("you hold 0"):
+		problems.append("a node refused for boon does not say how much you hold: '%s'" % broke)
 
 	# ─ 1. the pile opens her page, pressed ─
 	_player.global_position = global_position + HOARD_AT + Vector3(0.0, 0.0, 1.5)
@@ -1964,6 +1997,24 @@ func _offering_probe() -> void:
 	print("[offering] asked of her        the tree is open=%s" % (_pact != null))
 	if _pact == null:
 		problems.append("her page's door to the aspects opened nothing")
+	# ─ 6b. the tree says where boon comes from ─
+	var source: String = ""
+	if _pact != null:
+		for label: Node in _pact.find_children("*", "Label", true, false):
+			if (label as Label).text.contains("past the Tithe"):
+				source = (label as Label).text
+	print("[offering] the tree says      '%s'" % source)
+	if source == "":
+		problems.append("the tree spends boon and never says where it comes from")
+	# ─ 6c. what she says to a life that comes back with boon ─
+	_player.inventory.clear()
+	var returning: String = arrival_line()
+	print("[offering] arriving with %d boon '%s'" % [GameState.boon, returning])
+	if not returning.contains("%d boon" % GameState.boon):
+		problems.append("a life with boon to spend and nothing carried is not told it can ask")
+	GameState.boon = 0
+	if arrival_line() != "":
+		problems.append("she spoke to a life with nothing carried and nothing to ask: '%s'" % arrival_line())
 	_report_offering(problems)
 
 
