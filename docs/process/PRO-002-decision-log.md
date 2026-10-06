@@ -12073,4 +12073,43 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **The cage's foot is at 1.92 m.** The tallest enemies' heads may pass through a lamp in a doorway; lamps have no collision, as before.
 - **Rooms taller than their doorways still go dark overhead.** Their ceilings are further from any lamp. That is the Deep being dark, not a fault, and the next lighting question for someone looking at a real screen.
 
+## ADR-337 — Her page says what a gift will do, then does it; and a first life can earn a boon
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `DES-004` (conversion rate and its presentation), the Chamber's pile verb**
+
+**Context:**
+- **Reported from play:** *"still not apparent how to get boon accrued to buy perks."* Two faults sat under that sentence.
+- **The rule was invisible.** `GameState.tribute` was correct: what you give pays the Tithe first, only the surplus becomes Boon, and the rank cap turns the excess into lessons. A player saw none of it.
+  - Giving meant opening the bag and dragging an item off its edge within two metres of the pile.
+  - Its effect was one corner line: *"none yet — 60 more tribute over the tithe buys the first"*, which is arithmetic handed to the player.
+- **The economy would not pay a first life.** A cycle converts at most about twice `boon_cap` (ADR-011's halving bands), and at rank 1 that is 60 (cap 30). At 60 tribute a boon, the most a rank-1 cycle could ever earn was one node in three runs, and only with an exceptional haul. ADR-060 asks for about one node per two runs. A tester's lineage read *"a hoard worth 59"* after five descents, with no boon.
+
+**Decision:**
+- **`GameState.reckon(value)`** is the whole coupling as one pure function: what pays the Tithe, the surplus, what of it becomes boon progress, what the cap turns to lessons, whole boons gained, and progress after. `tribute` now does exactly what `reckon` says. A preview computed separately would be a second model of the rule; the day they disagreed, a player would be shown one price and charged another.
+- **Her page (`OfferingScreen`), opened by interact at the pile.** The model is Darkest Dungeon's hamlet buildings and Dead Cells' Collector: the place you spend is the place that shows what you are spending.
+  - **Your bag as carved cards,** richest first, each saying what it is worth to her or that she will not take it.
+  - **A ledger plate** with two bars, the Tithe (paid of owed, and how many runs are left in the cycle) and Boon (progress toward the next, and how many are unspent).
+  - **The selected gift's effect shown before it is given.** It is pale hatched fill ahead of each bar, a `+N` stamp when it would earn whole boons, and sentences that say the same (`DES-018`): what pays what you owe, what goes to boon, what the cycle cannot hold.
+  - **One button gives it**, and a door opens her aspects above the page, closing back to it.
+  - **Looking is not giving** (ADR-331's rule): focus selects, and hover does not.
+- **The drag still gives.** The bag's drop at the pile and the page's button both reach `Chamber._give`: one rule, two ways in.
+- **The pile prompt** names the one verb: *"E — give to her: what you owe, and what earns boon"*, or with boon in hand, *"give to her, or ask of her (N unspent)"*. The corner readout's *aspects* row reads as a count: *"0 unspent · 12 of 30 toward the next"*.
+- **`boon_per_tribute` is 30** (was 60), ⟨tune⟩. A strong rank-1 cycle earns two boons and an ordinary one earns one. The Tithe rising with every node still does the throttling ADR-060 gives it, and the cap and its bands are unchanged.
+- **New roles:** `OfferCard` and `OfferCardRefused`, named in `MenuStyle`.
+- **New probe and shot:** `--offering-probe` (in the sweep) and `--offering-shot`.
+
+**Measured:**
+- **`--offering-probe`:**
+  - interact pressed at the pile opens the page, which reads *"0 of 40 paid — 40 short, 3 runs left | 0 of 30 toward the next"*;
+  - the seax is refused and stays in the bag;
+  - the 140-tribute Altar-Plate was shown as 40 to the Tithe, +1 boon and 24 toward the next, and giving it did exactly that;
+  - the aspects door opens the tree.
+- **`--offering-shot` at 1152 × 648:** the cards, both bars with the ghost fill and `+2` stamp, the debt fill in its own tone with the word *short* beside it, and the effect in sentences.
+- **These probes pass:** `--lair-probe` (the pile prompt still names the verb on both devices), `--chamber-probe`, `--tithe-probe`, `--pact-probe`, `--demand-probe`, `--respec-probe`, `--legacy-probe`, `--deeds-probe`, `--saving-probe`, `--hud-probe`, `--threshold-probe`, `--menu-probe` and `data_probe`.
+
+**Honest scale:**
+- **The bars do not animate yet.** A gift moves them at once; the throw onto the pile and her reaction are the next pass.
+- **30 is a starting number.** Whether a first life reads its first boon as earned or as given is a playtest question.
+- **She appraises everything at the pile.** `hrd_tally` still matters in the Deep, where you decide what to carry, and that is where its sentence says it works.
+
 *Entries below to be added as design decisions are signed off.*

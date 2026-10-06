@@ -256,32 +256,11 @@ func tribute(item: ItemInstance) -> void:
 	# the door marked *item*.
 	var value: int = item.tribute_worth()
 	hoard_value += value
-	# **Only the surplus becomes Boon** (`DES-004`): *"surplus tribute beyond
-	# your Tithe converts to Boon at full rate; tribute below the Tithe converts
-	# at nothing and counts against your obligation."*
-	#
-	# This is the whole coupling in four lines. Servicing the debt buys you
-	# nothing but the absence of a punishment, and the debt rises with every
-	# node — so a rank-7 player extracts far more for the same point of Boon,
-	# which is ADR-060's intended flat income and the reason growth has to be
-	# *felt through loud nodes* rather than through a rate that accelerates.
-	var still_owed: int = maxi(0, tithe_due() - tithe_paid)
-	var surplus: int = maxi(0, value - still_owed)
-	# **Capped by your own rank** (`M3-T03`, ADR-011). ADR-010 lets a rank-1
-	# player stand on a rank-9 floor and carry rank-9 value home; this is the
-	# line that stops that being a rank-9 tree. What the cap turns away is not
-	# lost — it becomes what this lineage *learned*, which `DES-003` makes
-	# power-free by construction, so the run still pays generously (ADR-006)
-	# without paying in power.
-	var cap: int = boon_cap()
-	var earned: int = convert_with_decay(surplus, cap, boon_converted)
-	boon_converted += surplus
-	lineage_progress += surplus - earned
-	boon_progress += earned
-	var per: int = maxi(1, Config.tuning.boon_per_tribute)
-	while boon_progress >= per:
-		boon_progress -= per
-		boon += 1
+	var sum: Dictionary = reckon(value)
+	boon_converted += int(sum["surplus"])
+	lineage_progress += int(sum["learned"])
+	boon += int(sum["boon"])
+	boon_progress = int(sum["progress"])
 	# The same gesture pays two things at once, which is the point: there is no
 	# separate "pay the Tithe" button anywhere, because `DES-014` puts the
 	# keep-or-give decision at the hoard and giving *is* paying.
@@ -289,6 +268,47 @@ func tribute(item: ItemInstance) -> void:
 	carried.erase(item)
 	stash.erase(item)
 	_persist()
+
+
+## **What a gift worth `value` would do, without doing it** (ADR-337).
+##
+## The whole of `DES-003`'s coupling in one pure function, so her page can show
+## a gift's effect before it is made and `tribute` makes exactly that effect —
+## a preview computed separately would be a second model of the rule, and the
+## day they disagreed a player would be shown one price and charged another.
+##
+## - **Only the surplus becomes Boon** (`DES-004`): *"surplus tribute beyond
+##   your Tithe converts to Boon at full rate; tribute below the Tithe converts
+##   at nothing and counts against your obligation."* Servicing the debt buys
+##   nothing but the absence of a punishment, and the debt rises with every
+##   node — ADR-060's flat income, and why growth is *felt through loud nodes*
+##   rather than through a rate that accelerates.
+## - **Capped by your own rank** (`M3-T03`, ADR-011). ADR-010 lets a rank-1
+##   player carry rank-9 value home; the cap stops that being a rank-9 tree.
+##   What it turns away is not lost — it is what this lineage *learned*, which
+##   `DES-003` makes power-free, so the run still pays generously (ADR-006)
+##   without paying in power.
+##
+## Returns `to_tithe` (what pays the debt), `surplus` (what is past it),
+## `earned` (what of that becomes boon progress), `learned` (what the cap
+## turned to lessons), `boon` (whole boons gained), `progress` (progress toward
+## the next one after it) and `per` (progress a boon takes).
+func reckon(value: int) -> Dictionary:
+	var still_owed: int = maxi(0, tithe_due() - tithe_paid)
+	var worth: int = maxi(0, value)
+	var surplus: int = maxi(0, worth - still_owed)
+	var earned: int = convert_with_decay(surplus, boon_cap(), boon_converted)
+	var per: int = maxi(1, Config.tuning.boon_per_tribute)
+	var progress: int = boon_progress + earned
+	return {
+		"to_tithe": mini(worth, still_owed),
+		"surplus": surplus,
+		"earned": earned,
+		"learned": surplus - earned,
+		"boon": progress / per,
+		"progress": progress % per,
+		"per": per,
+	}
 
 
 ## Kept for next time.

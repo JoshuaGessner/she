@@ -163,6 +163,10 @@ const ASPECT_CHIP_LOCKED: StringName = &"AspectChipLocked"
 const PACT_TAB: StringName = &"PactTab"
 const PACT_TAB_OPEN: StringName = &"PactTabOpen"
 const PACT_ACT: StringName = &"PactAct"
+## **Her page's cards** (ADR-337): a thing you carry, and one she will not take
+## — the second dim, and saying why in its own line rather than by colour alone.
+const OFFER_CARD: StringName = &"OfferCard"
+const OFFER_CARD_REFUSED: StringName = &"OfferCardRefused"
 const RULE: StringName = &"Rule"
 const BACKDROP: StringName = &"Backdrop"
 ## A backdrop you can still half see through, for a banner laid over a room.

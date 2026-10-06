@@ -420,6 +420,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Her page** (ADR-337): the pile opens it, a gift's effect is shown
+	# before it is made and is exactly what giving then does, and a first life
+	# can earn a boon. Reported from play as *not apparent how to get boon*.
+	offering="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 3000 \
+		levels/lair/chamber.tscn -- --offering-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$offering" \
+			|| ! grep -q "^\[offering\] she says what a gift will do" <<<"$offering"; then
+		echo "FAIL her page has to show what a gift does, and then do it" >&2
+		printf '%s\n' "$offering" | grep -E '\[offering\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Her demand** (`M4-T04`, ADR-243, `DES-007` tier 1). The oath names one,
 	# steadily and every one over lives; death forgets it; her loudest nodes
 	# wait on it and an ordinary one does not; only the named kind counts;

@@ -4,7 +4,7 @@ title: Skill Tree — The Dragon's Aspects
 status: accepted
 owner: design
 tags: [skill-tree, builds, meta, balance, progression]
-updated: 2026-09-16
+updated: 2026-10-06
 related: [DES-003, DES-007, DES-008]
 ---
 
@@ -81,6 +81,12 @@ Eat anything: corpses, potions, cursed items, gear. Each grants its property for
 - **Tribute is a real cost:** what you give her, you cannot use. Every run ends with "keep it or convert it," which is a genuinely good decision to make repeatedly.
 - Boon is earned **only on successful extraction**. Death converts nothing.
 - Surplus tribute beyond your Tithe converts to Boon at full rate; tribute *below* the Tithe converts at nothing and counts against your obligation ⟨tune⟩.
+  - **Shown before it is given (ADR-337).** Interact at the pile to open her page.
+    - It lists what you carry, each with what she would make of it, beside a ledger of the Tithe and of Boon toward the next point.
+    - The selected gift's effect is laid ahead of both bars before you give it, and stated in words: what pays the debt, what becomes Boon, and what the cap turns to a lesson.
+    - One press gives it.
+    - The preview and the gift are one function, `GameState.reckon`.
+    - 30 tribute of surplus makes a Boon (was 60). At 60, the best a rank-1 cycle could ever earn was one node in three runs; ADR-060 asks for about one in two.
 
 > **DECIDED (ADR-030):** **~70% tribute, remainder from contracts** ⟨tune⟩. Exploration pays **Lineage only**, never Boon.
 >

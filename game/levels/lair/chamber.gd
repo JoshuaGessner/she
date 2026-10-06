@@ -89,6 +89,7 @@ const SPEECH_SECONDS: float = 9.0
 ## Legacy screen's: the pause menu can open over this and must give back
 ## only what it took.
 const PACT_CLAIM: StringName = &"pact"
+const OFFER_CLAIM: StringName = &"offering"
 
 ## One coin-mesh per this much tribute ⟨tune⟩, so the pile grows visibly
 ## without becoming a mesh budget. `DES-014` costs it at *"a growing-pile-of-
@@ -149,6 +150,7 @@ var _mark: Reticle = null
 ## The Aspects, while they are open. Non-null is what stops the room reopening
 ## them every frame the player holds the key at the pile.
 var _pact: PactScreen = null
+var _offering: OfferingScreen = null
 ## What she last refused and why, shown on the readout while it lasts. The
 ## visual twin of the refusal cue (`DES-018`): with the sound muted, the line is
 ## still the whole answer.
@@ -208,6 +210,8 @@ func _ready() -> void:
 			_her_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--pact-shot="):
 			_pact_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--offering-shot="):
+			_offering_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
 			_tithe_probe()
 		elif arg == "--respec-probe":
@@ -218,6 +222,8 @@ func _ready() -> void:
 			_legacy_probe()
 		elif arg == "--pact-probe":
 			_pact_probe()
+		elif arg == "--offering-probe":
+			_offering_probe()
 		elif arg == "--demand-probe":
 			_demand_probe()
 		elif arg == "--saving-probe":
@@ -271,19 +277,7 @@ func _spawn_body() -> void:
 func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 		_launch: Vector3) -> void:
 	if at.distance_to(global_position + HOARD_AT) <= PLACE_REACH:
-		# **She refuses what is worth nothing to her** (`M3-T32`, ADR-153), and
-		# a refusal is not the confirmation dialog `DES-019` bans — it is her
-		# declining, which is flavour and a guard in the same gesture.
-		var refused: String = GameState.why_not_tribute(item)
-		if refused != "":
-			_hand_it_back(item, refused)
-			return
-		GameState.tribute(item)
-		_rebuild_hoard()
-		print("[lair] gave %s — the hoard is worth %d" % [
-			item.definition.display(), GameState.hoard_value])
-		_she_says(GameState.take_demand_heard())
-		_settle()
+		_give(item)
 		return
 	if at.distance_to(global_position + STASH_AT) <= PLACE_REACH:
 		GameState.keep(item)
@@ -305,6 +299,25 @@ func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 	# binary — give, or keep — so anything else is a mis-drop, and the answer to
 	# a mis-drop is to hand it back rather than to invent a third state for it.
 	_hand_it_back(item, "")
+
+
+## **Onto the pile** — from the bag's drag or from her page (ADR-337). One rule
+## with two ways to reach it, so a gift made either way is the same gift.
+##
+## **She refuses what is worth nothing to her** (`M3-T32`, ADR-153), and a
+## refusal is not the confirmation dialog `DES-019` bans — it is her declining,
+## which is flavour and a guard in the same gesture.
+func _give(item: ItemInstance) -> void:
+	var refused: String = GameState.why_not_tribute(item)
+	if refused != "":
+		_hand_it_back(item, refused)
+		return
+	GameState.tribute(item)
+	_rebuild_hoard()
+	print("[lair] gave %s — the hoard is worth %d" % [
+		item.definition.display(), GameState.hoard_value])
+	_she_says(GameState.take_demand_heard())
+	_settle()
 
 
 ## **Her voice, held long enough to read** (ADR-243). The refusal line's
@@ -808,9 +821,9 @@ func _process(delta: float) -> void:
 	var at_the_chest: bool = _player.global_position.distance_to(
 		global_position + STASH_AT) <= PLACE_REACH
 	_tell_the_reticle(at_the_pile, at_the_chest)
-	if _pact == null and at_the_pile \
+	if _pact == null and _offering == null and at_the_pile \
 			and Input.is_action_just_pressed("interact"):
-		_open_the_pact()
+		_open_the_offering()
 	# Standing on the door is leaving. No prompt: `DES-019` puts nothing in the
 	# centre of the screen, and a doorway you walk through needs no verb.
 	if _player.global_position.distance_to(global_position + DOOR_AT) <= 1.6:
@@ -854,28 +867,25 @@ func _tell_the_reticle(at_the_pile: bool, at_the_chest: bool) -> void:
 	if not at_the_pile:
 		_mark.offer("")
 		return
+	# **One verb, and it says what it opens** (ADR-337): her page, where you
+	# give and where you spend. The drag still works and no longer needs
+	# teaching here — the page is the door a first life can find.
 	if GameState.boon > 0:
-		_mark.offer("hold %s — her aspects (%d unspent) · open the bag (%s), drag here to give"
-			% [ControlsScreen.glyphs_for("interact"), GameState.boon,
-				ControlsScreen.glyphs_for("bag")])
+		_mark.offer("%s — give to her, or ask of her (%d boon unspent)"
+			% [ControlsScreen.glyphs_for("interact"), GameState.boon])
 		return
-	_mark.offer("hold %s — the hoard, and what she is owed · open the bag (%s), drag here to give"
-		% [ControlsScreen.glyphs_for("interact"), ControlsScreen.glyphs_for("bag")])
+	_mark.offer("%s — give to her: what you owe, and what earns boon"
+		% ControlsScreen.glyphs_for("interact"))
 
 
 ## What is on offer, or why nothing is. Beside the Tithe on purpose — the two
 ## halves of `DES-003`'s coupling read as one sentence that way.
 func _the_offer() -> String:
-	if GameState.boon <= 0:
-		var per: int = Config.tuning.boon_per_tribute
-		var short: int = per - GameState.boon_progress
-		# **No asterisks.** This read `*above* the tithe` and a `Label` is not a
-		# `RichTextLabel`, so it drew the literal punctuation — markdown emphasis
-		# in a string nobody had ever looked at on screen. The emphasis is
-		# carried by word order now, which survives any renderer.
-		return "none yet — %d more tribute over the tithe buys the first" % short
-	return "%d unspent — hold %s at the pile" % [
-		GameState.boon, ControlsScreen.glyphs_for("interact")]
+	var per: int = maxi(1, Config.tuning.boon_per_tribute)
+	# Progress as a count toward the next, beside what is already there — the
+	# same two numbers her page draws as a bar (ADR-337).
+	return "%d unspent · %d of %d toward the next" % [
+		GameState.boon, GameState.boon_progress, per]
 
 
 ## **`--pact-shot=PATH`** (ADR-273, ADR-331): every page of the tree, for both
@@ -909,13 +919,79 @@ func _pact_shot(path: String) -> void:
 	get_tree().quit()
 
 
+## **Her page** (ADR-337): what you carry and what it would pay, opened from
+## the pile. Her aspects open from it, above it, and closing them returns here
+## with the boon you have left.
+func _open_the_offering() -> void:
+	_offering = OfferingScreen.new()
+	_offering.inventory = _player.inventory
+	var layer := CanvasLayer.new()
+	layer.layer = 8
+	layer.add_child(_offering)
+	add_child(layer)
+	_offering.offered.connect(func(item: ItemInstance) -> void:
+		var taken: ItemInstance = _player.inventory.remove(item.instance_id)
+		if taken != null:
+			_give(taken)
+		if _offering != null:
+			_offering.refresh())
+	_offering.asked.connect(func() -> void:
+		if _pact != null:
+			return
+		_open_the_pact()
+		_pact.tree_exited.connect(func() -> void:
+			if _offering != null and is_instance_valid(_offering):
+				_offering.refresh()))
+	_offering.tree_exited.connect(func() -> void:
+		_offering = null
+		if _player != null and is_instance_valid(_player):
+			_player.release_attention(OFFER_CLAIM)
+		layer.queue_free())
+	if _player != null:
+		_player.hold_attention(OFFER_CLAIM)
+
+
+## The open page at the pile, or null — for `--offering-probe`.
+func offering() -> OfferingScreen:
+	return _offering
+
+
+## **`--offering-shot=PATH`** (ADR-337): her page with a mixed bag — gold she
+## wants, a weapon she does not — at a first life's ledger, with the richest
+## thing selected so the bars show a gift that settles the Tithe and earns.
+## Then with a small thing selected, which only pays toward the debt.
+func _offering_shot(path: String) -> void:
+	GameState.class_id = &"huskarl"
+	GameState.boon = 0
+	GameState.boon_progress = 12
+	GameState.boon_converted = 0
+	GameState.tithe_paid = 10
+	_player.inventory.clear()
+	for id: StringName in [&"glt_altar_plate", &"glt_gilded_torc", &"glt_hoard_coin",
+			&"glt_gilt_bead", &"wpn_seax", &"con_linen_binding"]:
+		_player.inventory.add(ItemCatalogue.by_id(id))
+	_open_the_offering()
+	await get_tree().create_timer(0.6).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-rich.png"))
+	for item: ItemInstance in _player.inventory.items():
+		if item.definition.id == &"glt_gilt_bead":
+			_offering.select(item.instance_id)
+	await get_tree().create_timer(0.3).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-small.png"))
+	print("[offering] shot — %s" % path.get_file())
+	get_tree().quit()
+
+
 ## The tree, over the room rather than instead of it (ADR-102's habit): the
 ## Chamber stays where it is, and closing this puts the player back where they
 ## were standing.
 func _open_the_pact() -> void:
 	_pact = PactScreen.new()
 	var layer := CanvasLayer.new()
-	layer.layer = 8
+	# Above her page, which it is opened from.
+	layer.layer = 9
 	layer.add_child(_pact)
 	add_child(layer)
 	_pact.tree_exited.connect(func() -> void:
@@ -1646,6 +1722,102 @@ func _tithe_probe() -> void:
 
 	for problem: String in problems:
 		printerr("[tithe] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **Her page says what a gift will do, and then it does that** (ADR-337).
+##
+## Reported from play: *not apparent how to get boon accrued.* Every rule below
+## was already correct in `GameState.tribute`; what was missing was a place a
+## player could see it. So the rows are about seeing and reaching:
+##
+## 1. **The pile opens her page** — by `interact`, pressed, at the pile.
+## 2. **A thing she will not take cannot be given**, and stays in the bag.
+## 3. **The preview is the price**: what the page shows a gift would do to the
+##    Tithe and to boon is exactly what giving it then does. Two models of one
+##    rule is the fault this row exists for.
+## 4. **A first life can earn a boon** in one strong gift at rank 1 — the
+##    economy half of the report (`boon_per_tribute`, ADR-337).
+## 5. **The door to her aspects** opens the tree from the page.
+func _offering_probe() -> void:
+	var problems := PackedStringArray()
+	GameState.class_id = &"huskarl"
+	GameState.taken.clear()
+	GameState.boon = 0
+	GameState.boon_progress = 0
+	GameState.boon_converted = 0
+	GameState.tithe_paid = 0
+	_player.inventory.clear()
+	var plate: ItemInstance = _player.inventory.add(ItemCatalogue.by_id(&"glt_altar_plate"))
+	var seax: ItemInstance = _player.inventory.add(ItemCatalogue.by_id(&"wpn_seax"))
+	if plate == null or seax == null:
+		problems.append("the bag would not hold the plate and the seax the rows need")
+		_report_offering(problems)
+		return
+
+	# ─ 1. the pile opens her page, pressed ─
+	_player.global_position = global_position + HOARD_AT + Vector3(0.0, 0.0, 1.5)
+	await get_tree().process_frame
+	Input.action_press("interact")
+	await get_tree().process_frame
+	await get_tree().process_frame
+	Input.action_release("interact")
+	await get_tree().process_frame
+	var page: OfferingScreen = offering()
+	print("[offering] pressed at the pile  page open=%s" % (page != null))
+	if page == null:
+		problems.append("interact at the pile opened nothing — her page is the "
+			+ "door a first life has to be able to find")
+		_report_offering(problems)
+		return
+	print("[offering] the ledger reads    %s" % " | ".join(page.ledger_lines()))
+
+	# ─ 2. a thing she will not take cannot be given ─
+	var gave_seax: bool = page.press_give(seax.instance_id)
+	var seax_kept: bool = _player.inventory.find(seax.instance_id) != null
+	print("[offering] offered the seax    given=%s, still in the bag=%s (want no, yes)"
+		% [gave_seax, seax_kept])
+	if gave_seax or not seax_kept:
+		problems.append("the page gave a thing she has no use for")
+
+	# ─ 3. the preview is the price ─
+	var shown: Dictionary = GameState.reckon(plate.tribute_worth())
+	var boon_before: int = GameState.boon
+	var paid_before: int = GameState.tithe_paid
+	var gave_plate: bool = page.press_give(plate.instance_id)
+	await get_tree().process_frame
+	var boon_got: int = GameState.boon - boon_before
+	print(("[offering] gave the plate      given=%s · shown %d to the Tithe, +%d boon, "
+		+ "%d toward the next · got %d, +%d, %d") % [gave_plate,
+		int(shown["to_tithe"]), int(shown["boon"]), int(shown["progress"]),
+		GameState.tithe_paid - paid_before, boon_got, GameState.boon_progress])
+	if not gave_plate or _player.inventory.find(plate.instance_id) != null:
+		problems.append("the plate could not be given from her page")
+	elif boon_got != int(shown["boon"]) or GameState.boon_progress != int(shown["progress"]) \
+			or GameState.tithe_paid - paid_before != plate.tribute_worth():
+		problems.append("the page showed one effect and the gift made another — the "
+			+ "preview and `tribute` have stopped being one rule")
+
+	# ─ 4. a first life can earn a boon ─
+	if boon_got < 1:
+		problems.append(("a %d-tribute gift at rank 1 earned no boon — the first "
+			+ "boon is out of reach of an ordinary life (`boon_per_tribute` %d)")
+			% [plate.tribute_worth(), Config.tuning.boon_per_tribute])
+
+	# ─ 5. the door to her aspects ─
+	page.asked.emit()
+	await get_tree().process_frame
+	print("[offering] asked of her        the tree is open=%s" % (_pact != null))
+	if _pact == null:
+		problems.append("her page's door to the aspects opened nothing")
+	_report_offering(problems)
+
+
+func _report_offering(problems: PackedStringArray) -> void:
+	for problem: String in problems:
+		print("[offering] FAIL %s" % problem)
+	if problems.is_empty():
+		print("[offering] she says what a gift will do, and then it does that")
 	get_tree().quit(1 if problems.size() > 0 else 0)
 
 

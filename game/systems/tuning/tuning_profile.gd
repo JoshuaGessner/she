@@ -469,7 +469,14 @@ extends Resource
 
 @export var boon_cap_fraction: float = 0.75
 
-@export var boon_per_tribute: int = 60
+## **30, since ADR-337** (was 60). Measured against the cap above: a cycle can
+## convert at most about twice `boon_cap` (the halving bands), and at rank 1
+## that is 60 — so at 60 a boon, the *best* a rank-1 cycle could ever earn was
+## one node in three runs, and a typical haul earned none. ADR-060 asks for
+## about one node per two runs. At 30 a strong rank-1 cycle earns two and an
+## ordinary one earns one; the Tithe, rising with every node, still does the
+## throttling ADR-060 gives it.
+@export var boon_per_tribute: int = 30
 ## What missing a cycle costs: seconds of Hunt **already elapsed** when your
 ## next descent begins (ADR-118) ⟨tune⟩.
 ##
