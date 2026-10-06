@@ -25,6 +25,11 @@ var over: int = 0
 var owing: bool = false
 
 const HEIGHT: float = 14.0
+## How fast a moved bar runs to where it now stands, tracks a second (ADR-338).
+const RUN: float = 1.4
+
+## Where the fill is going, when it is easing there rather than jumping.
+var _target: float = 0.0
 
 
 func _ready() -> void:
@@ -32,12 +37,27 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 
-func show_fill(now: float, would: float, fills: int = 0, short: bool = false) -> void:
-	filled = clampf(now, 0.0, 1.0)
-	ghost = clampf(would, filled, 1.0) if fills == 0 else 1.0
+## `eased` runs the fill to `now` instead of setting it — a gift moves the bar
+## you are watching, and a jump is a number changing where a run is something
+## being paid in. `refill` empties it first, for a store that has just filled
+## past its end and begun again.
+func show_fill(now: float, would: float, fills: int = 0, short: bool = false,
+		eased: bool = false, refill: bool = false) -> void:
+	_target = clampf(now, 0.0, 1.0)
+	if refill:
+		filled = 0.0
+	if not eased:
+		filled = _target
+	ghost = clampf(would, _target, 1.0) if fills == 0 else 1.0
 	over = fills
 	owing = short
 	queue_redraw()
+
+
+func _process(delta: float) -> void:
+	if absf(filled - _target) > 0.0005:
+		filled = move_toward(filled, _target, delta * RUN)
+		queue_redraw()
 
 
 func _draw() -> void:
@@ -52,10 +72,11 @@ func _draw() -> void:
 	draw_rect(track, ground)
 	var inner: Rect2 = track.grow(-3.0)
 	var lit: Color = debt if owing else warm
-	if ghost > filled:
+	var from: float = maxf(filled, _target)
+	if ghost > from:
 		# Pale and hatched: something that has not happened yet.
-		var ahead := Rect2(inner.position + Vector2(inner.size.x * filled, 0.0),
-			Vector2(inner.size.x * (ghost - filled), inner.size.y))
+		var ahead := Rect2(inner.position + Vector2(inner.size.x * from, 0.0),
+			Vector2(inner.size.x * (ghost - from), inner.size.y))
 		draw_rect(ahead, Color(text, 0.22))
 		var x: float = ahead.position.x
 		while x < ahead.end.x:

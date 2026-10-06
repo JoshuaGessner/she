@@ -10,13 +10,14 @@ content_margin_top = 10.0
 content_margin_right = 10.0
 content_margin_bottom = 10.0
 script = ExtResource("1_fe5ba")
-ground = Color(0.94, 0.92, 0.87, 0)
+ground = Color(0.94, 0.92, 0.87, 0.9)
 ink = Color(0.16, 0.13, 0.1, 1)
-edge = Color(0.42, 0.37, 0.3, 0)
-band = 0.0
-inset = 2.0
-corner = 10.0
-corner_weight = 0.0
+edge = Color(0.42, 0.37, 0.3, 1)
+hatch = Color(0.3, 0.26, 0.2, 0.06)
+band = 2.0
+inset = 3.0
+corner = 12.0
+corner_weight = 3.0
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_rule"]
 bg_color = Color(0.3, 0.26, 0.21, 1)

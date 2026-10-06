@@ -52,6 +52,9 @@ var _boon_line: Label = null
 var _detail: VBoxContainer = null
 var _give: Button = null
 var _ask: Button = null
+## Set by a gift, so the next drawing runs the bars rather than jumping them.
+var _eased: bool = false
+var _boon_seen: int = -1
 
 
 func _ready() -> void:
@@ -197,14 +200,18 @@ func _describe() -> void:
 	var value: int = _selected.tribute_worth() if _selected != null and refused == "" else 0
 	var sum: Dictionary = GameState.reckon(value)
 
+	var eased: bool = _eased
+	_eased = false
+	var refill: bool = eased and _boon_seen >= 0 and GameState.boon > _boon_seen
+	_boon_seen = GameState.boon
 	_tithe_bar.show_fill(float(paid) / float(maxi(owed, 1)),
 		float(mini(paid + int(sum["to_tithe"]), owed)) / float(maxi(owed, 1)),
-		0, paid < owed)
+		0, paid < owed, eased)
 	var short: int = owed - paid
 	_tithe_line.text = ("%d of %d paid — settled" % [paid, owed]) if short <= 0 \
 		else ("%d of %d paid — %d short, %s" % [paid, owed, short, _when()])
 	_boon_bar.show_fill(float(GameState.boon_progress) / float(per),
-		float(int(sum["progress"])) / float(per), int(sum["boon"]))
+		float(int(sum["progress"])) / float(per), int(sum["boon"]), false, eased, refill)
 	_boon_line.text = "%d of %d toward the next · %d unspent" % [
 		GameState.boon_progress, per, GameState.boon]
 
@@ -249,6 +256,7 @@ func _commit() -> void:
 		return
 	var given: ItemInstance = _selected
 	_selected = null
+	_eased = true
 	offered.emit(given)
 
 

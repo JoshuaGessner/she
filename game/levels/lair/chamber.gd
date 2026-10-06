@@ -89,6 +89,15 @@ const SPEECH_SECONDS: float = 9.0
 ## Legacy screen's: the pause menu can open over this and must give back
 ## only what it took.
 const PACT_CLAIM: StringName = &"pact"
+## **She takes it** (ADR-338) ⟨tune⟩: a gift's flight and the height of its arc,
+## how long she looks at it, and how bright her eyes go — for any gift, and
+## for one that bought a boon.
+const THROW_SECONDS: float = 0.55
+const THROW_ARC: float = 0.8
+const GLANCE_SECONDS: float = 1.8
+const FLARE_SECONDS: float = 1.4
+const FLARE_GIFT: float = 2.6
+const FLARE_BOON: float = 5.0
 const OFFER_CLAIM: StringName = &"offering"
 
 ## One coin-mesh per this much tribute ⟨tune⟩, so the pile grows visibly
@@ -150,6 +159,11 @@ var _mark: Reticle = null
 ## The Aspects, while they are open. Non-null is what stops the room reopening
 ## them every frame the player holds the key at the pile.
 var _pact: PactScreen = null
+## Her eye's own material and its resting glow (ADR-338).
+var _eye: BaseMaterial3D = null
+var _eye_rest: float = 1.0
+## Seconds left of her looking at the pile instead of at you.
+var _glance_left: float = 0.0
 var _offering: OfferingScreen = null
 ## What she last refused and why, shown on the readout while it lasts. The
 ## visual twin of the refusal cue (`DES-018`): with the sound muted, the line is
@@ -212,6 +226,8 @@ func _ready() -> void:
 			_pact_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--offering-shot="):
 			_offering_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--throw-shot="):
+			_throw_shot(arg.split("=", true, 1)[1])
 		elif arg == "--tithe-probe":
 			_tithe_probe()
 		elif arg == "--respec-probe":
@@ -307,17 +323,94 @@ func _on_put_down(item: ItemInstance, at: Vector3, _yaw: float,
 ## **She refuses what is worth nothing to her** (`M3-T32`, ADR-153), and a
 ## refusal is not the confirmation dialog `DES-019` bans — it is her declining,
 ## which is flavour and a guard in the same gesture.
+##
+## **And she takes it** (ADR-338). The gift is thrown onto the pile and the pile
+## grows when it lands; she turns from you to look at it, and her eyes flare —
+## brighter when it has bought something. When it settles what you owed, or
+## earns a boon, she says so, because those are the two moments `DES-003`'s
+## coupling turns on and both were silent: the Tithe row changed colour in a
+## corner, and boon arrived as a number.
 func _give(item: ItemInstance) -> void:
 	var refused: String = GameState.why_not_tribute(item)
 	if refused != "":
 		_hand_it_back(item, refused)
 		return
+	var owed_before: int = GameState.tithe_due() - GameState.tithe_paid
+	var boon_before: int = GameState.boon
 	GameState.tribute(item)
-	_rebuild_hoard()
 	print("[lair] gave %s — the hoard is worth %d" % [
 		item.definition.display(), GameState.hoard_value])
-	_she_says(GameState.take_demand_heard())
+	_throw_onto_pile(item)
+	var earned: int = GameState.boon - boon_before
+	var settled: bool = owed_before > 0 and GameState.tithe_paid >= GameState.tithe_due()
+	_glance_left = GLANCE_SECONDS
+	_flare(FLARE_BOON if earned > 0 else FLARE_GIFT)
+	if earned > 0:
+		# Low and slow: hers, not the interface's click.
+		Foley.at(_hoard_root, Foley.Sound.PING, 0.55, -4.0)
+	var demanded: String = GameState.take_demand_heard()
+	if demanded != "":
+		_she_says(demanded)
+	elif earned > 0:
+		_she_says(tr("her.boon_earned"))
+	elif settled:
+		_she_says(tr("her.tithe_settled"))
 	_settle()
+
+
+## **Thrown, and it lands** (ADR-338): the thing you gave, in an arc from your
+## hands to the top of the pile, and the pile rebuilt the moment it arrives —
+## so a gift is something you watch go rather than a number that changes. Its
+## own model, turning as it flies; nothing in it is solid.
+func _throw_onto_pile(item: ItemInstance) -> void:
+	var look: Node3D = item.definition.look()
+	if look == null or _player == null:
+		_rebuild_hoard()
+		return
+	add_child(look)
+	var ahead: Vector3 = -_player.global_basis.z
+	ahead.y = 0.0
+	var from: Vector3 = _player.global_position + Vector3(0.0, 1.25, 0.0) \
+		+ ahead.normalized() * 0.5
+	# Somewhere on the mound, the same place for the same thing every time.
+	var lean: float = float(item.instance_id % 97) / 97.0
+	var to: Vector3 = global_position + HOARD_AT + Vector3(
+		(lean - 0.5) * 1.2, MOUND_RISE + 0.15, (0.5 - lean) * 0.6 + 0.4)
+	look.global_position = from
+	var flight := create_tween()
+	flight.tween_method(func(at: float) -> void:
+		if not is_instance_valid(look):
+			return
+		var point: Vector3 = from.lerp(to, at)
+		point.y += sin(at * PI) * THROW_ARC
+		look.global_position = point
+		look.rotation = Vector3(at * 5.0, at * 3.0 + lean * TAU, at * 1.5),
+		0.0, 1.0, THROW_SECONDS)
+	flight.tween_callback(func() -> void:
+		if is_instance_valid(look):
+			look.queue_free()
+		_rebuild_hoard()
+		Foley.at(_hoard_root, Foley.Sound.COIN, 0.9 + lean * 0.2))
+
+
+## Her eyes, brighter for a moment, then back to their rest (ADR-338).
+func _flare(peak: float) -> void:
+	if _eye == null:
+		return
+	var glow := create_tween()
+	glow.tween_property(_eye, "emission_energy_multiplier", peak, 0.12)
+	glow.tween_property(_eye, "emission_energy_multiplier", _eye_rest, FLARE_SECONDS) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+
+
+## How bright her eyes are right now, against their rest — for `--offering-probe`.
+func her_eyes() -> float:
+	return _eye.emission_energy_multiplier / maxf(_eye_rest, 0.001) if _eye != null else 0.0
+
+
+## Whether she is looking at the pile rather than at you.
+func looking_at_the_pile() -> bool:
+	return _glance_left > 0.0
 
 
 ## **Her voice, held long enough to read** (ADR-243). The refusal line's
@@ -583,6 +676,16 @@ func _build_her() -> void:
 	else:
 		_her_head_rest = _her_head.transform
 	dress_her(body, skin)
+	# Her eye, her own copy of it, so it can flare (ADR-338).
+	if _her_head != null:
+		var head := _her_head as MeshInstance3D
+		if head != null:
+			for surface: int in head.mesh.get_surface_count():
+				var was := head.mesh.surface_get_material(surface) as BaseMaterial3D
+				if was != null and was.resource_name == "eye" and was.emission_enabled:
+					_eye = was.duplicate() as BaseMaterial3D
+					_eye_rest = _eye.emission_energy_multiplier
+					head.set_surface_override_material(surface, _eye)
 	# **Her solids ship with her** (ADR-315, ART-004's `-convcolonly`), and are
 	# taken out of her here: she breathes by scaling, and a solid that
 	# breathed would be a wall that moved under a body standing against it.
@@ -782,7 +885,12 @@ func _fill_the_tithe() -> void:
 func _process(delta: float) -> void:
 	if _player == null or _place == null:
 		return
-	_tend_her(delta, _player.global_position + Vector3(0.0, 1.6, 0.0))
+	# She watches you — and, for a moment after a gift, what you gave her.
+	var gaze_at: Vector3 = _player.global_position + Vector3(0.0, 1.6, 0.0)
+	if _glance_left > 0.0:
+		_glance_left = maxf(0.0, _glance_left - delta)
+		gaze_at = global_position + HOARD_AT + Vector3(0.0, 0.4, 0.0)
+	_tend_her(delta, gaze_at)
 	if _refusal_left > 0.0:
 		_refusal_left = maxf(0.0, _refusal_left - delta)
 		if _refusal_left <= 0.0:
@@ -984,6 +1092,30 @@ func _offering_shot(path: String) -> void:
 	get_tree().quit()
 
 
+## **`--throw-shot=PATH`** (ADR-338): a gift that earns a boon, from where a
+## player stands to give it — mid-flight, and as it lands with her eyes lit and
+## her line said. The room's own readouts are in both frames.
+func _throw_shot(path: String) -> void:
+	GameState.boon = 0
+	GameState.boon_progress = 20
+	GameState.tithe_paid = GameState.tithe_due()
+	_player.inventory.clear()
+	var torc: ItemInstance = _player.inventory.add(ItemCatalogue.by_id(&"glt_gilded_torc"))
+	_player.global_position = global_position + HOARD_AT + Vector3(0.6, 0.0, 3.2)
+	_player.teleport(_player.global_position, 0.18)
+	await get_tree().create_timer(0.8).timeout
+	var given: ItemInstance = _player.inventory.remove(torc.instance_id)
+	_give(given)
+	await get_tree().create_timer(THROW_SECONDS * 0.45).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-flight.png"))
+	await get_tree().create_timer(THROW_SECONDS * 0.7).timeout
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-landed.png"))
+	print("[lair] throw shot — %s" % path.get_file())
+	get_tree().quit()
+
+
 ## The tree, over the room rather than instead of it (ADR-102's habit): the
 ## Chamber stays where it is, and closing this puts the player back where they
 ## were standing.
@@ -1118,7 +1250,10 @@ func _build_readout() -> void:
 	# On the hub's ground too: it lies on the page rather than on a panel, and
 	# the page is white here (ADR-269).
 	_speech.theme = MenuStyle.LAIR
-	_speech.theme_type_variation = MenuStyle.BODY_WARM
+	# In her voice (ADR-338): the italic the rest of the game keeps for what is
+	# said rather than labelled, and larger than the readouts — her line is the
+	# one sentence in this room that is news.
+	_speech.theme_type_variation = MenuStyle.SUB_WARM
 	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_speech.visible = false
 	layer.add_child(_speech)
@@ -1784,8 +1919,27 @@ func _offering_probe() -> void:
 	var shown: Dictionary = GameState.reckon(plate.tribute_worth())
 	var boon_before: int = GameState.boon
 	var paid_before: int = GameState.tithe_paid
+	var lumps_before: int = _hoard_root.get_child_count()
 	var gave_plate: bool = page.press_give(plate.instance_id)
 	await get_tree().process_frame
+	await get_tree().create_timer(0.15).timeout
+	# ─ and she takes it (ADR-338) ─
+	var eyes: float = her_eyes()
+	var watching: bool = looking_at_the_pile()
+	var said: String = _refusal
+	await get_tree().create_timer(THROW_SECONDS + 0.2).timeout
+	var lumps_after: int = _hoard_root.get_child_count()
+	print("[offering] she took it         eyes ×%.1f, looking at the pile=%s, said '%s', pile %d → %d"
+		% [eyes, watching, said, lumps_before, lumps_after])
+	if eyes < 1.5:
+		problems.append("a gift that earned a boon did not light her eyes")
+	if not watching:
+		problems.append("she did not look at what she was given")
+	if said == "":
+		problems.append("a gift that earned a boon passed without her saying so — "
+			+ "with the sound off her line is the whole of the moment (`DES-018`)")
+	if lumps_after <= lumps_before:
+		problems.append("the gift was thrown and the pile did not grow when it landed")
 	var boon_got: int = GameState.boon - boon_before
 	print(("[offering] gave the plate      given=%s · shown %d to the Tithe, +%d boon, "
 		+ "%d toward the next · got %d, +%d, %d") % [gave_plate,

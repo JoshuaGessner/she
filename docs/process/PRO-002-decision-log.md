@@ -12112,4 +12112,38 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **30 is a starting number.** Whether a first life reads its first boon as earned or as given is a playtest question.
 - **She appraises everything at the pile.** `hrd_tally` still matters in the Deep, where you decide what to carry, and that is where its sentence says it works.
 
+## ADR-338 — She takes what you give: the gift is thrown, she looks, and she says so
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `DES-014` (the Chamber)**
+
+**Context:**
+- **The pile was a drop target.** You gave from the bag or from her page (ADR-337), and the pile rebuilt itself in the same frame: no throw, no landing. She kept looking at you, and nothing in the room marked the gift.
+- **The two moments the coupling turns on were silent.** A gift that settles the Tithe only changed a row's colour in a corner. One that earns a boon only changed a number.
+- **Her readouts were text lying on the picture.** The lair theme drew its `Frame` with no ground and no band, so the Chamber's two readouts sat straight over her coils and the floor's hatching, and read like a debug overlay.
+- **Her one line of speech was small body text** on a busy floor.
+
+**Decision:**
+- **The gift is thrown.** Its own model flies in a 0.8 m arc from your hands to a spot on the mound, the same spot for the same thing each time, turning as it goes, over 0.55 s. The pile rebuilds when it lands, with the clink of coin.
+- **She looks at it.** Her gaze leaves you for the pile for 1.8 s.
+- **Her eyes flare.** Her eye material is her own copy now, so it flares to 2.6× for any gift and 5× for one that earns a boon, then settles back over 1.4 s. A boon also sounds a low, slow ping.
+- **She says so:**
+  - a gift that earns a boon: *"More than you owed. Ask something of me."*
+  - one that settles the Tithe: *"That is what you owed. You owe me nothing more this cycle."*
+  - A named demand's line still comes first.
+  - With the sound off, the line is the whole of the moment (`DES-018`).
+- **Her line is in her voice.** It uses `SubWarm`, the italic the game keeps for what is said rather than labelled, at 18 px.
+- **The readouts are printed cartouches.** The lair theme's `Frame` is paper at 90 % with an ink band, a hairline and heavy corners, carved as `CarvedFrame` draws everything else. They are labels on the page, not text over the picture.
+- **Her page's bars run, not jump.** A gift eases the fill to where it now stands, and a boon bar that filled past its end empties and refills.
+- **All values are ⟨tune⟩:** `THROW_SECONDS`, `THROW_ARC`, `GLANCE_SECONDS`, `FLARE_*`, and `LedgerBar.RUN`.
+
+**Measured:**
+- **`--offering-probe` gains a row:** the Altar-Plate gift lit her eyes 3.4× (wanted 1.5× or more), turned her to the pile, had her say the boon line, and grew the pile from 0 to 6 pieces when the throw landed.
+- **`--throw-shot` (new):** the torc in flight over the pile, then landed, with her eyes lit and her line in italic; both readouts read as cartouches.
+- **These probes pass:** `--lair-probe`, `--chamber-probe`, `--tithe-probe`, `--pact-probe`, `--demand-probe`, `--respec-probe`, `--legacy-probe`, `--deeds-probe`, `--saving-probe`, `--hud-probe`, `--threshold-probe`, `--menu-probe` and `data_probe`.
+
+**Honest scale:**
+- **On her page the throw happens behind the page.** You hear it and see the bars run; you see it fly only when you give by the bag's drag, or after closing the page.
+- **Her head turn is the existing gaze clamp** (ADR-298). From some angles she barely moves.
+- **The two lines are ⟨tune⟩ copy.**
+
 *Entries below to be added as design decisions are signed off.*
