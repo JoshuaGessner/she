@@ -1,0 +1,8 @@
+{
+  "asset": "otr_pelt",
+  "triangles": 2800,
+  "textures": {
+    "otr_pelt_n": 2048,
+    "otr_pelt_c": 2048
+  }
+}

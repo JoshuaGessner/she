@@ -977,9 +977,7 @@ func voice_bus() -> String:
 func voice_is(sound: Foley.Sound) -> bool:
 	if _voice == null:
 		return false
-	var mine := _voice.stream as AudioStreamWAV
-	var wanted := Foley.looping_stream_for(sound) as AudioStreamWAV
-	return mine != null and wanted != null and mine.data == wanted.data
+	return Foley.is_sound(_voice.stream, sound)
 
 func _on_struck(_amount: float, _from: Node) -> void:
 	if killable():

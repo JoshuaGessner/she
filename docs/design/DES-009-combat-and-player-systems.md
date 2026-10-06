@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-10-03
+updated: 2026-10-06
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -130,7 +130,7 @@ That is an unusually actionable result for a solo project — it says where to s
 - **In first person the hands and weapon carry the impact, not the camera.** The arm animation absorbing a blow does more than any shake, and costs no comfort.
 - Must remain **independently adjustable** for accessibility (`DES-018`).
 
-> **Built (ADR-279).** Hitstop is owner-side, 45 ms to 120 ms scaled by the weapon's `stagger` ⟨tune⟩. The camera kick is positional only and scaled by a *camera motion* setting that goes to zero. Impact sound is layered by material: a crunch for flesh, a clang for mail and plate. A struck enemy flinches on every peer and is shoved away from the blow. Particles remain absent.
+> **Built (ADR-279).** Hitstop is owner-side, 45 ms to 120 ms scaled by the weapon's `stagger` ⟨tune⟩. The camera kick is positional only and scaled by a *camera motion* setting that goes to zero. Impact sound is layered by material: a crunch for flesh, a clang for mail and plate. A struck enemy flinches on every peer and is shoved away from the blow. Particles came after, as step 5 of the protocol asks: **ADR-303** draws sparks off mail and plate and chips off hide where a blow lands, a heavier burst for a heavy blow, and the arc behind the swing.
 >
 > **The killing blow holds longest (ADR-312)**, 150 ms ⟨tune⟩ against a heavy blow's 120, with a heavy blow's kick whatever the weapon. And since ADR-311 the blow is heard and seen where it lands on every peer, the killing one included: the flinch path used to skip the dead, so the kill made no sound but the corpse's.
 

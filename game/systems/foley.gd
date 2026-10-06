@@ -29,9 +29,10 @@ extends Object
 ## loudness of the cue it replaced, so every `volume_db` tuned against those
 ## cues still holds.
 ##
-## The camp's fire is a recorded loop. The rest — being noticed, a Waystone
-## working, an ember going out, a barrow grinding, the Hunter's tread, a swing
-## through air — are **synthesised at boot**, as
+## A swing through air is recorded too (ADR-327); the camp's fire is a recorded
+## loop, and the Hunter's tread a loop composed from recorded coin and weight.
+## a barrow's slab grinding open is recorded stone. The rest — being noticed, a
+## Waystone working, an ember going out — are **synthesised at boot**, as
 ## everything was at blockout: designed cues and loops with no recording that
 ## says them better. One source for each sound, never both. Callers ask for
 ## `Foley.CLINK`, not for a file, so either can change without them.
@@ -47,11 +48,12 @@ const RATE: int = 22050
 const RECORDED: Dictionary = {
 	Sound.STEP: 5, Sound.CLINK: 2, Sound.THUMP: 5, Sound.HIT: 5, Sound.HURT: 5,
 	Sound.CLICK: 5, Sound.PING: 2, Sound.CLANG: 5, Sound.CRUNCH: 5, Sound.COIN: 4,
+	Sound.SWING: 5, Sound.GRIND: 3,
 }
 const TAKES: String = "res://audio/foley/%s_%02d.ogg"
 ## Presences rather than events, recorded as one seamless loop each at
 ## `res://audio/foley/<sound>_loop.ogg`.
-const LOOPED: Array = [Sound.CRACKLE]
+const LOOPED: Array = [Sound.CRACKLE, Sound.STALK]
 const LOOP: String = "res://audio/foley/%s_loop.ogg"
 
 ## Every sound the game can make, and what it means. Kept as one table so the
@@ -131,6 +133,10 @@ static func flat(host: Node, sound: Sound, pitch: float = 1.0) -> void:
 
 
 static func stream_for(sound: Sound) -> AudioStream:
+	# A presence played once — the Hunter's heave is one tread of its loop —
+	# is the loop's recording, not looped.
+	if LOOPED.has(sound):
+		return _looped(sound, false)
 	if RECORDED.has(sound):
 		var all: Array = _recorded(sound)
 		var next: int = int(_turn.get(sound, 0))
@@ -139,14 +145,25 @@ static func stream_for(sound: Sound) -> AudioStream:
 	return _synthesised(sound)
 
 
-## Is `stream` one of `sound`'s — any take of it. For a probe that counts a
-## sound by what was played, now that one sound is several streams.
+## Is `stream` one of `sound`'s — any take, loop or render of it. For a probe
+## that counts a sound by what was played, now that one sound is several
+## streams and a loop is a fresh copy each time: every stream this file hands
+## out carries the sound it is.
 static func is_sound(stream: AudioStream, sound: Sound) -> bool:
-	if stream == null:
-		return false
-	if RECORDED.has(sound):
-		return _recorded(sound).has(stream)
-	return stream == _synthesised(sound)
+	return stream != null and int(stream.get_meta(&"foley", -1)) == int(sound)
+
+
+## A recorded loop, as its own copy: looping, or played once through.
+##
+## A deep copy: its packets become this player's own rather than the cached
+## file's, so a player outliving the tree at quit holds nothing with a path —
+## which the engine reports as a resource still in use.
+static func _looped(sound: Sound, looping: bool) -> AudioStreamOggVorbis:
+	var path: String = LOOP % (Sound.keys()[sound] as String).to_lower()
+	var recorded := (load(path) as AudioStreamOggVorbis).duplicate(true) as AudioStreamOggVorbis
+	recorded.loop = looping
+	recorded.set_meta(&"foley", sound)
+	return recorded
 
 
 ## Drop every loaded take and synthesised cue. Called as the game closes.
@@ -165,14 +182,22 @@ static func _recorded(sound: Sound) -> Array:
 			# when the game closes would otherwise hold the file's own packets,
 			# which the engine reports as a resource still in use — an exit
 			# error, where an unpathed copy is at most a leak warning.
-			all.append((load(TAKES % [name, take]) as AudioStream).duplicate(true))
+			var copy := (load(TAKES % [name, take]) as AudioStream).duplicate(true) as AudioStream
+			copy.set_meta(&"foley", sound)
+			all.append(copy)
 		_takes[sound] = all
 	return _takes[sound] as Array
 
 
 static func _synthesised(sound: Sound) -> AudioStreamWAV:
+	# Only the designed cues have a render; anything recorded asked here would
+	# come back as silence, which nobody would hear go missing.
+	assert(not RECORDED.has(sound) and not LOOPED.has(sound),
+		"Foley: %s is recorded" % Sound.keys()[sound])
 	if not _cache.has(sound):
-		_cache[sound] = _render(sound)
+		var rendered: AudioStreamWAV = _render(sound)
+		rendered.set_meta(&"foley", sound)
+		_cache[sound] = rendered
 	return _cache[sound] as AudioStreamWAV
 
 
@@ -189,12 +214,7 @@ static func looping_stream_for(sound: Sound) -> AudioStream:
 	# warns of; only a sound recorded *as* a loop loops.
 	assert(not RECORDED.has(sound), "Foley: %s is a recorded one-shot" % Sound.keys()[sound])
 	if LOOPED.has(sound):
-		# A deep copy: its packets become this player's own rather than the
-		# cached file's, so a player outliving the tree at quit holds nothing
-		# with a path — which the engine reports as a resource still in use.
-		var recorded := (load(LOOP % (Sound.keys()[sound] as String).to_lower()) as AudioStreamOggVorbis).duplicate(true) as AudioStreamOggVorbis
-		recorded.loop = true
-		return recorded
+		return _looped(sound, true)
 	var stream: AudioStreamWAV = (_synthesised(sound).duplicate()) as AudioStreamWAV
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	stream.loop_begin = 0
@@ -208,12 +228,6 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 		Sound.NOTICED: seconds = 0.55
 		Sound.CHANNEL: seconds = 0.5
 		Sound.EMBER: seconds = 0.9
-		Sound.CLICK: seconds = 0.08
-		Sound.GRIND: seconds = 1.6
-		Sound.STALK: seconds = 2.4
-		Sound.PING: seconds = 0.3
-		Sound.CLANG: seconds = 0.6
-		Sound.CRACKLE: seconds = 2.0
 	var frames: int = int(float(RATE) * seconds)
 	var data := PackedByteArray()
 	data.resize(frames * 2)
@@ -234,33 +248,11 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 
 
 static func _sample(sound: Sound, at_second: float, seconds: float) -> float:
+	# Only the designed cues are rendered here (ADR-326, ADR-327); everything
+	# the world does is recorded, and `build_foley.py` keeps the formulas
+	# those recordings were levelled against.
 	var progress: float = at_second / seconds
 	match sound:
-		Sound.STEP:
-			# Body weight into stone: a short noisy thud with no pitch to it.
-			return _noise(at_second) * exp(-at_second * 34.0) * 0.6 \
-				+ sin(TAU * 78.0 * at_second) * exp(-at_second * 26.0) * 0.35
-		Sound.CLINK:
-			# Metal on metal. Two inharmonic partials, because a single sine
-			# reads as a beep and a beep is a menu, not a coin.
-			return (sin(TAU * 2100.0 * at_second) * 0.5
-				+ sin(TAU * 3170.0 * at_second) * 0.3) \
-				* exp(-at_second * 19.0)
-		Sound.THUMP:
-			return (sin(TAU * 140.0 * at_second) * 0.6
-				+ _noise(at_second) * 0.25) * exp(-at_second * 15.0)
-		Sound.SWING:
-			# Air: filtered noise that rises and falls across the arc, so the
-			# sound has a *direction in time* the way a swing does.
-			var arc: float = sin(PI * clampf(progress, 0.0, 1.0))
-			return _noise(at_second * 3.0) * arc * 0.45
-		Sound.HIT:
-			return (_noise(at_second) * 0.5
-				+ sin(TAU * 190.0 * at_second) * 0.45) * exp(-at_second * 22.0)
-		Sound.HURT:
-			# Lower and longer than a hit, and it lands on *you*.
-			return (sin(TAU * 96.0 * at_second) * 0.55
-				+ _noise(at_second) * 0.3) * exp(-at_second * 9.0)
 		Sound.NOTICED:
 			# **The most important cue in this file.** `DES-005` requires the
 			# player to be able to explain their death in one sentence, and
@@ -280,64 +272,5 @@ static func _sample(sound: Sound, at_second: float, seconds: float) -> float:
 			# A life, going out. Falling, and slower than anything else here.
 			return sin(TAU * (300.0 - 170.0 * progress) * at_second) * 0.42 \
 				* exp(-at_second * 2.2)
-		Sound.CLICK:
-			return _noise(at_second) * exp(-at_second * 90.0) * 0.3
-		Sound.GRIND:
-			# A slab dragged a hand's width at a time: low rumble under coarse
-			# noise, stuttering, swelling in and dying out — a weight moving.
-			var stutter: float = 0.6 + 0.4 * absf(sin(TAU * 7.0 * at_second))
-			return (sin(TAU * 52.0 * at_second) * 0.4
-				+ _noise(at_second * 0.5) * 0.45) * stutter * sin(PI * progress)
-		Sound.STALK:
-			# **Its weight, not its instrument** (ADR-249). `ART-002` reserves
-			# the Hunter's *note* for the score and this is deliberately not
-			# that: no pitch to recognise, just something heavy dragged and set
-			# down again, slow enough to count. Two beats over the loop, so a
-			# player can tell a Hunter crossing a room from one standing still.
-			var tread: float = absf(sin(TAU * 0.83 * at_second))
-			var weight: float = pow(tread, 6.0)
-			# **It sounds like money** (`DES-017`): *"its movement is the sound
-			# of a great deal of loose coin being dragged — that is its
-			# footstep, its tell, and its whole characterization."* So the
-			# drag carries a shimmer of metal on each tread rather than being
-			# stone on stone, which is what the barrow already is.
-			var coin: float = (_noise(at_second * 9.0) * 0.5
-				+ sin(TAU * 2100.0 * at_second) * 0.25
-				+ sin(TAU * 3300.0 * at_second) * 0.15) * pow(tread, 14.0)
-			return (sin(TAU * 38.0 * at_second) * 0.45
-				+ _noise(at_second * 0.35) * 0.25 + coin * 0.4) * weight
-		Sound.CLANG:
-			# **Struck metal** (ADR-279, `DES-009`: *"the hit must sound like
-			# what it looked like"*). A bright transient and three inharmonic
-			# partials ringing off slowly: armour that has been hit, not a bell.
-			return (_noise(at_second * 2.0) * exp(-at_second * 60.0) * 0.5
-				+ (sin(TAU * 1180.0 * at_second) * 0.28
-				+ sin(TAU * 1735.0 * at_second) * 0.2
-				+ sin(TAU * 2890.0 * at_second) * 0.12) * exp(-at_second * 7.0))
-		Sound.CRACKLE:
-			# Wood burning: a low breath of air under it, and sparse dry pops
-			# of different sizes, so a two-second loop does not tick.
-			var slot: float = floor(at_second * 37.0)
-			var chance: float = fposmod(sin(slot * 91.7) * 43758.5, 1.0)
-			var since: float = at_second - slot / 37.0
-			var pop: float = _noise(at_second * 4.0) * exp(-since * 160.0) \
-				* (1.0 if chance >= 0.82 else 0.0) * (0.4 + 0.6 * fposmod(chance * 7.0, 1.0))
-			return _noise(at_second * 0.25) * 0.05 + pop * 0.7
-		Sound.CRUNCH:
-			# **Into a body**: a low, wet-dry thump with grit in it and no ring.
-			return (sin(TAU * 70.0 * at_second) * 0.6 * exp(-at_second * 18.0)
-				+ _noise(at_second * 0.7) * 0.45 * exp(-at_second * 30.0))
-		Sound.PING:
-			# Two soft falling notes: a word for the party, clearly not a
-			# thing in the world noticing you (which rises, `NOTICED`).
-			var note: float = 880.0 if progress < 0.4 else 660.0
-			return sin(TAU * note * at_second) * 0.22 \
-				* exp(-fmod(at_second, 0.12) * 18.0)
 	return 0.0
 
-
-## Deterministic value noise. Seeded by position rather than by a generator, so
-## the same sound is byte-identical every run and across peers.
-static func _noise(at_second: float) -> float:
-	var seeded: float = sin(at_second * 15731.0 + 7.0) * 43758.5453
-	return (seeded - floor(seeded)) * 2.0 - 1.0

@@ -69,6 +69,15 @@ RECORDED = {
     "clang": (takes("impact", "impactPlate_heavy_", ("000", "001", "002", "003", "004")), 0.55),
     # A blow into a body (ADR-279).
     "crunch": (takes("impact", "impactPunch_medium_", ("000", "001", "002", "003", "004")), 0.45),
+    # A weapon through air: the heavier swishes of a pack recorded for a
+    # sword-and-staff RPG.
+    "swing": ([SRC / "cc0" / "opengameart" / "swishes" / f"swish-{n}.wav" for n in (3, 4, 7, 8, 9)], 0.30),
+    # A barrow's slab dragged open (ADR-242): a stone door, and two scrapes
+    # across block played slow, so cinder block is a grave-slab's weight.
+    # `(path, from second, speed)`.
+    "grind": ([(SRC / "cc0" / "opengameart" / "stone_door_bonebrah.ogg", 0.0, 1.0),
+               (SRC / "cc0" / "opengameart" / "scrapes" / "scrape-1.ogg", 0.0, 0.58),
+               (SRC / "cc0" / "opengameart" / "scrapes" / "scrape-2.ogg", 0.0, 0.58)], 1.6),
     # Coin shifting in the bag at every step (`ART-002`): short handfuls cut
     # from one long take, `(path, from second)`.
     "coin": ([(CC0 / "rpg" / "handleCoins.ogg", s) for s in (0.0, 0.19, 0.43)]
@@ -120,6 +129,21 @@ def synth(name: str) -> np.ndarray:
     if name in NEW_LEVEL:
         like, scale = NEW_LEVEL[name]
         return synth(like) * scale
+    if name == "grind":
+        seconds = 1.6
+        t = np.arange(int(SYNTH_RATE * seconds)) / SYNTH_RATE
+        p = t / seconds
+        stutter = .6 + .4 * np.abs(np.sin(tau * 7 * t))
+        return (np.sin(tau * 52 * t) * .4 + _noise(t * .5) * .45) * stutter * np.sin(np.pi * p)
+    if name == "swing":
+        arc = np.sin(np.pi * np.clip(p, 0.0, 1.0))
+        return _noise(t * 3.0) * arc * 0.45
+    if name == "stalk":
+        t = np.arange(int(SYNTH_RATE * 2.4)) / SYNTH_RATE
+        tread = np.abs(np.sin(tau * 0.83 * t))
+        weight = tread ** 6
+        coin = (_noise(t * 9.0) * .5 + np.sin(tau * 2100 * t) * .25 + np.sin(tau * 3300 * t) * .15) * tread ** 14
+        return (np.sin(tau * 38 * t) * .45 + _noise(t * .35) * .25 + coin * .4) * weight
     if name == "crackle":
         t = np.arange(int(SYNTH_RATE * 2.0)) / SYNTH_RATE
         slot = np.floor(t * 37.0)
@@ -165,6 +189,31 @@ def write(x: np.ndarray, path: Path) -> None:
                 container=aud.CONTAINER_OGG, codec=aud.CODEC_VORBIS, bitrate=112000)
 
 
+def slowed(path: Path, speed: float) -> np.ndarray:
+    """A take played at `speed` — lower and longer below 1, as tape does."""
+    sound = aud.Sound(str(path)).pitch(speed).resample(RATE, True)
+    data = sound.data()
+    return (data.mean(axis=1) if data.ndim == 2 else data).astype(np.float32)
+
+
+def stalk() -> np.ndarray:
+    length = int(RATE * 2.4)
+    out = np.zeros(length, dtype=np.float32)
+    weight = slowed(CC0 / "impact" / "impactPunch_heavy_002.ogg", 0.55)
+    coin = slowed(CC0 / "rpg" / "handleCoins.ogg", 0.62)
+    drag = slowed(CC0 / "rpg" / "handleCoins.ogg", 0.45)
+    for at, scale in ((0.10, 1.0), (1.30, 0.85)):
+        start = int(RATE * at)
+        for layer, gain, delay in ((weight, 1.0, 0.0), (coin, 0.55, 0.03), (drag, 0.30, 0.22)):
+            begin = start + int(RATE * delay)
+            n = min(len(layer), length - begin)
+            out[begin:begin + n] += layer[:n] * gain * scale
+    # The end runs into the start: whatever rings past the loop wraps round.
+    fade = int(RATE * 0.05)
+    out[-fade:] *= np.linspace(1.0, 0.0, fade, dtype=np.float32)
+    return out
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     for old in OUT.glob("*.ogg"):
@@ -173,8 +222,11 @@ def main() -> None:
     for name, (paths, seconds) in RECORDED.items():
         target = loudness(synth(name), SYNTH_RATE)
         for i, path in enumerate(paths):
-            path, offset = path if isinstance(path, tuple) else (path, 0.0)
-            x, rate = mono(path)
+            path, offset, speed = (path + (1.0,))[:3] if isinstance(path, tuple) else (path, 0.0, 1.0)
+            if speed == 1.0:
+                x, rate = mono(path)
+            else:
+                x, rate = slowed(path, speed), float(RATE)
             x = shape(x[int(offset * rate):], rate, seconds)
             gain = target / max(loudness(x, rate), 1e-6)
             x = x * gain
@@ -203,6 +255,19 @@ def main() -> None:
         write(x, OUT / f"{name}_loop.ogg")
         report.append(f"{name}_loop {len(x) / rate:.2f}s gain {20 * math.log10(gain):+.1f} dB "
                       f"peak {float(np.abs(x).max()):.2f} from {path.parent.name}/{path.name}")
+    # The Hunter's tread, composed (ADR-327): `DES-017`'s *"a great deal of
+    # loose coin being dragged — that is its footstep"*. Two treads in 2.4 s,
+    # as the synthesised loop had, so a player can still count them: each a
+    # heavy soft weight set down, pitched low, under a cascade of coin pitched
+    # down to sound like more of it than a hand could hold.
+    x = stalk()
+    want = float(np.sqrt(np.mean(synth("stalk") ** 2)))
+    x *= want / max(float(np.sqrt(np.mean(x ** 2))), 1e-6)
+    peak = float(np.abs(x).max())
+    if peak > 0.98:
+        x *= 0.98 / peak
+    write(x, OUT / "stalk_loop.ogg")
+    report.append(f"stalk_loop {len(x) / RATE:.2f}s composed, peak {float(np.abs(x).max()):.2f}")
     (SRC / "foley_measurements.txt").write_text("\n".join(report) + "\n")
     print("\n".join(report))
     print("FOLEY_DONE", len(report))

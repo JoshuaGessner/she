@@ -21,7 +21,7 @@ _What the game is._
 | `DES-006` | [World & Setting](design/DES-006-world-and-setting.md) | ✔ accepted | 2026-08-16 | DES-001, PRO-004, DES-007 |
 | `DES-007` | [Contracts & Factions](design/DES-007-contracts-and-factions.md) | ✔ accepted | 2026-09-16 | DES-002, DES-006, DES-008 |
 | `DES-008` | [Loot, Gear & Economy](design/DES-008-loot-and-economy.md) | ✔ accepted | 2026-09-13 | DES-003, DES-004, DES-005 |
-| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-10-03 | DES-005, DES-007, DES-008, PRO-001 |
+| `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-10-06 | DES-005, DES-007, DES-008, PRO-001 |
 | `DES-010` | [Retention, Session Hooks & Churn Points](design/DES-010-retention-and-session-hooks.md) | ✔ accepted | 2026-09-18 | DES-002, DES-003, DES-007, PRO-001 |
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-09-28 | DES-004, DES-003, DES-012, DES-009 |
 | `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-09-16 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
@@ -79,7 +79,7 @@ _Visual and audio direction._
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-09-01 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 | `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-10-05 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
 | `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-10-01 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
-| `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-10-05 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
+| `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-10-06 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
 | `ART-007` | [Asset Quality Review — First Delivered Library](art/ART-007-asset-quality-review.md) | ✔ accepted | 2026-09-28 | ART-006, ART-004, ART-005, DES-020, PRO-002 |
 | `ART-008` | [Worn Armour, Class Arms and Depth Variants — Review](art/ART-008-worn-armour-and-depth-review.md) | ◆ proposed | 2026-10-05 | ART-004, ART-006, ART-007, DES-020, TEC-008 |
 | `ART-009` | [Enemy Model and Animation Review](art/ART-009-enemy-model-and-animation-review.md) | ✎ draft | 2026-10-04 | ART-004, ART-005, ART-006, DES-013, DES-017, PRO-001, PRO-002 |

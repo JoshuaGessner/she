@@ -1,9 +1,16 @@
-Fireplace Sound Loop, by PagDev
-https://opengameart.org/content/fireplace-sound-loop
+OpenGameArt sources (all CC0 1.0 Universal, as stated in each page's License(s)
+field when downloaded on 2026-10-06; http://creativecommons.org/publicdomain/zero/1.0/).
 
-License: Creative Commons Zero (CC0 1.0 Universal), as stated on the page's
-License(s) field when downloaded on 2026-10-06.
-http://creativecommons.org/publicdomain/zero/1.0/
+fireplace_loop_pagdev_excerpt.wav
+  Fireplace Sound Loop, by PagDev
+  https://opengameart.org/content/fireplace-sound-loop
+  A 16 s mono excerpt (1.0 s to 17.0 s) of the original 29 s stereo fire.wav,
+  cut for build_foley.py.
 
-The file here is a 16 s mono excerpt (from 1.0 s to 17.0 s) of the original
-fire.wav, cut for build_foley.py; the original is 29 s, stereo, 32-bit.
+stone_door_bonebrah.ogg
+  Stone Door, by bonebrah
+  https://opengameart.org/content/stone-door
+  Unaltered.
+
+swishes/  — see swishes/License.txt (artisticdude)
+scrapes/  — see scrapes/License.txt (AntumDeluge)

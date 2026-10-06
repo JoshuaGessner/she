@@ -11709,4 +11709,57 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **The fire, recorded after the first commit.** The camp's crackle is a seamless 12 s loop: tail crossfaded into head, matched to the synthesised loop's loudness over its whole length. It is cut from PagDev's CC0 *Fireplace Sound Loop* (OpenGameArt; a mono excerpt and its licence are vendored). `Foley.LOOPED` holds sounds recorded *as* loops, and only those may loop. Each player gets a deep copy: the Threshold leaks a few nodes at quit, as before, and a shallow copy left the file's packets referenced — an exit error the sweep would read as a failure (`--threshold-probe`, seen and fixed).
 - **Not tuned by ear:** the mix was matched by measurement, not listened to on speakers here. The developer's first listen is the real check, and every level is ⟨tune⟩.
 
+## ADR-327 — Every sound the world makes is recorded; the Hunter is money dragged, and Ótr's skin lies whole
+
+**Date:** 2026-10-06 · **Status:** accepted · **Follows ADR-326; amends `ART-006` ① (the ADR-321 list) for one more prop; corrects `DES-009`**
+
+**Context:**
+- **CI went red with ADR-325 and stayed red** through ADR-326 and both of its follow-ups.
+  - The coil wall was ADR-325's and is fixed there.
+  - Behind it, `--combat-probe` ended with *10 resources still in use at exit*. The recorded takes were held by sound players that the gym leaks at quit, as it always has. A synthesised stream has no path, so the old leak only ever warned. A take loaded from disk has one, so the same leak became an exit error, and the sweep fails on exit errors.
+  - `Foley.forget()` (ADR-326) had cleared the static cache, but not the players.
+- **Three world sounds were still synthesised:** the swing, the Hunter's tread and a barrow's grind.
+  - **The tread** is `DES-017`'s whole characterisation of the Gullsjúkr: *"the sound of a great deal of loose coin being dragged — that is its footstep, its tell"*. It was sine partials over noise.
+- **The recorded sounds' synth branches were still in `foley.gd`**, unreachable. That is the parallel path ADR-064 bans.
+- **Ótr's Pelt read as a starfish.** It is the relic the saga's every treasure descends from.
+- **`DES-009` still said *"Particles remain absent"*.** ADR-303 built them.
+
+**Decision:**
+- **Every take `Foley` hands out is its own deep copy, tagged with the sound it is.**
+  - A player that outlives the tree at quit holds nothing with a path, so the worst case is the leak warning there always was.
+  - `is_sound(stream, sound)` reads the tag, so one rule serves takes, loops and synthesised cues. `Gullsjukr.voice_is` uses it instead of comparing sample data.
+- **Swing, recorded:** five of the heavier swishes from artisticdude's CC0 *Swishes Sound Pack* (OpenGameArt), vendored with their licence and level-matched as in ADR-326.
+- **The Hunter's tread, composed from recordings:**
+  - A 2.4 s loop of two treads, as before, so a player can still count them.
+  - Each tread is a heavy soft weight set down at half speed, under coin played at two-thirds and nearly half speed. That is more coin than a hand can hold, dragged.
+  - It is matched to the old loop's loudness over its whole length.
+- **A barrow's grind, recorded:** three takes of a slab dragged open.
+  - bonebrah's CC0 *Stone Door*.
+  - Two of AntumDeluge's CC0 *Scrapes* (an object dragged on cinder block), played at 0.58 speed so the block becomes a grave-slab.
+  - With this, **every sound the world makes is recorded.**
+- **The dead synth branches are deleted.**
+  - `foley.gd` now renders only the three designed cues: noticed, channel and ember. They are a reaction, a working and a life going out, with no recording that says them better.
+  - `build_foley.py` keeps the old formulas, as the record of what each recording was levelled against.
+- **Ótr's Pelt is sculpted** (`build_otr_pelt_item.py`, ADR-323's pattern), as the whole skin of an otter laid out fur up:
+  - the body long and waisted to a neck;
+  - a raised head that keeps its skull, with small round ears, eye hollows and a blunt muzzle;
+  - short thick legs splayed with webbed, toed feet;
+  - the thick tail tapering to a point, laid in a curve.
+
+  The fur is baked into a normal map lying down the body, as the worn pelt's does. Colour is flat per region (ADR-321): the worn pelt's otter brown (ADR-318), darker feet and a black nose. `build_items.pelt` is removed.
+- **`DES-009` corrected:** particles are ADR-303's.
+- **A recorded loop can be played once.** The Hunter's *heave*, the moment it reckons your gold, is one tread of its loop played once. Asked for the old render, it would have come back silent (caught in review, not by a probe).
+  - `stream_for` serves a looped sound as one pass of its recording.
+  - `_synthesised` asserts it is never asked for a recorded sound.
+  - `--ear-probe` gains a row asking every `Foley.Sound` for a stream that is long enough and, if rendered, not silence. A cue that moves to a recording can no longer leave a caller hearing nothing.
+
+**Measured:**
+- **The full local sweep passed** on the exit-error fix (committed first, `e1362e2`).
+- **On the rest, all pass:** `art_probe` (0 failures), `--ear-probe`, `--rite-probe`, `--portal-probe` (the Hunter's voice is its tread, on the diegetic bus), `--body-probe`, `--hands-probe`, `--combat-probe`, `--threshold-probe` and `run_coop.py --smoke`.
+- **Takes:** 53 across 13 sounds, plus two loops. Every peak is at or under 0.98.
+- **The composed tread** has two treads at 0.1 s and 1.3 s, each with a coin tail.
+- **Triangles:** Ótr's Pelt 2,800 (props ceiling 3,000); the bracers, laid down as a pair, 1,992.
+
+**Honest scale:** Sound levels were matched by measurement and need a listen on speakers, as ADR-326 said. The score is still `AudioDirector`'s synthesis until `M4-T09`'s composer.
+
 *Entries below to be added as design decisions are signed off.*

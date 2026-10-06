@@ -263,7 +263,11 @@ def helm():
     collision((-.18,.18,0,.37,-.22,.20))
 
 def bracers():
+    # A pair put down: each cuff on its side, the two together and the
+    # second turned a little, as they lie when unbuckled and dropped. The first
+    # version stood them on end, which is how cups stand.
     for side in (-1,1):
+        before=set(bpy.context.scene.objects)
         rings=[]
         for j,(y,r) in enumerate(((.01,.065),(.028,.068),(.24,.088),(.265,.085))):
             rings.append([(side*.10+r*math.cos(a),y,r*.88*math.sin(a)) for a in [math.radians(-145+i*290/24) for i in range(25)]])
@@ -271,7 +275,17 @@ def bracers():
         for y,r in ((.04,.072),(.227,.087)):
             arc('cuff_leather_binding',[(side*.10+r*math.cos(a),y,r*.88*math.sin(a)) for a in [math.radians(-145+i*290/24) for i in range(25)]],.008,'cloth')
         for y in (.04,.227): cube('cuff_buckle',(side*.10-.047,y,-.055),(.025,.025,.015),'metal',.004)
-    collision((-.20,.20,0,.27,-.09,.09))
+        lay=(Matrix.Translation((side*.105,.088,0.0 if side<0 else .05))
+             @ Matrix.Rotation(math.radians(0 if side<0 else 20),4,'Y')
+             @ Matrix.Rotation(math.radians(-90),4,'X')
+             @ Matrix.Rotation(math.radians(30*side),4,'Y')
+             @ Matrix.Translation((-side*.10,-.135,0)))
+        for obj in set(bpy.context.scene.objects)-before:
+            obj.data.transform(obj.matrix_world)
+            obj.matrix_world=Matrix.Identity(4)
+            obj.data.transform(lay)
+            obj.data.update()
+    collision((-.24,.26,0,.24,-.17,.20))
 
 def shield():
     # Nine planks are clipped to the circle and individually follow its shallow dome.
@@ -410,32 +424,10 @@ def bog_iron():
         obj.rotation_euler=(i*.3,i*.7,i*.4)
     collision((-.15,.15,0,.18,-.10,.11))
 
-def pelt():
-    # Ring-built hide surface carries broad alternating folds and a scalloped hem.
-    outline=[(-.065,-.47),(-.12,-.40),(-.18,-.28),(-.36,-.30),(-.41,-.23),(-.27,-.12),(-.29,.15),(-.43,.28),(-.39,.35),(-.23,.28),(-.13,.34),(0,.45),(.13,.34),(.23,.28),(.39,.35),(.43,.28),(.29,.15),(.27,-.12),(.41,-.23),(.36,-.30),(.18,-.28),(.12,-.40),(.065,-.47)]
-    rings=[]
-    for j,s in enumerate((.035,.28,.55,.78,1.0)):
-        rings.append([(x*s,.025+.055*(1-s*s)+.035*math.sin(i*1.9+.4)*s+.022*math.cos(z*11)*s,z*s) for i,(x,z) in enumerate(outline)])
-    hide=loft('draped_otter_hide',rings,'organic',True,.012)
-    for polygon in hide.data.polygons:
-        polygon.use_smooth=True
-    ico('otter_head',(0,.078,-.415),.105,'organic',(.70,.42,1),2)
-    ico('tapered_muzzle',(0,.054,-.49),.048,'organic',(.70,.5,1.1),2)
-    for side in (-1,1):
-        ico('small_rounded_ear',(side*.052,.104,-.387),.026,'organic',(1,.7,.7),2)
-        for z,x in ((-.26,.37),(.30,.395)):
-            ico('spread_paw',(side*x,.035,z),.068,'organic',(.75,.32,1),2)
-    tail=[]
-    for j in range(9):
-        t=j/8; r=.057*(1-t)+.007
-        tail.append([(.045*math.sin(t*3)+r*math.cos(i*math.tau/10),.042+r*.45*math.sin(i*math.tau/10),.34+.34*t) for i in range(10)])
-    loft('tapered_otter_tail',tail,'organic')
-    collision((-.45,.45,0,.14,-.55,.70))
-
 ASSETS = [
     ("hoard_coin", coin), ("coin_chest", chest), ("altar_plate", plate), ("gilded_torc", torc), ("gilt_bead", bead), ("raw_gemstone", gemstone),
     ("spangen_helm", helm), ("iron_bracers", bracers), ("round_shield", shield), ("hide_satchel", satchel), ("pack_frame", frame), ("horn_lantern", lantern),
-    ("waystone", waystone), ("ember", ember), ("hush_rune", hush), ("linen_binding", linen), ("bog_iron", bog_iron), ("otr_pelt", pelt),
+    ("waystone", waystone), ("ember", ember), ("hush_rune", hush), ("linen_binding", linen), ("bog_iron", bog_iron),
 ]
 
 def export_asset(name, builder):

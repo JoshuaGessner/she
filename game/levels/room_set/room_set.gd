@@ -3772,6 +3772,29 @@ func _ear_probe() -> void:
 			+ "with a coin and %.1f dB with a coin-chest — `ART-002` asks that a "
 			+ "player hear how rich they are, on every step") % [empty, one, chest])
 
+	# **Every sound the game names makes one** (ADR-327). A cue moved from
+	# synthesis to a recording leaves its render behind it; a caller still
+	# asking for the render gets silence, which nobody hears go missing — the
+	# Hunter's heave did exactly that until this row.
+	var silent: PackedStringArray = PackedStringArray()
+	for sound: int in Foley.Sound.size():
+		var stream: AudioStream = Foley.stream_for(sound)
+		var mute: bool = stream == null or stream.get_length() < 0.05
+		var wav := stream as AudioStreamWAV
+		if not mute and wav != null:
+			mute = true
+			for at: int in range(0, wav.data.size() - 1, 2):
+				if absi(wav.data.decode_s16(at)) > 64:
+					mute = false
+					break
+		if mute:
+			silent.append(Foley.Sound.keys()[sound])
+	print("[ear] every sound  %d of %d make one%s" % [Foley.Sound.size() - silent.size(),
+		Foley.Sound.size(), "" if silent.is_empty() else ", silent: " + ", ".join(silent)])
+	if not silent.is_empty():
+		problems.append("%s make no sound — a caller asks for them and hears nothing"
+			% ", ".join(silent))
+
 	print("[ear] pressure     %.2f" % AudioDirector.mix.pressure())
 	for problem: String in problems:
 		printerr("[ear] FAIL %s" % problem)
