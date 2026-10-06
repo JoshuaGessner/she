@@ -46,9 +46,6 @@ extends Control
 signal looked_at(node: AspectNode)
 signal chosen(node: AspectNode)
 
-const CHIP = &"AspectChip"
-const CHIP_TAKEN = &"AspectChipTaken"
-const CHIP_LOCKED = &"AspectChipLocked"
 
 ## Horizontal room between two cards, where the joining lines turn.
 const COLUMN_GAP: float = 34.0
@@ -97,11 +94,11 @@ func show_nodes(nodes: Array[AspectNode]) -> void:
 		chip.set_meta(&"aspect_node", node.id)
 		var taken: bool = GameState.has_taken(node.id)
 		if taken:
-			chip.theme_type_variation = CHIP_TAKEN
+			chip.theme_type_variation = MenuStyle.ASPECT_CHIP_TAKEN
 		elif GameState.why_not(node.id) != "":
-			chip.theme_type_variation = CHIP_LOCKED
+			chip.theme_type_variation = MenuStyle.ASPECT_CHIP_LOCKED
 		else:
-			chip.theme_type_variation = CHIP
+			chip.theme_type_variation = MenuStyle.ASPECT_CHIP
 		chip.focus_entered.connect(func() -> void: looked_at.emit(node))
 		chip.pressed.connect(func() -> void:
 			Foley.flat(chip, Foley.Sound.CLICK)

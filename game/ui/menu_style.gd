@@ -154,6 +154,15 @@ const SOCKET: StringName = &"Socket"
 ## `const Color` inside `bag_screen.gd`, which put them outside every palette
 ## this file exists to make reachable.
 const BAG: StringName = &"Bag"
+## **The Pact's roles** (ADR-331). A card in the tree, by state; a page's tab,
+## the open one framed as if pressed in; and the one button that spends —
+## framed even at rest and dimmed, never hidden, when refused.
+const ASPECT_CHIP: StringName = &"AspectChip"
+const ASPECT_CHIP_TAKEN: StringName = &"AspectChipTaken"
+const ASPECT_CHIP_LOCKED: StringName = &"AspectChipLocked"
+const PACT_TAB: StringName = &"PactTab"
+const PACT_TAB_OPEN: StringName = &"PactTabOpen"
+const PACT_ACT: StringName = &"PactAct"
 const RULE: StringName = &"Rule"
 const BACKDROP: StringName = &"Backdrop"
 ## A backdrop you can still half see through, for a banner laid over a room.

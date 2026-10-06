@@ -49,16 +49,6 @@ const DETAIL_HEIGHT: float = 104.0
 const ACT_WIDTH: float = 300.0
 ## The page that is your class's own branch rather than one of her Aspects.
 const RITE: StringName = &"rite"
-## The roles this screen draws in (ADR-216): a page's tab, the open one framed
-## as if pressed in, and the one button that spends.
-const TAB: StringName = &"PactTab"
-const TAB_OPEN: StringName = &"PactTabOpen"
-## Framed even at rest. A menu's choices are bare lettering until focused,
-## which suits a column of five; this is the one press on the page that spends
-## something, and it should look like a thing to press before it is pointed at.
-## Refused, it keeps the frame and dims, so it still says where the commitment
-## would be.
-const ACT: StringName = &"PactAct"
 
 ## **Open to be read, not to be spent** (`M4-T05`, TEC-009 §5.3, ADR-198).
 ##
@@ -225,7 +215,7 @@ func _redraw() -> void:
 	split.add_child(_detail)
 	_act = MenuStyle.button("")
 	_act.custom_minimum_size = Vector2(ACT_WIDTH, 44.0)
-	_act.theme_type_variation = ACT
+	_act.theme_type_variation = MenuStyle.PACT_ACT
 	_act.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	_act.pressed.connect(_commit)
 	split.add_child(_act)
@@ -245,7 +235,7 @@ func _tabs(paths: Array[StringName]) -> Control:
 			held += 1 if GameState.has_taken(node.id) else 0
 		var tab: Button = MenuStyle.button("%s · %d of %d" % [_path_name(path), held, nodes.size()])
 		tab.custom_minimum_size = Vector2(0.0, 38.0)
-		tab.theme_type_variation = TAB_OPEN if path == _path else TAB
+		tab.theme_type_variation = MenuStyle.PACT_TAB_OPEN if path == _path else MenuStyle.PACT_TAB
 		tab.set_meta(&"pact_path", path)
 		tab.pressed.connect(func() -> void:
 			show_path(path)
