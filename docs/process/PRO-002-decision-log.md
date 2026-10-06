@@ -12146,4 +12146,45 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **Her head turn is the existing gaze clamp** (ADR-298). From some angles she barely moves.
 - **The two lines are ⟨tune⟩ copy.**
 
+## ADR-339 — Hatching is engraved, not screened: line width carries tone, cut along the form
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `ART-005` §3 and its ADR-248 implementation note**
+
+**Context:**
+- **Reported from play:** *"the crosshatching doesn't look great on a lot of stuff — make it more stylized and less basic."*
+- **The fill was a screen.** ADR-248's fill was two families of fixed-width lines at ±45° on every triplanar face, switched on by tone: one family through the half-tones and a crossing family in shadow. Every lit stone wall, her whole body and the floor got the same diagonal mesh, which reads as a pattern laid over the picture, not as drawing.
+- **The references draw tone the other way.**
+  - Doré's wood engravings for the *Inferno* (a dark hall with a dragon in it) and Dürer's woodcuts use one family of lines that **swell** as the surface turns from the light and run together into solid black, cut along the form.
+  - Freudenberg et al.'s *Real-Time Halftoning* (2002) is the shader form of the same idea: width modulated by tone.
+  - Praun et al.'s *Real-Time Hatching* (2001) supplies the rule that a darker tone must keep every stroke a lighter one had. A widening line keeps it by construction.
+
+**Decision:**
+- **`engrave()` replaces `hatch_line`/`hatch_plane`.** It draws one family of parallel cuts whose half-width is the tone.
+  - A cut tapers from nothing, and below `hatch_width` it is not drawn at all, so lit surfaces are bare.
+  - It wanders off straight by `hatch_wave` and swells and thins along its length by `hatch_pressure`, both in world-space noise, so a line stays the same line as you move.
+  - Past what the screen can resolve, a cut becomes the flat tone it averages to, rather than shimmering or suddenly lightening.
+- **Cut along the form.** Walls are cut along their courses (near-horizontal), floors and ceilings on one diagonal, blended triplanarly. A crossing family at sixty degrees comes only in the darkest fifth.
+- **The print** (Threshold, Chamber):
+  - paper under a tonal wash, at three quarters of the old fill, which keeps her carving legible;
+  - cuts only past the middle of the shadow;
+  - the deepest shadow solid because the cuts have run together, not because a grey was laid there.
+- **The Deep** keeps white-line engraving, the light being what is cut, held to fine lines (half the tone). At full light the first draft cut lit floors into broad pale bars.
+- **`ink_style.tres`:** 9 cuts per metre, coarser and closer to a woodcut, which also keeps the far ceiling out of moiré; hairline 0.05; strength 0.8. All are ⟨tune⟩.
+
+**Measured** (`--chamber-shot`, `--her-shot`, `--threshold-shot` and `--delvings --ink-shot`, four passes compared with the before set):
+- **Pass 1** striped every half-tone and drowned her; **pass 2** left a hairline mesh on lit walls and moiré on the far beams. The lit-stone, taper and coarser-cut rules came from those.
+- **Final:**
+  - lit stone is clean paper;
+  - her shadow on the wall is bold horizontal cuts;
+  - her head's scales read;
+  - the camp's ground is cut radially round the fire;
+  - the Deep's lit walls get fine pale cuts along the courses.
+- **Flash across a hair's turn:** unchanged or better on every view (0.01–0.13 %).
+- **`--threat-dark-shot`:** 44 % drawn marked and 0 % unmarked, identical before and after. A threat in the dark is drawn exactly as before.
+- **These probes pass:** `--ink-probe` (five classes, two pages), `data_probe` (`InkStyle.validate`), `art_probe`, `--lair-probe`, `--threshold-probe` and `--menu-probe`.
+
+**Honest scale:**
+- **Triplanar is not curvature.** On her body the cuts follow world axes, not her coils. Real direction fields are `ART-005`'s TAM route and still too much for this project.
+- **Taste.** The settings are a first judgement from photographs; the look wants a person in front of a real screen.
+
 *Entries below to be added as design decisions are signed off.*

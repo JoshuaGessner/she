@@ -6,6 +6,6 @@
 [resource]
 script = ExtResource("2")
 shader = ExtResource("1")
-shader_parameter/hatch_scale = 14.0
-shader_parameter/hatch_strength = 0.24
-shader_parameter/hatch_width = 0.16
+shader_parameter/hatch_scale = 9.0
+shader_parameter/hatch_strength = 0.8
+shader_parameter/hatch_width = 0.05

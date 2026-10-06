@@ -4,7 +4,7 @@ title: The Ink Shader — Visual Direction
 status: accepted
 owner: art
 tags: [art, shader, rendering, style, godot, legibility]
-updated: 2026-10-01
+updated: 2026-10-06
 related: [ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001]
 ---
 
@@ -163,6 +163,16 @@ And it matches real hand-drawn practice: **contours are redrawn every frame; fil
 > vertex channels and the two-world inversion are built (ADR-269): the same
 > nested families serve both pages, asked for by shadow on the print and by
 > light in the Deep.
+>
+> **Engraved, not screened (ADR-339).** The fixed-width ±45° families read as a mechanical screen laid over everything, the same on her as on a floor. Tone is now carried by **line width**, as in Doré's and Dürer's engravings (and Freudenberg et al.'s real-time halftoning):
+> - **One family of cuts** that taper from nothing in the light and swell into solid ink at black. A darker tone keeps every cut a lighter one had, so the TAM nesting rule holds by construction.
+> - **Cut along the form:** walls along their courses, floors and ceilings on one diagonal.
+> - **A hand's line:** each cut wanders a little and swells and thins along its length, in world-space noise so a line stays the same line as you move.
+> - **Crossing only in the darkest fifth,** at sixty degrees.
+> - **On the print,** lit stone is bare paper under a tonal wash, and cuts begin only past the middle of the shadow. The first draft cut every half-tone and drowned her carving.
+> - **In the Deep,** the cuts are the light, a white-line engraving held to fine lines.
+> - **At range,** cuts give way to the flat tone they average to.
+> - **Settings:** `ink_style.tres` gives 9 cuts per metre, hairline 0.05 and strength 0.8. `hatch_wave` and `hatch_pressure` are 0.09 and 0.3. All are ⟨tune⟩.
 
 Full TAM requires lapped-texture parametrisation over a curvature-aligned direction field. **That is far too much for a solo project.** The 80% version:
 

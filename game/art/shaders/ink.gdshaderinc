@@ -68,9 +68,15 @@ uniform vec3 ink_color : source_color = vec3(0.05, 0.045, 0.055);
 uniform vec3 bone_color : source_color = vec3(0.86, 0.83, 0.76);
 uniform vec3 paper_color : source_color = vec3(0.93, 0.915, 0.87);
 uniform float grain : hint_range(0.0, 0.4) = 0.05;
+// **Engraved, not screened** (ADR-339). Cuts per metre; how black a cut
+// prints; and the hairline a cut starts from where the tone first asks for one.
 uniform float hatch_scale : hint_range(1.0, 40.0) = 14.0;
 uniform float hatch_strength : hint_range(0.0, 1.0) = 0.24;
 uniform float hatch_width : hint_range(0.02, 0.45) = 0.16;
+// A hand's cut: how far a line wanders off straight, as a fraction of the
+// spacing, and how much it swells and thins along its length.
+uniform float hatch_wave : hint_range(0.0, 1.0) = 0.09;
+uniform float hatch_pressure : hint_range(0.0, 1.0) = 0.3;
 
 // The Deep's fill. The stone keeps this much of its own value and the rest of
 // what it reads as is pale strokes, laid densest where the light is strongest:
@@ -135,27 +141,65 @@ float luminance_of(vec3 c) {
 }
 
 
-// Analytic nested strokes: darker tones retain the first family and add a
-// crossing family. Pixel derivatives soften edges and fade unresolved lines,
-// preventing the distant moire that a hard fract() stripe would produce.
-float hatch_line(float coordinate) {
+// **One engraved family** (ADR-339): parallel cuts whose *width* is the tone.
+//
+// The hatch this replaced was two families of fixed-width lines at ±45° on
+// every surface, switched on by tone — so shadow read as a mechanical screen
+// laid over the picture, the same on a dragon as on a floor. An engraver
+// carries tone the other way: one family of lines that **swell** as the
+// surface turns from the light and run together into solid black, cut along
+// the form rather than across the page. Doré's wood engravings for the
+// *Inferno*, Dürer's woodcuts, and the halftoning primitive of Freudenberg et
+// al. (*Real-Time Halftoning*, 2002) all draw tone as line width; Praun et
+// al.'s tonal art maps (*Real-Time Hatching*, 2001) give the rule that a darker
+// tone must keep every stroke a lighter one had, which a widening line does by
+// construction.
+//
+// `across` is the direction the cuts are stacked in. Each line wanders a
+// little and its pressure changes along it — world-space noise, so a line
+// stays the same line as you move.
+float engrave(vec2 point, vec2 across, float tone) {
+	vec2 along_dir = vec2(-across.y, across.x);
+	float coordinate = dot(point, across) * hatch_scale;
+	float along = dot(point, along_dir);
+	coordinate += (texture(noise_tex, point * 0.23).r - 0.5) * 2.0 * hatch_wave;
+	float pressure = mix(1.0,
+		0.55 + 0.9 * texture(noise_tex, vec2(along * 0.12, coordinate * 0.011)).g,
+		hatch_pressure);
+	// From nothing: a cut tapers out into the light rather than starting at a
+	// fixed hairline, which laid a faint mesh over every lit wall. Below
+	// `hatch_width` it is not drawn at all — a burin lifts before it scratches.
+	float half_width = clamp(tone * 0.55 * pressure, 0.0, 0.55);
 	float footprint = max(fwidth(coordinate), 0.0001);
 	float distance_to_line = abs(fract(coordinate) - 0.5);
-	float stroke = 1.0 - smoothstep(hatch_width - footprint, hatch_width + footprint, distance_to_line);
-	// Gone before it can alias (ADR-281): a stroke narrower than about a
-	// pixel and a half shimmered at every step the body took.
-	return stroke * (1.0 - smoothstep(0.16, 0.42, footprint));
+	float cut = 1.0 - smoothstep(half_width - footprint, half_width + footprint, distance_to_line);
+	cut *= smoothstep(hatch_width * 0.25, hatch_width * 0.5, half_width);
+	// Past what the screen can resolve, a cut becomes the tone it was drawing,
+	// not a shimmer (ADR-281) and not a sudden lightening.
+	float resolve = smoothstep(0.16, 0.42, footprint);
+	return mix(cut, clamp(half_width * 2.0, 0.0, 1.0), resolve);
 }
 
 
-// `amount` is how much drawing a tone asks for, 0 to 1. On the print that is
-// shadow; in the Deep it is light — the same nested families either way, so a
-// tone that changes adds strokes to the ones already there rather than
-// swapping them for others (ART-005's TAM insight).
-float hatch_plane(vec2 point, float amount) {
-	float first = hatch_line((point.x + point.y) * hatch_scale);
-	float crossed = hatch_line((point.x - point.y) * hatch_scale);
-	return max(first * smoothstep(0.15, 0.5, amount), crossed * smoothstep(0.55, 0.85, amount));
+// A surface's cuts: one family from the first tone, a second at sixty
+// degrees only in the deepest part of it — the cross an engraver saves for
+// night, never laid over the half-tones.
+float engrave_plane(vec2 point, vec2 across, float amount) {
+	float tone = smoothstep(0.1, 1.0, amount);
+	float first = engrave(point, across, tone);
+	vec2 crossed = vec2(across.x * 0.5 - across.y * 0.866, across.x * 0.866 + across.y * 0.5);
+	float second = engrave(point + vec2(3.7, 1.3), crossed, smoothstep(0.8, 1.0, amount) * 0.6);
+	return max(first, second);
+}
+
+
+// Walls are cut along their courses, floors and ceilings on one diagonal, as
+// a hand would follow the form; blended by how much each plane faces you.
+float engrave_world(vec3 world_pos, vec3 weights, float amount) {
+	return dot(weights, vec3(
+		engrave_plane(world_pos.yz, vec2(1.0, 0.12), amount),
+		engrave_plane(world_pos.xz, vec2(0.7071, 0.7071), amount),
+		engrave_plane(world_pos.xy, vec2(0.12, 1.0), amount)));
 }
 
 
@@ -253,10 +297,12 @@ void fragment() {
 			max(luminance_of(texture(screen_tex, uc).rgb), luminance_of(texture(screen_tex, ud).rgb))));
 		edge *= mix(1.0, smoothstep(0.012, 0.06, seen), edge_needs_light);
 		float drawn = sqrt(clamp(luminance, 0.0, 1.0));
-		float strokes = dot(weights, vec3(
-			hatch_plane(world_pos.yz, drawn),
-			hatch_plane(world_pos.xz, drawn),
-			hatch_plane(world_pos.xy, drawn)));
+		// A white-line engraving: the cut is the light, so it widens where
+		// the light is strongest.
+		// Fine in the dark: a lit floor at full light cut to half-width read as
+		// broad pale bars, not lines. The light is drawn by more of them
+		// thickening a little, never by any one becoming a stripe.
+		float strokes = engrave_world(world_pos, weights, drawn * 0.5);
 		// Only lit stone gives up value to the strokes. The unlit page is
 		// left exactly as rendered, because ADR-203's fog is authored at
 		// the ground colour and a pass that darkened it would put the
@@ -272,13 +318,20 @@ void fragment() {
 		float tone = smoothstep(print_black, print_white, sqrt(clamp(luminance, 0.0, 1.0)));
 		float peak = max(base.r, max(base.g, max(base.b, 0.0001)));
 		vec3 hue = mix(vec3(1.0), base / peak, print_warmth);
-		vec3 ground = mix(ink_color, paper_color * hue, tone);
+		// Paper, washed by tone, and ink cut into the shadow side only. The
+		// first pass cut every half-tone and striped lit walls and her whole
+		// body alike — the form drowned in its own texture. An engraver leaves
+		// the light bare: cuts begin past the middle of the shadow and widen
+		// toward black, so the line says *this side is turned away* and the
+		// wash under it still carries her carving.
 		float shadow = 1.0 - tone;
-		float strokes = dot(weights, vec3(
-			hatch_plane(world_pos.yz, shadow),
-			hatch_plane(world_pos.xz, shadow),
-			hatch_plane(world_pos.xy, shadow)));
-		ground *= 1.0 - strokes * hatch_strength * 2.4 * nearby * step(0.02, tone);
+		vec3 paper = paper_color * hue;
+		vec3 ground = mix(paper, mix(ink_color, paper, tone), 0.75);
+		float turned = smoothstep(0.38, 0.98, shadow);
+		float cuts = engrave_world(world_pos, weights, turned);
+		// At range the cuts give way to the flat tone they average to.
+		float coverage = mix(turned * 0.4, cuts, nearby);
+		ground = mix(ground, ink_color, clamp(coverage * hatch_strength, 0.0, 1.0));
 		ground = mix(ground, base, gold);
 		col = mix(ground, ink_color, clamp(edge, 0.0, 1.0));
 	}
