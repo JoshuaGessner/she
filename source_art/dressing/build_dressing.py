@@ -308,14 +308,17 @@ def rope_coil():
     # sagging where it crosses another — a coil thrown down, not a spring.
     sizes=[.215,.19,.225,.18,.205,.17,.195]
     shift=[(0,0),(.025,-.01),(-.015,.02),(.03,.012),(-.01,-.025),(.02,.02),(.035,0)]
-    lift=[0,.026,.047,.075,.096,.121,.140]
+    # Slumped, not stacked: the loops lie half beside, half on each other,
+    # so the coil stays under a body's step (`FloorDressing.STEP_OVER`) and
+    # is walked over rather than into (a stacked 19 cm coil failed `--reach`).
+    lift=[0,.010,.019,.028,.036,.044,.050]
     for i in range(turns*per+1):
         t=i/(turns*per); a=2*math.pi*turns*t
         k=min(int(t*turns),turns-1); f=t*turns-k
         lerp=lambda L: L[k]+(L[k+1]-L[k])*f
         r=lerp(sizes)*(1+.05*math.sin(2*a+k))
         cx=lerp([s[0] for s in shift]); cy=lerp([s[1] for s in shift])
-        z=.016+lerp(lift)+.008*math.sin(a+k*1.7)
+        z=.016+lerp(lift)+.004*math.sin(a+k*1.7)
         points.append((cx+r*math.cos(a),cy+r*math.sin(a),max(.016,z)))
     # The free end: down over the side of the coil and out across the floor.
     top=Vector(points[-1])
@@ -328,7 +331,7 @@ def rope_coil():
     # The end whipped with twine so it does not unlay.
     end=Vector(points[-1]); back=(Vector(points[-2])-end).normalized()
     tube('whipped_end',[tuple(end+back*.045),tuple(end+back*.002)],.019,'rope',6)
-    collision_box((-.26,.74,-.27,.48,0,.19))
+    collision_box((-.26,.74,-.27,.48,0,.095))
 
 
 def rusted_fittings():

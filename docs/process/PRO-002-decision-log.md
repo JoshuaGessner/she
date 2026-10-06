@@ -11669,6 +11669,8 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 
 **Honest scale:** The spade lies along the heap's flank and is half-lost in the ink at game distance. It is there for the near look.
 
+**Corrected after CI:** `--reach-probe` failed on seed 31346, floor 2: the player stopped 22 of 51 legs in, against a rope coil 0.19 m up. Stacking the loops had raised the coil, and its collision box, from 8 cm to 19 cm. That is above `FloorDressing.STEP_OVER` (0.10 m), so the coil became a solid in a place laid for something you step over. The loops now slump half beside and half on each other: 0.092 m tall, collision back at 0.095 m. The local check before the commit ran `dressing_probe`, which asks whether a piece is solid *as its height says*. That was true of a 19 cm coil; only walking the floor showed it was in the way.
+
 ## ADR-326 — The world's sounds are recorded, and you can hear how rich you are
 
 **Date:** 2026-10-06 · **Status:** accepted · **Row 4 of `PRO-008`'s production pass; builds `ART-002`'s *sound of your own greed*** · **Developer's call: "CC0 recordings."**
