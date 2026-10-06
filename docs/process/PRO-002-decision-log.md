@@ -11943,4 +11943,40 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **The deeds banner's two roles still draw in the engine's white** (`DeedsTitle`, `DeedName`). They are next, and should be looked at rather than flipped.
 - **The *none* sentence is ⟨tune⟩ copy.** Whether a first-time player reads it as a hint or as a scold is a playtest question.
 
+## ADR-333 — The title screen draws her as the Chamber does
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `DES-019` (ADR-288's title scene)**
+
+**Context:**
+- **`MenuTableau` is the first picture of her anyone sees** (ADR-288), and it was the worst one in the build.
+  - It replaced every material on her with one flat `StandardMaterial3D`, which threw away the baked normal map ADR-315's sculpt carries.
+  - Its gold was a smooth glowing hemisphere of its own, not the pile.
+  - An orange lamp lit her from the front.
+- **Under that, the sculpted ormr read as orange plastic over a yolk.** Meanwhile the Chamber, after ADR-329, draws her as a dark carved mass lit from below.
+- **The camera stood on her left.** Her head turns that way, so she came out face-on and foreshortened, a snout and two eyes. The pile's large pieces sat under the menu's lettering.
+
+**Decision:**
+- **Two of the Chamber's routines become static and shared:**
+  - `Chamber.dress_her(body, skin)` copies each surface's own material, so the carving survives the recolour.
+  - `Chamber.pile_hoard(into, value)` builds the mound and the lumps for a hoard worth `value`.
+  - The Chamber calls both as before; the title calls them too. One way to draw her, not two (ADR-064's no-parallel-path rule).
+- **The title shows this lineage's pile, never less than `TITLE_HOARD` (900 ⟨tune⟩).** It is a picture of the promise, not a readout; the Chamber is where the pile is exactly yours.
+- **Lit as her hall is lit** (ADR-329):
+  - two braziers at 1.0, dimmer than the Chamber's 1.6 because the camera is nearer the fire, and set back beside her;
+  - a low gold glow from the pile under her jaw;
+  - a cold directional rim from behind.
+  - Hunt's and Darkest Dungeon's title scenes are mostly black and keep an edge of cold light on the subject; that edge is what turns a dark shape on a dark ground into a silhouette.
+  - The orange front lamp is gone.
+- **Seen from her right.** She is in profile, her head reaching over the menu toward the title, her body arching away to the right edge, and the pile below her jaw clear of the lettering.
+
+**Measured:**
+- **`--menu-shot` at 1152 × 648, five framings compared:**
+  - From the left (the old side), she was face-on at every offset tried.
+  - From the right, she is in profile, and the menu's lettering crosses nothing but her shadowed tail.
+- **These probes pass:** `--menu-probe`, and the Chamber's `--lair-probe`, `--chamber-probe`, `--tithe-probe` and `--legacy-probe` (the shared pile and hide).
+
+**Honest scale:**
+- **She is still warmer than in the Chamber.** Firelight on `her_colour` reads brown here; the Chamber's paper ink pass draws her nearer black. It is ⟨tune⟩ with the three light values.
+- **The left brazier's flame sits behind *Settings*.** It is dim enough to read past.
+
 *Entries below to be added as design decisions are signed off.*

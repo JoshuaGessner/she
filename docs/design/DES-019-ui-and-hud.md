@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-10-03
+updated: 2026-10-06
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
@@ -224,3 +224,5 @@ Different rules apply. **Numbers are appropriate here** — you are comparing ge
 > **DECIDED (ADR-050):** **One system.** Cheaper to build and less for players to learn.
 
 > **AMENDED (ADR-288): lettered, and set in the world.** Type is IM Fell English SC for titles and choices, Alegreya for body text, and Alegreya SC for headings (all OFL). The title screen is a living scene of her over the hoard, with the menu down its left edge. Menu choices are lettering until chosen. The crosshair prompt is outlined lettering with no panel. The Ear is drawn as a worked iron and bronze instrument, with its readings unchanged.
+>
+> **AMENDED (ADR-333): she is drawn there as the Chamber draws her.** The title scene uses the Chamber's own dressing and pile (`Chamber.dress_her`, `Chamber.pile_hoard`), so her carving and the lineage's gold are the ones a player meets below. It is lit as her hall is, by fire from below, gold under her jaw and a cold rim, and seen from her right, in profile.

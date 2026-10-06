@@ -569,20 +569,7 @@ func _build_her() -> void:
 		push_error("Chamber: her model has no `her_head` to turn toward you")
 	else:
 		_her_head_rest = _her_head.transform
-	# Recoloured every visit, her carving kept: each surface's own material is
-	# copied, so her baked normal map comes with it. The eyes are left alone.
-	for node: Node in body.find_children("*", "MeshInstance3D", true, false):
-		var piece := node as MeshInstance3D
-		for surface: int in piece.mesh.get_surface_count():
-			var was := piece.mesh.surface_get_material(surface) as BaseMaterial3D
-			if was != null and was.resource_name.begins_with("eye"):
-				continue
-			var hide := (was.duplicate() as BaseMaterial3D) if was != null else StandardMaterial3D.new()
-			hide.albedo_color = skin
-			hide.roughness = 0.9
-			hide.vertex_color_use_as_albedo = false
-			hide.normal_scale = HER_RELIEF
-			piece.set_surface_override_material(surface, hide)
+	dress_her(body, skin)
 	# **Her solids ship with her** (ADR-315, ART-004's `-convcolonly`), and are
 	# taken out of her here: she breathes by scaling, and a solid that
 	# breathed would be a wall that moved under a body standing against it.
@@ -618,6 +605,27 @@ func _tend_her(delta: float, toward: Vector3) -> void:
 		_her_head_rest.origin)
 
 
+## Her hide, recoloured and her carving kept: each surface's own material is
+## copied, so her baked normal map comes with it. The eyes are left alone.
+##
+## Static and shared with `MenuTableau` (ADR-333), because the title screen
+## drew her through one flat material of its own and lost the carving — the
+## first picture of her a player saw was the one without her relief.
+static func dress_her(body: Node3D, skin: Color) -> void:
+	for node: Node in body.find_children("*", "MeshInstance3D", true, false):
+		var piece := node as MeshInstance3D
+		for surface: int in piece.mesh.get_surface_count():
+			var was := piece.mesh.surface_get_material(surface) as BaseMaterial3D
+			if was != null and was.resource_name.begins_with("eye"):
+				continue
+			var hide := (was.duplicate() as BaseMaterial3D) if was != null else StandardMaterial3D.new()
+			hide.albedo_color = skin
+			hide.roughness = 0.9
+			hide.vertex_color_use_as_albedo = false
+			hide.normal_scale = HER_RELIEF
+			piece.set_surface_override_material(surface, hide)
+
+
 static func her_colour(descents: int) -> Color:
 	var gone: float = clampf(float(descents) / float(FUSED_AFTER), 0.0, 1.0)
 	return HER_NEW.lerp(HER, gone)
@@ -637,10 +645,18 @@ func _build_hoard() -> void:
 func _rebuild_hoard() -> void:
 	for child: Node in _hoard_root.get_children():
 		child.queue_free()
-	var lumps: int = mini(MAX_LUMPS, GameState.hoard_value / VALUE_PER_LUMP)
+	pile_hoard(_hoard_root, GameState.hoard_value)
+
+
+## The pile for a hoard worth `value`, laid into `into`. Static and shared with
+## `MenuTableau` (ADR-333): the title screen's gold was one smooth glowing dome
+## of its own, and the pile a player builds is the one they should see there.
+static func pile_hoard(into: Node3D, value: int) -> void:
+	var lumps: int = mini(MAX_LUMPS, value / VALUE_PER_LUMP)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0x5E1F
-	var gold: StandardMaterial3D = _material(GOLD)
+	var gold := StandardMaterial3D.new()
+	gold.albedo_color = GOLD
 	gold.roughness = 0.3
 	gold.metallic = 0.85
 	# A low glow, so gold reads as gold in a dim hall — `ART-005` spends
@@ -664,7 +680,7 @@ func _rebuild_hoard() -> void:
 				coin.normal_enabled = authored.normal_enabled
 				coin.normal_texture = authored.normal_texture
 			surface.material_override = coin
-		_hoard_root.add_child(heap)
+		into.add_child(heap)
 	for index: int in range(lumps):
 		var piece: ItemResource = ItemCatalogue.by_id(HOARD_PIECES[index % HOARD_PIECES.size()])
 		var look: Node3D = piece.look() if piece != null else null
@@ -682,7 +698,7 @@ func _rebuild_hoard() -> void:
 			sin(angle) * radius)
 		look.rotation = Vector3(rng.randf_range(-0.5, 0.5), rng.randf_range(0.0, TAU),
 			rng.randf_range(-0.5, 0.5))
-		_hoard_root.add_child(look)
+		into.add_child(look)
 
 
 func _build_stash() -> void:
