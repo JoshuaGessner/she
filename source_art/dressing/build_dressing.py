@@ -298,19 +298,37 @@ def broken_bracing():
 
 
 def rope_coil():
+    """A hemp rope coiled down as it comes off a windlass: loops stacked on
+    loops, slumping as they rise, and the end run out across the floor. The
+    first version was a flat sailor's flake of a 6 cm hawser; a mine's rope is
+    nearer 3 cm."""
     points=[]
-    # Four turns are a single spiral, with a laid-down S-shaped free end.
-    for i in range(137):
-        t=i/136; a=2*math.pi*4*t
-        r=.13+.31*t
-        points.append((r*math.cos(a),r*math.sin(a),.041+.008*math.sin(a*.5)))
-    start=Vector(points[-1]); controls=[start,Vector((.47,.19,.039)),Vector((.74,.43,.039)),Vector((.56,.60,.039))]
-    for i in range(1,15):
-        t=i/14
+    turns, per = 6, 22
+    # Each loop as it fell: its own size, off the centre of the one below,
+    # sagging where it crosses another — a coil thrown down, not a spring.
+    sizes=[.215,.19,.225,.18,.205,.17,.195]
+    shift=[(0,0),(.025,-.01),(-.015,.02),(.03,.012),(-.01,-.025),(.02,.02),(.035,0)]
+    lift=[0,.026,.047,.075,.096,.121,.140]
+    for i in range(turns*per+1):
+        t=i/(turns*per); a=2*math.pi*turns*t
+        k=min(int(t*turns),turns-1); f=t*turns-k
+        lerp=lambda L: L[k]+(L[k+1]-L[k])*f
+        r=lerp(sizes)*(1+.05*math.sin(2*a+k))
+        cx=lerp([s[0] for s in shift]); cy=lerp([s[1] for s in shift])
+        z=.016+lerp(lift)+.008*math.sin(a+k*1.7)
+        points.append((cx+r*math.cos(a),cy+r*math.sin(a),max(.016,z)))
+    # The free end: down over the side of the coil and out across the floor.
+    top=Vector(points[-1])
+    controls=[top,Vector((.34,.06,.10)),Vector((.46,.30,.014)),Vector((.70,.44,.014))]
+    for i in range(1,17):
+        t=i/16
         q=(1-t)**3*controls[0]+3*(1-t)**2*t*controls[1]+3*(1-t)*t*t*controls[2]+t**3*controls[3]
         points.append(tuple(q))
-    tube('continuous_laid_rope',points,.032,'rope',8,True)
-    collision_box((-.48,.72,-.47,.65,0,.095))
+    tube('continuous_laid_rope',points,.016,'rope',6)
+    # The end whipped with twine so it does not unlay.
+    end=Vector(points[-1]); back=(Vector(points[-2])-end).normalized()
+    tube('whipped_end',[tuple(end+back*.045),tuple(end+back*.002)],.019,'rope',6)
+    collision_box((-.26,.74,-.27,.48,0,.19))
 
 
 def rusted_fittings():
@@ -366,21 +384,74 @@ def guttered_candles():
 
 
 def spoil_heap():
-    pieces=[(0,0,0,.96,.80,.25),(-.24,-.16,.08,.61,.50,.30),(.24,-.11,.06,.56,.47,.24),(-.08,.23,.12,.59,.48,.29),(.38,.22,.08,.39,.35,.20),(-.42,.18,.04,.38,.33,.21),(-.45,-.36,0,.24,.19,.11),(.48,-.26,0,.27,.26,.12),(.08,-.46,0,.31,.22,.09),(-.26,.48,0,.21,.25,.13)]
-    for i,(x,y,z,sx,sy,sz) in enumerate(pieces):
-        obj=irregular_rock('spoil_settled_fracture_%02d'%i,(x,y,z),(sx,sy,sz))
-        obj.rotation_euler[2]=i*.71; apply_mesh_transform(obj)
-    # A round haft and cupped spade make the discarded tool believable.
-    a,b=Vector((-.56,.39,.08)),Vector((.39,.55,.13))
-    obj=cylinder('discarded_shovel_haft',(a+b)/2,.028,(b-a).length,'timber',16)
+    """What a working throws out: a cone of fines at its angle of repose,
+    broken rock of every size on and around it, and the spade left in it —
+    wood shod with iron, as spades were until iron got cheap. The first
+    version was ten large rocks and a steel spade."""
+    import random
+    rng=random.Random('spoil')
+    R,H=.72,.40
+    def height(x,y):
+        r=math.hypot(x/R,y/(R*.84))
+        return max(0.0,H*(1-min(r,1.0)**1.5))
+    # The heap: a faceted cone, its rings jittered so it reads as tipped
+    # loads rather than a lathe.
+    rings,seg=5,15
+    verts=[(0,0,H)]
+    for k in range(1,rings+1):
+        f=k/rings
+        for s in range(seg):
+            a=2*math.pi*s/seg+(.2 if k%2 else 0)
+            rr=f*(1+rng.uniform(-.09,.09))
+            x,y=rr*R*math.cos(a),rr*R*.84*math.sin(a)
+            z=0.0 if k==rings else height(x,y)*(1+rng.uniform(-.12,.12))
+            verts.append((x,y,z))
+    faces=[(0,1+s,1+(s+1)%seg) for s in range(seg)]
+    for k in range(rings-1):
+        o0,o1=1+k*seg,1+(k+1)*seg
+        for s in range(seg):
+            n=(s+1)%seg
+            faces.append((o0+s,o1+s,o1+n,o0+n))
+    faces.append(tuple(reversed([1+(rings-1)*seg+s for s in range(seg)])))
+    mesh_object('spoil_fines',verts,faces,'stone')
+    # Rock on it: a few big pieces that rolled to the toe, more middling
+    # pieces on the flanks, and small stuff everywhere.
+    rocks=[(.30,.22),(.26,.18)]+[(rng.uniform(.13,.19),rng.uniform(.09,.13)) for _ in range(7)] \
+        +[(rng.uniform(.06,.10),rng.uniform(.04,.07)) for _ in range(14)]
+    for i,(w,h) in enumerate(rocks):
+        big=i<2
+        a=rng.uniform(0,2*math.pi)
+        f=rng.uniform(.85,1.0) if big else rng.uniform(.15,1.05)
+        x,y=f*R*math.cos(a),f*R*.84*math.sin(a)
+        z=max(0.0,height(x,y)-h*.35)
+        obj=irregular_rock('spoil_rock_%02d'%i,(x,y,z),(w,w*rng.uniform(.7,.95),h))
+        obj.rotation_euler=(rng.uniform(-.25,.25),rng.uniform(-.25,.25),rng.uniform(0,6.28))
+        apply_mesh_transform(obj)
+    # The spade, lying up the slope where it was dropped: a straight ash haft
+    # into a wooden blade, the blade's edge sheathed in an iron shoe.
+    a,b=Vector((-.62,-.30,.04)),Vector((-.06,-.08,.36))
+    obj=cylinder('spade_haft',(a+b)/2,.017,(b-a).length,'timber',8)
     obj.rotation_mode='QUATERNION';obj.rotation_quaternion=Vector((0,0,1)).rotation_difference((b-a).normalized());apply_mesh_transform(obj)
-    verts=[(.34,.46,.10),(.60,.46,.09),(.74,.52,.07),(.74,.63,.07),(.60,.70,.09),(.34,.64,.10),(.51,.56,.052)]
-    faces=[(i,(i+1)%6,6) for i in range(6)]
-    shovel=mesh_object('discarded_cupped_spade',verts,faces,'metal')
-    mod=shovel.modifiers.new('forged_plate_thickness','SOLIDIFY');mod.thickness=.014
-    bpy.context.view_layer.objects.active=shovel;bpy.ops.object.modifier_apply(modifier=mod.name);finish(shovel,'discarded_cupped_spade','metal')
-    cylinder('shovel_socket',(.36,.55,.115),.036,.16,'metal',16,rotation=(0,math.pi/2,.17))
-    collision_box((-.73,.77,-.59,.74,0,.47))
+    along=(b-a).normalized()
+    across=along.cross(Vector((0,0,1))).normalized()
+    up=across.cross(along).normalized()
+    def blade(name,start,length,half,thick,kind):
+        c0=start; c1=start+along*length
+        v=[]
+        for c,w in ((c0,half*.86),(c1,half)):
+            for s,u in ((-1,-1),(1,-1),(1,1),(-1,1)):
+                v.append(tuple(c+across*(s*w)+up*(u*thick)))
+        return mesh_object(name,v,[(0,1,2,3),(7,6,5,4),(0,4,5,1),(1,5,6,2),(2,6,7,3),(3,7,4,0)],kind)
+    blade('spade_blade',b,.21,.085,.011,'timber')
+    blade('spade_iron_shoe',b+along*.19,.06,.090,.014,'metal')
+    # Every face outward: the engine draws one side only.
+    import bmesh
+    for obj in bpy.context.scene.objects:
+        if obj.type=='MESH':
+            bm=bmesh.new(); bm.from_mesh(obj.data)
+            bmesh.ops.recalc_face_normals(bm,faces=list(bm.faces))
+            bm.to_mesh(obj.data); bm.free()
+    collision_box((-.73,.77,-.62,.66,0,.42))
 
 
 ASSETS = [

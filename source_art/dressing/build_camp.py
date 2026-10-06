@@ -87,14 +87,38 @@ def split_log(name, a, b, radius, sides=7, charred=0.0):
     return kit.mesh_object(name, verts, faces, "bark")
 
 
+def kerb_slab(name, at, wide, thick, tall, turn, lean, seed):
+    """A flat stone set on edge in the ground: a slab, not a boulder, its top
+    as it split rather than squared."""
+    s = seed
+    outline = [(-wide/2, 0.0), (wide/2, 0.0),
+               (wide/2, tall*(.72+.12*math.sin(s))), (wide*.18, tall*(.95+.05*math.cos(s*1.3))),
+               (-wide*.22, tall), (-wide/2, tall*(.66+.14*math.cos(s*.7)))]
+    n = len(outline)
+    verts = [(u, side*thick/2, v) for side in (-1, 1) for u, v in outline]
+    faces = [tuple(range(n)), tuple(reversed(range(n, 2*n)))]
+    faces += [(i, i+n, (i+1) % n+n, (i+1) % n) for i in range(n)]
+    obj = kit.mesh_object(name, verts, faces, "stone", at, bevel=0.012)
+    obj.rotation_euler = (lean, 0.0, turn)
+    kit.apply_mesh_transform(obj)
+    return obj
+
+
 def hearth():
-    # The ring: eleven stones, no two alike, leaving no gap a coal could roll from.
-    for i in range(11):
-        angle = math.tau * i / 11 + 0.15
-        size = (0.30 + 0.05 * math.sin(i * 1.7), 0.24 + 0.04 * math.cos(i * 2.3),
-                0.17 + 0.05 * abs(math.sin(i * 0.9)))
-        fieldstone(f"ring_stone_{i}", (math.cos(angle) * 0.74, math.sin(angle) * 0.74, 0.0),
-                   size, angle + math.pi * 0.5, float(i))
+    # A hearth as the Norse built one (the long-hearths of Hofstaðir and
+    # L'Anse aux Meadows): flat slabs set on edge round an ash bed, and a fire
+    # laid as a star — logs pushed in from their ends as they burn, which is
+    # how a fire is kept all night. The first version was a ring of round
+    # boulders and a teepee of sticks, which is a campsite's.
+    for i in range(10):
+        angle = math.tau * i / 10 + 0.15
+        wide = 0.40 + 0.06 * math.sin(i * 1.7)
+        tall = 0.20 + 0.07 * abs(math.sin(i * 0.9 + 0.4))
+        # Set tangent to the ring, each leaning out a little as the fire's
+        # heat and years of feet have pushed it.
+        kerb_slab(f"kerb_slab_{i}", (math.cos(angle) * 0.74, math.sin(angle) * 0.74, 0.0),
+                  wide, 0.085 + 0.015 * math.cos(i), tall, angle + math.pi * 0.5,
+                  -(0.08 + 0.06 * math.sin(i * 2.1)), float(i))
     # The ash bed, dished, with charcoal in it.
     kit.lathe("ash_bed", [(0.0, 0.035), (0.30, 0.03), (0.52, 0.045), (0.62, 0.0)], "stone", segments=18)
     for i in range(6):
@@ -102,12 +126,13 @@ def hearth():
         reach = 0.22 + 0.12 * (i % 2)
         kit.cube(f"charcoal_{i}", (math.cos(angle) * reach, math.sin(angle) * reach, 0.05),
                  (0.10, 0.06, 0.05), "timber", 0.01)
-    # Five split logs leaning in to a point, their tops burned away.
+    # Five split logs laid as a star, their inner ends burned down where they
+    # meet; every other one rides over its neighbours.
     for i in range(5):
         angle = math.tau * i / 5 + 0.3
-        foot = Vector((math.cos(angle) * 0.50, math.sin(angle) * 0.50, 0.05))
-        top = Vector((math.cos(angle) * 0.07, math.sin(angle) * 0.07, 0.62 + 0.06 * (i % 2)))
-        split_log(f"firewood_{i}", foot, top, 0.065 + 0.008 * (i % 3), charred=0.6)
+        foot = Vector((math.cos(angle) * 0.60, math.sin(angle) * 0.60, 0.07))
+        inner = Vector((math.cos(angle) * 0.09, math.sin(angle) * 0.09, 0.12 + 0.06 * (i % 2)))
+        split_log(f"firewood_{i}", foot, inner, 0.065 + 0.008 * (i % 3), charred=0.6)
     kit.collision_box((-0.95, 0.95, -0.95, 0.95, 0.0, 0.32))
 
 

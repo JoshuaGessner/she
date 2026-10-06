@@ -11633,4 +11633,40 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - Stone tone is still chosen per stone from three greys, which the ink mostly flattens.
 - The chipped corners on the inner face of a squeezed panel scale with it.
 
+## ADR-325 — The dressing is drawn from use: a spoil heap, a coil thrown down, a hearth kerbed with slabs
+
+**Date:** 2026-10-06 · **Status:** accepted · **Within `ART-006` §5; row 3 of `PRO-008`'s production pass**
+
+**Context:** Row 3 of the production pass (ADR-324) holds the set dressing and the camp to what they depict, as the weapons and gear were held to their finds. Five of the nine pieces read true: the ore cart (an Agricola *hunt*), the fallen masonry, the broken bracing, the candles and the fittings. Three did not:
+- **The spoil heap** was ten large rocks of one size with a steel spade.
+- **The rope coil** was a flat sailor's flake of a 6.4 cm hawser.
+- **The camp's hearth** is seen at the start of every run, and was a campsite's: a ring of round boulders and a teepee of three sticks.
+
+**Decision:**
+- **Spoil heap:** what a working throws out.
+  - A faceted cone of fines at its angle of repose, its rings jittered so it reads as tipped loads.
+  - Broken rock of every size: two big pieces rolled to the toe, middling pieces on the flanks, small pieces everywhere.
+  - A wooden spade shod with iron, lying up the slope, as spades were until iron was cheap.
+  - The footprint is unchanged.
+- **Rope coil:** a hemp rope 3.2 cm thick, coiled down in six loops.
+  - Each loop has its own size, sits off the centre of the one below and sags where it crosses another.
+  - The end runs out across the floor, whipped so it does not unlay.
+  - The first rebuild was too regular and read as a spring (seen in review).
+- **Hearth:** as the Norse built one, after the long-hearths of Hofstaðir and L'Anse aux Meadows.
+  - Ten flat slabs set on edge round the ash bed, each with its own width, height and outward lean, their tops left as they split.
+  - The fire is laid as a star: five split logs pushed in from their ends, charred where they meet. That is how a fire is kept all night.
+  - The flames (`Hearth.flames`) rise from the ground at `FIRE_AT` and needed no change.
+- **Unchanged:** the other six pieces, every placement, and every collision box's role.
+
+**Measured:**
+- **`dressing_probe` PASS:**
+  - 409 pieces solid as their height says, 0 wrong.
+  - 0 unbacked, 0 in a doorway, 0 burying anything; 7 of 7 in use.
+  - Same seed, identical pieces.
+- **`art_probe`:** 0 failures.
+- **Triangles:** spoil heap 568, rope coil about 1,800, hearth 1,230.
+- **`--camp-shot`:** the kerbed hearth and star fire under the flames.
+
+**Honest scale:** The spade lies along the heap's flank and is half-lost in the ink at game distance. It is there for the near look.
+
 *Entries below to be added as design decisions are signed off.*
