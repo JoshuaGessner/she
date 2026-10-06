@@ -11577,6 +11577,7 @@ The crevice darkening is baked ambient occlusion by another name. The countersha
 - **`art_probe`:** 0 failures. The byrnie measures 1.04 × 0.07 × 0.82 m, pivoted at its base, with collision.
 - **`--hands-probe`:** the lantern is in the hand, 4 louvres turn 78°, the flame lights, and a teammate's lantern is lit.
 - **`--hands-shot`:** the lantern's cone, horn and open louvres show below the fist.
+- **Corrected after CI:** `--body-probe` failed on a teammate's lantern, whose top hung 0.18 m below the fist. `tol_horn_lantern.grip` still hung it 0.62 m down for the old 68 cm lamp. It is now 0.41 m, putting the ring in the fist (top 1.09 m, fist 1.06 m). The local sweep had been skipped, so CI caught the failure.
 
 **Honest scale:**
 - From its ends the gabled chest reads a little like a house; it reads as a chest from its front.

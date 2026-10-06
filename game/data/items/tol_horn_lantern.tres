@@ -25,6 +25,6 @@ icon = ExtResource("99_icon")
 model = ExtResource("100_model")
 tribute_value = 2
 slot = 2
-grip = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.62, 0)
+grip = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.41, 0)
 traits = Array[ExtResource("2_light")]([SubResource("Resource_light")])
 tags = Array[StringName]([&"gear", &"light", &"horn"])
