@@ -11816,4 +11816,50 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - Lit like this she is mostly silhouette. Her sculpted head and scales show where the fire reaches them, at the hoard and up close, and not from the door.
 - That is the intent for a thing you approach. It is ⟨tune⟩, and the developer's first walk into the room is the check.
 
+## ADR-330 — A teammate holds their weapon and swings it with their arm; and the class screen shows who you would be
+
+**Date:** 2026-10-06 · **Status:** accepted · **Closes Q114; amends `DES-020`'s attachment note** · **Developer's call: "Hand + procedural arm."**
+
+**Context:**
+- **A teammate's weapon floated in front of their head** (Q114). ADR-265 left it there because that copy runs the swing's phase machine, and its wind-up is the telegraph a teammate reads.
+- **The empty right hand hung at the hip** while an axe hovered at the shoulder. It read as a glitch before it read as a swing.
+- **The class screen had nothing to look at:** two cards of text for the one decision a life cannot take back. A first-time player meets it before anything else.
+- **Rendering class portraits for the cards made the floating weapon impossible to miss.**
+- **The options Q114 named:**
+  - leave it until a playtest;
+  - move it to a static hand, which loses the telegraph;
+  - hold it in the hand and drive the arm procedurally from the same phase. That is about a weekend, and is the developer's call.
+
+**Decision:**
+- **The weapon is in the fist.**
+  - **Placement:** `BodyRig.wield` puts a blade in `sock_hand_r` and a bow in `sock_hand_l`, on every peer's copy of every remote body. It is rebuilt only when the weapon changes.
+  - **Turn:** a bow hangs along the arm at rest and stands across it at the draw.
+  - **The head copy** keeps the phase and, on the host, the hitbox. It is drawn for its owner alone (`show_model`). The swing's trail now follows the blade in the hand (`trail_from`).
+- **The arm carries the swing**, read each frame from the copy that runs it, so it costs nothing on the wire.
+  - `MeleeWeapon.arm_pose()` gives *raised* and *cut* with the first-person poses' own easing: the wind-up lifts the upper arm over the head and folds the elbow; the cut brings it down across the front.
+  - A heavy blow raises 1.3×. A glance returns from the raised pose without cutting.
+  - The bow's `pull` raises the bow arm and draws the right hand to the jaw. It eases down after the loose rather than snapping.
+  - The walk's arm swing fades out while the arm is busy.
+  - All the angles are ⟨tune⟩ constants on `BodyRig`.
+- **A thing in use** (a binding, a Waystone) takes the right hand from the blade while it lasts.
+- **Portraits:**
+  - `ClassResource.portrait` is new. Each class card leads with a 2:1 banner of the delver sworn and in their own kit, drawn through the ink pass in a dark studio below the floor. The reference is *Darkest Dungeon*'s hero banners.
+  - `--portrait-shot` makes them into `art/ui/classes/`.
+  - `--teammate-shot` photographs each weapon held at rest, in the wind-up and through the cut (or drawn), for judging the grip and the arm.
+- **`--body-probe` gains a row, asked of a real remote body:**
+  - the seax is in the right fist;
+  - the head copy is hidden;
+  - the wind-up lifts the fist at least 0.5 m.
+
+**Measured:**
+- **`--body-probe`:** the blade is in the fist, the head copy hidden, and the fist rises from 1.07 m to 1.72–1.76 m in the wind-up. The row's first run against the local body (head copy drawn, rig never stepped) failed both checks, so it catches the old state.
+- **These probes pass:** `--hands-probe`, `--verbs-probe`, `--gear-probe`, `--combat-probe`, `--feel-probe` (the swing's trail), `run_coop.py --smoke`, `data_probe`, `--legacy-probe`, `--menu-probe`, `--threshold-probe` and `art_probe`.
+- **`--teammate-shot`:** all six weapons are held. The bow is upright at the draw with the string hand at the jaw.
+- **`--screens-shot`:** the class screen shows both banners at 720p, and the cards fit.
+
+**Honest scale:**
+- **The string doesn't follow the draw hand.** On a teammate's bow the string stays at rest while the right hand comes back. It reads at a distance, not up close.
+- **Two-handers are held one-handed:** spear and hammer have no second hand on the haft.
+- **These are poses, not animation,** and remain ⟨tune⟩ until someone reads a teammate's swing across a room. That is the test Q114 named.
+
 *Entries below to be added as design decisions are signed off.*

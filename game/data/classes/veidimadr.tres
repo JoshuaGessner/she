@@ -1,7 +1,9 @@
-[gd_resource type="Resource" script_class="ClassResource" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="ClassResource" load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
 [ext_resource type="PackedScene" path="res://art/characters/veidimadr_arms.glb" id="2_arms"]
+
+[ext_resource type="Texture2D" path="res://art/ui/classes/veidimadr.png" id="90_portrait"]
 
 [resource]
 script = ExtResource("1_class")
@@ -9,6 +11,7 @@ id = &"veidimadr"
 name_key = &"class.veidimadr.name"
 description_key = &"class.veidimadr.desc"
 exit_key = &"class.veidimadr.exit"
+portrait = ExtResource("90_portrait")
 aspects = Array[StringName]([&"wing", &"hoard", &"maw"])
 verb = &"snare"
 health_scale = 0.8

@@ -766,6 +766,13 @@ func _ready() -> void:
 	_body.visible = not _is_local
 	# And never your own helm: it would stand where the camera is.
 	_rig.show_gear(not _is_local)
+	# The weapon in front of the eyes is yours alone; a teammate's is in their
+	# hand on the rig (ADR-330). Here as well as on an equipment change, which
+	# can arrive before this body knows whose it is.
+	weapon.show_model(_is_local)
+	weapon.trail_from = null if _is_local else _rig.wielded()
+	if ranged != null:
+		ranged.show_model(_is_local)
 	# **Your own hands instead** (ADR-267): the off hand and whatever is being
 	# used, drawn where you can see them. Only for the body you are playing —
 	# a teammate's are on their rig.
@@ -2632,6 +2639,9 @@ func _physics_process(delta: float) -> void:
 		# A teammate's Hold, from the replicated `planted` (ADR-272).
 		_rig.brace(planted)
 		_sound_the_plant()
+		# The swing or the draw, from the copy that runs it on this peer.
+		_rig.swing_arm(weapon.arm_pose())
+		_rig.draw(ranged.pull() if ranged != null and ranged.visible else 0.0)
 		_rig.step(delta,
 			Vector2(moved.x, moved.z).length() / maxf(delta, 0.0001),
 			tuning.walk_speed, stance, _pitch, is_downed())
@@ -3348,6 +3358,14 @@ func _on_equipment_changed() -> void:
 		var worn: ItemInstance = equipment.in_slot(slot)
 		on_the_body[slot] = worn.definition if worn != null else null
 	_rig.wear(on_the_body)
+	# **And the weapon in their hand** (ADR-330, Q114), on every peer but the
+	# owner's — whose copy is the one in front of their own eyes.
+	_rig.wield(in_hand.definition if in_hand != null and (swung != null or drawn != null) else null,
+		drawn != null)
+	weapon.show_model(_is_local)
+	weapon.trail_from = null if _is_local else _rig.wielded()
+	if ranged != null:
+		ranged.show_model(_is_local)
 	if _hands != null:
 		var off: ItemInstance = equipment.in_slot(Enums.Slot.OFF_HAND)
 		_hands.hold(off.definition if off != null else null)

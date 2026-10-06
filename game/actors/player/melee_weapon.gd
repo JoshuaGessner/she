@@ -268,9 +268,14 @@ func _update_pose() -> void:
 				1.0 - pow(1.0 - t, 3.0))
 			# The arc behind it, from the blade's middle to its tip (ADR-303):
 			# the model points along −Z from its grip (ART-006).
+			# On a teammate the blade is in their hand (ADR-330), so the trail
+			# follows that one rather than this unseen copy.
 			if _smear != null and _blade > 0.0:
-				_smear.sample(_model.global_transform * Vector3(0.0, 0.0, -_blade * 0.62),
-					_model.global_transform * Vector3(0.0, 0.0, -_blade))
+				var blade: Transform3D = trail_from.global_transform \
+					if trail_from != null and is_instance_valid(trail_from) \
+					else _model.global_transform
+				_smear.sample(blade * Vector3(0.0, 0.0, -_blade * 0.62),
+					blade * Vector3(0.0, 0.0, -_blade))
 		Phase.RECOVERY:
 			# A glance rebounds from the raised pose: the blade stopped where
 			# it met the wall, and the strike was never made (`DES-018`'s twin
@@ -316,6 +321,46 @@ static func lower_by_draw(node: Node3D, amount: float) -> void:
 
 func phase() -> Phase:
 	return _phase
+
+
+## **What the arm holding this is doing**, for a teammate's body (ADR-330, Q114):
+## `x` how far the blade is raised back over the shoulder, `y` how far through
+## the cut, each 0 to 1 — the same phase and the same easing as the
+## first-person poses above, so the arm a teammate reads is the swing the hitbox
+## is running, wind-up and all. A heavy blow raises past 1.
+func arm_pose() -> Vector2:
+	var t: float = 1.0 - clampf(_remaining / maxf(_duration, 0.0001), 0.0, 1.0)
+	match _phase:
+		Phase.WINDUP:
+			if _heavy:
+				return Vector2(lerpf(1.0, HEAVY_RAISE, smoothstep(0.0, 1.0, t)), 0.0)
+			return Vector2(1.0 - pow(1.0 - t, 2.0), 0.0)
+		Phase.ACTIVE:
+			var cut: float = 1.0 - pow(1.0 - t, 3.0)
+			return Vector2((HEAVY_RAISE if _heavy else 1.0) * (1.0 - cut), cut)
+		Phase.RECOVERY:
+			var back: float = smoothstep(0.0, 1.0, t)
+			if _glancing:
+				return Vector2(1.0 - back, 0.0)
+			return Vector2(0.0, 1.0 - back)
+	return Vector2.ZERO
+
+
+## The blade the arc behind a swing is drawn from, when it is not this copy's
+## own model — a teammate's, held in their hand (ADR-330).
+var trail_from: Node3D = null
+
+
+## How far past a light blow's wind-up a heavy one raises the arm.
+const HEAVY_RAISE: float = 1.3
+
+
+## Draw this weapon's own model or not. A teammate's body holds the weapon in
+## its hand (ADR-330), so on any peer but the owner this copy — the one in front
+## of the head — runs the swing unseen: its phase is still the authority, and
+## its hitbox still the one that decides on the host.
+func show_model(on: bool) -> void:
+	_model.visible = on
 
 
 ## The arc drawn behind the blade, for `--feel-probe`.

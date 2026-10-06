@@ -971,6 +971,10 @@ func _ready() -> void:
 			_ink_probe()
 		elif arg.begins_with("--roster-shot="):
 			_roster_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--portrait-shot="):
+			_portrait_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--teammate-shot="):
+			_teammate_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--threat-shot="):
 			_threat_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--threat-dark-shot="):
@@ -15193,9 +15197,46 @@ func _body_wears(body: Player) -> PackedStringArray:
 			or blade.find_children("*", "MeshInstance3D", true, false).is_empty():
 		problems.append("the seax is in the main hand and the hand is not "
 			+ "drawing the seax's own model")
+	# **And a teammate holds it in the fist, and the arm swings it** (ADR-330,
+	# Q114). Asked of a real remote body, since this probe's own subject is the
+	# local one posed by hand: the copy in front of the head is the owner's
+	# alone, and on a teammate the seax rides `sock_hand_r` and its wind-up
+	# lifts the fist over the head — the telegraph is an arm, not a floating
+	# blade.
+	var mate: Player = _session.spawn_player(998, body.global_position + Vector3(3.0, 0.0, 0.0))
+	var in_fist: bool = false
+	var model_shown: bool = true
+	var fist_low: float = 0.0
+	var fist_high: float = 0.0
+	if mate != null:
+		mate.equipment.clear()
+		mate.equipment.equip(ItemInstance.of(seax, 9510))
+		await _hold(0.4)
+		var mate_rig: BodyRig = mate.rig()
+		var into_mate: Transform3D = mate_rig.global_transform.affine_inverse()
+		in_fist = mate_rig.wielded_in() == BodyRig.WIELD_HAND
+		model_shown = (mate.weapon.get_node("Model") as Node3D).visible
+		fist_low = (into_mate * mate_rig.bone_at("sock_hand_r")).y
+		mate.weapon.begin_owned_swing()
+		var windup: float = (seax.first_trait(WieldableTrait) as WieldableTrait).windup
+		await _hold(windup * 0.8)
+		fist_high = (into_mate * mate_rig.bone_at("sock_hand_r")).y
+		await _hold(0.8)
+		_session.despawn_player(998)
+	print("[body] the blade    %s, head copy %s, fist %.2f m → %.2f m in the wind-up"
+		% ["in the fist" if in_fist else "NOT IN THE FIST",
+			"drawn" if model_shown else "hidden", fist_low, fist_high])
+	if not in_fist:
+		problems.append("a teammate's seax is not in their right fist (ADR-330)")
+	if model_shown:
+		problems.append("a teammate's weapon is drawn in front of their head as "
+			+ "well as in their hand — two blades, one swinging")
+	if fist_high < fist_low + 0.5:
+		problems.append(("the wind-up raised the fist from %.2f m to %.2f m — a "
+			+ "teammate's swing has to be read off the arm") % [fist_low, fist_high])
 	gear.equip(ItemInstance.of(bow, 9505))
 	await get_tree().process_frame
-	var stave: Node = body.ranged.get_node("Model") if body.ranged != null else null
+	var stave: Node = rig.wielded()
 	var stave_high: float = 0.0
 	if stave != null:
 		for node: Node in stave.find_children("*", "MeshInstance3D", true, false):
@@ -15858,6 +15899,187 @@ func _roster_shot(dir: String) -> void:
 		if is_instance_valid(body):
 			body.queue_free()
 	get_tree().quit(0)
+
+
+## **`--portrait-shot=DIR`** (ADR-330): each class as the class screen shows it.
+##
+## A body sworn to the class and dressed in its own kit, stood in a studio
+## built below the floor — a dark ground and backdrop, a warm key from the
+## front and a cold rim behind — and drawn through the ink pass, so the card
+## shows the delver the way the game draws them and not a render from some
+## other tool. Cropped to the card's banner (2:1, chest up, weapon in hand)
+## and written as `<class>.png`; the portraits in `art/ui/classes/` are this
+## shot's output, kept in the repo and set on each `ClassResource.portrait`.
+## Windowed, because a headless render has no pixels (ADR-198's split).
+const PORTRAIT_SIZE: Vector2i = Vector2i(840, 420)
+
+
+## A dark studio below the floor, for a body to be photographed in alone: a
+## ground to stand on, a backdrop, a warm key and a cold rim, and a camera
+## drawing through the ink pass (ADR-330). The level's own interface and
+## enemies are put away first.
+func _studio() -> Node3D:
+	for layer: Node in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		node.process_mode = Node.PROCESS_MODE_DISABLED
+		(node as Node3D).visible = false
+	var studio := Node3D.new()
+	studio.name = "PortraitStudio"
+	studio.position = Vector3(0.0, -300.0, 0.0)
+	add_child(studio)
+	var stone := StandardMaterial3D.new()
+	stone.albedo_color = Color(0.20, 0.19, 0.18)
+	var ground := StaticBody3D.new()
+	var ground_shape := CollisionShape3D.new()
+	var slab := BoxShape3D.new()
+	slab.size = Vector3(12.0, 0.2, 12.0)
+	ground_shape.shape = slab
+	ground_shape.position.y = -0.1
+	ground.add_child(ground_shape)
+	var ground_mesh := MeshInstance3D.new()
+	var ground_box := BoxMesh.new()
+	ground_box.size = slab.size
+	ground_box.material = stone
+	ground_mesh.mesh = ground_box
+	ground_mesh.position.y = -0.1
+	ground.add_child(ground_mesh)
+	studio.add_child(ground)
+	var backdrop := MeshInstance3D.new()
+	var back_box := BoxMesh.new()
+	back_box.size = Vector3(12.0, 8.0, 0.2)
+	back_box.material = stone
+	backdrop.mesh = back_box
+	backdrop.position = Vector3(0.0, 4.0, 2.4)
+	studio.add_child(backdrop)
+	# A warm key from the front and above, like a lantern held up; a cold rim
+	# behind, so the silhouette stands off the dark.
+	var key := OmniLight3D.new()
+	key.light_color = Color(1.0, 0.82, 0.6)
+	key.light_energy = 2.2
+	key.omni_range = 7.0
+	key.shadow_enabled = true
+	key.position = Vector3(-1.4, 2.4, -2.2)
+	studio.add_child(key)
+	var rim := OmniLight3D.new()
+	rim.light_color = Color(0.62, 0.72, 0.95)
+	rim.light_energy = 1.4
+	rim.omni_range = 5.0
+	rim.position = Vector3(1.3, 2.0, 1.4)
+	studio.add_child(rim)
+	var eye := Camera3D.new()
+	eye.name = "Eye"
+	eye.add_child(InkPass.new())
+	studio.add_child(eye)
+	eye.current = true
+	return studio
+
+
+func _portrait_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var studio: Node3D = _studio()
+	var eye := studio.get_node(^"Eye") as Camera3D
+	# Three-quarter, from a little under the eye, chest up: a person you are
+	# about to become, not a figure on a turntable.
+	eye.fov = 34.0
+	eye.position = Vector3(1.05, 1.42, -2.05)
+	eye.look_at(studio.global_position + Vector3(0.10, 1.38, 0.0))
+	var made: int = 0
+	for i: int in ClassCatalogue.all().size():
+		var sworn: ClassResource = ClassCatalogue.all()[i]
+		var body: Player = _session.spawn_player(40 + i, studio.global_position + Vector3(0.0, 0.05, 0.0))
+		if body == null:
+			printerr("[portrait] FAIL no body for %s" % sworn.id)
+			continue
+		body.sworn = sworn.id
+		var gear: Equipment = body.equipment
+		gear.clear()
+		var seed: int = 9600
+		for id: StringName in sworn.kit:
+			var item: ItemResource = ItemCatalogue.by_id(id)
+			if item != null and item.slot != Enums.Slot.NONE:
+				gear.equip(ItemInstance.of(item, seed))
+				seed += 1
+		await _hold(1.2)
+		body.process_mode = Node.PROCESS_MODE_DISABLED
+		await RenderingServer.frame_post_draw
+		await RenderingServer.frame_post_draw
+		var frame: Image = get_viewport().get_texture().get_image()
+		var size: Vector2i = frame.get_size()
+		var wide: int = size.x
+		var tall: int = int(float(wide) * float(PORTRAIT_SIZE.y) / float(PORTRAIT_SIZE.x))
+		var card: Image = frame.get_region(Rect2i(0, (size.y - tall) / 2, wide, tall))
+		card.resize(PORTRAIT_SIZE.x, PORTRAIT_SIZE.y, Image.INTERPOLATE_LANCZOS)
+		card.save_png("%s/%s.png" % [dir, sworn.id])
+		print("[portrait] %s, %d piece(s) of kit worn" % [sworn.id, seed - 9600])
+		made += 1
+		body.queue_free()
+		await _hold(0.2)
+	get_tree().quit(0 if made == ClassCatalogue.all().size() else 1)
+
+
+## **`--teammate-shot=DIR`** (ADR-330, Q114): a teammate holding each weapon,
+## at rest, at the top of its wind-up and through its cut — or, for the bow,
+## at rest and at full draw. The weapon is in their hand and the arm carries the
+## swing; this is where the grip and the arm's angles are judged, since a
+## teammate's swing is a telegraph and has to read from across a room.
+const TEAMMATE_WEAPONS: Array[StringName] = [&"wpn_seax", &"wpn_bearded_axe",
+	&"wpn_dvergar_hammer", &"wpn_ash_spear", &"rlc_regin_blade", &"wpn_yew_bow"]
+
+
+func _teammate_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var studio: Node3D = _studio()
+	var eye := studio.get_node(^"Eye") as Camera3D
+	# From the front and to the body's right, wide enough for a raised spear.
+	eye.fov = 40.0
+	eye.position = Vector3(2.4, 1.45, -3.2)
+	eye.look_at(studio.global_position + Vector3(0.0, 1.25, 0.0))
+	var seed: int = 9700
+	for i: int in TEAMMATE_WEAPONS.size():
+		var item: ItemResource = ItemCatalogue.by_id(TEAMMATE_WEAPONS[i])
+		if item == null:
+			continue
+		var body: Player = _session.spawn_player(60 + i, studio.global_position + Vector3(0.0, 0.05, 0.0))
+		if body == null:
+			printerr("[teammate] FAIL no body for %s" % item.id)
+			continue
+		body.equipment.clear()
+		body.equipment.equip(ItemInstance.of(item, seed))
+		seed += 1
+		await _hold(1.0)
+		var frames: Array = []
+		await _photograph("%s/%s_rest.png" % [dir, item.id])
+		frames.append("rest")
+		if body.ranged != null and body.ranged.visible:
+			body.ranged.begin_owned_draw()
+			await _hold(body.ranged.kit().draw_seconds * 0.7)
+			body.process_mode = Node.PROCESS_MODE_DISABLED
+			await _photograph("%s/%s_drawn.png" % [dir, item.id])
+			frames.append("drawn")
+		elif body.weapon.held() != null:
+			var blade: WieldableTrait = body.weapon.held()
+			body.weapon.begin_owned_swing()
+			await _hold(blade.windup * 0.6)
+			body.process_mode = Node.PROCESS_MODE_DISABLED
+			await _photograph("%s/%s_windup.png" % [dir, item.id])
+			body.process_mode = Node.PROCESS_MODE_INHERIT
+			await _hold(blade.windup * 0.4 + blade.active * 0.5)
+			body.process_mode = Node.PROCESS_MODE_DISABLED
+			await _photograph("%s/%s_cut.png" % [dir, item.id])
+			frames.append("windup, cut")
+		var hand: StringName = body.rig().wielded_in()
+		print("[teammate] %s in %s, %s" % [item.id,
+			hand if hand != &"" else &"NO HAND", ", ".join(frames)])
+		body.queue_free()
+		await _hold(0.2)
+	get_tree().quit(0)
+
+
+func _photograph(path: String) -> void:
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(path)
 
 
 ## **`--threat-shot=PATH`** (`M4-T08`, ADR-269): a body standing in the dark,

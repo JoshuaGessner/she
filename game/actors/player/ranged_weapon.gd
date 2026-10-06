@@ -135,6 +135,16 @@ func phase() -> Phase:
 	return _phase
 
 
+## How far the string is drawn, 0 to 1, for a teammate's arms (ADR-330).
+func pull() -> float:
+	return _pull
+
+
+## As `MeleeWeapon.show_model`: a teammate holds the bow on their own body.
+func show_model(on: bool) -> void:
+	_model.visible = on
+
+
 func is_busy() -> bool:
 	return _phase != Phase.IDLE
 

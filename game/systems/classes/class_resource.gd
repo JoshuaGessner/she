@@ -48,6 +48,10 @@ const ASPECTS: Array[StringName] = [
 ## *"How do they get out?"* — `DES-011` defines every class by its answer to
 ## that question first, before any stat. The select screen leads with it.
 @export var exit_key: StringName = &""
+## **Who this is, drawn** (ADR-330): the class sworn and in its own kit, as the
+## game's ink draws a teammate, on the card you choose a life from. Made by
+## `--portrait-shot`; absent, the card is text alone.
+@export var portrait: Texture2D = null
 
 @export_group("Identity")
 ## Which three of `DES-004`'s five this class may enter (ADR-009).

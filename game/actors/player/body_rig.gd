@@ -114,10 +114,11 @@ const POSED: Array[String] = [
 ## ADR-265).
 ##
 ## Three of the table's rows ride sockets. The remaining rows use their
-## prescribed attachment method: **the main hand** is already drawn, by `MeleeWeapon` and
-## `RangedWeapon` in front of the head, because that copy is the one that swings
-## and a teammate reads the wind-up off it — a second blade on `sock_hand_r`
-## would hang still while the first one struck. **Body and arms** are *skinned*
+## prescribed attachment method: **the main hand** is held in the right fist
+## (`wield`, ADR-330, closing Q114) and the arm is posed by the swing — the
+## weapon's own phase, read every frame, so the wind-up a teammate reads is the
+## one its hitbox runs. Until ADR-330 it floated in front of the head, where
+## the first-person copy draws it. **Body and arms** are *skinned*
 ## in `DES-020`, deforming with the torso and forearm. Their source scenes only
 ## carry a skeleton so Blender can author the weights; `ItemResource.wear_on`
 ## remaps those skins by bone name and attaches the meshes to this skeleton.
@@ -132,6 +133,28 @@ const SOCKETS: Dictionary = {
 }
 ## The two slots that deform with this skeleton rather than ride a socket.
 const SKINNED_SLOTS: Array[Enums.Slot] = [Enums.Slot.ARMS, Enums.Slot.BODY]
+
+## **The weapon in the hand** (ADR-330). A weapon's own frame is `ART-006`'s:
+## the grip at the origin, the blade along −Z, its up along +Y. These place
+## that frame in a closed fist on the rig's hand sockets ⟨tune⟩, set against
+## `--teammate-shot`.
+const WIELD_HAND: StringName = &"sock_hand_r"
+const BOW_HAND: StringName = &"sock_hand_l"
+const WIELD_TURN: Vector3 = Vector3(-1.45, 0.0, 0.0)
+## A bow hangs along the arm at rest and stands across it at the draw.
+const BOW_TURN: Vector3 = Vector3(0.0, 0.0, 0.0)
+const BOW_DRAWN_TURN: Vector3 = Vector3(-1.5708, 0.0, 0.0)
+## How the arm carries a swing, radians ⟨tune⟩: the wind-up lifts the upper arm
+## forward and over and folds the elbow, so the blade stands behind the head;
+## the cut brings the arm down through the front and opens the elbow.
+const ARM_RAISE: float = 2.5
+const ELBOW_RAISE: float = 1.6
+const ARM_CUT: float = 1.05
+const ELBOW_CUT: float = 0.10
+## A bow is held up before it is drawn, the draw hand brought back to the jaw.
+const BOW_ARM: float = 1.45
+const DRAW_ARM: float = 1.35
+const DRAW_ELBOW: float = 2.0
 ## The base rig is a blockout person, not a layer of clothing. A body garment
 ## therefore replaces its torso, legs and upper arms while preserving the head,
 ## neck, forearms and hands that the garment is designed to leave exposed.
@@ -180,6 +203,21 @@ var _worn: Dictionary = {}
 ## `skeleton` NodePath resolves to the shared skeleton.
 var _skinned: Dictionary = {}
 var _gear_shown: bool = true
+## The weapon held (ADR-330): its holder node on the hand socket, what it is,
+## and whether it is a bow — which the left hand holds and the right draws.
+var _wielded: Node3D = null
+var _wielded_item: ItemResource = null
+var _bow: bool = false
+var _raise: float = 0.0
+var _cut: float = 0.0
+var _pull: float = 0.0
+var _pull_shown: float = 0.0
+## How fast a bow arm settles after a loose, per second ⟨tune⟩ — the string
+## goes home at once, the arms come down.
+const BOW_SETTLE: float = 6.0
+## The thing in the right hand being *used* (a binding, a Waystone), which
+## takes the hand from the weapon while it lasts.
+var _use_look: Node3D = null
 ## The lantern's shutter, eased, and what the right hand is using (ADR-267).
 var _open: float = 0.0
 var _using: ItemResource = null
@@ -388,17 +426,22 @@ func show_use(delta: float, lit: bool, mending: float, leaving: float) -> void:
 		return
 	if using != _using:
 		_using = using
-		for child: Node in hand.get_children():
-			child.free()
+		if _use_look != null and is_instance_valid(_use_look):
+			_use_look.free()
+		_use_look = null
 		if using != null:
 			var look: Node3D = using.look()
 			if look != null:
 				# Held by its middle, hanging below the fist.
 				look.position = Vector3(0.0, -0.12, 0.0)
 				hand.add_child(look)
-	if hand.get_child_count() == 0:
+				_use_look = look
+		# A thing in use takes the right hand from the weapon while it lasts.
+		if _wielded != null and is_instance_valid(_wielded) and not _bow:
+			_wielded.visible = _use_look == null
+	if _use_look == null:
 		return
-	var held := hand.get_child(0) as Node3D
+	var held := _use_look
 	if using != null and using.has_trait(ExtractionTrait):
 		HeldLook.waystone(held, done)
 	elif using != null and using.has_trait(MendingTrait):
@@ -407,10 +450,59 @@ func show_use(delta: float, lit: bool, mending: float, leaving: float) -> void:
 
 ## What the right hand is holding while it is used, for `--hands-probe`.
 func in_use() -> Node3D:
-	var hand := _sockets.get(USE_SOCKET, null) as BoneAttachment3D
-	if hand == null or hand.get_child_count() == 0:
-		return null
-	return hand.get_child(0) as Node3D
+	return _use_look if _use_look != null and is_instance_valid(_use_look) else null
+
+
+## **Hold the main-hand weapon** (ADR-330): a blade in the right fist, or a bow
+## in the left. Called on every equipment change after `wear`, which may have
+## rebuilt the off-hand socket a bow rides.
+func wield(item: ItemResource, bow: bool) -> void:
+	if _skeleton == null:
+		return
+	if item == _wielded_item and bow == _bow and _wielded != null and is_instance_valid(_wielded):
+		return
+	_wielded_item = item
+	_bow = bow
+	if _wielded != null and is_instance_valid(_wielded):
+		_wielded.free()
+	_wielded = null
+	if item == null:
+		return
+	var hand: BoneAttachment3D = _attach(BOW_HAND if bow else WIELD_HAND)
+	var look: Node3D = item.look()
+	if hand == null or look == null:
+		return
+	var holder := Node3D.new()
+	holder.name = "Wielded"
+	holder.rotation = BOW_TURN if bow else WIELD_TURN
+	holder.add_child(look)
+	holder.visible = _gear_shown and (bow or _use_look == null)
+	hand.add_child(holder)
+	_wielded = holder
+
+
+## Which hand socket the weapon is held in, or empty — for `--body-probe`.
+func wielded_in() -> StringName:
+	if wielded() == null:
+		return &""
+	return BOW_HAND if _bow else WIELD_HAND
+
+
+## The weapon held, for `--body-probe` and for the swing's trail.
+func wielded() -> Node3D:
+	return _wielded if _wielded != null and is_instance_valid(_wielded) else null
+
+
+## The swing this frame: raised 0 to 1 (past 1 for a heavy blow), cut 0 to 1
+## — `MeleeWeapon.arm_pose`, read by the body on every peer.
+func swing_arm(pose: Vector2) -> void:
+	_raise = pose.x
+	_cut = pose.y
+
+
+## The string this frame, 0 to 1 — `RangedWeapon.pull`.
+func draw(pull: float) -> void:
+	_pull = pull
 
 
 ## The model riding `slot`, or null — for `--body-probe`, which asks where it
@@ -648,11 +740,34 @@ func step(delta: float, speed: float, of_walking: float, stance: float,
 	# The left arm is the shield's (`sock_hand_l`), and a Hold brings it up
 	# across the chest: the one part of the pose a teammate across a room reads
 	# as *they are holding this door*.
-	_turn("upper_arm_l", -swing * (ARM_SWING / THIGH_SWING) + _brace * BRACE_SHIELD_ARM)
-	_turn("upper_arm_r", swing * (ARM_SWING / THIGH_SWING))
+	# **A swing takes the arm from the walk** (ADR-330): the wind-up lifts it
+	# up and over, the cut brings it down through the front. A bow is held up
+	# in the left hand while the right draws back to the jaw.
+	# Up with the draw at once; down after the loose in its own time.
+	_pull_shown = _pull if _pull >= _pull_shown \
+		else move_toward(_pull_shown, _pull, delta * BOW_SETTLE)
+	var pull: float = _pull_shown
+	var busy: float = clampf(maxf(maxf(_raise, _cut), pull * 1.5), 0.0, 1.0)
+	var arm_r: float = swing * (ARM_SWING / THIGH_SWING) * (1.0 - busy)
+	var elbow_r: float = absf(swing) * 0.35 * (1.0 - busy)
+	var arm_l: float = -swing * (ARM_SWING / THIGH_SWING)
+	var elbow_l: float = absf(swing) * 0.35
+	if _bow:
+		var up: float = clampf(pull * 2.0, 0.0, 1.0)
+		if _wielded != null and is_instance_valid(_wielded):
+			_wielded.rotation = BOW_TURN.lerp(BOW_DRAWN_TURN, up)
+		arm_l = lerpf(arm_l, BOW_ARM, up)
+		elbow_l *= 1.0 - up
+		arm_r += pull * DRAW_ARM
+		elbow_r += pull * DRAW_ELBOW
+	else:
+		arm_r += _raise * ARM_RAISE + _cut * ARM_CUT
+		elbow_r += _raise * ELBOW_RAISE + _cut * ELBOW_CUT
+	_turn("upper_arm_l", arm_l + _brace * BRACE_SHIELD_ARM)
+	_turn("upper_arm_r", arm_r)
 	# Elbows bend forward, which for a hanging forearm is the positive sense.
-	_turn("forearm_l", absf(swing) * 0.35 + _brace * BRACE_SHIELD_ELBOW)
-	_turn("forearm_r", absf(swing) * 0.35)
+	_turn("forearm_l", elbow_l + _brace * BRACE_SHIELD_ELBOW)
+	_turn("forearm_r", elbow_r)
 
 	# An upright segment tips *back* on a positive turn, so a body folding
 	# forward over its knees is a negative one.

@@ -4,7 +4,7 @@ title: Equipment & Gear Slots
 status: accepted
 owner: design
 tags: [equipment, gear, slots, inventory, visual, first-person]
-updated: 2026-09-28
+updated: 2026-10-06
 related: [DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006]
 ---
 
@@ -157,7 +157,7 @@ Godot is Y-up, −Z forward. A weapon authored pointing +Y into a socket facing 
 
 ### As built (ADR-265)
 
-The offset is `ItemResource.grip`, in the socket's own frame, and it is set on every item that is worn: the helm, the shield, the lantern and both packs. A weapon's grip is identity, because `ART-006` pivots weapons at the grip already. **Three slots ride the rig** — head, off hand, pack — on every teammate's body, from the slots the wire already carries. **The main hand does not**: the blade and the bow are drawn in front of the head, where their wind-up is animated, and that copy is the one a teammate reads a swing from. **Body and arms do not**, because they are skinned here and what exists for them are props; they wait for skinned meshes. The hip sockets are unused, because nothing is *stowed* yet — a weapon not in the hand is in the bag.
+The offset is `ItemResource.grip`, in the socket's own frame, and it is set on every item that is worn: the helm, the shield, the lantern and both packs. A weapon's grip is identity, because `ART-006` pivots weapons at the grip already. **Three slots ride the rig** — head, off hand, pack — on every teammate's body, from the slots the wire already carries. **The main hand rides it too, since ADR-330** (closing Q114). A blade is held in the right fist (`sock_hand_r`) and a bow in the left (`sock_hand_l`). The arm carries the swing: the wind-up lifts the fist over the head, the cut brings it down across the front, and a draw raises the bow and brings the string hand to the jaw. It is driven every frame by the phase of the copy that runs the swing, so the telegraph a teammate reads is the one the hitbox keeps. That copy, in front of the head, is now drawn for its owner alone. **Body and arms do not**, because they are skinned here and what exists for them are props; they wait for skinned meshes. The hip sockets are unused, because nothing is *stowed* yet — a weapon not in the hand is in the bag.
 
 **The off hand is seen by you** (ADR-267), as the slot table says it must be: a lantern hangs in the lower left of the view with its louvred shutter opening as it is lit, and a shield comes across on guard. A binding being tied and a Waystone being spent are drawn in both hands, and the same states show on a teammate's rig — one function (`HeldLook`) poses both, so a state reads the same to the two people it matters to.
 

@@ -100,6 +100,17 @@ func _card(entry: ClassResource) -> Control:
 	card.add_theme_constant_override("separation", 10)
 	plate.add_child(card)
 
+	# Who you would be, before what they do (ADR-330): a Darkest Dungeon
+	# banner, the delver in their own kit and the game's own ink.
+	if entry.portrait != null:
+		var face := TextureRect.new()
+		face.texture = entry.portrait
+		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		face.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, (CARD_WIDTH - 40.0) * 0.5)
+		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		card.add_child(face)
+
 	var pick: Button = MenuStyle.button(entry.display())
 	pick.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, 48.0)
 	pick.pressed.connect(func() -> void: _commit(entry))
