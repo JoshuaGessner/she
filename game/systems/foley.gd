@@ -161,7 +161,11 @@ static func _recorded(sound: Sound) -> Array:
 		var name: String = (Sound.keys()[sound] as String).to_lower()
 		var all: Array = []
 		for take: int in int(RECORDED[sound]):
-			all.append(load(TAKES % [name, take]))
+			# A deep copy, kept: a voice holds this, and any voice still alive
+			# when the game closes would otherwise hold the file's own packets,
+			# which the engine reports as a resource still in use — an exit
+			# error, where an unpathed copy is at most a leak warning.
+			all.append((load(TAKES % [name, take]) as AudioStream).duplicate(true))
 		_takes[sound] = all
 	return _takes[sound] as Array
 

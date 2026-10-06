@@ -11705,6 +11705,7 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 
 **Honest scale:**
 - **Not yet recorded:** a barrow's grind and the swing. These are the obvious next recordings, and need a CC0 source this pass did not have.
+- **Corrected after CI:** `--combat-probe` ended with *10 resources still in use at exit*. The gym leaks sound players at quit, as it always has. Holding takes loaded from disk, that leak became an exit error, which the sweep fails on, where the old path-less synth only warned. `Foley` now keeps a deep copy of each take, so a leaked player holds nothing with a path. The full local sweep passes.
 - **The fire, recorded after the first commit.** The camp's crackle is a seamless 12 s loop: tail crossfaded into head, matched to the synthesised loop's loudness over its whole length. It is cut from PagDev's CC0 *Fireplace Sound Loop* (OpenGameArt; a mono excerpt and its licence are vendored). `Foley.LOOPED` holds sounds recorded *as* loops, and only those may loop. Each player gets a deep copy: the Threshold leaks a few nodes at quit, as before, and a shallow copy left the file's packets referenced — an exit error the sweep would read as a failure (`--threshold-probe`, seen and fixed).
 - **Not tuned by ear:** the mix was matched by measurement, not listened to on speakers here. The developer's first listen is the real check, and every level is ⟨tune⟩.
 
