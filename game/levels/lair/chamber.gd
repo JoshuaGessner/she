@@ -2229,6 +2229,16 @@ func _legacy_probe() -> void:
 		problems.append("the flow does not open on *what you learned* — ADR-006 "
 			+ "puts it first because it is the answer to the question a player "
 			+ "is actually asking after a death")
+	# **Its first sentence is true at every count** (ADR-332). It read *"No
+	# descent returns nothing. This lineage carries 0 lessons"* at a first
+	# death, which is the common case, and *"1 lessons"* at the next.
+	for count: int in [0, 1, 5]:
+		var said: String = screen.learned_line(count)
+		var wrong: bool = said.begins_with("legacy.") or said.contains("0 lessons") \
+				or said.contains("1 lessons") or (count == 5 and not said.contains("5"))
+		print("[legacy] learned at %d          %s" % [count, "ok" if not wrong else said])
+		if wrong:
+			problems.append("at %d lesson(s) the death screen says '%s'" % [count, said])
 	var offered: Array[Dictionary] = screen.offers()
 	print("[legacy] offered              %d thing(s) and lesson(s)" % offered.size())
 	if offered.size() < 4:

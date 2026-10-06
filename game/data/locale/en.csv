@@ -118,6 +118,8 @@ runover.body,"Your ember is down there, and everything you were carrying is with
 runover.go,"TO THE FIRE"
 legacy.learned.title,"What you learned"
 legacy.learned.body,"No descent returns nothing. This lineage carries %d lessons out of the Deep — where things were, what they did, and who would speak to you."
+legacy.learned.one,"No descent returns nothing. This lineage carries its first lesson out of the Deep — where something was, what it did, or who would speak to you."
+legacy.learned.none,"Nothing yet. What she will not let one life keep — tribute past what its rank can hold — is what a lineage learns, and this one has not given her that much."
 legacy.learned.life,"That life was a %s, at rank %d. It is over."
 legacy.learned.next,"And what she remembers"
 legacy.keep.title,"She will remember %d things"

@@ -11914,4 +11914,33 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **The tabs need a press to change.** No shoulder button pages through them; a pad reaches them by moving focus up.
 - **Impact feel (`PRO-008` row 5's other half) is untouched.**
 
+## ADR-332 — The death screen's first sentence is true at every count
+
+**Date:** 2026-10-06 · **Status:** accepted · **`PRO-008` row 5**
+
+**Context:**
+- **The Legacy screen opens on *What you learned*** (ADR-006: show what a death gave before what it took). Its first line was one template:
+  > *"No descent returns nothing. This lineage carries %d lessons out of the Deep…"*
+- **Zero is the common case at a first death.** Lessons are only the tribute past a rank's cap (`GameState.tribute`), so a player's first death usually reads *"No descent returns nothing. This lineage carries 0 lessons"*. That contradicts itself on the screen where ADR-006's promise is made.
+- **At one lesson it read *"1 lessons"*.**
+- **The line ran about 1,000 px wide at 1152 × 648**, about 150 characters, because it wrapped only at the window's margins.
+- **`LegacyTitle` drew in the engine's pure white.** It was one of the three roles `MenuStyle` still listed as *never given the house style*.
+
+**Decision:**
+- **Three sentences, chosen by count** (`LegacyScreen.learned_line`):
+  - **none:** *"Nothing yet. What she will not let one life keep — tribute past what its rank can hold — is what a lineage learns, and this one has not given her that much."* It says what a lesson is, which is the thing a first death has not yet taught.
+  - **one:** the original sentence, singular.
+  - **more than one:** the original sentence unchanged.
+- **Body text wraps at a 560 px measure**, centred, as the run-over screen already does.
+- **`LegacyTitle` reads the `Text` tone**, as every other title does.
+- **`--legacy-probe` gains a row** asking the sentence at 0, 1 and 5. It fails on a missing key, on *"0 lessons"* or *"1 lessons"*, or on a count that does not appear.
+
+**Measured:**
+- **These probes pass:** `--legacy-probe` (ok at 0, 1 and 5), `--threshold-probe` (the screen it opens over) and `--menu-probe`.
+- **`--screens-shot` at 1152 × 648:** the line wraps in two lines under the title.
+
+**Honest scale:**
+- **The deeds banner's two roles still draw in the engine's white** (`DeedsTitle`, `DeedName`). They are next, and should be looked at rather than flipped.
+- **The *none* sentence is ⟨tune⟩ copy.** Whether a first-time player reads it as a hint or as a scold is a playtest question.
+
 *Entries below to be added as design decisions are signed off.*

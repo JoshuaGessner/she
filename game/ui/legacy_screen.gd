@@ -34,6 +34,9 @@ signal finished
 const MARGIN: float = 48.0
 
 
+## The width a line of body text wraps at. ⟨tune⟩
+const MEASURE: float = 560.0
+
 var _panel: int = 0
 var _column: VBoxContainer = null
 
@@ -74,6 +77,20 @@ func _heading(text: String) -> void:
 	_column.add_child(label)
 
 
+## **What the lineage learned, in a sentence that is true at every count**
+## (ADR-332). It read *"No descent returns nothing. This lineage carries 0
+## lessons"* — and 0 is the common case at a first death, because lessons are
+## only the tribute past a rank's cap (`GameState.tribute`). A death screen
+## that contradicts itself in its first line is the one place ADR-006's promise
+## cannot afford to sound like a template. At 1 it read *"1 lessons"*.
+func learned_line(count: int) -> String:
+	if count <= 0:
+		return tr("legacy.learned.none")
+	if count == 1:
+		return tr("legacy.learned.one")
+	return tr("legacy.learned.body") % count
+
+
 func _line(text: String) -> void:
 	var label := Label.new()
 	label.text = text
@@ -82,6 +99,12 @@ func _line(text: String) -> void:
 	# In the house style (ADR-290): this screen was built before the theme had
 	# roles and drew in the engine's own label until now.
 	label.theme_type_variation = MenuStyle.BODY_TEXT
+	# **A measure, not the window** (ADR-332). A sentence wrapped only at the
+	# screen's margins ran a thousand pixels in one line, about 150 characters
+	# where 60 to 75 is what an eye tracks back from. The run-over screen
+	# already wraps at a column; this matches it.
+	label.custom_minimum_size = Vector2(MEASURE, 0.0)
+	label.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_column.add_child(label)
 
 
@@ -93,7 +116,7 @@ func _show_what_you_learned() -> void:
 	_panel = 0
 	_clear()
 	_heading(tr("legacy.learned.title"))
-	_line(tr("legacy.learned.body") % GameState.lineage_progress)
+	_line(learned_line(GameState.lineage_progress))
 	var went: Dictionary = GameState.last_life
 	_line(tr("legacy.learned.life") % [
 		_class_name(StringName(went.get("class_id", ""))), int(went.get("rank", 1))])
