@@ -1,7 +1,7 @@
 [
   {
     "name": "delvings_wall_2x26",
-    "triangles": 672,
+    "triangles": 1352,
     "bounds_blender": [
       [
         -1.0,
@@ -19,7 +19,7 @@
   },
   {
     "name": "delvings_wall_2x40",
-    "triangles": 980,
+    "triangles": 956,
     "bounds_blender": [
       [
         -1.0,
@@ -37,7 +37,7 @@
   },
   {
     "name": "delvings_wall_2x70",
-    "triangles": 1816,
+    "triangles": 2408,
     "bounds_blender": [
       [
         -1.0,
@@ -55,7 +55,7 @@
   },
   {
     "name": "delvings_wall_2x40_b",
-    "triangles": 1156,
+    "triangles": 1700,
     "bounds_blender": [
       [
         -1.0,
@@ -73,7 +73,7 @@
   },
   {
     "name": "delvings_doorway",
-    "triangles": 1796,
+    "triangles": 1680,
     "bounds_blender": [
       [
         -2.0,
@@ -91,7 +91,7 @@
   },
   {
     "name": "delvings_corner_inner",
-    "triangles": 1872,
+    "triangles": 2404,
     "bounds_blender": [
       [
         -1.0,
@@ -127,7 +127,7 @@
   },
   {
     "name": "delvings_floor_2x2",
-    "triangles": 232,
+    "triangles": 420,
     "bounds_blender": [
       [
         -1.0,
@@ -145,7 +145,7 @@
   },
   {
     "name": "delvings_floor_2x2_b",
-    "triangles": 364,
+    "triangles": 564,
     "bounds_blender": [
       [
         -1.0,
@@ -163,7 +163,7 @@
   },
   {
     "name": "delvings_ceiling_2x2",
-    "triangles": 632,
+    "triangles": 764,
     "bounds_blender": [
       [
         -1.0,
@@ -199,7 +199,7 @@
   },
   {
     "name": "delvings_ledge_edge",
-    "triangles": 584,
+    "triangles": 496,
     "bounds_blender": [
       [
         -1.0,

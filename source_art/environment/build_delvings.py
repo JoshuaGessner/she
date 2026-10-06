@@ -7,6 +7,7 @@ The exact outer bounds live on the stone, not on collision padding.
 import bpy
 import math
 import json
+import random
 from pathlib import Path
 from mathutils import Vector
 
@@ -93,31 +94,117 @@ def proxy(center, size, name='solid'):
     o.display_type = 'WIRE'
     return o
 
+def stone(name, outline, depth, center, mat, bevel):
+    """One block: an outline in the wall's face (x along, z up) cut through
+    `depth`, centred on `center`, its arrises worn by `bevel`."""
+    cx, cy, cz = center
+    n = len(outline)
+    verts = [(cx+u, cy+s*depth/2, cz+v) for s in (-1, 1) for u, v in outline]
+    faces = [tuple(range(n)), tuple(reversed(range(n, 2*n)))]
+    faces += [(i, i+n, (i+1) % n+n, (i+1) % n) for i in range(n)]
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    o = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(o)
+    return finish(o, name, mat, bevel)
+
+## How far a stone carrying a ring is dressed back from the face: deep enough
+## for the ring to hang inside the panel, and short of the core's face at
+## 0.020, which it would otherwise share and fight.
+SET_BACK = .016
+
+def ring_bolt(x, z, face, depth):
+    """A forged ring on a pinned plate, hanging flat against a stone sunk to
+    take it, so the iron stays inside the panel's face (`kit_probe`)."""
+    s = -1 if face < 0 else 1
+    plane = s*(depth/2 - SET_BACK)
+    box('ring_plate', (x, plane + s*.003, z), (.07, .006, .07), 'iron', .002)
+    for dx, dz in ((-.022, .022), (.022, .022), (-.022, -.022), (.022, -.022)):
+        pin('plate_nail', (x+dx, plane + s*.0065, z+dz), radius=.007, depth=.003, axis=(0, s, 0))
+    bpy.ops.mesh.primitive_torus_add(major_radius=.045, minor_radius=.0065, major_segments=12,
+        minor_segments=4, location=(x, plane + s*.0095, z-.050), rotation=(math.pi/2, 0, 0))
+    finish(bpy.context.object, 'iron_ring', 'iron')
+
+## Course heights, bottom up, as a mason sets them: a deep footing course and
+## then courses as the quarry gave them, never two the same in a row.
+COURSING = ([1.35, .85, 1.05, .8, 1.2, .9, 1.1, .95, .85, 1.15, 1.0, .9, 1.05],
+            [1.25, .9, 1.1, .85, 1.0, 1.2, .8, 1.05, .95, 1.15, .85, 1.0, 1.1])
+
 def wall(width, height, depth=.3, x=0, y=0, z=0, variant=0):
+    """Dressed, coursed masonry, built and left (`ART-006` Band 1).
+
+    Courses vary in height and stones in length, laid to bond — no joint
+    within a hand of the joint below it. Every stone's arrises are worn by its
+    own amount, one in seven has lost a corner, and stones sit a little in from
+    the wall's face by their own amounts, as a wall settles. All of it inside
+    the panel's exact envelope, which `kit_probe` holds to a millimetre: a
+    stone may sink from the face and never stand past it. Seeded from the
+    panel's own size and variant, so a rebuild is the same wall.
+    """
+    rng = random.Random(f'{width:.2f}/{height:.2f}/{depth:.2f}/{variant}')
     # Solid recessed backing keeps seams closed, while chamfered courses ink.
     box('masonry_core', (x,y,z+height/2), (width,depth-.04,height), 'dark_stone', 0)
     rows = max(1, round(height / (.55 if variant == 0 else .48)))
-    weights = [([1.15,.85,1.0] if variant==0 else [.8,1.2,1.0,.9])[i%(3 if variant==0 else 4)] for i in range(rows)]
-    heights=[height*w/sum(weights) for w in weights]
-    bottom=z
+    weights = [COURSING[variant % 2][i % len(COURSING[0])] for i in range(rows)]
+    heights = [height*w/sum(weights) for w in weights]
+    # A ring or two for a lamp or a rope, each on a stone dressed back
+    # to take it — chosen before the courses, so the stone is laid sunk.
+    rings = []
+    if width >= 1.6 and height >= 2.4:
+        for _ in range(1 if height < 5 else 2):
+            rings.append((rng.uniform(-width/2 + .4, width/2 - .4),
+                          z + rng.uniform(1.5, min(2.2, height - .4))))
+    bottom = z
+    below = []
+    full = True
     for row in range(rows):
-        rh=heights[row]
-        spacing = [.78,.91,.69][(row+variant)%3]
-        start = -width/2
-        cuts = [start]
-        cut = start + (spacing/2 if row%2 else spacing)
-        while cut < width/2-.1:
-            cuts.append(cut)
-            cut += spacing
+        rh = heights[row]
+        cuts = [-width/2]
+        if width >= .5:
+            while True:
+                nxt = cuts[-1] + rng.uniform(.48, .95)
+                # Bond: step clear of the joint below.
+                for j in below:
+                    if abs(nxt - j) < .12:
+                        nxt = j + .16
+                if nxt > width/2 - .28:
+                    break
+                cuts.append(nxt)
         cuts.append(width/2)
-        for a,b in zip(cuts,cuts[1:]):
+        below = cuts[1:-1]
+        for i, (a, b) in enumerate(zip(cuts, cuts[1:])):
             gap_a = .006 if a != -width/2 else 0
             gap_b = .006 if b != width/2 else 0
-            box('course_%02d'%row, (x+(a+b+gap_a-gap_b)/2,y,bottom+rh/2),
-                (b-a-gap_a-gap_b,depth,rh-.008),
-                ['stone','stone','pale_stone','stone','dark_stone'][(row+len(bpy.context.scene.objects))%5],
-                min(.028,.07*rh,.055*(b-a)))
-        bottom+=rh
+            u0, u1 = a + gap_a, b - gap_b
+            hh = (rh - .008) / 2
+            outline = [(u0, -hh), (u1, -hh), (u1, hh), (u0, hh)]
+            if rng.random() < 1/7 and u1 - u0 > .3:
+                # A spalled corner: two cuts where there was one arris.
+                k = rng.randrange(4)
+                cu, cv = rng.uniform(.04, .09), rng.uniform(.03, min(.07, hh))
+                px, pz = outline[k]
+                sx = 1 if k in (0, 3) else -1
+                sz = 1 if k in (0, 1) else -1
+                # In winding order: off the edge arriving at the corner, then
+                # onto the edge leaving it.
+                chip = [(px, pz + sz*cv), (px + sx*cu, pz)] if k in (0, 2) else [(px + sx*cu, pz), (px, pz + sz*cv)]
+                outline = outline[:k] + chip + outline[k+1:]
+            # The first stone of the footing stands on the face, so the panel
+            # keeps its exact depth; the rest settle in by up to 9 mm.
+            sink = 0.0 if full else rng.choice((0, 0, .003, .005, .009))
+            full = False
+            holds = [r for r in rings if u0 + .08 < r[0] < u1 - .08 and bottom < r[1] < bottom + rh]
+            if holds and u1 - u0 > .3:
+                sink = SET_BACK
+            mat = rng.choices(['stone', 'pale_stone', 'dark_stone'], [6, 2, 2])[0]
+            wear = rng.uniform(.012, .032)
+            stone('course_%02d' % row, outline, depth - 2*sink, (x, y, bottom + rh/2), mat,
+                  min(wear, .07*rh, .055*(b-a)))
+            if sink == SET_BACK:
+                for face in (-1, 1):
+                    ring_bolt(x + (u0 + u1)/2, bottom + rh/2 + .03, face, depth)
+        bottom += rh
 
 def new_asset(name):
     col = bpy.data.collections.new(name)
@@ -213,31 +300,88 @@ o.hide_render=True
 o.display_type='WIRE'
 export(name,c)
 
+def flag(name, outline, bottom, top, mat, bevel):
+    """One flagstone: an outline in plan cut from `bottom` to `top`, its
+    arrises worn by `bevel`. The top stays the walking plane exactly."""
+    n = len(outline)
+    verts = [(u, v, h) for h in (bottom, top) for u, v in outline]
+    faces = [tuple(reversed(range(n))), tuple(range(n, 2*n))]
+    faces += [(i, (i+1) % n, (i+1) % n+n, i+n) for i in range(n)]
+    mesh = bpy.data.meshes.new(name)
+    mesh.from_pydata(verts, [], faces)
+    mesh.update()
+    o = bpy.data.objects.new(name, mesh)
+    bpy.context.collection.objects.link(o)
+    return finish(o, name, mat, bevel)
+
+## Flag rows across a 2 m tile, front to back. Two layouts, so the floor is
+## not one stone repeated — and neither a grid: rows of their own widths, each
+## flag its own length, laid to bond.
+FLAG_ROWS = ([.62, .74, .64], [.52, .70, .40, .38])
+
 for name,var in [('delvings_floor_2x2',0),('delvings_floor_2x2_b',1)]:
     c=new_asset(name)
+    rng = random.Random(name)
     box('floor_bed',(0,0,.023),(2,2,.046),'dark_stone',0)
-    # 6 cm total rise, below the actual 10 cm walking step limit.
-    for row in range(2 if var==0 else 3):
-        rows=2 if var==0 else 3
-        cuts=[-1,0,1] if (row+var)%2==0 else [-1,-.4,.45,1]
-        for a,b in zip(cuts,cuts[1:]):
-            left=.008 if a>-1 else 0
-            right=.008 if b<1 else 0
-            box('flag',((a+b+left-right)/2,-1+(row+.5)*2/rows,.047),
-                (b-a-left-right,2/rows-.008,.026),'pale_stone' if row%2 else 'stone',.008)
+    # 6 cm total rise, below the actual 10 cm walking step limit; every top
+    # finishes at exactly 0.06, which `kit_probe` holds to the collider.
+    v0 = -1.0
+    below = []
+    for depth in FLAG_ROWS[var]:
+        v1 = v0 + depth
+        cuts = [-1.0]
+        while True:
+            nxt = cuts[-1] + rng.uniform(.45, .85)
+            for j in below:
+                if abs(nxt - j) < .10:
+                    nxt = j + .14
+            if nxt > 1.0 - .30:
+                break
+            cuts.append(nxt)
+        cuts.append(1.0)
+        below = cuts[1:-1]
+        for a_, b_ in zip(cuts, cuts[1:]):
+            u0 = a_ + (.008 if a_ > -1 else 0); u1 = b_ - (.008 if b_ < 1 else 0)
+            w0 = v0 + (.008 if v0 > -1 else 0); w1 = v1 - (.008 if v1 < 1 - 1e-6 else 0)
+            outline = [(u0, w0), (u1, w0), (u1, w1), (u0, w1)]
+            if rng.random() < .2:
+                # A corner broken off where something heavy was dropped.
+                k = rng.randrange(4)
+                cu, cv = rng.uniform(.05, .11), rng.uniform(.05, .11)
+                px, pz = outline[k]
+                sx = 1 if k in (0, 3) else -1
+                sz = 1 if k in (0, 1) else -1
+                chip = [(px, pz + sz*cv), (px + sx*cu, pz)] if k in (0, 2) else [(px + sx*cu, pz), (px, pz + sz*cv)]
+                outline = outline[:k] + chip + outline[k+1:]
+            flag('flag', outline, .034, .06, rng.choices(['stone', 'pale_stone', 'dark_stone'], [5, 3, 1])[0],
+                 rng.uniform(.006, .011))
+        v0 = v1
     proxy((0,0,.03),(2,2,.06),'floor')
     export(name,c)
 
 name='delvings_ceiling_2x2'
 c=new_asset(name)
 box('ceiling_slab',(0,0,.29),(2,2,.18),'stone',.012)
-for y in [-.83,.83]:
-    box('crossbeam',(0,y,.10),(2,.24,.20),'timber',.027)
+for y, wide in [(-.83, .24), (.83, .26)]:
+    box('crossbeam',(0,y,.10),(2,wide,.20),'timber',.032)
     for x in [-.75,.75]:
         box('iron_strap',(x,y,.10),(.08,.255,.20),'iron',.004)
         pin('strap_pin',(x,y,.006),radius=.023,depth=.006)
-for x in [-.66,0,.66]:
-    box('ceiling_plank',(x,0,.19),(.65,2,.07),'timber',.006)
+# Boards as they were cut and as they have been left: their own widths, a
+# little out of true, and one broken short so the stone shows above it.
+# Ends that meet a neighbouring tile run to the edge, so the boarding reads
+# as continuous down a corridor.
+x0 = -1.0
+for i, w in enumerate((.36, .46, .30, .50, .38)):
+    x1 = x0 + w
+    a, b = x0 + (.004 if i else 0), x1 - (.004 if i < 4 else 0)
+    thick = (.064, .072, .060, .070, .066)[i]
+    y0, y1 = (-1.0, .52) if i == 2 else (-1.0, 1.0)
+    box('ceiling_plank', ((a+b)/2, (y0+y1)/2, .225-thick/2), (b-a, y1-y0, thick), 'timber', .007)
+    if i == 2:
+        # The break: a short splintered stub hanging from the beam.
+        box('plank_stub', ((a+b)/2, .66, .225-thick/2-.012), (b-a-.04, .10, thick*.7), 'timber', .006)
+    x0 = x1
 proxy((0,0,.19),(2,2,.38),'ceiling')
 export(name,c)
 

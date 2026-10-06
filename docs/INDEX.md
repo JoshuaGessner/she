@@ -65,7 +65,7 @@ _How we work, what we decided, what we must not do._
 | `PRO-005` | [Design Psychology & Research Basis](process/PRO-005-design-psychology.md) | ✔ accepted | 2026-08-14 | DES-003, DES-005, DES-009, DES-010 |
 | `PRO-006` | [Monetization](process/PRO-006-monetization.md) | ✔ accepted | 2026-08-14 | PRO-005, DES-014, DES-016, DES-001 |
 | `PRO-007` | [Pre-Mortem — How This Fails](process/PRO-007-premortem.md) | ✔ accepted | 2026-09-04 | PRO-001, DES-009, ART-005, TEC-004, DES-001 |
-| `PRO-008` | [Vertical Slice Polish Sweep](process/PRO-008-polish-sweep.md) | ✔ accepted | 2026-09-17 | PRO-001, TEC-008, ART-004, ART-005, DES-019 |
+| `PRO-008` | [Vertical Slice Polish Sweep](process/PRO-008-polish-sweep.md) | ✔ accepted | 2026-10-06 | PRO-001, TEC-008, ART-004, ART-005, DES-019 |
 | `PRO-009` | [Playtest Protocol — The Questions Only A Session Answers](process/PRO-009-playtest-protocol.md) | ◆ proposed | 2026-09-17 | PRO-001, DES-005, DES-009, DES-019, DES-022, ART-001 |
 
 ## Art & Audio

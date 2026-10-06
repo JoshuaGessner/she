@@ -11583,4 +11583,54 @@ The crevice darkening is baked ambient occlusion by another name. The countersha
 - From its ends the gabled chest reads a little like a house; it reads as a chest from its front.
 - Lifting the lantern by 10 cm is a pose, so it is ⟨tune⟩ like every other pose in `Hands`.
 
+## ADR-324 — The Delvings are built and left: coursed by a mason, worn at the arris, ringed for lamps; and the production pass has a plan
+
+**Date:** 2026-10-06 · **Status:** accepted · **Within `ART-006` §5.1; adds a section to `PRO-008`**
+
+**Context:** Asked for production-quality work across the whole game, with a plan in line with where the build is. `M4` owes three things before `GATE M4 EXIT`:
+- `M4-T10`, asset production;
+- `M4-T05`, art, audio and UI;
+- `M4-T21`, the pre-mortem.
+
+Of the assets, the Delvings kit fills most of every frame. It read as clean CAD masonry:
+- every course the same three heights in a cycle;
+- every stone in a row the same length, so the joints stacked;
+- every arris worn by the same amount;
+- a floor of 1 m flags on a grid;
+- none of the *"iron fixings that have rusted, timber that has not been maintained"* that `ART-006` §5.1 asks for.
+
+**Decision:**
+- **The plan is written into `PRO-008`** as an ordered table of six rows. Each row lands as its own ADR, checked by the probe that owns its contract. The 25-minute slice and `GATE M4 GREED` stay the developer's playtests.
+- **Walls (`build_delvings.wall`, every Band 1 panel, jamb, alcove and ledge):**
+  - **Courses:** a deep footing course, then courses of their own heights in two sequences (`COURSING`), never two the same in a row.
+  - **Bond:** stones of their own lengths, no joint within 12 cm of the joint below.
+  - **Wear:** each stone's arrises are worn by its own amount (12–32 mm). One stone in seven has lost a corner.
+  - **Settling:** stones sit up to 9 mm in from the face.
+  - **The envelope still holds:** `kit_probe` holds panels to the millimetre, so a stone may sink and never stand proud.
+  - **Iron:** one forged ring on a pinned plate per panel, two on a 7 m panel. Each hangs on a stone dressed back 16 mm to take it, so the iron stays inside the face. 16 mm and not 20, because 20 put the stone's face on the core's and the two fought (seen in review).
+  - **Seeding:** from the panel's size and variant, so a rebuild is the same wall.
+- **Floors:**
+  - Flags laid in rows of their own widths, each flag its own length, laid to bond.
+  - One in five has a broken corner, with worn arrises.
+  - Every top still finishes at exactly 0.06 m.
+- **Ceiling:**
+  - Five boards of their own widths and thicknesses, one broken short so the stone above shows, with its splintered stub hanging.
+  - Beams of unequal section, with heavier chamfers.
+- **Unchanged:** every module's outline, the Retreat and Cause seam walls, every collider, and the plan.
+
+**Measured:**
+- **`kit_probe` PASS:**
+  - 22 modules delivered, 0 off their stated size.
+  - 13,095 pieces over 5,991 slabs, 0 strayed solids, 0 flags off the walking plane, 0 walls left flush.
+  - Same seed, identical pieces. Headroom 1.32 m against a 1.15 m crouch.
+- **`floor_surface_probe`:** 3,482 flat floors across 24 layouts, 0 coplanar overlaps.
+- **`art_probe`:** 0 failures.
+- **Triangles, all under 3,000:** the 7 m wall 2,408; inner corner 2,404; doorway 1,680; floors 420 and 564; ceiling 764.
+- **`--ink-shot`:** walls show irregular coursing and spalled corners, and floors show irregular flags.
+
+**Honest scale:**
+- At game distance the rings are small marks; they read up close.
+- Stone tone is still chosen per stone from three greys, which the ink mostly flattens.
+- The chipped corners on the inner face of a squeezed panel scale with it.
+
 *Entries below to be added as design decisions are signed off.*
