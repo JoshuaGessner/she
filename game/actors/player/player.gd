@@ -194,6 +194,10 @@ const STATE_PROPERTIES: Dictionary = {
 	# to be one every peer knows about, because it is what stops a teammate's
 	# body being a wall in a doorway they already walked out of.
 	".:got_out": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **How much gold you are carrying, as a sound** (ADR-326): every peer plays
+	# a body's own footfalls, so every peer has to know what is in its bag to
+	# play the coin in it. Changes on a pickup or a drop, never per frame.
+	".:gilt": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# **Who this body is, and what it brought** (`M3-T07`).
 	#
 	# These rode the spawn packet from `M3-T02` until `M3-T07`, and that was a
@@ -493,6 +497,16 @@ var spent: bool = false:
 ## but they are **not** the same state, and nothing here should collapse them:
 ## one keeps their bag and one lost it, one is owed an outcome and one is owed
 ## a Legacy screen.
+## **The treasure in the bag, 0 to 1, as the ear has it** (ADR-326,
+## `ART-002`: *"coin shifting with every step — more coin, more sound"*).
+## Host-authored from the bag's tribute and replicated, so a teammate's
+## footfalls jingle with their haul on every peer. Saturating, because the
+## tenth coin-chest is no louder than the third ⟨tune⟩.
+var gilt: float = 0.0
+## The tribute at which the coin reaches 63 % of its loudest ⟨tune⟩: about
+## one coin-chest, against a hoard-coin's 40.
+const GILT_SCALE: float = 180.0
+
 var got_out: bool = false:
 	set(value):
 		if got_out == value:
@@ -1459,6 +1473,7 @@ func _reweigh() -> void:
 		# doubled here, because the node's sentence is *every kilogram*.
 		carried.kilograms = inventory.total_weight() + worn_kilograms \
 			* (2.0 if has_effect(&"weight_costs_double") else 1.0)
+		gilt = 1.0 - exp(-float(inventory.total_tribute()) / GILT_SCALE)
 	# Derived on every peer from the bag that peer holds and what the body
 	# wears, so no second
 	# replicated property is needed and a client's debug ring cannot disagree
@@ -2842,6 +2857,13 @@ func _footfall(pitch: float) -> void:
 	var load: float = carried.encumbrance()
 	Foley.at(self, Foley.Sound.STEP, pitch * lerpf(1.0, 0.72, load),
 		lerpf(-6.0, 1.0, load))
+	# And the coin in the bag, shifting as the foot lands: a faint jingle on
+	# a bead, a full one on a coin-chest — what `ART-002` means by *hear how
+	# rich you are*. Sound only, as every footfall is; what the floor hears
+	# is Clamor, which the bag already raises by weight.
+	if gilt > 0.02:
+		Foley.at(self, Foley.Sound.COIN, pitch * lerpf(1.15, 0.92, gilt),
+			lerpf(-26.0, -6.0, sqrt(gilt)))
 
 
 ## Sprinting, as the host can see it: fast enough that walking does not explain

@@ -82,6 +82,14 @@ var _room_is: float = 0.0
 var _room_wants: float = 0.0
 
 
+## Let go of the recorded takes as the game closes (ADR-326). `Foley` keeps
+## them in a static so a footfall never waits on the disk, and a static outlives
+## the tree — so without this every quit reports them as resources still in use,
+## which the sweep reads as an error.
+func _exit_tree() -> void:
+	Foley.forget()
+
+
 func _ready() -> void:
 	_build_buses()
 	# The player's volumes, now that there are buses to set them on. `Config`

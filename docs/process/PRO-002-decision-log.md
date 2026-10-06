@@ -11669,4 +11669,40 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 
 **Honest scale:** The spade lies along the heap's flank and is half-lost in the ink at game distance. It is there for the near look.
 
+## ADR-326 — The world's sounds are recorded, and you can hear how rich you are
+
+**Date:** 2026-10-06 · **Status:** accepted · **Row 4 of `PRO-008`'s production pass; builds `ART-002`'s *sound of your own greed*** · **Developer's call: "CC0 recordings."**
+
+**Context:**
+- **All sixteen `Foley` sounds were synthesised at boot.** They were sines and noise at 22 kHz, one render each, so the same action always made the same sound. That was right at blockout (ADR-046) and `foley.gd`'s own header named `M4-T05` as their replacement.
+- **The coin cue was never built.** `ART-002` calls this *"the most important sound work in the game"*, and its first line is *"Coin shifting with every step. More coin, more sound."* Footfalls deepened with weight, but nothing in the game sounded like money in a bag, and a synthesised beep could not have.
+- **Three sources were weighed:** CC0 recordings, better offline synthesis, or the developer recording or commissioning. The developer chose CC0 recordings.
+
+**Decision:**
+- **Recorded:** footfalls on stone, coin into the bag, a thing set down, a hard knock, a blow on you, a blow on mail, a blow into flesh, the interface click and the party's ping.
+  - **Source:** Kenney Vleugels's *RPG Audio*, *Impact Sounds* and *Interface Sounds*, all Creative Commons Zero. Only the takes used are vendored, in `source_art/audio/cc0/` with each pack's licence; credited although CC0 does not ask.
+  - **Build:** `source_art/audio/build_foley.py`, in Blender for its `aud` module (nothing new to install). Each take is trimmed, faded, folded to mono for positional playback, resampled to 44.1 kHz, and set to the loudness of the cue it replaced over its loudest 100 ms. Every `volume_db` tuned by ear against the old cues still holds.
+  - **Playback:** 2–5 takes per sound, played in turn, so the same action twice is not the same sound.
+- **Synthesised, as before:** being noticed, a Waystone working, an ember going out, a barrow grinding, the Hunter's tread, the fire and a swing.
+  - These are designed cues and loops with no recording here that says them better.
+  - One source per sound, never both (ADR-064). Loops stay synthesised, and `looping_stream_for` asserts as much.
+- **New cue, `COIN`:** coin shifting in the bag as the foot lands, cut as short handfuls from one long coin take.
+  - **What it reads:** `Player.gilt`, the bag's tribute as 0–1, saturating as `1 − e^(−tribute/180)` ⟨tune⟩.
+  - **Who sets it:** the host, which replicates it `ON_CHANGE`. Every peer plays a body's own footfalls, so a teammate's haul jingles on every screen. It changes on a pickup or a drop, never per frame.
+  - **Loudness:** −26 dB on a bead, rising to −6 dB toward a full chest ⟨tune⟩.
+  - **Sound only.** What the floor hears is Clamor, which the bag already raises by weight.
+- **Probes:** they now ask `Foley.is_sound(stream, sound)`, because one sound is several streams. `--ear-probe` gains a row: an empty bag's footfall carries no coin, one coin's is a faint jingle, and a coin-chest's is louder.
+
+**Measured:**
+- 43 takes across 10 sounds, mono 44.1 kHz Vorbis, every peak at or under 0.98.
+- `--rite-probe`: the baited snare stepped 2 times, the plain one 0.
+- `--body-probe`: passes, including a teammate's planted shield.
+- `run_coop.py --smoke`: every row passes with `gilt` replicated, including the client hearing its own pickup.
+- `--ear-probe` coin row: an empty bag plays 0 jingles, one coin −17.1 dB, a coin-chest −8.5 dB.
+- `Foley.forget()` releases the loaded takes as `AudioDirector` leaves the tree. Without it, every quit reported *6 resources still in use*, which the sweep reads as an error (seen on the first run).
+
+**Honest scale:**
+- **Not yet recorded:** the fire's crackle, a barrow's grind and the swing. These are the obvious next recordings, and need a CC0 source this pass did not have.
+- **Not tuned by ear:** the mix was matched by measurement, not listened to on speakers here. The developer's first listen is the real check, and every level is ⟨tune⟩.
+
 *Entries below to be added as design decisions are signed off.*

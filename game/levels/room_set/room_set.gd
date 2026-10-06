@@ -3742,6 +3742,36 @@ func _ear_probe() -> void:
 				+ "bearing — DES-018 requires 'where is it' to be answerable "
 				+ "without stereo hearing")
 
+	# **You can hear how rich you are** (ADR-326, `ART-002`). An empty bag's
+	# footfall carries no coin; one coin's is a faint jingle, and a coin-chest's
+	# is louder. Counted as the voices are made, as the snare's lure is.
+	var coin: Array[float] = []
+	var listen := func(child: Node) -> void:
+		var voice := child as AudioStreamPlayer3D
+		if voice != null and Foley.is_sound(voice.stream, Foley.Sound.COIN):
+			coin.append(voice.volume_db)
+	player.child_entered_tree.connect(listen)
+	player.inventory.clear()
+	await _hold(0.1)
+	player._footfall(1.0)
+	var empty: int = coin.size()
+	player.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+	await _hold(0.1)
+	player._footfall(1.0)
+	var one: float = coin[coin.size() - 1] if coin.size() > empty else -INF
+	player.inventory.add(ItemCatalogue.by_id(&"glt_coin_chest"))
+	await _hold(0.1)
+	player._footfall(1.0)
+	var chest: float = coin[coin.size() - 1] if coin.size() > empty + 1 else -INF
+	player.child_entered_tree.disconnect(listen)
+	player.inventory.clear()
+	print("[ear] coin         empty bag %d jingle(s), a coin %.1f dB, a coin-chest more %.1f dB"
+		% [empty, one, chest])
+	if empty > 0 or one == -INF or chest <= one:
+		problems.append(("a footfall jingled %d time(s) with an empty bag, at %.1f dB "
+			+ "with a coin and %.1f dB with a coin-chest — `ART-002` asks that a "
+			+ "player hear how rich they are, on every step") % [empty, one, chest])
+
 	print("[ear] pressure     %.2f" % AudioDirector.mix.pressure())
 	for problem: String in problems:
 		printerr("[ear] FAIL %s" % problem)
@@ -16171,10 +16201,9 @@ func _rite_probe() -> void:
 	var bait := Snare.new()
 	bait.lures = true
 	bait.position = here + ahead * 3.0
-	var step_sound: AudioStreamWAV = Foley.stream_for(Foley.Sound.STEP)
 	bait.child_entered_tree.connect(func(child: Node) -> void:
 		var voice := child as AudioStreamPlayer3D
-		if voice != null and voice.stream == step_sound:
+		if voice != null and Foley.is_sound(voice.stream, Foley.Sound.STEP):
 			steps[0] += 1)
 	add_child(bait)
 	var plain := Snare.new()
@@ -16336,10 +16365,9 @@ func _verbs_probe() -> void:
 	# Counted as they are made, not as they stand: a one-shot frees itself when
 	# it finishes, and headless it finishes at once.
 	var plants: Array[int] = [0]
-	var thump: AudioStreamWAV = Foley.stream_for(Foley.Sound.THUMP)
 	mate.child_entered_tree.connect(func(child: Node) -> void:
 		var voice := child as AudioStreamPlayer3D
-		if voice != null and voice.stream == thump \
+		if voice != null and Foley.is_sound(voice.stream, Foley.Sound.THUMP) \
 				and is_equal_approx(voice.pitch_scale, 0.7):
 			plants[0] += 1)
 	mate.planted = 1.0

@@ -19,18 +19,35 @@ extends Object
 ## empty one. That relationship is the whole point and it is cheap to build,
 ## which is why it is here at blockout rather than waiting for a sound designer.
 ##
-## ## Synthesised, seeded, and replaceable
+## ## Recorded where the world makes the sound (ADR-326)
 ##
-## Everything is generated at boot: no files, no licensing, and identical every
-## run so a probe comparing two of them is not comparing noise. `M4-T05` swaps
-## these for recorded material, and nothing else changes — callers ask for
-## `Foley.CLINK`, not for a file.
+## The things a body and a blow do — footfalls, coin, a thing set down, a knock
+## on stone, a blow on mail or into flesh, a blow on you — and the interface's
+## click and the party's ping are **recorded**: CC0 field recordings cut by
+## `source_art/audio/build_foley.py` into several takes each, played in turn so
+## the same action twice is never the same sound twice. Each take is set to the
+## loudness of the cue it replaced, so every `volume_db` tuned against those
+## cues still holds.
+##
+## The rest — being noticed, a Waystone working, an ember going out, a barrow
+## grinding, the Hunter's tread, the fire — are **synthesised at boot**, as
+## everything was at blockout: designed cues and loops with no recording that
+## says them better. One source for each sound, never both. Callers ask for
+## `Foley.CLINK`, not for a file, so either can change without them.
 ##
 ## Never networked. `TEC-004`: audio is client-side, driven by replicated
 ## state. **Never replicate sounds** — each peer plays its own from what it can
 ## already see.
 
 const RATE: int = 22050
+
+## Sound -> how many recorded takes `build_foley.py` made of it, at
+## `res://audio/foley/<sound>_<nn>.ogg`. A sound not here is synthesised.
+const RECORDED: Dictionary = {
+	Sound.STEP: 5, Sound.CLINK: 2, Sound.THUMP: 5, Sound.HIT: 5, Sound.HURT: 5,
+	Sound.CLICK: 5, Sound.PING: 2, Sound.CLANG: 5, Sound.CRUNCH: 5, Sound.COIN: 4,
+}
+const TAKES: String = "res://audio/foley/%s_%02d.ogg"
 
 ## Every sound the game can make, and what it means. Kept as one table so the
 ## question "what does this game sound like" has one answer, and so a sound
@@ -52,6 +69,7 @@ enum Sound {
 	CLANG,      # a blow on mail or plate (ADR-279) — the metal half of an impact
 	CRUNCH,     # a blow into flesh (ADR-279) — the body half of an impact
 	CRACKLE,    # the camp's fire (ADR-287), looped — a world sound, never the score
+	COIN,       # coin shifting in the bag at a step (ADR-326) — how rich you sound
 }
 
 ## How far a one-shot carries by default: roughly the Deep's scale, audible
@@ -59,6 +77,11 @@ enum Sound {
 const REACH: float = 28.0
 
 static var _cache: Dictionary = {}
+## Sound -> its takes, loaded once; and which take each plays next. In turn
+## rather than at random, so a run is the same sequence every time — `TEC-004`
+## keeps sound off the wire, so no two peers need agree on it.
+static var _takes: Dictionary = {}
+static var _turn: Dictionary = {}
 ## How many of each sound this peer has played in the world, by `Sound` —
 ## counted so `--coop-probe` can ask what a client *heard*, which is the
 ## question ADR-311 was about and the one no number on the wire answers.
@@ -102,7 +125,43 @@ static func flat(host: Node, sound: Sound, pitch: float = 1.0) -> void:
 	player.finished.connect(player.queue_free)
 
 
-static func stream_for(sound: Sound) -> AudioStreamWAV:
+static func stream_for(sound: Sound) -> AudioStream:
+	if RECORDED.has(sound):
+		var all: Array = _recorded(sound)
+		var next: int = int(_turn.get(sound, 0))
+		_turn[sound] = next + 1
+		return all[next % all.size()] as AudioStream
+	return _synthesised(sound)
+
+
+## Is `stream` one of `sound`'s — any take of it. For a probe that counts a
+## sound by what was played, now that one sound is several streams.
+static func is_sound(stream: AudioStream, sound: Sound) -> bool:
+	if stream == null:
+		return false
+	if RECORDED.has(sound):
+		return _recorded(sound).has(stream)
+	return stream == _synthesised(sound)
+
+
+## Drop every loaded take and synthesised cue. Called as the game closes.
+static func forget() -> void:
+	_takes.clear()
+	_cache.clear()
+	_turn.clear()
+
+
+static func _recorded(sound: Sound) -> Array:
+	if not _takes.has(sound):
+		var name: String = (Sound.keys()[sound] as String).to_lower()
+		var all: Array = []
+		for take: int in int(RECORDED[sound]):
+			all.append(load(TAKES % [name, take]))
+		_takes[sound] = all
+	return _takes[sound] as Array
+
+
+static func _synthesised(sound: Sound) -> AudioStreamWAV:
 	if not _cache.has(sound):
 		_cache[sound] = _render(sound)
 	return _cache[sound] as AudioStreamWAV
@@ -117,7 +176,10 @@ static func stream_for(sound: Sound) -> AudioStreamWAV:
 ## reached from the other direction. The frame arithmetic lives here because
 ## this is where the format is decided: 16-bit mono, so two bytes a frame.
 static func looping_stream_for(sound: Sound) -> AudioStreamWAV:
-	var stream: AudioStreamWAV = (stream_for(sound).duplicate()) as AudioStreamWAV
+	# Loops are the synthesised presences; a recorded one-shot looped would
+	# be the footstep this file's header warns of.
+	assert(not RECORDED.has(sound), "Foley: %s is a recorded one-shot" % Sound.keys()[sound])
+	var stream: AudioStreamWAV = (_synthesised(sound).duplicate()) as AudioStreamWAV
 	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
 	stream.loop_begin = 0
 	stream.loop_end = stream.data.size() / 2

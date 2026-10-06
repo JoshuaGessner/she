@@ -4,7 +4,7 @@ title: Audio Design
 status: accepted
 owner: art
 tags: [audio, music, sound-design, clamor, godot, budget]
-updated: 2026-09-01
+updated: 2026-10-06
 related: [ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001]
 ---
 
@@ -48,6 +48,8 @@ The player must *hear* what they are carrying:
 - **The bag** itself: leather, strain, the noise of rummaging while you crouch (`DES-019` — inventory is real-time and vulnerable).
 
 If a player can close their eyes and *hear how rich they are*, this system works. That feedback loop is what makes Pillar P1 felt rather than understood.
+
+> **Built (ADR-326).** Footfalls, coin, blows and the bag are CC0 recordings in several takes each, level-matched to the cues they replaced. Every footfall carries a jingle of coin set by the treasure in the bag (`Player.gilt`, replicated), so a teammate's haul is heard on every screen. Still synthesised: the designed cues (noticed, channel, ember), the fire, the barrow and the swing.
 
 ## Adaptive score — vertical remixing (ADR-035)
 
