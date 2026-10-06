@@ -120,13 +120,11 @@ const SUB_WARM: StringName = &"SubWarm"
 const DISPLAY_WARM: StringName = &"DisplayWarm"  ## 21.
 const BANNER_WARM: StringName = &"BannerWarm"  ## 26.
 
-## **Never given the house style.** The deeds banner draws in the engine's own
-## white, and always has: it was built beside `MenuStyle` rather than with it.
-## These roles carry only the sizes they already set, so the theme draws them
-## exactly as before, and bringing them into the register is `M4-T05`'s — it is
-## a visible change a person should look at, not a side effect of moving
-## numbers into a file. `LegacyTitle` was brought in by ADR-332: it reads the
-## `Text` tone, as every other title does, rather than the engine's pure white.
+## **Brought into the register late** (ADR-332, ADR-334). The Legacy screen and
+## the deeds banner were built beside `MenuStyle` rather than with it and drew in
+## the engine's own white. They kept their own sizes and now read the house
+## tones: titles on `Text`, a deed's name on `Warm`, because it is the thing
+## the banner is giving you.
 const LEGACY_TITLE: StringName = &"LegacyTitle"  ## 26.
 const DEEDS_TITLE: StringName = &"DeedsTitle"  ## 26.
 const DEED_NAME: StringName = &"DeedName"  ## 21.

@@ -11979,4 +11979,29 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **She is still warmer than in the Chamber.** Firelight on `her_colour` reads brown here; the Chamber's paper ink pass draws her nearer black. It is ⟨tune⟩ with the three light values.
 - **The left brazier's flame sits behind *Settings*.** It is dim enough to read past.
 
+## ADR-334 — Each deed is a plate, and a deed about nobody says "someone"
+
+**Date:** 2026-10-06 · **Status:** accepted · **`PRO-008` row 5**
+
+**Context:**
+- **The deeds banner is the run's last word.** `DES-016` puts it after the tribute decision so a run ends on evidence of what you did.
+- **It drew in the engine's own white.** It was a title, then name-and-sentence pairs floating down the middle of a scrim, the same weight as a tooltip. `DeedsTitle` and `DeedName` were the last roles `MenuStyle` still listed as never given the house style.
+- **Nothing had ever photographed it.** `--deeds-probe` asks that it opens and has a rect, and no shot reached it.
+- **The first photograph found a bug: *"%s's ember, carried the whole way."*** A deed whose name was not kept left the `%s` unformatted, on the argument that a blank reads as a bug. It reads as a worse one.
+
+**Decision:**
+- **Each deed is a carved `SLATE` card**: its name on `Warm`, and what you did under it, wrapped at the card's 440 px measure.
+  - The reference is Darkest Dungeon's trinket and quirk cards: one object at a time, framed, so it reads as a thing you got and not as a line of output.
+  - One or two deeds stack; more lay out two to a row, so all five fit 1152 × 648.
+  - The title reads `Text`.
+- **A deed with no name recorded says *"Someone"*** (`deeds.someone`).
+- **`--screens-shot` photographs the banner holding every deed at once**, the most it can hold.
+
+**Measured:**
+- **`--screens-shot` at 1152 × 648:** five cards in three rows with the button below, nothing clipped, and *"Someone's ember"*.
+- **These probes pass:** `--deeds-probe`, `--lair-probe`, `--chamber-probe`, `--menu-probe` and `data_probe`.
+
+**Honest scale:**
+- **Five deeds is the whole catalogue today.** A larger catalogue in one run would need a third column or a scroll, which `ONE_COLUMN_MAX` and the measure do not yet answer.
+
 *Entries below to be added as design decisions are signed off.*

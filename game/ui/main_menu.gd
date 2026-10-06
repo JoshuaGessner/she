@@ -100,23 +100,31 @@ func _menu_shot(directory: String) -> void:
 
 
 ## **The screens a run opens and closes on** (`--screens-shot=DIR`, ADR-290):
-## the oath, the death, and the end of the run. None of them is reached from the
+## the oath, the death, the end of the run, and the deeds. None of them is reached from the
 ## title screen without playing, so none of them was ever photographed — and
 ## two were still in the engine's own grey when ADR-288 lettered everything else.
 func _screens_shot(directory: String) -> void:
 	DirAccess.make_dir_recursive_absolute(directory)
 	var was: Dictionary = GameState.last_life
 	GameState.last_life = {"class_id": "huskarl", "rank": 3}
-	for named: String in ["class", "legacy", "runover"]:
+	for named: String in ["class", "legacy", "runover", "deeds"]:
 		var screen: Control = null
 		match named:
 			"class": screen = ClassScreen.new()
 			"legacy": screen = LegacyScreen.new()
 			"runover": screen = RunOverScreen.new()
+			"deeds": screen = DeedsBanner.new()
 		var layer := CanvasLayer.new()
 		layer.layer = 9
 		layer.add_child(screen)
 		add_child(layer)
+		# Every deed at once: the most a banner can hold is the case that has
+		# to fit (ADR-334).
+		if screen is DeedsBanner:
+			var every: Array[String] = []
+			for id: String in DeedCatalogue.ids():
+				every.append(id)
+			(screen as DeedsBanner).show_these(every)
 		for _frame: int in 6:
 			await RenderingServer.frame_post_draw
 		var path: String = "%s/screen_%s.png" % [directory, named]

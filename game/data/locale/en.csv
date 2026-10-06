@@ -140,6 +140,7 @@ deed.by_a_thread.name,"By A Thread"
 deed.by_a_thread.desc,"There was almost nothing left of you at the door."
 deeds.title,"What you did"
 deeds.dismiss,"She has seen it"
+deeds.someone,"Someone"
 node.wng_soft_boots.name,Soft Boots
 node.wng_soft_boots.desc,"Crouching stops being quiet-ish and starts being silent."
 node.wng_long_wind.name,Long Wind
