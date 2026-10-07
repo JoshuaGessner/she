@@ -16690,6 +16690,23 @@ func _fury_probe() -> void:
 			% [hips[false], hips[true]])
 		if hips[true] >= hips[false] - 0.02:
 			problems.append("a teammate's fury looks like no fury")
+		# ─ and wears the wolf-coat (ADR-354), until mail goes on over it ─
+		mate.fury = 0.0
+		mate.sworn = &"ulfhedinn"
+		await _hold(0.2)
+		# Named now: the carrier is freed when the byrnie replaces it, and a
+		# freed node read later compares equal to null.
+		var bare_node: Node3D = mate.rig().worn_on(Enums.Slot.BODY)
+		var bare: String = String(bare_node.name) if bare_node != null else "nothing"
+		mate.equipment.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_mail_byrnie"), 0))
+		await _hold(0.2)
+		var mailed_node: Node3D = mate.rig().worn_on(Enums.Slot.BODY)
+		var mailed: String = String(mailed_node.name) if mailed_node != null else "nothing"
+		print("[fury] coat        an Úlfheðinn wears '%s', in a byrnie '%s'" % [bare, mailed])
+		if not bare.contains("dress"):
+			problems.append("an Úlfheðinn with nothing on its body did not wear its wolf-coat")
+		if not mailed.contains("byrnie"):
+			problems.append("a byrnie put on over the wolf-coat was not what was worn")
 		mate.queue_free()
 
 	# ─ 9. the fury does not go down the stairs (ADR-352) ─

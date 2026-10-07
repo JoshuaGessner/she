@@ -12621,4 +12621,36 @@ The level holds 4,673 nodes and 10,463 objects.
 
 **Measured:** `--pact-probe` opens the tree for a fresh Húskarl and for one two Hoard nodes in. It opens on Scale and Hoard respectively; the old rule would have opened on Scale both times. `--respec-probe` passes.
 
+## ADR-354 — The Úlfheðinn wears the wolf it is named for: a class dress, sculpted, worn when nothing else is
+
+**Date:** 2026-10-06 · **Status:** accepted · **Follows ADR-345, ADR-348**
+
+**Context:**
+- **Nothing looked like a wolf-coat.** The class is named *wolf-coat*: *úlfheðnar*, *Haraldskvæði*'s *wolf-skins*. Its portrait and every teammate's view of it were the shared delver in a tunic with an axe.
+- **`DES-011` rule 5:** a class should be recognisable from ten seconds of watching. ADR-348 made the fury readable as a hunch. Outside a fury there was nothing to read.
+- **The two shipped answers.**
+  - **An item:** `DES-023` requires an item to name one thing it lets you do that nothing else does, and a coat whose point is its look has no such thing.
+  - **A class look:** Darkest Dungeon's heroes and Diablo's classes are recognised by silhouette before any gear goes on.
+
+**Decision:**
+- **`ClassResource.dress`, a worn model the class wears when its body slot is empty.**
+  - It is wrapped at runtime in an `ItemResource` that no catalogue, bag or save ever sees: it weighs nothing and turns nothing away.
+  - It reads from the replicated `sworn` on every peer.
+  - A byrnie put on is worn instead.
+  - A change of class re-dresses the rig even when the slots don't change.
+- **The wolf-coat** (`source_art/characters/build_worn.py`, the pelt pipeline of ADR-318):
+  - a wolf's skin worn as a hood, the skull riding the crown with the muzzle over the brow and the ears up, as on the Torslunda helmet plates' wolf-warrior;
+  - the hide over the shoulders and down the back to the calves;
+  - the forelegs knotted across the chest, and the tail behind;
+  - grey, with a pale muzzle and throat;
+  - 9,000 triangles.
+
+  The first review had the delver's braid through the back of the hood, and the hide was thickened down the nape.
+- **The portrait is re-shot** in the coat.
+
+**Measured:**
+- **`--fury-probe` row 8:** a teammate sworn Úlfheðinn wears `Worn_ulfhedinn_dress`, and `Worn_arm_mail_byrnie` once a byrnie goes on.
+- **`art_probe`:** the coat loads, sits in its category, is 1.95 m tall at 1 unit per metre, is within the 10,000-triangle budget and carries vertex colours; 0 failures.
+- **These also pass:** `data_probe` (unchanged, with no catalogue item added), `--body-probe`, `--gear-probe` and `--verbs-probe`.
+
 *Entries below to be added as design decisions are signed off.*

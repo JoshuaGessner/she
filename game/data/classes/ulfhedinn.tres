@@ -1,9 +1,11 @@
-[gd_resource type="Resource" script_class="ClassResource" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="ClassResource" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
 [ext_resource type="PackedScene" path="res://art/characters/ulfhedinn_arms.glb" id="2_arms"]
 
 [ext_resource type="Texture2D" path="res://art/ui/classes/ulfhedinn.png" id="90_portrait"]
+
+[ext_resource type="PackedScene" path="res://art/characters/wolf_coat_worn.glb" id="91_dress"]
 
 [resource]
 script = ExtResource("1_class")
@@ -19,5 +21,6 @@ stamina_scale = 1.05
 speed_scale = 1.04
 carry_scale = 1.0
 bare_arms = ExtResource("2_arms")
+dress = ExtResource("91_dress")
 kit = Array[StringName]([&"wpn_bearded_axe", &"con_linen_binding", &"con_linen_binding"])
 carried = Array[StringName]([&"tol_horn_lantern"])

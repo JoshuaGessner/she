@@ -48,6 +48,9 @@ def _fur(p):
 Dt.MATERIALS.update({
     "fur": ((0.15, 0.105, 0.062), 0.80, _fur),
     "fur_light": ((0.30, 0.225, 0.13), 0.80, _fur),
+    # The wolf's (ADR-354): a grey back over a pale muzzle and throat.
+    "fur_grey": ((0.21, 0.20, 0.185), 0.82, _fur),
+    "fur_pale": ((0.42, 0.40, 0.355), 0.82, _fur),
 })
 
 
@@ -120,12 +123,68 @@ def pelt(p):
     return r
 
 
+def wolf_coat(p):
+    """**The wolf-coat** (ADR-354): what the úlfheðnar are named for —
+    *Haraldskvæði*'s *wolf-skins*, and the wolf-headed warrior of the Torslunda
+    helmet plates. The skin is worn as a hood: the wolf's skull rides the
+    crown with its muzzle out over the brow and its ears up, so the head reads
+    as a wolf's from across a room; the hide falls over the shoulders and down
+    the back to the calves, the forelegs are knotted across the chest, and the
+    tail hangs behind. The face is open. Over the tunic the body had."""
+    r = underlayer(p)
+    r["linen"] = np.minimum(Hm.tunic(p, B, hem=0.62, flare=0.06, slit=True, grow=0.020),
+                            np.minimum(Hm.sleeve(p, "l", B, to=0.40, grow=0.010),
+                                       Hm.sleeve(p, "r", B, to=0.40, grow=0.010)))
+    # The hood with the face open, and its cape the hide's top.
+    hood = Hm.hood(p, B, grow=0.024, cape=0.10)
+    # The hide down the back: thick as a fur is, deep behind and short in front.
+    hide = Hm.trunk(p, B, 0.040)
+    front = 1.32 - 0.40 * np.clip((p[:, 1] + 0.02) / 0.16, 0.0, 1.0)
+    hide = S.smax(hide, front - p[:, 2], 0.02)
+    # Down the back to the calves, a flap narrowing as it falls.
+    flap = S.round_cone(p, V((0.0, 0.16, 1.30)), V((0.0, 0.19, 0.55)), 0.17, 0.09)
+    flap = S.smax(flap, 0.10 - p[:, 1], 0.02)
+    hide = S.smin(hide, flap, 0.04)
+    # The wolf's head on the crown, looking where the wearer looks.
+    c = V((0.0, -0.005, 1.835))
+    skull = S.ellipsoid(p - c, V((0.088, 0.112, 0.058)))
+    muzzle = S.round_cone(p, c + V((0.0, -0.085, -0.005)), c + V((0.0, -0.215, -0.035)), 0.050, 0.030)
+    head = S.smin(skull, muzzle, 0.03)
+    for sx in (-1.0, 1.0):
+        ear = S.round_cone(p, c + V((0.055 * sx, 0.030, 0.035)), c + V((0.068 * sx, 0.045, 0.110)), 0.026, 0.006)
+        head = S.smin(head, ear, 0.012)
+        head = S.carve(head, S.sphere(p - (c + V((0.040 * sx, -0.080, 0.022))), 0.013), 0.005)
+    # Hollow under the skull, so the wearer's head is inside it.
+    head = S.carve(head, S.ellipsoid(p - V((0.0, 0.012, 1.71)), V((0.11, 0.125, 0.13))), 0.008)
+    nose_at = c + V((0.0, -0.232, -0.030))
+    nose = S.ellipsoid(p - nose_at, V((0.022, 0.016, 0.014)))
+    # Forelegs over the shoulders, knotted on the chest.
+    legs = np.full(len(p), 1e3)
+    for sx in (-1.0, 1.0):
+        legs = np.minimum(legs, S.round_cone(p, V((0.14 * sx, -0.10, 1.44)), V((0.03 * sx, -0.155, 1.26)),
+                                             0.030, 0.022))
+    legs = S.smin(legs, S.ellipsoid(p - V((0.0, -0.162, 1.25)), V((0.045, 0.026, 0.030))), 0.012)
+    tail = S.chain(p, [V((0.0, 0.18, 0.62)), V((0.01, 0.195, 0.48)), V((0.02, 0.19, 0.36))],
+                   [0.045, 0.035, 0.012], 0.01)
+    # Over the delver's braid, which pushed through the hood's back in the
+    # first review: the hide thickens down the nape.
+    hide = S.smin(hide, S.chain(p, [V((0.0, 0.13, 1.74)), V((0.0, 0.18, 1.62)), V((0.0, 0.20, 1.46))],
+                                [0.060, 0.055, 0.050], 0.02), 0.03)
+    r["fur_grey"] = S.smin(S.smin(S.smin(hood, hide, 0.03), head, 0.03),
+                           np.minimum(legs, tail), 0.02)
+    # The pale underside of the muzzle and the throat.
+    r["fur_pale"] = S.round_cone(p, c + V((0.0, -0.10, -0.040)), c + V((0.0, -0.20, -0.055)), 0.034, 0.020)
+    r["dark"] = nose
+    return r
+
+
 ITEMS = {
     "mail_byrnie_worn": (byrnie, dict(voxel=0.010, body_tris=7500, texture=1024, ceiling=10000)),
     # Seen from the eye in first person, not only across a room: dense enough
     # that no facet shows at arm's length (ADR-319).
     "iron_bracers_worn": (bracers, dict(voxel=0.005, body_tris=5000, texture=1024, ceiling=10000, sparse=True)),
     "otr_pelt_worn": (pelt, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
+    "wolf_coat_worn": (wolf_coat, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
 }
 
 
@@ -172,7 +231,7 @@ def review(name):
 
 ## Pieces in the body slot, which hide the body under them, and the bones
 ## whose vertices they hide (`BodyRig.BODY_COVERED_BONES`).
-BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn")
+BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn")
 COVERED = {"pelvis", "spine_01", "spine_02", "chest", "thigh_l", "calf_l", "foot_l",
            "thigh_r", "calf_r", "foot_r", "upper_arm_l", "upper_arm_r"}
 

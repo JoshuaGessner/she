@@ -3378,6 +3378,11 @@ func _redress() -> void:
 	if health.current > health.maximum or health.current <= 0.0:
 		health.restore()
 	_dress_again()
+	# **The class's own dress follows the class** (ADR-354): a body sworn
+	# after its gear arrived would otherwise wear the last class's look until
+	# something in its slots next changed.
+	if _rig != null:
+		_on_equipment_changed()
 
 
 ## **Take everything off and put on what `wearing` says** (ADR-228).
@@ -3497,6 +3502,13 @@ func _on_equipment_changed() -> void:
 	for slot: Enums.Slot in BodyRig.SKINNED_SLOTS:
 		var worn: ItemInstance = equipment.in_slot(slot)
 		on_the_body[slot] = worn.definition if worn != null else null
+	# **The class's own dress** (ADR-354) where the body slot is empty: a
+	# wolf-coat on an Úlfheðinn with no mail on, read from the replicated
+	# `sworn`, so every peer dresses every body the same.
+	var sworn_as: ClassResource = ClassCatalogue.by_id(sworn)
+	if on_the_body.get(Enums.Slot.BODY, null) == null and sworn_as != null \
+			and sworn_as.dress != null:
+		on_the_body[Enums.Slot.BODY] = sworn_as.dress_item()
 	_rig.wear(on_the_body)
 	# **And the weapon in their hand** (ADR-330, Q114), on every peer but the
 	# owner's — whose copy is the one in front of their own eyes.

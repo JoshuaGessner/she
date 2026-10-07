@@ -99,6 +99,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 > - **Weaker than their wont** (Egils saga ch. 27). For 6 s afterwards ⟨tune⟩: no breath, 0.8× pace and no fury.
 > - **Kit:** the bearded axe and two bindings, with the lantern carried. No mail; they *"went without their mail-coats"*.
 > - **Stats:** health 1.0, stamina 1.05, speed 1.04, carry 1.0 ⟨tune⟩.
+> - **The wolf-coat (ADR-354):** the class's own dress, a wolf's skin worn as a hood with its skull on the crown, the hide down the back, and the forelegs knotted across the chest. It is worn whenever nothing is in the body slot, and a byrnie put on over it is worn instead. It is a look, not an item: it weighs nothing and turns nothing away.
 > - **The Rite (pact rank 3):** **Blood-Price**, a kill pays down what is owed · **The Howl**, the howl staggers everything near · **Rising Fury** *(after Blood-Price)*, each blow landed adds a second, up to its length again · **Neither Fire Nor Iron** *(after the Howl)*, a heavy blow in the fury leaves no wound.
 
 ### 5. Veiðimaðr — *Stalker*

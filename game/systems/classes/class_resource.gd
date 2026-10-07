@@ -76,6 +76,27 @@ const ASPECTS: Array[StringName] = [
 ## shared 28-bone topology, so an Arms item can be skinned over them without a
 ## class-specific armour mesh or a generated arm standing in for one.
 @export var bare_arms: PackedScene
+## **What the class wears when nothing is in its body slot** (ADR-354) — a
+## look, not an item: never in the bag, never in the catalogue, weighs nothing
+## and turns nothing away. The Úlfheðinn's wolf-coat is what they are named
+## for, and a byrnie put on over it is worn instead.
+@export var dress: PackedScene = null
+
+## The dress as the rig wears gear: a worn model on the shared skeleton. Made
+## once, and never an entry in any catalogue — a data file of its own would be
+## an item with no name, no icon and no place in a bag (`TEC-006`).
+var _dress_item: ItemResource = null
+
+
+func dress_item() -> ItemResource:
+	if dress == null:
+		return null
+	if _dress_item == null:
+		_dress_item = ItemResource.new()
+		_dress_item.id = StringName("%s_dress" % id)
+		_dress_item.worn_model = dress
+		_dress_item.slot = Enums.Slot.BODY
+	return _dress_item
 
 @export_group("Kit")
 ## Item ids this class descends with on a fresh life. Real definitions from the
