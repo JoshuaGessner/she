@@ -4,7 +4,7 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-09-13
+updated: 2026-10-07
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
@@ -185,6 +185,8 @@ Loot and enemies placed against the rules already established: greed gradient (`
                       [navmesh sanity is asserted at build time, not here —
                        ADR-170]
 ```
+
+> **The lock/key structure is built as doors (ADR-381).** From ADR-171 until then the graph's gates were validated and never stood, so lock-and-key and shortcut floors played as detours. A key gate is now a locked door at the held span's mouth, with the floor's key in the `KEY` room. A cost gate is a door barred from its deep side, so the shortcut opens on the way out. Over 120 floors, 47 draw gates: 69 gates, 69 doors and 22 keys (`--lock-probe`).
 
 **Step 8 is not optional.** A generator without a validation pass ships soft-locks. Failing validation should re-roll the offending sub-graph, not the whole level.
 

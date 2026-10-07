@@ -73,7 +73,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 > **Built at `M4-T35` (ADR-379): a reading is a snapshot bought with stillness.** The danger in this verb is a radar, and Balance rule 2 forbids any class being the best at extracting. So:
 > - **Seiðr is sat.** Hold the craft key, and the trance fills the crosshair ring over 3 s ⟨tune⟩, still, guard down, the view dimmed. A step, a blow or letting go breaks it with nothing read. Þorbjörg's high seat in Eiríks saga ch. 4.
 > - **A reading** shows the whole party, for 12 s ⟨tune⟩, the Gold-Sick, the best unlooted find and the way out, **where they were**. The marks don't follow. Thief's map, not Dishonored's Dark Vision. They are drawn as the ping shapes, labelled *seen*.
-> - **The sight is spent for 30 s ⟨tune⟩** after a reading.
+> - **The sight is spent for 30 s ⟨tune⟩** after a reading. Pressed while it rests, the reticle says *the sight is resting — N s*; a reading that found nothing says *the sight shows nothing here* (ADR-383).
 > - **Her kit is the völr**, an iron staff caged at the head after the seeress graves at Fyrkat and Birka (*völva* is *staff-bearer*): one-handed, blunt, a sidegrade of the seax. **Her dress is Þorbjörg's**: a blue mantle, a black lambskin hood and glass beads.
 > - **The Rite (pact rank 3, through Wing):** **Varðlokkur**, one blow doesn't break the trance · **Marking Prey**, a reading also marks awake enemies within 20 m · **Spá** *(after Marking Prey)*, and where the Gold-Sick is going · **Vé** *(after Varðlokkur)*, the ground she sat on stays a hush for 15 s, and cracks like one.
 
