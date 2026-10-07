@@ -13093,4 +13093,38 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Lesson, for the sweep:** one passing sweep is one sample. A row that waits on a fixed hold on one peer and an event on the other is a race, even when it passes.
 
+## ADR-379 — The Völva: a reading is a snapshot bought with stillness
+
+**Date:** 2026-10-07 · **Status:** accepted. Made unattended: the developer asked for the planned classes to be researched and fully built one at a time, and every number is ⟨tune⟩. · **Amends `DES-011` §2, opens `M4-T35` (pulled forward from `M5-T01`)**
+
+**Context:**
+- **Why this class next.** Three classes remain. The Skald turns enemies on each other, and the build has one hostile faction (`M5-T04` brings the second) and no morale. The Haugbrjótr's Appraise reads curses and opens locks, and neither exists. The Völva's Seiðr reads three things the world already holds: where the Gold-Sick is, where the best unlooted thing lies, and where the way out stands. Her Wing aspect is authored, so her Rite is reachable without a new aspect, and `volva_arms.glb` was made at ADR-270.
+- **`DES-011` asks for** *"a brief trance to read the floor — Hunter position, unlooted value, safest exit. Costs time and makes you helpless while it lasts."* An extraction game's scarcest resource is information (`DES-011` §2's own note), so the danger is a radar. A reading that stays true is a minimap with extra steps, and Balance rule 2 forbids any class being *the best at extracting*.
+
+**Research:**
+- **Eiríks saga rauða, ch. 4.** Þorbjörg lítilvölva is fed, sits on a high seat (*seiðhjallr*) and cannot begin until a woman sings the *varðlokkur*, the ward-songs that call the spirits near. Then she tells the farm when the famine will end. The reading is **sat**, it takes a night, and someone else's song makes it possible. Völuspá is the same posture at the scale of the world: the seeress tells what she has seen, and what she has seen is already past.
+- **Hunt: Showdown's Dark Sight** shows clues and the bounty through walls, and the player walks slowly while using it. It works because it costs tempo while the hunt keeps moving. It is also always on, which a class verb here must not be.
+- **Dishonored's Dark Vision** shows guards through walls for a mana cost and makes stealth trivial at full upgrade. That is the failure to avoid: information that never goes stale makes the floor solved.
+- **Thief's map** is only as true as when you last looked. **Darkest Dungeon's scouting** shows rooms ahead once and leaves you to act on what you learned.
+
+**Decision — Seiðr:**
+- **Hold the craft key to sit.** The trance fills the crosshair ring over 3 s ⟨tune⟩. While it fills she does not move, her guard is down, and her view dims. Release the key, step, or take a blow, and the trance is broken with nothing read. This is the binding's grammar (`M4-T32`): a timed act you can be broken out of, run by the host.
+- **A finished trance is a reading**, decided by the host and shown to the whole party for 12 s ⟨tune⟩:
+  - **the Gold-Sick**, where it was, as an enemy mark;
+  - **the best unlooted find** on the floor, the `WorldItem` worth most to her, as a loot mark;
+  - **the way out**, the Shaft, as a way mark.
+- **A snapshot, never a feed.** The marks stand where things *were* when she read them and do not follow. The Gold-Sick moves on and the find may be taken. Thief's map, not Dishonored's eye.
+- **The sight is spent for 30 s ⟨tune⟩ after a reading.** Without this, a reading every 3 s is a feed again.
+- **Drawn by `PingLayer`** with the ping shapes already learned, as a reading of up to a handful of marks held on her body (a `Pinger` holds one), so the party reads them without a new vocabulary. Each is labelled *seen*, so a mark of what *was* is never mistaken for a teammate's call of what *is*.
+
+**Decision — the Rite (4 nodes, opening at Pact Rank 3, through Wing):**
+- **Varðlokkur.** The trance is warded: one blow does not break it. The blow still lands. Solo-useful, and it is the saga's song.
+- **Marking Prey.** A reading also marks every awake enemy within 20 m ⟨tune⟩, where it stood.
+- **Spá** *(after Marking Prey)*. A reading also marks where the Gold-Sick is *going*: its goal, as a second, fainter mark. Foresight as one more snapshot, not a feed.
+- **Vé** *(after Varðlokkur)*. The ground she sat on stays a hush for 15 s ⟨tune⟩ after a reading. It is the hush rune's circle (`M4-T32`) and cracks as loudly as one. Warding a room for a short time, with the price the rune already charges.
+
+**Cost, against the balance rules:** time with the Hunt clock running (rule 3), helplessness while sitting, and stale marks. She is solo-viable (rule 1), because she alone knows where the Gold-Sick is, and a party profits more than one player does without needing her (rule 4).
+
+**Not built:** curses (none exist to read), and the arm-ink changes at ranks 3, 5 and 7 (ADR-057), which wait for the art pass like the other classes'.
+
 *Entries below to be added as design decisions are signed off.*

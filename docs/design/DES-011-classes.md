@@ -70,6 +70,12 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 
 *Note: divination is an unusually strong fit here — an extraction game's core resource is **information**, and a class that trades safety for information is a genuinely novel role.*
 
+> **Being built at `M4-T35` (ADR-379): a reading is a snapshot bought with stillness.** The danger in this verb is a radar, and Balance rule 2 forbids any class being the best at extracting. So:
+> - **Seiðr is sat.** Hold the craft key, and the trance fills the crosshair ring over 3 s ⟨tune⟩, still, guard down, the view dimmed. A step, a blow or letting go breaks it with nothing read. Þorbjörg's high seat in Eiríks saga ch. 4.
+> - **A reading** shows the whole party, for 12 s ⟨tune⟩, the Gold-Sick, the best unlooted find and the way out, **where they were**. The marks don't follow. Thief's map, not Dishonored's Dark Vision. They are drawn as the ping shapes, labelled *seen*.
+> - **The sight is spent for 30 s ⟨tune⟩** after a reading.
+> - **The Rite (pact rank 3, through Wing):** **Varðlokkur**, one blow doesn't break the trance · **Marking Prey**, a reading also marks awake enemies within 20 m · **Spá** *(after Marking Prey)*, and where the Gold-Sick is going · **Vé** *(after Varðlokkur)*, the ground she sat on stays a hush for 15 s, and cracks like one.
+
 ### 3. Skald — *Song-Speaker*
 **Aspects:** Cinder · Hoard · Scale
 **Fantasy:** the one who changes what the room does.
