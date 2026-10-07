@@ -608,6 +608,44 @@ def check_shared_inputs() -> list[Issue]:
     return issues
 
 
+# ── words the game asks for by key ────────────────────────────────────────
+
+TR_CALL = re.compile(r"""(?:\btr|TranslationServer\.translate)\(\s*"([A-Za-z0-9_.]+)"\s*\)""")
+KEY_FIELD = re.compile(r'^\w*_key\s*=\s*&"([A-Za-z0-9_.]+)"', re.MULTILINE)
+
+
+def check_translations() -> list[Issue]:
+    """**Every key the game asks for is in the table** (ADR-360).
+
+    `tr()` given a key the table does not hold returns the key, so a missing
+    row is not an error anywhere: the player reads `doll.health` where a word
+    should be, and only a screenshot of that exact screen would show it. Read
+    from the code's own literals (`tr("…")`, `TranslationServer.translate("…")`)
+    and the data's `*_key` fields; a key built at run time (`"verb.%s" % id`)
+    cannot be read here and is the probe's to prove.
+    """
+    import csv
+    table = GAME / "data" / "locale" / "en.csv"
+    if not table.exists():
+        return [Issue("error", "no-translations", rel(table), "the translation table is missing",
+                      "restore game/data/locale/en.csv")]
+    with table.open(newline="", encoding="utf-8") as handle:
+        known = {row[0] for row in csv.reader(handle) if row}
+    issues: list[Issue] = []
+    for path in game_files():
+        if path.suffix not in (".gd", ".tres"):
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        asked = set(TR_CALL.findall(text)) if path.suffix == ".gd" else set()
+        if path.suffix == ".tres":
+            asked |= set(KEY_FIELD.findall(text))
+        for key in sorted(asked - known):
+            issues.append(Issue("error", "missing-translation", rel(path),
+                                f"asks for `{key}`, which en.csv does not have",
+                                "add the row to game/data/locale/en.csv"))
+    return issues
+
+
 def main() -> int:
     strict = "--strict" in sys.argv[1:]
 
@@ -619,6 +657,7 @@ def main() -> int:
         issues += check_lfs_content()
         issues += check_gamepad()
         issues += check_shared_inputs()
+        issues += check_translations()
         scripts = 0
         for path in game_files():
             issues += check_naming(path)

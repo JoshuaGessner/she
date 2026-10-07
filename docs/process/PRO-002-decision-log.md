@@ -12752,4 +12752,20 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - **New `--board-probe` row** (`LodgeScreen.width_needed()`, read from the built columns' combined minimum size, the margins and the scrollbar): **1,152 px needed of 1,152**. The old 540 px cards measure 1,208 and fail it.
 - `--threshold-probe` passes.
 
+## ADR-360 — Every key the game asks for is in the table, checked before every commit
+
+**Date:** 2026-10-06 · **Status:** accepted · **Found in a tests-and-verification review**
+
+**Context:**
+- **A missing translation key fails silently.** `tr()` given a key the table does not hold returns the key itself, so a missing row is not an error anywhere: no probe fails and no log line is written. The player reads `doll.health` where *health* should be, and only a screenshot of that exact screen would show it.
+- **The exposure just grew.** The session's localisation pass (the bag's card and body, the verbs, the Shaft's refusal) moved about thirty strings onto keys, and nothing checked that the game's 248 literal keys have rows.
+
+**Decision:**
+- **`check_project.py` gains `check_translations`.** Every literal key, from `tr("…")` and `TranslationServer.translate("…")` in code and from every `*_key = &"…"` field in data, must be a row of `game/data/locale/en.csv`. A missing one is an error, so it blocks the commit and fails CI, which runs the same script.
+- **Keys built at run time** (`"verb.%s" % id`) cannot be read statically and stay the probes' to prove.
+
+**Measured:**
+- It reads 51 keys from code and 197 from data, and all are present.
+- **Planted:** deleting `doll.health` from the table fails with *game/ui/bag_screen.gd asks for `doll.health`, which en.csv does not have*.
+
 *Entries below to be added as design decisions are signed off.*
