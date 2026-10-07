@@ -66,11 +66,25 @@ static func slots_for(corpus: Array[ItemResource]) -> Array[Enums.Slot]:
 	return out
 
 
-const SLOT_LABEL: Dictionary = {
-	Enums.Slot.MAIN_HAND: "hand", Enums.Slot.OFF_HAND: "off",
-	Enums.Slot.ARMS: "arms", Enums.Slot.HEAD: "head",
-	Enums.Slot.BODY: "body", Enums.Slot.PACK: "pack",
-}
+## **What a slot is called** (ADR-374), under its outline on the figure and on
+## an item's card. From the table like every other word on this screen; each
+## key written out so `check_project.py` can see it is there.
+static func slot_name(slot: Enums.Slot) -> String:
+	match slot:
+		Enums.Slot.MAIN_HAND:
+			return TranslationServer.translate("slot.main_hand")
+		Enums.Slot.OFF_HAND:
+			return TranslationServer.translate("slot.off_hand")
+		Enums.Slot.ARMS:
+			return TranslationServer.translate("slot.arms")
+		Enums.Slot.HEAD:
+			return TranslationServer.translate("slot.head")
+		Enums.Slot.BODY:
+			return TranslationServer.translate("slot.body")
+		Enums.Slot.PACK:
+			return TranslationServer.translate("slot.pack")
+	return ""
+
 const SLOT_SIZE: float = 52.0
 
 ## ## The body beside the bag (ADR-342)
@@ -718,7 +732,7 @@ func _draw_slots() -> void:
 				warm if wanted else Color(faint, 0.55))
 		var font: Font = get_theme_default_font()
 		draw_string(font, box.position + Vector2(4.0, box.size.y + 12.0),
-			String(SLOT_LABEL[slot]), HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_TEXT, faint)
+			slot_name(slot), HORIZONTAL_ALIGNMENT_LEFT, -1, SLOT_TEXT, faint)
 
 
 func _grid_origin() -> Vector2:

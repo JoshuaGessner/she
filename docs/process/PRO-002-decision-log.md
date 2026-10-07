@@ -13019,4 +13019,18 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** these pass, with the same widths as before: `--board-probe` (1152 px needed of 1152), `--threshold-probe` (three cards, 1152 of 1152), `--pact-probe` (no control off a 1152 × 648 screen), `--bagui-probe`, `--hud-probe` and `--ping-probe`.
 
+## ADR-374 — A slot's name comes from the table: `BagScreen.slot_name`, and the off hand says so
+
+**Date:** 2026-10-07 · **Status:** accepted · **From a code-quality review**
+
+**Context:**
+- **The last English on the bag screen.** Every other word the bag and its item card draw is a key in `en.csv` (ADR-342, ADR-363). The slot names under the figure (*hand, off, arms, head, body, pack*) were a `SLOT_LABEL` dictionary of bare strings. `check_project.py` (ADR-360) can't see them, and a second language would leave six English words on a translated figure.
+- **"Off" read as a broken sentence on the card.** ItemCard's kind line is *"worn · %s"*, so a shield's card read *"worn · off"*.
+
+**Decision:**
+- **`BagScreen.slot_name(slot)` replaces `SLOT_LABEL`.** It is a `match` with each key written out (`slot.main_hand` … `slot.pack`), so the translation check reads every one. The doll, the card and the bag probe all ask it.
+- **The off hand is *"off hand"*.** The other five words stand alone.
+
+**Measured:** `--bagui-probe` passes. In `--bag-shot` at 1152 × 648, *off hand* sits under its slot and inside the figure's frame, and the card's kind line reads in full.
+
 *Entries below to be added as design decisions are signed off.*

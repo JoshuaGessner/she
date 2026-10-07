@@ -10058,7 +10058,7 @@ func _bagui_probe() -> void:
 	var drawn: Array[Enums.Slot] = bag.slots()
 	var names: PackedStringArray = []
 	for slot: Enums.Slot in drawn:
-		names.append(String(BagScreen.SLOT_LABEL[slot]))
+		names.append(BagScreen.slot_name(slot))
 	print("[bagui] slots        %d drawn: %s" % [drawn.size(), " ".join(names)])
 	for slot: Enums.Slot in BagScreen.SLOT_ROW:
 		var fits: bool = false
@@ -10066,7 +10066,7 @@ func _bagui_probe() -> void:
 			fits = fits or item.slot == slot
 		if drawn.has(slot) != fits:
 			problems.append("the `%s` slot is %s, and %s in the folder fits it"
-				% [BagScreen.SLOT_LABEL[slot], "drawn" if drawn.has(slot)
+				% [BagScreen.slot_name(slot), "drawn" if drawn.has(slot)
 					else "missing", "something" if fits else "nothing"])
 	var helm := ItemResource.new()
 	helm.slot = Enums.Slot.HEAD

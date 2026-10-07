@@ -64,7 +64,7 @@ static func worth_band(tribute: int) -> int:
 ## The line under the name: where it goes or what it is for.
 static func kind_of(definition: ItemResource) -> String:
 	if definition.slot != Enums.Slot.NONE:
-		return TranslationServer.translate("kind.worn") % [BagScreen.SLOT_LABEL.get(definition.slot, ""),
+		return TranslationServer.translate("kind.worn") % [BagScreen.slot_name(definition.slot),
 			TranslationServer.translate("kind.both_hands") if definition.two_handed else ""]
 	if definition.tags.has(&"ember"):
 		return TranslationServer.translate("kind.ember")
