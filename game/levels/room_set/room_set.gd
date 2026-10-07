@@ -7163,6 +7163,11 @@ func _coop_probe(out: String) -> void:
 		if fallen != null:
 			fallen.health.apply_damage(fallen.health.maximum * 2.0)
 	await _hold(0.5)
+	# **On the fall, not on a hold** (ADR-378): both peers read the client's
+	# body once it is down, whichever clock is ahead. Never down still fails.
+	var faller: Player = _client_body() if host else mine
+	await _hold_until(func() -> bool:
+		return is_instance_valid(faller) and faller.is_downed(), 3.0)
 	_probe_downed = _probe_down_state()
 	if host:
 		var fallen: Player = _client_body()
@@ -7173,6 +7178,10 @@ func _coop_probe(out: String) -> void:
 	await _hold(Config.tuning.revive_seconds + 1.2)
 	if host:
 		Input.action_release("interact")
+	# And off the revive: only the host's side walked over and knelt, so the
+	# client left this phase that much earlier until it waited on the event.
+	await _hold_until(func() -> bool:
+		return is_instance_valid(faller) and not faller.is_downed(), 3.0)
 	_probe_revived = _probe_down_state()
 
 	# 7. **A client ties a binding** (`M4-T32`, ADR-221). The use is a request
@@ -7185,7 +7194,10 @@ func _coop_probe(out: String) -> void:
 		var patient: Player = _client_body()
 		if patient != null:
 			patient.inventory.add(ItemCatalogue.by_id(&"con_linen_binding"))
-	await _hold(0.8)
+		await _hold(0.8)
+	else:
+		# The linen, once it is in the bag the host filled (ADR-378).
+		await _hold_until(func() -> bool: return _holds_mending(mine), 3.0)
 	if not host:
 		for held: ItemInstance in mine.inventory.items():
 			if held.definition.has_trait(MendingTrait):
@@ -7216,7 +7228,7 @@ func _coop_probe(out: String) -> void:
 	# mark that never comes still fails, three seconds later.
 	var other: Player = _client_body()
 	await _hold_until(func() -> bool:
-		return other != null and other.pinger != null \
+		return is_instance_valid(other) and other.pinger != null \
 			and not other.pinger.mark.is_empty(), 3.0)
 	_probe_pings = _probe_ping_state()
 
@@ -7507,6 +7519,14 @@ func _probe_ping_state() -> Dictionary:
 			"at": [at.x, at.y, at.z],
 		}
 	return out
+
+
+## Whether `body` carries something that mends (ADR-378's binding wait).
+func _holds_mending(body: Player) -> bool:
+	for held: ItemInstance in body.inventory.items():
+		if held.definition.has_trait(MendingTrait):
+			return true
+	return false
 
 
 ## The body this process is *not* playing. With a party of two that is the
