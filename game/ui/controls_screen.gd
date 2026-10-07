@@ -92,7 +92,8 @@ const GROUPS: Array = [
 	["FIGHTING", [
 		["Swing", "attack", ["attack"]],
 		["Guard", "guard", ["block"]],
-		["Your class verb", "your verb", ["verb"]],
+		# A *verb* is the design's word (`DES-011`), not a player's (ADR-376).
+		["Your class's craft", "your craft", ["verb"]],
 	]],
 	["CARRYING", [
 		["Open the bag", "bag", ["bag"]],

@@ -13047,4 +13047,18 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** `--bagui-probe` passes. In `--bag-shot` at 1152 × 648 the Waystone is an icon alone, *Seax* and *Altar-Plate* keep their names, and the card under the cursor is unchanged.
 
+## ADR-376 — A player's word for a class's verb is *craft*
+
+**Date:** 2026-10-07 · **Status:** accepted · **From a first-time-player review**
+
+**Context:**
+- **"Verb" is the design's word.** `DES-011` calls Hold, Snare and Wolf-Fury each class's *unique verb*. It was the right word in the docs, and it leaked onto two player-facing surfaces: the paper doll's row (*verb  Snare (f/Y)*) and the controls list (*Your class verb*). A player doesn't call an action a verb. Diablo says *skill*, which here would suggest the skill tree `DES-022` rules out.
+- **The word had to be free.** *Gift* is already *a king's gift* (a worth band, ADR-363), and *deed* belongs to `DES-016`'s Deeds.
+
+**Decision:**
+- **Craft**, after the Old Norse *íþrótt*, a person's accomplishment or art. Rögnvaldr counts his nine *íþróttir* in the Orkneyinga saga. The doll's row reads *craft*, and the controls list reads *Your class's craft* (short: *your craft*).
+- **The docs keep *verb*.** It is still the design term, and only what a player reads changes.
+
+**Measured:** `--menu-probe`, `--rebind-probe` and `--bagui-probe` pass.
+
 *Entries below to be added as design decisions are signed off.*
