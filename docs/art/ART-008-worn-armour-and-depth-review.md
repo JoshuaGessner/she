@@ -4,7 +4,7 @@ title: Worn Armour, Class Arms and Depth Variants — Review
 status: proposed
 owner: art
 tags: [art, assets, modelling, review]
-updated: 2026-10-05
+updated: 2026-10-07
 related: [ART-004, ART-006, ART-007, DES-020, TEC-008]
 ---
 
@@ -41,6 +41,30 @@ in its data validation.
 - [Pelt fit](../../source_art/characters/otr_pelt_worn_review.png)
 - [Pelt from behind](../../source_art/characters/otr_pelt_worn_rear_review.png)
 
+## Class dress (ADR-354, ADR-364)
+
+Two pieces are not items. They are a class's own look, `ClassResource.dress`,
+worn when nothing is in the body slot and replaced by any body piece put on.
+They weigh nothing and ward nothing, and no catalogue or bag ever holds them:
+`ClassResource.dress_item()` wraps the model in an `ItemResource` at run time
+so `BodyRig.wear` can dress it as gear.
+
+- **`wolf_coat_worn`, the Úlfheðinn.** A wolf's skin worn as a hood, the
+  skull on the crown with the muzzle over the brow (the Torslunda plates'
+  wolf-warrior), the hide to the calves, the forelegs knotted on the chest,
+  grey with a pale muzzle. The first review had the delver's braid through
+  the hood's back; the hide is thickened down the nape.
+- **`hunter_hood_worn`, the Veiðimaðr.** A hood and shoulder-cape with a
+  liripipe tail, cut after the Skjoldehamn find, in weathered wool.
+
+The Húskarl has none: a byrnie and round shield already make its outline.
+`--fury-probe` row 8 asks every class with a dress to wear it, and the
+Úlfheðinn's to give way to a byrnie.
+
+- [Wolf-coat fit](../../source_art/characters/wolf_coat_worn_review.png)
+- [Wolf-coat from behind](../../source_art/characters/wolf_coat_worn_rear_review.png)
+- [Hunter's hood fit](../../source_art/characters/hunter_hood_worn_review.png)
+
 ## The body under the gear (ADR-308)
 
 A teammate is `player_body.glb`, built by
@@ -63,6 +87,8 @@ human in the game. The body and all three worn pieces are now sculpted through
 | `mail_byrnie_worn` | 7,500 | `build_worn.py` |
 | `iron_bracers_worn` | 5,000 | `build_worn.py` |
 | `otr_pelt_worn` | 9,000 | `build_worn.py` |
+| `wolf_coat_worn` | 9,000 | `build_worn.py` |
+| `hunter_hood_worn` | 9,000 | `build_worn.py` |
 
 - **The body** is a tunic to mid-thigh with fitted sleeves to the wrist,
   trousers, leg wraps, turnshoes, a belt, and hair bound back with a braid.
