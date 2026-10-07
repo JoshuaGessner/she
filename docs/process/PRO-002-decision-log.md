@@ -12820,6 +12820,8 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Not solved:** draw calls are still about a thousand in a hall. That half is MultiMesh, which is still filed.
 
+**Guarded (2026-10-07, from a tests review):** `kit_probe` row 2b checks the cull by the mesh each piece carries, across its nine floors. Every flagstone and panel must stop at `FAR`, and no beam, pillar or frame may be cut, because a cut beam is a hole in the roof. Before this, only `--perf-shot`'s numbers would have noticed either regression. 8,135 pieces were cut and none were wrong. A planted cut beam with an uncut flagstone fails it in both directions.
+
 ## ADR-363 — The item card is its own class: one answer to *what is this to her*, for the bag and her pile
 
 **Date:** 2026-10-07 · **Status:** accepted · **Refactor; nothing on screen changes**

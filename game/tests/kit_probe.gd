@@ -114,6 +114,11 @@ func _initialize() -> void:
 	var flush: PackedStringArray = PackedStringArray()
 	var ducked: float = 999.0
 	var placed: Dictionary = {}
+	# ADR-362's far cull, by the mesh each piece carries: `[culled, unculled
+	# that should be, culled that must not be]`.
+	var far: Array[int] = [0, 0, 0]
+	var far_names: PackedStringArray = PackedStringArray()
+	var far_meshes: Dictionary = _far_meshes()
 	for run_seed: int in SEEDS:
 		for depth: int in 3:
 			var graph: MissionGraph = MissionGraph.build(run_seed, depth)
@@ -133,10 +138,24 @@ func _initialize() -> void:
 			pieces += _pieces_under(shell, placed)
 			_solids_match(shell, census["occluders"] as Array, strayed)
 			ducked = minf(ducked, _clad_slabs(shell, bare, sunk, flush))
+			_far_cull(shell, far_meshes, far, far_names)
 			shell.free()
 
 	print("[kit] laid        %d piece(s) over %d slab(s) across %d floor(s)"
 		% [pieces, slabs, SEEDS.size() * 3])
+
+	# ─ 2b. what is culled at range, and what never is (ADR-362) ─
+	#
+	# Flagstones and wall panels stop drawing past `DelvingsKit.FAR`, which
+	# halved a hall's primitives. Ceiling beams and pillars must never be:
+	# their boxes are not drawn, so a culled beam is a hole in the roof. Only
+	# `--perf-shot`'s numbers noticed either way before this.
+	print("[kit] far         %d piece(s) cut at %.0f m, %d that should be and are not, %d that must not be and are"
+		% [far[0], DelvingsKit.FAR, far[1], far[2]])
+	if far[0] == 0 or far[1] > 0 or far[2] > 0:
+		problems.append(("the far cull is wrong: %d flagstone(s) or panel(s) "
+			+ "draw to any range, %d beam(s), pillar(s) or frame(s) are cut (%s)")
+			% [far[1], far[2], ", ".join(far_names.slice(0, 3))])
 
 	# ─ 3. nothing the kit laid is a solid ─────────────────────────────────
 	print("[kit] solids      %d collision shape(s) for %d slab(s), %d strayed"
@@ -461,6 +480,43 @@ func _fingerprint(modules: Array[RoomModule],
 	for row: String in rows:
 		out.append(row)
 	return out
+
+
+## Which delivered meshes ADR-362 cuts at range: every flagstone and panel.
+func _far_meshes() -> Dictionary:
+	var cut: Dictionary = {}
+	var names: Array[StringName] = []
+	for band: Array in DelvingsKit.FLAGS_BY_BAND:
+		for module: StringName in band:
+			names.append(module)
+	for band: Array in DelvingsKit.PANELS_BY_BAND:
+		for step: Array in band:
+			for module: StringName in step:
+				names.append(module)
+	for module: StringName in names:
+		var shape: Mesh = DelvingsKit.mesh_of(module)
+		if shape != null:
+			cut[shape] = module
+	return cut
+
+
+## Count each kit piece under `node` against `_far_meshes`.
+func _far_cull(node: Node, cut: Dictionary, far: Array[int],
+		names: PackedStringArray) -> void:
+	var piece := node as MeshInstance3D
+	if piece != null and piece.mesh != null and not (piece.mesh is BoxMesh):
+		var culled: bool = piece.visibility_range_end > 0.0
+		if cut.has(piece.mesh):
+			if is_equal_approx(piece.visibility_range_end, DelvingsKit.FAR):
+				far[0] += 1
+			else:
+				far[1] += 1
+				names.append(String(cut[piece.mesh]))
+		elif culled:
+			far[2] += 1
+			names.append(piece.mesh.resource_path.get_file())
+	for child: Node in node.get_children():
+		_far_cull(child, cut, far, names)
 
 
 ## Walk the floor by hand, accumulating transforms, because nothing here is
