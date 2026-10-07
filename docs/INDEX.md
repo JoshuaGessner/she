@@ -45,7 +45,7 @@ _How it gets built._
 | `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-10-07 | TEC-002, TEC-003, DES-005 |
 | `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✔ accepted | 2026-09-13 | TEC-001, PRO-001 |
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-09-16 | DES-003, DES-015, TEC-001, TEC-002, TEC-004 |
-| `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-09-28 | DES-012, TEC-001, TEC-003, PRO-001 |
+| `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-10-07 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-28 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-10-07 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
@@ -79,7 +79,7 @@ _Visual and audio direction._
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-09-01 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 | `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-10-05 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
 | `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-10-06 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
-| `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-10-06 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
+| `ART-006` | [Modelling Brief — for an Agent Building Assets](art/ART-006-modelling-brief.md) | ✔ accepted | 2026-10-07 | ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002 |
 | `ART-007` | [Asset Quality Review — First Delivered Library](art/ART-007-asset-quality-review.md) | ✔ accepted | 2026-09-28 | ART-006, ART-004, ART-005, DES-020, PRO-002 |
 | `ART-008` | [Worn Armour, Class Arms and Depth Variants — Review](art/ART-008-worn-armour-and-depth-review.md) | ◆ proposed | 2026-10-07 | ART-004, ART-006, ART-007, DES-020, TEC-008 |
 | `ART-009` | [Enemy Model and Animation Review](art/ART-009-enemy-model-and-animation-review.md) | ✎ draft | 2026-10-04 | ART-004, ART-005, ART-006, DES-013, DES-017, PRO-001, PRO-002 |

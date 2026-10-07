@@ -430,7 +430,10 @@ joins drawn, as Darkest Dungeon's hamlet upgrade pages do. A plate underneath
 says what the card in focus is, what it costs and why it is refused, and holds
 the **one** button that takes it or gives it back. Looking is not buying: hover
 does not select, so a pointer on its way to that button cannot change what it
-buys. `--pact-probe` asks every page of every class in the catalogue to fit
+buys. The class screen is measured **down as well as across** (ADR-380):
+four cards fitted across at 1152 and the Völva's ran off the bottom, because
+narrower cards wrap every line once more. `--threshold-probe` asks
+`ClassScreen.height_needed()` beside `width_needed()`. `--pact-probe` asks every page of every class in the catalogue to fit
 the base screen. That screen is `MenuStyle.base_screen()`, the project's
 viewport setting (1152 x 648, Godot's default), and every fit check asks it
 rather than keeping a copy of the number (ADR-373). What fits inside a plate

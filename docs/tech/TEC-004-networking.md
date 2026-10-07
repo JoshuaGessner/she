@@ -4,7 +4,7 @@ title: Networking Architecture
 status: accepted
 owner: tech
 tags: [networking, multiplayer, godot, co-op, architecture, risk]
-updated: 2026-09-28
+updated: 2026-10-07
 related: [DES-012, TEC-001, TEC-003, PRO-001]
 ---
 
@@ -69,6 +69,8 @@ The rules that fell out of it:
 * **Leaving the world is a despawn, not a hide.** An invisible body still collides, still holds a doorway, still makes noise, still holds a seat.
 * **A private subtree gets its own peerless `MultiplayerAPI`.** Keeping a `CoopSession` out of it is not enough once it floats above a live connection: the body inside is local and will happily RPC the host. One multiplayer instance with no peer makes it structural for every RPC anybody writes later.
 * **Seats are keyed to the peer.** A despawn/respawn must not change who you are, because `party_slot` is what tells one ember from another.
+
+**A phase waits on the other peer's event, never on its own clock (ADR-378).** The two processes keep their own time. A phase where one side waits for an event and the other for a fixed hold leaves them apart, and the gap grows phase by phase. ADR-368's fury phase let the client leave half a second early, and the last two rows then read pings and an enemy that had not yet arrived: 0 of 3 runs passed, while its sweep passed by luck. Every phase now waits on the thing itself (the other's mark, the enemy existing, the body down, the linen in the bag) with a timeout, so a thing that never comes still fails. **One passing sweep is one sample:** a row that spans two peers' timing is run five times (`.claude/work/coop_compare.sh`) before it is trusted.
 
 **The smoke is also the only place party count is real (ADR-097).** `_start_host()` spawns the host's own body and nothing else; every other body arrives on `peer_connected`, after the level has already built its floor. So anything derived from *how many people are playing* is computed against a party of one in every single-process test, however carefully that test is written — and party scaling shipped dead for exactly one commit because of it. A single-process probe proves a function; **only a second process proves the game calls it.** The floor row exists to catch that whole class, not just the one instance of it.
 

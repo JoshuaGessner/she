@@ -4,7 +4,7 @@ title: Modelling Brief — for an Agent Building Assets
 status: accepted
 owner: art
 tags: [art, assets, brief, modelling, specs, blender, gltf]
-updated: 2026-10-06
+updated: 2026-10-07
 related: [ART-001, ART-004, ART-005, TEC-008, PRO-004, DES-020, PRO-002]
 ---
 
@@ -250,6 +250,9 @@ Bag footprint is given in grid cells — **each cell is roughly a hand's width**
 | `yew_bow.glb` | Yew Bow | 1×3 | 1.4 | 1.65 m |
 | `dvergar_hammer.glb` | Dvergar Hammer | 2×3 | 6.4 | 0.85 m |
 | `regin_blade.glb` | Regin's Blade | 1×4 | 3.2 | 1.25 m |
+| `volr.glb` | Völr | 1×3 | 1.6 | 0.94 m |
+
+> **The völr is the Völva's** (ADR-379): an iron staff caged at the head, after the women's graves at Fyrkat (grave 4) and Birka (Bj 660, Bj 845). *Völva* means *staff-bearer*. The cage is one mesh of six bowed rods, which kept it inside 800 triangles (756); the first cut was 884 and `art_probe` refused it.
 
 > **Regin's Blade is a relic and the most storied object on this list** — Regin reforged the sword that killed Fáfnir. It should read as older and stranger than everything around it, and it is still under 800 triangles.
 
