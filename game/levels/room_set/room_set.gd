@@ -6710,6 +6710,10 @@ func _build_hud() -> void:
 			if what != null:
 				brief.place += " · %s" % what.display().to_upper()
 		brief.way_out = _shaft == null or _shaft.leads_out
+		# The verb, once a run (ADR-365): the first floor's brief, and not the
+		# deeper ones — `PRO-005` §8's price of a line said every time.
+		if _floor_index == 0:
+			brief.verb = ArrivalBrief.verb_line(GameState.class_id)
 		layer.add_child(brief)
 
 ## How much floor has already been laid, so an arriving player tops it up
@@ -16793,6 +16797,17 @@ func _fury_probe() -> void:
 			% [held, went])
 		if held > 0.0 or went <= 0.0:
 			problems.append("the Shaft took a body mid-fury, or would not take it after")
+	# ─ 10. a first floor says what the verb does (ADR-365) ─
+	var told: String = ArrivalBrief.verb_line(&"ulfhedinn")
+	var said_fury: String = TranslationServer.translate("verb.fury.brief")
+	print("[fury] told        '%s'" % told)
+	if said_fury == "verb.fury.brief" or not told.contains(said_fury) \
+			or not told.contains(ControlsScreen.glyphs_for("verb")):
+		problems.append("the arrival brief does not say what Wolf-Fury does, or on which key")
+	for sworn_as: ClassResource in ClassCatalogue.all():
+		var key: String = "verb.%s.brief" % sworn_as.verb
+		if TranslationServer.translate(key) == key:
+			problems.append("the %s's verb has no brief in the table (%s)" % [sworn_as.id, key])
 	if problems.is_empty():
 		print("[fury] the fury defers the blood, it does not refuse it")
 	_report(problems, "fury")

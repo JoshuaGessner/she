@@ -12865,4 +12865,24 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - **`--fury-probe` row 8 now asks it of every class with a dress:** *a ulfhedinn wears `Worn_ulfhedinn_dress`*, and *a veidimadr wears `Worn_veidimadr_dress`*.
 - **These pass:** `art_probe` and `data_probe`.
 
+## ADR-365 — The first floor says what your verb does and what it costs
+
+**Date:** 2026-10-07 · **Status:** accepted · **Found in a user-experience review**
+
+**Context:**
+- **A first-time Úlfheðinn learns the fury by being hurt by it.** The verb's whole contract is that blows are owed and paid when it ends, with no stepping back and no bag. It is stated on the class card at the oath, in the fantasy's own words, and nowhere in the run.
+- **No class's verb was explained.** The controls list names the key as *your class verb* and says nothing of what it does. The Húskarl's Hold and the Veiðimaðr's Snare were taught the same way, which is not at all.
+- **The cost.** `PRO-005`'s one-sentence death (*I took more in the fury than I had*) is only available to someone who was told it could happen. `DES-010` C1, the first hour, is the largest churn point.
+
+**Decision:**
+- **The arrival brief on a run's first floor carries one more line:** the verb's key and what it does and costs, e.g. *"F — Wolf-Fury: blows are owed, not taken, and paid when it ends — no step back, no bag"*.
+- **Every class has a `verb.<id>.brief` row** in the translation table:
+  - Hold: *plant yourself and nothing gets past; breath drains while you stand*;
+  - Snare: *kneel to set a trap at your feet; silent to set, loud when it shuts*.
+- **First floor only.** The deeper floors' briefs don't repeat it. `PRO-005` §8 prices a line said every time at every run forever.
+
+**Measured:**
+- **New `--fury-probe` row 10** reads back the Úlfheðinn's line with its key, and requires every class's verb to have a brief in the table.
+- **`check_project.py`** passes. ADR-360's key check reads the new keys.
+
 *Entries below to be added as design decisions are signed off.*

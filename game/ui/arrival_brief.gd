@@ -57,6 +57,11 @@ var notes: PackedStringArray = PackedStringArray()
 ## **A notice, not an arrival** (ADR-241): only the notes, said once and faded
 ## the same way — `DES-019` Layer 5's *contract updates*.
 var notice: bool = false
+## **What your verb does, and what it costs** (ADR-365): one line, on the first
+## floor of a run. Each class's verb was named in the controls list as *your
+## class verb* and nowhere said what it did — so a first Úlfheðinn learned that
+## blows in a fury are paid when it ends by being paid. Empty, no line.
+var verb: String = ""
 
 
 func _ready() -> void:
@@ -85,6 +90,8 @@ func _ready() -> void:
 	_line("take what you can carry", MenuStyle.BODY_TEXT)
 	_line("climb %s at the light — it is loud, and it is watched"
 		% ("out" if way_out else "down"), MenuStyle.BODY_TEXT)
+	if verb != "":
+		_line(verb, MenuStyle.BODY_WARM)
 	# **Where the controls went** (ADR-139). This brief holds for 4.5 seconds and
 	# then frees itself, so anything it does not point at is gone with it. The
 	# Deep's control list used to live inside the diagnostic overlay, which is
@@ -104,6 +111,16 @@ func _ready() -> void:
 		_line("she was not paid — the Hunt began without you", MenuStyle.BODY_WARM)
 	for note: String in notes:
 		_line(note, MenuStyle.BODY_TEXT)
+
+
+## *"F — Wolf-Fury: …"*: the key and what the class's verb does and costs, or
+## empty for a body with no class (ADR-365).
+static func verb_line(class_id: StringName) -> String:
+	var sworn: ClassResource = ClassCatalogue.by_id(class_id)
+	if sworn == null or sworn.verb == &"":
+		return ""
+	return "%s — %s" % [ControlsScreen.glyphs_for("verb"),
+		TranslationServer.translate("verb.%s.brief" % sworn.verb)]
 
 
 ## **Which way, in words a body can use** (ADR-241): eight directions and near
