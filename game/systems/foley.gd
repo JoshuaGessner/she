@@ -77,6 +77,7 @@ enum Sound {
 	CRUNCH,     # a blow into flesh (ADR-279) — the body half of an impact
 	CRACKLE,    # the camp's fire (ADR-287), looped — a world sound, never the score
 	COIN,       # coin shifting in the bag at a step (ADR-326) — how rich you sound
+	HOWL,       # the Úlfheðinn's fury, opening (ADR-358) — a throat, not a wolf
 }
 
 ## How far a one-shot carries by default: roughly the Deep's scale, audible
@@ -235,6 +236,8 @@ static func looping_stream_for(sound: Sound) -> AudioStream:
 
 
 static func _render(sound: Sound) -> AudioStreamWAV:
+	if sound == Sound.HOWL:
+		return _howl()
 	var seconds: float = 0.32
 	match sound:
 		Sound.NOTICED: seconds = 0.55
@@ -255,6 +258,46 @@ static func _render(sound: Sound) -> AudioStreamWAV:
 	stream.data = data
 	# One-shots, never looped. A looping footstep is a bug you hear once and
 	# then cannot stop hearing.
+	stream.loop_mode = AudioStreamWAV.LOOP_DISABLED
+	return stream
+
+
+## **The howl that opens a fury** (ADR-358), synthesised: there is no
+## recording of a person howling in the CC0 shelf, and a glide is what a howl
+## *is* — a voice that rises, holds and falls. Rendered with its phase carried
+## sample to sample, because a frequency that moves cannot be written as
+## `sin(f(t) · t)` without the pitch running away at the tail.
+##
+## A man's throat, not a wolf's: it starts low, rises a fifth into a held note
+## with a slow tremble, and falls away rough, three harmonics and a breath of
+## noise under them. 1.4 s, the longest one-shot here, because it is the one
+## thing in this file that is a declaration.
+const HOWL_SECONDS: float = 1.4
+
+
+static func _howl() -> AudioStreamWAV:
+	var frames: int = int(float(RATE) * HOWL_SECONDS)
+	var data := PackedByteArray()
+	data.resize(frames * 2)
+	var phase: float = 0.0
+	for frame: int in range(frames):
+		var when: float = float(frame) / float(RATE)
+		var p: float = when / HOWL_SECONDS
+		var rise: float = smoothstep(0.0, 0.28, p) - 0.55 * smoothstep(0.62, 1.0, p)
+		var pitch: float = 190.0 * (1.0 + 0.5 * rise) * (1.0 + 0.018 * sin(TAU * 5.2 * when))
+		phase = fmod(phase + TAU * pitch / float(RATE), TAU * 64.0)
+		var voice: float = sin(phase) + 0.42 * sin(phase * 2.0 + 0.3) \
+			+ 0.18 * sin(phase * 3.0 + 1.1)
+		# Breath: hashed rather than random, so every peer renders the same howl.
+		var breath: float = fmod(sin(float(frame) * 12.9898) * 43758.5453, 1.0) * 2.0 - 1.0
+		var envelope: float = smoothstep(0.0, 0.10, when) * (1.0 - smoothstep(0.70, 1.0, p))
+		var value: float = (voice * 0.26 + breath * 0.05 * (0.4 + p)) * envelope
+		data.encode_s16(frame * 2, clampi(int(value * 32767.0), -32768, 32767))
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = RATE
+	stream.stereo = false
+	stream.data = data
 	stream.loop_mode = AudioStreamWAV.LOOP_DISABLED
 	return stream
 

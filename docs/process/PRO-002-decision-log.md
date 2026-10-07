@@ -12709,4 +12709,28 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - `--party-shot` photographed the frame on its plate.
 - These pass: `--hud-probe`, `--ping-probe` and the co-op smoke.
 
+## ADR-358 — The fury opens with a howl: a synthesised throat that rises, holds and falls
+
+**Date:** 2026-10-06 · **Status:** accepted · **Closes ADR-345's owed sound**
+
+**Context:**
+- **The fury had no sound of its own.** ADR-345's howl was the HURT recording pitched down, which is the sound of being struck, and it was heard by every peer at the moment the Úlfheðinn *chose* to rage. Hearing *I was hit* when what happened is *I am coming* is the misreading `DES-018` exists to prevent.
+- **No recording to use.** The CC0 shelf (`source_art/audio/cc0`) has no human howl, and pulling a recording from the internet while unattended means trusting a licence nobody checked.
+- **Precedent for synthesis.** `Foley` already synthesises the cues no recording says better: *noticed*, a Waystone working, an ember going out.
+
+**Decision:**
+- **`Foley.Sound.HOWL`**, appended so no existing sound's number moves on the wire. It is synthesised at boot:
+  - 1.4 s, the longest one-shot, because it is the one sound in the table that is a declaration;
+  - a man's throat, not a wolf's: 190 Hz rising half again (a fifth) in the first quarter, holding with a 5.2 Hz tremble, falling at the tail;
+  - three harmonics and a breath of noise that roughens as it goes;
+  - phase carried sample to sample, because a moving frequency written as `sin(f(t)·t)` runs away at the tail;
+  - noise hashed rather than random, so every peer renders the same howl.
+- **`_rouse`** plays it to every peer at pitch 1.0.
+
+**Measured:**
+- **`--ear-probe`'s *every sound makes one* row:** 18 of 18, the howl included.
+- **`--fury-probe`** passes.
+
+**Honest scale:** nobody has heard it. A synthesised voice is the thing most likely to sound like a synthesiser, and it is a human's call. It is one table entry to replace with a recording.
+
 *Entries below to be added as design decisions are signed off.*

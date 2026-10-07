@@ -3738,9 +3738,9 @@ func _rouse() -> void:
 	fury = tuning.fury_seconds
 	_fury_added = 0.0
 	clamor.add(tuning.fury_howl_clamor)
-	# A throat, pitched down: there is no howl in the foley yet, and a voice
-	# is what this is (`DES-018`'s twin of it is the screen's ember edge).
-	_sound_for_all(Foley.Sound.HURT, 0.5)
+	# The howl (ADR-358), heard by every peer. `DES-018`'s twin of it is the
+	# screen's ember edge, and the teammate's hunch.
+	_sound_for_all(Foley.Sound.HOWL, 1.0)
 	if has_effect(&"fury_howl_breaks_nerve"):
 		for node: Node in get_tree().get_nodes_in_group("enemies"):
 			var enemy := node as Enemy
