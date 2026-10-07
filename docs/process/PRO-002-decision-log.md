@@ -12302,4 +12302,23 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 **Not yet:**
 - **The offering page's cards** are still buttons with a line of text. Moving them onto this card's layout is the next UI item.
 
+## ADR-343 — A gift is seen where it is judged: icons and worth bands on her page, and bag items as raised plates
+
+**Date:** 2026-10-06 · **Status:** accepted · **Completes ADR-342's item-card work**
+
+**Context:**
+- **Her page named things but did not show them.** ADR-342 gave the bag a Diablo-style card: the item's ink silhouette, and its worth to her in words. The page where items are actually judged for tribute still showed each one as two lines of text, *"Altar-Plate / worth 140 to her"*.
+- **The bag's items were not distinct.** An item in the bag was a flat rectangle with a 2 px line, the same weight as the thirty empty sockets around it.
+
+**Decision:**
+- **Her page:**
+  - each card carries its item's ink icon, the one the bag draws (`OfferCard` theme constants: icon width 34, separation 12);
+  - each card's second line reads *"140 · rich, to her"*, using `BagScreen.worth_band` and its words, so the two screens agree;
+  - the detail plate opens with the gift's silhouette at 56 px beside its name and its kind (*glitter — hers, if you give it*).
+- **The bag:** an item at rest is drawn on the aspect chip's forged plate, raised iron in the sunken socket. A held, floating item keeps the translucent rectangle, because a stylebox cannot be drawn at partial alpha.
+
+**Measured:**
+- `--offering-shot` and `--bag-shot` photographed.
+- These probes pass: `--offering-probe`, `--lair-probe`, `--pact-probe` and `--bagui-probe`.
+
 *Entries below to be added as design decisions are signed off.*

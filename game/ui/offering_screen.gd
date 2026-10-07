@@ -39,6 +39,8 @@ signal asked
 const MARGIN: float = 18.0
 const LEDGER_WIDTH: float = 400.0
 const CARD_WIDTH: float = 300.0
+## The selected gift's silhouette, beside its name (ADR-343).
+const PICTURE: float = 56.0
 
 ## The bag being offered from. Set before the screen enters the tree.
 var inventory: Inventory = null
@@ -170,8 +172,13 @@ func _card(item: ItemInstance) -> Button:
 		else MenuStyle.OFFER_CARD
 	card.alignment = HORIZONTAL_ALIGNMENT_LEFT
 	card.custom_minimum_size = Vector2(CARD_WIDTH, 50.0)
-	card.text = "%s\n%s" % [item.definition.display(),
-		"worth %d to her" % item.tribute_worth() if refused == "" else "she will not take it"]
+	# **The thing, not only its name** (ADR-343): its ink silhouette, the one
+	# the bag draws, so a gift is recognised here the way it is packed there —
+	# and what it is worth to her in the bag card's words.
+	card.icon = item.definition.icon
+	card.expand_icon = true
+	card.text = "%s\n%s" % [item.definition.display(), _worth(item)
+		if refused == "" else "she will not take it"]
 	card.set_meta(&"offer", item.instance_id)
 	card.focus_entered.connect(func() -> void: _look(item))
 	card.pressed.connect(func() -> void:
@@ -180,6 +187,13 @@ func _card(item: ItemInstance) -> Button:
 		if not _give.disabled:
 			_give.grab_focus())
 	return card
+
+
+## *"140 · rich, to her"* — the number this page reckons with, and the band the
+## bag's card colours the name by (ADR-342), so the two screens agree.
+static func _worth(item: ItemInstance) -> String:
+	var value: int = item.tribute_worth()
+	return "%d · %s" % [value, BagScreen.WORTH_WORDS[BagScreen.worth_band(value)]]
 
 
 func _look(item: ItemInstance) -> void:
@@ -220,13 +234,28 @@ func _describe() -> void:
 		_give.text = "Nothing to give"
 		_give.disabled = true
 		return
-	_detail.add_child(_left(MenuStyle.line(_selected.definition.display(), MenuStyle.DISPLAY_WARM)))
+	# The gift, drawn large beside its name — the plate is about this one thing.
+	var named := HBoxContainer.new()
+	named.add_theme_constant_override("separation", 12)
+	var picture := TextureRect.new()
+	picture.texture = _selected.definition.icon
+	picture.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	picture.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	picture.custom_minimum_size = Vector2(PICTURE, PICTURE)
+	named.add_child(picture)
+	var words := VBoxContainer.new()
+	words.alignment = BoxContainer.ALIGNMENT_CENTER
+	words.add_child(_left(MenuStyle.line(_selected.definition.display(), MenuStyle.DISPLAY_WARM)))
+	words.add_child(_left(MenuStyle.line(BagScreen.kind_of(_selected.definition),
+		MenuStyle.CAPTION_DIM)))
+	named.add_child(words)
+	_detail.add_child(named)
 	if refused != "":
 		_detail.add_child(_wrapped(refused, MenuStyle.BODY_DIM))
 		_give.text = "She will not take it"
 		_give.disabled = true
 		return
-	_detail.add_child(_left(MenuStyle.line("worth %d to her" % value, MenuStyle.CAPTION_WARM)))
+	_detail.add_child(_left(MenuStyle.line("worth %s" % _worth(_selected), MenuStyle.CAPTION_WARM)))
 	if int(sum["to_tithe"]) > 0:
 		_detail.add_child(_wrapped("%d of it pays what you owe her." % int(sum["to_tithe"]),
 			MenuStyle.BODY_TEXT))

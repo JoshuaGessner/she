@@ -1105,8 +1105,15 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	# stays quiet so the icon, not a colour patch, is what a hand recognises.
 	var cell: Color = palette()[&"cell"] as Color
 	var line: Color = palette()[&"line"] as Color
-	draw_rect(rect, Color(cell, cell.a * alpha))
-	draw_rect(rect, Color(line, line.a * alpha), false, 2.0)
+	if alpha >= 1.0:
+		# **A thing in the bag is a plate on the slate** (ADR-343): raised
+		# iron in a sunken socket, the aspect chip's forged plate, so what you
+		# carry stands off the holes it sits in rather than being one more
+		# outlined rectangle among thirty.
+		get_theme_stylebox(&"normal", MenuStyle.ASPECT_CHIP).draw(get_canvas_item(), rect)
+	else:
+		draw_rect(rect, Color(cell, cell.a * alpha))
+		draw_rect(rect, Color(line, line.a * alpha), false, 2.0)
 	var one_row: bool = item.footprint().y == 1
 	var icon_top: float = 5.0 if one_row else 20.0
 	var icon_bottom: float = 16.0
