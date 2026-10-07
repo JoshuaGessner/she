@@ -13127,6 +13127,8 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Not built:** curses (none exist to read), and the arm-ink changes at ranks 3, 5 and 7 (ADR-057), which wait for the art pass like the other classes'.
 
+**Measured, at the close of `M4-T35`:** `--seidr-probe` passes its eight rows. At half the trance the ring and the dimmed view both read 0.51, and no guard can be raised. A reading marks enemy, loot and way, and spends 29.6 s of sight. The Gold-Sick moved 4 m and its mark moved 0.00. A step, a blow and letting go each break the trance with no marks. Each Rite node changes only its own case against a control. Seven Wing nodes reach rank 3 and open the Rite, and Spá needs Marking Prey. The co-op smoke's new row (*a client's reading reaches both peers*: enemy, loot and way on each, with the trance at 0.99) passes 5 of 5 runs.
+
 ## ADR-380 — The class screen is measured down as well as across
 
 **Date:** 2026-10-07 · **Status:** accepted · **Found photographing the fourth card (`M4-T35`)**
