@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AspectNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/aspects/aspect_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"rit_vl_spa"
+aspect = &""
+sworn = &"volva"
+tier = 1
+name_key = &"node.rit_vl_spa.name"
+description_key = &"node.rit_vl_spa.desc"
+requires = Array[StringName]([&"rit_vl_marking_prey"])
+effect_tags = Array[StringName]([&"seidr_foresees"])
+rank_required = 0

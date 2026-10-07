@@ -1555,6 +1555,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Völva's reading is a snapshot bought with stillness** (ADR-379).
+	# Held, the craft key sits her into a trance drawn at the crosshair, with no
+	# guard; finished, it marks the Gold-Sick, the best find and the way out
+	# where they were, and spends the sight; a step, a blow or letting go
+	# breaks it with nothing read; and each Rite node against a control.
+	seidr="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --seidr-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[seidr\] a reading is a snapshot' <<<"$seidr" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$seidr"; then
+		echo "FAIL a reading is a snapshot bought with stillness" >&2
+		printf '%s\n' "$seidr" | grep -E '\[seidr\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Scale, the Aspect of staying power** (ADR-346): twelve nodes, each
 	# against the same case without it — the damp, the lamp, scree, the
 	# keystone's ground and its lost sprint, a concussion, an old scar, a set

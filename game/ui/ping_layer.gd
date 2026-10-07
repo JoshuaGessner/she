@@ -76,6 +76,23 @@ func _draw() -> void:
 				var font: Font = get_theme_default_font()
 				draw_string(font, at + below + Vector2(-40.0, 0.0), who,
 					HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, ink)
+		# **What a Völva saw** (ADR-379): the ping's shapes, standing where
+		# things were, each labelled *seen* so a mark of what was is never
+		# read as a teammate's call of what is.
+		for node: Node in get_tree().get_nodes_in_group(Sight.GROUP):
+			var sight := node as Sight
+			if sight == null:
+				continue
+			for mark: Dictionary in sight.marks:
+				var shown: Dictionary = place(eye, Sight.mark_position(mark), screen)
+				var kind: int = int(mark["kind"])
+				var faded: Color = _ink(kind)
+				faded.a = clampf(float(mark["left"]) / FADE_SECONDS, 0.0, 1.0) * 0.85
+				var point: Vector2 = shown["at"]
+				_shape(kind, point, SIZE, faded)
+				draw_arc(point, SIZE + 5.0, 0.0, TAU, 24, Color(faded, faded.a * 0.6), 1.0)
+				draw_string(get_theme_default_font(), point + Vector2(-40.0, SIZE + 14.0),
+					tr("seidr.seen"), HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, faded)
 	var local := _local_pinger()
 	if local != null and local.wheel_open:
 		_wheel(screen * 0.5, local.aimed())

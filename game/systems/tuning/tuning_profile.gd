@@ -262,6 +262,22 @@ extends Resource
 @export var fury_spent_seconds: float = 6.0
 @export var fury_spent_speed: float = 0.8
 
+@export_group("Seiðr")
+## **Seiðr** (ADR-379), every number ⟨tune⟩. How long the trance is sat for.
+@export var seidr_seconds: float = 3.0
+## How long a reading's marks stand.
+@export var seidr_seen_seconds: float = 12.0
+## How long the sight is spent after a reading, so a reading is not a feed.
+@export var seidr_spent_seconds: float = 30.0
+## Faster than this, as the host sees the body move, is a step, and breaks it.
+@export var seidr_break_speed: float = 0.5
+## **Marking Prey**: how near an awake enemy has to be to be read.
+@export var rite_prey_metres: float = 20.0
+## **Vé**: the warded ground's circle, its time, and the crack when it breaks.
+@export var rite_ve_radius: float = 3.0
+@export var rite_ve_seconds: float = 15.0
+@export var rite_ve_crack: float = 10.0
+
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*
 ## rather than per blow, unlike a block: `DES-011` gives every unique verb a

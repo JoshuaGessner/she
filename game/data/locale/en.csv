@@ -55,6 +55,20 @@ class.veidimadr.exit,"Gets out by never having been noticed — a bow, a trap, a
 class.ulfhedinn.name,Úlfheðinn
 class.ulfhedinn.desc,"Wolf-coat. Goes without mail and does not step back. The thing in the dark that the dark should be afraid of."
 class.ulfhedinn.exit,"Gets out through whatever is in the way — a fury that cannot be ended, blood that is paid when it is over, and a body weaker than its wont until it passes."
+class.volva.name,Völva
+class.volva.desc,"Seeress. Sits where others run, and comes back knowing where the thing in the dark was standing."
+class.volva.exit,"Gets out by leaving before it goes wrong — a trance sat still while the Hunt walks, and a reading of the Gold-Sick, the best of the floor and the way out, true for the moment it was taken. Frail. Helpless while she sees."
+verb.seidr,"Seiðr"
+verb.seidr.brief,"Seiðr: hold to sit in a trance — still, guard down — and the party sees where the Gold-Sick, the best find and the way out were"
+seidr.seen,"seen"
+node.rit_vl_vardlokkur.name,"Varðlokkur"
+node.rit_vl_vardlokkur.desc,"The ward-songs hold the trance through one blow. The blow still lands."
+node.rit_vl_marking_prey.name,"Marking Prey"
+node.rit_vl_marking_prey.desc,"A reading also marks every awake enemy within twenty paces, where it stood."
+node.rit_vl_spa.name,"Spá"
+node.rit_vl_spa.desc,"A reading also marks where the Gold-Sick is going."
+node.rit_vl_ve.name,"Vé"
+node.rit_vl_ve.desc,"Where you sat stays hushed a while after a reading, and cracks loud as a rune when it breaks."
 node.hrd_sure_grip.name,Sure Grip
 node.hrd_sure_grip.desc,"What you set down lands at your feet, instead of skidding away into the dark."
 node.hrd_coin_sense.name,Coin-Sense

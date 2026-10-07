@@ -968,6 +968,8 @@ func _ready() -> void:
 			_verbs_probe()
 		elif arg == "--rite-probe":
 			_rite_probe()
+		elif arg == "--seidr-probe":
+			_seidr_probe()
 		elif arg == "--fury-probe":
 			_fury_probe()
 		elif arg == "--scale-probe":
@@ -16623,6 +16625,192 @@ func _scale_probe() -> void:
 	if problems.is_empty():
 		print("[scale] every node changes the case it names, and nothing without it does")
 	_report(problems, "scale")
+
+
+## **`--seidr-probe`** (ADR-379): Seiðr, asked of the real body.
+##
+## 1. **Sat** — the craft key held fills the trance, and the ring with it; no
+##    guard can be raised while she sits.
+## 2. **Read** — a finished trance leaves the Gold-Sick, the best find and the
+##    way out as marks, and the sight spent.
+## 3. **A snapshot** — the Gold-Sick walks on; its mark does not.
+## 4. **Spent** — the key does nothing while the sight is spent.
+## 5. **Broken** — by a step, by a blow, and by letting go, each with nothing read.
+## 6. **The Rite** — each node against the same reading without it.
+## 7. **Told** — the first floor's brief says to hold.
+func _seidr_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	var tuning: TuningProfile = Config.tuning
+	body.sworn = &"volva"
+	body.effects = PackedStringArray()
+	body.restore_for_descent()
+	await _hold(0.3)
+	var striker := Node3D.new()
+	add_child(striker)
+	striker.global_position = body.global_position + Vector3(0.0, 0.0, -2.0)
+	if _hunter == null or not is_instance_valid(_hunter):
+		_hunter = _session.spawn_hunter(body.global_position + Vector3(9.0, 0.0, 0.0))
+	await _hold(0.3)
+	var mark: Reticle = _reticle()
+
+	# ─ 1. sat ─
+	Input.action_press("verb")
+	await _hold(tuning.seidr_seconds * 0.5)
+	Input.action_press("block")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var guarded: bool = body.blocking
+	Input.action_release("block")
+	var ring: float = mark.channel_drawn() if mark != null else 0.0
+	print("[seidr] sat         trance %.2f, ring %.2f, a guard raised %s"
+		% [body.trance, ring, guarded])
+	if body.trance <= 0.2 or body.trance >= 1.0 or ring <= 0.2:
+		problems.append("holding the craft key did not sit her into a trance drawn at the crosshair")
+	if guarded:
+		problems.append("a guard was raised in the trance")
+
+	# ─ 2. read ─
+	await _hold(tuning.seidr_seconds * 0.5 + 0.4)
+	Input.action_release("verb")
+	await get_tree().process_frame
+	var kinds: Array[int] = []
+	for seen: Dictionary in body.sight.marks:
+		kinds.append(int(seen["kind"]))
+	print("[seidr] read        marks %s, sight spent %.1f s" % [kinds, body.sight_spent])
+	for wanted: int in [Pinger.Kind.ENEMY, Pinger.Kind.LOOT, Pinger.Kind.WAY]:
+		if not kinds.has(wanted):
+			problems.append("a reading did not mark the %s" % Pinger.NAMES[wanted])
+	if body.sight_spent <= 0.0:
+		problems.append("a reading left the sight unspent")
+
+	# ─ 3. a snapshot ─
+	var was: Vector3 = Vector3.INF
+	for seen: Dictionary in body.sight.marks:
+		if int(seen["kind"]) == Pinger.Kind.ENEMY:
+			was = seen["at"]
+	_hunter.global_position = _hunter.global_position + Vector3(4.0, 0.0, 0.0)
+	await get_tree().process_frame
+	var still: Vector3 = Vector3.INF
+	for seen: Dictionary in body.sight.marks:
+		if int(seen["kind"]) == Pinger.Kind.ENEMY:
+			still = seen["at"]
+	print("[seidr] snapshot    the Gold-Sick moved 4 m; its mark moved %.2f m"
+		% (was.distance_to(still) if was.is_finite() and still.is_finite() else -1.0))
+	if not was.is_finite() or not still.is_finite() or was.distance_to(still) > 0.001:
+		problems.append("a reading's mark followed what it marked")
+
+	# ─ 4. spent ─
+	Input.action_press("verb")
+	await _hold(0.6)
+	var while_spent: float = body.trance
+	Input.action_release("verb")
+	print("[seidr] spent       the key held while spent: trance %.2f (want 0)" % while_spent)
+	if while_spent > 0.0:
+		problems.append("a trance began while the sight was spent")
+
+	# ─ 5. broken: a step, a blow, letting go ─
+	var broken: Array[String] = []
+	for how: String in ["step", "blow", "let go"]:
+		body.sight_spent = 0.0
+		body.sight.marks.clear()
+		await _hold(0.2)
+		Input.action_press("verb")
+		await _hold(tuning.seidr_seconds * 0.4)
+		var began: float = body.trance
+		if how == "step":
+			Input.action_press("move_forward")
+			await _hold(0.4)
+			Input.action_release("move_forward")
+		elif how == "blow":
+			body._on_hurt(5.0, striker)
+			await get_tree().physics_frame
+		else:
+			Input.action_release("verb")
+			await _hold(0.2)
+		var after: float = body.trance
+		Input.action_release("verb")
+		await _hold(tuning.seidr_seconds * 0.7)
+		broken.append("%s %.2f -> %.2f, %d mark(s)" % [how, began, after, body.sight.marks.size()])
+		if began <= 0.0 or after > 0.0 or not body.sight.marks.is_empty():
+			problems.append("a trance was not broken by a %s, or read something anyway" % how)
+	print("[seidr] broken      " + "; ".join(broken))
+
+	# ─ 6. the Rite, each against the same case without it ─
+	body.sight_spent = 0.0
+	var rows: PackedStringArray = PackedStringArray()
+	# Varðlokkur: one blow does not break the trance; a second does.
+	for warded: bool in [false, true]:
+		body.effects = PackedStringArray(["seidr_warded"]) if warded else PackedStringArray()
+		body._set_trance(true)
+		body._on_hurt(5.0, striker)
+		var after_one: bool = body._trance > 0.0
+		body._on_hurt(5.0, striker)
+		var after_two: bool = body._trance > 0.0
+		body._stop_trance()
+		rows.append("vardlokkur %s: through one blow %s, two %s" % [warded, after_one, after_two])
+		if after_one != warded or after_two:
+			problems.append("Varðlokkur did not hold the trance through exactly one blow")
+	# Marking Prey: an awake enemy near is marked only with the node.
+	_session.spawn_enemy(body.global_position + Vector3(0.0, 0.0, 6.0), 0.0)
+	await _hold(0.3)
+	var prey: Enemy = _first_live_enemy()
+	if prey == null:
+		problems.append("no enemy came to be read")
+		_report(problems, "seidr")
+		return
+	var counted: Array[int] = []
+	for marking: bool in [false, true]:
+		body.effects = PackedStringArray(["seidr_marks_prey"]) if marking else PackedStringArray()
+		prey.set("_state", Enemy.State.ALERTED)
+		body._read(tuning)
+		var enemies: int = 0
+		for seen: Dictionary in body.sight.marks:
+			if int(seen["kind"]) == Pinger.Kind.ENEMY:
+				enemies += 1
+		counted.append(enemies)
+	rows.append("marking prey: enemy marks %d without, %d with" % [counted[0], counted[1]])
+	if counted[1] != counted[0] + 1:
+		problems.append("Marking Prey did not add the awake enemy, or the reading marked it without the node")
+	prey.queue_free()
+	# Spá: where the Gold-Sick is going, only with the node.
+	_hunter.set("_goal", body.global_position + Vector3(0.0, 0.0, -12.0))
+	_hunter.set("_has_goal", true)
+	var going: Array[bool] = []
+	for foreseeing: bool in [false, true]:
+		body.effects = PackedStringArray(["seidr_foresees"]) if foreseeing else PackedStringArray()
+		body._read(tuning)
+		var shown: bool = false
+		for seen: Dictionary in body.sight.marks:
+			shown = shown or int(seen["kind"]) == Pinger.Kind.GO
+		going.append(shown)
+	rows.append("spa: where it goes %s without, %s with" % [going[0], going[1]])
+	if going[0] or not going[1]:
+		problems.append("Spá did not mark where the Gold-Sick is going, or the reading did without it")
+	# Vé: a hush where she sat, only with the node.
+	var hushed: Array[bool] = []
+	for warding: bool in [false, true]:
+		body.effects = PackedStringArray(["seidr_wards_ground"]) if warding else PackedStringArray()
+		body._read(tuning)
+		await get_tree().process_frame
+		hushed.append(Hush.silences(body.global_position))
+	rows.append("ve: her seat hushed %s without, %s with" % [hushed[0], hushed[1]])
+	if hushed[0] or not hushed[1]:
+		problems.append("Vé did not hush the seat, or it was hushed without the node")
+	for row: String in rows:
+		print("[seidr] rite        " + row)
+	body.effects = PackedStringArray()
+
+	# ─ 7. told ─
+	var told: String = ArrivalBrief.verb_line(&"volva")
+	print("[seidr] told        '%s'" % told)
+	if told.is_empty() or not told.contains("hold") or told.contains("verb.seidr"):
+		problems.append("the first floor's brief does not say how Seiðr is begun")
+	if problems.is_empty():
+		print("[seidr] a reading is a snapshot bought with stillness")
+	_report(problems, "seidr")
 
 
 ## **`--fury-probe`** (ADR-345): Wolf-Fury, asked of the real body.

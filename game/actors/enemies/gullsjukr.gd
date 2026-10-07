@@ -340,6 +340,12 @@ func goal() -> Vector3:
 	return _goal
 
 
+## Whether `goal` is somewhere it is going, rather than where it last was.
+## Read by a Völva's Spá (ADR-379).
+func has_goal() -> bool:
+	return _has_goal
+
+
 # ── senses ────────────────────────────────────────────────────────────────
 
 

@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ClassResource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
+[ext_resource type="PackedScene" path="res://art/characters/volva_arms.glb" id="2_arms"]
+
+[resource]
+script = ExtResource("1_class")
+id = &"volva"
+name_key = &"class.volva.name"
+description_key = &"class.volva.desc"
+exit_key = &"class.volva.exit"
+aspects = Array[StringName]([&"maw", &"wing", &"cinder"])
+verb = &"seidr"
+health_scale = 0.8
+stamina_scale = 1.0
+speed_scale = 1.0
+carry_scale = 0.85
+bare_arms = ExtResource("2_arms")
+kit = Array[StringName]([&"wpn_seax", &"con_linen_binding", &"con_linen_binding"])
+carried = Array[StringName]([&"tol_horn_lantern"])

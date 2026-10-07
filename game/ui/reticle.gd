@@ -334,6 +334,11 @@ func _draw_channel(middle: Vector2) -> void:
 		# grammar, so the fury fills the ring the way leaving does.
 		progress = _body.howling()
 		waiting = true
+	elif _body != null and is_instance_valid(_body) and _body.trance > 0.0:
+		# **And the trance** (ADR-379): sat, timed, broken by a step or a blow
+		# — the binding's grammar, so the binding's ring.
+		progress = _body.trance
+		waiting = true
 	_channel_drawn = progress if waiting else 0.0
 	if not waiting:
 		return
