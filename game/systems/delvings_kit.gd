@@ -383,7 +383,7 @@ static func flagstones(into: Node3D, at: Vector3, span: Vector2,
 			var fit := Vector3(squeeze.x, 1.0, squeeze.y) if turn % 2 == 0 \
 				else Vector3(squeeze.y, 1.0, squeeze.x)
 			_piece(into, _pick(FLAGS_BY_BAND[_band(band)], spot), spot,
-				PI * 0.5 * float(turn), fit)
+				PI * 0.5 * float(turn), fit, FAR)
 
 
 ## A beamed ceiling whose slab finishes at `at.y`, covering `span`.
@@ -438,7 +438,7 @@ static func masonry(into: Node3D, at: Vector3, yaw: float, length: float,
 		for row: float in rows:
 			var spot: Vector3 = at + turn * Vector3(slide, 0.0, row)
 			_piece(into, _pick(PANELS_BY_BAND[_band(band)][step], spot), spot, yaw,
-				Vector3(squeeze, lift, 1.0))
+				Vector3(squeeze, lift, 1.0), FAR)
 			laid += 1
 	return laid
 
@@ -486,9 +486,22 @@ static func _nearest(height: float) -> int:
 	return best
 
 
-## One module, placed.
+## **How far a flagstone or a wall panel is drawn** (ADR-362) ⟨tune⟩. Past it,
+## the box the piece is laid on — a floor's or a wall's, still drawn behind
+## it, recessed (`recess`) — is what the eye gets, which at that range and in
+## the Deep's dark is what it was getting anyway: `ART-005`'s falloff has
+## already taken the lines (`falloff_end` 34 m) and the masonry's relief is a
+## few centimetres. A hall drew every flag and panel to its far wall; this is
+## the draw-call half of ADR-350's table. Ceiling beams and pillars are never
+## culled — their boxes are not drawn (`clad`), so culling them would open holes.
+const FAR: float = 30.0
+## The band over which a far piece fades rather than pops.
+const FAR_MARGIN: float = 4.0
+
+
+## One module, placed. `far` above zero culls it past that range.
 static func _piece(into: Node3D, module: StringName, at: Vector3, yaw: float,
-		fit: Vector3) -> void:
+		fit: Vector3, far: float = 0.0) -> void:
 	var shape: Mesh = mesh_of(module)
 	if shape == null:
 		return
@@ -496,6 +509,10 @@ static func _piece(into: Node3D, module: StringName, at: Vector3, yaw: float,
 	node.mesh = shape
 	node.transform = Transform3D(
 		Basis(Vector3.UP, yaw) * Basis.from_scale(fit), at)
+	if far > 0.0:
+		node.visibility_range_end = far
+		node.visibility_range_end_margin = FAR_MARGIN
+		node.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_DISABLED
 	into.add_child(node)
 
 

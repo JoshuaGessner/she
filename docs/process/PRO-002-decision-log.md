@@ -12788,4 +12788,36 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - `--menu-probe` and `--lineage-probe` pass.
 - `--screens-shot`: three cards inside the frame with even gaps.
 
+## ADR-362 — Far flagstones and wall panels are not drawn: the box they are laid on stands in, and half the primitives go
+
+**Date:** 2026-10-07 · **Status:** accepted · **Acts on ADR-350's table**
+
+**Context:**
+- **What ADR-350 measured.** Up to 1.24 M primitives in a hall view, with every flagstone and wall panel drawn to the far wall.
+- **Why the far pieces add nothing.** By ~30 m `ART-005`'s falloff has already taken the lines (`falloff_end` 34 m), the masonry's relief is a few centimetres, and the Deep is dark.
+- **The geometry under them is already drawn.** A floor's or a wall's box stays drawn behind its pieces (`DelvingsKit.recess` pulls a wall's face back for the joints), so a piece past that range can go without leaving a hole.
+- **The cheap half of batching.** MultiMesh (ADR-350's note) would restructure what `kit_probe`, the surface probe and `--build-probe` read. A visibility range changes nothing they read.
+
+**Decision:**
+- **Flagstones and masonry panels get `visibility_range_end` = `DelvingsKit.FAR` (30 m) ⟨tune⟩, with fade disabled.**
+  - The first draft faded them (`FADE_SELF`). Fading draws the band in the transparent pass, and that **raised** draw calls from 1,032 to 1,292 in the shaped room.
+  - A hard cut put them back to baseline.
+- **Ceiling beams and pillars are never culled.** Their boxes are not drawn (`clad`), so culling them would open holes.
+
+**Measured** (`--perf-shot`, Apple M5, 1152×648, the sweep running beside it):
+
+| view | primitives before | after | draw calls before | after |
+|---|---|---|---|---|
+| entrance | 0.41 M | 0.34 M | 504 | 504 |
+| prize | 0.79 M | 0.44 M | 669 | 666 |
+| corridor | 1.05 M | 0.53 M | 935 | 932 |
+| shaped | 1.24 M | 0.53 M | 1032 | 1028 |
+| hub | 1.08 M | 0.47 M | 920 | 913 |
+
+- **Frame time** on this machine is unchanged at about 9 ms. The saving is for vertex-bound GPUs.
+- **Visuals:** `--ink-shot`'s eight views are identical by eye, with the same flash measure in every one (0.01–0.09 %). The Chamber is unchanged.
+- **These pass:** `kit_probe`, `floor_surface_probe`, `--build-probe` and `--ink-probe`.
+
+**Not solved:** draw calls are still about a thousand in a hall. That half is MultiMesh, which is still filed.
+
 *Entries below to be added as design decisions are signed off.*
