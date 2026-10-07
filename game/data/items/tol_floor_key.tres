@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://art/ui/items/tol_floor_key.svg" id="99_icon"]
+[ext_resource type="PackedScene" path="res://art/props/floor_key.glb" id="100_model"]
+
+[resource]
+script = ExtResource("1_item")
+id = &"tol_floor_key"
+name_key = &"item.tol_floor_key.name"
+description_key = &"item.tol_floor_key.desc"
+weight = 0.2
+clamor = 0.4
+grid_size = Vector2i(1, 1)
+icon = ExtResource("99_icon")
+model = ExtResource("100_model")
+tribute_value = 0
+tags = Array[StringName]([&"metal"])

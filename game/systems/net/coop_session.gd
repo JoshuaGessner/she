@@ -114,6 +114,8 @@ var _next_hunter: int = 0
 var _next_arrow: int = 0
 var _next_snare: int = 0
 var _next_hush: int = 0
+## The next door's index, so every door has its own path (ADR-381).
+var _next_door: int = 0
 ## The floor's noise field, handed over by the level that built it — the same
 ## handoff `Gullsjukr.hunt_with` gets, and for the same reason: an arrow or a
 ## snare has no business searching the tree for a system, and the field is
@@ -915,6 +917,8 @@ func _spawn_actor(data: Variant) -> Node:
 			return _build_snare(payload)
 		"hush":
 			return _build_hush(payload)
+		"door":
+			return _build_door(payload)
 		_:
 			return _build_enemy(payload)
 
@@ -1565,6 +1569,30 @@ func spawn_hush(at: Vector3, rune: HushTrait) -> Hush:
 		"seconds": rune.seconds, "crack": rune.crack,
 	}) as Hush
 	_next_hush += 1
+	return made
+
+
+## **A gate, built** (ADR-381): through the spawner, so every peer has the same
+## door at the same path and the host's `open` reaches them all.
+func spawn_door(at: Vector3, yaw: float, kind: LockedDoor.Kind, bar_side: Vector3) -> LockedDoor:
+	if not is_host():
+		return null
+	var made: LockedDoor = _spawner.spawn({
+		"kind": "door", "index": _next_door, "at": at, "yaw": yaw,
+		"door": int(kind), "bar": bar_side,
+	}) as LockedDoor
+	_next_door += 1
+	return made
+
+
+func _build_door(payload: Dictionary) -> Node:
+	var made := LockedDoor.new()
+	made.name = "door_%d" % int(payload["index"])
+	made.position = payload["at"] as Vector3
+	made.rotation.y = float(payload["yaw"])
+	made.kind = int(payload["door"]) as LockedDoor.Kind
+	made.bar_side = payload["bar"] as Vector3
+	made.configure_replication()
 	return made
 
 

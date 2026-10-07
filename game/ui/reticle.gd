@@ -63,10 +63,14 @@ var _refused: float = 0.0
 var _listening: MeleeWeapon = null
 ## The body whose `waystone_held` this listens to, remade like `_listening`.
 var _listening_body: Player = null
+## The door at hand this frame (ADR-381), or null.
+var _door: LockedDoor = null
 ## Seconds left on the line saying the fury holds the Waystone (ADR-371).
 var _held: float = 0.0
 ## How long that line stands: long enough to read, gone before it is noise.
 const HELD_SECONDS: float = 1.5
+## Which refusal the held line is saying: the Waystone's, or the sight's.
+var _held_text: StringName = &"waystone"
 ## The progress the last frame's ring was drawn at, 0 for none. Written **inside
 ## the draw**, so `--use-probe` asks what reached the screen rather than what the
 ## body knows — the two disagreed for every Waystone spent with nothing in reach.
@@ -144,15 +148,17 @@ func _process(delta: float) -> void:
 	var reaching: WorldItem = null
 	var hidden: bool = true
 	_shaft = null
+	_door = null
 	if _body != null:
 		reaching = _body.reaching_for()
 		_shaft = _body.shaft_underfoot()
+		_door = _body.door_at_hand()
 		# Gone while the bag is open: you are looking into a satchel, not down
 		# a corridor, and `DES-019` wants that to feel like a different posture.
 		hidden = _body.bag_is_open() or _body.is_incapacitated()
 
 	var wanted: float = 1.0 if reaching != null or _shaft != null \
-		or _offer != "" else 0.0
+		or _door != null or _offer != "" else 0.0
 	_grown = move_toward(_grown, wanted, delta * 6.0)
 	visible = not hidden
 	# **The way out speaks first.** Standing in the Shaft while looking at a
@@ -180,10 +186,28 @@ func _process(delta: float) -> void:
 		# after.
 		if _shaft.fury_in_the_party():
 			_name.text = tr("shaft.fury_holds") % verb
+	elif _door != null:
+		# **A gate, said** (ADR-381): what it would take, before the key is
+		# pressed, from the door's own rule — the one the host asks.
+		var why: StringName = _door.refusal(_body)
+		var key: String = ControlsScreen.glyphs_for("interact")
+		if why == &"locked":
+			_name.text = tr("door.locked")
+		elif why == &"barred":
+			_name.text = tr("door.barred")
+		elif _door.kind == LockedDoor.Kind.BARRED:
+			_name.text = tr("door.lift") % key
+		else:
+			_name.text = tr("door.unlock") % key
 	elif _held > 0.0:
 		# **Why the Waystone did nothing** (ADR-371), after the Shaft because
 		# standing in the way out says the same thing louder.
-		_name.text = tr("waystone.fury_holds")
+		if _held_text == &"sight" and is_instance_valid(_body):
+			_name.text = tr("seidr.resting") % ceili(_body.sight_spent)
+		elif _held_text == &"nothing":
+			_name.text = tr("seidr.nothing")
+		else:
+			_name.text = tr("waystone.fury_holds")
 	elif _offer != "":
 		# **After the Shaft, before an item.** The way out still speaks first;
 		# an offer is a fixture of the room and a loose coin is not, so a room
@@ -230,7 +254,17 @@ func _listen_for_refusals() -> void:
 		if _body != null:
 			_body.waystone_held.connect(func() -> void:
 				_held = HELD_SECONDS
+				_held_text = &"waystone"
 				_refused = 1.0)
+			_body.sight_resting.connect(func() -> void:
+				_held = HELD_SECONDS
+				_held_text = &"sight"
+				_refused = 1.0)
+			if _body.sight != null:
+				_body.sight.saw_nothing.connect(func() -> void:
+					_held = HELD_SECONDS
+					_held_text = &"nothing"
+					_refused = 1.0)
 	var weapon: MeleeWeapon = _body.weapon if _body != null else null
 	if weapon == _listening:
 		return

@@ -190,6 +190,11 @@ func dressing_view() -> Dictionary:
 ## **The stamping is asked too.** A machine on the Shaft is not a floor you can
 ## fix by walking round it, and a problem that only `--machine-probe` can see is
 ## one a player meets first.
+## The floor's mission graph, for the probes that census its gates (ADR-381).
+func graph() -> MissionGraph:
+	return _graph
+
+
 func problems() -> PackedStringArray:
 	var out: PackedStringArray = _plan.problems()
 	out.append_array(_machines.problems())
@@ -315,12 +320,12 @@ func enemy_posts() -> Array[Vector3]:
 ## guarded arm from the side a party arrives on.
 func door_post(node: int) -> Vector3:
 	var middle: Vector3 = _anchors.centre_of(node)
-	var doors: Array[Vector2i] = _plan.doors_of(node)
-	if doors.is_empty():
+	var cut: Array[Vector2i] = _plan.doors_of(node)
+	if cut.is_empty():
 		return middle
 	var arrival: Vector3 = _anchors.centre_of(_graph.node_with(MissionGraph.Role.ENTRANCE))
 	var nearest: Vector3 = Vector3.INF
-	for cell: Vector2i in doors:
+	for cell: Vector2i in cut:
 		var at: Vector3 = FloorBuilder.at(cell) + Vector3(
 			FloorBuilder.CELL * 0.5, middle.y, FloorBuilder.CELL * 0.5)
 		if nearest == Vector3.INF or at.distance_to(arrival) < nearest.distance_to(arrival):
@@ -418,6 +423,11 @@ func lamp_hang() -> float:
 ## size 1 is not a lever.
 func fixtures() -> Array:
 	var out: Array = _standing()
+	# **The floor's key** (ADR-381), in the room the graph gave it, when the
+	# floor has a lock for it to open.
+	var key_room: int = _graph.node_with(MissionGraph.Role.KEY)
+	if not _graph.key_gates().is_empty() and key_room >= 0:
+		out.append([LockedDoor.KEY_ITEM, _anchors.centre_of(key_room)])
 	var bait: Array = vista()
 	if not bait.is_empty():
 		out.append(bait)
@@ -560,6 +570,44 @@ func room_at(point: Vector3) -> int:
 
 ## The fixtures that stand on every floor whatever it looks like: the Prize,
 ## the Waystone and a machine's gear.
+## **The gates, as doors** (ADR-381): `[at, yaw, kind, bar side]` each.
+##
+## A key gate is locked at the mouth of the held span's room, so the door is
+## what stands between the party and the Prize. A cost gate is barred at the
+## mouth of its deep room, from that side: the shortcut opens on the way out.
+func doors() -> Array:
+	var out: Array = []
+	for gate: Vector2i in _graph.key_gates():
+		var room: int = gate.x if _graph.is_held(gate.x) else gate.y
+		var other: int = gate.y if room == gate.x else gate.x
+		_door_at(out, room, other, LockedDoor.Kind.LOCKED)
+	for gate: Vector2i in _graph.cost_gates():
+		var deep: int = maxi(gate.x, gate.y)
+		_door_at(out, deep, mini(gate.x, gate.y), LockedDoor.Kind.BARRED)
+	return out
+
+
+## One door where the corridor from `other` opens into `room`, on the line
+## between the corridor's cell and the room, facing along the corridor.
+func _door_at(out: Array, room: int, other: int, kind: LockedDoor.Kind) -> void:
+	var cell: Vector2i = _plan.door_between(room, other)
+	if cell == FloorPlan.NO_CELL:
+		return
+	var rect: Rect2i = _plan.rect_of(room)
+	var into := Vector2i.ZERO
+	for step: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		if rect.has_point(cell + step):
+			into = step
+	if into == Vector2i.ZERO:
+		return
+	var toward := Vector3(float(into.x), 0.0, float(into.y))
+	var centre: Vector3 = FloorBuilder.at(cell) + Vector3(FloorBuilder.CELL * 0.5, 0.0,
+		FloorBuilder.CELL * 0.5)
+	var at: Vector3 = centre + toward * FloorBuilder.CELL * 0.5
+	out.append([at, atan2(toward.x, toward.z), kind,
+		toward if kind == LockedDoor.Kind.BARRED else Vector3.ZERO])
+
+
 func _standing() -> Array:
 	var out: Array = []
 	var guarded: ItemResource = prize_item()

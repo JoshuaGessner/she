@@ -136,6 +136,11 @@ func prize_id() -> StringName:
 @abstract func fixtures() -> Array
 
 
+## **The floor's gates, as doors** (ADR-381): rows of `[at, yaw, kind, bar
+## side]`, empty where the routes are drawn rather than drawn for.
+@abstract func doors() -> Array
+
+
 ## The loot that is quantity rather than a decision, divided among the party.
 ## Rows of `[StringName, Vector3]`.
 @abstract func filler() -> Array

@@ -22,6 +22,12 @@ const MOST: int = 24
 ## `[{"kind": Pinger.Kind, "at": Vector3, "left": seconds}]`, on every peer.
 var marks: Array[Dictionary] = []
 
+## **A reading that found nothing** (B55): no Gold-Sick on the floor yet,
+## nothing worth anything left, no way down. Marks and a ping would say nothing
+## at all, so the seer's own reticle says so. The sight is still spent: the
+## trance was sat, and an empty floor is a thing worth knowing.
+signal saw_nothing
+
 
 func _ready() -> void:
 	add_to_group(GROUP)
@@ -55,6 +61,9 @@ func _shown(found: Array) -> void:
 	marks = seen
 	if not seen.is_empty():
 		Foley.flat(self, Foley.Sound.PING, 0.7)
+	else:
+		# Raised on every peer; only the seer's own reticle listens.
+		saw_nothing.emit()
 
 
 ## Where a mark is drawn: over what it marks, by the ping's own lift.

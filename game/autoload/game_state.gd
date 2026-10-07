@@ -239,7 +239,9 @@ func _ready() -> void:
 ## **getting out is what finishes a run.** A death does not count, because a
 ## death ends the life and takes the cycle with it (`DES-003`).
 func bring_home(items: Array[ItemInstance]) -> void:
-	carried = items.duplicate()
+	# **A floor's key stays with its floor** (ADR-381): it opens that floor's
+	# doors and no other, so it does not come home.
+	carried = LockedDoor.coming_home(items)
 	cycle_runs += 1
 	_persist()
 

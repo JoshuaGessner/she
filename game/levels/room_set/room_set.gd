@@ -970,6 +970,8 @@ func _ready() -> void:
 			_rite_probe()
 		elif arg == "--seidr-probe":
 			_seidr_probe()
+		elif arg == "--lock-probe":
+			_lock_probe()
 		elif arg == "--fury-probe":
 			_fury_probe()
 		elif arg == "--scale-probe":
@@ -6763,6 +6765,8 @@ var _rank_in_the_hunt: int = 1
 ## The Prize and the Waystone are laid once and never scaled, so they need a
 ## flag of their own rather than a count (`M2-T17`).
 var _fixtures_placed: bool = false
+## Whether this floor's gates stand yet (ADR-381).
+var _doors_placed: bool = false
 
 var _probe_floor: Dictionary = {}
 var _probe_glide: Dictionary = {}
@@ -6841,6 +6845,8 @@ var _probe_guard: Dictionary = {}
 var _probe_fury: Dictionary = {}
 ## What a client's Seiðr read, as each peer holds it (ADR-379).
 var _probe_seidr: Dictionary = {}
+## A client's door, as each peer saw it (ADR-381).
+var _probe_door: Dictionary = {}
 const PROBE_STRIKE: float = 10.0
 
 
@@ -7185,6 +7191,33 @@ func _coop_probe(out: String) -> void:
 		_probe_seidr = _probe_sight_state(mine)
 		_probe_seidr["trance"] = deepest[0]
 		await _hold_until(func() -> bool: return mine.sworn != &"volva", 3.0)
+	# **A client's door is the host's to open** (ADR-381). The host stands a
+	# locked door in front of the client; the client presses interact without
+	# the key and is refused; the host puts the key in its bag; it presses
+	# again, and both peers see the door stand open. Events, not clocks.
+	if host:
+		var opener: Player = _client_body()
+		var gate: LockedDoor = null
+		if opener != null:
+			var facing: Vector3 = -opener.global_basis.z
+			facing.y = 0.0
+			facing = facing.normalized()
+			gate = _session.spawn_door(opener.global_position + facing * 1.4,
+				atan2(facing.x, facing.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+			await _hold(1.6)
+			var shut_after_try: bool = not gate.open
+			opener.inventory.add(ItemCatalogue.by_id(LockedDoor.KEY_ITEM))
+			await _hold_until(func() -> bool: return gate.open, 4.0)
+			_probe_door = {"refused": shut_after_try, "open": gate.open}
+	else:
+		await _hold_until(func() -> bool: return mine.door_at_hand() != null, 3.0)
+		var gate: LockedDoor = mine.door_at_hand()
+		await _press(&"interact")
+		await _hold_until(func() -> bool: return LockedDoor.carries_key(mine), 4.0)
+		await _hold(0.2)
+		await _press(&"interact")
+		await _hold_until(func() -> bool: return gate != null and gate.open, 4.0)
+		_probe_door = {"open": gate != null and gate.open, "found": gate != null}
 	if not host:
 		mine.struck.disconnect(on_struck)
 	if host:
@@ -7400,6 +7433,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"guard": _probe_guard,
 		"fury": _probe_fury,
 		"seidr": _probe_seidr,
+		"door": _probe_door,
 		# What this peer heard, by sound name (ADR-311).
 		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,
@@ -7833,6 +7867,7 @@ func _spawn_enemies() -> void:
 ## loot before it runs out of curve is a floor whose numbers stop meaning what
 ## they say.
 func _spawn_loot() -> void:
+	_spawn_doors()
 	# **The fixtures first, once, whatever the party size** (`M2-T17`, ADR-110).
 	# Guarded by its own flag rather than by `_loot_placed`, because the floor is
 	# topped up as players arrive and these must not be laid twice.
@@ -7968,6 +8003,48 @@ func _build_navigation() -> void:
 	# of every run had no navigation, which is precisely the window in which
 	# the player is deciding whether the game works.
 	region.bake_navigation_mesh(false)
+
+
+## **The floor's gates, standing** (ADR-381). Before the loot's stripped
+## check, because a door is the floor and not its loot: a resumed floor has
+## its doors. Host-side, once; the navmesh is baked again with them shut, and
+## again each time one opens, so the Deep's dead go the long way round until
+## somebody opens the short one.
+func _spawn_doors() -> void:
+	if _doors_placed or _session == null or not _session.is_host():
+		return
+	_doors_placed = true
+	var placed: int = 0
+	for row: Array in _floor.doors():
+		var door: LockedDoor = _session.spawn_door(row[0] as Vector3, float(row[1]),
+			int(row[2]) as LockedDoor.Kind, row[3] as Vector3)
+		if door == null:
+			continue
+		door.add_to_group(NAV_SOURCE_GROUP)
+		# **Out of the bake before it is baked again.** Opening only disables
+		# the collider deferred, and the bake reads static colliders — so a
+		# rebake in the same frame read the door as still shut, and the dead
+		# kept going the long way through an open door. Leaving the group is
+		# true whatever the parser makes of a disabled shape.
+		door.opened.connect(func(opened: LockedDoor) -> void:
+			opened.remove_from_group(NAV_SOURCE_GROUP)
+			_rebake_navigation.call_deferred())
+		placed += 1
+	if placed > 0:
+		print("[doors] %d gate(s) stand on this floor" % placed)
+		_rebake_navigation.call_deferred()
+
+
+## Bake the floor again, as it stands now — **on a thread** (B54). ADR-381
+## guessed "a few milliseconds"; measured, it is 19 ms on the authored floor
+## and 51 ms on a generated one, three dropped frames on the host each time a
+## door opens. The first bake stays synchronous (`_build_navigation`: the map
+## has to exist before the first enemy asks); a rebake does not, because the
+## old map stands until the new one replaces it, and for those few frames the
+## dead simply still think the door is shut.
+func _rebake_navigation() -> void:
+	if _navigation != null and is_instance_valid(_navigation):
+		_navigation.bake_navigation_mesh(true)
 
 
 ## What the navmesh is baked *for*, in one place.
@@ -8878,7 +8955,10 @@ func _take_the_party_down() -> void:
 	var wounds: int = 0
 	var dazed: float = 0.0
 	if body != null:
-		bag = body.inventory.pack()
+		# Without the floor's key (ADR-381): it opens this floor's doors, and
+		# carried down it would open the next floor's without anyone finding
+		# that one's — the lock decided by a key from somewhere else.
+		bag = LockedDoor.leaving_floor(body.inventory.pack())
 		hurt = body.health.current
 		wounds = body.wounds
 		dazed = body.dazed
@@ -16664,6 +16744,166 @@ func _scale_probe() -> void:
 	_report(problems, "scale")
 
 
+## **`--lock-probe`** (ADR-381): the gates, built.
+##
+## 1. **The census** — over many floors, every key gate and every cost gate is a
+##    door, every floor with a lock has its key, and the cycles that draw them
+##    are counted, so a floor whose doors went missing is a number that moved.
+## 2. **A locked door** on the real body: solid, refused without the key and
+##    said so at the crosshair, opened with it by the real key, loud, and out of
+##    the navmesh's sources once open.
+## 3. **A barred door**: shut from the near side, lifted from the bar side.
+## 4. **The key stays with its floor** — not in the bag that goes down, nor in
+##    the haul that comes home.
+func _lock_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+
+	# ─ 1. the census ─
+	var floors: int = 0
+	var gated: int = 0
+	var gates: int = 0
+	var doors: int = 0
+	var keyed: int = 0
+	var keys: int = 0
+	var missing: PackedStringArray = PackedStringArray()
+	for run_seed: int in range(1, 41):
+		for depth: int in 3:
+			var made: DelvingsFloor = DelvingsFloor.of(run_seed * 7919, depth)
+			if made == null or not made.problems().is_empty():
+				continue
+			floors += 1
+			var graph: MissionGraph = made.graph()
+			var wanted: int = graph.key_gates().size() + graph.cost_gates().size()
+			var stood: int = made.doors().size()
+			if wanted > 0:
+				gated += 1
+			gates += wanted
+			doors += stood
+			if stood != wanted:
+				missing.append("seed %d floor %d: %d gate(s), %d door(s)"
+					% [run_seed * 7919, depth, wanted, stood])
+			if not graph.key_gates().is_empty():
+				keyed += 1
+				for row: Array in made.fixtures():
+					if StringName(row[0]) == LockedDoor.KEY_ITEM:
+						keys += 1
+	print("[lock] census      %d floor(s), %d with gates: %d gate(s), %d door(s); %d locked, %d key(s)"
+		% [floors, gated, gates, doors, keyed, keys])
+	if gated == 0 or doors != gates or keys != keyed:
+		problems.append("gates went unbuilt or keys unlaid: %s" % "; ".join(missing.slice(0, 3)))
+
+	# ─ 2. a locked door, on the real body ─
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	body.restore_for_descent()
+	await _hold(0.3)
+	var ahead: Vector3 = -body.global_basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var at: Vector3 = body.global_position + ahead * 1.6
+	var door: LockedDoor = _session.spawn_door(Vector3(at.x, body.global_position.y, at.z),
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+	door.add_to_group(NAV_SOURCE_GROUP)
+	door.opened.connect(func(opened: LockedDoor) -> void:
+		opened.remove_from_group(NAV_SOURCE_GROUP))
+	await _hold(0.3)
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var through := PhysicsRayQueryParameters3D.create(
+		body.global_position + Vector3.UP * 1.0, body.global_position + Vector3.UP * 1.0 + ahead * 3.0)
+	through.exclude = [body.get_rid()]
+	var blocked: bool = not space.intersect_ray(through).is_empty()
+	var mark: Reticle = _reticle()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var said_locked: String = mark.showing() if mark != null else ""
+	var quiet: float = body.clamor.level
+	await _press(&"interact")
+	await _hold(0.3)
+	var opened_without: bool = door.open
+	body.inventory.add(ItemCatalogue.by_id(LockedDoor.KEY_ITEM))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var said_open: String = mark.showing() if mark != null else ""
+	await _press(&"interact")
+	await _hold(0.5)
+	await get_tree().physics_frame
+	var passes: bool = space.intersect_ray(through).is_empty()
+	print("[lock] locked      solid %s; said '%s'; opened without the key %s"
+		% [blocked, said_locked, opened_without])
+	print("[lock] unlocked    said '%s'; open %s, clamor %.1f -> %.1f, passable %s, in the bake %s"
+		% [said_open, door.open, quiet, body.clamor.level, passes,
+			door.is_in_group(NAV_SOURCE_GROUP)])
+	if not blocked or opened_without or said_locked != tr("door.locked"):
+		problems.append("a locked door was not solid, opened without its key, or did not say so")
+	if not door.open or not passes or body.clamor.level <= quiet \
+			or door.is_in_group(NAV_SOURCE_GROUP) or not said_open.contains(tr("door.unlock").replace("%s", "").strip_edges()):
+		problems.append("the key did not open the door, quietly, or it stayed in the bake")
+
+	# ─ 2b. what opening a door costs the host (B54) ─
+	# ADR-381 says the rebake is "a few milliseconds"; measured here on the floor
+	# this process booted (`--delvings` for a generated one), because a claim
+	# about a frame is only true of the floor it was timed on.
+	if _navigation != null:
+		var began: int = Time.get_ticks_usec()
+		_rebake_navigation()
+		var took: float = float(Time.get_ticks_usec() - began) / 1000.0
+		print("[lock] rebake      %.1f ms on this floor (%s)" % [took,
+			"delvings" if _floor is DelvingsFloor else "authored"])
+
+	# ─ 3. a barred door ─
+	var barred: LockedDoor = _session.spawn_door(Vector3(at.x, body.global_position.y, at.z) + ahead * 2.0,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.BARRED, ahead)
+	await _hold(0.3)
+	var near: StringName = barred.refusal(body)
+	# Past the door and turned back to face it: a yaw of atan2(x, z) looks along
+	# -(x, z), which is back at the bar.
+	body.teleport(barred.global_position + ahead * 1.2, atan2(ahead.x, ahead.z))
+	await _hold(0.3)
+	var far: StringName = barred.refusal(body)
+	await _press(&"interact")
+	await _hold(0.4)
+	print("[lock] barred      from the near side '%s', from the bar side '%s'; lifted %s"
+		% [near, far, barred.open])
+	if near != &"barred" or far != &"" or not barred.open:
+		problems.append("a barred door opened from the near side, or not from the bar side")
+
+	# ─ 4. the key stays with its floor (B49) ─
+	var down: Array = LockedDoor.leaving_floor(body.inventory.pack())
+	var down_keys: int = 0
+	for row: Variant in down:
+		if StringName((row as Dictionary).get("item", "")) == LockedDoor.KEY_ITEM:
+			down_keys += 1
+	# Asked of the rule `GameState.bring_home` uses, not of `bring_home`
+	# itself, which writes the profile — a probe that writes `user://` leaves
+	# its plant for the next probe to find.
+	var haul: Array[ItemInstance] = [ItemInstance.of(ItemCatalogue.by_id(LockedDoor.KEY_ITEM), 1),
+		ItemInstance.of(ItemCatalogue.by_id(&"glt_hoard_coin"), 2)]
+	var home: Array[String] = []
+	for item: ItemInstance in LockedDoor.coming_home(haul):
+		home.append(String(item.definition.id))
+	print("[lock] its floor   keys in the bag that goes down %d; home with %s" % [down_keys, home])
+	if down_keys > 0 or home.has(String(LockedDoor.KEY_ITEM)) or not home.has("glt_hoard_coin"):
+		problems.append("a floor's key left its floor")
+
+	if problems.is_empty():
+		print("[lock] every gate stands, and opens for what it says")
+	_report(problems, "lock")
+
+
+## Press and release an action through the real input path (ADR-140).
+func _press(action: StringName) -> void:
+	var down := InputEventAction.new()
+	down.action = action
+	down.pressed = true
+	Input.parse_input_event(down)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var up := InputEventAction.new()
+	up.action = action
+	Input.parse_input_event(up)
+
+
 ## **`--seidr-probe`** (ADR-379): Seiðr, asked of the real body.
 ##
 ## 1. **Sat** — the craft key held fills the trance, and the ring with it; no
@@ -16744,14 +16984,28 @@ func _seidr_probe() -> void:
 	if not was.is_finite() or not still.is_finite() or was.distance_to(still) > 0.001:
 		problems.append("a reading's mark followed what it marked")
 
-	# ─ 4. spent ─
+	# ─ 4. spent, and said so (ADR-383) ─
 	Input.action_press("verb")
 	await _hold(0.6)
 	var while_spent: float = body.trance
+	var resting: String = mark.showing() if mark != null else ""
 	Input.action_release("verb")
-	print("[seidr] spent       the key held while spent: trance %.2f (want 0)" % while_spent)
+	print("[seidr] spent       the key held while spent: trance %.2f (want 0); said '%s'"
+		% [while_spent, resting])
 	if while_spent > 0.0:
 		problems.append("a trance began while the sight was spent")
+	if not resting.begins_with(tr("seidr.resting").get_slice("%", 0)) \
+			or resting == "seidr.resting":
+		problems.append("the key pressed while the sight was spent said nothing: '%s'" % resting)
+
+	# ─ 4b. a reading that found nothing says so (B55) ─
+	body.sight._shown([])
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var empty: String = mark.showing() if mark != null else ""
+	print("[seidr] nothing     an empty reading said '%s'" % empty)
+	if empty != tr("seidr.nothing") or empty == "seidr.nothing":
+		problems.append("an empty reading said nothing: '%s'" % empty)
 
 	# ─ 5. broken: a step, a blow, letting go ─
 	var broken: Array[String] = []

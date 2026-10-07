@@ -262,6 +262,10 @@ extends Resource
 @export var fury_spent_seconds: float = 6.0
 @export var fury_spent_speed: float = 0.8
 
+@export_group("Doors")
+## **A door opening** (ADR-381) ⟨tune⟩: how loud the grind is.
+@export var door_open_clamor: float = 6.0
+
 @export_group("Seiðr")
 ## **Seiðr** (ADR-379), every number ⟨tune⟩. How long the trance is sat for.
 @export var seidr_seconds: float = 3.0

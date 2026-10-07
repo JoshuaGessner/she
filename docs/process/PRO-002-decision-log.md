@@ -13168,7 +13168,14 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - **The navmesh is baked with the doors shut and baked again when one opens.** A bake is a few milliseconds, at most a handful of times a floor, and on the host alone, since enemies are the host's. The Deep's dead go the long way round as the living do, until somebody opens the door.
 - **Said, not only built** (`DES-018`, `PRO-005`). At a locked door the reticle says *locked — the key lies elsewhere on this floor* or *open it (E)*; at a barred one, *barred from the other side* or *lift the bar*. An opening is heard as a grind and seen as the door swinging.
 
-**Measured, to be:** a census over the plan probe's seeds (every key gate a door, every lock-and-key floor a key, none behind its own door), and `--lock-probe` on a booted floor (shut, refused without the key, opened with it, an enemy able to path through after and not before, and a co-op row).
+**Measured, as built:**
+- **The census.** Over 120 floors (40 seeds × 3 depths), 47 draw gates: 69 gates and 69 doors, and 22 locked floors with 22 keys.
+- **A locked door, on the real body.** It is solid; refused without the key, and the reticle says *locked — its key lies elsewhere on this floor*; opened by the real interact key once the key is in the bag (*e/X — unlock it*); loud (clamor 2.2 → 6.1); passable after; and out of the navmesh's sources.
+- **A barred door** is refused from the near side and lifted from the bar side.
+- **A co-op row:** the host refuses a client before the key and opens for it after, and both peers see it open. 5 of 5 runs.
+- **Found by reading, before the first run:** an opened door stayed in the bake while its collider was disabled only deferred, so the dead would have gone round an open door. It now leaves the bake's group first.
+- **Found on review: a key crossed floors** (it opens by item id). It is left out of the bag that goes down (`LockedDoor.leaving_floor`) and of the haul that comes home (`LockedDoor.coming_home`).
+- **The rebake was measured, not guessed.** It is 19 ms on the authored floor and 51 ms on a generated one, against this ADR's *"a few milliseconds"*. Rebakes now run on a thread, at 1.1 ms and 2.6 ms on the main thread. The first bake stays synchronous.
 
 ## ADR-382 — The Haugbrjótr: what is shut is hers to break, and everyone hears it
 
@@ -13200,5 +13207,21 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - **The Long Pry** *(after Wedge)*. A blow does not break off her breaking. The blow still lands (Varðlokkur's and Knot Holds' shape).
 
 **Not built:** curses, until the Barrow-Fields.
+
+## ADR-383 — The Völva's sight says when it is resting, and when it saw nothing
+
+**Date:** 2026-10-07 · **Status:** accepted · **From first-time-player reviews of `M4-T35`**
+
+**Context:**
+- **A key that did nothing.** For 30 s ⟨tune⟩ after a reading the craft key did nothing visible. ADR-371 already decided that a key that does nothing reads as a broken key.
+- **A reading that found nothing.** With no Gold-Sick on the floor yet, nothing worth anything left and no way down, a finished trance showed no marks and played no sound, and still spent the sight.
+- **A brief too long for its line.** The Seiðr brief ran to about 130 characters, against the fury's 80.
+
+**Decision:**
+- **`Player.sight_resting`** is raised on the seer's own peer when the key is pressed while the sight is spent. The reticle says *the sight is resting — N s* for 1.5 s and flinches, as for the Waystone in a fury.
+- **`Sight.saw_nothing`** is raised for an empty reading, and the seer's reticle says *the sight shows nothing here*. **The sight is still spent:** the trance was sat, and an empty floor is a thing worth knowing.
+- **The brief** reads *"Seiðr: hold to sit in a trance — the party sees where the Gold-Sick and the way out were."*
+
+**Measured:** `--seidr-probe` row 4 reads *the sight is resting — 29 s* while the key is held, and row 4b reads *the sight shows nothing here* for an empty reading.
 
 *Entries below to be added as design decisions are signed off.*

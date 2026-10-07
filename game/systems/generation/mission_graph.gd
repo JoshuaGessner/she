@@ -374,6 +374,16 @@ func gates() -> Array[Vector2i]:
 	return all
 
 
+## The spans the floor's key opens, and the shortcuts opened at a cost, apart
+## — the built floor stands a different door in each (ADR-381).
+func key_gates() -> Array[Vector2i]:
+	return _key_gates.duplicate()
+
+
+func cost_gates() -> Array[Vector2i]:
+	return _cost_gates.duplicate()
+
+
 ## The single node holding a role, or -1. Roles that appear once are the ones
 ## worth asking for by name.
 func node_with(role: Role) -> int:

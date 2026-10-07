@@ -333,8 +333,8 @@ character of a floor, and each is a rewrite rule, not a special case in
 - **Shortcut** — the loop is closed by something you open at cost, which pays back
   only on the way out. The Dark Souls shortcut, made structural.
 
-> **Gates are being built as doors (ADR-381), and are not standing yet in the committed build.** Until they are, `gates()` has no reader: a
-> lock-and-key or shortcut floor is validated as a lock and built as a hallway.
+> **Gates are built as doors (ADR-381).** Over 120 floors, 47 draw gates: 69 gates, 69 doors, and 22 locked floors with 22 keys (`--lock-probe`'s census). Until then `gates()` had no reader: a
+> lock-and-key or shortcut floor was validated as a lock and built as a hallway.
 > A key gate is a locked door in the doorway `FloorPlan` cut, opened by the floor's
 > key from the `KEY` node. A cost gate is a door barred on its deep side. Both are
 > the host's, and the navmesh is baked again when one opens.

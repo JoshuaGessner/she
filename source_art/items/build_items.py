@@ -7,6 +7,7 @@ forms, saved as its own editable .blend, and exported with its simple collision.
 """
 import bpy
 import math
+import sys
 import os
 from mathutils import Vector, Matrix
 
@@ -424,10 +425,22 @@ def bog_iron():
         obj.rotation_euler=(i*.3,i*.7,i*.4)
     collision((-.15,.15,0,.18,-.10,.11))
 
+def floor_key():
+    # **The floor's key** (ADR-381): an iron door key after the ones found at
+    # Birka and Hedeby -- a ring bow, a long square shank, and a bit cut with
+    # wards. Lying on the floor, as it is found.
+    torus('key_bow',(-.068,.007,0),.020,.0055,'metal',14,4)
+    rod('key_shank',(-.048,.007,0),(.074,.007,0),.0055,'metal',4)
+    cube('key_bit',(.064,.007,.017),(.020,.010,.026),'metal')
+    for x in (.058,.070):
+        cube('key_ward',(x,.007,.033),(.006,.010,.007),'metal')
+    collision((-.092,.082,0,.014,-.026,.038))
+
 ASSETS = [
     ("hoard_coin", coin), ("coin_chest", chest), ("altar_plate", plate), ("gilded_torc", torc), ("gilt_bead", bead), ("raw_gemstone", gemstone),
     ("spangen_helm", helm), ("iron_bracers", bracers), ("round_shield", shield), ("hide_satchel", satchel), ("pack_frame", frame), ("horn_lantern", lantern),
     ("waystone", waystone), ("ember", ember), ("hush_rune", hush), ("linen_binding", linen), ("bog_iron", bog_iron),
+    ("floor_key", floor_key),
 ]
 
 def export_asset(name, builder):
@@ -531,6 +544,11 @@ def review_sheet():
 
 if __name__ == "__main__":
     os.makedirs(OUT, exist_ok=True); os.makedirs(SRC, exist_ok=True)
-    for asset in ASSETS: export_asset(*asset)
+    # `-- name ...` exports only those (ADR-381): a new prop never rewrites the
+    # others' files. The review sheet still shows every one.
+    chosen = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    for asset in ASSETS:
+        if not chosen or asset[0] in chosen:
+            export_asset(*asset)
     review_sheet()
     print("Built %d ART-006 item assets" % len(ASSETS))

@@ -460,6 +460,17 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"client {','.join(seen_client) or 'nothing'} (trance {seidr_client.get('trance', 0.0):.2f}); "
         f"host {','.join(seidr_host.get('kinds', [])) or 'nothing'}"))
 
+    # A client's door is the host's to open (ADR-381): refused without the
+    # key, opened with it, and standing open on both peers.
+    door_host = host.get("door", {})
+    door_client = client.get("door", {})
+    rows.append(check(
+        "a client's door opens on the host's word",
+        door_host.get("refused", False) and door_host.get("open", False)
+        and door_client.get("found", False) and door_client.get("open", False),
+        f"host refused {door_host.get('refused', False)}, open {door_host.get('open', False)}; "
+        f"client found {door_client.get('found', False)}, open {door_client.get('open', False)}"))
+
     # What the client heard (ADR-311). The host decides a pickup and a blow,
     # and played their sounds where it decided them — so a client never heard
     # its own loot go into the bag, nor itself hurt.

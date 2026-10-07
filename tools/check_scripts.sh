@@ -1555,6 +1555,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Every gate stands, and opens for what it says** (ADR-381). A census of
+	# gates against doors and keys over 120 floors; a locked door solid,
+	# refused and said without its key, opened by the real key, loud, and out
+	# of the navmesh's sources; a barred door lifted only from its bar side;
+	# and the key kept to its floor going down and coming home.
+	lock="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --lock-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[lock\] every gate stands' <<<"$lock" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$lock"; then
+		echo "FAIL every gate stands, and opens for what it says" >&2
+		printf '%s\n' "$lock" | grep -E '\[lock\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The Völva's reading is a snapshot bought with stillness** (ADR-379).
 	# Held, the craft key sits her into a trance drawn at the crosshair, with no
 	# guard; finished, it marks the Gold-Sick, the best find and the way out

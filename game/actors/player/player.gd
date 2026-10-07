@@ -107,6 +107,11 @@ signal died_here(player: Player, at: Vector3)
 ## key; the reticle says why.
 signal waystone_held
 
+## **The craft key, pressed while the sight is spent** (ADR-383), raised on the
+## peer playing it: the Waystone's lesson (ADR-371) — a key that does nothing
+## reads as a broken key, so the reticle says how long.
+signal sight_resting
+
 ## **A blow landed on this body** (ADR-310), raised on the peer playing it:
 ## what got through, where it came from (`Vector3.INF` when nothing in the world
 ## struck it), and what a raised guard took off it.
@@ -1467,12 +1472,79 @@ func _unhandled_input(event: InputEvent) -> void:
 		# The Shaft first: standing in one and pressing interact means leaving,
 		# not picking up whatever is also lying there. A player in the exit
 		# reaching for their way home should never get a lump of bog iron.
-		if not _reach_for_shaft():
+		# Then a door in front of you (ADR-381): reaching for a door is
+		# reaching for the way, as the Shaft is, and outranks a coin.
+		if not _reach_for_shaft() and not _reach_for_door():
 			_reach_for_loot()
 	elif event.is_action_released("interact"):
 		_tell_host_reviving(false)
 	elif event.is_action_pressed("debug_ink"):
 		show_ink(not _ink.visible)
+
+
+# ── doors (ADR-381) ─────────────────────────────────────────────────────────
+
+
+## The door you are standing at and facing, or null: within the reach a hand
+## has for anything, and in front of the eye rather than behind it.
+func door_at_hand() -> LockedDoor:
+	var reach: float = Config.tuning.interact_reach + Config.tuning.interact_reach_slack
+	var ahead: Vector3 = -global_basis.z
+	var best: LockedDoor = null
+	var nearest: float = INF
+	for node: Node in get_tree().get_nodes_in_group(LockedDoor.GROUP):
+		var door := node as LockedDoor
+		if door == null or door.open:
+			continue
+		var off: Vector3 = door.global_position - global_position
+		off.y = 0.0
+		var far: float = off.length()
+		if far > reach + LockedDoor.SIZE.x * 0.5 or far >= nearest:
+			continue
+		if far > 0.3 and off.normalized().dot(ahead) < 0.2:
+			continue
+		best = door
+		nearest = far
+	return best
+
+
+func _reach_for_door() -> bool:
+	var door: LockedDoor = door_at_hand()
+	if door == null:
+		return false
+	if multiplayer.is_server():
+		_open_door(door.get_path())
+	else:
+		_request_door.rpc_id(HOST_PEER, door.get_path())
+	return true
+
+
+@rpc("any_peer", "reliable")
+func _request_door(path: NodePath) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_open_door(path)
+
+
+## Host-side: asked against the host's own copy of the bag and of where this
+## body stands, never the client's word for either.
+func _open_door(path: NodePath) -> void:
+	var door := get_node_or_null(path) as LockedDoor
+	if door == null or is_incapacitated():
+		return
+	var off: Vector3 = door.global_position - global_position
+	off.y = 0.0
+	var reach: float = Config.tuning.interact_reach + Config.tuning.interact_reach_slack
+	if off.length() > reach + LockedDoor.SIZE.x * 0.5 + 0.5:
+		return
+	if door.refusal(self) != &"":
+		return
+	door.host_open()
+	# A hinge nobody has oiled: heard, and the Hunt's to hear.
+	clamor.add(Config.tuning.door_open_clamor)
+	_sound_for_all(Foley.Sound.GRIND, 0.7)
 
 
 # ── loot ──────────────────────────────────────────────────────────────────
@@ -3792,6 +3864,9 @@ func _wolf_fury(delta: float, tuning: TuningProfile) -> void:
 ## never the client's to award itself (`TEC-004`).
 func _seidr() -> void:
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	if body != null and body.verb == &"seidr" and _driving and sight_spent > 0.0 \
+			and Input.is_action_just_pressed("verb"):
+		sight_resting.emit()
 	var wants: bool = (body != null and body.verb == &"seidr"
 		and _driving and Input.is_action_pressed("verb")
 		and not is_incapacitated()

@@ -77,6 +77,11 @@ func barrow() -> Array:
 	return RoomSet.BARROW
 
 
+## No gates on an authored floor (ADR-381): its routes are drawn, not drawn for.
+func doors() -> Array:
+	return []
+
+
 func fixtures() -> Array:
 	return RoomSet.FIXTURES
 
