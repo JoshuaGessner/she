@@ -113,6 +113,10 @@ var _guard: float = 0.0
 var _swim: float = 0.0
 
 
+## See `dimmed`.
+var _dimmed: float = 0.0
+
+
 func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -215,6 +219,7 @@ func _draw() -> void:
 	_draw_daze(screen)
 	_draw_guard(screen)
 	_draw_fury(screen)
+	_draw_trance(screen)
 	if _flash <= 0.0:
 		return
 
@@ -257,6 +262,22 @@ func _draw_fury(screen: Vector2) -> void:
 		_draw_sides(screen, true, true, 0.42, 0.16 + 0.16 * beat, FURY)
 	elif _body.fury_spent > 0.0:
 		_draw_sides(screen, true, true, 0.36, 0.22, SPENT)
+
+
+## **The trance, closing in** (ADR-379): every edge darkens as she sits,
+## the world narrowing to the seat, so *helpless while she sees* is a thing on
+## the screen and not only in the rules. Recorded as drawn, for the probe.
+func _draw_trance(screen: Vector2) -> void:
+	_dimmed = _body.trance if is_instance_valid(_body) else 0.0
+	if _dimmed <= 0.0:
+		return
+	_draw_sides(screen, true, true, 0.9, 0.55 * _dimmed)
+	_draw_caps(screen, 0.45 * _dimmed, SHADOW, 0.8)
+
+
+## How far the last frame dimmed for a trance, 0–1 (`--seidr-probe`).
+func dimmed() -> float:
+	return _dimmed
 
 
 func _draw_sides(screen: Vector2, left: bool, right: bool, spread: float,

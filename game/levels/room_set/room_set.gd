@@ -16702,8 +16702,13 @@ func _seidr_probe() -> void:
 	var guarded: bool = body.blocking
 	Input.action_release("block")
 	var ring: float = mark.channel_drawn() if mark != null else 0.0
-	print("[seidr] sat         trance %.2f, ring %.2f, a guard raised %s"
-		% [body.trance, ring, guarded])
+	var dim: float = 0.0
+	for node: Node in find_children("*", "WoundVignette", true, false):
+		dim = (node as WoundVignette).dimmed()
+	print("[seidr] sat         trance %.2f, ring %.2f, view dimmed %.2f, a guard raised %s"
+		% [body.trance, ring, dim, guarded])
+	if dim <= 0.2:
+		problems.append("the trance did not dim the view (%.2f)" % dim)
 	if body.trance <= 0.2 or body.trance >= 1.0 or ring <= 0.2:
 		problems.append("holding the craft key did not sit her into a trance drawn at the crosshair")
 	if guarded:
