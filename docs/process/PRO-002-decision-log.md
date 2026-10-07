@@ -12903,4 +12903,14 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - `--hud-probe` passes, including its *nothing escapes its region* check.
 - `check_project.py` reads the new key.
 
+## ADR-367 — What fits inside a plate has one home: `MenuStyle.inside`
+
+**Date:** 2026-10-07 · **Status:** accepted · **Refactor, from a code-quality review**
+
+**Context:** two layout faults came from one mistake, a plate's padding remembered beside a layout instead of read from the plate: the Lodge's board (ADR-359) and the class cards (ADR-361). Both fixes wrote the same three lines, so the rule they protect was itself duplicated.
+
+**Decision:** `MenuStyle.inside(of, role, width)` returns the width less the role's own stylebox margins, read from the theme `of` is under. `LodgeScreen.inner_width` and `ClassScreen._inner_width` both call it.
+
+**Measured:** `--board-probe` measures 1,152 px needed of 1,152 and `--threshold-probe` the same, unchanged. `check_project.py` and `check_dead.py` pass.
+
 *Entries below to be added as design decisions are signed off.*

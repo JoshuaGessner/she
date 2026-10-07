@@ -132,10 +132,7 @@ func row_width() -> float:
 
 
 func inner_width() -> float:
-	var plate: StyleBox = get_theme_stylebox(&"panel", MenuStyle.SLATE)
-	var pad: float = plate.get_margin(SIDE_LEFT) + plate.get_margin(SIDE_RIGHT) \
-		if plate != null else 0.0
-	return row_width() - pad
+	return MenuStyle.inside(self, MenuStyle.SLATE, row_width())
 
 
 ## A notice pinned to the board (ADR-291): its title is the choice, then where

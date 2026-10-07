@@ -106,14 +106,10 @@ func _ready() -> void:
 			MenuStyle.BODY_WARM))
 
 
-## What fits inside a card: its width less the plate's own margins (ADR-361).
-## It was the width less 40 px, the old plate's padding, and the forged plate's
-## is 50 — so every card grew ten pixels past the width the row was fitted to.
+## What fits inside a card (ADR-361): `MenuStyle.inside`, the one home of the
+## rule a remembered 40 px padding broke here.
 func _inner_width() -> float:
-	var plate: StyleBox = get_theme_stylebox(&"panel", MenuStyle.SLATE)
-	var pad: float = plate.get_margin(SIDE_LEFT) + plate.get_margin(SIDE_RIGHT) \
-		if plate != null else 40.0
-	return _card_width - pad
+	return MenuStyle.inside(self, MenuStyle.SLATE, _card_width)
 
 
 ## **How wide the row of lives needs to be** (ADR-361): the built cards'

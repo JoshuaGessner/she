@@ -234,6 +234,18 @@ static func ground(of: Control, role: StringName) -> Color:
 	return carved.ground
 
 
+## **What fits inside a plate `width` wide** (ADR-359, ADR-361, ADR-367): the
+## width less the role's own stylebox margins, asked of the theme `of` is under.
+## A padding remembered beside the layout instead broke two screens when the
+## forged plates grew (ADR-341) — the Lodge's board and the class cards — so the
+## rule has one home.
+static func inside(of: Control, role: StringName, width: float) -> float:
+	var plate: StyleBox = of.get_theme_stylebox(&"panel", role)
+	if plate == null:
+		return width
+	return width - plate.get_margin(SIDE_LEFT) - plate.get_margin(SIDE_RIGHT)
+
+
 ## Every panel named here that is not drawn on the hub's ground. For
 ## `--lair-probe` and `--threshold-probe`.
 ##
