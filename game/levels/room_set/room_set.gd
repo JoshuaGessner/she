@@ -865,6 +865,8 @@ func _ready() -> void:
 			_delvings_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--ink-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1], true)
+		elif arg == "--perf-shot":
+			_perf_shot()
 		elif arg.begins_with("--light-shot="):
 			_light_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--fog-shot="):
@@ -3867,24 +3869,7 @@ func _sight_shot(path: String) -> void:
 ## every geometry number in the generator is still ⟨tune⟩ and unfelt. Standing
 ## at the entrance looking in, and standing midway looking on, is the smallest
 ## pair that can answer it.
-func _delvings_shot(path: String, ink: bool = false) -> void:
-	var player: Player = _session.local_player()
-	# Ink off, on `--sight-shot`'s reasoning: `ART-005` is a treatment on top of
-	# the lighting, and what is being judged here is the space.
-	player.show_ink(ink)
-	# **Stand only where the floor put something** (ADR-187).
-	#
-	# The first draft stood at straight-line lerps between anchors — the midpoint
-	# of spawn→Shaft, a step back from the Prize — and photographed **solid rock
-	# three times out of four**, because a cyclic layout with dog-legs has no
-	# straight line between any two of its anchors. That looked exactly like a
-	# broken floor and was a broken measurement: `M3-T22`'s lesson, that a new
-	# probe's first finding is usually about the probe.
-	#
-	# Every position below is an anchor the generator chose, so the camera is in
-	# open space by construction, and every view aims at a **door light** —
-	# which is `M2-T13`'s lighting language, and the thing worth photographing:
-	# a room showing its own way out.
+func _delvings_views() -> Array:
 	var from: Vector3 = _floor.spawns()[0]
 	var views: Array = [
 		["entrance", from, _floor.shaft()],
@@ -3907,16 +3892,67 @@ func _delvings_shot(path: String, ink: bool = false) -> void:
 	# And into the hub (ADR-306).
 	if dressed != null and not dressed.hub_view().is_empty():
 		views.append(["hub", dressed.hub_view()["at"], dressed.hub_view()["look"]])
-	for view: Array in views:
+	return views
+
+
+## **`--perf-shot`** (ADR-349): what the Delvings costs to draw, from the views
+## `--ink-shot` stands at — frame time (mean and worst of a hundred and twenty
+## frames), draw calls and primitives. Windowed, because a headless renderer
+## costs nothing and measures nothing. A report, not a gate: the numbers are a
+## baseline for the Scorecard, and a budget is the developer's to set.
+func _perf_shot() -> void:
+	var player: Player = _session.local_player()
+	player.show_ink(true)
+	print("[perf] %s · %s" % [RenderingServer.get_video_adapter_name(),
+		DisplayServer.window_get_size()])
+	for view: Array in _delvings_views():
 		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
-		var look: Vector3 = view[2] as Vector3
-		var d: Vector3 = (look - at)
-		d.y = 0.0
-		# Godot yaws about +Y and a body's forward is -Z, so a rotation of θ
-		# points at (-sin θ, 0, -cos θ). Facing `d` is therefore
-		# `atan2(-d.x, -d.z)` — worth writing down, because guessing the sign
-		# here photographs the wall behind you and looks like a broken floor.
-		var yaw: float = atan2(-d.x, -d.z) if d.length() > 0.01 else 0.0
+		player.teleport(at, _yaw_toward(at, view[2] as Vector3))
+		await _hold(0.6)
+		var frames: Array[float] = []
+		var calls: float = 0.0
+		var primitives: float = 0.0
+		var last: int = Time.get_ticks_usec()
+		for _i: int in 120:
+			await RenderingServer.frame_post_draw
+			var now: int = Time.get_ticks_usec()
+			frames.append(float(now - last) / 1000.0)
+			last = now
+			calls = maxf(calls, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+			primitives = maxf(primitives, Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+		var total: float = 0.0
+		var worst: float = 0.0
+		for ms: float in frames:
+			total += ms
+			worst = maxf(worst, ms)
+		print("[perf] %-10s %5.1f ms mean, %5.1f ms worst, %4.0f draw calls, %7.0f primitives"
+			% [view[0], total / frames.size(), worst, calls, primitives])
+	print("[perf] nodes %d, objects %d" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
+		Performance.get_monitor(Performance.OBJECT_COUNT)])
+	get_tree().quit()
+
+
+func _delvings_shot(path: String, ink: bool = false) -> void:
+	var player: Player = _session.local_player()
+	# Ink off, on `--sight-shot`'s reasoning: `ART-005` is a treatment on top of
+	# the lighting, and what is being judged here is the space.
+	player.show_ink(ink)
+	# **Stand only where the floor put something** (ADR-187).
+	#
+	# The first draft stood at straight-line lerps between anchors — the midpoint
+	# of spawn→Shaft, a step back from the Prize — and photographed **solid rock
+	# three times out of four**, because a cyclic layout with dog-legs has no
+	# straight line between any two of its anchors. That looked exactly like a
+	# broken floor and was a broken measurement: `M3-T22`'s lesson, that a new
+	# probe's first finding is usually about the probe.
+	#
+	# Every position below is an anchor the generator chose, so the camera is in
+	# open space by construction, and every view aims at a **door light** —
+	# which is `M2-T13`'s lighting language, and the thing worth photographing:
+	# a room showing its own way out.
+	for view: Array in _delvings_views():
+		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
+		var yaw: float = _yaw_toward(at, view[2] as Vector3)
 		player.teleport(at, yaw)
 		await _hold(0.35)
 		await RenderingServer.frame_post_draw

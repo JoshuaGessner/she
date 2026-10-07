@@ -12542,4 +12542,37 @@ These also pass: `--verbs-probe`, `--rite-probe`, `--body-probe`, `--hands-probe
 
 **Honest scale:** in the Deep's dark, a cart a metre high against a 60 m hall is still small. Density is the cheap half. The other half is pieces with a light of their own, or larger set pieces such as a collapsed gallery or a winch, and that is `M4-T10` asset work.
 
+## ADR-350 — What the Delvings costs to draw, measured: a baseline before any budget
+
+**Date:** 2026-10-06 · **Status:** accepted · **Measurement; no behaviour changes**
+
+**Context:**
+- **Nothing measured performance.** The project has probes for passage, sight, sound, flashing, layout and fit, and none for frame time.
+- **The Delvings had never had its cost read.** It is the scene a player spends the run in, and two passes have just added to what it draws: ADR-339's engraving and ADR-349's denser dressing. A tester on a weaker machine would be the first to find out.
+
+**Decision:**
+- **`--perf-shot`** (windowed, `--delvings`) stands at the same views `--ink-shot` photographs. That list now comes from one function, `_delvings_views()`.
+- At each view it reports the mean and worst of 120 frames, peak draw calls and peak primitives, then the node and object counts.
+- **A report, not a gate.** A budget is the developer's call. These numbers are the "before" for whatever change comes next.
+
+**Measured** (Apple M5, 1152×648, ink on, seed default, floor 0, with the full sweep running in another process, so frame times are pessimistic):
+
+| view | mean | worst | draw calls | primitives |
+|---|---|---|---|---|
+| entrance | 8.3 ms | 18.3 ms | 504 | 0.41 M |
+| spawn_door | 9.0 ms | 23.5 ms | 631 | 0.53 M |
+| shaft | 8.8 ms | 21.2 ms | 755 | 0.78 M |
+| prize | 9.1 ms | 21.3 ms | 669 | 0.79 M |
+| dressing | 8.3 ms | 18.7 ms | 753 | 0.65 M |
+| corridor | 9.0 ms | 21.1 ms | 935 | 1.05 M |
+| shaped | 8.7 ms | 20.5 ms | 1032 | 1.24 M |
+| hub | 8.6 ms | 21.7 ms | 920 | 1.08 M |
+
+The level holds 4,673 nodes and 10,463 objects.
+
+**Reading:**
+- **The mean is comfortable** on this machine.
+- **Draw calls are the exposure.** Every wall, floor and ceiling slab is its own `MeshInstance3D`, and the project has no `MultiMesh` anywhere. At about a thousand calls in a hall, a weaker Windows GPU is where it will show first.
+- **The next step:** batch the generator's repeated slabs, measured against this table. It is filed, not done here, because the floor's root is read as a flat list of slabs by `kit_probe`, the surface probe and `--build-probe`, so batching touches what those assert.
+
 *Entries below to be added as design decisions are signed off.*
