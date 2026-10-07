@@ -16845,6 +16845,29 @@ func _seidr_probe() -> void:
 		print("[seidr] rite        " + row)
 	body.effects = PackedStringArray()
 
+	# ─ 8. the road to her Rite (ADR-379) ─
+	# Wing is the one of her three Aspects that is written, so it is the road:
+	# its nodes, bought the way a player buys them — rank is the Boon they cost,
+	# not how many — open the Rite at pact rank 3, and before them it is closed.
+	var sworn_was: StringName = GameState.class_id
+	GameState.class_id = &"volva"
+	GameState.taken.clear()
+	GameState.boon = 40
+	var shut: String = GameState.why_not(&"rit_vl_vardlokkur")
+	for id: StringName in [&"wng_soft_boots", &"wng_faint_trace", &"wng_long_wind",
+			&"wng_bearers_grace", &"wng_second_wind", &"wng_still_hands", &"wng_stillness"]:
+		if not GameState.take_node(id):
+			problems.append("a Völva could not take %s: %s" % [id, GameState.why_not(id)])
+	var open: String = GameState.why_not(&"rit_vl_vardlokkur")
+	var spa_first: String = GameState.why_not(&"rit_vl_spa")
+	print("[seidr] the road    rank %d; the Rite before '%s', after '%s'; Spá before Marking Prey '%s'"
+		% [GameState.pact_rank, shut, open, spa_first])
+	if shut == "" or open != "" or spa_first == "":
+		problems.append("a Völva cannot reach her Rite through Wing, or Spá came before Marking Prey")
+	GameState.taken.clear()
+	GameState.boon = 0
+	GameState.class_id = sworn_was
+
 	# ─ 7. told ─
 	var told: String = ArrivalBrief.verb_line(&"volva")
 	print("[seidr] told        '%s'" % told)
