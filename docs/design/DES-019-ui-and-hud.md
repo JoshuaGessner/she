@@ -4,7 +4,7 @@ title: UI & HUD
 status: accepted
 owner: design
 tags: [ui, hud, legibility, inventory, map, cognitive-load]
-updated: 2026-10-06
+updated: 2026-10-07
 related: [DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005]
 ---
 
@@ -186,7 +186,9 @@ So a bulky-but-light bolt of cloth and a tiny-but-ruinous bag of coin pose *diff
 
 > **The body beside the bag, and a card at the hands (ADR-342).**
 > - **The six worn slots sit on a figure** to the left of the grid: the class's own portrait, cropped to the body and darkened. The head is over the head, the body on the chest, hand and off-hand at the hands, the arms below, the pack on the far side.
-> - Under the figure are health and breath as bars, the wounds by name, and the class's verb with its key.
+> - Under the figure are health and breath as bars, the wounds by name, and the class's verb with its key. A player reads it as the class's **craft**: *verb* is this document's word, not theirs (ADR-376).
+> - **Slot names come from the string table**, and the off hand is *off hand*. *Off* read as a broken sentence on a card's *worn · off* line (ADR-374).
+> - **A tile's name is whole or absent.** A name too long for its tile gives the room to the icon, as Diablo's and Path of Exile's grids do; the card always has it in full. A one-cell Waystone read *"Wayst"* (ADR-375).
 > - **What is under the hands is a card beside them**, not a band at the foot of the panel. It gives the name, then where it is worn or what it is for, the description, and its weight, the extra distance it is heard from, its footprint and its tribute.
 > - **The name is coloured by what she would give for it**, from *nothing to her* to *a king's gift*. The band is also written out in words, because `DES-018` won't let a colour carry anything alone.
 > - That is the one ladder an item stands on. It is not a rarity ladder: `DES-008`'s sidegrades are untouched, and a seax is *nothing to her* whatever it does in a fight.

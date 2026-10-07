@@ -4,7 +4,7 @@ title: Interface Architecture
 status: accepted
 owner: tech
 tags: [ui, hud, layout, legibility, accessibility, godot, research]
-updated: 2026-10-06
+updated: 2026-10-07
 related: [DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001]
 ---
 
@@ -430,8 +430,11 @@ joins drawn, as Darkest Dungeon's hamlet upgrade pages do. A plate underneath
 says what the card in focus is, what it costs and why it is refused, and holds
 the **one** button that takes it or gives it back. Looking is not buying: hover
 does not select, so a pointer on its way to that button cannot change what it
-buys. `--pact-probe` asks every page of both classes to fit a 1152 x 648
-window.
+buys. `--pact-probe` asks every page of every class in the catalogue to fit
+the base screen. That screen is `MenuStyle.base_screen()`, the project's
+viewport setting (1152 x 648, Godot's default), and every fit check asks it
+rather than keeping a copy of the number (ADR-373). What fits inside a plate
+is likewise `MenuStyle.inside()`, from the plate's own stylebox (ADR-367).
 
 ### 5.4 The missing layers, at blockout fidelity
 

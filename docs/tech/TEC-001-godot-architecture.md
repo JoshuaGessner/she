@@ -4,7 +4,7 @@ title: Godot Architecture
 status: accepted
 owner: tech
 tags: [godot, architecture, engine, systems]
-updated: 2026-08-16
+updated: 2026-10-07
 related: [TEC-002, TEC-003, DES-005]
 ---
 
@@ -123,3 +123,8 @@ Not needed, but recorded so the question stays closed:
 ## Performance targets ⟨tune⟩
 
 60 fps at 1080p on a mid-range 2020 GPU. Budgets: ≤150 active AI agents per floor (only ~20 fully simulated, rest on a cheap LOD brain), ≤2ms/frame for clamor propagation, floor generation under 2s, ≤64 kbps up per client at 4 players (`TEC-004`).
+
+**How it is measured.** `--delvings --perf-shot` (on `room_set.tscn`, in a window, not headless) stands in the views of the Delvings that `--ink-shot` photographs (one list, `_delvings_views()`) and prints each view's primitives, draw calls and the engine's own render times (ADR-350's baseline, ADR-369's method). Three cautions a newcomer needs:
+- **Frame time is the display's, not the game's.** It sits at the refresh interval (about 9 ms on the development Mac) however light the frame is, so "comfortable" is read from the render CPU time instead (ADR-369).
+- **GPU time cannot be measured on macOS.** Metal reports none, so the ink pass's real cost needs a Windows run on Vulkan or D3D12.
+- **What is already spent:** flagstones and wall panels stop drawing past 30 m, which halved a hall's primitives (ADR-362, guarded by `kit_probe`). Every sound cue is made while a floor is built, not in the frame it first plays (ADR-377, guarded by `--ear-probe`). Draw calls are still about a thousand in a hall, and batching them is the open item.

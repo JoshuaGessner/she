@@ -31,7 +31,7 @@ _What the game is._
 | `DES-016` | [Deeds & Trophies](design/DES-016-deeds-and-trophies.md) | ✔ accepted | 2026-08-14 | DES-014, DES-003, DES-012, PRO-006, PRO-005 |
 | `DES-017` | [The Gold-Sick — the Hunter](design/DES-017-the-gold-sick.md) | ✔ accepted | 2026-09-30 | DES-005, DES-013, DES-008, DES-014, DES-018 |
 | `DES-018` | [Legibility & Accessibility](design/DES-018-legibility-and-accessibility.md) | ✔ accepted | 2026-09-16 | DES-005, DES-013, DES-017, ART-001, PRO-005 |
-| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-10-06 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
+| `DES-019` | [UI & HUD](design/DES-019-ui-and-hud.md) | ✔ accepted | 2026-10-07 | DES-018, DES-005, DES-008, DES-009, DES-012, DES-014, DES-020, PRO-005 |
 | `DES-020` | [Equipment & Gear Slots](design/DES-020-equipment-and-slots.md) | ✔ accepted | 2026-10-06 | DES-008, DES-009, DES-019, ART-004, ART-005, TEC-006 |
 | `DES-022` | [The Power Model](design/DES-022-the-power-model.md) | ✔ accepted | 2026-08-15 | DES-003, DES-004, DES-008, DES-011, DES-013, DES-015 |
 | `DES-023` | [Items — the Slice's List](design/DES-023-items-the-slice-list.md) | ✔ accepted | 2026-09-16 | DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004 |
@@ -42,7 +42,7 @@ _How it gets built._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-08-16 | TEC-002, TEC-003, DES-005 |
+| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-10-07 | TEC-002, TEC-003, DES-005 |
 | `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✔ accepted | 2026-09-13 | TEC-001, PRO-001 |
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-09-16 | DES-003, DES-015, TEC-001, TEC-002, TEC-004 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-09-28 | DES-012, TEC-001, TEC-003, PRO-001 |
@@ -50,7 +50,7 @@ _How it gets built._
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-04 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
 | `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-10-02 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
-| `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ✔ accepted | 2026-10-06 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
+| `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ✔ accepted | 2026-10-07 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
 
 ## Process
 
@@ -75,7 +75,7 @@ _Visual and audio direction._
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
 | `ART-001` | [Art & Audio Direction](art/ART-001-direction.md) | ✔ accepted | 2026-09-28 | DES-001, DES-005, DES-006 |
-| `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-10-06 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
+| `ART-002` | [Audio Design](art/ART-002-audio-design.md) | ✔ accepted | 2026-10-07 | ART-001, DES-018, DES-005, DES-013, DES-017, DES-014, TEC-001 |
 | `ART-003` | [Composer & Sound Design Brief](art/ART-003-composer-brief.md) | ✔ accepted | 2026-09-01 | ART-001, ART-002, TEC-005, DES-018, DES-017, DES-014 |
 | `ART-004` | [Asset Pipeline & Production Schedule](art/ART-004-asset-pipeline.md) | ✔ accepted | 2026-10-05 | ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017 |
 | `ART-005` | [The Ink Shader — Visual Direction](art/ART-005-the-ink-shader.md) | ✔ accepted | 2026-10-06 | ART-001, ART-004, DES-006, DES-018, DES-019, TEC-001 |
