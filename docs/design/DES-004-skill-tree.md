@@ -68,6 +68,13 @@ After taking damage, you may instantly return to where you stood 3 seconds ago �
 **Scale — Keystone: *Anvil-Born***
 You cannot dodge, sprint, or be knocked back. Hazards and traps do not affect you. — *A movement-refusal build; makes trapped rooms into shortcuts.*
 
+> **Scale is authored (ADR-346), twelve nodes.** Every one changes a rule the game already has. There are no new systems and no numbers:
+> - **The ground:** *Sure Footing*, scree no louder than stone · *Deep Breath*, choke-damp no longer holds your breath · *Shuttered Flame*, your lamp burns in the damp · *Second Lungs* (greater), breath returns behind a raised guard.
+> - **The body:** *Hard Head*, no concussion · *Set Bone*, a broken arm still guards and holds a two-hander · *Knot Holds*, neither a blow nor a sprint undoes a binding · *Old Scars* (greater, pact rank 4), a wound you carry as a Scar is not taken again.
+> - **The guard:** *Iron Wrist*, a blade turns a heavy blow as a shield does, though not a stone or an arrow · *Shrug It Off*, a gashed leg does not slow you, and the limp is still heard · *Braced* (greater), standing still, the guard covers your back.
+> - **Keystone, *Anvil-Born*** (after Second Lungs and Braced): the Deep's grounds do not touch you, and **you cannot sprint**. The sketch's *cannot dodge* and *knocked back* have nothing to refuse here, since the game has neither.
+> - **Who can enter it:** the Húskarl, the Úlfheðinn, and later the Skald and the Haugbrjótr (`DES-011`). For the Úlfheðinn it is the only road to pact rank 3 and its Rite.
+
 **Maw — Keystone: *Second Stomach***
 Eat anything: corpses, potions, cursed items, gear. Each grants its property for a time and a stack of Corruption. — *Transgressive, funny, self-destructive; the "I know what I'm doing" build.*
 

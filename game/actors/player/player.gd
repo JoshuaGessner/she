@@ -1005,6 +1005,9 @@ func _guard_faces(from: Node) -> bool:
 	var arc: float = Config.tuning.guard_arc_degrees
 	if planted >= 1.0 and has_effect(&"hold_guards_flanks"):
 		arc = maxf(arc, Config.tuning.rite_flank_arc_degrees)
+	# **Braced** (ADR-346): standing still, the guard covers your back too.
+	if has_effect(&"guard_behind_when_still") and planar_speed() < 0.05:
+		return true
 	return facing.normalized().dot(toward.normalized()) >= cos(deg_to_rad(arc))
 
 
@@ -1193,8 +1196,10 @@ func _heard(sound: int, pitch: float) -> void:
 ## one Húskarl to the next.
 func _bear(amount: float, from: Node) -> void:
 	# **A blow undoes the knot** (`DES-023`), guarded or not — a shield that
-	# took the weight still jarred the hands tying the linen.
-	_stop_binding()
+	# took the weight still jarred the hands tying the linen. Unless the hands
+	# hold (ADR-346, Knot Holds).
+	if not has_effect(&"knot_holds"):
+		_stop_binding()
 	# **A heavy blow goes through a weapon's guard** (`DES-023` §3, ADR-232):
 	# no stamina spent on it and nothing taken off. A raised seax is a hand in the
 	# way of a falling hammer. **And so does anything in the air** (ADR-235) — the
@@ -1207,9 +1212,12 @@ func _bear(amount: float, from: Node) -> void:
 	var past_a_weapon: bool = heavy or from is Arrow
 	var shielded: bool = equipment != null \
 		and equipment.trait_in(Enums.Slot.OFF_HAND, ShieldTrait) != null
-	var guardable: bool = shielded or not past_a_weapon
+	# **Iron Wrist** (ADR-346): a blade held up turns a heavy blow as a shield
+	# does. Not a stone or an arrow — those still pass a weapon's guard.
+	var guardable: bool = shielded or not past_a_weapon \
+		or (heavy and not from is Arrow and has_effect(&"blade_takes_heavy"))
 	var raised: bool = blocking and _guard_faces(from)
-	if raised and guardable and not has_wound(Enums.Wound.BROKEN_ARM) \
+	if raised and guardable and not _arm_broken() \
 			and stamina.current >= Config.tuning.block_stamina_minimum:
 		var tuning: TuningProfile = Config.tuning
 		# **A scarred arm guards dearer** (ADR-240): the broken arm's *no guard*,
@@ -1262,7 +1270,7 @@ func _wound_from(blow: Hitbox, raised: bool) -> void:
 ## leaves anything one hand can swing. Asked by the owner, the way stamina is:
 ## a swing is committed and paid for on the machine that pressed the button.
 func _arm_holds() -> bool:
-	if not has_wound(Enums.Wound.BROKEN_ARM) or equipment == null:
+	if not _arm_broken() or equipment == null:
 		return true
 	var held: ItemInstance = equipment.in_slot(Enums.Slot.MAIN_HAND)
 	return held == null or not held.definition.two_handed
@@ -1285,6 +1293,11 @@ func has_wound(kind: Enums.Wound) -> bool:
 ## that nothing on screen could show.
 func wound(kind: Enums.Wound) -> bool:
 	if not multiplayer.is_server() or has_wound(kind) or wards(kind):
+		return false
+	# **Hard Head** turns the concussion away, and **Old Scars** any wound the
+	# body already carries as a Scar (ADR-346) — the healed place holds.
+	if (kind == Enums.Wound.CONCUSSED and has_effect(&"head_does_not_ring")) \
+			or (has_scar(kind) and has_effect(&"scars_ward")):
 		return false
 	wounds |= 1 << kind
 	if kind == Enums.Wound.CONCUSSED:
@@ -2478,7 +2491,8 @@ func _tick_binding(delta: float, tuning: TuningProfile) -> void:
 	_binding_speed = lerpf(_binding_speed, moved.length() / maxf(delta, 0.0001),
 		clampf(delta * 8.0, 0.0, 1.0))
 	var item: ItemInstance = inventory.find(_binding_id)
-	if item == null or is_incapacitated() or _is_sprinting(_binding_speed, tuning):
+	if item == null or is_incapacitated() \
+			or (_is_sprinting(_binding_speed, tuning) and not has_effect(&"knot_holds")):
 		_stop_binding()
 		return
 	_binding -= delta
@@ -2522,12 +2536,29 @@ func try_shutter() -> bool:
 	# A lamp will not open in choke-damp (ADR-236). Refused before the cooldown
 	# is charged, so stepping out is not also a wait.
 	if not lit:
-		var ground: HazardResource = HazardZone.at(self, global_position)
-		if ground != null and ground.snuffs_light:
+		var ground: HazardResource = _ground()
+		if ground != null and ground.snuffs_light and not has_effect(&"lamp_holds_in_damp"):
 			return false
 	_shutter_cooling = lantern.shutter_seconds()
 	lit = not lit
 	return true
+
+
+## **What the ground here does to this body** (ADR-346) — `HazardZone`'s
+## answer, unless the body is **Anvil-Born**, which the Deep's grounds do not
+## touch. One door, so a keystone that says *hazards do not affect you* cannot
+## be true of the breath and false of the lamp.
+func _ground() -> HazardResource:
+	if has_effect(&"anvil_born"):
+		return null
+	return HazardZone.at(self, global_position)
+
+
+## **A broken arm**, unless the bone was set (ADR-346, Set Bone): the wound
+## still stands — it still scars, still shows — but it no longer takes the guard
+## or the two-hander.
+func _arm_broken() -> bool:
+	return has_wound(Enums.Wound.BROKEN_ARM) and not has_effect(&"set_bone")
 
 
 ## True while the bag is open at all — the weapon and the sprint both refuse.
@@ -2755,14 +2786,20 @@ func _physics_process(delta: float) -> void:
 	# **Second Wind** is about *standing still*, so it is re-answered per frame
 	# rather than when the tree changes — the tag is fixed for a life and the
 	# standing still is not.
-	stamina.breathing = has_effect(&"breath_while_still") and planar_speed() < 0.05
+	# **Second Lungs** (ADR-346): breath returns behind a raised guard.
+	stamina.breathing = (has_effect(&"breath_while_still") and planar_speed() < 0.05) \
+		or (has_effect(&"breath_while_guarding") and blocking)
 	# **What the ground here does** (ADR-236), asked of this body's own position
 	# on every peer, so every peer answers the same. Choke-damp holds the breath
 	# where it is; the lamp is the owner's to lose, since the owner is the one
 	# who opens it and `lit` rides the wire from them.
-	var ground: HazardResource = HazardZone.at(self, global_position)
-	stamina.choked = ground != null and ground.stops_recovery
-	if _is_local and lit and ground != null and ground.snuffs_light:
+	var ground: HazardResource = _ground()
+	# **Deep Breath** and **Shuttered Flame** (ADR-346): the damp still lies
+	# there; it no longer holds this body's breath, or its lamp.
+	stamina.choked = ground != null and ground.stops_recovery \
+		and not has_effect(&"breathes_damp")
+	if _is_local and lit and ground != null and ground.snuffs_light \
+			and not has_effect(&"lamp_holds_in_damp"):
 		lit = false
 	if multiplayer.is_server() and has_effect(&"recall_on_damage"):
 		_drop_a_crumb(delta)
@@ -2922,8 +2959,9 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 	# under every step, after the stance and the Wing have had their say, so a
 	# crouch and the silent-crouch node both land on it — and a sprint, already
 	# louder, stays louder.
-	var ground: HazardResource = HazardZone.at(self, global_position)
-	if ground != null and ground.step_clamor > 0.0:
+	var ground: HazardResource = _ground()
+	# **Sure Footing** (ADR-346): scree under these feet is only stone.
+	if ground != null and ground.step_clamor > 0.0 and not has_effect(&"scree_is_quiet"):
 		amount = maxf(amount, ground.step_clamor)
 	# **A limp is heard** (`DES-009`, ADR-239). After the scree, so a gashed leg
 	# on loose stone is louder than either.
@@ -3008,6 +3046,9 @@ func _resolve_sprint(wish: Vector3, delta: float, tuning: TuningProfile) -> bool
 	# no explanation.
 	if bag_is_open() or is_incapacitated():
 		return false
+	# **Anvil-Born** (ADR-346): the keystone's price — you do not run.
+	if has_effect(&"anvil_born"):
+		return false
 	if _crouching or wish == Vector3.ZERO or not Input.is_action_pressed("sprint"):
 		return false
 	# The minimum stops a one-step sprint stutter at the bottom of the bar.
@@ -3067,8 +3108,10 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 			else lerpf(1.0, tuning.bag_speed_multiplier, _bag))
 		* (tuning.block_speed_multiplier if blocking else 1.0)
 		# **A gashed leg is slower** (`DES-009`, ADR-239), walking or running.
+		# **Shrug It Off** (ADR-346): the limp is still heard.
 		* (tuning.gashed_leg_speed_multiplier
-			if has_wound(Enums.Wound.GASHED_LEG) else 1.0)
+			if has_wound(Enums.Wound.GASHED_LEG) and not has_effect(&"gash_does_not_slow")
+			else 1.0)
 		# **Weaker than their wont** (ADR-345), for as long as the fury's
 		# price is being paid.
 		* (tuning.fury_spent_speed if fury_spent > 0.0 else 1.0))
@@ -3117,7 +3160,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	blocking = (_driving and Input.is_action_pressed("block")
 		and stamina.current >= tuning.block_stamina_minimum
 		and _bag <= 0.0
-		and not has_wound(Enums.Wound.BROKEN_ARM)
+		and not _arm_broken()
 		and not is_incapacitated())
 
 

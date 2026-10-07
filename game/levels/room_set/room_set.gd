@@ -967,6 +967,8 @@ func _ready() -> void:
 			_rite_probe()
 		elif arg == "--fury-probe":
 			_fury_probe()
+		elif arg == "--scale-probe":
+			_scale_probe()
 		elif arg.begins_with("--verbs-shot="):
 			_verbs_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ink-probe":
@@ -16285,6 +16287,159 @@ func _screen_rect(camera: Camera3D, root: Node3D) -> Rect2:
 			rect = Rect2(seen, Vector2.ZERO) if first else rect.expand(seen)
 			first = false
 	return rect
+
+
+## **`--scale-probe`** (ADR-346): every Scale node, each against the same case
+## without it — the rule `DES-004` sets the tree, *no node is purely numeric*,
+## asked as *does this node change what is the case, and does nothing else*.
+func _scale_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var tuning: TuningProfile = Config.tuning
+	body.sworn = &"huskarl"
+	body.restore_for_descent()
+	body.teleport(GUARDIAN_POST, 0.0)
+	await _hold(0.3)
+	var rows: Array[String] = []
+	var behind := Node3D.new()
+	add_child(behind)
+
+	# A rule asked twice: plain, then with the node.
+	var asked := func(tag: String, question: Callable) -> Array:
+		var answers: Array = []
+		for with_it: bool in [false, true]:
+			body.effects = PackedStringArray([tag]) if with_it else PackedStringArray()
+			body.restore_for_descent()
+			body.wounds = 0
+			body.scars = 0
+			answers.append(await question.call())
+		body.effects = PackedStringArray()
+		return answers
+	var check := func(tag: String, answers: Array, want_plain: Variant, want_with: Variant, said: String) -> void:
+		rows.append("%-24s plain %s, with it %s" % [tag, answers[0], answers[1]])
+		if answers[0] != want_plain or answers[1] != want_with:
+			problems.append("%s: %s (plain %s, with it %s)" % [tag, said, answers[0], answers[1]])
+
+	# ─ the ground ─
+	var seam: MachineResource = MachineCatalogue.by_id(&"mac_choke_seam")
+	var fall: MachineResource = MachineCatalogue.by_id(&"mac_scree_fall")
+	var damp: HazardZone = _lay_hazard(seam.hazard, body.global_position, Vector2(8.0, 8.0))
+	await _hold(0.2)
+	check.call("breathes_damp", await asked.call("breathes_damp", func() -> bool:
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		return body.stamina.choked), true, false, "choke-damp held the breath regardless")
+	var lamp: ItemResource = ItemCatalogue.by_id(&"tol_horn_lantern")
+	check.call("lamp_holds_in_damp", await asked.call("lamp_holds_in_damp", func() -> bool:
+		body.equipment.equip(ItemInstance.of(lamp, 0))
+		body.lit = true
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		return body.lit), false, true, "the lamp went out in the damp regardless")
+	check.call("anvil_born", await asked.call("anvil_born", func() -> bool:
+		return body._ground() == null), false, true, "the damp touched an Anvil-Born body, or the plain one escaped it")
+	damp.queue_free()
+	var scree: HazardZone = _lay_hazard(fall.hazard, body.global_position, Vector2(8.0, 8.0))
+	await _hold(0.2)
+	check.call("scree_is_quiet", await asked.call("scree_is_quiet", func() -> bool:
+		body.clamor.silence()
+		body._step_accumulator = tuning.clamor_step_distance
+		body._last_position = body.global_position - Vector3(0.05, 0.0, 0.0)
+		body._emit_movement_clamor(0.016, tuning)
+		return body.clamor.level >= fall.hazard.step_clamor * 0.99), true, false,
+		"a step on scree was not loud plain, or still loud with the node")
+	scree.queue_free()
+	Input.action_press("sprint")
+	check.call("anvil_born (sprint)", await asked.call("anvil_born", func() -> bool:
+		return body._resolve_sprint(Vector3.FORWARD, 0.016, tuning)), true, false,
+		"the keystone's price was not paid — an Anvil-Born body sprinted")
+	Input.action_release("sprint")
+
+	# ─ wounds ─
+	check.call("head_does_not_ring", await asked.call("head_does_not_ring", func() -> bool:
+		return body.wound(Enums.Wound.CONCUSSED)), true, false, "Hard Head did not turn the concussion away")
+	check.call("scars_ward", await asked.call("scars_ward", func() -> bool:
+		body.scars = 1 << Enums.Wound.GASHED_LEG
+		return body.wound(Enums.Wound.GASHED_LEG)), true, false, "an Old Scar did not ward its wound")
+	check.call("set_bone", await asked.call("set_bone", func() -> bool:
+		body.wound(Enums.Wound.BROKEN_ARM)
+		return body._arm_broken()), true, false, "a set bone still took the guard")
+	check.call("knot_holds", await asked.call("knot_holds", func() -> bool:
+		body._binding = 2.0
+		behind.global_position = body.global_position + Vector3(0.0, 0.0, -2.0)
+		body._on_hurt(1.0, behind)
+		var held: bool = body._binding > 0.0
+		body._stop_binding()
+		return held), false, true, "a blow undid a held knot, or a plain one survived")
+	check.call("gash_does_not_slow", await asked.call("gash_does_not_slow", func() -> bool:
+		var whole: float = body._target_speed(false, tuning)
+		body.wound(Enums.Wound.GASHED_LEG)
+		return body._target_speed(false, tuning) < whole - 0.01), true, false,
+		"a gashed leg's pace was unchanged plain, or still slowed with the node")
+
+	# ─ the guard ─
+	Input.action_press("block")
+	check.call("breath_while_guarding", await asked.call("breath_while_guarding", func() -> bool:
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		return body.stamina.breathing), false, true, "breath did not return behind the guard")
+	Input.action_release("block")
+	check.call("guard_behind_when_still", await asked.call("guard_behind_when_still", func() -> bool:
+		behind.global_position = body.global_position + body.global_transform.basis.z * 2.0
+		return body._guard_faces(behind)), false, true, "Braced did not turn the guard round")
+	_session.spawn_enemy(body.global_position - body.global_transform.basis.z * 2.0, 0.0, &"enm_hall_warden")
+	await _hold(0.3)
+	var warden: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		warden = node as Enemy
+	if warden == null:
+		problems.append("no Hall-Warden to strike the wrist with")
+	else:
+		warden.process_mode = Node.PROCESS_MODE_DISABLED
+		var overhead := warden.get("_hitbox") as Hitbox
+		overhead.heavy = true
+		var seax: ItemResource = ItemCatalogue.by_id(&"wpn_seax")
+		check.call("blade_takes_heavy", await asked.call("blade_takes_heavy", func() -> float:
+			body.equipment.equip(ItemInstance.of(seax, 0))
+			body.blocking = true
+			var full: float = body.health.current
+			body._bear(20.0, overhead)
+			body.blocking = false
+			return snappedf(full - body.health.current, 0.1)), 20.0,
+			snappedf(20.0 * (1.0 - tuning.block_damage_fraction), 0.1),
+			"a blade did not turn a heavy blow with Iron Wrist, or did without it")
+	_session.clear_enemies()
+	behind.queue_free()
+	body.restore_for_descent()
+
+	# ─ and the Úlfheðinn has a road to its Rite (ADR-345, ADR-346) ─
+	# Its three Aspects were all unwritten, so pact rank — and the Rite that
+	# opens at rank 3 — was out of reach. Walked the way a player buys it.
+	GameState.class_id = &"ulfhedinn"
+	GameState.taken.clear()
+	GameState.boon = 40
+	var closed: String = GameState.why_not(&"rit_uh_blood_price")
+	for id: StringName in [&"scl_iron_wrist", &"scl_braced", &"scl_sure_footing",
+			&"scl_deep_breath", &"scl_second_lungs", &"scl_shrug_it_off"]:
+		if not GameState.take_node(id):
+			problems.append("an Úlfheðinn could not take %s: %s" % [id, GameState.why_not(id)])
+	var opened: String = GameState.why_not(&"rit_uh_blood_price")
+	rows.append("the Úlfheðinn's road     rank %d; the Rite before '%s', after '%s'"
+		% [GameState.pact_rank, closed, opened])
+	if closed == "" or opened != "":
+		problems.append("the Úlfheðinn cannot reach its Rite through Scale: before '%s', after '%s'"
+			% [closed, opened])
+	GameState.taken.clear()
+	GameState.boon = 0
+	for row: String in rows:
+		print("[scale] %s" % row)
+	if problems.is_empty():
+		print("[scale] every node changes the case it names, and nothing without it does")
+	_report(problems, "scale")
 
 
 ## **`--fury-probe`** (ADR-345): Wolf-Fury, asked of the real body.

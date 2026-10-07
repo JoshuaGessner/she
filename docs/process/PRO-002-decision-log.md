@@ -12423,4 +12423,55 @@ These also pass: `--verbs-probe`, `--rite-probe`, `--body-probe`, `--hands-probe
 - **A worn wolf-coat.** The portrait is the shared body with the axe.
 - **A howl in the foley.** It is the HURT voice pitched down for now.
 
+## ADR-346 — Scale, the Aspect of staying power: twelve nodes, each a rule the game already has, turned
+
+**Date:** 2026-10-06 · **Status:** accepted. Made unattended at the developer's request to fully build the Úlfheðinn, and every number is ⟨tune⟩. · **Amends `DES-004`, closes `M4-T34`**
+
+**Context:**
+- **The Úlfheðinn had no road to its Rite.** ADR-345 built it, but its three Aspects (Cinder, Maw, Scale) were all unwritten. Pact rank comes from nodes taken (ADR-125), so it could buy nothing, never reach rank 3, and never open its Rite. A class that can't progress is the stub ADR-064 forbids.
+- **Why Scale and not the other two.**
+  - **Maw** needs Corruption and **Cinder** needs Ember, and neither system exists.
+  - **Scale** (*survivability, hazard immunity, staying power*) acts entirely on systems that do: the Deep's grounds (ADR-236), wounds and Scars (ADR-239, ADR-240), the guard (ADR-232, ADR-238), breath and the binding (ADR-221).
+  - It is also the Húskarl's, so the slice's first class gains a second road for free.
+- **The rule the tree is held to** (`DES-004` rule 2, `DES-022`): no node is purely numeric. Each Scale node takes one rule the player already knows and makes it not true for this body.
+
+**Decision (twelve nodes, `aspect = scale`; all nodes cost the standard lesser/greater/keystone price):**
+- **The ground:**
+  - *Sure Footing*: scree is no louder than stone.
+  - *Deep Breath* (after Sure Footing): choke-damp no longer holds the breath.
+  - *Shuttered Flame* (after Deep Breath): the lamp burns and opens in the damp.
+  - *Second Lungs* (greater, after Deep Breath): breath returns behind a raised guard.
+- **The body:**
+  - *Hard Head*: no concussion.
+  - *Set Bone* (after Hard Head): a broken arm still guards and still holds a two-hander, and is still broken.
+  - *Knot Holds* (after Set Bone): neither a blow nor a sprint undoes a binding being tied.
+  - *Old Scars* (greater, after Set Bone, **pact rank 4** and her demand): a wound already carried as a Scar is not taken again.
+- **The guard:**
+  - *Iron Wrist*: a blade turns a heavy blow as a shield does (`DES-023` §3's exception), never a stone or an arrow.
+  - *Shrug It Off* (after Iron Wrist): a gashed leg doesn't slow you, and the limp is still heard.
+  - *Braced* (greater, after Iron Wrist): standing still, the guard covers your back.
+- **Keystone, *Anvil-Born*** (after Second Lungs and Braced): the Deep's grounds don't touch you, through one door, `Player._ground()`, so it can't be true of the breath and false of the lamp. **You cannot sprint.**
+  - `DES-004`'s sketch says *cannot dodge or be knocked back*. The game has neither, so the price that bites here is the sprint.
+
+**Measured** (`--scale-probe`, in the sweep): each node against the same case without it.
+| Node | Without it | With it |
+|---|---|---|
+| choke-damp holds breath | held | not held |
+| lamp in the damp | out | burns |
+| Anvil-Born ground | touched | untouched |
+| a scree step | loud | not loud |
+| Anvil-Born sprint | sprints | refused |
+| concussion | taken | turned away |
+| old scar | wound taken | warded |
+| set bone | guard lost | guards |
+| held knot under a blow | undone | holds |
+| gashed pace | slowed | unslowed |
+| breath behind the guard | doesn't return | returns |
+| a blow from behind, standing still | not guarded | guarded |
+| a heavy blow on a raised seax | 20 taken | 8 taken |
+
+- **The Úlfheðinn's road:** six Scale nodes take it to rank 3, and Blood-Price, refused before, is open.
+- **These also pass:** `--wound-probe`, `--shield-probe`, `--use-probe`, `--hazard-probe`, `--lantern-probe`, `--rite-probe`, `--fury-probe`, `--wing-probe`, `--pact-probe` (every page of three classes fits), `--respec-probe`, `--demand-probe` and `data_probe` (50 nodes).
+- **`--pact-shot`** now photographs the Úlfheðinn's pages too.
+
 *Entries below to be added as design decisions are signed off.*

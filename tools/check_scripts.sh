@@ -1555,6 +1555,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Scale, the Aspect of staying power** (ADR-346): twelve nodes, each
+	# against the same case without it — the damp, the lamp, scree, the
+	# keystone's ground and its lost sprint, a concussion, an old scar, a set
+	# bone, a held knot, a gashed leg's pace, breath behind a guard, a guard
+	# turned round, and a blade turning a heavy blow.
+	scale="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --scale-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[scale\] every node changes the case' <<<"$scale" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$scale"; then
+		echo "FAIL every Scale node changes the case it names" >&2
+		printf '%s\n' "$scale" | grep -E '\[scale\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Two pages, five classes, and the modeller decides the lines** (ADR-269).
 	# The ink's half that is true without a pixel: one pass per class, each on
 	# the stencil value its class is; the Lair a print and the Deep not; every

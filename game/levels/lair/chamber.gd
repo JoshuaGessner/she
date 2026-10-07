@@ -1021,6 +1021,8 @@ func _pact_shot(path: String) -> void:
 			&"hrd_coin_sense", &"rit_hk_shield_wall"],
 		&"veidimadr": [&"wng_soft_boots", &"wng_long_wind", &"wng_second_wind",
 			&"hrd_tally", &"rit_vd_lure"],
+		&"ulfhedinn": [&"scl_iron_wrist", &"scl_braced", &"scl_sure_footing",
+			&"scl_deep_breath", &"rit_uh_blood_price"],
 	}
 	for sworn: StringName in walked:
 		GameState.class_id = sworn

@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="AspectNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/aspects/aspect_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"scl_second_lungs"
+aspect = &"scale"
+tier = 1
+name_key = &"node.scl_second_lungs.name"
+description_key = &"node.scl_second_lungs.desc"
+requires = Array[StringName]([&"scl_deep_breath"])
+effect_tags = Array[StringName]([&"breath_while_guarding"])
+rank_required = 0
