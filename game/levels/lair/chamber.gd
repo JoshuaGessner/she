@@ -2209,7 +2209,10 @@ func _pact_probe() -> void:
 	add_child(window)
 	var view := Rect2(Vector2.ZERO, Vector2(window.size))
 	var sworn_here: StringName = GameState.class_id
-	for sworn: StringName in [&"huskarl", &"veidimadr"]:
+	# Every class in the catalogue, not a list kept here: the Úlfheðinn's
+	# twelve-node Scale page went unasked for as long as this named two.
+	for body: ClassResource in ClassCatalogue.all():
+		var sworn: StringName = body.id
 		GameState.class_id = sworn
 		var sized := PactScreen.new()
 		window.add_child(sized)

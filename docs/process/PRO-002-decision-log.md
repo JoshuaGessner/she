@@ -11914,6 +11914,8 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - **The tabs need a press to change.** No shoulder button pages through them; a pad reaches them by moving focus up.
 - **Impact feel (`PRO-008` row 5's other half) is untouched.**
 
+**Widened (2026-10-07, ADR-373's review):** the every-page row named its two classes by hand, so the Úlfheðinn's pages (ADR-345, ADR-346) were never asked. It now iterates `ClassCatalogue.all()`. All eight pages have 0 controls off a 1152 × 648 screen.
+
 ## ADR-332 — The death screen's first sentence is true at every count
 
 **Date:** 2026-10-06 · **Status:** accepted · **`PRO-008` row 5**
