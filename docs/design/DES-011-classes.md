@@ -91,7 +91,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Cost:** the rage is a decision you cannot take back — the purest expression of Principle 3, and the class most likely to die with a full bag.
 
 > **Built at `M4-T34` (ADR-345): the fury delays the blood instead of refusing it.** The line above, *"massive damage and damage resistance"*, is the stat ladder `DES-022` rules out. It is kept as fantasy and replaced as mechanism:
-> - **The howl.** Holding the verb for half a second ⟨tune⟩ starts the fury. The howl is loud, and the Hunt hears it.
+> - **The howl.** Holding the verb for half a second ⟨tune⟩ starts the fury. The hold fills the crosshair's ring as it builds (ADR-372). The howl is loud, and the Hunt hears it.
 > - **Neither fire nor iron tells, yet.** For 8 s ⟨tune⟩ a blow that lands is **owed**, not taken. The screen's frame closes on the wound you will have.
 > - **The blood is paid when the fury ends**, all of it at once. *I took more in the fury than I had* is a one-sentence death.
 > - **Killed at a blow.** Every blow in the fury breaks poise and costs no breath. The weapon's damage is unchanged.

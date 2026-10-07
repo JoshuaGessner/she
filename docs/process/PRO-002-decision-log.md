@@ -12988,4 +12988,18 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** `--fury-probe` row 9b presses the real key through `Input.parse_input_event` in a fury. The reticle reads the line from the string table, and the channel stays at 0.00. The row also fails on an untranslated key, which it first passed by comparing `tr()` with `tr()` before the CSV was imported.
 
+## ADR-372 — The howl's hold is drawn as it fills, and the brief says to hold
+
+**Date:** 2026-10-07 · **Status:** accepted · **From a first-time-player review**
+
+**Context:**
+- **A tap did nothing, and nothing said why.** The fury opens after holding the verb for 0.5 s ⟨tune⟩ (ADR-345). The hold's progress, `_howling`, was read by nothing outside the function that fills it. The first-floor brief (ADR-365) said what the fury costs but not how to start it. So a first Úlfheðinn who tapped the key, as every other game's rage button works (God of War's Spartan Rage, Doom's Berserk pickup), got no fury, no ring and no line. That reads as a broken class.
+- **Every other timed hold already has a ring.** The Shaft, the Waystone and a binding fill the same ring at the crosshair (ADR-015, `M4-T32`), and the snare's setting draws a ghost at the feet (ADR-272).
+
+**Decision:**
+- **`Player.howling()` exposes the hold, and `Reticle._draw_channel` fills the ring from it.** It ranks after the ways out and the binding, which can't run at the same moment anyway: the bag must be shut to howl, and the Shaft and Waystone are held in a fury. The track and the warm fill are the same ones, with no new symbol.
+- **The brief says it:** *"Wolf-Fury: hold to howl — blows are owed, paid when it ends; no step back, no bag."* It is one character shorter than before, so it fits the brief's measured width.
+
+**Measured:** `--fury-probe` row 1 reads `Reticle.channel_drawn()` halfway through the hold: 0.53. It fails at 0 or at 1. Row 10 asks that the brief contain *hold*.
+
 *Entries below to be added as design decisions are signed off.*

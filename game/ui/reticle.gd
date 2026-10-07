@@ -329,6 +329,11 @@ func _draw_channel(middle: Vector2) -> void:
 		# can be broken out of, so it is the same ring in the same place.
 		progress = _body.mending
 		waiting = true
+	elif _body != null and is_instance_valid(_body) and _body.howling() > 0.0:
+		# **And the howl** (ADR-372): a hold that starts something is the same
+		# grammar, so the fury fills the ring the way leaving does.
+		progress = _body.howling()
+		waiting = true
 	_channel_drawn = progress if waiting else 0.0
 	if not waiting:
 		return

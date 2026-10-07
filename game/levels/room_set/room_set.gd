@@ -16595,10 +16595,21 @@ func _fury_probe() -> void:
 	# ─ 1. the howl ─
 	var quiet: float = body.clamor.level
 	Input.action_press("verb")
-	await _hold(tuning.fury_howl_seconds + 0.3)
+	# **The hold is drawn as it fills** (ADR-372), at the crosshair, by the
+	# same ring every other timed hold uses.
+	await _hold(tuning.fury_howl_seconds * 0.5)
+	var ring: float = 0.0
+	for node: Node in find_children("*", "Control", true, false):
+		var mark := node as Reticle
+		if mark != null:
+			ring = mark.channel_drawn()
+	await _hold(tuning.fury_howl_seconds * 0.5 + 0.3)
 	Input.action_release("verb")
 	await get_tree().physics_frame
-	print("[fury] howl        fury %.1f s, clamor %.1f -> %.1f" % [body.fury, quiet, body.clamor.level])
+	print("[fury] howl        fury %.1f s, clamor %.1f -> %.1f, ring at half the hold %.2f"
+		% [body.fury, quiet, body.clamor.level, ring])
+	if ring <= 0.2 or ring >= 1.0:
+		problems.append("the howl's hold was not drawn as it filled (%.2f)" % ring)
 	if body.fury <= 0.0:
 		problems.append("holding the verb for the howl started no fury")
 		_report(problems, "fury")
@@ -16884,6 +16895,7 @@ func _fury_probe() -> void:
 	var said_fury: String = TranslationServer.translate("verb.fury.brief")
 	print("[fury] told        '%s'" % told)
 	if said_fury == "verb.fury.brief" or not told.contains(said_fury) \
+			or not said_fury.contains("hold") \
 			or not told.contains(ControlsScreen.glyphs_for("verb")):
 		problems.append("the arrival brief does not say what Wolf-Fury does, or on which key")
 	for sworn_as: ClassResource in ClassCatalogue.all():

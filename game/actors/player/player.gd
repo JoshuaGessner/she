@@ -1472,6 +1472,13 @@ func reaching_for() -> WorldItem:
 	return _reaching_for
 
 
+## How far through the howl that opens a fury this body is, 0-1. Owner-side,
+## read by `Reticle` (ADR-372): a half-second hold that drew nothing read as
+## a key that did nothing, to every first Úlfheðinn who tapped it.
+func howling() -> float:
+	return _howling
+
+
 ## **A menu has the player, or the player has the body** (ADR-141, ADR-146).
 ##
 ## ADR-141 made this the seam. Before it, the flag gated exactly one thing —
