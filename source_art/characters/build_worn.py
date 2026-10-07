@@ -51,6 +51,8 @@ Dt.MATERIALS.update({
     # The wolf's (ADR-354): a grey back over a pale muzzle and throat.
     "fur_grey": ((0.21, 0.20, 0.185), 0.82, _fur),
     "fur_pale": ((0.42, 0.40, 0.355), 0.82, _fur),
+    # The hunter's (ADR-364): undyed wool gone green-brown with the weather.
+    "wool": ((0.17, 0.165, 0.115), 0.92, lambda p: 0.0007 * S.noise(p, 0.006)),
 })
 
 
@@ -178,6 +180,19 @@ def wolf_coat(p):
     return r
 
 
+def hunter_hood(p):
+    """**The Veiðimaðr's hood** (ADR-364): a hood and a short shoulder-cape,
+    the Skjoldehamn find's cut — the one thing the Norse wore that is a
+    silhouette from across a room by itself — over a tunic and wraps. A hood
+    up is a stalker; a cape to the shoulder blades keeps the bow arm free."""
+    r = underlayer(p)
+    r["linen"] = np.minimum(Hm.tunic(p, B, hem=0.62, flare=0.06, slit=True, grow=0.020),
+                            np.minimum(Hm.sleeve(p, "l", B, to=0.40, grow=0.010),
+                                       Hm.sleeve(p, "r", B, to=0.40, grow=0.010)))
+    r["wool"] = Hm.hood(p, B, grow=0.022, cape=0.20, tail=0.18)
+    return r
+
+
 ITEMS = {
     "mail_byrnie_worn": (byrnie, dict(voxel=0.010, body_tris=7500, texture=1024, ceiling=10000)),
     # Seen from the eye in first person, not only across a room: dense enough
@@ -185,6 +200,7 @@ ITEMS = {
     "iron_bracers_worn": (bracers, dict(voxel=0.005, body_tris=5000, texture=1024, ceiling=10000, sparse=True)),
     "otr_pelt_worn": (pelt, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
     "wolf_coat_worn": (wolf_coat, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
+    "hunter_hood_worn": (hunter_hood, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
 }
 
 
@@ -231,7 +247,7 @@ def review(name):
 
 ## Pieces in the body slot, which hide the body under them, and the bones
 ## whose vertices they hide (`BodyRig.BODY_COVERED_BONES`).
-BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn")
+BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn", "hunter_hood_worn")
 COVERED = {"pelvis", "spine_01", "spine_02", "chest", "thigh_l", "calf_l", "foot_l",
            "thigh_r", "calf_r", "foot_r", "upper_arm_l", "upper_arm_r"}
 

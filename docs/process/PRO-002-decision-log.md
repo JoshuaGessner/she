@@ -12844,4 +12844,25 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - `--bag-shot` is identical to before.
 - `bag_screen.gd` goes from 1,236 lines to 1,090; `item_card.gd` is 163.
 
+## ADR-364 — The Veiðimaðr wears its hood: a hunter's silhouette, as the wolf-coat gave the Úlfheðinn its own
+
+**Date:** 2026-10-07 · **Status:** accepted · **Follows ADR-354**
+
+**Context:**
+- **The stalker looked like nobody.** ADR-354 gave the Úlfheðinn a class dress. The Veiðimaðr's kit has no body piece (a bow and two bindings), so its card portrait and every teammate's view of it were the shared delver in a tunic.
+- **`DES-011` rule 5:** a class should be recognisable from ten seconds of watching.
+
+**Decision:**
+- **`hunter_hood_worn`** (`build_worn.py`, ADR-354's pipeline):
+  - a hood with a short shoulder-cape and a liripipe tail, cut after the Skjoldehamn find, in weathered green-brown wool, over the tunic and wraps;
+  - 9,000 triangles.
+- **Why that cut:** a hood up is a stalker's silhouette from across a room, and a cape that stops at the shoulder blades keeps the bow arm free.
+- **It is the Veiðimaðr's `dress`.** It is worn when nothing is in its body slot, and gear put on is worn instead.
+- **The Húskarl gets none.** It already reads as itself in its byrnie and round shield.
+- **The portrait is re-shot.**
+
+**Measured:**
+- **`--fury-probe` row 8 now asks it of every class with a dress:** *a ulfhedinn wears `Worn_ulfhedinn_dress`*, and *a veidimadr wears `Worn_veidimadr_dress`*.
+- **These pass:** `art_probe` and `data_probe`.
+
 *Entries below to be added as design decisions are signed off.*

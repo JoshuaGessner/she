@@ -16734,8 +16734,19 @@ func _fury_probe() -> void:
 			% [hips[false], hips[true]])
 		if hips[true] >= hips[false] - 0.02:
 			problems.append("a teammate's fury looks like no fury")
-		# ─ and wears the wolf-coat (ADR-354), until mail goes on over it ─
 		mate.fury = 0.0
+		# ─ every class with a dress wears it (ADR-354, ADR-364) ─
+		for sworn_as: ClassResource in ClassCatalogue.all():
+			if sworn_as.dress == null:
+				continue
+			mate.sworn = sworn_as.id
+			await _hold(0.2)
+			var dressed: Node3D = mate.rig().worn_on(Enums.Slot.BODY)
+			var called: String = String(dressed.name) if dressed != null else "nothing"
+			print("[fury] dress       a %s wears '%s'" % [sworn_as.id, called])
+			if not called.contains("%s_dress" % sworn_as.id):
+				problems.append("a %s with nothing on its body did not wear its dress" % sworn_as.id)
+		# ─ and the wolf-coat gives way to mail (ADR-354) ─
 		mate.sworn = &"ulfhedinn"
 		await _hold(0.2)
 		# Named now: the carrier is freed when the byrnie replaces it, and a
