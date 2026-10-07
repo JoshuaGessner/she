@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import math
 import os
+import sys
 
 
 import bpy
@@ -37,6 +38,7 @@ SCALE_PATH = os.path.join(ROOT, "weapons_scale_sheet.png")
 STATED_LENGTH = {
     "seax": 0.50, "bearded_axe": 0.80, "ash_spear": 2.00,
     "yew_bow": 1.65, "dvergar_hammer": 0.85, "regin_blade": 1.25,
+    "volr": 0.94,
 }
 LENGTH_TOLERANCE = 0.08
 
@@ -373,6 +375,58 @@ def regin_blade() -> bpy.types.Collection:
     return c
 
 
+def volr() -> bpy.types.Collection:
+    """The seeress's staff (ADR-379): *völva* is "staff-bearer".
+
+    After the iron staffs from the women's graves at Fyrkat (grave 4) and
+    Birka (Bj 660, Bj 845): an iron rod about 0.9 m long, a cage of bowed
+    rods swelling below the head, collared top and bottom, and a knob to
+    finish it. One-handed. It strikes as a short iron club, because that is
+    what an iron rod in a frightened hand is.
+    """
+    c = create_collection("volr")
+    loft(c, "volr_rod", [(-.10, .0085, .0085, 0), (.0, .0090, .0090, 0),
+         (.40, .0085, .0085, 0), (.79, .0080, .0080, 0)], "metal", 8)
+    loft(c, "volr_grip", [(-.06, .0125, .0125, 0), (-.04, .0135, .0135, 0),
+         (.12, .0135, .0135, 0), (.14, .0120, .0120, 0)], "leather", 8)
+    loft(c, "volr_butt", [(-.13, .004, .004, 0), (-.122, .011, .011, 0),
+         (-.10, .012, .012, 0), (-.09, .009, .009, 0)], "metal", 10)
+    # The cage: six rods bowed out from a lower collar to an upper one, one
+    # mesh — each rod a square tube following its bow.
+    low, high, bulge, thick = .56, .74, .046, .0032
+    verts, faces = [], []
+    for k in range(6):
+        angle = math.tau * k / 6.0
+        out = Vector((math.cos(angle), 0.0, math.sin(angle)))
+        side = Vector((-math.sin(angle), 0.0, math.cos(angle)))
+        first = len(verts)
+        steps = 7
+        for step in range(steps):
+            s = step / (steps - 1)
+            r = .010 + (bulge - .010) * math.sin(math.pi * s)
+            centre = out * r + Vector((0.0, low + (high - low) * s, 0.0))
+            for corner in ((1, 1), (1, -1), (-1, -1), (-1, 1)):
+                verts.append(tuple(centre + out * thick * corner[0]
+                                   + side * thick * corner[1]))
+        for step in range(steps - 1):
+            a, b = first + step * 4, first + (step + 1) * 4
+            for i in range(4):
+                j = (i + 1) % 4
+                faces.append((a + i, a + j, b + j, b + i))
+        faces.append((first + 3, first + 2, first + 1, first))
+        last = first + (steps - 1) * 4
+        faces.append((last, last + 1, last + 2, last + 3))
+    mesh_object(c, "volr_cage", verts, faces, "metal")
+    loft(c, "volr_collar_low", [(.548, .0105, .0105, 0), (.556, .0150, .0150, 0),
+         (.566, .0150, .0150, 0), (.574, .0105, .0105, 0)], "metal", 10)
+    loft(c, "volr_collar_high", [(.726, .0105, .0105, 0), (.734, .0150, .0150, 0),
+         (.744, .0150, .0150, 0), (.752, .0105, .0105, 0)], "metal", 10)
+    loft(c, "volr_knob", [(.778, .008, .008, 0), (.784, .016, .016, 0),
+         (.796, .019, .019, 0), (.808, .015, .015, 0), (.814, .004, .004, 0)],
+         "metal", 10)
+    return c
+
+
 BUILDERS = {
     "seax": seax,
     "bearded_axe": bearded_axe,
@@ -380,6 +434,7 @@ BUILDERS = {
     "yew_bow": yew_bow,
     "dvergar_hammer": dvergar_hammer,
     "regin_blade": regin_blade,
+    "volr": volr,
 }
 
 
@@ -544,8 +599,9 @@ def build_scale_sheet(collections: dict[str, bpy.types.Collection]) -> None:
 def build_review_sheet(collections: dict[str, bpy.types.Collection]) -> None:
     review = create_collection("REVIEW_ONLY")
     layout = {
-        "seax": (-2.15, 1.2), "bearded_axe": (0, 1.2), "ash_spear": (2.15, 1.2),
-        "yew_bow": (-2.15, -1.2), "dvergar_hammer": (0, -1.2), "regin_blade": (2.15, -1.2),
+        "seax": (-2.4, 1.2), "bearded_axe": (-0.8, 1.2), "ash_spear": (0.8, 1.2),
+        "yew_bow": (2.4, 1.2), "dvergar_hammer": (-1.6, -1.2), "regin_blade": (0, -1.2),
+        "volr": (1.6, -1.2),
     }
     # Composed from STATED_LENGTH rather than typed out, so the caption and
     # the assertion cannot disagree. It is still a caption and still not a
@@ -554,6 +610,7 @@ def build_review_sheet(collections: dict[str, bpy.types.Collection]) -> None:
         "seax": "SEAX", "bearded_axe": "BEARDED AXE",
         "ash_spear": "ASH SPEAR", "yew_bow": "YEW BOW",
         "dvergar_hammer": "DVERGAR HAMMER", "regin_blade": "REGIN'S BLADE",
+        "volr": "VOLR",
     }
     labels = {key: "%s / %.2f M" % (text, STATED_LENGTH[key])
               for key, text in names.items()}
@@ -632,7 +689,13 @@ def main() -> None:
     if wrong:
         raise SystemExit("ART-006 §5.2 length: " + "; ".join(wrong))
 
+    # `-- --only=a,b` exports only those; the sheets and the measurements still
+    # cover every weapon, so a new one never rewrites the others' files.
+    only = [arg.split("=", 1)[1].split(",") for arg in sys.argv
+            if arg.startswith("--only=")]
     for name, collection in collections.items():
+        if only and name not in only[0]:
+            continue
         export_collection(collection, name)
     # Regeneration must update the size record alongside the actual exports.
     lines = ["# Weapon delivery measurements", "",

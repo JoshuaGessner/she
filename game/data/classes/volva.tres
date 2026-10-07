@@ -16,5 +16,5 @@ stamina_scale = 1.0
 speed_scale = 1.0
 carry_scale = 0.85
 bare_arms = ExtResource("2_arms")
-kit = Array[StringName]([&"wpn_seax", &"con_linen_binding", &"con_linen_binding"])
+kit = Array[StringName]([&"wpn_volr", &"con_linen_binding", &"con_linen_binding"])
 carried = Array[StringName]([&"tol_horn_lantern"])

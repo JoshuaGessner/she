@@ -10,6 +10,8 @@ enemy.enm_bellringer.name,Bellringer
 enemy.enm_sling_wretch.name,Sling-Wretch
 item.wpn_seax.name,Seax
 item.wpn_seax.desc,"A working blade, not a warrior's. Quick, light, and honest about what it cannot do."
+item.wpn_volr.name,"Völr"
+item.wpn_volr.desc,"A seeress's iron staff, caged at the head. It was made to be held on a high seat; it strikes like the iron rod it is."
 item.wpn_bearded_axe.name,Bearded Axe
 item.wpn_bearded_axe.desc,"Slower than a seax and hooked at the heel. Throw it and it lands as a blow, and then it is on the floor over there, ringing, and your hand is empty."
 item.arm_mail_byrnie.name,Mail Byrnie
