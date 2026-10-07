@@ -187,6 +187,14 @@ func _draw_breath(ink: Color, faint: Color) -> void:
 		Color(left, left.a * beat * _breath_shown))
 	var at: float = BREATH_WIDTH * clampf(Config.tuning.block_stamina_minimum / whole, 0.0, 1.0)
 	draw_rect(Rect2(at - 1.0, y - 5.0, 2.0, 10.0), Color(faint, faint.a * _breath_shown))
+	# **And why it is empty** (ADR-366): after a fury the breath is held at
+	# nothing for its whole weakness, and an empty line that will not refill
+	# read as a bug. The word beside it names the state; the grey edge is its
+	# twin (ADR-345).
+	if _body.fury_spent > 0.0:
+		draw_string(get_theme_default_font(), Vector2(BREATH_WIDTH + 8.0, y + 4.0),
+			tr("hud.spent"), HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13,
+			Color(ink, ink.a * _breath_shown))
 
 
 ## **Scars by where they are**, for the Chamber's row: `arm · head · leg`, or

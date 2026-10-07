@@ -12885,4 +12885,22 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - **New `--fury-probe` row 10** reads back the Úlfheðinn's line with its key, and requires every class's verb to have a brief in the table.
 - **`check_project.py`** passes. ADR-360's key check reads the new keys.
 
+## ADR-366 — An empty breath line after a fury says why: *spent*
+
+**Date:** 2026-10-07 · **Status:** accepted · **Follows ADR-345, ADR-365**
+
+**Context:**
+- **An empty bar with no reason.** After a fury the Úlfheðinn is spent for six seconds (ADR-345): breath held at nothing, a slower pace, no second fury.
+- **On screen** that was an empty breath line that wouldn't refill and a faint grey edge. A breath bar that stops refilling for no stated reason reads as a bug, which is the confusion this UX review set out to find.
+
+**Decision:**
+- **While `fury_spent` runs, the word *spent* sits beside the breath line** in the wound region (`DES-019` Layer 2, where the body's own state is named).
+- **The grey edge stays** as its twin.
+- **The word is a translation key**, `hud.spent`.
+
+**Measured:**
+- A run's first floor was photographed with the body set spent: *spent* sits beside the empty line, bottom left.
+- `--hud-probe` passes, including its *nothing escapes its region* check.
+- `check_project.py` reads the new key.
+
 *Entries below to be added as design decisions are signed off.*
