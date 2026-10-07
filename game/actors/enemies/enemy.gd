@@ -731,8 +731,11 @@ func _can_see(player: Player, tuning: TuningProfile) -> bool:
 	# player can tell which one has them, and a node that blinded both would
 	# collapse that back into one "aware" lamp.
 	var body := player as Player
+	# Still **as the host sees it** (ADR-355): a client's body here has no
+	# velocity, so `planar_speed` read zero and a client with Stillness was
+	# unseen at a sprint.
 	if body != null and body.has_effect(&"unseen_while_still") \
-			and body.planar_speed() < 0.05:
+			and body.standing_still():
 		return false
 	# Line of sight against world geometry only. Bodies are on their own layer
 	# so one enemy cannot block another's view — with 150 agents that would

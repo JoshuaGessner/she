@@ -16451,6 +16451,28 @@ func _scale_probe() -> void:
 			return snappedf(full - body.health.current, 0.1)), 20.0,
 			snappedf(20.0 * (1.0 - tuning.block_damage_fraction), 0.1),
 			"a blade did not turn a heavy blow with Iron Wrist, or did without it")
+	# ─ Braced, on a body the host does not drive (ADR-355) ─
+	# A client's body on the host has no velocity; still has to be what the
+	# host sees it do, or the back-guard runs with it.
+	var mate: Player = _session.spawn_player(2, body.global_position + Vector3(2.0, 0.0, 0.0))
+	if mate == null:
+		problems.append("no second body to brace")
+	else:
+		mate.effects = PackedStringArray(["guard_behind_when_still"])
+		await _hold(0.4)
+		behind.global_position = mate.global_position + mate.global_transform.basis.z * 2.0
+		var at_rest: bool = mate._guard_faces(behind)
+		var from: Vector3 = mate.global_position
+		var running: bool = true
+		for step: int in 20:
+			mate.net_position = from + Vector3(0.25 * (step + 1), 0.0, 0.0)
+			await get_tree().physics_frame
+			behind.global_position = mate.global_position + mate.global_transform.basis.z * 2.0
+			running = mate._guard_faces(behind)
+		rows.append("braced, a teammate     at rest %s, running %s" % [at_rest, running])
+		if not at_rest or running:
+			problems.append("a teammate's Braced back-guard read rest %s, running %s" % [at_rest, running])
+		mate.queue_free()
 	_session.clear_enemies()
 	behind.queue_free()
 	body.restore_for_descent()

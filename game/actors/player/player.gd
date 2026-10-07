@@ -638,6 +638,11 @@ var _recall_spent: bool = false
 var _step_accumulator: float = 0.0
 var _was_grounded: bool = true
 var _last_position: Vector3 = Vector3.ZERO
+## **How fast the host sees this body go along the ground** (ADR-355), smoothed
+## over about a tenth of a second — `_binding_speed`'s reason: a client's body
+## arrives twenty times a second, and `velocity` on a body the host is not
+## driving is never integrated, so it reads zero however fast the body runs.
+var _seen_speed: float = 0.0
 ## The last place this body was genuinely standing, and where a fall out of the
 ## world puts it back (`M2-T15`). Seeded from the spawn by `_apply_teleport`,
 ## so it is never the origin by accident.
@@ -1007,8 +1012,9 @@ func _guard_faces(from: Node) -> bool:
 	var arc: float = Config.tuning.guard_arc_degrees
 	if planted >= 1.0 and has_effect(&"hold_guards_flanks"):
 		arc = maxf(arc, Config.tuning.rite_flank_arc_degrees)
-	# **Braced** (ADR-346): standing still, the guard covers your back too.
-	if has_effect(&"guard_behind_when_still") and planar_speed() < 0.05:
+	# **Braced** (ADR-346): standing still, the guard covers your back too —
+	# still as the host sees it (ADR-355), which is the copy that decides.
+	if has_effect(&"guard_behind_when_still") and standing_still():
 		return true
 	return facing.normalized().dot(toward.normalized()) >= cos(deg_to_rad(arc))
 
@@ -2929,6 +2935,8 @@ func _emit_movement_clamor(delta: float, tuning: TuningProfile) -> void:
 	_last_position = here
 	moved.y = 0.0
 	var distance: float = moved.length()
+	_seen_speed = lerpf(_seen_speed, distance / maxf(delta, 0.0001),
+		clampf(delta * 8.0, 0.0, 1.0))
 
 	var landed: bool = grounded and not _was_grounded
 	_was_grounded = grounded
@@ -3197,6 +3205,18 @@ func _blocked_above(tuning: TuningProfile) -> bool:
 ## only ever reads the body this process is playing.
 func planar_speed() -> float:
 	return Vector3(velocity.x, 0.0, velocity.z).length()
+
+
+## **Whether this body is standing still**, answered the same for every body
+## on every peer that can see it move (ADR-355). The owner's own body knows its
+## velocity; any other body is judged by how far it has been seen to go — a
+## client's body on the host has a velocity of zero while it sprints, which
+## made Braced's back-guard a client's at a run.
+const STILL_SPEED: float = 0.05
+
+
+func standing_still() -> bool:
+	return (planar_speed() if _is_local else _seen_speed) < STILL_SPEED
 
 
 ## The collider's current height. Read by the co-op probe, which asserts that

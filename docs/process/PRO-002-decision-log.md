@@ -12653,4 +12653,24 @@ The level holds 4,673 nodes and 10,463 objects.
 - **`art_probe`:** the coat loads, sits in its category, is 1.95 m tall at 1 unit per metre, is within the 10,000-triangle budget and carries vertex colours; 0 failures.
 - **These also pass:** `data_probe` (unchanged, with no catalogue item added), `--body-probe`, `--gear-probe` and `--verbs-probe`.
 
+## ADR-355 — Still is what the host sees: Braced and Stillness no longer hold for a client who is running
+
+**Date:** 2026-10-06 · **Status:** accepted · **Fixes ADR-346's Braced and `M3-T12`'s Stillness for clients; found in a correctness review**
+
+**Context:**
+- **`Player.planar_speed()` reads `velocity`.** On the host, a client's body is moved by `_ease_toward_the_wire` and never integrated, so its velocity is zero however fast the client runs.
+- **Two "standing still" rules are decided on the host:**
+  - **Braced** (ADR-346, `guard_behind_when_still`): asked in `_guard_faces` from `_bear`, so a client with Braced kept the back-guard at a sprint.
+  - **Stillness** (`wng_stillness`, `unseen_while_still`, since `M3-T12`): asked in `Enemy._can_see`, so a client with Stillness was unseen by every enemy while running. This had been true since the node was built. Every probe of it drove the host's own body, whose velocity is real.
+
+**Decision:**
+- **`Player.standing_still()`** is the one question. The owner's own body answers from its velocity. Any other body answers from `_seen_speed`, which is the ground distance the host has seen it cover, smoothed over about a tenth of a second (`_binding_speed`'s method, for its reason), measured where footsteps already are.
+- **Braced and Stillness** both ask it. Second Wind and Second Lungs run on the owner, whose stamina it is, and are unchanged.
+
+**Measured** (`--scale-probe`, new row): a second body with Braced, driven along the wire:
+- **before the fix:** guarded behind *at rest true, running true*, which FAILs;
+- **after:** *at rest true, running false*.
+
+These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` and the co-op smoke.
+
 *Entries below to be added as design decisions are signed off.*
