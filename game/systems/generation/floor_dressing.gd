@@ -80,9 +80,15 @@ const STEP_OVER: float = 0.10
 ## a cart in it.
 const MIN_ROOM_CELLS: int = 3
 ## Wall cells per piece ⟨tune⟩. `ART-006`: *"six to ten pieces is enough to
-## dress a floor"* — of *kinds*; this is how thickly they are laid, and it is
-## set so that a large hall carries three or four and a small room one.
-const CELLS_PER_PIECE: int = 5
+## dress a floor"* — of *kinds*; this is how thickly they are laid.
+##
+## **Thicker since ADR-348**: at five, a pillared hall carried three pieces
+## along walls 60 m round and read as an empty stone box in every `--ink-shot`
+## view — a mine nobody had worked. At three a hall carries five or six and a
+## small room still one or two, which is the density a worked-out level reads
+## at in Darkest Dungeon's corridors or Hunt's compounds: clutter at every
+## wall, never in the walking line.
+const CELLS_PER_PIECE: int = 3
 ## How far a piece stands off the stone behind it, metres. Enough that the two
 ## never share a plane.
 const OFF_THE_WALL: float = 0.03

@@ -12517,4 +12517,29 @@ These also pass: `--verbs-probe`, `--rite-probe`, `--body-probe`, `--hands-probe
 
 **Measured:** `--fury-probe` row 8 watches a second body. Its hips sit at 0.90 m at rest and 0.78 m in the fury.
 
+## ADR-349 — A worked mine has clutter at every wall: the dressing is laid a piece per three wall cells
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends ADR-265's density**
+
+**Context:**
+- **The Delvings' halls read as empty stone boxes.** ADR-265 laid `ART-006`'s seven delivered pieces against room walls at one per five wall cells. In every `--ink-shot` view of a pillared hall that came to three pieces along walls about 60 m round: a mine nobody had worked, which is the opposite of `DES-015`'s *read the disaster backward*.
+- **The references.** Darkest Dungeon's corridors and Hunt: Showdown's compounds read as used because something stands at nearly every wall, and nothing stands in the walking line.
+
+**Decision:**
+- **`CELLS_PER_PIECE` goes from 5 to 3** ⟨tune⟩. Every placement rule ADR-265 set is unchanged:
+  - backed by stone across its whole width;
+  - clear of doorways, ledges, ramps and cut corners;
+  - clear of anything the floor placed on purpose;
+  - never in a machine's room.
+
+**Measured:**
+- **`dressing_probe`:**
+  - 647 pieces over its 27 floors, up from 409 (+58 %);
+  - none in a solid, none unbacked, none in a threshold, none burying a spawn, post or find, and none in a machine's room;
+  - the same seed lays the same pieces.
+- **`--reach-probe`:** 24 floors walked end to end with none refused (8 seeds × 3 depths), and the player capsule crossed 9 of 9 floors over 702 route legs.
+- **`--delvings-probe`** passes at floors 0 and 2.
+
+**Honest scale:** in the Deep's dark, a cart a metre high against a 60 m hall is still small. Density is the cheap half. The other half is pieces with a light of their own, or larger set pieces such as a collapsed gallery or a winch, and that is `M4-T10` asset work.
+
 *Entries below to be added as design decisions are signed off.*
