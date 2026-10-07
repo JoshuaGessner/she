@@ -237,16 +237,33 @@ func advance(delta: float) -> void:
 		# Stepped out. `DES-005` wants the Shaft dangerous, not sticky.
 		_reset()
 		return
-	_progress += delta / maxf(channel_seconds(), 0.001)
 	# Loud the whole time, not once at the end. The noise is what makes using a
 	# known location dangerous, and a single deposit at the finish would be a
 	# cost you only pay after you have already got away with it.
 	_claimant.clamor.add(channel_clamor() * delta)
+	# **The fury does not go down the stairs** (ADR-352). Blood owed in a fury
+	# is paid when it ends (ADR-345), and the party goes down together — so a
+	# Shaft that took a body mid-fury carried its health down unpaid, and a
+	# lethal debt walked out as a full one. `DES-011`: the fury *cannot
+	# voluntarily disengage*, and leaving is disengaging. The channel holds
+	# where it is until every fury in the party has run out.
+	if fury_in_the_party():
+		return
+	_progress += delta / maxf(channel_seconds(), 0.001)
 	if _progress < 1.0:
 		return
 	var leaving: Player = _claimant
 	_reset()
 	claimed.emit(leaving)
+
+
+## Whether any body in the party is still in a fury (ADR-352).
+func fury_in_the_party() -> bool:
+	for node: Node in get_tree().get_nodes_in_group(&"player"):
+		var body := node as Player
+		if body != null and body.fury > 0.0:
+			return true
+	return false
 
 
 func begin(player: Player) -> void:

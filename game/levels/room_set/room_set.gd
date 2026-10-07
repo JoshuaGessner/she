@@ -16691,6 +16691,26 @@ func _fury_probe() -> void:
 		if hips[true] >= hips[false] - 0.02:
 			problems.append("a teammate's fury looks like no fury")
 		mate.queue_free()
+
+	# ─ 9. the fury does not go down the stairs (ADR-352) ─
+	if _shaft == null:
+		problems.append("no Shaft on this floor to try the stairs with")
+	else:
+		body.teleport(_shaft.global_position + Vector3(0.0, 0.1, 0.0), 0.0)
+		await _hold(0.2)
+		_shaft.begin(body)
+		body.fury = 3.0
+		_shaft.advance(0.5)
+		_shaft.advance(0.5)
+		var held: float = _shaft.progress()
+		body.fury = 0.0
+		_shaft.advance(0.5)
+		var went: float = _shaft.progress()
+		_shaft._reset()
+		print("[fury] stairs      a Shaft's channel in the fury %.2f, after it %.2f"
+			% [held, went])
+		if held > 0.0 or went <= 0.0:
+			problems.append("the Shaft took a body mid-fury, or would not take it after")
 	if problems.is_empty():
 		print("[fury] the fury defers the blood, it does not refuse it")
 	_report(problems, "fury")

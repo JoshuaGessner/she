@@ -12593,4 +12593,22 @@ The level holds 4,673 nodes and 10,463 objects.
 - `run_coop.py --smoke`, unchanged build: 1.4 strides and 0.61 m, ok, on two runs.
 - **Planted:** with the remote body's `_rig.step` skipped, the row reads 0.0 strides and 0.00 m, FAIL. The smoke exits 2.
 
+## ADR-352 — The fury does not go down the stairs: a Shaft's channel holds while any fury in the party runs
+
+**Date:** 2026-10-06 · **Status:** accepted · **Fixes a hole in ADR-345, found on review**
+
+**Context:**
+- **A debt that could walk out.** ADR-345 owes a fury's blows and pays them when the fury ends. A descent records each body's `health.current` into its run file (`_take_the_party_down`), and nothing there knew about `blood_owed`. So an Úlfheðinn who claimed the Shaft mid-fury carried full health down the stairs, and the debt vanished.
+- **Worse with a lethal debt.** A body that owes more blood than it has would have arrived on the next floor alive. That is a death the game skipped and *"I took more in the fury than I had"* stops being true (`PRO-005`'s one-sentence death).
+- **Paying at the threshold has its own hole.** A lethal debt paid at the threshold records 0 health, and the next floor reads 0 as `UNHURT`.
+
+**Decision:**
+- **A Shaft's channel does not advance while any body in the party is in a fury.** It holds where it is and still makes its noise.
+- **The rule is `DES-011`'s own:** the fury *"cannot voluntarily disengage"*, and leaving is disengaging.
+- **It covers both exits.** The bottom floor's Deep Gate is the same channel (ADR-186). A teammate's Waystone extracts only its spender (ADR-102), so it carries no fury's debt.
+
+**Measured:** `--fury-probe` row 9 begins a claim at the Shaft. In the fury, two half-second advances leave it at 0.00; after the fury, one advance takes it to 0.12. `--exit-probe` and `--descent-probe` pass.
+
+**Owed:** the held ring doesn't yet say why it holds. The ember edge says the fury is running, but the Shaft's own prompt should name it. Filed.
+
 *Entries below to be added as design decisions are signed off.*
