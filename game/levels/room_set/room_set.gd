@@ -7149,7 +7149,13 @@ func _coop_probe(out: String) -> void:
 	else:
 		await _hold_until(func() -> bool: return mine.fury > 0.0, 3.0)
 		_probe_fury = {"fury": mine.fury, "owed": mine.blood_owed}
-		await _hold(0.4)
+		# **Out of the phase when the host is** (ADR-378): the host holds a
+		# fixed 0.8 s and then ends the fury, and a client that held its own
+		# 0.4 s after *seeing* the fury left half a second early, and stayed
+		# ahead. The last two phases are timed tightly enough that it failed
+		# them most runs. Waiting on the host's end puts both peers back on
+		# one clock.
+		await _hold_until(func() -> bool: return mine.fury <= 0.0, 3.0)
 	if not host:
 		mine.struck.disconnect(on_struck)
 	if host:
@@ -7203,6 +7209,15 @@ func _coop_probe(out: String) -> void:
 	if host:
 		mine.pinger.send(Pinger.Kind.DANGER, mine.global_position, mine.get_path())
 	await _hold(0.8)
+	# **Until the other's mark is here, not for a while** (ADR-378). The two
+	# processes keep their own clocks, and a phase that waits on an event on
+	# one side and a fixed hold on the other leaves them apart: the client ran
+	# far enough ahead to read the pings before the host's had been sent. A
+	# mark that never comes still fails, three seconds later.
+	var other: Player = _client_body()
+	await _hold_until(func() -> bool:
+		return other != null and other.pinger != null \
+			and not other.pinger.mark.is_empty(), 3.0)
 	_probe_pings = _probe_ping_state()
 
 	# **Last, and only now** (ADR-199). Everything above wants an empty floor,
@@ -7570,6 +7585,11 @@ func _clear_the_floor() -> void:
 func _probe_wire_motion() -> Dictionary:
 	if multiplayer.is_server():
 		_session.spawn_enemy(PROBE_STRIKE_AT + Vector3(0.0, 0.0, 6.0), 0.0)
+	else:
+		# **The host's enemy, once it is here** (ADR-378), and then the same
+		# 0.8 s the host waits before moving it, so the sampling starts on the
+		# walk rather than before it — on whatever clock the client is on.
+		await _hold_until(func() -> bool: return _first_live_enemy() != null, 4.0)
 	await _hold(0.8)
 	var walker: Enemy = _first_live_enemy()
 	if walker == null:

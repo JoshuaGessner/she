@@ -13075,4 +13075,22 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** `--ear-probe` passes: 18 of 18 cues made at load, and 18 of 18 sounding across every take. With the `warm()` call planted out it fails, naming the 13 cues still made in their first frame.
 
+## ADR-378 — The co-op smoke's peers wait on each other's events, not on their own clocks
+
+**Date:** 2026-10-07 · **Status:** accepted · **Fixes a probe fault ADR-368 introduced; found when the sweep at `2fc156d` failed**
+
+**Context:**
+- **The sweep at `2fc156d` failed the two-player smoke.** The client measured 0 of 0 frames of a walking enemy and held none of the host's pings. Rerun alone on an idle machine, it still failed.
+- **Bisected, three runs a commit:** `9967e98` 3 of 3 pass, and `e77bce6` (ADR-368) 0 of 3. Every later commit fails most runs. The sweep that passed at `e77bce6` was one lucky sample.
+- **The cause is ADR-368's fury phase.** The host sets a fury on the client's body, holds a fixed 0.8 s, and ends it. The client waited only until it *saw* the fury and then held 0.4 s, so it left the phase about half a second ahead and stayed ahead. The last two phases are timed: the client reads the pings 0.8 s after the host sends its own, and looks for the host's enemy 0.8 s after its own phase begins. A client that far ahead reads before either has arrived.
+- **No game code is at fault.** Both peers agree on every position and value. Only the probe's two clocks disagreed.
+
+**Decision:**
+- **The client leaves the fury phase when the host ends the fury**, waiting on `fury <= 0` and not on a hold of its own.
+- **The last two phases wait on the event, with a timeout:** each peer waits for the other's ping mark (3 s), and the client waits for the host's enemy to exist (4 s) before the same 0.8 s the host waits before moving it. A ping or an enemy that never arrives still fails its row, a few seconds later.
+
+**Measured:** at HEAD, the smoke passes 7 of 7 runs, against 3 of 3 failures without the change. The wire-motion row reads 0.99, and the pings 0.00 m off.
+
+**Lesson, for the sweep:** one passing sweep is one sample. A row that waits on a fixed hold on one peer and an event on the other is a race, even when it passes.
+
 *Entries below to be added as design decisions are signed off.*
