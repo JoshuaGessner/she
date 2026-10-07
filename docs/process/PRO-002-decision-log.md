@@ -13148,4 +13148,26 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Owed:** 6 px of headroom is all a fifth class leaves, and the next one will need a second row or a scroll. The probe will say so the day it happens.
 
+## ADR-381 — Locks are built: a key-gated span is a locked door, and a shortcut is barred from one side
+
+**Date:** 2026-10-07 · **Status:** accepted. Made unattended, with a question left for the developer: it changes the flow of every floor that draws one of these cycles. · **Amends `TEC-007` and `DES-015` step 3, prepares `M5-T01`'s Haugbrjótr**
+
+**Context:**
+- **The generator has planned locks since ADR-171, and nothing builds them.** `MissionGraph` draws `lock-and-key` on 276 floors in 1,200 and `shortcut` on 250, and keeps every gated span in `gates()`. `FloorPlan`, `FloorBuilder` and the room set never read it. So no door stands where a gate is, the `KEY` node holds nothing, and almost half of all floors play as `danger-detour`. Each was validated as a lock (*the key is behind the door it opens* is a planted, failing row) and then built as a hallway. `DES-015` says the cycle type **is** the design content, and half the content never arrived.
+- **The next class needs it.** The Haugbrjótr *"opens what is locked"* and *"knows the back door"* (`DES-011` §6). Without locks, the verb has nothing to act on.
+
+**References:**
+- **Dark Souls' shortcuts.** A door that opens only from the far side turns a long way in into a short way out. The shortcut is a reward paid on the return, which is `DES-005`'s extraction walk.
+- **Zelda's small keys.** One key, found in the dungeon, for the door that shapes the route. It is legible because the key and the door are both visible things.
+- **Dormans' cyclic dungeons**, the source of `DES-015`'s catalogue. The lock is what makes the long arm *the* way and not a way.
+
+**Decision:**
+- **A key gate is a locked door** at each gated end of the held span, in the doorway `FloorPlan` already cut there. It is iron-bound timber filling the `DelvingsKit` doorway, solid to every body. The `KEY` node holds the **floor's key**, a small iron item found like any find. Interacting with a door while the key is in your bag opens it, loudly (the grind of a hinge nobody has oiled). One key opens every locked door on its floor, and the door stays open.
+- **A cost gate is a barred door.** It is barred on the side nearer the Shaft, so a party that came the long way can lift the bar and leave the short way. From the other side it is shut, and says so.
+- **Doors are the host's.** The door's state replicates through the session's spawner, as the hush does. Opening is asked of the host and decided against the host's copy of the bag.
+- **The navmesh is baked with the doors shut and baked again when one opens.** A bake is a few milliseconds, at most a handful of times a floor, and on the host alone, since enemies are the host's. The Deep's dead go the long way round as the living do, until somebody opens the door.
+- **Said, not only built** (`DES-018`, `PRO-005`). At a locked door the reticle says *locked — the key lies elsewhere on this floor* or *open it (E)*; at a barred one, *barred from the other side* or *lift the bar*. An opening is heard as a grind and seen as the door swinging.
+
+**Measured, to be:** a census over the plan probe's seeds (every key gate a door, every lock-and-key floor a key, none behind its own door), and `--lock-probe` on a booted floor (shut, refused without the key, opened with it, an enemy able to path through after and not before, and a co-op row).
+
 *Entries below to be added as design decisions are signed off.*

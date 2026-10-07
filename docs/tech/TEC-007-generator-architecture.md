@@ -4,7 +4,7 @@ title: Generator Architecture
 status: accepted
 owner: tech
 tags: [procgen, generation, determinism, godot, research, levels, cyclic]
-updated: 2026-09-04
+updated: 2026-10-07
 related: [DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001]
 ---
 
@@ -332,6 +332,12 @@ character of a floor, and each is a rewrite rule, not a special case in
   interesting version of "both ways are bad" is real and belongs there.
 - **Shortcut** — the loop is closed by something you open at cost, which pays back
   only on the way out. The Dark Souls shortcut, made structural.
+
+> **Gates are built as doors (ADR-381).** Until then `gates()` had no reader: a
+> lock-and-key or shortcut floor was validated as a lock and built as a hallway.
+> A key gate is a locked door in the doorway `FloorPlan` cut, opened by the floor's
+> key from the `KEY` node. A cost gate is a door barred on its deep side. Both are
+> the host's, and the navmesh is baked again when one opens.
 - **Nested** — a cycle inside an arm of a cycle. Rare, deep floors only.
 
 Each names a question the floor asks. That is the same test `DES-015` Layer 3

@@ -48,7 +48,7 @@ _How it gets built._
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-09-28 | DES-012, TEC-001, TEC-003, PRO-001 |
 | `TEC-005` | [Audio Technology](tech/TEC-005-audio-technology.md) | ✔ accepted | 2026-09-28 | ART-002, ART-003, TEC-001, TEC-004, DES-018 |
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
-| `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-09-04 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
+| `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-10-07 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
 | `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-10-02 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
 | `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ✔ accepted | 2026-10-07 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
 
