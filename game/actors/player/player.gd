@@ -2357,7 +2357,9 @@ func _request_waystone() -> void:
 
 func _spend_waystone() -> void:
 	var stone: ItemInstance = inventory.waystone()
-	if stone == null or _spending > 0.0:
+	# **Nor up the Waystone's road** (ADR-370). The same debt the Shaft holds
+	# for (ADR-352): a 1.1 s channel walked a lethal debt out of the run whole.
+	if stone == null or _spending > 0.0 or fury > 0.0:
 		return
 	# Leaving is the larger decision, and one ring at the crosshair is one
 	# thing happening: a binding half-tied is abandoned, and stays in the bag.
@@ -2388,6 +2390,10 @@ func _tick_waystone(delta: float) -> void:
 	if stone == null:
 		_spending = 0.0
 		leaving = 0.0
+		return
+	# A channel begun before the howl holds where it is until the fury is
+	# over, as the Shaft's does — never finishing with the blood unpaid.
+	if fury > 0.0:
 		return
 	_spending -= delta
 	leaving = clampf(1.0 - _spending / maxf(_spending_total, 0.001), 0.0, 1.0)

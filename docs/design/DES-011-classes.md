@@ -4,7 +4,7 @@ title: Classes — The Sworn
 status: accepted
 owner: design
 tags: [classes, builds, skill-tree, identity, co-op, progression]
-updated: 2026-10-06
+updated: 2026-10-07
 related: [DES-004, DES-003, DES-012, DES-009]
 ---
 
@@ -96,6 +96,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 > - **The blood is paid when the fury ends**, all of it at once. *I took more in the fury than I had* is a one-sentence death.
 > - **Killed at a blow.** Every blow in the fury breaks poise and costs no breath. The weapon's damage is unchanged.
 > - **The lock-in, enforced by the controller:** no step back, the bag will not open, nothing can be used or thrown, and the key cannot end the fury.
+> - **No way out while it runs.** A Shaft's channel holds while any fury in the party runs (ADR-352). A Waystone is not begun in a fury, and one begun before it holds until the fury is over (ADR-370). The debt is always paid on the floor where it was run up.
 > - **Weaker than their wont** (Egils saga ch. 27). For 6 s afterwards ⟨tune⟩: no breath, 0.8× pace and no fury.
 > - **Kit:** the bearded axe and two bindings, with the lantern carried. No mail; they *"went without their mail-coats"*.
 > - **Stats:** health 1.0, stamina 1.05, speed 1.04, carry 1.0 ⟨tune⟩.

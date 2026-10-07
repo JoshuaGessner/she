@@ -12953,4 +12953,23 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - the GPU's cost read on a Windows machine, which is now a question for the developer;
 - the ink pass computing `gilt()` for every pixel, gold or not, which is a branch to add once it can be measured.
 
+## ADR-370 — Nor up the Waystone's road: a Waystone is not begun in a fury, and a channel begun before one holds
+
+**Date:** 2026-10-07 · **Status:** accepted · **Fixes a hole ADR-352 left, found on review**
+
+**Context:**
+- **ADR-352 closed one exit and missed the other.** It held the Shaft while any fury runs, and reasoned that *a teammate's* Waystone extracts only its spender. The spender's own Waystone was never asked. The `use_waystone` key had no fury guard (bag, drop and throw all have one), and `_spend_waystone` didn't look at `fury`.
+- **The debt walked out in about a second.** The Waystone's channel is 1.1 s ⟨tune⟩. An Úlfheðinn could howl, take a lethal amount of owed damage, spend the stone and extract with the haul whole and the blood unpaid. That breaks `DES-011`'s *"cannot voluntarily disengage"* and `PRO-005`'s one-sentence death.
+- **A channel begun before the howl.** `_wolf_fury` doesn't refuse a howl while a Waystone is being spent, so refusing only the start would leave a stone begun a moment before the howl finishing inside the fury.
+
+**Decision:**
+- **`_spend_waystone` refuses while `fury > 0`.** This is the same rule as *nothing is used in the fury* (ADR-345), applied on the host where the request is honoured.
+- **`_tick_waystone` holds while `fury > 0`.** The channel neither advances nor resets, so a stone begun before the howl finishes after the fury and its debt are paid. This is the Shaft's rule from ADR-352, for the same reason.
+
+**Rejected:** cancelling the channel when the howl starts. It throws away a decision the player made before the fury, and the Shaft holds rather than resetting, so the two exits would disagree.
+
+**Measured:** `--fury-probe` row 9b. A Waystone asked for in the fury is refused. One begun before it, then ticked 2.10 s in the fury, holds at 1.10 s with the stone still in the bag.
+
+**Owed:** pressing the Waystone key in the fury does nothing visibly. The brief and the ember edge say what the fury is, but not that this key is closed. Filed in the autopilot backlog.
+
 *Entries below to be added as design decisions are signed off.*

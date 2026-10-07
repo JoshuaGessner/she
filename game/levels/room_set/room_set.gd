@@ -16834,6 +16834,28 @@ func _fury_probe() -> void:
 			% [held, went])
 		if held > 0.0 or went <= 0.0:
 			problems.append("the Shaft took a body mid-fury, or would not take it after")
+	# ─ 9b. nor up the Waystone's road (ADR-370) ─
+	body.inventory.add(ItemCatalogue.by_id(&"con_waystone"))
+	body.fury = 3.0
+	body.ask_to_spend_waystone()
+	var refused: bool = body._spending <= 0.0
+	body.fury = 0.0
+	body.ask_to_spend_waystone()
+	var begun: float = body._spending
+	body.fury = 3.0
+	body._tick_waystone(begun + 1.0)
+	var stone_kept: bool = body.inventory.waystone() != null
+	var held_at: float = body._spending
+	print("[fury] waystone    begun in the fury %s; begun before, then %.2f s held at %.2f, stone kept %s"
+		% ["refused" if refused else "BEGUN", begun + 1.0, held_at, stone_kept])
+	if not refused or begun <= 0.0 or not stone_kept or held_at != begun:
+		problems.append("a Waystone took a body out mid-fury, or began in one")
+	var kept: ItemInstance = body.inventory.waystone()
+	if kept != null:
+		body.inventory.remove(kept.instance_id)
+	body._spending = 0.0
+	body.leaving = 0.0
+	body.fury = 0.0
 	# ─ 10. a first floor says what the verb does (ADR-365) ─
 	var told: String = ArrivalBrief.verb_line(&"ulfhedinn")
 	var said_fury: String = TranslationServer.translate("verb.fury.brief")
