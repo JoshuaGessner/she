@@ -12673,4 +12673,23 @@ The level holds 4,673 nodes and 10,463 objects.
 
 These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` and the co-op smoke.
 
+## ADR-356 — A drop on a worn slot takes it off first; and the host's reads of owner-only state, audited
+
+**Date:** 2026-10-06 · **Status:** accepted · **Follows ADR-342, ADR-355**
+
+**Context:**
+- **The drop did nothing on a worn slot.** Since ADR-342 the bag's cursor can rest on a worn slot, and `hovered()` returns what is worn there so the card can describe it. The drop key acts on `hovered()`. On a worn slot it asked the host to put down a thing that was never in the bag: `_put_down` found nothing to remove, and nothing happened, silently.
+- **The audit.** ADR-355 found two rules the host decided from a client body's `velocity`, which only the owner integrates. The remaining host-side reads of owner-only state were each checked:
+  - velocity, bag openness, crouch, stamina and input;
+  - every Scale, Wing and Hoard effect;
+  - the fury's clock and the Shaft.
+
+**Decision:**
+- **A drop on a worn slot takes the thing off into the bag** (`ask_to_unequip`), as pressing the slot already does, and the next drop puts it down. Diablo's convention is the same: worn gear comes off before it can be thrown on the floor.
+- **The audit found nothing further.**
+  - The host's own guard-stamina check reads its copy of a client's stamina, but a client cannot raise a guard without the stamina on its own side (`blocking` is replicated and owner-gated), so the host's check is redundant rather than wrong.
+  - Every other host-side rule reads replicated state (`stance`, `blocking`, `effects`, `fury`, `wounds`, `scars`), the body's position, or host-seen displacement (`_is_sprinting`, `_binding_speed`, `_seen_speed`).
+
+**Measured:** a new `--bagui-probe` row equips a seax, hovers its slot and presses drop. *hovering wpn_seax; off the hand and in the bag: true.* Before the change the seax stayed in the hand. `--bag-probe`, `--gear-probe` and `--throw-probe` pass.
+
 *Entries below to be added as design decisions are signed off.*

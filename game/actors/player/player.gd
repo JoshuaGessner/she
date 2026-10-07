@@ -1768,6 +1768,15 @@ func _ask_to_drop(thrown: bool) -> void:
 		target = inventory.heaviest()
 	if target == null:
 		return
+	# **On a worn slot, the drop takes it off first** (ADR-356). The bag's
+	# cursor can rest on what is worn since ADR-342, and the drop asked the bag
+	# to put down a thing that was never in it — silently nothing. Pressing a
+	# slot already takes its gear off into the bag; the drop does the same, and
+	# the next press puts it down.
+	if inventory.find(target.instance_id) == null and target.definition != null \
+			and equipment != null and equipment.in_slot(target.definition.slot) == target:
+		ask_to_unequip(target.definition.slot)
+		return
 	ask_to_drop_instance(target.instance_id, thrown)
 
 

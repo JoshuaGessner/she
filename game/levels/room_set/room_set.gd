@@ -10040,6 +10040,28 @@ func _bagui_probe() -> void:
 	if drawn.is_empty():
 		problems.append("the bag drew no slots at all")
 
+	# ─ **a drop on a worn slot takes it off** (ADR-356) ─
+	var worn_seax: ItemInstance = ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 7701)
+	player.equipment.equip(worn_seax)
+	await _hold(0.2)
+	var onto := InputEventMouseMotion.new()
+	onto.position = bag._slot_rect(Enums.Slot.MAIN_HAND).get_center()
+	onto.global_position = onto.position
+	Input.parse_input_event(onto)
+	await _hold(0.1)
+	var hovering: ItemInstance = bag.hovered()
+	player._ask_to_drop(false)
+	await _hold(0.3)
+	# By kind, not by id: `Inventory.bring` puts a fresh instance in the bag.
+	var bagged: bool = false
+	for held: ItemInstance in player.inventory.items():
+		bagged = bagged or held.definition.id == &"wpn_seax"
+	var taken_off: bool = player.equipment.in_slot(Enums.Slot.MAIN_HAND) == null and bagged
+	print("[bagui] worn drop    hovering %s; off the hand and in the bag: %s" % [
+		hovering.definition.id if hovering != null else &"nothing", taken_off])
+	if not taken_off:
+		problems.append("a drop on a worn slot did not take the thing off into the bag")
+
 	# ─ **every colour the bag draws comes from the theme** (`M4-T05`, ADR-216) ─
 	#
 	# Nine were `const Color` in `bag_screen.gd`, five of them within 0.03 of a
