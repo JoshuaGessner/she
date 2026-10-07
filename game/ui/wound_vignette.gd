@@ -200,7 +200,11 @@ func _draw() -> void:
 	var screen: Vector2 = get_viewport_rect().size
 	var wound: float = 0.0
 	if _health != null and _health.maximum > 0.0:
-		var fraction: float = _health.fraction()
+		# **The wound you will have** (ADR-345): in a fury the blood is owed
+		# rather than taken, so the frame closes on what will be left once it
+		# is paid — the debt is visible as it grows, not discovered at the end.
+		var owed: float = _body.blood_owed if is_instance_valid(_body) else 0.0
+		var fraction: float = maxf(0.0, _health.current - owed) / _health.maximum
 		if fraction < WOUNDED:
 			wound = (1.0 - fraction / WOUNDED) * WOUND_STRENGTH
 	if wound > 0.0:
@@ -210,6 +214,7 @@ func _draw() -> void:
 		_draw_caps(screen, wound)
 	_draw_daze(screen)
 	_draw_guard(screen)
+	_draw_fury(screen)
 	if _flash <= 0.0:
 		return
 
@@ -237,6 +242,23 @@ func _draw() -> void:
 ## Stacked translucent rectangles rather than a shader: a handful of quads once
 ## a frame, and `ART-005`'s ink pass is the only shader this project has agreed
 ## to pay for.
+## **The fury, at the edge** (ADR-345): an ember frame that beats while it
+## runs, and a grey one while the weakness after it lasts. The beat is the
+## signal, not the hue (`DES-018`) — and the howl is its sound.
+const FURY: Color = Color(0.62, 0.16, 0.06)
+const SPENT: Color = Color(0.36, 0.36, 0.38)
+
+
+func _draw_fury(screen: Vector2) -> void:
+	if not is_instance_valid(_body):
+		return
+	if _body.fury > 0.0:
+		var beat: float = 0.5 + 0.5 * sin(_swim * 7.5)
+		_draw_sides(screen, true, true, 0.42, 0.16 + 0.16 * beat, FURY)
+	elif _body.fury_spent > 0.0:
+		_draw_sides(screen, true, true, 0.36, 0.22, SPENT)
+
+
 func _draw_sides(screen: Vector2, left: bool, right: bool, spread: float,
 		strength: float, tone: Color = SHADOW, steps: int = STEPS) -> void:
 	var band: float = screen.x * spread * 0.5

@@ -167,6 +167,11 @@ const MOTION_PROPERTIES: Dictionary = {
 	# to agree about. ADR-068 measured `ON_CHANGE` costing *more* for a value
 	# that changes every frame.
 	".:planted": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# **Wolf-Fury** (ADR-345): the host's clock, read by every peer — the
+	# owner's controls, the owner's screen and every copy's weapon.
+	".:fury": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:fury_spent": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:blood_owed": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 }
 
 ## What the host sends. All three are consequences, and all three idle: health
@@ -362,6 +367,22 @@ var _stash_came_down: bool = false
 ## enemies mask `BULWARK` and players never do, so teammates pass through with
 ## no rule anywhere saying "except teammates".
 var planted: float = 0.0
+
+## **Wolf-Fury** (ADR-345, `DES-011`) — the Úlfheðinn's verb. Seconds of fury
+## left, written by the host. While it runs, blows that land on you are owed
+## rather than taken (`blood_owed`); you cannot step back, open the bag or use
+## anything; and every blow you land breaks poise and costs no breath.
+var fury: float = 0.0
+## Seconds of the weakness after it — *"as soon as it had passed off they were
+## weaker than their wont"* (Egils saga ch. 27): no breath, slower feet, and no
+## fury again until it passes.
+var fury_spent: float = 0.0
+## What the fury has deferred, paid from health the moment it ends.
+var blood_owed: float = 0.0
+## How far through the howl that opens a fury the owner is, 0–1.
+var _howling: float = 0.0
+## Seconds Rising Fury has added to this fury, capped at its own length.
+var _fury_added: float = 0.0
 
 ## Guard up (`M3-T02`, `DES-009`).
 ##
@@ -875,6 +896,8 @@ func _on_swing_connected(hurtbox_hit: Hurtbox) -> void:
 	var struck_health: Health = hurtbox_hit.owner.get_node_or_null("Health") as Health \
 		if hurtbox_hit != null and hurtbox_hit.owner != null else null
 	var killed: bool = struck_health != null and struck_health.is_dead()
+	if fury > 0.0:
+		_fury_landed(killed)
 	if get_multiplayer_authority() == multiplayer.get_unique_id():
 		_feel_the_blow(heavy, killed)
 	else:
@@ -1196,13 +1219,15 @@ func _bear(amount: float, from: Node) -> void:
 			* (tuning.scarred_arm_guard_multiplier
 				if has_scar(Enums.Wound.BROKEN_ARM) else 1.0))
 		var through: float = amount * (1.0 - tuning.block_damage_fraction)
-		health.apply_damage(through, from)
+		_take_blood(through, from)
 		_tell_struck(through, from, amount - through)
 		_try_to_recall(global_position)
 		return
-	health.apply_damage(amount, from)
+	_take_blood(amount, from)
 	_tell_struck(amount, from, 0.0)
-	if heavy:
+	# **Neither Fire Nor Iron** (ADR-345): a heavy blow in the fury leaves no
+	# wound. Its blood is still owed.
+	if heavy and not (fury > 0.0 and has_effect(&"fury_no_wounds")):
 		_wound_from(from as Hitbox, raised)
 	# **After the blow lands, not instead of it** (`M3-T12`, `DES-004`). You
 	# were struck and *then* you were not there — a keystone that cancelled the
@@ -1342,11 +1367,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		# the Legacy screen stole the pointer instead of pressing anything.
 		if InputDevices.pointer_allowed() and not _bag_wanted and _driving:
 			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	elif event.is_action_pressed("bag") and _driving and not is_incapacitated():
+	elif event.is_action_pressed("bag") and _driving and not is_incapacitated() \
+			and fury <= 0.0:
 		_bag_wanted = not _bag_wanted
-	elif event.is_action_pressed("drop") and _driving and not is_incapacitated():
+	elif event.is_action_pressed("drop") and _driving and not is_incapacitated() \
+			and fury <= 0.0:
 		_ask_to_drop(false)
-	elif event.is_action_pressed("throw") and _driving and not is_incapacitated():
+	elif event.is_action_pressed("throw") and _driving and not is_incapacitated() \
+			and fury <= 0.0:
 		_ask_to_drop(true)
 	elif event.is_action_pressed("use_waystone") and _driving:
 		# On the floor, the same key is your one way back up (ADR-050). A
@@ -2384,7 +2412,9 @@ func _request_use(instance_id: int) -> void:
 ## at full health is a trap `DES-019` would answer with a confirmation, and it
 ## refuses those; so the use is refused and the linen stays in the bag.
 func can_use(item: ItemInstance) -> bool:
-	if item == null or is_incapacitated():
+	# Nothing is used in the fury (ADR-345): God of War's Spartan Rage is a mode
+	# rather than a buff because the hands have one job in it.
+	if item == null or is_incapacitated() or fury > 0.0:
 		return false
 	if item.definition.has_trait(HushTrait):
 		return true
@@ -2741,6 +2771,7 @@ func _physics_process(delta: float) -> void:
 	if _is_local:
 		weapon.holding = _driving and not bag_is_open() and not is_incapacitated() \
 			and Input.is_action_pressed("attack")
+	weapon.furious = fury > 0.0
 	weapon.advance(delta, stamina)
 	if ranged != null:
 		# Anything that takes your hands abandons the draw, on the same rule the
@@ -2780,6 +2811,7 @@ func _physics_process(delta: float) -> void:
 			return
 		_tick_binding(delta, tuning)
 		_tick_wounds(delta)
+		_tick_fury(delta)
 		_tick_bleeding(delta)
 	# Pose after weapons and use actions have advanced, so grips are this frame's.
 	if _is_local and _hands != null:
@@ -2960,6 +2992,11 @@ func _wish_direction() -> Vector3:
 	if not _driving:
 		return Vector3.ZERO
 	var input := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# **No step back in the fury** (ADR-345). Enforced here, in the controller,
+	# rather than suggested: Vermintide's Slayer works because retreat is a
+	# tool it does not have, not a thing it is advised against.
+	if fury > 0.0 and input.y > 0.0:
+		input.y = 0.0
 	var direction: Vector3 = (transform.basis * Vector3(input.x, 0.0, input.y))
 	direction.y = 0.0
 	return direction.normalized() if direction.length_squared() > 0.0 else Vector3.ZERO
@@ -3031,7 +3068,10 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 		* (tuning.block_speed_multiplier if blocking else 1.0)
 		# **A gashed leg is slower** (`DES-009`, ADR-239), walking or running.
 		* (tuning.gashed_leg_speed_multiplier
-			if has_wound(Enums.Wound.GASHED_LEG) else 1.0))
+			if has_wound(Enums.Wound.GASHED_LEG) else 1.0)
+		# **Weaker than their wont** (ADR-345), for as long as the fury's
+		# price is being paid.
+		* (tuning.fury_spent_speed if fury_spent > 0.0 else 1.0))
 
 
 func _acceleration(tuning: TuningProfile) -> float:
@@ -3069,6 +3109,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	# exactly the vulnerability being paid for.
 	_hold(delta, tuning)
 	_snare(delta, tuning)
+	_wolf_fury(delta, tuning)
 	_show_setting()
 	# **Nor with a broken arm** (`DES-009`, ADR-239): the arm is what a guard is
 	# made of. Asked here so the guard never shows, and again by the host in
@@ -3547,6 +3588,127 @@ func _snare(delta: float, tuning: TuningProfile) -> void:
 		_place_snare(global_position)
 	else:
 		_place_snare.rpc_id(HOST_PEER, global_position)
+
+
+## **Wolf-Fury** (ADR-345, `DES-011`) — the Úlfheðinn's verb, and only theirs.
+##
+## > *"Odin's men went without their mail-coats, were mad as dogs or wolves,
+## > bit their shields … and killed men at a blow, but neither fire nor iron
+## > told upon them."* — Ynglinga saga, ch. 6
+##
+## Held for `fury_howl_seconds` — a howl, which is loud and is the Hunt's to
+## hear — and then the host runs the fury's clock. Nothing on this body asks to
+## end it: `DES-011`'s *"cannot voluntarily disengage"* is the price, so the key
+## does nothing again until the fury and the weakness after it are both over.
+##
+## The owner's half: the howl, and paying the weakness out of its own breath,
+## since stamina is the owner's.
+func _wolf_fury(delta: float, tuning: TuningProfile) -> void:
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	var wants: bool = (body != null and body.verb == &"fury"
+		and _driving and Input.is_action_pressed("verb")
+		and not is_incapacitated()
+		and _bag <= 0.0
+		and fury <= 0.0 and fury_spent <= 0.0)
+	if not wants:
+		_howling = 0.0
+	else:
+		_howling += delta / maxf(tuning.fury_howl_seconds, 0.001)
+		if _howling >= 1.0:
+			_howling = 0.0
+			if multiplayer.is_server():
+				_rouse()
+			else:
+				_rouse.rpc_id(HOST_PEER)
+	# **Weaker than their wont**: the breath is gone and held gone.
+	if fury_spent > 0.0:
+		stamina.current = 0.0
+		stamina.spend(0.0)
+	# A bag that was opening when the fury came shuts.
+	if fury > 0.0:
+		_bag_wanted = false
+
+
+## **The fury begins**, on the host: the clock, the howl's noise, and — with
+## The Howl — every enemy in reach staggered back as by a blow.
+@rpc("any_peer", "call_remote", "reliable")
+func _rouse() -> void:
+	if not multiplayer.is_server():
+		return
+	var from: int = multiplayer.get_remote_sender_id()
+	if from == 0:
+		from = multiplayer.get_unique_id()
+	if from != get_multiplayer_authority():
+		return
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	if body == null or body.verb != &"fury" or fury > 0.0 or fury_spent > 0.0 \
+			or is_incapacitated():
+		return
+	var tuning: TuningProfile = Config.tuning
+	fury = tuning.fury_seconds
+	_fury_added = 0.0
+	clamor.add(tuning.fury_howl_clamor)
+	# A throat, pitched down: there is no howl in the foley yet, and a voice
+	# is what this is (`DES-018`'s twin of it is the screen's ember edge).
+	_sound_for_all(Foley.Sound.HURT, 0.5)
+	if has_effect(&"fury_howl_breaks_nerve"):
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			var enemy := node as Enemy
+			if enemy == null:
+				continue
+			var off: Vector3 = enemy.global_position - global_position
+			off.y = 0.0
+			if off.length() > tuning.rite_howl_reach:
+				continue
+			enemy.shove(off.normalized() if off.length() > 0.01 else Vector3.FORWARD,
+				tuning.rite_howl_metres)
+
+
+## The fury's clock and the weakness's, on the host. A body that goes down in
+## the fury — by a fall, a hazard, the Last Door's blood — ends it and pays.
+func _tick_fury(delta: float) -> void:
+	if fury_spent > 0.0:
+		fury_spent = maxf(0.0, fury_spent - delta)
+	if fury <= 0.0:
+		return
+	fury = maxf(0.0, fury - delta)
+	if fury <= 0.0 or is_incapacitated():
+		fury = 0.0
+		_end_fury()
+
+
+## **The fury ends, and the blood is paid** — all of it, at once. The one
+## sentence `PRO-005` asks a death to be explainable in: *I took more in the
+## fury than I had.*
+func _end_fury() -> void:
+	fury_spent = Config.tuning.fury_spent_seconds
+	var owed: float = blood_owed
+	blood_owed = 0.0
+	if owed > 0.0:
+		health.apply_damage(owed, null)
+		_sound_for_all(Foley.Sound.HURT, 0.8)
+
+
+## A blow's damage: taken, or — in the fury — owed (ADR-345). WoW's Brewmaster
+## *Stagger* is the shipped form: damage resistance as a **timing**, not a
+## number, which is what `DES-022` permits and `×0.6 damage taken` is not.
+func _take_blood(amount: float, from: Node) -> void:
+	if fury > 0.0:
+		blood_owed += amount
+		return
+	health.apply_damage(amount, from)
+
+
+## A blow landed in the fury, on the host: **Blood-Price** pays down what is
+## owed for a kill, and **Rising Fury** feeds the clock — up to its length again.
+func _fury_landed(killed: bool) -> void:
+	var tuning: TuningProfile = Config.tuning
+	if killed and has_effect(&"fury_blood_price"):
+		blood_owed = maxf(0.0, blood_owed - tuning.rite_blood_price)
+	if has_effect(&"fury_rising") and _fury_added < tuning.fury_seconds:
+		var more: float = minf(tuning.rite_rising_seconds, tuning.fury_seconds - _fury_added)
+		_fury_added += more
+		fury += more
 
 
 ## **Setting a snare, seen** (ADR-272): the ring it will be, growing at your

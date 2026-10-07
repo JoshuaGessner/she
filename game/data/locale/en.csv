@@ -52,6 +52,9 @@ item.wpn_yew_bow.desc,"Quieter than a blade and slower to bring to bear. What it
 class.veidimadr.name,Veiðimaðr
 class.veidimadr.desc,"The professional who was never seen. Knows which way you came, how long ago, and where the ground gives you away."
 class.veidimadr.exit,"Gets out by never having been noticed — a bow, a trap, and a route chosen before anything looked up. Poor in a straight fight. Cornered is usually dead."
+class.ulfhedinn.name,Úlfheðinn
+class.ulfhedinn.desc,"Wolf-coat. Goes without mail and does not step back. The thing in the dark that the dark should be afraid of."
+class.ulfhedinn.exit,"Gets out through whatever is in the way — a fury that cannot be ended, blood that is paid when it is over, and a body weaker than its wont until it passes."
 node.hrd_sure_grip.name,Sure Grip
 node.hrd_sure_grip.desc,"What you set down lands at your feet, instead of skidding away into the dark."
 node.hrd_coin_sense.name,Coin-Sense
@@ -187,6 +190,14 @@ node.rit_hk_last_door.name,"Last Door"
 node.rit_hk_last_door.desc,"You can keep holding with no breath left. Every moment you hold past empty costs you blood, and it does not come back down here."
 node.rit_vd_lure.name,"Lure"
 node.rit_vd_lure.desc,"Your snare makes a small footstep every few seconds until something steps in. It calls anything — the Gold-Sick too."
+node.rit_uh_blood_price.name,"Blood-Price"
+node.rit_uh_blood_price.desc,"Each kill in the fury strikes something from the blood it owes."
+node.rit_uh_howl.name,"The Howl"
+node.rit_uh_howl.desc,"The howl that opens your fury staggers everything near you, as a blow would."
+node.rit_uh_rising.name,"Rising Fury"
+node.rit_uh_rising.desc,"Each blow you land in the fury feeds it a second, up to its length again."
+node.rit_uh_neither_fire.name,"Neither Fire Nor Iron"
+node.rit_uh_neither_fire.desc,"A heavy blow in the fury leaves no wound. Its blood is still owed."
 node.rit_vd_gag.name,"Gag"
 node.rit_vd_gag.desc,"Whatever your snare holds cannot call its kin while it is held."
 node.rit_vd_pinning_shot.name,"Pinning Shot"

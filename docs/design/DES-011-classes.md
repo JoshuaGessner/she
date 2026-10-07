@@ -4,7 +4,7 @@ title: Classes — The Sworn
 status: accepted
 owner: design
 tags: [classes, builds, skill-tree, identity, co-op, progression]
-updated: 2026-09-28
+updated: 2026-10-06
 related: [DES-004, DES-003, DES-012, DES-009]
 ---
 
@@ -89,6 +89,17 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Unique verb — Wolf-Fury:** enter a rage. Massive damage and damage resistance. **You cannot retreat, cannot use items, and cannot voluntarily disengage until it ends.** Commitment as a mechanic.
 **Rite themes:** escalating fury, health-from-kills, terrifying enemies, fighting on past lethal damage.
 **Cost:** the rage is a decision you cannot take back — the purest expression of Principle 3, and the class most likely to die with a full bag.
+
+> **Built at `M4-T34` (ADR-345): the fury delays the blood instead of refusing it.** The line above, *"massive damage and damage resistance"*, is the stat ladder `DES-022` rules out. It is kept as fantasy and replaced as mechanism:
+> - **The howl.** Holding the verb for half a second ⟨tune⟩ starts the fury. The howl is loud, and the Hunt hears it.
+> - **Neither fire nor iron tells, yet.** For 8 s ⟨tune⟩ a blow that lands is **owed**, not taken. The screen's frame closes on the wound you will have.
+> - **The blood is paid when the fury ends**, all of it at once. *I took more in the fury than I had* is a one-sentence death.
+> - **Killed at a blow.** Every blow in the fury breaks poise and costs no breath. The weapon's damage is unchanged.
+> - **The lock-in, enforced by the controller:** no step back, the bag will not open, nothing can be used or thrown, and the key cannot end the fury.
+> - **Weaker than their wont** (Egils saga ch. 27). For 6 s afterwards ⟨tune⟩: no breath, 0.8× pace and no fury.
+> - **Kit:** the bearded axe and two bindings, with the lantern carried. No mail; they *"went without their mail-coats"*.
+> - **Stats:** health 1.0, stamina 1.05, speed 1.04, carry 1.0 ⟨tune⟩.
+> - **The Rite (pact rank 3):** **Blood-Price**, a kill pays down what is owed · **The Howl**, the howl staggers everything near · **Rising Fury** *(after Blood-Price)*, each blow landed adds a second, up to its length again · **Neither Fire Nor Iron** *(after the Howl)*, a heavy blow in the fury leaves no wound.
 
 ### 5. Veiðimaðr — *Stalker*
 **Aspects:** Wing · Hoard · Maw

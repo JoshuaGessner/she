@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AspectNode" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://systems/aspects/aspect_node.gd" id="1_node"]
+
+[resource]
+script = ExtResource("1_node")
+id = &"rit_uh_blood_price"
+aspect = &""
+sworn = &"ulfhedinn"
+tier = 0
+name_key = &"node.rit_uh_blood_price.name"
+description_key = &"node.rit_uh_blood_price.desc"
+requires = Array[StringName]([])
+effect_tags = Array[StringName]([&"fury_blood_price"])
+rank_required = 0

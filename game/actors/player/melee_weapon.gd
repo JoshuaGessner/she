@@ -64,6 +64,18 @@ const POSE_HEAVY: Array = [Vector3(0.46, 0.18, -0.26), Vector3(100, 32, -15)]
 ## Read once, as the wind-up ends. Probes that call `request_swing` never set
 ## it, so every existing swing measurement stays a light one.
 var holding: bool = false
+## **In the fury** (ADR-345): every blow breaks poise and costs no breath —
+## *"killed men at a blow"* as a capability, with the weapon's damage unchanged.
+## Set on every peer from the body's replicated `fury`, so the host's hitbox —
+## the one that decides — carries it.
+var furious: bool = false:
+	set(value):
+		if furious == value:
+			return
+		furious = value
+		_dress()
+## Stagger past any poise in the game.
+const FURY_STAGGER: float = 1000.0
 var _heavy: bool = false
 ## Seconds left on the blade holding at impact. Owner-side and visual: the host
 ## decides every hit, and its copy of someone else's swing never stops.
@@ -215,6 +227,8 @@ func _dress() -> void:
 		_hitbox.damage *= tuning.heavy_damage_scale
 		_hitbox.stagger *= tuning.heavy_stagger_scale
 		_hitbox.heavy = true
+	if furious:
+		_hitbox.stagger = maxf(_hitbox.stagger, FURY_STAGGER)
 	# A seax cuts and a hammer crushes (ADR-219). Recorded on every weapon since
 	# weapons became data, and this is the line that finally carries it to the
 	# thing it strikes.
@@ -452,7 +466,7 @@ func refuse() -> void:
 
 
 func _begin(stamina: Stamina, tuning: TuningProfile) -> bool:
-	if _held == null or not stamina.spend(_held.stamina_cost):
+	if _held == null or not stamina.spend(0.0 if furious else _held.stamina_cost):
 		return false
 	begin_owned_swing()
 	return true

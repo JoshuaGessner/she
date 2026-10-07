@@ -12341,4 +12341,86 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - `--menu-shot` and `--screens-shot` photographed every page.
 - These probes pass: `--menu-probe`, `--lineage-probe`, `--rebind-probe`, `--legacy-probe` and `--deeds-probe`.
 
+## ADR-345 — The Úlfheðinn: the fury defers the blood, it does not refuse it
+
+**Date:** 2026-10-06 · **Status:** accepted. Made unattended: the developer asked for the planned classes to be researched and fully built one at a time, and every number is ⟨tune⟩. · **Amends `DES-011` §4, opens `M4-T34` (pulled forward from `M5-T01`)**
+
+**Context:**
+- **The ask.** The developer asked for work on the other planned classes to begin, each well thought out, researched and fully implemented before the next is started.
+- **Why this class first.** It is the only one of the four whose verb needs no system the game lacks:
+  - the Völva reads the Hunt through a trance UI that does not exist;
+  - the Skald needs enemy-on-enemy aggression;
+  - the Haugbrjótr needs locks and curses.
+  
+  Wolf-Fury acts on combat, wounds, stamina and movement, which all exist. Its arms (`ulfhedinn_arms.glb`) were authored at ADR-270.
+- **The `DES-011` text contradicts `DES-022`.** It says *"massive damage and damage resistance"*. `DES-022` forbids exactly that shape: *"you do not get stronger"*, and a class verb that is ×damage and ×armour is the stat ladder wearing a pelt. The fantasy has to be kept and the numbers replaced by capabilities.
+
+**Research:**
+- **The sources (public domain):**
+  - *Haraldskvæði* names them: *úlfheðnar*, "wolf-coats, who bear bloody shields into the fight".
+  - *Ynglinga saga* ch. 6 gives the fury: Odin's men "went without their mail-coats, were mad as dogs or wolves, bit their shields, were strong as bears or wild oxen, and killed men at a blow, **but neither fire nor iron told upon them**."
+  - *Egils saga* ch. 27 gives the price: those with the berserk nature were, "while the fury was on them, so strong that nothing could stand against them, **but as soon as it had passed off they were weaker than their wont**."
+  
+  The sources give the whole design: the fury, the wound that does not tell, and the weakness after.
+- **Shipped references for a fury that costs:**
+  - **WoW's Brewmaster *Stagger*.** Damage taken is not refused but deferred and paid over time. It is the one shipped mechanic in which "damage resistance" is a timing, not a number, and it is famous for making a tank feel like the thing that cannot be knocked down. Our context differs: there is no healer to keep the debt paid, so the debt must be smaller or killable, which is the Rite below.
+  - **God of War (2018)'s Spartan Rage.** It is a mode you commit to, with its own moveset and no weapon switching, and it ends on its own clock. The lesson is the lock-in: *you cannot use items* is what makes it a mode rather than a buff.
+  - **Barony's Shapeshifter and werewolf form.** Barony is this project's own reference. Strength comes at the cost of every item verb, which works because the inventory is the game's main decision surface. Ours is too (`DES-019`), so shutting the bag is a real price.
+  - **Darkest Dungeon's Hellion.** *Barbaric YAWP* and *Adrenaline Rush* leave her weakened afterwards. That is the Egils saga price as a game mechanic, and it reads in one sentence.
+  - **Vermintide 2's Slayer.** With no ranged weapon and no retreat tools, the kit forces forward motion. The lesson is that *cannot retreat* has to be enforced by the controller, not suggested.
+  - **Bloodborne's rally.** Health is won back by striking soon after being struck. It is the cleanest health-from-kills that rewards aggression without regeneration. Our Blood-Price node is its cousin, paying down the debt rather than refilling the bar.
+
+**Decision — Wolf-Fury (the verb key, Úlfheðinn only):**
+1. **The howl.** Pressing the verb takes `fury_howl_seconds` (0.5 s ⟨tune⟩) to enter, during which you stand and howl. The howl is a loud Clamor burst the Hunt hears (`DES-005`). The fury is announced, never sneaked into.
+2. **Neither fire nor iron tells — yet.** For `fury_seconds` (8 s ⟨tune⟩), damage that lands on you is not taken from health. It is **owed** (`blood_owed`), shown as a dark fill over the health readout. When the fury ends the debt is paid at once. A fury can therefore end in a death you can explain in one sentence: *"I took more in the fury than I had."* This is `DES-022`-clean, because nothing is a bigger number. It changes **when** you are hurt, not how much.
+3. **Killed at a blow.** Every blow you land in fury breaks poise (it staggers) and costs no stamina. That is a capability, not a multiplier. The damage number on the weapon is unchanged.
+4. **The lock-in (`DES-011`'s costs), enforced by the controller:**
+   - **You cannot retreat.** Walking input with a backward component is clipped to zero; turn and walk if you must leave.
+   - **You cannot use items.** The bag will not open and nothing can be used or thrown.
+   - **You cannot end it.** It runs its clock; the verb key does nothing until it is over.
+5. **Weaker than their wont.** When the fury ends you are **spent** for `fury_spent_seconds` (6 s ⟨tune⟩):
+   - stamina empties and does not return;
+   - you move at `fury_spent_speed` (0.8 ⟨tune⟩);
+   - the verb cannot be raised again.
+6. **The class:**
+   - **Stats (ADR-058 — set once, here):** health 1.0, stamina 1.05, speed 1.04, carry 1.0 ⟨tune⟩.
+   - **Kit:** the bearded axe (`DES-023`: it wounds when thrown, and in fury it cannot be thrown, so the class itself prices its kit) and two linen bindings. The horn lantern is carried, not worn.
+   - **No mail.** They "went without their mail-coats". It is a choice the player can undo by wearing a byrnie, which the bag allows.
+   - **Aspects:** Cinder · Maw · Scale (`DES-011`).
+
+**The Rite (four nodes, opening at pact rank 3, `DES-011`'s themes):**
+- **Blood-Price** (lesser; health from kills): each kill in fury strikes `rite_blood_price` (20 ⟨tune⟩) from what is owed.
+- **The Howl** (lesser; terrifying enemies): the howl that opens the fury breaks the nerve of every enemy within `rite_howl_reach` (7 m ⟨tune⟩). Each is staggered as by a blow.
+- **Rising Fury** (greater, after Blood-Price; escalating fury): each blow you land in fury adds `rite_rising_seconds` (1 s ⟨tune⟩) to it, up to twice its length.
+- **Neither Fire Nor Iron** (greater, after the Howl; fighting past what should stop you): a heavy blow taken in fury leaves no wound. Its blood is still owed.
+
+**Rejected:**
+- **Damage ×1.5 and armour ×0.6 (the literal `DES-011` text).** It is the stat ladder `DES-022` exists to refuse, and it reads as a buff, not a decision.
+- **A fury you can cancel.** That is *"cannot voluntarily disengage"* removed, and with it the class's only real commitment.
+- **A fury gated on a meter filled by fighting** (Spartan Rage). That is a second resource to learn and a HUD element `DES-019` would have to find room for. The Egils saga price (spent afterwards) limits it already.
+- **Health on kill.** That is regeneration, which `DES-009` forbids without an ADR, and it would make the class the run-easier class. Blood-Price only pays down a debt the fury itself created.
+
+**Measured** (`--fury-probe`, in the sweep):
+- the howl starts a 7.7 s fury and raises Clamor from 2.9 to 6.9;
+- the verb pressed again leaves the clock running down;
+- a 25-point blow leaves health at 100 and 25 owed;
+- in the fury, back input gives 0, forward gives 1, the bag stays shut and a binding can't be used;
+- the axe's hitbox has stagger 1000, and a swing costs no breath;
+- when the fury ends, health goes 100 → 75 with nothing left owed, and the body is spent: 0 breath, 2.23 m/s against 2.78, and no second fury.
+
+Each Rite node was measured against the same case without it:
+- **Blood-Price:** after a kill, 30 owed becomes 10 (30 without the node).
+- **Rising Fury:** twenty blows make 11.0 s, capped at 11.0 (3.0 without).
+- **Neither Fire Nor Iron:** a heavy blow leaves no wounds (two without).
+- **The Howl:** staggers a Hall-Warden (doesn't without).
+
+These also pass: `--verbs-probe`, `--rite-probe`, `--body-probe`, `--hands-probe`, `--hud-probe`, `--menu-probe`, `--lineage-probe`, `--pact-probe`, `--legacy-probe` and `data_probe` (38 nodes, 3 kits).
+
+**The class screen:** a third card was wider than the window, so cards now share the screen up to 420 px each. The exit line drops to body size when they narrow.
+
+**Not done yet, and tracked in `M4-T34`:**
+- **An Aspect it can enter.** Cinder, Maw and Scale are all unauthored, so it can't reach pact rank 3 or its Rite. Scale is next.
+- **A worn wolf-coat.** The portrait is the shared body with the axe.
+- **A howl in the foley.** It is the HURT voice pitched down for now.
+
 *Entries below to be added as design decisions are signed off.*

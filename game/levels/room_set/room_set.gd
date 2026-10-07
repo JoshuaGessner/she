@@ -965,6 +965,8 @@ func _ready() -> void:
 			_verbs_probe()
 		elif arg == "--rite-probe":
 			_rite_probe()
+		elif arg == "--fury-probe":
+			_fury_probe()
 		elif arg.begins_with("--verbs-shot="):
 			_verbs_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ink-probe":
@@ -16283,6 +16285,205 @@ func _screen_rect(camera: Camera3D, root: Node3D) -> Rect2:
 			rect = Rect2(seen, Vector2.ZERO) if first else rect.expand(seen)
 			first = false
 	return rect
+
+
+## **`--fury-probe`** (ADR-345): Wolf-Fury, asked of the real body.
+##
+## 1. **The howl** — the verb held for `fury_howl_seconds` starts a fury, and
+##    the Hunt hears it.
+## 2. **It cannot be ended** — the verb again does nothing to the clock.
+## 3. **Neither fire nor iron tells — yet** — a blow is owed, not taken.
+## 4. **The lock-in** — no step back, no bag, nothing used.
+## 5. **Killed at a blow** — the weapon breaks poise and costs no breath.
+## 6. **The blood is paid**, all at once, and the body is spent: no breath,
+##    slower, and no second fury until it passes.
+## 7. **The Rite** — Blood-Price, Rising Fury, Neither Fire Nor Iron and the
+##    Howl each change the case they name, and nothing without them does.
+func _fury_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	var tuning: TuningProfile = Config.tuning
+	body.sworn = &"ulfhedinn"
+	body.effects = PackedStringArray()
+	body.restore_for_descent()
+	await _hold(0.3)
+	var striker := Node3D.new()
+	add_child(striker)
+	striker.global_position = body.global_position + Vector3(0.0, 0.0, -2.0)
+
+	# ─ 1. the howl ─
+	var quiet: float = body.clamor.level
+	Input.action_press("verb")
+	await _hold(tuning.fury_howl_seconds + 0.3)
+	Input.action_release("verb")
+	await get_tree().physics_frame
+	print("[fury] howl        fury %.1f s, clamor %.1f -> %.1f" % [body.fury, quiet, body.clamor.level])
+	if body.fury <= 0.0:
+		problems.append("holding the verb for the howl started no fury")
+		_report(problems, "fury")
+		return
+	if body.clamor.level <= quiet:
+		problems.append("the howl was not heard — a fury has to be announced")
+
+	# ─ 2. it cannot be ended ─
+	var before: float = body.fury
+	Input.action_press("verb")
+	await _hold(tuning.fury_howl_seconds + 0.2)
+	Input.action_release("verb")
+	print("[fury] again       %.2f s, then %.2f s (want lower, never reset)" % [before, body.fury])
+	if body.fury <= 0.0 or body.fury >= before:
+		problems.append("the verb pressed in the fury ended or restarted it")
+
+	# ─ 3. owed, not taken ─
+	var full: float = body.health.current
+	body._on_hurt(25.0, striker)
+	print("[fury] blow        health %.0f -> %.0f, owed %.0f" % [full, body.health.current, body.blood_owed])
+	if body.health.current < full or body.blood_owed < 25.0:
+		problems.append("a blow in the fury was taken rather than owed")
+
+	# ─ 4. the lock-in ─
+	Input.action_press("move_back")
+	var back: Vector3 = body._wish_direction()
+	Input.action_release("move_back")
+	Input.action_press("move_forward")
+	var on: Vector3 = body._wish_direction()
+	Input.action_release("move_forward")
+	var tap := InputEventAction.new()
+	tap.action = &"bag"
+	tap.pressed = true
+	Input.parse_input_event(tap)
+	await _hold(0.4)
+	var binding: ItemInstance = ItemInstance.of(ItemCatalogue.by_id(&"con_linen_binding"), 0)
+	print("[fury] lock-in     back %.2f, forward %.2f, bag open %s, a binding usable %s"
+		% [back.length(), on.length(), body.bag_is_open(), body.can_use(binding)])
+	if back.length() > 0.01:
+		problems.append("the fury stepped back")
+	if on.length() < 0.5:
+		problems.append("the fury could not go forward")
+	if body.bag_is_open():
+		problems.append("the bag opened in the fury")
+	if body.can_use(binding):
+		problems.append("something could be used in the fury")
+
+	# ─ 5. killed at a blow ─
+	var axe: ItemResource = ItemCatalogue.by_id(&"wpn_bearded_axe")
+	body.equipment.equip(ItemInstance.of(axe, 0))
+	await get_tree().physics_frame
+	var hitbox := body.weapon.get("_hitbox") as Hitbox
+	var breath: float = body.stamina.current
+	body.weapon.request_swing(body.stamina)
+	print("[fury] blow given  stagger %.0f, breath %.0f -> %.0f"
+		% [hitbox.stagger if hitbox != null else -1.0, breath, body.stamina.current])
+	if hitbox == null or hitbox.stagger < MeleeWeapon.FURY_STAGGER:
+		problems.append("a blow in the fury does not break poise")
+	if body.stamina.current < breath:
+		problems.append("a swing in the fury cost breath")
+
+	# ─ 6. paid, then spent ─
+	body.fury = 0.05
+	await _hold(0.3)
+	var after: float = body.health.current
+	var spent_speed: float = body._target_speed(false, tuning)
+	var spent_breath: float = body.stamina.current
+	Input.action_press("verb")
+	await _hold(tuning.fury_howl_seconds + 0.2)
+	Input.action_release("verb")
+	print("[fury] paid        health %.0f -> %.0f, owed %.0f, spent %.1f s, breath %.0f, fury again %.1f"
+		% [full, after, body.blood_owed, body.fury_spent, spent_breath, body.fury])
+	if absf((full - after) - 25.0) > 0.5 or body.blood_owed > 0.0:
+		problems.append("the blood was not paid in full when the fury ended")
+	if body.fury_spent <= 0.0 or spent_breath > 0.0:
+		problems.append("the fury ended without the weakness after it")
+	if body.fury > 0.0:
+		problems.append("a second fury began while spent")
+	body.fury_spent = 0.0
+	await get_tree().physics_frame
+	var rested_speed: float = body._target_speed(false, tuning)
+	print("[fury] spent pace  %.2f m/s against %.2f" % [spent_speed, rested_speed])
+	if spent_speed >= rested_speed:
+		problems.append("the spent body was no slower")
+
+	# ─ 7. the Rite ─
+	var results: Dictionary = {}
+	for tag: String in ["", "fury_blood_price"]:
+		body.effects = PackedStringArray([tag]) if tag != "" else PackedStringArray()
+		body.fury = 5.0
+		body.blood_owed = 30.0
+		body._fury_landed(true)
+		results[tag] = body.blood_owed
+	print("[fury] blood-price owed after a kill: plain %.0f, with it %.0f"
+		% [results[""], results["fury_blood_price"]])
+	if results[""] != 30.0 or results["fury_blood_price"] >= 30.0:
+		problems.append("Blood-Price changed nothing, or a kill paid without it")
+	var rose: Dictionary = {}
+	for tag: String in ["", "fury_rising"]:
+		body.effects = PackedStringArray([tag]) if tag != "" else PackedStringArray()
+		body.fury = 3.0
+		body._fury_added = 0.0
+		for _i: int in 20:
+			body._fury_landed(false)
+		rose[tag] = body.fury
+	print("[fury] rising      fury after twenty blows: plain %.1f, with it %.1f (cap %.1f)"
+		% [rose[""], rose["fury_rising"], 3.0 + tuning.fury_seconds])
+	if rose[""] != 3.0 or rose["fury_rising"] <= 3.0 \
+			or rose["fury_rising"] > 3.0 + tuning.fury_seconds + 0.01:
+		problems.append("Rising Fury fed nothing, fed without the node, or past its cap")
+	body.blood_owed = 0.0
+	body.fury = 0.0
+
+	_session.spawn_enemy(body.global_position + Vector3(0.0, 0.0, -2.0), 0.0, &"enm_hall_warden")
+	await _hold(0.3)
+	var warden: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		warden = node as Enemy
+	if warden == null:
+		problems.append("no Hall-Warden to strike with")
+	else:
+		warden.process_mode = Node.PROCESS_MODE_DISABLED
+		var overhead := warden.get("_hitbox") as Hitbox
+		overhead.heavy = true
+		var wounded: Dictionary = {}
+		for tag: String in ["", "fury_no_wounds"]:
+			body.effects = PackedStringArray([tag]) if tag != "" else PackedStringArray()
+			body.restore_for_descent()
+			body.fury = 5.0
+			body._on_hurt(10.0, overhead)
+			wounded[tag] = body.wounds
+			body.fury = 0.0
+			body.blood_owed = 0.0
+		print("[fury] iron        a heavy blow in the fury: plain wounds %d, with it %d"
+			% [wounded[""], wounded["fury_no_wounds"]])
+		if wounded[""] == 0 or wounded["fury_no_wounds"] != 0:
+			problems.append("Neither Fire Nor Iron changed nothing, or the fury warded wounds without it")
+
+		# The Howl: staggered by the howl, and only with the node.
+		var reeled: Dictionary = {}
+		warden.process_mode = Node.PROCESS_MODE_INHERIT
+		for tag: String in ["", "fury_howl_breaks_nerve"]:
+			body.effects = PackedStringArray([tag]) if tag != "" else PackedStringArray()
+			body.fury = 0.0
+			body.fury_spent = 0.0
+			warden.global_position = body.global_position + Vector3(0.0, 0.0, -2.0)
+			await _hold(0.2)
+			var was: int = warden.state()
+			body._rouse()
+			reeled[tag] = warden.state() == Enemy.State.STAGGERED and was != Enemy.State.STAGGERED
+			body.fury = 0.0
+			await _hold(maxf(warden.get("_kind").stagger, 0.5) + 0.2)
+		print("[fury] howl        staggered the Warden: plain %s, with it %s"
+			% [reeled[""], reeled["fury_howl_breaks_nerve"]])
+		if reeled[""] or not reeled["fury_howl_breaks_nerve"]:
+			problems.append("the Howl staggered nothing, or a plain howl did")
+	_session.clear_enemies()
+	body.effects = PackedStringArray()
+	body.fury = 0.0
+	body.fury_spent = 0.0
+	body.restore_for_descent()
+	if problems.is_empty():
+		print("[fury] the fury defers the blood, it does not refuse it")
+	_report(problems, "fury")
 
 
 ## **`--rite-probe`** (`M4-T03`, ADR-273): the two slice Rites, gate and effect.

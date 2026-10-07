@@ -37,7 +37,16 @@ extends Control
 signal chosen(id: StringName)
 
 const MARGIN: float = 48.0
+## The widest a card is drawn. With more lives than fit at that width side by
+## side, every card narrows to share the screen (ADR-345: the third class was
+## the first time the row was wider than the window).
 const CARD_WIDTH: float = 420.0
+const CARD_GAP: float = 24.0
+## The smallest window the screen is laid out for.
+const SCREEN: Vector2 = Vector2(1152.0, 648.0)
+
+## The width every card is drawn at, for this many of them.
+var _card_width: float = CARD_WIDTH
 
 
 func _ready() -> void:
@@ -75,7 +84,10 @@ func _ready() -> void:
 	var sworn: Array[ClassResource] = ClassCatalogue.all()
 	var row := HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 28)
+	row.add_theme_constant_override("separation", int(CARD_GAP))
+	var count: int = maxi(sworn.size(), 1)
+	_card_width = minf(CARD_WIDTH,
+		floorf((SCREEN.x - MARGIN * 2.0 - CARD_GAP * (count - 1)) / count))
 	column.add_child(row)
 	for entry: ClassResource in sworn:
 		row.add_child(_card(entry))
@@ -95,7 +107,7 @@ func _ready() -> void:
 func _card(entry: ClassResource) -> Control:
 	var plate := PanelContainer.new()
 	plate.theme_type_variation = MenuStyle.SLATE
-	plate.custom_minimum_size = Vector2(CARD_WIDTH, 260.0)
+	plate.custom_minimum_size = Vector2(_card_width, 260.0)
 	var card := VBoxContainer.new()
 	card.add_theme_constant_override("separation", 10)
 	plate.add_child(card)
@@ -107,23 +119,26 @@ func _card(entry: ClassResource) -> Control:
 		face.texture = entry.portrait
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		face.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, (CARD_WIDTH - 40.0) * 0.5)
+		face.custom_minimum_size = Vector2(_card_width - 40.0, (_card_width - 40.0) * 0.5)
 		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(face)
 
 	var pick: Button = MenuStyle.button(entry.display())
-	pick.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, 48.0)
+	pick.custom_minimum_size = Vector2(_card_width - 40.0, 48.0)
 	pick.pressed.connect(func() -> void: _commit(entry))
 	card.add_child(pick)
 	card.add_child(MenuStyle.rule())
 
 	if entry.description_key != &"":
 		var about: Label = MenuStyle.line(tr(String(entry.description_key)), MenuStyle.BODY_TEXT)
-		about.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, 0.0)
+		about.custom_minimum_size = Vector2(_card_width - 40.0, 0.0)
 		card.add_child(about)
 	if entry.exit_key != &"":
-		var way: Label = MenuStyle.line(tr(String(entry.exit_key)), MenuStyle.SUB_DIM)
-		way.custom_minimum_size = Vector2(CARD_WIDTH - 40.0, 0.0)
+		# The voice's italic at its own size while the card has the room, a
+		# size down once three share the screen.
+		var way: Label = MenuStyle.line(tr(String(entry.exit_key)),
+			MenuStyle.SUB_DIM if _card_width >= 400.0 else MenuStyle.BODY_DIM)
+		way.custom_minimum_size = Vector2(_card_width - 40.0, 0.0)
 		card.add_child(way)
 	return plate
 

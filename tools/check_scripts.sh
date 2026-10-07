@@ -1541,6 +1541,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Úlfheðinn's fury defers the blood, it does not refuse it** (ADR-345).
+	# The howl starts it and is heard; the verb cannot end it; a blow is owed
+	# rather than taken; no step back, no bag, nothing used; every blow breaks
+	# poise for no breath; the blood is paid in full when it ends and the body
+	# is spent; and each of the four Rite nodes against a control without it.
+	fury="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 30000 \
+		levels/room_set/room_set.tscn -- --fury-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[fury\] the fury defers the blood' <<<"$fury" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$fury"; then
+		echo "FAIL the fury defers the blood" >&2
+		printf '%s\n' "$fury" | grep -E '\[fury\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Two pages, five classes, and the modeller decides the lines** (ADR-269).
 	# The ink's half that is true without a pixel: one pass per class, each on
 	# the stencil value its class is; the Lair a print and the Deep not; every

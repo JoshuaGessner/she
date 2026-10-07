@@ -242,6 +242,25 @@ extends Resource
 @export var rite_lure_clamor: float = 0.8
 ## Cover of the Snap: seconds of silence after your own snare fires.
 @export var rite_snap_cover_seconds: float = 4.0
+## Blood-Price: what a kill in the fury strikes from the blood owed.
+@export var rite_blood_price: float = 20.0
+## The Howl: how far it breaks nerve, and how far it drives them back.
+@export var rite_howl_reach: float = 7.0
+@export var rite_howl_metres: float = 0.6
+## Rising Fury: seconds a landed blow adds, up to the fury's length again.
+@export var rite_rising_seconds: float = 1.0
+
+@export_group("Fury")
+## **Wolf-Fury** (ADR-345), every number ⟨tune⟩. The howl's length — over
+## ADR-053's 250 ms, so a teammate can read it coming — and its noise, which
+## is the Hunt's: the fury is announced, never sneaked into.
+@export var fury_howl_seconds: float = 0.5
+@export var fury_howl_clamor: float = 6.0
+## How long blood is owed rather than taken, and how long the weakness after
+## lasts, and how fast you walk while it does.
+@export var fury_seconds: float = 8.0
+@export var fury_spent_seconds: float = 6.0
+@export var fury_spent_speed: float = 0.8
 
 @export_group("Hold")
 ## Stamina per second while planted ⟨tune⟩ (`M3-T02`, `DES-011`). Per *second*

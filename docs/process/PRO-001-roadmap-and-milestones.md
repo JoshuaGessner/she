@@ -4,7 +4,7 @@ title: Roadmap & Milestones
 status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-09-29
+updated: 2026-10-06
 related: [DES-001, TEC-001, TEC-003]
 ---
 
@@ -255,6 +255,8 @@ The most common way a project like this dies is building the meta-progression fi
 
 - [x] `M4-T03` **Two classes**, fully polished — ***each class has a path of its own, ADR-273, and both verbs can be seen, ADR-272.*** *By the developer's call: verbs first, then a four-node Rite a class, every node signed off as proposed. **The verbs** were a collision layer and an invisible timer: a Hold is now a lunge with the shield raised square and a thump when it lands, and setting a snare grows its ring at your feet as you kneel; a set snare breathes and a sprung one snaps. **The Rites** open at Pact Rank 3 to their own class only, and a Rite kept into another class's life does nothing: Shield Wall, Shove, Take the Blow and Last Door for the Húskarl; Lure, Gag, Pinning Shot and Cover of the Snap for the Veiðimaðr — each asserted against the same act without it. **Found:** a Hold paid with `spend`, which stops taking once the bar is below a frame's cost, so **a Hold never ran out**; it drains now. `--verbs-probe` and `--rite-probe` in the sweep, twenty-one plants caught between them. **Left for `M5`:** seven nodes a Rite, and the three Aspects the build does not have.* Previously — ***the Húskarl's shield is built, ADR-238.*** *By the developer's calls a raised shield takes the guard's share off a heavy blow and a stone — which a blade takes nothing off — rather than stopping them outright, and every guard now covers a front arc only. The Húskarl holds the shield and carries the lantern (`ClassResource.carried`). `--shield-probe` takes a heavy blow, a stone and a cut open, on a blade and on a shield, facing and turned away; every room-set probe, sworn a Húskarl, now says what it holds. Previously —* Húskarl and Veiðimaðr, opposite loop relationships. *The other four move to M5 (ADR-061). **The Húskarl's shield is this task's** (ADR-217, `DES-023` §3): a raised shield stops a heavy blow and a missile from the front, which a weapon's guard does not, and it takes the hand the lantern wants — so the off hand's contest becomes lantern against shield, as `DES-020` always said it would. The kits in `DES-023` §4 are the starting point* → DES-011, DES-023
 
+- [~] `M4-T34` **The third class: the Úlfheðinn.** *Pulled forward from `M5-T01` at the developer's request, which was to research and fully build the planned classes one at a time (ADR-345). **Wolf-Fury is built** (ADR-345), with its four-node Rite, its kit and arms, a class card and `--fury-probe` in the sweep. **Still owed: an Aspect it can enter.** Its three (Cinder, Maw, Scale) are all unauthored, so its pact rank, and with it the Rite, cannot be reached. The Scale Aspect is the next commit.* → DES-011, DES-004
+
 ### The gates `M3` could not ask
 
 > **GATE M4 COOP** `pending` — a rank-8 player brings a rank-1 friend into a rank-8 floor (ADR-010). The newcomer is downed repeatedly and *still wants to go again*. If they don't, the ember rescue isn't doing enough work.
@@ -351,7 +353,7 @@ audio, vertex-channel authoring, inversion, or the human playtest gate.
 ## M5 — Content & Breadth
 
 <!-- milestone id=M5 depends=M4 size=unknown -->
-- [ ] `M5-T01` **The remaining four classes** — moved here by ADR-061; all six are required for launch (ADR-012) → DES-011
+- [ ] `M5-T01` **The remaining four classes**, moved here by ADR-061; all six are required for launch (ADR-012). *Three remain: the Úlfheðinn went back to M4 as `M4-T34` (ADR-345).* → DES-011
 - [ ] `M5-T02` Remaining biomes — Barrow-Fields, Sunken Wood → DES-006, DES-015
 - [ ] `M5-T03` Remaining factions and Aspects → DES-007, DES-004
 - [ ] `M5-T04` Full enemy roster and modifier set → DES-013
