@@ -12321,4 +12321,24 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 - `--offering-shot` and `--bag-shot` photographed.
 - These probes pass: `--offering-probe`, `--lair-probe`, `--pact-probe` and `--bagui-probe`.
 
+## ADR-344 — A menu page is held in iron: the backdrop is the frame
+
+**Date:** 2026-10-06 · **Status:** accepted · **Follows ADR-341**
+
+**Context:**
+- **Full-screen pages had no frame.** After ADR-341 every plate was forged, but full-screen pages floated on a dark wash with nothing around them: settings, controls, run-over, legacy, deeds, host and join.
+- **Wrapping each page's column in a plate is unsafe.** Settings already runs from 20 px to 630 px of 648, so a plate's border would push it off the screen.
+
+**Decision:**
+- **The `Backdrop` role is the frame.** Its stylebox is the forged plate at screen size:
+  - a 9 px iron bar;
+  - a gilt inlay and hairline;
+  - 34 px strap-hinges at the corners;
+  - a gilt crest at the middle of the top and bottom edges.
+- **Nothing is laid out by it.** A `Panel` has no content margin, so no page moved. The `Scrim` under an in-room screen keeps its plain vignette, because a room should still read as a room.
+
+**Measured:**
+- `--menu-shot` and `--screens-shot` photographed every page.
+- These probes pass: `--menu-probe`, `--lineage-probe`, `--rebind-probe`, `--legacy-probe` and `--deeds-probe`.
+
 *Entries below to be added as design decisions are signed off.*

@@ -19,13 +19,20 @@ content_margin_bottom = -1.0
 script = ExtResource("1_8wi2f")
 ground = Color(0.07, 0.065, 0.06, 0.94)
 hatch = Color(0.52, 0.47, 0.4, 0.035)
-band = 0.0
-inset = 0.0
-hairline = 0.0
+band = 1.0
+inset = 3.0
+hairline = 1.0
 corner = 0.0
 hatch_pitch = 14.0
 vignette = 1.0
 grain = Color(0, 0, 0, 0.18)
+bevel = 9.0
+metal = Color(0.3, 0.25, 0.19, 1)
+ink = Color(0.58, 0.44, 0.26, 1)
+edge = Color(0.22, 0.19, 0.16, 1)
+plates = 34.0
+gilt = Color(0.8, 0.6, 0.32, 1)
+crest = 70.0
 
 [sub_resource type="StyleBox" id="StyleBox_8wi2f"]
 resource_local_to_scene = false
