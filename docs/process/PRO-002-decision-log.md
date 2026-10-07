@@ -12609,6 +12609,6 @@ The level holds 4,673 nodes and 10,463 objects.
 
 **Measured:** `--fury-probe` row 9 begins a claim at the Shaft. In the fury, two half-second advances leave it at 0.00; after the fury, one advance takes it to 0.12. `--exit-probe` and `--descent-probe` pass.
 
-**Owed:** the held ring doesn't yet say why it holds. The ember edge says the fury is running, but the Shaft's own prompt should name it. Filed.
+**And it says so.** Standing in the Shaft while a fury runs in the party, the reticle reads *"the fury will not go down until it has run out"* (or *out*, at the bottom). It shows before the key is pressed as well as after, because a ring that never moves reads as a broken Shaft. `--fury-probe` row 9 reads the rendered line.
 
 *Entries below to be added as design decisions are signed off.*

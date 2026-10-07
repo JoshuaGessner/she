@@ -16703,6 +16703,16 @@ func _fury_probe() -> void:
 		_shaft.advance(0.5)
 		_shaft.advance(0.5)
 		var held: float = _shaft.progress()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var told: String = ""
+		for node: Node in find_children("*", "Control", true, false):
+			var mark := node as Reticle
+			if mark != null:
+				told = mark.showing()
+		print("[fury] stairs said '%s'" % told)
+		if not told.contains("fury"):
+			problems.append("a Shaft held by the fury did not say why: '%s'" % told)
 		body.fury = 0.0
 		_shaft.advance(0.5)
 		var went: float = _shaft.progress()

@@ -167,6 +167,12 @@ func _process(delta: float) -> void:
 		_name.text = ("climbing %s — hold still" % verb if _shaft.is_channelling()
 			else "hold %s — climb %s"
 				% [ControlsScreen.glyphs_for("interact"), verb])
+		# **And why it will not go** (ADR-352): while a fury runs in the party
+		# the channel will not start, and a ring that never moves reads as a
+		# broken Shaft — so it says so, before the key is pressed as well as
+		# after.
+		if _shaft.fury_in_the_party():
+			_name.text = "the fury will not go %s until it has run out" % verb
 	elif _offer != "":
 		# **After the Shaft, before an item.** The way out still speaks first;
 		# an offer is a fixture of the room and a loose coin is not, so a room
