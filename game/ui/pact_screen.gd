@@ -98,7 +98,7 @@ func _ready() -> void:
 
 	var paths: Array[StringName] = paths_shown()
 	if not paths.is_empty():
-		_path = paths[0]
+		_path = _most_walked(paths)
 		_selected = _first_worth_reading(_nodes_of(_path))
 	_redraw()
 	# The tree is bought with a pad as well as a mouse (ADR-141, ADR-075), and
@@ -121,6 +121,28 @@ func paths_shown() -> Array[StringName]:
 	if not AspectCatalogue.rite_of(body.id).is_empty():
 		shown.append(RITE)
 	return shown
+
+
+## **The page you have walked furthest down** opens first (ADR-353), and the
+## class's own order breaks a tie. It opened on the first Aspect the class may
+## enter, so when Scale was authored (ADR-346) a Húskarl eight nodes into the
+## Hoard opened their tree on a page they had never touched.
+func _most_walked(paths: Array[StringName]) -> StringName:
+	var best: StringName = paths[0]
+	var most: int = 0
+	for path: StringName in paths:
+		var held: int = 0
+		for node: AspectNode in _nodes_of(path):
+			held += 1 if GameState.has_taken(node.id) else 0
+		if held > most:
+			most = held
+			best = path
+	return best
+
+
+## The page open now, for `--pact-probe`.
+func path_open() -> StringName:
+	return _path
 
 
 ## Open a page, for `--pact-shot` and for the tabs.

@@ -2353,6 +2353,27 @@ func _pact_probe() -> void:
 	if GameState.boon_converted != 0:
 		problems.append("the cycle's conversion headroom survived a death, so "
 			+ "a new life would inherit a spent cap")
+
+	# ─ the tree opens where you have walked (ADR-353) ─
+	GameState.forget_the_last_life()
+	GameState.class_id = &"huskarl"
+	GameState.taken.clear()
+	var fresh := PactScreen.new()
+	add_child(fresh)
+	var opened_fresh: StringName = fresh.path_open()
+	fresh.queue_free()
+	for id: StringName in [&"hrd_sure_grip", &"hrd_steady_step"]:
+		GameState.taken.append(id)
+	var walked := PactScreen.new()
+	add_child(walked)
+	var opened_walked: StringName = walked.path_open()
+	walked.queue_free()
+	GameState.taken.clear()
+	print("[pact] opens on            '%s' fresh, '%s' two Hoard nodes in" % [
+		opened_fresh, opened_walked])
+	if opened_walked != &"hoard":
+		problems.append("a Húskarl walked into the Hoard opened the tree on '%s'"
+			% opened_walked)
 	_report_pact(problems)
 
 

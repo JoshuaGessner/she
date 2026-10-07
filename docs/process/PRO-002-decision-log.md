@@ -12611,4 +12611,14 @@ The level holds 4,673 nodes and 10,463 objects.
 
 **And it says so.** Standing in the Shaft while a fury runs in the party, the reticle reads *"the fury will not go down until it has run out"* (or *out*, at the bottom). It shows before the key is pressed as well as after, because a ring that never moves reads as a broken Shaft. `--fury-probe` row 9 reads the rendered line.
 
+## ADR-353 — The tree opens on the page you have walked furthest down
+
+**Date:** 2026-10-06 · **Status:** accepted · **Follows ADR-346**
+
+**Context:** her tree opened on the first Aspect the class may enter. Once Scale was authored (ADR-346), the Húskarl's list became *Scale · Cinder · Hoard*. A Húskarl eight nodes into the Hoard opened their tree on a page they had never touched, and every visit cost a tab press to reach the work they were doing.
+
+**Decision:** the opening page is the one with the most nodes taken. The class's own order breaks a tie, so a fresh life still opens on its first Aspect.
+
+**Measured:** `--pact-probe` opens the tree for a fresh Húskarl and for one two Hoard nodes in. It opens on Scale and Hoard respectively; the old rule would have opened on Scale both times. `--respec-probe` passes.
+
 *Entries below to be added as design decisions are signed off.*
