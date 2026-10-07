@@ -16598,11 +16598,8 @@ func _fury_probe() -> void:
 	# **The hold is drawn as it fills** (ADR-372), at the crosshair, by the
 	# same ring every other timed hold uses.
 	await _hold(tuning.fury_howl_seconds * 0.5)
-	var ring: float = 0.0
-	for node: Node in find_children("*", "Control", true, false):
-		var mark := node as Reticle
-		if mark != null:
-			ring = mark.channel_drawn()
+	var mark: Reticle = _reticle()
+	var ring: float = mark.channel_drawn() if mark != null else 0.0
 	await _hold(tuning.fury_howl_seconds * 0.5 + 0.3)
 	Input.action_release("verb")
 	await get_tree().physics_frame
@@ -16829,11 +16826,7 @@ func _fury_probe() -> void:
 		var held: float = _shaft.progress()
 		await get_tree().process_frame
 		await get_tree().process_frame
-		var told: String = ""
-		for node: Node in find_children("*", "Control", true, false):
-			var mark := node as Reticle
-			if mark != null:
-				told = mark.showing()
+		var told: String = mark.showing() if mark != null else ""
 		print("[fury] stairs said '%s'" % told)
 		if not told.contains("fury"):
 			problems.append("a Shaft held by the fury did not say why: '%s'" % told)
@@ -16858,11 +16851,7 @@ func _fury_probe() -> void:
 	# after that.
 	for _i: int in 4:
 		await get_tree().process_frame
-	var said: String = ""
-	for node: Node in find_children("*", "Control", true, false):
-		var mark := node as Reticle
-		if mark != null:
-			said = mark.showing()
+	var said: String = mark.showing() if mark != null else ""
 	var key_up := InputEventAction.new()
 	key_up.action = &"use_waystone"
 	Input.parse_input_event(key_up)
@@ -18557,13 +18546,19 @@ func _arc_block(parent: Node3D, centre: Vector3, size: Vector3) -> StaticBody3D:
 	return block
 
 
-## What the crosshair last drew as a channel, from the HUD this level built.
-func _reticle_channel() -> float:
+## The crosshair of the HUD this level built, or null before it is built.
+func _reticle() -> Reticle:
 	for node: Node in find_children("*", "Control", true, false):
 		var reticle := node as Reticle
 		if reticle != null:
-			return reticle.channel_drawn()
-	return -1.0
+			return reticle
+	return null
+
+
+## What the crosshair last drew as a channel, or -1 with no crosshair.
+func _reticle_channel() -> float:
+	var reticle: Reticle = _reticle()
+	return reticle.channel_drawn() if reticle != null else -1.0
 
 
 ## **The Vörðr** (`M3-T14`, `DES-012`, ADR-130).
