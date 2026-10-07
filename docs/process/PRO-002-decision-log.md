@@ -12934,4 +12934,23 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - **Planted** (the three put back with the owner's properties): *client sees fury 0.0 owed 0; host still 0.0 owed 0*. FAIL, exit 2.
 - `--fury-probe` and `--scale-probe` pass.
 
+## ADR-369 — `--perf-shot` measured the display, not the frame: render times read from the engine, and what a Mac cannot say
+
+**Date:** 2026-10-07 · **Status:** accepted · **Corrects ADR-350's reading and ADR-362's frame-time column; found in a performance review**
+
+**Context:**
+- **The frame time was the display's.** ADR-350's *mean* and *worst* were the time between frames. On this machine that sits at the display's refresh: 9.0–9.1 ms in every view, a quiet entrance and a 1.2 M-primitive hall alike. It was still 8.6–8.9 ms with `--disable-vsync`, so it is the compositor's pace and not the scene's cost.
+- **So two earlier readings said nothing.** ADR-350's *"the mean is comfortable"* and ADR-362's *"frame time unchanged"* told us about the display, not the game. Their draw-call and primitive counts stand.
+- **A dead end, reported because a reader would try it.** `Performance.TIME_PROCESS` and `TIME_PHYSICS_PROCESS` read 10–12 and 20–22 ms inside 8.7 ms frames, so they are not a per-frame cost in the sense needed. They were tried and left out.
+
+**Decision:**
+- **`--perf-shot` reads the viewport's own measured render time** (`RenderingServer.viewport_set_measure_render_time`), CPU and GPU, beside the frame time.
+- **The GPU column is zero on Metal.** The backend reports no GPU timings, measured on an Apple M5. A Mac cannot say what the ink pass, the gilt or a hall's 1,000 draw calls cost the GPU; that has to be read on Vulkan or D3D12, on a Windows or Linux machine.
+
+**Measured** (Apple M5, 1152×648): render CPU is 0.31–0.57 ms across the eight views, and the GPU reads 0.00 (unsupported).
+
+**Owed:**
+- the GPU's cost read on a Windows machine, which is now a question for the developer;
+- the ink pass computing `gilt()` for every pixel, gold or not, which is a branch to add once it can be measured.
+
 *Entries below to be added as design decisions are signed off.*

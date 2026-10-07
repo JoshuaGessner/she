@@ -3905,18 +3905,28 @@ func _perf_shot() -> void:
 	player.show_ink(true)
 	print("[perf] %s · %s" % [RenderingServer.get_video_adapter_name(),
 		DisplayServer.window_get_size()])
+	# **What the frame costs, not how often it is shown** (ADR-369). The
+	# frame-to-frame time is held at the display's refresh by vsync — it read
+	# 9.0–9.1 ms in every view whatever was in it — so the render times are
+	# read from the engine's own measure of the viewport, CPU and GPU.
+	var port: RID = get_viewport().get_viewport_rid()
+	RenderingServer.viewport_set_measure_render_time(port, true)
 	for view: Array in _delvings_views():
 		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
 		player.teleport(at, _yaw_toward(at, view[2] as Vector3))
 		await _hold(0.6)
 		var frames: Array[float] = []
 		var calls: float = 0.0
+		var gpu: float = 0.0
+		var cpu: float = 0.0
 		var primitives: float = 0.0
 		var last: int = Time.get_ticks_usec()
 		for _i: int in 120:
 			await RenderingServer.frame_post_draw
 			var now: int = Time.get_ticks_usec()
 			frames.append(float(now - last) / 1000.0)
+			gpu += RenderingServer.viewport_get_measured_render_time_gpu(port)
+			cpu += RenderingServer.viewport_get_measured_render_time_cpu(port)
 			last = now
 			calls = maxf(calls, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
 			primitives = maxf(primitives, Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
@@ -3925,8 +3935,13 @@ func _perf_shot() -> void:
 		for ms: float in frames:
 			total += ms
 			worst = maxf(worst, ms)
-		print("[perf] %-10s %5.1f ms mean, %5.1f ms worst, %4.0f draw calls, %7.0f primitives"
-			% [view[0], total / frames.size(), worst, calls, primitives])
+		var n: float = float(frames.size())
+		# GPU time reads zero where the backend has no timestamp queries — Metal,
+		# measured on an Apple M5 — so on a Mac the GPU column says nothing, and
+		# the GPU's cost has to be read on Vulkan or D3D12 (ADR-369).
+		print(("[perf] %-10s %5.1f ms mean, %5.1f ms worst · render gpu %4.2f cpu %4.2f ms · "
+			+ "%4.0f draw calls, %7.0f primitives")
+			% [view[0], total / n, worst, gpu / n, cpu / n, calls, primitives])
 	print("[perf] nodes %d, objects %d" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
 		Performance.get_monitor(Performance.OBJECT_COUNT)])
 	get_tree().quit()
