@@ -167,11 +167,6 @@ const MOTION_PROPERTIES: Dictionary = {
 	# to agree about. ADR-068 measured `ON_CHANGE` costing *more* for a value
 	# that changes every frame.
 	".:planted": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
-	# **Wolf-Fury** (ADR-345): the host's clock, read by every peer — the
-	# owner's controls, the owner's screen and every copy's weapon.
-	".:fury": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
-	".:fury_spent": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
-	".:blood_owed": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 }
 
 ## What the host sends. All three are consequences, and all three idle: health
@@ -194,6 +189,14 @@ const STATE_PROPERTIES: Dictionary = {
 	".:bleeding": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:revival": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:spent": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **Wolf-Fury** (ADR-345): the host's clock, read by every peer — the
+	# owner's controls, the owner's screen and every copy's weapon. **Sent by
+	# the host** (ADR-368): ADR-345 put these with what the owner sends, so a
+	# client's own zero overwrote the fury the host had started on every
+	# packet, and a client could have sent no blood owed at all.
+	".:fury": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:fury_spent": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:blood_owed": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	# **Out, and still here** (`M3-T09`). Peers cannot stand in different levels
 	# (ADR-102), so leaving is a state rather than a scene change — and it has
 	# to be one every peer knows about, because it is what stops a teammate's

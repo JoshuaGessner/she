@@ -12913,4 +12913,25 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** `--board-probe` measures 1,152 px needed of 1,152 and `--threshold-probe` the same, unchanged. `check_project.py` and `check_dead.py` pass.
 
+## ADR-368 — The fury is the host's: its clock and its debt are sent by the host, not the owner
+
+**Date:** 2026-10-07 · **Status:** accepted · **Fixes ADR-345 for clients; found in a security-and-robustness review**
+
+**Context:**
+- **A client's fury never held.** ADR-345 added `fury`, `fury_spent` and `blood_owed` to the player's replication beside `planted`, in `MOTION_PROPERTIES`, which is what the **owner** sends. But all three are written by the host: `_rouse` starts the fury, `_tick_fury` runs the clock, `_take_blood` owes the blood.
+- **What that did for a client:**
+  - the client's own copy, never written, was zero, and was sent to the host on every packet, overwriting the fury the host had just started;
+  - so a client's fury barely ran;
+  - a modified client could send `blood_owed` = 0 and never pay, which is a cheat with a one-line patch.
+- **Why no check saw it.** Every fury probe drove the host's own body, where the owner and the host are the same process.
+
+**Decision:**
+- **All three move to `STATE_PROPERTIES`**, which the host sends beside `bleeding`, `revival` and `spent`.
+- **The owner only reads them:** its controls, its screen and its weapon.
+
+**Measured** (co-op smoke, new row *the host's fury reaches the client and holds*): the host writes a fury and 7 owed on the client's body, and both sides read them back.
+- **Fixed:** the client sees fury 2.9 and 7 owed; the host still holds 2.2 and 7. ok.
+- **Planted** (the three put back with the owner's properties): *client sees fury 0.0 owed 0; host still 0.0 owed 0*. FAIL, exit 2.
+- `--fury-probe` and `--scale-probe` pass.
+
 *Entries below to be added as design decisions are signed off.*

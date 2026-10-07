@@ -434,6 +434,17 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         guard.get("paid", 0.0) >= guard.get("cost", 1.0) * 0.8,
         f"{guard.get('paid', 0.0):.1f} of {guard.get('cost', 0.0):.0f} paid"))
 
+    # The fury is the host's (ADR-368): what the host wrote on the client's body
+    # is what both sides hold, and the client's own zero did not overwrite it.
+    fury_host = host.get("fury", {})
+    fury_client = client.get("fury", {})
+    rows.append(check(
+        "the host's fury reaches the client and holds",
+        fury_client.get("fury", 0.0) > 0.0 and fury_client.get("owed", 0.0) >= 7.0
+        and fury_host.get("fury", 0.0) > 0.0 and fury_host.get("owed", 0.0) >= 7.0,
+        f"client sees fury {fury_client.get('fury', 0.0):.1f} owed {fury_client.get('owed', 0.0):.0f}; "
+        f"host still {fury_host.get('fury', 0.0):.1f} owed {fury_host.get('owed', 0.0):.0f}"))
+
     # What the client heard (ADR-311). The host decides a pickup and a blow,
     # and played their sounds where it decided them — so a client never heard
     # its own loot go into the bag, nor itself hurt.

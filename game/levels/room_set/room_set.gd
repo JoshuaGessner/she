@@ -6801,6 +6801,8 @@ func _heard_census() -> Dictionary:
 var _probe_struck: Dictionary = {}
 ## What a guarded blow cost the client's own breath (ADR-313).
 var _probe_guard: Dictionary = {}
+## What the fury looked like on each side once the host wrote it (ADR-368).
+var _probe_fury: Dictionary = {}
 const PROBE_STRIKE: float = 10.0
 
 
@@ -7095,6 +7097,25 @@ func _coop_probe(out: String) -> void:
 		_probe_guard = {"guarded": float(felt[1]["guarded"]) if felt.size() >= 2 else 0.0,
 			"paid": guard_from - mine.stamina.current,
 			"cost": Config.tuning.block_stamina_cost}
+	# **The fury is the host's to write** (ADR-368). The host sets a fury and a
+	# debt on the client's body; both are read back on both sides after the
+	# client has seen them. Sent with what the owner sends, the client's own
+	# zero overwrote the host's on every packet.
+	if host:
+		var raging: Player = _client_body()
+		if raging != null:
+			raging.fury = 3.0
+			raging.blood_owed = 7.0
+		await _hold(0.8)
+		_probe_fury = {"fury": raging.fury if raging != null else -1.0,
+			"owed": raging.blood_owed if raging != null else -1.0}
+		if raging != null:
+			raging.fury = 0.0
+			raging.blood_owed = 0.0
+	else:
+		await _hold_until(func() -> bool: return mine.fury > 0.0, 3.0)
+		_probe_fury = {"fury": mine.fury, "owed": mine.blood_owed}
+		await _hold(0.4)
 	if not host:
 		mine.struck.disconnect(on_struck)
 	if host:
@@ -7287,6 +7308,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"revived": _probe_revived,
 		"struck": _probe_struck,
 		"guard": _probe_guard,
+		"fury": _probe_fury,
 		# What this peer heard, by sound name (ADR-311).
 		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,
