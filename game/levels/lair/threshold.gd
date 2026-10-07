@@ -813,6 +813,11 @@ func _threshold_probe() -> void:
 			if wide <= 0.0 or wide > MenuStyle.base_screen().x:
 				problems.append("the class screen needs %.0f px in a %.0f px window"
 					% [wide, MenuStyle.base_screen().x])
+			var tall: float = picking.height_needed()
+			print("[camp] the lives     %.0f px tall of %.0f" % [tall, MenuStyle.base_screen().y])
+			if tall <= 0.0 or tall > MenuStyle.base_screen().y:
+				problems.append("the class screen needs %.0f px of height in a %.0f px window"
+					% [tall, MenuStyle.base_screen().y])
 		if picking == null or not picking.press(&"huskarl"):
 			problems.append("the Legacy flow never reached a class to swear, so "
 				+ "the rows below are about nothing")

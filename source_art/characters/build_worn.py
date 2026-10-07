@@ -53,6 +53,9 @@ Dt.MATERIALS.update({
     "fur_pale": ((0.42, 0.40, 0.355), 0.82, _fur),
     # The hunter's (ADR-364): undyed wool gone green-brown with the weather.
     "wool": ((0.17, 0.165, 0.115), 0.92, lambda p: 0.0007 * S.noise(p, 0.006)),
+    # The seeress's (ADR-379): Þorbjörg's blue mantle and black lambskin hood.
+    "wool_blue": ((0.105, 0.125, 0.185), 0.92, lambda p: 0.0007 * S.noise(p, 0.006)),
+    "fur_dark": ((0.055, 0.050, 0.048), 0.85, _fur),
 })
 
 
@@ -193,6 +196,39 @@ def hunter_hood(p):
     return r
 
 
+def volva_mantle(p):
+    """**The Völva's mantle** (ADR-379), as Eiríks saga ch. 4 dresses
+    Þorbjörg: *a blue mantle with straps … a string of glass beads about her
+    neck, and on her head a hood of black lambskin lined with white catskin.*
+    A gown to the ankle under it, because a seeress does not stride, and the
+    mantle open down the front, falling to the calf behind. Over the wraps
+    the body had."""
+    r = underlayer(p)
+    r["linen"] = np.minimum(Hm.tunic(p, B, hem=0.16, flare=0.12, slit=False, grow=0.018),
+                            np.minimum(Hm.sleeve(p, "l", B, to=0.42, grow=0.010),
+                                       Hm.sleeve(p, "r", B, to=0.42, grow=0.010)))
+    # A shell around the gown, from the shoulders to the calf, hanging wide of
+    # it — and open down the front below the breast, where it is pinned.
+    mantle = Hm.tunic(p, B, hem=0.36, flare=0.18, slit=False, grow=0.050)
+    opening = np.maximum(p[:, 1] + 0.04 - 0.10 * np.clip(1.30 - p[:, 2], 0.0, 1.0),
+                         p[:, 2] - 1.30)
+    r["wool_blue"] = S.carve(mantle, opening, 0.02)
+    hood = Hm.hood(p, B, grow=0.026, cape=0.06)
+    # Over the delver's braid, which pushes through any hood's back.
+    hood = S.smin(hood, S.chain(p, [V((0.0, 0.13, 1.74)), V((0.0, 0.18, 1.62)), V((0.0, 0.20, 1.48))],
+                                [0.060, 0.055, 0.050], 0.02), 0.03)
+    r["fur_dark"] = hood
+    # The beads, hung across the breast below the hood's cape.
+    beads = np.full(len(p), 1e3)
+    for k in range(9):
+        s = k / 8.0
+        x = -0.085 + 0.17 * s
+        z = 1.33 - 0.06 * np.sin(np.pi * s)
+        beads = np.minimum(beads, S.sphere(p - V((x, -0.160 + 0.03 * abs(s - 0.5), z)), 0.012))
+    r["gold"] = beads
+    return r
+
+
 ITEMS = {
     "mail_byrnie_worn": (byrnie, dict(voxel=0.010, body_tris=7500, texture=1024, ceiling=10000)),
     # Seen from the eye in first person, not only across a room: dense enough
@@ -201,6 +237,7 @@ ITEMS = {
     "otr_pelt_worn": (pelt, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
     "wolf_coat_worn": (wolf_coat, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
     "hunter_hood_worn": (hunter_hood, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
+    "volva_mantle_worn": (volva_mantle, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
 }
 
 
@@ -247,7 +284,8 @@ def review(name):
 
 ## Pieces in the body slot, which hide the body under them, and the bones
 ## whose vertices they hide (`BodyRig.BODY_COVERED_BONES`).
-BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn", "hunter_hood_worn")
+BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn", "hunter_hood_worn",
+               "volva_mantle_worn")
 COVERED = {"pelvis", "spine_01", "spine_02", "chest", "thigh_l", "calf_l", "foot_l",
            "thigh_r", "calf_r", "foot_r", "upper_arm_l", "upper_arm_r"}
 

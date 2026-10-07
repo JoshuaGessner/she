@@ -48,7 +48,7 @@ item.con_hush_rune.name,Hush Rune
 item.con_hush_rune.desc,"A stave cut with a single rune. Break it and nothing near you makes a sound — until the wood gives out, and everything hears it go."
 class.huskarl.name,Húskarl
 class.huskarl.desc,"Shield-sworn. The last one standing in a doorway, and the one who decides where the doorway is."
-class.huskarl.exit,"Gets out by refusing to be stopped — heavy, armoured, and still moving under weight that would pin anyone else. Loud. The Hunt finds them easily."
+class.huskarl.exit,"Gets out by refusing to be stopped — heavy, armoured, still moving under weight that would pin anyone else. Loud; the Hunt finds them."
 item.wpn_yew_bow.name,Yew Bow
 item.wpn_yew_bow.desc,"Quieter than a blade and slower to bring to bear. What it buys you is that nothing has to know where you were standing."
 class.veidimadr.name,Veiðimaðr
@@ -58,8 +58,8 @@ class.ulfhedinn.name,Úlfheðinn
 class.ulfhedinn.desc,"Wolf-coat. Goes without mail and does not step back. The thing in the dark that the dark should be afraid of."
 class.ulfhedinn.exit,"Gets out through whatever is in the way — a fury that cannot be ended, blood that is paid when it is over, and a body weaker than its wont until it passes."
 class.volva.name,Völva
-class.volva.desc,"Seeress. Sits where others run, and comes back knowing where the thing in the dark was standing."
-class.volva.exit,"Gets out by leaving before it goes wrong — a trance sat still while the Hunt walks, and a reading of the Gold-Sick, the best of the floor and the way out, true for the moment it was taken. Frail. Helpless while she sees."
+class.volva.desc,"Seeress. Sits still where others run, and sees what the dark is doing."
+class.volva.exit,"Gets out by leaving before it goes wrong — a trance, sat still, shows where the Gold-Sick and the way out were. Frail, and helpless while she sees."
 verb.seidr,"Seiðr"
 verb.seidr.brief,"Seiðr: hold to sit in a trance — still, guard down — and the party sees where the Gold-Sick, the best find and the way out were"
 seidr.seen,"seen"

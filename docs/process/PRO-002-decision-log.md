@@ -13127,4 +13127,23 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Not built:** curses (none exist to read), and the arm-ink changes at ranks 3, 5 and 7 (ADR-057), which wait for the art pass like the other classes'.
 
+## ADR-380 — The class screen is measured down as well as across
+
+**Date:** 2026-10-07 · **Status:** accepted · **Found photographing the fourth card (`M4-T35`)**
+
+**Context:**
+- **ADR-361 measured only width.** It predicted the fourth class would be the day the row of cards stopped fitting across. It still fitted across (1152 of 1152 px) when the Völva arrived. But four cards are narrower than three, every line of text wraps once more, and in `--screens-shot` the Völva's exit ran off the bottom of the window mid-sentence. The probe passed it, because nothing asked about height.
+
+**Decision:**
+- **`ClassScreen.height_needed()`** is the column's combined minimum (title, line, tallest card) plus the margins. `--threshold-probe` asks it against `MenuStyle.base_screen()` beside the width. Before the fix below it failed at 744 px of 648.
+- **Height given back without losing a word:**
+  - the Völva's description and exit are cut to the other classes' length;
+  - the portrait banner is drawn at 0.42 of its width, from 0.5;
+  - the Húskarl's exit loses one line (*"Loud; the Hunt finds them."*);
+  - the title's spacing goes from 14 to 8 px.
+
+**Measured:** `--threshold-probe` passes: 1152 px of 1152 across and 642 of 648 down. In `--screens-shot` all four cards are whole, with every word inside the frame.
+
+**Owed:** 6 px of headroom is all a fifth class leaves, and the next one will need a second row or a scroll. The probe will say so the day it happens.
+
 *Entries below to be added as design decisions are signed off.*

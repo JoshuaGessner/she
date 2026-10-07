@@ -56,6 +56,13 @@ so `BodyRig.wear` can dress it as gear.
   the hood's back; the hide is thickened down the nape.
 - **`hunter_hood_worn`, the Veiðimaðr.** A hood and shoulder-cape with a
   liripipe tail, cut after the Skjoldehamn find, in weathered wool.
+- **`volva_mantle_worn`, the Völva** (ADR-379). Þorbjörg's dress in Eiríks
+  saga ch. 4: a blue mantle hung wide of an ankle-length gown, open down the
+  front and falling to the calf behind; a hood of black lambskin; glass beads
+  across the breast, which the gilt pass picks out. The first review hung the
+  mantle as a narrow slab down the back, which read as a pack. It is now a
+  shell around the gown, open in front. The hood is thickened over the braid
+  as the wolf-coat's is.
 
 The Húskarl has none: a byrnie and round shield already make its outline.
 `--fury-probe` row 8 asks every class with a dress to wear it, and the
@@ -64,6 +71,8 @@ The Húskarl has none: a byrnie and round shield already make its outline.
 - [Wolf-coat fit](../../source_art/characters/wolf_coat_worn_review.png)
 - [Wolf-coat from behind](../../source_art/characters/wolf_coat_worn_rear_review.png)
 - [Hunter's hood fit](../../source_art/characters/hunter_hood_worn_review.png)
+- [Völva's mantle fit](../../source_art/characters/volva_mantle_worn_review.png)
+- [Völva's mantle from behind](../../source_art/characters/volva_mantle_worn_rear_review.png)
 
 ## The body under the gear (ADR-308)
 
@@ -89,6 +98,7 @@ human in the game. The body and all three worn pieces are now sculpted through
 | `otr_pelt_worn` | 9,000 | `build_worn.py` |
 | `wolf_coat_worn` | 9,000 | `build_worn.py` |
 | `hunter_hood_worn` | 9,000 | `build_worn.py` |
+| `volva_mantle_worn` | 8,989 | `build_worn.py` |
 
 - **The body** is a tunic to mid-thigh with fitted sleeves to the wrist,
   trousers, leg wraps, turnshoes, a belt, and hair bound back with a braid.

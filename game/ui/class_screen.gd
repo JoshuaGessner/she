@@ -42,11 +42,15 @@ const MARGIN: float = 48.0
 ## the first time the row was wider than the window).
 const CARD_WIDTH: float = 420.0
 const CARD_GAP: float = 24.0
+## The portrait banner's height over its width.
+const BANNER: float = 0.42
 
 ## The width every card is drawn at, for this many of them.
 var _card_width: float = CARD_WIDTH
 ## The row of cards, for `width_needed`.
 var _row: HBoxContainer = null
+## Everything stacked down the screen, for `height_needed`.
+var _column: VBoxContainer = null
 
 
 func _ready() -> void:
@@ -62,13 +66,14 @@ func _ready() -> void:
 
 	var column := VBoxContainer.new()
 	column.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	column.add_theme_constant_override("separation", 14)
+	column.add_theme_constant_override("separation", 8)
 	column.alignment = BoxContainer.ALIGNMENT_CENTER
 	column.offset_left = MARGIN
 	column.offset_right = -MARGIN
 	column.offset_top = MARGIN
 	column.offset_bottom = -MARGIN
 	add_child(column)
+	_column = column
 
 	column.add_child(MenuStyle.title("WHO GOES DOWN"))
 	# The cost stated before the choice rather than after it. `PRO-005` is
@@ -118,6 +123,15 @@ func width_needed() -> float:
 	return (_row.get_combined_minimum_size().x if _row != null else 0.0) + MARGIN * 2.0
 
 
+## **And how tall** (ADR-380): the title, the line under it and the tallest
+## card, with the margins. Width alone was asked, and the fourth card fitted
+## across at 1152 while the Völva's exit ran off the bottom of the window —
+## narrower cards wrap to more lines, so a row that fits across can stop
+## fitting down.
+func height_needed() -> float:
+	return (_column.get_combined_minimum_size().y if _column != null else 0.0) + MARGIN * 2.0
+
+
 ## One class, led by how it gets out (`DES-011`).
 func _card(entry: ClassResource) -> Control:
 	var plate := PanelContainer.new()
@@ -134,7 +148,10 @@ func _card(entry: ClassResource) -> Control:
 		face.texture = entry.portrait
 		face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		face.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
-		face.custom_minimum_size = Vector2(_inner_width(), (_inner_width()) * 0.5)
+		# A little wider than 2:1 (ADR-380): with four lives the cards narrow
+		# and every line of text wraps once more, and the banner is the part
+		# that can give height back without losing a word.
+		face.custom_minimum_size = Vector2(_inner_width(), _inner_width() * BANNER)
 		face.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		card.add_child(face)
 
