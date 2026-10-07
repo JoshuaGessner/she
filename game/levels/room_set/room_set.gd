@@ -6839,6 +6839,8 @@ var _probe_struck: Dictionary = {}
 var _probe_guard: Dictionary = {}
 ## What the fury looked like on each side once the host wrote it (ADR-368).
 var _probe_fury: Dictionary = {}
+## What a client's Seiðr read, as each peer holds it (ADR-379).
+var _probe_seidr: Dictionary = {}
 const PROBE_STRIKE: float = 10.0
 
 
@@ -7158,6 +7160,31 @@ func _coop_probe(out: String) -> void:
 		# them most runs. Waiting on the host's end puts both peers back on
 		# one clock.
 		await _hold_until(func() -> bool: return mine.fury <= 0.0, 3.0)
+	# **A client's reading is the host's to make** (ADR-379). The host swears
+	# the client's body a Völva; the client holds its own craft key; the host
+	# runs the trance and says what was seen, and both peers hold the same
+	# marks. Each side waits on the other's event, never on a clock (ADR-378).
+	if host:
+		var seer: Player = _client_body()
+		var was_sworn: StringName = seer.sworn if seer != null else &""
+		if seer != null:
+			seer.sworn = &"volva"
+			await _hold_until(func() -> bool:
+				return is_instance_valid(seer) and not seer.sight.marks.is_empty(),
+				Config.tuning.seidr_seconds + 5.0)
+			_probe_seidr = _probe_sight_state(seer)
+			seer.sworn = was_sworn
+	else:
+		await _hold_until(func() -> bool: return mine.sworn == &"volva", 3.0)
+		Input.action_press("verb")
+		var deepest: Array[float] = [0.0]
+		await _hold_until(func() -> bool:
+			deepest[0] = maxf(deepest[0], mine.trance)
+			return not mine.sight.marks.is_empty(), Config.tuning.seidr_seconds + 5.0)
+		Input.action_release("verb")
+		_probe_seidr = _probe_sight_state(mine)
+		_probe_seidr["trance"] = deepest[0]
+		await _hold_until(func() -> bool: return mine.sworn != &"volva", 3.0)
 	if not host:
 		mine.struck.disconnect(on_struck)
 	if host:
@@ -7372,6 +7399,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"struck": _probe_struck,
 		"guard": _probe_guard,
 		"fury": _probe_fury,
+		"seidr": _probe_seidr,
 		# What this peer heard, by sound name (ADR-311).
 		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,
@@ -7521,6 +7549,15 @@ func _probe_ping_state() -> Dictionary:
 			"at": [at.x, at.y, at.z],
 		}
 	return out
+
+
+## The marks a body's sight holds, by kind name, for the co-op report.
+func _probe_sight_state(body: Player) -> Dictionary:
+	var kinds: Array[String] = []
+	for seen: Dictionary in body.sight.marks:
+		kinds.append(Pinger.NAMES[int(seen["kind"])])
+	kinds.sort()
+	return {"kinds": kinds, "spent": body.sight_spent}
 
 
 ## Whether `body` carries something that mends (ADR-378's binding wait).

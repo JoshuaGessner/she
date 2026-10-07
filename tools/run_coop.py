@@ -445,6 +445,21 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"client sees fury {fury_client.get('fury', 0.0):.1f} owed {fury_client.get('owed', 0.0):.0f}; "
         f"host still {fury_host.get('fury', 0.0):.1f} owed {fury_host.get('owed', 0.0):.0f}"))
 
+    # A client's reading is the host's (ADR-379): the client held its own key,
+    # the host ran the trance and said what was seen, and both peers hold the
+    # same marks — the loot and the way out at least, and the sight spent.
+    seidr_host = host.get("seidr", {})
+    seidr_client = client.get("seidr", {})
+    seen_client = seidr_client.get("kinds", [])
+    rows.append(check(
+        "a client's reading reaches both peers",
+        "loot" in seen_client and "way" in seen_client
+        and seen_client == seidr_host.get("kinds", [])
+        and seidr_client.get("trance", 0.0) > 0.0
+        and seidr_host.get("spent", 0.0) > 0.0,
+        f"client {','.join(seen_client) or 'nothing'} (trance {seidr_client.get('trance', 0.0):.2f}); "
+        f"host {','.join(seidr_host.get('kinds', [])) or 'nothing'}"))
+
     # What the client heard (ADR-311). The host decides a pickup and a blow,
     # and played their sounds where it decided them — so a client never heard
     # its own loot go into the bag, nor itself hurt.
