@@ -12733,4 +12733,23 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Honest scale:** nobody has heard it. A synthesised voice is the thing most likely to sound like a synthesiser, and it is a human's call. It is one table entry to replace with a recording.
 
+## ADR-359 — The Lodge's board fits its window: cards sized from the screen and the plate, not remembered
+
+**Date:** 2026-10-06 · **Status:** accepted · **Fixes a layout fault made worse by ADR-341**
+
+**Context:**
+- **The board scrolled sideways.** At 1152×648 its two 540 px columns, the 32 px gap, the 40 px margins and the scrollbar came to about 1,204 px, so the board had a horizontal scrollbar.
+- **Then ADR-341 made it worse.** The forged plates' margins grew from 16 to 25 px, while the cards' inner width was still `ROW_WIDTH − 2 × CARD_PAD`, a padding remembered as 20. So every card's contents were wider than the card, each card grew, and the longest favour, *The plans: where each floor's Prize and Shaft lie*, ran off its card.
+- **Why nothing failed.** `--board-probe` runs headless in a 64 px viewport and could not see it. It was found in a `--board-shot` review.
+
+**Decision:**
+- **A card is as wide as half the 1,152 px window allows**: at most 540 px, here 512.
+- **What is inside it is measured from the plate's own stylebox margins.** `CARD_PAD` is gone, the same rule ADR-140 applied to the bag.
+- **The take and favour buttons wrap a long title** instead of widening the card.
+
+**Measured:**
+- `--board-shot`: no sideways scroll, and the long favour wraps onto two lines inside its card.
+- **New `--board-probe` row** (`LodgeScreen.width_needed()`, read from the built columns' combined minimum size, the margins and the scrollbar): **1,152 px needed of 1,152**. The old 540 px cards measure 1,208 and fail it.
+- `--threshold-probe` passes.
+
 *Entries below to be added as design decisions are signed off.*

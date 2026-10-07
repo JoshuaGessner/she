@@ -23,8 +23,17 @@ extends Control
 ## about the first number.
 
 const MARGIN: float = 40.0
+## The widest a card is drawn, and the gap between the two columns.
 const ROW_WIDTH: float = 540.0
-const CARD_PAD: float = 20.0
+const COLUMN_GAP: float = 32.0
+## **Fitted to the window it is laid out for** (ADR-359). Two 540 px columns,
+## the gap, the margins and the scrollbar came to 1,204 px in a 1,152 px window,
+## so the board scrolled sideways and a favour's name ran off its card — worse
+## once the forged plates' margins grew (ADR-341). The card is now as wide as
+## half the smallest window allows, and what is inside it is measured from the
+## plate's own stylebox rather than from a padding remembered here.
+const SCREEN_WIDTH: float = 1152.0
+const SCROLLBAR: float = 16.0
 
 var _column: VBoxContainer = null
 
@@ -72,7 +81,7 @@ func _redraw() -> void:
 	# same way, as things laid out to compare, not a list to scroll.
 	var halves := HBoxContainer.new()
 	halves.alignment = BoxContainer.ALIGNMENT_CENTER
-	halves.add_theme_constant_override("separation", 32)
+	halves.add_theme_constant_override("separation", int(COLUMN_GAP))
 	_column.add_child(halves)
 	var work := VBoxContainer.new()
 	work.add_theme_constant_override("separation", 12)
@@ -106,12 +115,35 @@ func _offer_label(offer: Contract, lodge: FactionResource) -> String:
 		lodge.favour_for(offer.grade)]
 
 
+## **How wide the board needs to be**, measured from what was built (ADR-359):
+## the two columns' combined minimum, the margins and the scrollbar. For
+## `--board-probe`, which compares it with the window the board is laid out for.
+func width_needed() -> float:
+	for child: Node in _column.get_children():
+		var halves := child as HBoxContainer
+		if halves != null:
+			return halves.get_combined_minimum_size().x + MARGIN * 2.0 + SCROLLBAR
+	return 0.0
+
+
+## How wide a card is, and how wide what is inside it may be (ADR-359).
+func row_width() -> float:
+	return minf(ROW_WIDTH, floorf((SCREEN_WIDTH - MARGIN * 2.0 - COLUMN_GAP - SCROLLBAR) * 0.5))
+
+
+func inner_width() -> float:
+	var plate: StyleBox = get_theme_stylebox(&"panel", MenuStyle.SLATE)
+	var pad: float = plate.get_margin(SIDE_LEFT) + plate.get_margin(SIDE_RIGHT) \
+		if plate != null else 0.0
+	return row_width() - pad
+
+
 ## A notice pinned to the board (ADR-291): its title is the choice, then where
 ## and what it pays, then what they said, then where you stand with it.
 func _card() -> Array:
 	var plate := PanelContainer.new()
 	plate.theme_type_variation = MenuStyle.SLATE
-	plate.custom_minimum_size = Vector2(ROW_WIDTH, 0.0)
+	plate.custom_minimum_size = Vector2(row_width(), 0.0)
 	var row := VBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	plate.add_child(row)
@@ -126,7 +158,9 @@ func _offer_row(offer: Contract, lodge: FactionResource) -> Control:
 	var take: Button = MenuStyle.button(("Put it back — " if held else "") + offer.title())
 	take.set_meta(&"lodge_offer", _offer_label(offer, lodge))
 	take.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	take.custom_minimum_size = Vector2(ROW_WIDTH - CARD_PAD * 2.0, 38.0)
+	take.custom_minimum_size = Vector2(inner_width(), 38.0)
+	# A long title wraps rather than widening the card past its column.
+	take.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	take.disabled = refused != ""
 	take.pressed.connect(func() -> void: _toggle(offer))
 	row.add_child(take)
@@ -137,7 +171,7 @@ func _offer_row(offer: Contract, lodge: FactionResource) -> Control:
 	row.add_child(terms)
 	var said: Label = MenuStyle.line(offer.brief(), MenuStyle.BODY_TEXT)
 	said.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
-	said.custom_minimum_size = Vector2(ROW_WIDTH - CARD_PAD * 2.0, 0.0)
+	said.custom_minimum_size = Vector2(inner_width(), 0.0)
 	row.add_child(said)
 	if held:
 		var taken: Label = MenuStyle.line("taken — failing it costs %d trust" % lodge.trust_lost,
@@ -157,7 +191,8 @@ func _favour_row(offered: FavourResource) -> Control:
 	var refused: String = GameState.why_not_favour(offered)
 	var ask: Button = MenuStyle.button(_favour_label(offered))
 	ask.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	ask.custom_minimum_size = Vector2(ROW_WIDTH - CARD_PAD * 2.0, 34.0)
+	ask.custom_minimum_size = Vector2(inner_width(), 34.0)
+	ask.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	ask.disabled = refused != ""
 	ask.pressed.connect(func() -> void: _ask(offered))
 	row.add_child(ask)

@@ -1005,6 +1005,14 @@ func _board_probe() -> void:
 		_report_board(problems)
 		return
 
+	# ─ the board fits the window it is laid out for (ADR-359) ─
+	await get_tree().process_frame
+	var needed: float = board.width_needed()
+	print("[board] the width     %.0f px needed of %.0f" % [needed, LodgeScreen.SCREEN_WIDTH])
+	if needed <= 0.0 or needed > LodgeScreen.SCREEN_WIDTH:
+		problems.append("the board needs %.0f px in a %.0f px window, so it scrolls sideways"
+			% [needed, LodgeScreen.SCREEN_WIDTH])
+
 	# ─ 2. three on the board, and two hands ─
 	var offers: Array[Contract] = GameState.board()
 	var took: Array[bool] = []
