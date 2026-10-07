@@ -61,6 +61,12 @@ var _refused: float = 0.0
 ## at runtime, so the connection is remade whenever the body changes rather than
 ## once in `_ready` — the fault `_body_to_read` exists for, in signal form.
 var _listening: MeleeWeapon = null
+## The body whose `waystone_held` this listens to, remade like `_listening`.
+var _listening_body: Player = null
+## Seconds left on the line saying the fury holds the Waystone (ADR-371).
+var _held: float = 0.0
+## How long that line stands: long enough to read, gone before it is noise.
+const HELD_SECONDS: float = 1.5
 ## The progress the last frame's ring was drawn at, 0 for none. Written **inside
 ## the draw**, so `--use-probe` asks what reached the screen rather than what the
 ## body knows — the two disagreed for every Waystone spent with nothing in reach.
@@ -134,6 +140,7 @@ func _process(delta: float) -> void:
 	_body = _body_to_read()
 	_listen_for_refusals()
 	_refused = maxf(0.0, _refused - delta * 4.0)
+	_held = maxf(0.0, _held - delta)
 	var reaching: WorldItem = null
 	var hidden: bool = true
 	_shaft = null
@@ -173,6 +180,10 @@ func _process(delta: float) -> void:
 		# after.
 		if _shaft.fury_in_the_party():
 			_name.text = tr("shaft.fury_holds") % verb
+	elif _held > 0.0:
+		# **Why the Waystone did nothing** (ADR-371), after the Shaft because
+		# standing in the way out says the same thing louder.
+		_name.text = tr("waystone.fury_holds")
 	elif _offer != "":
 		# **After the Shaft, before an item.** The way out still speaks first;
 		# an offer is a fixture of the room and a loose coin is not, so a room
@@ -213,6 +224,13 @@ func _process(delta: float) -> void:
 ## be to a weapon that is freed a room later. Same lifetime problem
 ## `_body_to_read` was written for, in signal form rather than in pointer form.
 func _listen_for_refusals() -> void:
+	if _body != _listening_body:
+		_listening_body = _body
+		_held = 0.0
+		if _body != null:
+			_body.waystone_held.connect(func() -> void:
+				_held = HELD_SECONDS
+				_refused = 1.0)
 	var weapon: MeleeWeapon = _body.weapon if _body != null else null
 	if weapon == _listening:
 		return

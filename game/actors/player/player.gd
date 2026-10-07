@@ -102,6 +102,11 @@ signal extracted(player: Player)
 ## life ends up is the level's business and the body is past having opinions.
 signal died_here(player: Player, at: Vector3)
 
+## **The Waystone key, pressed in a fury** (ADR-371), raised on the peer playing
+## it. ADR-370 closed the road, and a key that does nothing reads as a broken
+## key; the reticle says why.
+signal waystone_held
+
 ## **A blow landed on this body** (ADR-310), raised on the peer playing it:
 ## what got through, where it came from (`Vector3.INF` when nothing in the world
 ## struck it), and what a raised guard took off it.
@@ -1406,6 +1411,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		# does not need a binding of its own.
 		if is_downed():
 			ask_to_self_recover()
+		elif fury > 0.0:
+			if inventory.waystone() != null:
+				waystone_held.emit()
 		else:
 			ask_to_spend_waystone()
 	elif event.is_action_pressed("shutter") and _driving and not is_incapacitated():

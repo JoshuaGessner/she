@@ -12972,4 +12972,18 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Owed:** pressing the Waystone key in the fury does nothing visibly. The brief and the ember edge say what the fury is, but not that this key is closed. Filed in the autopilot backlog.
 
+## ADR-371 — The Waystone key in a fury says why it does nothing
+
+**Date:** 2026-10-07 · **Status:** accepted · **Pays the debt ADR-370 filed**
+
+**Context:**
+- **A key that does nothing reads as a broken key.** ADR-370 refuses a Waystone in a fury. The press was silent: no ring, no sound, no line. The Shaft already says *"the fury will not go down until it has run out"* (ADR-352). The Waystone, the other way out, said nothing. `DES-018` asks every refusal to be seen, and `PRO-005`'s one-sentence death needs the player to know the road was shut, not that the key failed.
+
+**Decision:**
+- **The owner's body raises `waystone_held`** when the key is pressed in a fury with a stone in the bag. With no stone there is nothing to refuse, so it stays quiet as before.
+- **The reticle shows *"the fury will not let you leave until it has run out"* for 1.5 s** ⟨tune⟩ and makes the same inward flinch as an empty-handed swing (ADR-140). The line ranks after the Shaft, which says the same thing louder, and before an offer or an item name.
+- **The signal is raised on the owner's peer, with no RPC.** The refusal is the owner's own key, and the host refuses the spend separately (ADR-370).
+
+**Measured:** `--fury-probe` row 9b presses the real key through `Input.parse_input_event` in a fury. The reticle reads the line from the string table, and the channel stays at 0.00. The row also fails on an untranslated key, which it first passed by comparing `tr()` with `tr()` before the CSV was imported.
+
 *Entries below to be added as design decisions are signed off.*

@@ -16834,8 +16834,31 @@ func _fury_probe() -> void:
 			% [held, went])
 		if held > 0.0 or went <= 0.0:
 			problems.append("the Shaft took a body mid-fury, or would not take it after")
-	# ─ 9b. nor up the Waystone's road (ADR-370) ─
+	# ─ 9b. nor up the Waystone's road (ADR-370), and the key says so (ADR-371) ─
+	body.teleport(striker.global_position + Vector3(0.0, 0.1, 2.0), 0.0)
+	await _hold(0.2)
 	body.inventory.add(ItemCatalogue.by_id(&"con_waystone"))
+	body.fury = 3.0
+	var stone_key := InputEventAction.new()
+	stone_key.action = &"use_waystone"
+	stone_key.pressed = true
+	Input.parse_input_event(stone_key)
+	# The event is dispatched a frame on, and the reticle reads it the frame
+	# after that.
+	for _i: int in 4:
+		await get_tree().process_frame
+	var said: String = ""
+	for node: Node in find_children("*", "Control", true, false):
+		var mark := node as Reticle
+		if mark != null:
+			said = mark.showing()
+	var key_up := InputEventAction.new()
+	key_up.action = &"use_waystone"
+	Input.parse_input_event(key_up)
+	print("[fury] waystone said '%s', channel %.2f" % [said, body._spending])
+	if said != tr("waystone.fury_holds") or said == "waystone.fury_holds" \
+			or body._spending > 0.0:
+		problems.append("the Waystone key in the fury did not say why it did nothing: '%s'" % said)
 	body.fury = 3.0
 	body.ask_to_spend_waystone()
 	var refused: bool = body._spending <= 0.0
