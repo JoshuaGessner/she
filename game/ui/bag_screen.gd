@@ -600,6 +600,18 @@ func overflowing() -> PackedStringArray:
 			spilled.append("%s's weight is %.0f px in %.0f px: %s" % [
 				item.definition.id, drawn_at, cell_room, weight])
 
+	# **And no name cut to its tile** (ADR-375): whole or absent, for every
+	# item there is, not only the ones in this bag.
+	for definition: ItemResource in ItemCatalogue.all():
+		var thing: ItemInstance = ItemInstance.of(definition, 0)
+		var called: String = tile_name(thing, -1, font)
+		var tile_room: float = thing.footprint().x * (CELL + GAP) - GAP - 8.0
+		var wide: float = font.get_string_size(
+			called, HORIZONTAL_ALIGNMENT_LEFT, -1, CELL_TEXT).x
+		if (called != "" and called != thing.label(-1)) or wide > tile_room:
+			spilled.append("%s's tile name is '%s', %.0f px in %.0f px" % [
+				definition.id, called, wide, tile_room])
+
 	# **And whether the panel's own frame is drawn over the last line**
 	# (`M4-T05`). Same shape of fault as the blurb above, with the overdrawing
 	# done by the border rather than by other text: the second prompt's
@@ -1000,7 +1012,8 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 		draw_rect(rect, Color(cell, cell.a * alpha))
 		draw_rect(rect, Color(line, line.a * alpha), false, 2.0)
 	var one_row: bool = item.footprint().y == 1
-	var icon_top: float = 5.0 if one_row else 20.0
+	var called: String = "" if one_row else tile_name(item, seat, font)
+	var icon_top: float = 20.0 if called != "" else 5.0
 	var icon_bottom: float = 16.0
 	_draw_icon(item.definition.icon,
 		Rect2(rect.position + Vector2(5.0, icon_top),
@@ -1022,9 +1035,9 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	# and its weight.  Hover still gives its complete name and description below;
 	# taller things keep their label above the icon.
 	var text_colour := Color(palette()[&"text"] as Color, alpha)
-	if not one_row:
-		draw_string(font, rect.position + Vector2(5.0, 16.0), item.label(seat),
-			HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0, CELL_TEXT, text_colour)
+	if called != "":
+		draw_string(font, rect.position + Vector2(5.0, 16.0), called,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, CELL_TEXT, text_colour)
 	# **The unit is dropped in a one-cell footprint** (ADR-140). `0.04 kg` is
 	# 40 px of text in 36 px of cell and rendered as `0.04 k`, which reads as a
 	# rendering bug rather than as a weight. Every number in this panel is
@@ -1036,6 +1049,19 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	draw_string(font, rect.position + Vector2(5.0, rect.size.y - 6.0),
 		weight, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 8.0,
 		CELL_TEXT, Color(palette()[&"dim"] as Color, alpha))
+
+
+## **A tile's name, whole or not at all** (ADR-375). A one-cell Waystone read
+## *"Wayst"*, and a cut word reads as a broken renderer (ADR-140's phrase).
+## Diablo's and Path of Exile's grids carry no names at all; here a name that
+## fits its tile is kept, because a two-cell *Seax* is quicker read than drawn,
+## and one that does not gives its room to the icon. The card has every name.
+func tile_name(item: ItemInstance, seat: int, font: Font) -> String:
+	var called: String = item.label(seat)
+	var room: float = item.footprint().x * (CELL + GAP) - GAP - 8.0
+	if font.get_string_size(called, HORIZONTAL_ALIGNMENT_LEFT, -1, CELL_TEXT).x > room:
+		return ""
+	return called
 
 
 ## Fit the SVG's own proportions inside the space left by the item's text and

@@ -13033,4 +13033,18 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** `--bagui-probe` passes. In `--bag-shot` at 1152 × 648, *off hand* sits under its slot and inside the figure's frame, and the card's kind line reads in full.
 
+## ADR-375 — A bag tile's name is whole or absent
+
+**Date:** 2026-10-07 · **Status:** accepted · **Found in ADR-374's screenshot**
+
+**Context:**
+- **"Wayst".** A tile drew its item's name clipped to the tile's width, so the one-cell-wide Waystone read *"Wayst"* every time the bag opened with one in it. ADR-140 dropped the *kg* from a one-cell weight for exactly this reason: a cut word reads as a broken renderer rather than as a short space.
+- **The references draw no names at all.** Diablo II and IV, Path of Exile and Last Epoch put an icon in a grid cell and the name in the tooltip. Here the card (ADR-363) already carries every name in full.
+
+**Decision:**
+- **`BagScreen.tile_name` returns the label when it fits the tile, and nothing when it doesn't.** A name that fits is kept, because a two-cell *Seax* is read faster than its icon is recognised. One that doesn't fit gives its row to the icon. An ember's seat marks (`DES-012`) stay, because its tile is two cells wide and *"Ember ····"* fits.
+- **`overflowing()` asks it of every item in the catalogue**, not only the bag's: whole or absent, and never wider than the tile.
+
+**Measured:** `--bagui-probe` passes. In `--bag-shot` at 1152 × 648 the Waystone is an icon alone, *Seax* and *Altar-Plate* keep their names, and the card under the cursor is unchanged.
+
 *Entries below to be added as design decisions are signed off.*
