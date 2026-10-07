@@ -130,6 +130,11 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Rite themes:** carrying capacity, lockpicking, cache mastery, disarming grave-curses, finding hidden ways.
 **Cost:** the greed class in a game about greed punishing you. Their strengths actively tempt them into the exact behaviour that gets people killed.
 
+> **Being built at `M4-T36` (ADR-382): what is shut is hers to break, and everyone hears it.** *Appraise* as written is a card every class already reads (ADR-363) plus a curse reader with no curses until the Barrow-Fields. So the verb is the class's name:
+> - **Haugbrot.** Hold the craft key at what is shut — a locked door without its key, a barred door from the wrong side, the barrow once it has shut (ADR-381, ADR-242) — and the ring fills over 4 s ⟨tune⟩. A step or a blow breaks it off. **Loud** as a spent Waystone: the greed draws the Hunt. A broken door stays open.
+> - **The Rite (pact rank 3):** **Appraise**, the exact figure at her hands · **Grave-Sense** *(after Appraise)*, the barrow marked from anywhere on its floor · **Wedge**, a door she broke can be shut again behind her · **The Long Pry** *(after Wedge)*, a blow does not break off her breaking.
+> - **Not built:** curses, until the Barrow-Fields (`M5-T02`).
+
 ---
 
 ## Availability

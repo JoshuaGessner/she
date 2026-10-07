@@ -13170,4 +13170,35 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured, to be:** a census over the plan probe's seeds (every key gate a door, every lock-and-key floor a key, none behind its own door), and `--lock-probe` on a booted floor (shut, refused without the key, opened with it, an enemy able to path through after and not before, and a co-op row).
 
+## ADR-382 — The Haugbrjótr: what is shut is hers to break, and everyone hears it
+
+**Date:** 2026-10-07 · **Status:** accepted. Made unattended: the developer asked for the planned classes to be researched and built one at a time, and every number is ⟨tune⟩. · **Amends `DES-011` §6, opens `M4-T36` (pulled forward from `M5-T01`)**
+
+**Context:**
+- **Appraise, as written, is mostly already in the game.** `DES-011` gives the Haugbrjótr *"instantly read an item's true value, curse, and tribute worth. Also opens what is locked."*
+  - Tribute worth is on every item's card for every class (ADR-363), in words.
+  - Curses do not exist. They arrive with the Barrow-Fields' grave-goods (`DES-008`), which is `M5-T02`.
+  - So a verb built as written would be a card everyone already has, plus a curse reader with nothing to read.
+- **What is left is the class's name.** *Haugbrjótr* is *mound-breaker*. Since ADR-381 the Delvings have things that are shut: a locked door whose key is elsewhere, and a shortcut barred from its deep side. Since ADR-242 there is a barrow that grinds open once and shuts with its find still inside.
+
+**Research:**
+- **Grettis saga ch. 18.** Grettir breaks into Kárr the Old's mound by night, fights the *haugbúi* in the dark and comes up with the treasure. Breaking in is the deed, and the noise and the dead are its price. *Hrómundar saga Gripssonar* (Þráinn's mound) and *Harðar saga* (Sóti's) tell the same story: the mound-breaker goes where the door was made to keep everyone out.
+- **Darkest Dungeon's Grave Robber.** She is the class that takes more from the same room, and the game charges her for it in stress and danger rather than in numbers.
+- **Thief's lockpicks.** Opening a lock is a held, interruptible act whose cost is time spent exposed. Our snare and trance already speak that grammar.
+- **Barony's rogue.** It opens what the others have to go round.
+
+**Decision — Haugbrot:**
+- **Hold the craft key at what is shut to break it:** a locked door without its key, a barred door from the wrong side, and the barrow once it has shut. The ring fills over 4 s ⟨tune⟩. A step or a blow breaks it off, and letting go abandons it.
+- **Loud.** Breaking is the loudest thing a delver does short of a horn: a clamor burst as the Waystone's, laid where she stands. The Hunt is drawn to the greed, which is `DES-011`'s cost for this class: *their strengths actively tempt them into the exact behaviour that gets people killed.*
+- **The door stays broken**, open for the party, as a key would leave it. The host decides it, through the door's own rule (ADR-381).
+
+**Decision — the Rite (4 nodes, opening at Pact Rank 3; her Aspects Hoard, Wing and Scale are all written):**
+Each node lets her do something new rather than making a number bigger (ADR-058). *Breaking is quieter* and *carry more* fail that test, so neither is here.
+- **Appraise.** The exact tribute figure for whatever is at her hands, where every other class reads only the band. `DES-011`'s verb, kept as what it adds.
+- **Grave-Sense** *(after Appraise)*. The barrow's glow (ADR-242) is marked at the screen's edge from anywhere on its floor, as a ping is. Finding the hidden way.
+- **Wedge.** A door she broke can be shut again behind her: a locked door to put between the party and what follows. It is new, and it costs the time to shut it.
+- **The Long Pry** *(after Wedge)*. A blow does not break off her breaking. The blow still lands (Varðlokkur's and Knot Holds' shape).
+
+**Not built:** curses, until the Barrow-Fields.
+
 *Entries below to be added as design decisions are signed off.*
