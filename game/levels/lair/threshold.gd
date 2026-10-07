@@ -805,6 +805,14 @@ func _threshold_probe() -> void:
 		var picking: ClassScreen = null
 		for node: Node in shown.find_children("*", "ClassScreen", true, false):
 			picking = node as ClassScreen
+		# **Every life fits the window** (ADR-361), measured from the cards built.
+		if picking != null:
+			var wide: float = picking.width_needed()
+			print("[camp] the lives     %d card(s), %.0f px needed of %.0f" % [
+				ClassCatalogue.all().size(), wide, ClassScreen.SCREEN.x])
+			if wide <= 0.0 or wide > ClassScreen.SCREEN.x:
+				problems.append("the class screen needs %.0f px in a %.0f px window"
+					% [wide, ClassScreen.SCREEN.x])
 		if picking == null or not picking.press(&"huskarl"):
 			problems.append("the Legacy flow never reached a class to swear, so "
 				+ "the rows below are about nothing")

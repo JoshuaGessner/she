@@ -12768,4 +12768,24 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 - It reads 51 keys from code and 197 from data, and all are present.
 - **Planted:** deleting `doll.health` from the table fails with *game/ui/bag_screen.gd asks for `doll.health`, which en.csv does not have*.
 
+## ADR-361 — The class screen fits its window, and says so: cards measured from the plate, the row from what was built
+
+**Date:** 2026-10-07 · **Status:** accepted · **Found by a test added in the tests-and-verification review**
+
+**Context:**
+- **The class screen had no fit check.** The tests review (ADR-360's) found nothing asked whether the class row fits its window. ADR-345 had fitted the cards to the screen by arithmetic, and it grows with `M5-T01`.
+- **The first check found a real fault.** It measured **1,182 px of cards in a 1,152 px window**.
+- **The cause was ADR-359's bug again.** Each card's contents were sized at the card's width less 40 px, the old plate's padding. The forged plate's (ADR-341) is 50, so every card grew ten pixels past the width the row was fitted to, and three spilled 30 px into the screen's iron frame.
+- **The screenshot was misleading.** It looked almost right, because the overflow fell under the frame.
+
+**Decision:**
+- **A card's contents are sized from the plate's own stylebox margins** (`_inner_width()`), the rule ADR-359 applied to the Lodge.
+- **`ClassScreen.width_needed()`** measures the built row's combined minimum width plus the margins.
+- **`--threshold-probe`** reads it where the Legacy flow reaches the class screen. A fourth class at `M5-T01` will fail this row, which is the day the screen needs a second row.
+
+**Measured:**
+- `--threshold-probe`: 1,182 px needed of 1,152 before the fix (FAIL), 1,152 of 1,152 after.
+- `--menu-probe` and `--lineage-probe` pass.
+- `--screens-shot`: three cards inside the frame with even gaps.
+
 *Entries below to be added as design decisions are signed off.*
