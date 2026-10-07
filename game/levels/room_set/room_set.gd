@@ -782,6 +782,7 @@ func _ready() -> void:
 		_floor = rolled
 		print("[delvings] seed %d, floor %d" % [_run_seed, depth])
 	AudioDirector.enter("deep")
+	Foley.warm()
 	_build_lighting()
 	_floor.build(_world)
 	_spawn_actors()
@@ -3786,17 +3787,35 @@ func _ear_probe() -> void:
 	# synthesis to a recording leaves its render behind it; a caller still
 	# asking for the render gets silence, which nobody hears go missing — the
 	# Hunter's heave did exactly that until this row.
+	# **And made before anything played them** (ADR-377): the floor's own
+	# build warmed them, so the first howl and the first ember cost no frame.
+	var cold: PackedStringArray = PackedStringArray()
+	for sound: int in Foley.Sound.size():
+		if not Foley.is_warm(sound):
+			cold.append(Foley.Sound.keys()[sound])
+	print("[ear] warm         %d of %d made at load%s" % [Foley.Sound.size() - cold.size(),
+		Foley.Sound.size(), "" if cold.is_empty() else ", cold: " + ", ".join(cold)])
+	if not cold.is_empty():
+		problems.append("cues still made in the frame they first play: " + ", ".join(cold))
+	# **Every take, not the one the rotation hands out** (ADR-377). This asked
+	# `stream_for` once per sound and so checked whichever take came up — warming
+	# the cues moved the rotation, and four CLICK takes nobody had ever asked
+	# about came up 7-22 ms long. They are real clicks (`foley_measurements.txt`:
+	# peaks 0.55-0.77), so the floor is an empty file's length, not a sound's.
 	var silent: PackedStringArray = PackedStringArray()
 	for sound: int in Foley.Sound.size():
-		var stream: AudioStream = Foley.stream_for(sound)
-		var mute: bool = stream == null or stream.get_length() < 0.05
-		var wav := stream as AudioStreamWAV
-		if not mute and wav != null:
-			mute = true
-			for at: int in range(0, wav.data.size() - 1, 2):
-				if absi(wav.data.decode_s16(at)) > 64:
-					mute = false
-					break
+		var streams: Array = Foley._recorded(sound) if Foley.RECORDED.has(sound) \
+			else [Foley.stream_for(sound)]
+		var mute: bool = streams.is_empty()
+		for stream: AudioStream in streams:
+			mute = mute or stream == null or stream.get_length() < 0.005
+			var wav := stream as AudioStreamWAV
+			if not mute and wav != null:
+				mute = true
+				for at: int in range(0, wav.data.size() - 1, 2):
+					if absi(wav.data.decode_s16(at)) > 64:
+						mute = false
+						break
 		if mute:
 			silent.append(Foley.Sound.keys()[sound])
 	print("[ear] every sound  %d of %d make one%s" % [Foley.Sound.size() - silent.size(),

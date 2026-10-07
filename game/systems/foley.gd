@@ -133,6 +133,31 @@ static func flat(host: Node, sound: Sound, pitch: float = 1.0) -> void:
 	player.finished.connect(player.queue_free)
 
 
+## **Every cue made before it is needed** (ADR-377): each synthesis rendered and
+## each recorded take loaded, once a session, while a floor is being built.
+## Both were made in the frame a sound first played, so the first fury's howl
+## spent 8.6 ms rendering itself, and the first ember 6.3 ms: a dropped frame
+## on every peer at the two moments a hitch is most felt. The caches are static,
+## so every floor after the first finds them already full.
+##
+## Loops are left out: a presence loads its own copy when its source is
+## spawned, never inside an event, and nothing keeps one to be warmed.
+static func warm() -> void:
+	for sound: int in Sound.size():
+		if not LOOPED.has(sound):
+			stream_for(sound)
+
+
+## Whether `sound` is already made, so playing it costs no frame time. Always
+## for a loop, which `warm` leaves to its presence.
+static func is_warm(sound: Sound) -> bool:
+	if LOOPED.has(sound):
+		return true
+	if RECORDED.has(sound):
+		return _takes.has(sound)
+	return _cache.has(sound)
+
+
 static func stream_for(sound: Sound) -> AudioStream:
 	# A presence played once — the Hunter's heave is one tread of its loop —
 	# is the loop's recording, not looped.

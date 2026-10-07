@@ -13061,4 +13061,18 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** `--menu-probe`, `--rebind-probe` and `--bagui-probe` pass.
 
+## ADR-377 — Every cue is made while the floor is built, not in the frame it first plays
+
+**Date:** 2026-10-07 · **Status:** accepted · **From a performance review**
+
+**Context:**
+- **Measured:** Foley made each sound the first time something asked for it. Synthesised cues were rendered then, and recorded takes were loaded from disk then. The first howl of a session (ADR-358) spent **8.6 ms** rendering itself, and the first ember (ADR-077) **6.3 ms**, inside the frame that played them and on every peer. With a frame at about 9 ms, that is a dropped frame at the two moments a hitch is most felt: the fury starting, and a friend going down.
+- **The ear probe was checking one take per sound.** Its "every sound makes one" row asked `stream_for` once, so it checked whichever take the rotation handed out. Warming moved the rotation, and four CLICK takes nobody had asked about came up at 7–22 ms, under the row's 0.05 s floor. They are real clicks: `foley_measurements.txt` gives peaks of 0.55–0.77.
+
+**Decision:**
+- **`Foley.warm()` makes every cue once, as the room set enters the Deep**, beside `AudioDirector.enter`, while the floor is being built. Loops are left out: a presence loads its own copy when its source spawns, never inside an event. The caches are static, so every later floor finds them full.
+- **The ear probe asks `Foley.is_warm` of every sound after load**, and the silence row checks **every take** of a recorded sound, with a floor of 5 ms: an empty file's length, not a sound's.
+
+**Measured:** `--ear-probe` passes: 18 of 18 cues made at load, and 18 of 18 sounding across every take. With the `warm()` call planted out it fails, naming the 13 cues still made in their first frame.
+
 *Entries below to be added as design decisions are signed off.*
