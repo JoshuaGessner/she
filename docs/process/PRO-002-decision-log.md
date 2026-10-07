@@ -12502,4 +12502,19 @@ These also pass: `--verbs-probe`, `--rite-probe`, `--body-probe`, `--hands-probe
 
 `--ink-probe` passes.
 
+## ADR-348 — A teammate's fury is seen: the hunch of a body that will not step back
+
+**Date:** 2026-10-06 · **Status:** accepted · **Follows ADR-345**
+
+**Context:**
+- **The fury was invisible to everyone but the Úlfheðinn.** ADR-345 drew it on the owner's screen (the ember edge, the wound to come) and made the howl heard. A teammate saw a body behaving oddly and nothing more.
+- **`DES-011` rule 5:** a class should be recognisable from ten seconds of watching. Co-op is the primary mode (`DES-012`), and a teammate who doesn't know the Úlfheðinn can't retreat will walk away expecting cover.
+
+**Decision:**
+- **A remote body in a fury is drawn hunched**, part-crouched at `FURY_HUNCH` 0.4, from the replicated `fury`.
+- **It costs nothing on the wire**, because `fury` is already replicated (ADR-345).
+- **A crouch's height, a fighter's speed:** the stance shapes the pose only, so the walking pace is untouched.
+
+**Measured:** `--fury-probe` row 8 watches a second body. Its hips sit at 0.90 m at rest and 0.78 m in the fury.
+
 *Entries below to be added as design decisions are signed off.*

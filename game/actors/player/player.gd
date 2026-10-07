@@ -381,6 +381,8 @@ var fury_spent: float = 0.0
 var blood_owed: float = 0.0
 ## How far through the howl that opens a fury the owner is, 0–1.
 var _howling: float = 0.0
+## How far a teammate in a fury is drawn crouched — a hunch, not a sneak.
+const FURY_HUNCH: float = 0.4
 ## Seconds Rising Fury has added to this fury, capped at its own length.
 var _fury_added: float = 0.0
 
@@ -2753,9 +2755,13 @@ func _physics_process(delta: float) -> void:
 		# The swing or the draw, from the copy that runs it on this peer.
 		_rig.swing_arm(weapon.arm_pose())
 		_rig.draw(ranged.pull() if ranged != null and ranged.visible else 0.0)
+		# **A teammate's fury, seen** (ADR-348): the hunch of a body that will
+		# not step back, from the replicated `fury` — so an Úlfheðinn reads from
+		# across a room (`DES-011` rule 5) without a word on anybody's screen.
 		_rig.step(delta,
 			Vector2(moved.x, moved.z).length() / maxf(delta, 0.0001),
-			tuning.walk_speed, stance, _pitch, is_downed())
+			tuning.walk_speed, maxf(stance, FURY_HUNCH if fury > 0.0 else 0.0),
+			_pitch, is_downed())
 		# What their hands are doing (ADR-267): the lantern's shutter, a
 		# binding being tied, a Waystone being spent — every one a number the
 		# wire already carries.

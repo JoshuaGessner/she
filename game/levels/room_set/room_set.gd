@@ -16636,6 +16636,22 @@ func _fury_probe() -> void:
 	body.fury = 0.0
 	body.fury_spent = 0.0
 	body.restore_for_descent()
+
+	# ─ 8. a teammate sees it (ADR-348): the hunch, on a body this peer does not play ─
+	var mate: Player = _session.spawn_player(2, body.global_position + Vector3(3.0, 0.0, 0.0))
+	if mate == null or mate.rig() == null:
+		problems.append("no teammate's body to watch the fury on")
+	else:
+		var hips: Dictionary = {}
+		for raging: bool in [false, true]:
+			mate.fury = 4.0 if raging else 0.0
+			await _hold(0.5)
+			hips[raging] = mate.rig().pelvis_height()
+		print("[fury] seen        a teammate's hips at %.2f m, in the fury %.2f m"
+			% [hips[false], hips[true]])
+		if hips[true] >= hips[false] - 0.02:
+			problems.append("a teammate's fury looks like no fury")
+		mate.queue_free()
 	if problems.is_empty():
 		print("[fury] the fury defers the blood, it does not refuse it")
 	_report(problems, "fury")
