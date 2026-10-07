@@ -9610,6 +9610,10 @@ func _routes(from: String, to: String, visited: Array) -> Array:
 ## correct its packing arithmetic.
 func _bag_shot(path: String) -> void:
 	var player: Player = _session.local_player()
+	# Sworn, so the body beside the bag is somebody (ADR-342): a life always
+	# is, and the authored floor's body is not until something says so. The
+	# Veiðimaðr, whose 30 kg the shot's second frame has to be over.
+	player.sworn = &"veidimadr"
 	for row: Array in LOOT:
 		player.teleport((row[1] as Vector3) + Vector3(0.0, 0.1, 1.0), 0.0)
 		for i: int in range(4):
@@ -10018,7 +10022,8 @@ func _bagui_probe() -> void:
 		painted.set_color(&"font_color", role, toned)
 	painted.set_type_variation(MenuStyle.BAG, &"Control")
 	for entry: StringName in [&"line", &"legal", &"illegal", &"load",
-			&"overload", &"scrim", &"mark"]:
+			&"overload", &"scrim", &"mark", &"worth_fair", &"worth_rich",
+			&"worth_kingly"]:
 		painted.set_color(entry, MenuStyle.BAG, named)
 	for role: StringName in [MenuStyle.SLATE, MenuStyle.SOCKET]:
 		var ground := CarvedFrame.new()

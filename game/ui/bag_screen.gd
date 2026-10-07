@@ -36,11 +36,13 @@ extends Control
 ## control needs no bindings of its own beyond `rotate_item`. Prompts name both
 ## devices, per `DES-019` rule 7.
 
-## **The six slots** (`M3-T07`, `DES-020`), drawn as a row beneath the grid.
+## **The six slots** (`M3-T07`, `DES-020`), worn on a body beside the grid
+## (ADR-342).
 ##
 ## In the bag rather than on a screen of its own, because `DES-019` is hostile
 ## to persistent UI and the decision *"is this worth carrying or worth
 ## wearing"* is one question — putting it in two places would make it two.
+## The order here is the order a pad's cursor would meet them in.
 const SLOT_ROW: Array[Enums.Slot] = [
 	Enums.Slot.MAIN_HAND, Enums.Slot.OFF_HAND, Enums.Slot.ARMS,
 	Enums.Slot.HEAD, Enums.Slot.BODY, Enums.Slot.PACK,
@@ -70,7 +72,60 @@ const SLOT_LABEL: Dictionary = {
 	Enums.Slot.BODY: "body", Enums.Slot.PACK: "pack",
 }
 const SLOT_SIZE: float = 52.0
-const SLOT_BAND: float = 78.0
+
+## ## The body beside the bag (ADR-342)
+##
+## Reported from play: the interface wanted to be *"more Diablo-esque — the
+## character screen and equipment"*. Every action RPG since Diablo puts worn
+## gear **on a figure**: the helm where a head is, the weapon in the hand it is
+## held in, the pack on the back. A row of six squares under a grid asks the
+## player to map *hand, off, arms* onto a body in their head; a figure answers
+## it before anything is read. Grim Dawn, Path of Exile and Last Epoch keep the
+## figure and the bag side by side for the same reason this does: *"is this
+## worth carrying or worth wearing"* is one question, asked across one panel.
+##
+## The figure is the class's own portrait, cropped to the body and drawn dark
+## — it is the life you are equipping, not a mannequin.
+const DOLL_WIDTH: float = 236.0
+## The figure's own height: the six slots are placed against it.
+const DOLL_HEIGHT: float = 300.0
+## The class's name and rank above the figure.
+const DOLL_TITLE: float = 34.0
+## Health, breath, wounds and the verb, under it.
+const DOLL_STATS: float = 96.0
+const DOLL_STAT_LEAD: float = 19.0
+## Between the body and the bag.
+const COLUMN_GAP: float = 26.0
+## Where each worn slot sits on the figure, as fractions of the doll's box —
+## its top-left corner. Head over the head, body on the chest, the hands at the
+## hands, arms below the hand that guards, the pack on the far side.
+const SLOT_ON_BODY: Dictionary = {
+	Enums.Slot.HEAD: Vector2(0.5, 0.02),
+	Enums.Slot.BODY: Vector2(0.5, 0.34),
+	Enums.Slot.MAIN_HAND: Vector2(0.0, 0.44),
+	Enums.Slot.OFF_HAND: Vector2(1.0, 0.44),
+	Enums.Slot.ARMS: Vector2(0.0, 0.74),
+	Enums.Slot.PACK: Vector2(1.0, 0.74),
+}
+
+## ## The item card (ADR-342)
+##
+## What the thing under your hands is, in a card beside them rather than a band
+## at the foot of the panel — Diablo's tooltip, which every successor kept
+## because the eye is already at the cursor. The band it replaces held a name
+## and two wrapped lines; the card has room to say what the thing **is to you**:
+## where it is worn, what it weighs, how far it is heard, and what she would
+## give for it.
+const CARD_WIDTH: float = 272.0
+const CARD_PAD: float = 14.0
+const CARD_NAME_TEXT: int = 17
+const CARD_TEXT: int = 13
+const CARD_LEAD: float = 18.0
+## How many wrapped lines of description a card will draw. Every authored
+## description fits in four at this width; `overflowing()` checks that.
+const CARD_LINES: int = 5
+## How far from the hands the card sits.
+const CARD_OFFSET: Vector2 = Vector2(22.0, 10.0)
 
 const CELL: float = 44.0
 const GAP: float = 3.0
@@ -83,31 +138,12 @@ const HEADER: float = 64.0
 ## carved band that replaced it. The same fault as ADR-140 with a different
 ## thing doing the overdrawing, so `overflowing()` now asks the stylebox how
 ## thick it is rather than trusting a number written here.
-const FOOTER: float = 44.0
+const FOOTER: float = 52.0
 ## Where the first prompt's baseline sits above the panel's bottom edge, and
 ## how far the second follows it. Named because the layout check and the
 ## drawing both need them, and a remembered number is what ADR-140 was about.
 const FOOTER_BASE: float = 12.0
 const FOOTER_LEAD: float = 14.0
-## The band between the grid and the prompts, holding whatever the cursor is
-## over (`M2-T19`, ADR-112). A **name** line and up to **two** wrapped lines of
-## description, which is three, not two.
-##
-## It was 34 px and needs 58 by the font's own metrics (ADR-140). The third line landed inside
-## the footer and drew *"make one and regret continuously."* straight through
-## *"lmb/X take & place"* — reported from play as text on top of other text.
-##
-## Nothing could have seen it. `overflowing()` measured the width of the header
-## and the footer and never looked at this band at all, and every bag
-## screenshot ever taken had **nothing under the cursor**, so the one region
-## that draws variable-height text had never appeared in a photograph.
-const BLURB: float = 68.0
-## The name line's baseline inside the blurb band, and how far the wrapped
-## description starts below it. Both grew with `BLURB_TEXT`; named for the same
-## reason the footer's are, which is that `overflowing()` has to compute the
-## band's height from the same numbers the band is drawn with.
-const BLURB_BASE: float = 12.0
-const BLURB_LEAD: float = 16.0
 ## ## The sizes here are the theme's scale, in a control that paints (`M4-T05`)
 ##
 ## `draw_string` takes a number, not a role, so this screen names its steps as
@@ -117,10 +153,9 @@ const BLURB_LEAD: float = 16.0
 ## found the same way.
 ##
 ## They stay constants rather than theme lookups because this panel's whole
-## geometry is measured against them — `BLURB` and `FOOTER` are pixel bands
-## sized to fit these lines, and `overflowing()` checks that fit every run. A
-## size that moved without its band moving is the ADR-140 fault again.
-const BLURB_TEXT: int = 13
+## geometry is measured against them — `FOOTER` and the card are sized to fit
+## these lines, and `overflowing()` checks that fit every run. A size that
+## moved without its band moving is the ADR-140 fault again.
 ## The header line sits to the right of the word BAG; this is that gap.
 const HEADER_INSET: float = 46.0
 const HEADER_TEXT: int = 15
@@ -288,6 +323,9 @@ func refusing() -> bool:
 func hovered() -> ItemInstance:
 	if _held != null:
 		return _held
+	var worn: Enums.Slot = _slot_at(_cursor)
+	if worn != Enums.Slot.NONE and _player.equipment != null:
+		return _player.equipment.in_slot(worn)
 	return _item_at(_cursor_cell())
 
 
@@ -454,10 +492,31 @@ func _grid_pixels() -> Vector2:
 ## instead, and the grid centres inside it.
 func _panel_rect() -> Rect2:
 	var inner: Vector2 = _grid_pixels()
-	var size := Vector2(maxf(inner.x, _header_width()) + PADDING * 2.0,
-		inner.y + PADDING * 2.0 + HEADER + BLURB + FOOTER + SLOT_BAND)
+	var body: float = maxf(DOLL_TITLE + DOLL_HEIGHT + DOLL_STATS, HEADER + inner.y)
+	var size := Vector2(PADDING * 2.0 + DOLL_WIDTH + COLUMN_GAP + _bag_width(),
+		PADDING * 2.0 + body + FOOTER)
 	var screen: Vector2 = get_viewport_rect().size
 	return Rect2(((screen - size) * 0.5).round(), size)
+
+
+## The bag's column: as wide as the grid or the header line, whichever is wider.
+func _bag_width() -> float:
+	return maxf(_grid_pixels().x, _header_width())
+
+
+## The right-hand column, where the header, the grid and their numbers are.
+func _bag_column() -> Rect2:
+	var panel: Rect2 = _panel_rect()
+	var left: float = panel.position.x + PADDING + DOLL_WIDTH + COLUMN_GAP
+	return Rect2(Vector2(left, panel.position.y + PADDING),
+		Vector2(_bag_width(), panel.size.y - PADDING * 2.0 - FOOTER))
+
+
+## The figure the slots are worn on, under the class's name.
+func _doll_rect() -> Rect2:
+	var panel: Rect2 = _panel_rect()
+	return Rect2(panel.position + Vector2(PADDING, PADDING + DOLL_TITLE),
+		Vector2(DOLL_WIDTH, DOLL_HEIGHT))
 
 
 ## How wide the header needs, measured against the **widest** numbers it can
@@ -488,7 +547,7 @@ func overflowing() -> PackedStringArray:
 	var spilled := PackedStringArray()
 	var header: String = _header_summary(_player.carried.kilograms,
 		_inventory.cells_used(), _carried_radius())
-	var room: float = panel.size.x - PADDING * 2.0 - HEADER_INSET
+	var room: float = _bag_column().size.x - HEADER_INSET
 	var drawn: float = font.get_string_size(header,
 		HORIZONTAL_ALIGNMENT_LEFT, -1, HEADER_TEXT).x
 	if drawn > room:
@@ -500,23 +559,28 @@ func overflowing() -> PackedStringArray:
 			spilled.append("footer is %.0f px in %.0f px: %s" % [
 				wide, panel.size.x - PADDING * 2.0, line])
 
-	# **And whether the bands collide, which is a different question** (ADR-140).
+	# **And whether every item's card fits on the screen** (ADR-140, ADR-342).
 	#
-	# Everything above asks *does this line fit its width*. Nothing asked *does
-	# this block fit its height*, and the blurb is the one region whose height
-	# is not fixed: a name line plus up to two wrapped description lines. At
-	# `BLURB = 34` the third landed inside the footer and drew text through
-	# text, with every width row green.
-	#
-	# Measured against the font rather than against a remembered number, so
-	# raising `BLURB_TEXT` or allowing a third description line fails here
-	# instead of on somebody's screen.
-	var line_height: float = font.get_height(BLURB_TEXT)
-	var needed: float = BLURB_BASE + BLURB_LEAD + line_height * 2.0
-	if needed > BLURB:
-		spilled.append(("the blurb needs %.0f px and has %.0f — a name line and "
-			+ "two wrapped lines, and the overflow lands in the prompts")
-			% [needed, BLURB])
+	# The band this replaced was the one region whose height was not fixed, and
+	# the card inherits that: a name, a kind, up to `CARD_LINES` of description
+	# and the numbers. Measured per item against the font rather than against a
+	# remembered height, so a longer description or a larger type fails here
+	# rather than running off the bottom of somebody's screen.
+	# Against the smallest window the game is laid out for, not the live
+	# viewport — headless, that is 64 px and every card would fail.
+	var screen := Vector2(1152.0, 648.0)
+	if panel.size.y > screen.y or panel.size.x > screen.x:
+		spilled.append("the panel is %.0f × %.0f on a %.0f × %.0f screen" % [
+			panel.size.x, panel.size.y, screen.x, screen.y])
+	for definition: ItemResource in ItemCatalogue.all():
+		var wrapped: int = _wrapped_lines(definition.describe(), font)
+		if wrapped > CARD_LINES:
+			spilled.append("%s's description wraps to %d lines and the card draws %d"
+				% [definition.id, wrapped, CARD_LINES])
+		var tall: float = _card_height(ItemInstance.of(definition, 0))
+		if tall > screen.y - PADDING * 2.0:
+			spilled.append("%s's card is %.0f px on a %.0f px screen" % [
+				definition.id, tall, screen.y])
 
 	# **And the weight inside each cell** (ADR-140). `0.04 kg` overflowed a 36 px
 	# cell and rendered as `0.04 k`, which a player reads as a broken renderer
@@ -554,7 +618,7 @@ func overflowing() -> PackedStringArray:
 	# numbers, applied to the thing that just changed underneath them.
 	var carved := get_theme_stylebox(&"panel", MenuStyle.SLATE) as CarvedFrame
 	if carved != null:
-		var thick: float = carved.band + carved.inset + carved.hairline
+		var thick: float = carved.bevel + carved.band + carved.inset + carved.hairline
 		var clear: float = (FOOTER - FOOTER_BASE - FOOTER_LEAD
 			- font.get_descent(FOOTER_TEXT))
 		if clear < thick:
@@ -564,18 +628,12 @@ func overflowing() -> PackedStringArray:
 	return spilled
 
 
-## Where a slot sits. Below the grid, spread across the panel, so the row reads
-## as *what is on you* under *what you are carrying* — which is the order the
-## question is asked in.
+## Where a slot sits: **on the body** (ADR-342), at its place on the figure.
 func _slot_rect(slot: Enums.Slot) -> Rect2:
-	var panel: Rect2 = _panel_rect()
-	var row: Array[Enums.Slot] = slots()
-	var index: int = row.find(slot)
-	var span: float = SLOT_SIZE * row.size() + GAP * (row.size() - 1)
-	var left: float = panel.position.x + (panel.size.x - span) * 0.5
-	var top: float = _grid_origin().y + _grid_pixels().y + PADDING
-	return Rect2(Vector2(left + index * (SLOT_SIZE + GAP), top),
-		Vector2(SLOT_SIZE, SLOT_SIZE))
+	var doll: Rect2 = _doll_rect().grow(-8.0)
+	var at: Vector2 = SLOT_ON_BODY.get(slot, Vector2(0.5, 0.5))
+	var room: Vector2 = doll.size - Vector2(SLOT_SIZE, SLOT_SIZE)
+	return Rect2((doll.position + room * at).round(), Vector2(SLOT_SIZE, SLOT_SIZE))
 
 
 ## The slot under a point, or `NONE`.
@@ -683,11 +741,10 @@ func _draw_slots() -> void:
 
 
 func _grid_origin() -> Vector2:
-	var panel: Rect2 = _panel_rect()
+	var column: Rect2 = _bag_column()
 	var inner: Vector2 = _grid_pixels()
-	# Centred, because the panel is now allowed to be wider than the grid.
-	return panel.position + Vector2((panel.size.x - inner.x) * 0.5,
-		PADDING + HEADER)
+	# Centred, because the column is allowed to be wider than the grid.
+	return column.position + Vector2(((column.size.x - inner.x) * 0.5), HEADER).round()
 
 
 func _cell_rect(at: Vector2i, size: Vector2i) -> Rect2:
@@ -740,6 +797,11 @@ func palette() -> Dictionary:
 			&"overload": get_theme_color(&"overload", MenuStyle.BAG),
 			&"scrim": get_theme_color(&"scrim", MenuStyle.BAG),
 			&"mark": get_theme_color(&"mark", MenuStyle.BAG),
+			&"worth_none": MenuStyle.tone(self, MenuStyle.DIM),
+			&"worth_trifle": MenuStyle.tone(self, MenuStyle.TEXT),
+			&"worth_fair": get_theme_color(&"worth_fair", MenuStyle.BAG),
+			&"worth_rich": get_theme_color(&"worth_rich", MenuStyle.BAG),
+			&"worth_kingly": get_theme_color(&"worth_kingly", MenuStyle.BAG),
 			&"panel": MenuStyle.ground(self, MenuStyle.SLATE),
 			&"cell": MenuStyle.ground(self, MenuStyle.SOCKET),
 		}
@@ -769,65 +831,220 @@ func _draw() -> void:
 	# in, so the one screen that paints itself by hand cannot drift from the ones
 	# that do not — which is precisely how it came to be three near-misses away.
 	get_theme_stylebox(&"panel", MenuStyle.SLATE).draw(get_canvas_item(), panel)
-	_draw_header(panel)
+	_draw_doll(panel)
+	_draw_header(_bag_column())
 	_draw_slots()
 	_draw_cells()
 	for item: ItemInstance in _inventory.items():
 		if item != _held:
 			_draw_item(item, _cell_rect(item.cell, item.footprint()), 1.0)
+	# A hairline between the body and the bag, and one above the prompts.
+	# Gestalt common region, the argument `MenuStyle.rule()` already makes.
+	var line := Color(palette()[&"line"] as Color, 0.55)
+	draw_rect(Rect2(panel.position.x + PADDING + DOLL_WIDTH + COLUMN_GAP * 0.5,
+		panel.position.y + PADDING, 1.0, panel.size.y - PADDING * 2.0 - FOOTER), line)
+	draw_rect(Rect2(panel.position.x + PADDING,
+		panel.end.y - PADDING - FOOTER + 4.0, panel.size.x - PADDING * 2.0, 1.0), line)
+	_draw_footer(panel)
 	if _held != null:
 		_draw_held()
-	# A hairline under what you are carrying, above what you are looking at.
-	# Gestalt common region, the argument `MenuStyle.rule()` already makes: a
-	# gap is ambiguous about which group the next line belongs to, and this
-	# panel stacks four of them — numbers, grid, body, readout — with nothing
-	# but space between them.
-	draw_rect(Rect2(panel.position.x + PADDING,
-		panel.position.y + panel.size.y - FOOTER - BLURB - 6.0,
-		panel.size.x - PADDING * 2.0, 1.0),
-		Color(palette()[&"line"] as Color, 0.55))
-	_draw_blurb(panel)
-	_draw_footer(panel)
+	else:
+		var item: ItemInstance = hovered()
+		if item != null and item.definition != null:
+			_draw_card(item, _cursor)
 
 
-## **What the thing under your cursor actually is** (`M2-T19`, ADR-112).
+## **The body** (ADR-342): who this is, the figure the slots are worn on, and
+## what the body itself is carrying — health and breath as bars, the wounds by
+## name, and the verb only this class has.
 ##
-## Every item in the game carries a `description_key`, every one of them is
-## authored, and `data_probe` has validated all of them since `M2-T08` — and
-## nothing had ever *drawn* one. So the Waystone said `Grey, unremarkable, and
-## the only thing down here that is worth more than what you came for. Spending
-## it ends the run with whatever is in your hands.` to nobody, and a playtester
-## carrying one reported there was no way out of the level except the Shaft.
-##
-## Here rather than on the reticle, because `DES-019` bans text in the middle of
-## the screen and names this one exception: *"the inventory screen, where you
-## are deliberately doing arithmetic."* Wrapped rather than clipped, for the
-## reason the footer already gives about being cut off.
-func _draw_blurb(panel: Rect2) -> void:
-	var item: ItemInstance = hovered()
-	if item == null or item.definition == null:
-		return
+## Health is a bar and not a number on purpose: `DES-019` rule 2 bans numbers
+## for the body, and its one exception — *"the inventory screen, where you are
+## deliberately doing arithmetic"* — is about what you carry, which the bag's
+## own header already counts.
+func _draw_doll(panel: Rect2) -> void:
 	var font: Font = get_theme_default_font()
-	var width: float = panel.size.x - PADDING * 2.0
-	var top: float = panel.position.y + panel.size.y - FOOTER - BLURB + BLURB_BASE
-	draw_string(font, Vector2(panel.position.x + PADDING, top),
-		item.definition.display(), HORIZONTAL_ALIGNMENT_LEFT, width,
-		BLURB_TEXT, palette()[&"text"] as Color)
-	draw_multiline_string(font,
-		Vector2(panel.position.x + PADDING, top + BLURB_LEAD),
-		item.definition.describe(), HORIZONTAL_ALIGNMENT_LEFT, width,
-		BLURB_TEXT, 2, palette()[&"dim"] as Color)
+	var at: Vector2 = panel.position + Vector2(PADDING, PADDING + 18.0)
+	var body: ClassResource = ClassCatalogue.by_id(_player.sworn)
+	var who: String = body.display() if body != null else "Unsworn"
+	draw_string(get_theme_font(&"font", MenuStyle.DISPLAY_WARM), at, who,
+		HORIZONTAL_ALIGNMENT_LEFT, DOLL_WIDTH * 0.7, HEADER_TEXT + 4,
+		palette()[&"warm"] as Color)
+	draw_string(font, at + Vector2(DOLL_WIDTH * 0.7, 0.0), "rank %d" % GameState.pact_rank,
+		HORIZONTAL_ALIGNMENT_RIGHT, DOLL_WIDTH * 0.3, CARD_TEXT, palette()[&"dim"] as Color)
+
+	var doll: Rect2 = _doll_rect()
+	get_theme_stylebox(&"panel", MenuStyle.SOCKET).draw(get_canvas_item(), doll)
+	# The class's portrait, cropped to the doll's own proportions around the
+	# body and darkened, so the slots read on it rather than fight it.
+	if body != null and body.portrait != null:
+		var source: Vector2 = body.portrait.get_size()
+		var drawn: Rect2 = doll.grow(-6.0)
+		var wide: float = minf(source.x, source.y * drawn.size.x / drawn.size.y)
+		var region := Rect2(Vector2((source.x - wide) * 0.5, 0.0), Vector2(wide, source.y))
+		draw_texture_rect_region(body.portrait, drawn, region, Color(1.0, 1.0, 1.0, 0.42))
+
+	var stats: Rect2 = Rect2(Vector2(doll.position.x, doll.end.y + 8.0),
+		Vector2(DOLL_WIDTH, DOLL_STATS - 8.0))
+	var y: float = stats.position.y + 13.0
+	_draw_bar_row("health", _player.health.fraction(), stats.position.x, y)
+	y += DOLL_STAT_LEAD
+	_draw_bar_row("breath", _player.stamina.fraction(), stats.position.x, y)
+	y += DOLL_STAT_LEAD
+	_draw_stat_row("wounds", WoundMarks.named(_player.wounds), stats.position.x, y)
+	y += DOLL_STAT_LEAD
+	if body != null and body.verb != &"":
+		_draw_stat_row("verb", "%s  (%s)" % [String(body.verb).capitalize(),
+			ControlsScreen.glyphs_for("verb")], stats.position.x, y)
+
+
+const STAT_KEY: float = 62.0
+
+
+func _draw_stat_row(key: String, value: String, x: float, y: float) -> void:
+	var font: Font = get_theme_default_font()
+	draw_string(font, Vector2(x, y), key, HORIZONTAL_ALIGNMENT_LEFT, STAT_KEY,
+		CARD_TEXT, palette()[&"dim"] as Color)
+	draw_string(font, Vector2(x + STAT_KEY, y), value, HORIZONTAL_ALIGNMENT_LEFT,
+		DOLL_WIDTH - STAT_KEY, CARD_TEXT, palette()[&"text"] as Color)
+
+
+## A fraction as a bar in a sunken track, and as the word *low* under a third —
+## `DES-018`: the bar's length is the signal, never its colour.
+func _draw_bar_row(key: String, fraction: float, x: float, y: float) -> void:
+	var font: Font = get_theme_default_font()
+	draw_string(font, Vector2(x, y), key, HORIZONTAL_ALIGNMENT_LEFT, STAT_KEY,
+		CARD_TEXT, palette()[&"dim"] as Color)
+	var track := Rect2(Vector2(x + STAT_KEY, y - 9.0), Vector2(DOLL_WIDTH - STAT_KEY, 9.0))
+	draw_rect(track, palette()[&"cell"] as Color)
+	var low: bool = fraction < 0.34
+	draw_rect(Rect2(track.position, Vector2(track.size.x * clampf(fraction, 0.0, 1.0),
+		track.size.y)), palette()[&"overload" if low else &"load"] as Color)
+	draw_rect(track, palette()[&"line"] as Color, false, 1.0)
+	if low:
+		CarvedFrame.hatch_into(get_canvas_item(), track,
+			palette()[&"cell"] as Color, OVER_PITCH, 1.0)
+
+
+## **What a thing is worth to her**, as a word and a colour — the only ladder an
+## item in this game is on (ADR-342). `DES-008` refuses a rarity ladder: gear is
+## sidegrades, and a blue axe that is better than a white one is the treadmill
+## `DES-022` exists to prevent. But every item *does* stand somewhere on one
+## scale, the one the whole loop turns on — what she would give for it — and
+## Diablo's coloured name is the fastest read in the genre. So the name is
+## coloured by **tribute**, and the band is written under it as well, because
+## `DES-018` will not let a colour carry anything alone.
+const WORTH_BANDS: Array[int] = [1, 20, 60, 150]
+const WORTH_WORDS: Array[String] = ["nothing to her", "a trifle to her",
+	"worth her while", "rich, to her", "a king's gift"]
+const WORTH_TONES: Array[StringName] = [&"worth_none", &"worth_trifle",
+	&"worth_fair", &"worth_rich", &"worth_kingly"]
+
+
+static func worth_band(tribute: int) -> int:
+	var band: int = 0
+	for floor_of: int in WORTH_BANDS:
+		if tribute >= floor_of:
+			band += 1
+	return band
+
+
+## The line under the name: where it goes or what it is for.
+static func kind_of(definition: ItemResource) -> String:
+	if definition.slot != Enums.Slot.NONE:
+		return "worn · %s%s" % [SLOT_LABEL.get(definition.slot, ""),
+			", both hands" if definition.two_handed else ""]
+	if definition.tags.has(&"ember"):
+		return "an ember — carry it out"
+	if definition.tags.has(&"consumable"):
+		return "used from the bag"
+	if definition.tags.has(&"glitter"):
+		return "glitter — hers, if you give it"
+	if definition.tags.has(&"relic"):
+		return "a relic"
+	if definition.tags.has(&"material"):
+		return "material"
+	return "carried"
+
+
+func _wrapped_lines(text: String, font: Font) -> int:
+	var width: float = CARD_WIDTH - CARD_PAD * 2.0
+	var tall: float = font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT,
+		width, CARD_TEXT).y
+	return int(ceilf(tall / maxf(font.get_height(CARD_TEXT), 1.0) - 0.01))
+
+
+## The rows of numbers a card ends with.
+func _card_rows(item: ItemInstance) -> Array[PackedStringArray]:
+	var rows: Array[PackedStringArray] = []
+	rows.append(PackedStringArray(["weight", _kilograms(item.weight())]))
+	if item.clamor() > 0.0:
+		rows.append(PackedStringArray(["heard", "%.1f m further" % (
+			item.clamor() * Config.tuning.clamor_metres_per_unit)]))
+	var size: Vector2i = item.definition.grid_size
+	rows.append(PackedStringArray(["takes", "%d × %d cells" % [size.x, size.y]]))
+	if item.tribute_worth() > 0:
+		rows.append(PackedStringArray(["tribute", str(item.tribute_worth())]))
+	return rows
+
+
+func _card_height(item: ItemInstance) -> float:
+	var font: Font = get_theme_default_font()
+	var lines: int = mini(_wrapped_lines(item.definition.describe(), font), CARD_LINES)
+	return (CARD_PAD * 2.0 + 24.0 + CARD_LEAD + 10.0
+		+ lines * font.get_height(CARD_TEXT) + 10.0
+		+ _card_rows(item).size() * CARD_LEAD)
+
+
+## **The card**, beside the hands and kept on the screen: to the right of the
+## cursor, or to the left where the right would run off it.
+func _draw_card(item: ItemInstance, at: Vector2) -> void:
+	var font: Font = get_theme_default_font()
+	var screen: Vector2 = get_viewport_rect().size
+	var size := Vector2(CARD_WIDTH, _card_height(item))
+	var origin: Vector2 = at + CARD_OFFSET
+	if origin.x + size.x > screen.x - 8.0:
+		origin.x = at.x - CARD_OFFSET.x - size.x
+	origin.y = clampf(origin.y, 8.0, maxf(8.0, screen.y - size.y - 8.0))
+	var card := Rect2(origin.round(), size)
+	get_theme_stylebox(&"panel", MenuStyle.FRAME).draw(get_canvas_item(), card)
+	var left: float = card.position.x + CARD_PAD
+	var width: float = card.size.x - CARD_PAD * 2.0
+	var y: float = card.position.y + CARD_PAD + 16.0
+	var band: int = worth_band(item.tribute_worth())
+	draw_string(get_theme_font(&"font", MenuStyle.DISPLAY_WARM), Vector2(left, y),
+		item.definition.display(), HORIZONTAL_ALIGNMENT_LEFT, width, CARD_NAME_TEXT,
+		palette()[WORTH_TONES[band]] as Color)
+	y += CARD_LEAD
+	draw_string(font, Vector2(left, y), "%s · %s" % [WORTH_WORDS[band],
+		kind_of(item.definition)], HORIZONTAL_ALIGNMENT_LEFT, width, CARD_TEXT,
+		palette()[&"dim"] as Color)
+	y += 10.0
+	draw_rect(Rect2(left, y - 4.0, width, 1.0), Color(palette()[&"line"] as Color, 0.8))
+	y += font.get_ascent(CARD_TEXT)
+	draw_multiline_string(font, Vector2(left, y), item.definition.describe(),
+		HORIZONTAL_ALIGNMENT_LEFT, width, CARD_TEXT, CARD_LINES, palette()[&"text"] as Color)
+	y += mini(_wrapped_lines(item.definition.describe(), font), CARD_LINES) \
+		* font.get_height(CARD_TEXT) - font.get_ascent(CARD_TEXT) + 10.0
+	draw_rect(Rect2(left, y - 4.0, width, 1.0), Color(palette()[&"line"] as Color, 0.8))
+	y += 12.0
+	for row: PackedStringArray in _card_rows(item):
+		draw_string(font, Vector2(left, y), row[0], HORIZONTAL_ALIGNMENT_LEFT,
+			STAT_KEY, CARD_TEXT, palette()[&"dim"] as Color)
+		draw_string(font, Vector2(left + STAT_KEY, y), row[1], HORIZONTAL_ALIGNMENT_LEFT,
+			width - STAT_KEY, CARD_TEXT, palette()[&"text"] as Color)
+		y += CARD_LEAD
 
 
 ## The three numbers the decision is actually made on.
-func _draw_header(panel: Rect2) -> void:
+func _draw_header(column: Rect2) -> void:
 	var font: Font = get_theme_default_font()
 	# **The body's load, not the bag's** (ADR-224): what is worn weighs, and the
 	# class sets the capacity. The bag's own sum showed a Húskarl in a byrnie
 	# 0.2 kg against 40 while their legs carried 13.5 against 52.
 	var kilograms: float = _player.carried.kilograms
 	var capacity: float = _player.carried.capacity()
-	var at: Vector2 = panel.position + Vector2(PADDING, PADDING + 14.0)
+	var at: Vector2 = column.position + Vector2(0.0, 14.0)
 
 	# The bag's name in the display type (ADR-289), as every screen's title is.
 	draw_string(get_theme_font(&"font", MenuStyle.DISPLAY_WARM), at + Vector2(0.0, 2.0),
@@ -840,14 +1057,14 @@ func _draw_header(panel: Rect2) -> void:
 	var summary: String = _header_summary(kilograms, _inventory.cells_used(),
 		_carried_radius())
 	draw_string(font, at + Vector2(HEADER_INSET, 0.0), summary,
-		HORIZONTAL_ALIGNMENT_LEFT, panel.size.x - PADDING * 2.0 - HEADER_INSET,
+		HORIZONTAL_ALIGNMENT_LEFT, column.size.x - HEADER_INSET,
 		HEADER_TEXT, palette()[&"text"] as Color)
 
 	# The load bar. Encumbrance is what the legs feel, so it is drawn as a
 	# proportion rather than left as a figure to be read — `DES-019` wants
 	# shapes for feel and digits only for arithmetic, and both are here doing
 	# their own job.
-	var track := Rect2(at + Vector2(0.0, 12.0), Vector2(panel.size.x - PADDING * 2.0, 8.0))
+	var track := Rect2(at + Vector2(0.0, 12.0), Vector2(column.size.x, 8.0))
 	draw_rect(track, palette()[&"cell"] as Color)
 	draw_rect(track, palette()[&"line"] as Color, false, 1.0)
 	var fraction: float = clampf(kilograms / maxf(capacity, 0.001), 0.0, 1.0)
@@ -977,7 +1194,7 @@ func _draw_footer(panel: Rect2) -> void:
 	var font: Font = get_theme_default_font()
 	var width: float = panel.size.x - PADDING * 2.0
 	var left: float = panel.position.x + PADDING
-	var base: float = panel.position.y + panel.size.y - FOOTER + FOOTER_BASE
+	var base: float = panel.position.y + panel.size.y - PADDING - FOOTER + FOOTER_BASE + 12.0
 	var prompts: Array[String] = footer_lines()
 	var faint: Color = palette()[&"dim"] as Color
 	draw_string(font, Vector2(left, base), prompts[0],

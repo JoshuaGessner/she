@@ -184,6 +184,14 @@ So a bulky-but-light bolt of cloth and a tiny-but-ruinous bag of coin pose *diff
 
 > **Cost, stated honestly:** a good grid inventory is ⟨a few weeks⟩ of UI work, and it is the single largest UI item in the project. **One model is built, not two (ADR-083).** Blockout — coloured rectangles carrying name and weight, ADR-046 — landed at `M2-T01` with every function complete: see, move, turn, drop. The art arrives with the rest of the HUD at `M4-T05`. This line previously said the Q23 prototype fork still stood, twelve lines below the decision that closed it — and `PRO-001` was reading the stale half. Doubling the largest UI item in the project is not how M2 answers *"does a playtester abandon loot to survive?"*; if the grid feels wrong, that is an M4 revision against playtest data.
 
+> **The body beside the bag, and a card at the hands (ADR-342).**
+> - **The six worn slots sit on a figure** to the left of the grid: the class's own portrait, cropped to the body and darkened. The head is over the head, the body on the chest, hand and off-hand at the hands, the arms below, the pack on the far side.
+> - Under the figure are health and breath as bars, the wounds by name, and the class's verb with its key.
+> - **What is under the hands is a card beside them**, not a band at the foot of the panel. It gives the name, then where it is worn or what it is for, the description, and its weight, the extra distance it is heard from, its footprint and its tribute.
+> - **The name is coloured by what she would give for it**, from *nothing to her* to *a king's gift*. The band is also written out in words, because `DES-018` won't let a colour carry anything alone.
+> - That is the one ladder an item stands on. It is not a rarity ladder: `DES-008`'s sidegrades are untouched, and a seax is *nothing to her* whatever it does in a fight.
+> - References: Diablo's paper doll and tooltip, and Grim Dawn's and Path of Exile's body-beside-bag layout. Each puts *"worth carrying or worth wearing"* across one panel.
+
 ## The two screens that matter most
 
 `PRO-005 §2` — retrospective judgment is dominated by the peak and the **ending**. Every run ends on one of these two, so they carry disproportionate weight in whether another run gets started.

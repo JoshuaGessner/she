@@ -12257,4 +12257,49 @@ Of the assets, the Delvings kit fills most of every frame. It read as clean CAD 
 
 **Not in this ADR:** the bag's own cells are drawn by `BagScreen`, not by a theme role, so they are still hairlines. The paper-doll character screen, which replaces them, is the next piece of work.
 
+## ADR-342 — The body beside the bag: a paper doll for the six slots, and an item card at the hands
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `DES-019` (Inventory)**
+
+**Context:**
+- **Reported from play:** *"…more Diablo-esque menus and UI elements. Character screen and equipment, etc should all be referenced."*
+- **Slots without a body.** The bag drew the six worn slots as a row of squares under the grid. A player had to map *hand, off, arms* onto a body in their head, and the row read as six buttons.
+- **Descriptions in the wrong place.** What the cursor was on was described in a band at the foot of the panel: a name and two wrapped lines, as far from the cursor as the panel allowed.
+- **The genre's answer:**
+  - **Diablo II and IV** put worn gear on a figure and describe an item in a card at the cursor.
+  - **Grim Dawn, Path of Exile and Last Epoch** keep the figure and the bag side by side, because *"is this worth carrying or worth wearing"* is one question.
+  - **Diablo's coloured item name** is the fastest read in the genre.
+
+**Decision:**
+- **The bag is two columns in one forged plate (ADR-341).**
+  - **Left, the body:**
+    - the class's name and pact rank;
+    - the class portrait, cropped to the body and darkened to 42 %, with the six slots placed on it (`SLOT_ON_BODY`);
+    - under it, health and breath as bars, hatched below a third (`DES-018`), the wounds by name, and the verb with its key.
+  - **Right, the bag:** the header, the load bar and the grid, as before.
+  - **The prompts** run across the foot of the panel.
+- **Health stays a bar, never a number.** `DES-019` rule 2's exception is for what you carry, and the header already counts that.
+- **The item card.** The card follows the cursor, flips left at the screen's right edge and is clamped to the screen. It also covers a worn slot's item, which `hovered()` now returns. It shows:
+  - the name;
+  - its worth to her and what it is for (*worn · hand, both hands*, *glitter — hers, if you give it*, *used from the bag*, …);
+  - the description;
+  - weight, the extra distance it is heard from, cells taken, and tribute.
+- **Names are coloured by tribute.** The tribute bands are: under 1 *nothing to her*, under 20 *a trifle*, under 60 *worth her while*, under 150 *rich*, and from 150 *a king's gift* ⟨tune⟩.
+  - The word is written on the card, so the colour never carries the band alone.
+  - The two lowest bands use the Dim and Text tones. The three new colours (`worth_fair`, `worth_rich`, `worth_kingly`) are `Bag` theme entries, which `--bagui-probe` paints with the rest.
+  - **This is not a rarity ladder** (`DES-008`, `DES-022`). It ranks what the loop turns on, which is what she would give for an item, never what it does in a fight. Every weapon is *nothing to her*.
+- **`overflowing()` replaces the blurb row with card rows:**
+  - every authored description must wrap within the card's five lines;
+  - every card and the panel must fit the 1152×648 window, measured against that size, not the live viewport, which headless runs make 64 px;
+  - the footer clearance now counts the forged border too.
+
+  **Proven able to fail:** planting a two-line card failed 22 items.
+
+**Measured:**
+- **`--bag-shot`** now swears its body in (a Veiðimaðr, so the second frame is still over 30 kg). It photographs the doll with a portrait, the Altar-Plate's card (*rich, to her · glitter — hers, if you give it*, 14.0 kg, 6.4 m, 3 × 3, 140), and the overload refusal.
+- **These probes pass:** `--bagui-probe` (text fits, six slots, 17 palette colours all from the theme), `--bag-probe`, `--gear-probe`, `--use-probe`, `--pad-menu-probe`, `--throw-probe`, `--shield-probe` and `--hud-probe`.
+
+**Not yet:**
+- **The offering page's cards** are still buttons with a line of text. Moving them onto this card's layout is the next UI item.
+
 *Entries below to be added as design decisions are signed off.*
