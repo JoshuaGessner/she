@@ -13208,6 +13208,8 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 
 **Not built:** curses, until the Barrow-Fields.
 
+**Amended at build (2026-10-07): Hidden Way replaces Appraise.** The Appraise node promised *the exact tribute figure at her hands, where every other class reads only the band*. But every class's item card already shows the exact figure (*tribute 140*, ADR-363), and the Hoard node Tally names worth at the crosshair. The node would have been a card everyone already has, the fault that reshaped the verb. **Hidden Way:** every door still shut on her floor is marked for her at the screen's edge, in the ping's shapes. It is the back door *"nobody else knew existed"* (`DES-011` §6), and something new (ADR-058). The Rite is now Hidden Way, **Grave-Sense** *(after Hidden Way)*, **Wedge**, and **the Long Pry** *(after Wedge)*. Her kit is the dvergar hammer, a dwarf-made weight for breaking in, so she needs no new weapon.
+
 ## ADR-383 — The Völva's sight says when it is resting, and when it saw nothing
 
 **Date:** 2026-10-07 · **Status:** accepted · **From first-time-player reviews of `M4-T35`**
