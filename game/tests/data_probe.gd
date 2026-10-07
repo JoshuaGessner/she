@@ -413,8 +413,11 @@ func _check_every_item_has_a_source() -> void:
 	if _tables.is_empty():
 		_fail("no loot table found — every generated floor deals nothing")
 		return
+	# The floor's key is laid by the same kind of rule (ADR-381): in the KEY
+	# room of a floor with a lock, by `DelvingsFloor.fixtures`, and counted by
+	# `--lock-probe`'s census.
 	var sourced: Dictionary = {"con_ember": "a downed body",
-		"con_waystone": "the floor's rule"}
+		"con_waystone": "the floor's rule", "tol_floor_key": "a floor's lock"}
 	for table: LootTable in _tables:
 		for entry: LootEntry in table.entries:
 			if entry != null:
