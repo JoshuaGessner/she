@@ -12575,4 +12575,22 @@ The level holds 4,673 nodes and 10,463 objects.
 - **Draw calls are the exposure.** Every wall, floor and ceiling slab is its own `MeshInstance3D`, and the project has no `MultiMesh` anywhere. At about a thousand calls in a hall, a weaker Windows GPU is where it will show first.
 - **The next step:** batch the generator's repeated slabs, measured against this table. It is filed, not done here, because the floor's root is read as a flat list of slabs by `kit_probe`, the surface probe and `--build-probe`, so batching touches what those assert.
 
+## ADR-351 — *Walking, not sliding* asks the co-op question: is a teammate handed to the gait, counted in strides
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends ADR-254's co-op row**
+
+**Context:**
+- **The row failed with nothing wrong.** The co-op smoke's *walking, not sliding* row required a remote body's foot to reach 0.45 m from its hips. On 2026-10-06 the full sweep failed it at **0.42 m** while a build export ran beside it, then passed three times in a row alone at 0.61–0.62 m.
+- **The bound sat between working and broken.** It was taken from `--body-probe`, which measures 0.63 m with the gait working and 0.35 m with the hips dead. A loaded machine lands between the two, because the starved remote copy is seen to walk slower and the reach scales with speed.
+- **The row was answering the wrong question.** Whether the hips swing is `--body-probe`'s question. This row exists for the one question only the far side of a connection can answer: *is a remote body handed to the gait at all?* (ADR-254).
+
+**Decision:**
+- **Count strides.** `BodyRig.strides_taken()` accumulates the distance-driven gait phase, so it is load-free. The row records strides taken over the glide window.
+- **The new bound.** At least **0.25 strides**, plus a reach floor of **0.25 m**, which a rest pose (feet under the hips) cannot meet.
+- **A body cut from the gait takes exactly none.**
+
+**Measured:**
+- `run_coop.py --smoke`, unchanged build: 1.4 strides and 0.61 m, ok, on two runs.
+- **Planted:** with the remote body's `_rig.step` skipped, the row reads 0.0 strides and 0.00 m, FAIL. The smoke exits 2.
+
 *Entries below to be added as design decisions are signed off.*

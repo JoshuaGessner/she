@@ -76,11 +76,17 @@ ENEMY_TOLERANCE = 0.60
 # sits — which the old "still on 25% of frames" bound read as broken
 # interpolation and failed one run in six on a busy machine.
 MIN_GLIDE_STEPS = 2.0
-# How far a walking body's foot reaches from its hips before we believe the rig
-# is being posed. `--body-probe` measures 0.63 m with the gait working and
-# 0.35 m with the hips dead and only the knees folding, so this sits between
-# them — the same bound, for the same reason, on the far side of a connection.
-MIN_STRIDE_METRES = 0.45
+# **Is a remote body handed to the gait at all** (ADR-254, ADR-351). This was a
+# 0.45 m bound on how far a foot reaches — `--body-probe`'s question, whether
+# the hips swing, asked again across a connection. Across a connection the
+# reach depends on how fast the starved copy is seen to walk, and a loaded
+# machine measured 0.42 m with nothing wrong. The wiring question is load-free:
+# the gait advances by distance walked, so a body handed to it has taken
+# strides and one in a rest pose has taken none. The reach keeps a floor a
+# rest pose cannot meet (its feet sit under the hips).
+# A body cut from the gait takes exactly none; a quarter of one is any motion.
+MIN_STRIDES = 0.25
+MIN_STRIDE_METRES = 0.25
 MIN_WALK_METRES = 1.0
 # stand 1.80 − crouch 1.15 = 0.65 m. Half of that is unambiguous while leaving
 # room for the crouch blend not being quite finished.
@@ -252,7 +258,9 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
     # pose and every other assertion here still passes.
     rows.append(check(
         "and it is walking, not sliding",
-        glide.get("stride", 0.0) >= MIN_STRIDE_METRES,
+        glide.get("strides", 0.0) >= MIN_STRIDES
+        and glide.get("stride", 0.0) >= MIN_STRIDE_METRES,
+        f"{glide.get('strides', 0.0):.1f} stride(s), "
         f"foot reached {glide.get('stride', 0.0):.2f} m from the hips"))
     rows.append(check(
         "a walking teammate glides between packets",

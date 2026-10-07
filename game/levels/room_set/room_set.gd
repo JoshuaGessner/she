@@ -7224,6 +7224,7 @@ func _glide_per_packet(seconds: float) -> Dictionary:
 	var moved: int = 0
 	var packets: int = 0
 	var stride: float = 0.0
+	var strode_from: float = body.rig().strides_taken() if body.rig() != null else 0.0
 	var was: Vector3 = body.global_position
 	var wired: Vector3 = body.net_position
 	var until: int = Time.get_ticks_msec() + int(seconds * 1000.0)
@@ -7252,6 +7253,8 @@ func _glide_per_packet(seconds: float) -> Dictionary:
 		"steps": float(moved) / float(maxi(packets, 1)),
 		"moved": moved, "packets": packets, "frames": frames,
 		"stride": stride,
+		"strides": (body.rig().strides_taken() - strode_from)
+			if is_instance_valid(body) and body.rig() != null else 0.0,
 	}
 
 

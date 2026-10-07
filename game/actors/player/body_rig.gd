@@ -182,6 +182,8 @@ var _swing: Dictionary = {}
 var _rest_y: float = 0.0
 
 var _phase: float = 0.0
+## Strides taken since the rig was made, for `strides_taken`.
+var _strides_taken: float = 0.0
 var _gait: float = 0.0
 ## How far into a Hold this body is, 0 to 1. Set by `brace()` before `step()`.
 var _brace: float = 0.0
@@ -291,6 +293,14 @@ func stride_reach() -> float:
 		reach = maxf(reach,
 			absf(_skeleton.get_bone_global_pose(index).origin.z - hips))
 	return reach
+
+
+## **How many strides the gait has taken**, ever — for the co-op smoke's
+## *walking, not sliding* row (ADR-351). Distance-driven like the phase it
+## advances, so it says whether this body is being handed to the gait at all,
+## and says it the same on an idle machine and a loaded one.
+func strides_taken() -> float:
+	return _strides_taken
 
 
 ## Bone names this rig actually has, for the check that the art still carries
@@ -715,6 +725,7 @@ func step(delta: float, speed: float, of_walking: float, stance: float,
 	# Distance, not time: the feet then keep pace with the ground instead of
 	# running their own clock while the body slides along under them.
 	_phase = fposmod(_phase + (speed * delta / STRIDE_METRES) * TAU, TAU)
+	_strides_taken += speed * delta / STRIDE_METRES
 	_breath = fposmod(_breath + delta * BREATH_HZ * TAU, TAU)
 	var wants: float = clampf(
 		speed / maxf(of_walking * FULL_GAIT_AT, 0.001), 0.0, 1.0)
