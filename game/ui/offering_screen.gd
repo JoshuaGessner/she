@@ -193,7 +193,7 @@ func _card(item: ItemInstance) -> Button:
 ## bag's card colours the name by (ADR-342), so the two screens agree.
 static func _worth(item: ItemInstance) -> String:
 	var value: int = item.tribute_worth()
-	return "%d · %s" % [value, BagScreen.WORTH_WORDS[BagScreen.worth_band(value)]]
+	return "%d · %s" % [value, BagScreen.worth_word(BagScreen.worth_band(value))]
 
 
 func _look(item: ItemInstance) -> void:
@@ -255,7 +255,7 @@ func _describe() -> void:
 		_give.text = "She will not take it"
 		_give.disabled = true
 		return
-	_detail.add_child(_left(MenuStyle.line("worth %s" % _worth(_selected), MenuStyle.CAPTION_WARM)))
+	_detail.add_child(_left(MenuStyle.line(tr("offer.worth") % _worth(_selected), MenuStyle.CAPTION_WARM)))
 	if int(sum["to_tithe"]) > 0:
 		_detail.add_child(_wrapped("%d of it pays what you owe her." % int(sum["to_tithe"]),
 			MenuStyle.BODY_TEXT))

@@ -172,7 +172,7 @@ func _process(delta: float) -> void:
 		# broken Shaft — so it says so, before the key is pressed as well as
 		# after.
 		if _shaft.fury_in_the_party():
-			_name.text = "the fury will not go %s until it has run out" % verb
+			_name.text = tr("shaft.fury_holds") % verb
 	elif _offer != "":
 		# **After the Shaft, before an item.** The way out still speaks first;
 		# an offer is a fixture of the room and a loose coin is not, so a room

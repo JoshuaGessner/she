@@ -866,11 +866,11 @@ func _draw_doll(panel: Rect2) -> void:
 	var font: Font = get_theme_default_font()
 	var at: Vector2 = panel.position + Vector2(PADDING, PADDING + 18.0)
 	var body: ClassResource = ClassCatalogue.by_id(_player.sworn)
-	var who: String = body.display() if body != null else "Unsworn"
+	var who: String = body.display() if body != null else tr("doll.unsworn")
 	draw_string(get_theme_font(&"font", MenuStyle.DISPLAY_WARM), at, who,
 		HORIZONTAL_ALIGNMENT_LEFT, DOLL_WIDTH * 0.7, HEADER_TEXT + 4,
 		palette()[&"warm"] as Color)
-	draw_string(font, at + Vector2(DOLL_WIDTH * 0.7, 0.0), "rank %d" % GameState.pact_rank,
+	draw_string(font, at + Vector2(DOLL_WIDTH * 0.7, 0.0), tr("doll.rank") % GameState.pact_rank,
 		HORIZONTAL_ALIGNMENT_RIGHT, DOLL_WIDTH * 0.3, CARD_TEXT, palette()[&"dim"] as Color)
 
 	var doll: Rect2 = _doll_rect()
@@ -887,14 +887,14 @@ func _draw_doll(panel: Rect2) -> void:
 	var stats: Rect2 = Rect2(Vector2(doll.position.x, doll.end.y + 8.0),
 		Vector2(DOLL_WIDTH, DOLL_STATS - 8.0))
 	var y: float = stats.position.y + 13.0
-	_draw_bar_row("health", _player.health.fraction(), stats.position.x, y)
+	_draw_bar_row(tr("doll.health"), _player.health.fraction(), stats.position.x, y)
 	y += DOLL_STAT_LEAD
-	_draw_bar_row("breath", _player.stamina.fraction(), stats.position.x, y)
+	_draw_bar_row(tr("doll.breath"), _player.stamina.fraction(), stats.position.x, y)
 	y += DOLL_STAT_LEAD
-	_draw_stat_row("wounds", WoundMarks.named(_player.wounds), stats.position.x, y)
+	_draw_stat_row(tr("doll.wounds"), WoundMarks.named(_player.wounds), stats.position.x, y)
 	y += DOLL_STAT_LEAD
 	if body != null and body.verb != &"":
-		_draw_stat_row("verb", "%s  (%s)" % [String(body.verb).capitalize(),
+		_draw_stat_row(tr("doll.verb"), "%s  (%s)" % [tr("verb.%s" % body.verb),
 			ControlsScreen.glyphs_for("verb")], stats.position.x, y)
 
 
@@ -935,10 +935,16 @@ func _draw_bar_row(key: String, fraction: float, x: float, y: float) -> void:
 ## coloured by **tribute**, and the band is written under it as well, because
 ## `DES-018` will not let a colour carry anything alone.
 const WORTH_BANDS: Array[int] = [1, 20, 60, 150]
-const WORTH_WORDS: Array[String] = ["nothing to her", "a trifle to her",
-	"worth her while", "rich, to her", "a king's gift"]
+const WORTH_KEYS: Array[String] = ["worth.none", "worth.trifle",
+	"worth.fair", "worth.rich", "worth.kingly"]
 const WORTH_TONES: Array[StringName] = [&"worth_none", &"worth_trifle",
 	&"worth_fair", &"worth_rich", &"worth_kingly"]
+
+
+## The band in words. Static, so through `TranslationServer` — `tr()` is a
+## node's, and this is asked by her page as well as by the bag.
+static func worth_word(band: int) -> String:
+	return TranslationServer.translate(WORTH_KEYS[clampi(band, 0, WORTH_KEYS.size() - 1)])
 
 
 static func worth_band(tribute: int) -> int:
@@ -952,19 +958,19 @@ static func worth_band(tribute: int) -> int:
 ## The line under the name: where it goes or what it is for.
 static func kind_of(definition: ItemResource) -> String:
 	if definition.slot != Enums.Slot.NONE:
-		return "worn · %s%s" % [SLOT_LABEL.get(definition.slot, ""),
-			", both hands" if definition.two_handed else ""]
+		return TranslationServer.translate("kind.worn") % [SLOT_LABEL.get(definition.slot, ""),
+			TranslationServer.translate("kind.both_hands") if definition.two_handed else ""]
 	if definition.tags.has(&"ember"):
-		return "an ember — carry it out"
+		return TranslationServer.translate("kind.ember")
 	if definition.tags.has(&"consumable"):
-		return "used from the bag"
+		return TranslationServer.translate("kind.consumable")
 	if definition.tags.has(&"glitter"):
-		return "glitter — hers, if you give it"
+		return TranslationServer.translate("kind.glitter")
 	if definition.tags.has(&"relic"):
-		return "a relic"
+		return TranslationServer.translate("kind.relic")
 	if definition.tags.has(&"material"):
-		return "material"
-	return "carried"
+		return TranslationServer.translate("kind.material")
+	return TranslationServer.translate("kind.carried")
 
 
 func _wrapped_lines(text: String, font: Font) -> int:
@@ -977,14 +983,14 @@ func _wrapped_lines(text: String, font: Font) -> int:
 ## The rows of numbers a card ends with.
 func _card_rows(item: ItemInstance) -> Array[PackedStringArray]:
 	var rows: Array[PackedStringArray] = []
-	rows.append(PackedStringArray(["weight", _kilograms(item.weight())]))
+	rows.append(PackedStringArray([tr("card.weight"), _kilograms(item.weight())]))
 	if item.clamor() > 0.0:
-		rows.append(PackedStringArray(["heard", "%.1f m further" % (
+		rows.append(PackedStringArray([tr("card.heard"), tr("card.heard_value") % (
 			item.clamor() * Config.tuning.clamor_metres_per_unit)]))
 	var size: Vector2i = item.definition.grid_size
-	rows.append(PackedStringArray(["takes", "%d × %d cells" % [size.x, size.y]]))
+	rows.append(PackedStringArray([tr("card.takes"), tr("card.takes_value") % [size.x, size.y]]))
 	if item.tribute_worth() > 0:
-		rows.append(PackedStringArray(["tribute", str(item.tribute_worth())]))
+		rows.append(PackedStringArray([tr("card.tribute"), str(item.tribute_worth())]))
 	return rows
 
 
@@ -1016,7 +1022,7 @@ func _draw_card(item: ItemInstance, at: Vector2) -> void:
 		item.definition.display(), HORIZONTAL_ALIGNMENT_LEFT, width, CARD_NAME_TEXT,
 		palette()[WORTH_TONES[band]] as Color)
 	y += CARD_LEAD
-	draw_string(font, Vector2(left, y), "%s · %s" % [WORTH_WORDS[band],
+	draw_string(font, Vector2(left, y), "%s · %s" % [worth_word(band),
 		kind_of(item.definition)], HORIZONTAL_ALIGNMENT_LEFT, width, CARD_TEXT,
 		palette()[&"dim"] as Color)
 	y += 10.0
