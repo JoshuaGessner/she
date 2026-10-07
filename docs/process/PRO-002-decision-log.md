@@ -12692,4 +12692,21 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** a new `--bagui-probe` row equips a seax, hovers its slot and presses drop. *hovering wpn_seax; off the hand and in the bag: true.* Before the change the seax stayed in the hand. `--bag-probe`, `--gear-probe` and `--throw-probe` pass.
 
+## ADR-357 — A teammate is a nameplate in iron, and is called by its class's name
+
+**Date:** 2026-10-06 · **Status:** accepted · **Follows ADR-341, ADR-212**
+
+**Context:**
+- **The party frame was the last bare UI.** After ADR-341 forged every themed plate, a teammate's frame was the in-run HUD's one piece of interface still drawn as text and a hairline straight onto the world. It read as debug output left on.
+- **It named the class by its id**, shouted: *player_2 HUSKARL*, where every other screen says *Húskarl*.
+- **The constraint.** `DES-019` keeps the in-run HUD sparse, so this is the smallest Diablo cue that fits: a party member as a nameplate, not orbs or a belt.
+
+**Decision:**
+- **Each teammate's row is drawn on the aspect chip's forged plate**, a 2 px iron bar on the panel ground. Its layout, bars, wound marks and Clamor pip are unchanged.
+- **The class is named by `ClassResource.display()`.**
+
+**Measured:**
+- `--party-shot` photographed the frame on its plate.
+- These pass: `--hud-probe`, `--ping-probe` and the co-op smoke.
+
 *Entries below to be added as design decisions are signed off.*

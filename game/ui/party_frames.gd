@@ -157,15 +157,24 @@ func _draw_frame(body: Player, top: float, loudest: float) -> void:
 	var track: Color = MenuStyle.ground(self, MenuStyle.FRAME)
 	var font: Font = get_theme_default_font()
 
+	# **On a plate of its own** (ADR-357): the forged chip the tree's cards are
+	# cut from, so a teammate reads as a nameplate held in iron — Diablo's
+	# party frame in this world's material — rather than as text left on the
+	# floor of the screen.
+	get_theme_stylebox(&"normal", MenuStyle.ASPECT_CHIP).draw(get_canvas_item(),
+		Rect2(-6.0, top, size.x + 6.0, ROW))
+
 	# The seat, as a standing tick. It is the only part of a frame that never
 	# moves, so it is what the eye finds the row by.
 	draw_rect(Rect2(0.0, top + 5.0, 2.0, ROW - 10.0), ink)
 
 	# **Who, what and how far down** — `DES-019` Layer 4's name and class, plus
 	# the rank, because ADR-010 builds the floor for the deepest rank *present*
-	# and that number is the reason the room is what it is.
+	# and that number is the reason the room is what it is. The class by its
+	# name (ADR-357), not its id shouted in capitals.
+	var sworn_as: ClassResource = ClassCatalogue.by_id(body.sworn)
 	var who: String = "%s  %s" % [
-		body.name, String(body.sworn).to_upper() if body.sworn != &"" else "—"]
+		body.name, sworn_as.display() if sworn_as != null else "—"]
 	draw_string(font, Vector2(10.0, top + 13.0), who,
 		HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13, ink)
 	draw_string(font, Vector2(10.0, top + 27.0), "rank %d" % body.rank,
