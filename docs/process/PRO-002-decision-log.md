@@ -12474,4 +12474,32 @@ These also pass: `--verbs-probe`, `--rite-probe`, `--body-probe`, `--hands-probe
 - **These also pass:** `--wound-probe`, `--shield-probe`, `--use-probe`, `--hazard-probe`, `--lantern-probe`, `--rite-probe`, `--fury-probe`, `--wing-probe`, `--pact-probe` (every page of three classes fits), `--respec-probe`, `--demand-probe` and `data_probe` (50 nodes).
 - **`--pact-shot`** now photographs the Úlfheðinn's pages too.
 
+## ADR-347 — Gilt, not plastic: gold is printed as a chiaroscuro woodcut prints colour
+
+**Date:** 2026-10-06 · **Status:** accepted · **Amends `ART-005` (the gold rule)**
+
+**Context:**
+- **Gold was the one thing not drawn.** `ART-005` says gold is the only colour, and the ink pass honoured that by leaving gold pixels exactly as rendered: `ground = mix(ground, base, gold)`.
+- **The result.** Next to ADR-339's engraving, the one colour on the page was also the one thing on it that wasn't drawn. Her hoard, the thing the whole loop is about, read as lit yellow plastic in a woodcut (the Chamber shots in ADR-339's set).
+- **The reference.** The chiaroscuro woodcut (Ugo da Carpi, Hans Burgkmair, early 16th c.) prints colour in **flat tone blocks** under a key block of line. It is the printmaking answer to *one colour in an ink picture*.
+
+**Decision:**
+- **A gold pixel, on either page, is printed by `gilt()`:**
+  - its own hue as two flat inks, the leaf (`gilt_leaf` 1.0) where the light falls and the shade (`gilt_shade` 0.62) where it turns at `gilt_split` 0.5;
+  - the engraver's cuts across the shade side, at 0.7 strength;
+  - a glint above `gilt_glint` 0.86 that lifts the leaf by a quarter toward pale gold and never to white. Her eyes are this class too: the first draft glinted them cream, and the second whitened them.
+- **Unchanged:**
+  - which pixels are gold, by the declared class or the chroma test;
+  - every non-gold pixel;
+  - the threat class.
+- All four numbers are ⟨tune⟩.
+
+**Measured** (`--chamber-shot`, `--her-shot`, `--threshold-shot` and `--delvings --ink-shot`, three passes):
+- the hoard reads as cut gilt;
+- her eyes keep their saturated gold;
+- the Chamber's braziers and the camp's fire become two-tone printed flames;
+- the Deep's views are unchanged.
+
+`--ink-probe` passes.
+
 *Entries below to be added as design decisions are signed off.*

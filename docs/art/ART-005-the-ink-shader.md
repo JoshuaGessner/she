@@ -173,6 +173,13 @@ And it matches real hand-drawn practice: **contours are redrawn every frame; fil
 > - **In the Deep,** the cuts are the light, a white-line engraving held to fine lines.
 > - **At range,** cuts give way to the flat tone they average to.
 > - **Settings:** `ink_style.tres` gives 9 cuts per metre, hairline 0.05 and strength 0.8. `hatch_wave` and `hatch_pressure` are 0.09 and 0.3. All are ⟨tune⟩.
+>
+> **Gilt, not plastic (ADR-347).** Gold kept its rendered colour outright, so the one colour on the page was the one thing on it that wasn't drawn: her hoard read as lit yellow plastic in a woodcut. Gold is now printed the way a **chiaroscuro woodcut** prints colour (Ugo da Carpi, Hans Burgkmair):
+> - **two flat inks of its own hue**, leaf where the light falls and shade where it turns (`gilt_split`, `gilt_leaf`, `gilt_shade`);
+> - **the engraver's cuts across the shade side**;
+> - a glint that only lifts the leaf, so **her eyes stay gold**. The first draft whitened them.
+>
+> Her braziers and the camp fire are the same class, and became printed flames.
 
 Full TAM requires lapped-texture parametrisation over a curvature-aligned direction field. **That is far too much for a solo project.** The 80% version:
 

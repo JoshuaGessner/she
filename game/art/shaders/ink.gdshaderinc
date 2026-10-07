@@ -102,6 +102,17 @@ uniform float gold_chroma : hint_range(0.0, 1.0) = 0.4;
 // hoard and the Threshold's firelit stone have the same chroma, and a guess
 // that cannot tell them apart papers over one or leaves the other orange.
 uniform float keep_colour : hint_range(0.0, 1.0) = 0.0;
+// **Gilt, not plastic** (ADR-347). Gold kept its rendered colour outright, so
+// the one colour in the picture was the one thing in it not drawn: a lit PBR
+// surface in a woodcut, which read as yellow plastic on her pile. A
+// chiaroscuro woodcut (Ugo da Carpi, Hans Burgkmair) prints colour as **flat
+// tone blocks** under a key block of line — so gold here is two flat inks of
+// its own hue, split where the light turns, with the engraver's cuts across
+// the shade side and the paper left bare where the light peaks.
+uniform float gilt_split : hint_range(0.0, 1.0) = 0.5;
+uniform float gilt_leaf : hint_range(0.0, 1.5) = 1.0;
+uniform float gilt_shade : hint_range(0.0, 1.0) = 0.62;
+uniform float gilt_glint : hint_range(0.0, 1.0) = 0.86;
 
 // Set by the capture harness so boil is paced by frame index rather than by
 // wall clock — otherwise a slow render makes the boil look wrong in a recording
@@ -200,6 +211,24 @@ float engrave_world(vec3 world_pos, vec3 weights, float amount) {
 		engrave_plane(world_pos.yz, vec2(1.0, 0.12), amount),
 		engrave_plane(world_pos.xz, vec2(0.7071, 0.7071), amount),
 		engrave_plane(world_pos.xy, vec2(0.12, 1.0), amount)));
+}
+
+
+// The gilt print of a gold pixel: leaf or shade by where the light turns,
+// cut toward ink on the shade side, and the paper's own white at the peak.
+vec3 gilt(vec3 base, float luminance, vec3 world_pos, vec3 weights, float nearby) {
+	float peak = max(base.r, max(base.g, max(base.b, 0.0001)));
+	vec3 hue = base / peak;
+	float v = sqrt(clamp(luminance, 0.0, 1.0));
+	float lit_side = smoothstep(gilt_split - 0.04, gilt_split + 0.04, v);
+	vec3 col = mix(hue * gilt_shade, hue * gilt_leaf, lit_side);
+	float cuts = engrave_world(world_pos, weights, smoothstep(gilt_split, gilt_split * 0.2, v));
+	col = mix(col, ink_color, cuts * nearby * 0.7);
+	// A glint only lifts the leaf a little, never to white: her eyes are this
+	// class too, and a pale eye is a different creature — the first draft
+	// glinted them to cream.
+	float glint = smoothstep(gilt_glint, gilt_glint + 0.05, v);
+	return mix(col, mix(hue, vec3(1.0), 0.45), glint * 0.25);
 }
 
 
@@ -309,7 +338,7 @@ void fragment() {
 		// boundary back.
 		vec3 ground = mix(base, base * deep_keep, lit);
 		ground = mix(ground, bone_color * max(drawn, 0.35), strokes * deep_stroke * lit * nearby);
-		ground = mix(ground, base, gold);
+		ground = mix(ground, gilt(base, luminance, world_pos, weights, nearby), gold);
 		col = mix(ground, bone_color, clamp(edge, 0.0, 1.0));
 	} else {
 		// **The print: a finished page.** Tone becomes paper and ink — bare
@@ -332,7 +361,7 @@ void fragment() {
 		// At range the cuts give way to the flat tone they average to.
 		float coverage = mix(turned * 0.4, cuts, nearby);
 		ground = mix(ground, ink_color, clamp(coverage * hatch_strength, 0.0, 1.0));
-		ground = mix(ground, base, gold);
+		ground = mix(ground, gilt(base, luminance, world_pos, weights, nearby), gold);
 		col = mix(ground, ink_color, clamp(edge, 0.0, 1.0));
 	}
 
