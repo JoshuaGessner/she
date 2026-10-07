@@ -109,22 +109,6 @@ const MARGIN: float = 22.0
 ## between a rule in a document and a rule in the build. ⟨tune⟩
 const KEEPOUT: Rect2 = Rect2(0.32, 0.30, 0.36, 0.28)
 
-## **The size a layout check measures against** (`M4-T20`, ADR-198).
-##
-## A probe cannot ask the live viewport how big it is, because the sweep runs
-## **headless** and a headless viewport is about 73 px wide — every region
-## rounds to nothing, every panel "escapes", and the check fails for a reason
-## that has nothing to do with the layout. ADR-093's rule is that anything whose
-## correctness is a claim about seeing gets photographed; this is the other half
-## of it, and the reason `--hud-probe` takes its sizes as arguments.
-##
-## So a screen is **declared** rather than read. The content is real — real
-## strings, real fonts, real wrapping — laid out at the resolution the game is
-## shot at, which makes the measurement deterministic *and* meaningful. The
-## alternative was a row that only runs when somebody remembers to open a
-## window, which is a row that has never failed.
-const REFERENCE: Vector2 = Vector2(1152.0, 648.0)
-
 
 ## Where `region` lives, in pixels, for a viewport of `screen`.
 ##

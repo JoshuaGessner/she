@@ -809,10 +809,10 @@ func _threshold_probe() -> void:
 		if picking != null:
 			var wide: float = picking.width_needed()
 			print("[camp] the lives     %d card(s), %.0f px needed of %.0f" % [
-				ClassCatalogue.all().size(), wide, ClassScreen.SCREEN.x])
-			if wide <= 0.0 or wide > ClassScreen.SCREEN.x:
+				ClassCatalogue.all().size(), wide, MenuStyle.base_screen().x])
+			if wide <= 0.0 or wide > MenuStyle.base_screen().x:
 				problems.append("the class screen needs %.0f px in a %.0f px window"
-					% [wide, ClassScreen.SCREEN.x])
+					% [wide, MenuStyle.base_screen().x])
 		if picking == null or not picking.press(&"huskarl"):
 			problems.append("the Legacy flow never reached a class to swear, so "
 				+ "the rows below are about nothing")
@@ -1016,10 +1016,10 @@ func _board_probe() -> void:
 	# ─ the board fits the window it is laid out for (ADR-359) ─
 	await get_tree().process_frame
 	var needed: float = board.width_needed()
-	print("[board] the width     %.0f px needed of %.0f" % [needed, LodgeScreen.SCREEN_WIDTH])
-	if needed <= 0.0 or needed > LodgeScreen.SCREEN_WIDTH:
+	print("[board] the width     %.0f px needed of %.0f" % [needed, MenuStyle.base_screen().x])
+	if needed <= 0.0 or needed > MenuStyle.base_screen().x:
 		problems.append("the board needs %.0f px in a %.0f px window, so it scrolls sideways"
-			% [needed, LodgeScreen.SCREEN_WIDTH])
+			% [needed, MenuStyle.base_screen().x])
 
 	# ─ 2. three on the board, and two hands ─
 	var offers: Array[Contract] = GameState.board()
@@ -1735,7 +1735,7 @@ func layout_faults() -> PackedStringArray:
 	# for the 0×0 that taught this.
 	_say("the check makes the camp refuse at length, so this region is measured "
 		+ "at the longest it is ever asked to hold")
-	var screen: Vector2 = HudFrame.REFERENCE
+	var screen: Vector2 = MenuStyle.base_screen()
 	await relayout(screen)
 	var claims: Dictionary = hud_claims()
 	var drawn: Dictionary = {}

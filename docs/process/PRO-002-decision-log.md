@@ -13002,4 +13002,19 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Measured:** `--fury-probe` row 1 reads `Reticle.channel_drawn()` halfway through the hold: 0.53. It fails at 0 or at 1. Row 10 asks that the brief contain *hold*.
 
+## ADR-373 — The screen every layout is measured against has one home: `MenuStyle.base_screen()`
+
+**Date:** 2026-10-07 · **Status:** accepted · **Refactor, from a code-quality review**
+
+**Context:**
+- **One number written six times.** Every fit check measures against 1152 × 648, because the sweep runs headless and the live viewport is a few pixels wide (ADR-198). The number was restated six times: `HudFrame.REFERENCE`, `ClassScreen.SCREEN`, `LodgeScreen.SCREEN_WIDTH`, a literal in `BagScreen.overflowing`, the Chamber's pact-page window, and two probes in the room set.
+- **None of them was the source.** The number is Godot's default base viewport, and `project.godot` sets no other. A changed base size would have left every fit check passing against a screen the game no longer opens at. That is the remembered-padding fault ADR-367 removed, at the scale of the whole screen.
+- **The name collided.** `HudFrame.REFERENCE` sat beside `HudFrame.Region.REFERENCE`, the camp's control card.
+
+**Decision:**
+- **`MenuStyle.base_screen()` reads `display/window/size/viewport_width` and `viewport_height`** from the project settings. Every check asks it. HudFrame's explanation of why a screen is declared rather than read moves with it.
+- **One literal stays:** the HUD probe's planted overlap test, whose rects are fixed geometry rather than a screen.
+
+**Measured:** these pass, with the same widths as before: `--board-probe` (1152 px needed of 1152), `--threshold-probe` (three cards, 1152 of 1152), `--pact-probe` (no control off a 1152 × 648 screen), `--bagui-probe`, `--hud-probe` and `--ping-probe`.
+
 *Entries below to be added as design decisions are signed off.*

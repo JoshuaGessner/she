@@ -1354,7 +1354,7 @@ func layout_faults() -> PackedStringArray:
 				longest = line
 	_speech.text = longest
 	_speech.visible = true
-	var screen: Vector2 = HudFrame.REFERENCE
+	var screen: Vector2 = MenuStyle.base_screen()
 	await relayout(screen)
 	var claims: Dictionary = hud_claims()
 	var drawn: Dictionary = {}
@@ -2205,7 +2205,7 @@ func _pact_probe() -> void:
 	# In a window of the size the game opens at, because a headless run's own
 	# viewport is 64 x 64 and every control is off that.
 	var window := SubViewport.new()
-	window.size = Vector2i(1152, 648)
+	window.size = Vector2i(MenuStyle.base_screen())
 	add_child(window)
 	var view := Rect2(Vector2.ZERO, Vector2(window.size))
 	var sworn_here: StringName = GameState.class_id

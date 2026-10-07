@@ -42,8 +42,6 @@ const MARGIN: float = 48.0
 ## the first time the row was wider than the window).
 const CARD_WIDTH: float = 420.0
 const CARD_GAP: float = 24.0
-## The smallest window the screen is laid out for.
-const SCREEN: Vector2 = Vector2(1152.0, 648.0)
 
 ## The width every card is drawn at, for this many of them.
 var _card_width: float = CARD_WIDTH
@@ -90,7 +88,7 @@ func _ready() -> void:
 	row.add_theme_constant_override("separation", int(CARD_GAP))
 	var count: int = maxi(sworn.size(), 1)
 	_card_width = minf(CARD_WIDTH,
-		floorf((SCREEN.x - MARGIN * 2.0 - CARD_GAP * (count - 1)) / count))
+		floorf((MenuStyle.base_screen().x - MARGIN * 2.0 - CARD_GAP * (count - 1)) / count))
 	column.add_child(row)
 	for entry: ClassResource in sworn:
 		row.add_child(_card(entry))
@@ -113,7 +111,7 @@ func _inner_width() -> float:
 
 
 ## **How wide the row of lives needs to be** (ADR-361): the built cards'
-## combined minimum and the margins, against `SCREEN`. Three cards share the
+## combined minimum and the margins, against `MenuStyle.base_screen`. Three cards share the
 ## window today; the fourth, at `M5-T01`, is the day this fails and the screen
 ## needs a second row — which is the point of asking it.
 func width_needed() -> float:

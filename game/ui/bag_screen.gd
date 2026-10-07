@@ -549,7 +549,7 @@ func overflowing() -> PackedStringArray:
 	# rather than running off the bottom of somebody's screen.
 	# Against the smallest window the game is laid out for, not the live
 	# viewport — headless, that is 64 px and every card would fail.
-	var screen := Vector2(1152.0, 648.0)
+	var screen: Vector2 = MenuStyle.base_screen()
 	if panel.size.y > screen.y or panel.size.x > screen.x:
 		spilled.append("the panel is %.0f × %.0f on a %.0f × %.0f screen" % [
 			panel.size.x, panel.size.y, screen.x, screen.y])

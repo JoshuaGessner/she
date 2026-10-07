@@ -6360,7 +6360,7 @@ func _hud_probe() -> void:
 	# clean at 16:9 and folds at 4:3 is exactly the fault a single-resolution
 	# check cannot see — and `M4-T11`'s UI scaling will move all of these.
 	var shapes: Array[Vector2] = [
-		Vector2(1152.0, 648.0),   # the screenshot harness
+		MenuStyle.base_screen(),  # the screenshot harness
 		Vector2(1920.0, 1080.0),  # 16:9
 		Vector2(1280.0, 960.0),   # 4:3
 		Vector2(2560.0, 1080.0),  # ultrawide
@@ -17869,7 +17869,7 @@ func _ping_probe() -> void:
 
 	# ─ 10. where it is drawn: ahead on the screen, behind at the edge ─
 	var eye: Camera3D = get_viewport().get_camera_3d()
-	var screen := Vector2(1152.0, 648.0)
+	var screen: Vector2 = MenuStyle.base_screen()
 	var ahead: Dictionary = {}
 	var behind: Dictionary = {}
 	var overhead: Dictionary = {}

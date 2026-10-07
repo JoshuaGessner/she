@@ -32,7 +32,6 @@ const COLUMN_GAP: float = 32.0
 ## once the forged plates' margins grew (ADR-341). The card is now as wide as
 ## half the smallest window allows, and what is inside it is measured from the
 ## plate's own stylebox rather than from a padding remembered here.
-const SCREEN_WIDTH: float = 1152.0
 const SCROLLBAR: float = 16.0
 
 var _column: VBoxContainer = null
@@ -128,7 +127,7 @@ func width_needed() -> float:
 
 ## How wide a card is, and how wide what is inside it may be (ADR-359).
 func row_width() -> float:
-	return minf(ROW_WIDTH, floorf((SCREEN_WIDTH - MARGIN * 2.0 - COLUMN_GAP - SCROLLBAR) * 0.5))
+	return minf(ROW_WIDTH, floorf((MenuStyle.base_screen().x - MARGIN * 2.0 - COLUMN_GAP - SCROLLBAR) * 0.5))
 
 
 func inner_width() -> float:
