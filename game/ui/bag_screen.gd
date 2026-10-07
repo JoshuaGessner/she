@@ -108,25 +108,6 @@ const SLOT_ON_BODY: Dictionary = {
 	Enums.Slot.PACK: Vector2(1.0, 0.74),
 }
 
-## ## The item card (ADR-342)
-##
-## What the thing under your hands is, in a card beside them rather than a band
-## at the foot of the panel — Diablo's tooltip, which every successor kept
-## because the eye is already at the cursor. The band it replaces held a name
-## and two wrapped lines; the card has room to say what the thing **is to you**:
-## where it is worn, what it weighs, how far it is heard, and what she would
-## give for it.
-const CARD_WIDTH: float = 272.0
-const CARD_PAD: float = 14.0
-const CARD_NAME_TEXT: int = 17
-const CARD_TEXT: int = 13
-const CARD_LEAD: float = 18.0
-## How many wrapped lines of description a card will draw. Every authored
-## description fits in four at this width; `overflowing()` checks that.
-const CARD_LINES: int = 5
-## How far from the hands the card sits.
-const CARD_OFFSET: Vector2 = Vector2(22.0, 10.0)
-
 const CELL: float = 44.0
 const GAP: float = 3.0
 const PADDING: float = 18.0
@@ -562,7 +543,7 @@ func overflowing() -> PackedStringArray:
 	# **And whether every item's card fits on the screen** (ADR-140, ADR-342).
 	#
 	# The band this replaced was the one region whose height was not fixed, and
-	# the card inherits that: a name, a kind, up to `CARD_LINES` of description
+	# the card inherits that: a name, a kind, up to `ItemCard.LINES` of description
 	# and the numbers. Measured per item against the font rather than against a
 	# remembered height, so a longer description or a larger type fails here
 	# rather than running off the bottom of somebody's screen.
@@ -573,11 +554,11 @@ func overflowing() -> PackedStringArray:
 		spilled.append("the panel is %.0f × %.0f on a %.0f × %.0f screen" % [
 			panel.size.x, panel.size.y, screen.x, screen.y])
 	for definition: ItemResource in ItemCatalogue.all():
-		var wrapped: int = _wrapped_lines(definition.describe(), font)
-		if wrapped > CARD_LINES:
+		var wrapped: int = ItemCard.wrapped_lines(definition.describe(), font)
+		if wrapped > ItemCard.LINES:
 			spilled.append("%s's description wraps to %d lines and the card draws %d"
-				% [definition.id, wrapped, CARD_LINES])
-		var tall: float = _card_height(ItemInstance.of(definition, 0))
+				% [definition.id, wrapped, ItemCard.LINES])
+		var tall: float = ItemCard.height(ItemInstance.of(definition, 0), font)
 		if tall > screen.y - PADDING * 2.0:
 			spilled.append("%s's card is %.0f px on a %.0f px screen" % [
 				definition.id, tall, screen.y])
@@ -596,7 +577,7 @@ func overflowing() -> PackedStringArray:
 	# were caught by a **photograph**, which is why `--bag-shot` now hovers.
 	for item: ItemInstance in _inventory.items():
 		var cell_room: float = item.footprint().x * (CELL + GAP) - GAP - 8.0
-		var weight: String = _kilograms(item.weight())
+		var weight: String = weight_text(item.weight())
 		if item.footprint().x <= 1:
 			weight = weight.replace(" kg", "")
 		var drawn_at: float = font.get_string_size(
@@ -851,7 +832,7 @@ func _draw() -> void:
 	else:
 		var item: ItemInstance = hovered()
 		if item != null and item.definition != null:
-			_draw_card(item, _cursor)
+			ItemCard.draw(self, item, _cursor, palette())
 
 
 ## **The body** (ADR-342): who this is, the figure the slots are worn on, and
@@ -871,7 +852,7 @@ func _draw_doll(panel: Rect2) -> void:
 		HORIZONTAL_ALIGNMENT_LEFT, DOLL_WIDTH * 0.7, HEADER_TEXT + 4,
 		palette()[&"warm"] as Color)
 	draw_string(font, at + Vector2(DOLL_WIDTH * 0.7, 0.0), tr("doll.rank") % GameState.pact_rank,
-		HORIZONTAL_ALIGNMENT_RIGHT, DOLL_WIDTH * 0.3, CARD_TEXT, palette()[&"dim"] as Color)
+		HORIZONTAL_ALIGNMENT_RIGHT, DOLL_WIDTH * 0.3, ItemCard.TEXT, palette()[&"dim"] as Color)
 
 	var doll: Rect2 = _doll_rect()
 	get_theme_stylebox(&"panel", MenuStyle.SOCKET).draw(get_canvas_item(), doll)
@@ -904,9 +885,9 @@ const STAT_KEY: float = 62.0
 func _draw_stat_row(key: String, value: String, x: float, y: float) -> void:
 	var font: Font = get_theme_default_font()
 	draw_string(font, Vector2(x, y), key, HORIZONTAL_ALIGNMENT_LEFT, STAT_KEY,
-		CARD_TEXT, palette()[&"dim"] as Color)
+		ItemCard.TEXT, palette()[&"dim"] as Color)
 	draw_string(font, Vector2(x + STAT_KEY, y), value, HORIZONTAL_ALIGNMENT_LEFT,
-		DOLL_WIDTH - STAT_KEY, CARD_TEXT, palette()[&"text"] as Color)
+		DOLL_WIDTH - STAT_KEY, ItemCard.TEXT, palette()[&"text"] as Color)
 
 
 ## A fraction as a bar in a sunken track, and as the word *low* under a third —
@@ -914,7 +895,7 @@ func _draw_stat_row(key: String, value: String, x: float, y: float) -> void:
 func _draw_bar_row(key: String, fraction: float, x: float, y: float) -> void:
 	var font: Font = get_theme_default_font()
 	draw_string(font, Vector2(x, y), key, HORIZONTAL_ALIGNMENT_LEFT, STAT_KEY,
-		CARD_TEXT, palette()[&"dim"] as Color)
+		ItemCard.TEXT, palette()[&"dim"] as Color)
 	var track := Rect2(Vector2(x + STAT_KEY, y - 9.0), Vector2(DOLL_WIDTH - STAT_KEY, 9.0))
 	draw_rect(track, palette()[&"cell"] as Color)
 	var low: bool = fraction < 0.34
@@ -924,122 +905,6 @@ func _draw_bar_row(key: String, fraction: float, x: float, y: float) -> void:
 	if low:
 		CarvedFrame.hatch_into(get_canvas_item(), track,
 			palette()[&"cell"] as Color, OVER_PITCH, 1.0)
-
-
-## **What a thing is worth to her**, as a word and a colour — the only ladder an
-## item in this game is on (ADR-342). `DES-008` refuses a rarity ladder: gear is
-## sidegrades, and a blue axe that is better than a white one is the treadmill
-## `DES-022` exists to prevent. But every item *does* stand somewhere on one
-## scale, the one the whole loop turns on — what she would give for it — and
-## Diablo's coloured name is the fastest read in the genre. So the name is
-## coloured by **tribute**, and the band is written under it as well, because
-## `DES-018` will not let a colour carry anything alone.
-const WORTH_BANDS: Array[int] = [1, 20, 60, 150]
-const WORTH_KEYS: Array[String] = ["worth.none", "worth.trifle",
-	"worth.fair", "worth.rich", "worth.kingly"]
-const WORTH_TONES: Array[StringName] = [&"worth_none", &"worth_trifle",
-	&"worth_fair", &"worth_rich", &"worth_kingly"]
-
-
-## The band in words. Static, so through `TranslationServer` — `tr()` is a
-## node's, and this is asked by her page as well as by the bag.
-static func worth_word(band: int) -> String:
-	return TranslationServer.translate(WORTH_KEYS[clampi(band, 0, WORTH_KEYS.size() - 1)])
-
-
-static func worth_band(tribute: int) -> int:
-	var band: int = 0
-	for floor_of: int in WORTH_BANDS:
-		if tribute >= floor_of:
-			band += 1
-	return band
-
-
-## The line under the name: where it goes or what it is for.
-static func kind_of(definition: ItemResource) -> String:
-	if definition.slot != Enums.Slot.NONE:
-		return TranslationServer.translate("kind.worn") % [SLOT_LABEL.get(definition.slot, ""),
-			TranslationServer.translate("kind.both_hands") if definition.two_handed else ""]
-	if definition.tags.has(&"ember"):
-		return TranslationServer.translate("kind.ember")
-	if definition.tags.has(&"consumable"):
-		return TranslationServer.translate("kind.consumable")
-	if definition.tags.has(&"glitter"):
-		return TranslationServer.translate("kind.glitter")
-	if definition.tags.has(&"relic"):
-		return TranslationServer.translate("kind.relic")
-	if definition.tags.has(&"material"):
-		return TranslationServer.translate("kind.material")
-	return TranslationServer.translate("kind.carried")
-
-
-func _wrapped_lines(text: String, font: Font) -> int:
-	var width: float = CARD_WIDTH - CARD_PAD * 2.0
-	var tall: float = font.get_multiline_string_size(text, HORIZONTAL_ALIGNMENT_LEFT,
-		width, CARD_TEXT).y
-	return int(ceilf(tall / maxf(font.get_height(CARD_TEXT), 1.0) - 0.01))
-
-
-## The rows of numbers a card ends with.
-func _card_rows(item: ItemInstance) -> Array[PackedStringArray]:
-	var rows: Array[PackedStringArray] = []
-	rows.append(PackedStringArray([tr("card.weight"), _kilograms(item.weight())]))
-	if item.clamor() > 0.0:
-		rows.append(PackedStringArray([tr("card.heard"), tr("card.heard_value") % (
-			item.clamor() * Config.tuning.clamor_metres_per_unit)]))
-	var size: Vector2i = item.definition.grid_size
-	rows.append(PackedStringArray([tr("card.takes"), tr("card.takes_value") % [size.x, size.y]]))
-	if item.tribute_worth() > 0:
-		rows.append(PackedStringArray([tr("card.tribute"), str(item.tribute_worth())]))
-	return rows
-
-
-func _card_height(item: ItemInstance) -> float:
-	var font: Font = get_theme_default_font()
-	var lines: int = mini(_wrapped_lines(item.definition.describe(), font), CARD_LINES)
-	return (CARD_PAD * 2.0 + 24.0 + CARD_LEAD + 10.0
-		+ lines * font.get_height(CARD_TEXT) + 10.0
-		+ _card_rows(item).size() * CARD_LEAD)
-
-
-## **The card**, beside the hands and kept on the screen: to the right of the
-## cursor, or to the left where the right would run off it.
-func _draw_card(item: ItemInstance, at: Vector2) -> void:
-	var font: Font = get_theme_default_font()
-	var screen: Vector2 = get_viewport_rect().size
-	var size := Vector2(CARD_WIDTH, _card_height(item))
-	var origin: Vector2 = at + CARD_OFFSET
-	if origin.x + size.x > screen.x - 8.0:
-		origin.x = at.x - CARD_OFFSET.x - size.x
-	origin.y = clampf(origin.y, 8.0, maxf(8.0, screen.y - size.y - 8.0))
-	var card := Rect2(origin.round(), size)
-	get_theme_stylebox(&"panel", MenuStyle.FRAME).draw(get_canvas_item(), card)
-	var left: float = card.position.x + CARD_PAD
-	var width: float = card.size.x - CARD_PAD * 2.0
-	var y: float = card.position.y + CARD_PAD + 16.0
-	var band: int = worth_band(item.tribute_worth())
-	draw_string(get_theme_font(&"font", MenuStyle.DISPLAY_WARM), Vector2(left, y),
-		item.definition.display(), HORIZONTAL_ALIGNMENT_LEFT, width, CARD_NAME_TEXT,
-		palette()[WORTH_TONES[band]] as Color)
-	y += CARD_LEAD
-	draw_string(font, Vector2(left, y), "%s · %s" % [worth_word(band),
-		kind_of(item.definition)], HORIZONTAL_ALIGNMENT_LEFT, width, CARD_TEXT,
-		palette()[&"dim"] as Color)
-	y += 10.0
-	draw_rect(Rect2(left, y - 4.0, width, 1.0), Color(palette()[&"line"] as Color, 0.8))
-	y += font.get_ascent(CARD_TEXT)
-	draw_multiline_string(font, Vector2(left, y), item.definition.describe(),
-		HORIZONTAL_ALIGNMENT_LEFT, width, CARD_TEXT, CARD_LINES, palette()[&"text"] as Color)
-	y += mini(_wrapped_lines(item.definition.describe(), font), CARD_LINES) \
-		* font.get_height(CARD_TEXT) - font.get_ascent(CARD_TEXT) + 10.0
-	draw_rect(Rect2(left, y - 4.0, width, 1.0), Color(palette()[&"line"] as Color, 0.8))
-	y += 12.0
-	for row: PackedStringArray in _card_rows(item):
-		draw_string(font, Vector2(left, y), row[0], HORIZONTAL_ALIGNMENT_LEFT,
-			STAT_KEY, CARD_TEXT, palette()[&"dim"] as Color)
-		draw_string(font, Vector2(left + STAT_KEY, y), row[1], HORIZONTAL_ALIGNMENT_LEFT,
-			width - STAT_KEY, CARD_TEXT, palette()[&"text"] as Color)
-		y += CARD_LEAD
 
 
 ## The three numbers the decision is actually made on.
@@ -1151,7 +1016,7 @@ func _draw_item(item: ItemInstance, rect: Rect2, alpha: float) -> void:
 	# rendering bug rather than as a weight. Every number in this panel is
 	# kilograms and the header says so two inches above, so the digits are the
 	# part worth keeping — clip-free beats a unit nobody was in doubt about.
-	var weight: String = _kilograms(item.weight())
+	var weight: String = weight_text(item.weight())
 	if item.footprint().x <= 1:
 		weight = weight.replace(" kg", "")
 	draw_string(font, rect.position + Vector2(5.0, rect.size.y - 6.0),
@@ -1220,7 +1085,7 @@ func _draw_footer(panel: Rect2) -> void:
 ## bug. `DES-008`'s raw gemstone is "high tribute, no weight" and weighs 0.04 kg
 ## — at one decimal that renders as `0.0 kg`, which reads as unset rather than
 ## as weightless.
-static func _kilograms(value: float) -> String:
+static func weight_text(value: float) -> String:
 	return "%.2f kg" % value if value < 0.1 else "%.1f kg" % value
 
 

@@ -193,7 +193,7 @@ func _card(item: ItemInstance) -> Button:
 ## bag's card colours the name by (ADR-342), so the two screens agree.
 static func _worth(item: ItemInstance) -> String:
 	var value: int = item.tribute_worth()
-	return "%d · %s" % [value, BagScreen.worth_word(BagScreen.worth_band(value))]
+	return "%d · %s" % [value, ItemCard.worth_word(ItemCard.worth_band(value))]
 
 
 func _look(item: ItemInstance) -> void:
@@ -246,7 +246,7 @@ func _describe() -> void:
 	var words := VBoxContainer.new()
 	words.alignment = BoxContainer.ALIGNMENT_CENTER
 	words.add_child(_left(MenuStyle.line(_selected.definition.display(), MenuStyle.DISPLAY_WARM)))
-	words.add_child(_left(MenuStyle.line(BagScreen.kind_of(_selected.definition),
+	words.add_child(_left(MenuStyle.line(ItemCard.kind_of(_selected.definition),
 		MenuStyle.CAPTION_DIM)))
 	named.add_child(words)
 	_detail.add_child(named)

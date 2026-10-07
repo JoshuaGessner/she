@@ -12820,4 +12820,28 @@ These pass: `--wing-probe`, `--sight-probe`, `--shield-probe`, `--rite-probe` an
 
 **Not solved:** draw calls are still about a thousand in a hall. That half is MultiMesh, which is still filed.
 
+## ADR-363 — The item card is its own class: one answer to *what is this to her*, for the bag and her pile
+
+**Date:** 2026-10-07 · **Status:** accepted · **Refactor; nothing on screen changes**
+
+**Context:**
+- **The card lived inside the bag.** ADR-342 put the item card (its worth bands and words, the kind line, its measuring and drawing) inside `BagScreen`, which grew to about 1,240 lines.
+- **Her pile page reached into the bag for it.** ADR-343 called `BagScreen.worth_word`, `worth_band` and `kind_of`: one screen depending on another's internals for the words both use to judge an item.
+
+**Decision:**
+- **`ItemCard` (`ui/item_card.gd`, a `RefCounted` of static functions) owns:**
+  - the card's constants and the worth bands, words and tones;
+  - `kind_of`;
+  - the measures (`wrapped_lines`, `rows`, `height`);
+  - `draw(on, item, at, palette)`, which draws onto the asking control in its theme and palette, so `--bagui-probe`'s *every colour comes from the theme* row still reaches it.
+- **`BagScreen`** keeps the doll and the grid. It calls `ItemCard.draw` and checks `ItemCard`'s measures in `overflowing()`.
+- **`OfferingScreen`** asks `ItemCard`.
+- **`_kilograms` becomes the public `BagScreen.weight_text`**, so the card does not reach into a private.
+
+**Measured:**
+- `--bagui-probe` passes: text fits, every card fits 1152×648, six slots, every palette colour from the theme, and the worn-slot drop.
+- `--offering-probe` passes.
+- `--bag-shot` is identical to before.
+- `bag_screen.gd` goes from 1,236 lines to 1,090; `item_card.gd` is 163.
+
 *Entries below to be added as design decisions are signed off.*
