@@ -16808,6 +16808,14 @@ func _lock_probe() -> void:
 	door.opened.connect(func(opened: LockedDoor) -> void:
 		opened.remove_from_group(NAV_SOURCE_GROUP))
 	await _hold(0.3)
+	# **And photographed** (`--door-shot=PATH`, windowed): dark timber in a
+	# dark corridor is the one thing a probe cannot read, through the ink pass.
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--door-shot="):
+			await RenderingServer.frame_post_draw
+			var frame: Image = get_viewport().get_texture().get_image()
+			frame.save_png(arg.split("=", true, 1)[1])
+			print("[lock] shot        %s" % arg.split("=", true, 1)[1])
 	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	var through := PhysicsRayQueryParameters3D.create(
 		body.global_position + Vector3.UP * 1.0, body.global_position + Vector3.UP * 1.0 + ahead * 3.0)

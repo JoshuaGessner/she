@@ -76,8 +76,11 @@ func _build_leaf() -> Node3D:
 	var hinge := Node3D.new()
 	hinge.name = "Leaf"
 	hinge.position = Vector3(-SIZE.x * 0.5, 0.0, 0.0)
-	var timber := _material(Color(0.20, 0.15, 0.10), 0.9)
-	var iron := _material(Color(0.16, 0.16, 0.17), 0.5)
+	# In the world's own range of values, not the colour of old oak: the ink
+	# pass prints anything this dark as solid ink, and the first photograph of
+	# a door was a black slab with no planks — a hole, not a door.
+	var timber := _material(Color(0.46, 0.37, 0.27), 0.9)
+	var iron := _material(Color(0.30, 0.30, 0.32), 0.5)
 	var planks: int = 5
 	for i: int in planks:
 		var wide: float = SIZE.x / float(planks)
@@ -112,10 +115,13 @@ func _box(into: Node3D, size: Vector3, at: Vector3, look: Material) -> void:
 	into.add_child(piece)
 
 
-static func _material(colour: Color, rough: float) -> StandardMaterial3D:
-	var look := StandardMaterial3D.new()
-	look.albedo_color = colour
-	look.roughness = rough
+## The kit's own weathering (ADR-285), so a door is lit and inked as the walls
+## around it are, not as a plain material in a world of worn stone.
+static func _material(colour: Color, rough: float) -> ShaderMaterial:
+	var look := ShaderMaterial.new()
+	look.shader = DelvingsKit.WEATHERED
+	look.set_shader_parameter("albedo", Vector3(colour.r, colour.g, colour.b))
+	look.set_shader_parameter("roughness", rough)
 	return look
 
 
