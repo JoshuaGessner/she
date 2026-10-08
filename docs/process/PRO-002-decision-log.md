@@ -13410,4 +13410,24 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - **The dress** is a madder-red cloak to the knee, pinned at the right shoulder with a gilt ring-pin and open down that side, with a pale tablet-woven border. He goes bare-headed, the one delver whose outline is not a hood.
 - **The class screen at six** (ADR-385's open point): 1150 px of 1152 across and 483 of 648 down. A card is a `CardPlate` (`Frame` ground, its bosses laid 5 px in so neighbours do not collide) with a `CardName` a size down. The margin is 32 px and the gap 12.
 
+## ADR-388 — The arrival brief stays up for as long as it takes to read
+
+**Date:** 2026-10-08 · **Status:** accepted · **From the G3 first-timer walkthrough (`--walkthrough=DIR`)**
+
+**Context:**
+- **Found by walking a first floor as a new player would.** The walkthrough walks a generated floor from the arrival point to the Shaft, with the floor's enemies in it. Every 2 s it keeps a frame and a line of what the screen said.
+- **A Skald's brief was gone before it could be read.** It is the floor's name, *take what you can carry*, the way out, the verb's line and the menu line: 38 words of instruction, about 50 with the name. It held a flat 4.5 s and faded over 1.2 s. At a reading pace for text read on the move (about 210 words a minute) it needs over ten seconds, and the verb's line, which is the one a new player most needs, was the one cut off.
+- **The walkthrough also caught itself:** any flag naming a *shot* or *probe*, the output path included, makes the level a measurement and hides the brief. It is `--walkthrough=`, written to a folder whose name says neither.
+
+**References:**
+- **Subtitle and caption timing practice** (broadcast captioning guidance; Netflix's timed-text guidelines). Text is held for its own reading time with a floor, not for one fixed interval.
+- **Hunt: Showdown's contract card and Thief's mission parchment** (the precedents `ArrivalBrief` already cites). Neither vanishes before it has been read.
+
+**Decision:**
+- **The brief holds for `HOLD_SECONDS` (4.5 s) or its own reading time, whichever is longer.** Reading time is its word count over 3.5 words a second ⟨tune⟩. A short brief gets out of the way as fast as it did; a long one (a Skald's, or one carrying the Lodge's notes) stays until it can be read. The same holds for every notice built on `ArrivalBrief`.
+
+**Measured:**
+- **`--galdr-probe`:** a Skald's brief is 51 words and holds 14.6 s, its reading time, against the 4.5 s floor.
+- **The walkthrough on seed 31346:** the brief was on screen from 2.1 s to 14.6 s, where it had been gone by 6.2 s.
+
 *Entries below to be added as design decisions are signed off.*

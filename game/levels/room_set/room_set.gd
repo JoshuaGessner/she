@@ -888,7 +888,7 @@ func _ready() -> void:
 			_crossing_probe()
 		elif arg.begins_with("--delvings-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1])
-		elif arg.begins_with("--walkthrough-shot="):
+		elif arg.begins_with("--walkthrough="):
 			_walkthrough_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--ink-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1], true)
@@ -4000,7 +4000,9 @@ func _perf_shot() -> void:
 	get_tree().quit()
 
 
-## **`--walkthrough-shot=DIR`**: a first floor as a first-timer walks it.
+## **`--walkthrough=DIR`**: a first floor as a first-timer walks it. Not named a
+## shot on purpose: a "shot" or "probe" flag makes the level a measurement
+## and hides the arrival brief, and the brief is half of what a first floor says.
 ##
 ## Every other shot stands somewhere the generator chose and looks; this one
 ## *walks*, along the navmesh route from the arrival point to the Shaft, with
@@ -17458,6 +17460,21 @@ func _galdr_probe() -> void:
 	print("[galdr] control    a Húskarl's held key sings %.2f (want 0); told '%s'" % [not_his, told])
 	if not_his > 0.0 or not told.contains("hold"):
 		problems.append("a class that is not a Skald sang, or the first floor does not say how Galdr begins")
+	# **And it is up long enough to read** (G3): a Skald's brief is the longest,
+	# and its verb line was fading half-read at the old 4.5 s hold.
+	var brief := ArrivalBrief.new()
+	brief.verb = told
+	add_child(brief)
+	await get_tree().process_frame
+	var words: int = 0
+	for label: Node in brief.find_children("*", "Label", true, false):
+		words += (label as Label).text.split(" ", false).size()
+	var reading: float = float(words) / ArrivalBrief.READING_WORDS_PER_SECOND
+	print("[galdr] the brief  %d words, held %.1f s (reading time %.1f s, the floor %.1f s)"
+		% [words, brief.holds_for(), reading, ArrivalBrief.HOLD_SECONDS])
+	if brief.holds_for() < reading - 0.01 or brief.holds_for() <= ArrivalBrief.HOLD_SECONDS:
+		problems.append("the first floor's brief fades before it can be read")
+	brief.queue_free()
 	_session.clear_enemies()
 
 	# ─ 3. the Rite, each against the same case without it ─

@@ -26,8 +26,20 @@ extends Control
 
 const HOLD_SECONDS: float = 4.5   # ⟨tune⟩
 const FADE_SECONDS: float = 1.2   # ⟨tune⟩
+## **Long enough to be read** ⟨tune⟩: about 210 words a minute, a pace for text
+## read on the move. The G3 walkthrough found a Skald's brief at 38 words — the
+## floor's name, the way out, the verb, the menu — gone at 5.7 s while it takes
+## about eleven to read, so a new player saw the verb's line half-read. The
+## hold is `HOLD_SECONDS` or the brief's own reading time, whichever is longer,
+## so a short brief still gets out of the way as fast as it did.
+const READING_WORDS_PER_SECOND: float = 3.5
 ## Metres past which a bearing says *far* ⟨tune⟩ (ADR-241).
 const FAR: float = 24.0
+
+
+## How long this brief holds before it starts to fade, in seconds.
+func holds_for() -> float:
+	return _hold
 
 ## A brief has to read over both black paper and the lantern's pale strokes.
 ## The frame makes it one temporary card rather than pale text that happens to
@@ -37,6 +49,10 @@ const FAR: float = 24.0
 var _card: PanelContainer
 var _lines: VBoxContainer
 var _elapsed: float = 0.0
+## How long this brief holds before it fades: `HOLD_SECONDS`, or as long as its
+## own words take to read.
+var _hold: float = HOLD_SECONDS
+var _words: int = 0
 ## Seconds of Hunt a missed Tithe bought her, handed down by the level. Set
 ## before this enters the tree, because `_ready` is where the lines are built.
 var sent_early: float = 0.0
@@ -139,6 +155,8 @@ static func bearing(from: Vector3, to: Vector3, facing: float = 0.0) -> String:
 
 func _line(text: String, role: StringName) -> void:
 	var label: Label = MenuStyle.line(text, role)
+	_words += text.split(" ", false).size()
+	_hold = maxf(HOLD_SECONDS, float(_words) / READING_WORDS_PER_SECOND)
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_lines.add_child(label)
@@ -156,9 +174,9 @@ func _process(delta: float) -> void:
 	_card.size = _card.get_combined_minimum_size()
 	_card.position = Vector2(screen.x * 0.5 - _card.size.x * 0.5,
 		screen.y * 0.34)
-	if _elapsed < HOLD_SECONDS:
+	if _elapsed < _hold:
 		return
-	var fading: float = (_elapsed - HOLD_SECONDS) / FADE_SECONDS
+	var fading: float = (_elapsed - _hold) / FADE_SECONDS
 	modulate.a = 1.0 - clampf(fading, 0.0, 1.0)
 	if fading >= 1.0:
 		# Freed rather than hidden. It has said its piece and will never say it
