@@ -6870,6 +6870,7 @@ var _probe_door: Dictionary = {}
 ## A client's Haugbrot, as each peer saw it (ADR-382).
 var _probe_haug: Dictionary = {}
 var _probe_galdr: Dictionary = {}
+var _probe_rallied: Dictionary = {}
 const PROBE_STRIKE: float = 10.0
 
 
@@ -7410,6 +7411,36 @@ func _coop_probe(out: String) -> void:
 		return is_instance_valid(faller) and not faller.is_downed(), 3.0)
 	_probe_revived = _probe_down_state()
 
+	# 6b. **Bjarkamál** (ADR-387): a Skald's verse stands a fallen friend, and
+	#     the friend is chosen by the host from who is down within earshot —
+	#     which only two processes can show. The host downs the client again,
+	#     swears itself a Skald with the node, and sings beside it; the client
+	#     stands at a rescue's fraction, as the binding phase below expects.
+	if host:
+		var friend: Player = _client_body()
+		if friend != null:
+			friend.health.apply_damage(friend.health.maximum * 2.0)
+			await _hold_until(func() -> bool: return friend.is_downed(), 3.0)
+			var was_sworn: StringName = mine.sworn
+			var was_effects: PackedStringArray = mine.effects
+			mine.sworn = &"skald"
+			mine.effects = PackedStringArray(["galdr_rallies"])
+			mine.teleport(friend.global_position + Vector3(2.0, 0.0, 0.0), 0.0)
+			await _hold(0.3)
+			Input.action_press("verb")
+			await _hold(Config.tuning.galdr_seconds + 0.5)
+			Input.action_release("verb")
+			await _hold_until(func() -> bool: return not friend.is_downed(), 3.0)
+			_probe_rallied = {"down_first": true, "stood": not friend.is_downed()}
+			mine.sworn = was_sworn
+			mine.effects = was_effects
+	else:
+		await _hold_until(func() -> bool: return mine.is_downed(), 4.0)
+		var fell: bool = mine.is_downed()
+		await _hold_until(func() -> bool: return not mine.is_downed(),
+			Config.tuning.galdr_seconds + 5.0)
+		_probe_rallied = {"fell": fell, "stood": not mine.is_downed()}
+
 	# 7. **A client ties a binding** (`M4-T32`, ADR-221). The use is a request
 	#    and the countdown is the host's, so one process cannot tell a working
 	#    wire from a host tying its own knot. The host puts linen in the client's
@@ -7600,6 +7631,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"door": _probe_door,
 		"haug": _probe_haug,
 		"galdr": _probe_galdr,
+		"rallied": _probe_rallied,
 		# What this peer heard, by sound name (ADR-311).
 		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,

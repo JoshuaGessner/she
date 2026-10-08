@@ -496,6 +496,14 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         and len(seen) == 2 and "NONE" not in seen,
         f"host turned {host_moods}; client sang to {galdr_client.get('singing', 0.0):.2f}, "
         f"was told {galdr_client.get('told', -1)}, sees {seen}"))
+    rallied_host = host.get("rallied", {})
+    rallied_client = client.get("rallied", {})
+    rows.append(check(
+        "a host's Bjarkamál stands the fallen client",
+        rallied_host.get("stood", False) and rallied_client.get("fell", False)
+        and rallied_client.get("stood", False),
+        f"host saw it stand {rallied_host.get('stood', False)}; client fell "
+        f"{rallied_client.get('fell', False)}, stood {rallied_client.get('stood', False)}"))
     rows.append(check(
         "and a client's tap sings one stanza at the nearest",
         galdr_host.get("stanza", -1) == 1 and galdr_client.get("stanza_told", -1) == 1,
