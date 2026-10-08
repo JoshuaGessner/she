@@ -8,8 +8,9 @@ game/android/
 # and notarisation credentials arrive from the environment.
 *.translation
 
-# Godot exports
+# Godot exports, and the previous export kept aside while a fresh one is tried
 build/
+build.old/
 exports/
 *.pck
 *.exe

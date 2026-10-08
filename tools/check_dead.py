@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import ast
 import re
+from collections import Counter
 import sys
 from pathlib import Path
 from typing import NamedTuple
@@ -235,19 +236,45 @@ def declarations(path: Path) -> tuple[list[str], list[str], list[str], bool]:
     return funcs, signals, consts, is_tuning
 
 
-def uses(name: str, haystack: str, own_decl: re.Pattern[str]) -> int:
-    """How many times a name appears somewhere that is not its declaration."""
-    total = 0
-    for line in haystack.splitlines():
-        if own_decl.match(line):
-            continue
-        total += len(re.findall(rf"(?<![A-Za-z0-9_]){re.escape(name)}(?![A-Za-z0-9_])", line))
-    return total
+TOKEN = re.compile(r"(?<![A-Za-z0-9_])[A-Za-z_][A-Za-z0-9_]*")
+# What declares a name, by kind — each the shape of one line `uses` skips.
+DECLARES = {
+    "func": re.compile(r"^\s*(?:static\s+)?func\s+([A-Za-z_]\w*)\s*\("),
+    "signal": re.compile(r"^\s*signal\s+([A-Za-z_]\w*)\b"),
+    "const": re.compile(r"^\s*const\s+([A-Za-z_]\w*)\b"),
+    "var": re.compile(r"^\s*(?:@export\s+)?var\s+([A-Za-z_]\w*)\b"),
+}
+
+
+class Uses:
+    """**Every name counted once, not the corpus read once per name.**
+
+    The first version ran a regex over every line of the corpus for each
+    declared name — names × lines, both growing with the game — and passed two
+    minutes in a working tree. A name used is a whole identifier, so one pass
+    that counts identifiers answers every name, and the lines that declare a
+    name are counted once by kind and taken off.
+    """
+
+    def __init__(self, corpus: str) -> None:
+        self._all: Counter[str] = Counter(TOKEN.findall(corpus))
+        self._declared: dict[str, Counter[str]] = {kind: Counter() for kind in DECLARES}
+        for line in corpus.splitlines():
+            for kind, pattern in DECLARES.items():
+                match = pattern.match(line)
+                if match:
+                    name = match.group(1)
+                    self._declared[kind][name] += TOKEN.findall(line).count(name)
+
+    def __call__(self, name: str, kind: str) -> int:
+        """How many times a name appears somewhere that is not its declaration."""
+        return self._all[name] - self._declared[kind][name]
 
 
 def main() -> int:
     paths = scripts()
     corpus = body_text(paths) + "\n" + body_text(scenes_and_data())
+    uses = Uses(corpus)
     findings: list[Finding] = []
 
     for path in paths:
@@ -257,15 +284,13 @@ def main() -> int:
         for name in funcs:
             if name in ENGINE_VIRTUALS:
                 continue
-            decl = re.compile(rf"^\s*(?:static\s+)?func\s+{re.escape(name)}\s*\(")
-            if uses(name, corpus, decl) == 0:
+            if uses(name, "func") == 0:
                 findings.append(Finding(
                     "DEAD-FUNC", where, name,
                     "nothing calls it — delete it, or call it"))
 
         for name in signals:
-            decl = re.compile(rf"^\s*signal\s+{re.escape(name)}\b")
-            hits = uses(name, corpus, decl)
+            hits = uses(name, "signal")
             if hits == 0:
                 findings.append(Finding(
                     "DEAD-SIGNAL", where, name,
@@ -289,8 +314,7 @@ def main() -> int:
                     "listened for, but nothing emits it"))
 
         for name in consts:
-            decl = re.compile(rf"^\s*const\s+{re.escape(name)}\b")
-            if uses(name, corpus, decl) == 0:
+            if uses(name, "const") == 0:
                 findings.append(Finding(
                     "DEAD-CONST", where, name,
                     "nothing reads it"))
@@ -301,8 +325,7 @@ def main() -> int:
                 if not match:
                     continue
                 name = match.group(1)
-                decl = re.compile(rf"^\s*(?:@export\s+)?var\s+{re.escape(name)}\b")
-                if uses(name, corpus, decl) == 0:
+                if uses(name, "var") == 0:
                     findings.append(Finding(
                         "DEAD-TUNE", where, name,
                         "a tuning number no system reads"))

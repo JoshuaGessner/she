@@ -329,19 +329,32 @@ def check_lfs_content() -> list[Issue]:
     corrupt export instead of a missing fetch.
     """
     issues: list[Issue] = []
-    for pattern in _lfs_patterns():
-        for path in ROOT.rglob(pattern):
-            if ".git" in path.parts or not path.is_file():
+    patterns = _lfs_patterns()
+    if not patterns:
+        return issues
+    # **The tracked files, not the folder** (ADR-384's sweep): an `rglob` per
+    # pattern walked every worktree under `.claude/` and every exported build
+    # beside the repo — minutes, in the tree a session actually works in. Only
+    # a tracked file can be an LFS pointer, and git already knows which.
+    listed = subprocess.run(["git", "ls-files", "-z", "--", *patterns],
+                            cwd=ROOT, capture_output=True)
+    if listed.returncode != 0:
+        return [Issue("error", "lfs-pointer", ".gitattributes",
+                      "could not list the tracked files to check",
+                      "run the checks inside the git repository")]
+    for name in listed.stdout.decode("utf-8").split("\0"):
+        path = ROOT / name
+        if not name or not path.is_file():
+            continue
+        with path.open("rb") as handle:
+            if handle.read(43) != b"version https://git-lfs.github.com/spec/v1\n":
                 continue
-            with path.open("rb") as handle:
-                if handle.read(43) != b"version https://git-lfs.github.com/spec/v1\n":
-                    continue
-            issues.append(Issue(
-                "error", "lfs-pointer", rel(path),
-                "is an LFS pointer, not the file itself",
-                "run `git lfs install --local && git lfs pull` — the engine "
-                "will otherwise report this as corrupt art",
-            ))
+        issues.append(Issue(
+            "error", "lfs-pointer", rel(path),
+            "is an LFS pointer, not the file itself",
+            "run `git lfs install --local && git lfs pull` — the engine "
+            "will otherwise report this as corrupt art",
+        ))
     return issues
 
 
