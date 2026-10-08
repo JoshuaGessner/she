@@ -95,6 +95,10 @@ func _on_area_entered(area: Area3D) -> void:
 	var hurtbox := area as Hurtbox
 	if hurtbox == null or hurtbox in _already_hit:
 		return
+	# Never its own body: a hitbox widened to strike its own kind (ADR-387)
+	# overlaps the hurtbox it is mounted beside.
+	if hurtbox.owner == owner:
+		return
 	if _through_bars(hurtbox):
 		return
 	_already_hit.append(hurtbox)

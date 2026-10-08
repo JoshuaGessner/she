@@ -972,6 +972,8 @@ func _ready() -> void:
 			_seidr_probe()
 		elif arg == "--haug-probe":
 			_haug_probe()
+		elif arg == "--galdr-probe":
+			_galdr_probe()
 		elif arg == "--lock-probe":
 			_lock_probe()
 		elif arg == "--fury-probe":
@@ -17010,6 +17012,108 @@ func _lock_probe() -> void:
 	if problems.is_empty():
 		print("[lock] every gate stands, and opens for what it says")
 	_report(problems, "lock")
+
+
+## **`--galdr-probe`** (ADR-387): the Skald's verse, and what it does to the
+## dungeon. Section 1 asks the enemies directly — `Enemy.hear_the_song` is the
+## one place a verse lands — so the brawl is proved before anything sings it.
+func _galdr_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	var tuning: TuningProfile = Config.tuning
+	body.restore_for_descent()
+	var ahead: Vector3 = -body.global_basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var side := Vector3(ahead.z, 0.0, -ahead.x)
+	var song: Vector3 = body.global_position
+
+	# ─ 1a. maddened, and the one it strikes fights back ─
+	var pair: Array[Enemy] = await _galdr_spawn([
+		[body.global_position + ahead * 7.0, EnemyCatalogue.DEFAULT],
+		[body.global_position + ahead * 7.0 + side * 2.4, EnemyCatalogue.DEFAULT]])
+	var mad: Enemy = pair[0]
+	var other: Enemy = pair[1]
+	var other_was: float = other.health.current
+	var mood: Turned.Mood = mad.hear_the_song(song, tuning)
+	var reaches: bool = mad.get_node("Hitbox").collision_mask & CollisionLayers.ENEMY_HURTBOX != 0
+	await _hold_until(func() -> bool: return other.health.current < other_was, 6.0)
+	await _hold(0.3)
+	var struck: float = other_was - other.health.current
+	var provoked: bool = other.turned.mood == Turned.Mood.PROVOKED
+	var mad_was: float = mad.health.current
+	await _hold_until(func() -> bool: return mad.health.current < mad_was, 6.0)
+	var answered: float = mad_was - mad.health.current
+	print("[galdr] maddened   mood %s, its blow reaches enemies %s; the other took %.1f, is provoked %s and struck back %.1f"
+		% [Turned.Mood.keys()[mood], reaches, struck, provoked, answered])
+	if mood != Turned.Mood.MADDENED or not reaches or struck <= 0.0 or not provoked or answered <= 0.0:
+		problems.append("a maddened enemy did not strike its own kind, or the one struck did not fight back")
+
+	# ─ 1b. it wears off ─
+	mad.turned.left = 0.05
+	other.turned.left = 0.05
+	await _hold(0.3)
+	var over: bool = mad.turned.mood == Turned.Mood.NONE and other.turned.mood == Turned.Mood.NONE
+	var back: bool = mad.get_node("Hitbox").collision_mask == CollisionLayers.PLAYER_HURTBOX
+	print("[galdr] wears off  itself again %s, its blow reaches players alone %s" % [over, back])
+	if not over or not back:
+		problems.append("madness did not wear off, or the blow kept reaching enemies after it")
+
+	# ─ 1c. alone, it gives ground ─
+	var alone: Enemy = (await _galdr_spawn([[body.global_position + ahead * 6.0, EnemyCatalogue.DEFAULT]]))[0]
+	var near_was: float = alone.global_position.distance_to(song)
+	var alone_mood: Turned.Mood = alone.hear_the_song(song, tuning)
+	await _hold(1.5)
+	var gave: float = alone.global_position.distance_to(song) - near_was
+	print("[galdr] alone      mood %s, gave %.1f m of ground" % [Turned.Mood.keys()[alone_mood], gave])
+	if alone_mood != Turned.Mood.UNNERVED or gave < 1.5:
+		problems.append("an enemy with nobody to fight was not unnerved, or did not give ground")
+
+	# ─ 1d. a Guardian and a thrower are only unnerved ─
+	var kinds: Array[Enemy] = await _galdr_spawn([
+		[body.global_position + ahead * 8.0, &"enm_hall_warden"],
+		[body.global_position + ahead * 8.0 + side * 2.0, &"enm_sling_wretch"],
+		[body.global_position + ahead * 8.0 - side * 2.0, EnemyCatalogue.DEFAULT]])
+	var warden: Turned.Mood = kinds[0].hear_the_song(song, tuning)
+	var slinger: Turned.Mood = kinds[1].hear_the_song(song, tuning)
+	print("[galdr] kinds      a Hall-Warden %s, a slinger %s (want UNNERVED, UNNERVED)"
+		% [Turned.Mood.keys()[warden], Turned.Mood.keys()[slinger]])
+	if warden != Turned.Mood.UNNERVED or slinger != Turned.Mood.UNNERVED:
+		problems.append("a Guardian or a thrower was maddened — the Guardian's room must stay committal")
+
+	# ─ 1e. the dead carry no mark ─
+	var dying: Enemy = kinds[2]
+	dying.hear_the_song(song, tuning)
+	dying.take_test_hit(dying.health.current + 1.0)
+	await _hold(0.2)
+	print("[galdr] the dead   mood %s (want NONE)" % Turned.Mood.keys()[dying.turned.mood])
+	if dying.turned.mood != Turned.Mood.NONE:
+		problems.append("a dead enemy kept the song's mark")
+	_session.clear_enemies()
+
+	if problems.is_empty():
+		print("[galdr] the verse turns the dungeon on itself")
+	_report(problems, "galdr")
+
+
+## Spawn each `[at, archetype]` on the host and hand back the new bodies, in order.
+func _galdr_spawn(rows: Array) -> Array[Enemy]:
+	_session.clear_enemies()
+	await _hold(0.2)
+	for row: Array in rows:
+		_session.spawn_enemy(row[0] as Vector3, 0.0, row[1] as StringName)
+	await _hold(0.4)
+	var found: Array[Enemy] = []
+	for row: Array in rows:
+		var best: Enemy = null
+		for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+			var e := node as Enemy
+			if e != null and not found.has(e) and (best == null
+					or e.global_position.distance_to(row[0]) < best.global_position.distance_to(row[0])):
+				best = e
+		found.append(best)
+	return found
 
 
 ## **`--haug-probe`** (ADR-382): Haugbrot, asked of the real body.

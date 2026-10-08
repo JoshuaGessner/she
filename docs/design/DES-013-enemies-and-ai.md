@@ -4,7 +4,7 @@ title: Enemies & AI
 status: accepted
 owner: design
 tags: [enemies, ai, combat, clamor, systems, co-op]
-updated: 2026-09-14
+updated: 2026-10-08
 related: [DES-005, DES-007, DES-009, TEC-001, TEC-004]
 ---
 
@@ -146,6 +146,14 @@ Three mutually hostile groups — **Dvergar remnant · Draugr · Vættir** — p
 This is a Barony inheritance and it earns its cost several times over: it produces emergent stories, gives the player a tool (bait one into another), makes the dungeon feel like a place rather than a shooting gallery, and it means a room's contents are a *situation* rather than a wave.
 
 **Rule:** faction hostility is real, not scripted. If a Draugr and a Wretch are in a room, they fight, whether or not the player is watching.
+
+> **The slice has one faction, and no standing hostility yet (ADR-387).** Every enemy on the slice's roster is the Delvings' own, so nothing fought anything until a cause existed. The first cause is the Skald's verse:
+> - **Maddened:** an enemy in earshot hunts the nearest other enemy for 10 s ⟨tune⟩, and its blows land on its own kind.
+> - **Provoked:** one it strikes fights it back for as long as the madness has left. One verse becomes a brawl, not one enemy's tantrum.
+> - **Unnerved:** an enemy alone, a Guardian, or a thrower with no blow to brawl with gives ground from the singer instead.
+> - **The tell:** a ring over the head on every peer (gold and turning when maddened, pale and tipped when unnerved), with a sound for each.
+>
+> `Turned` is the component that holds the mood. Standing faction hostility, when the factions above arrive, sets the same mood for its own reasons.
 
 ## Co-op considerations (ADR-008/010)
 

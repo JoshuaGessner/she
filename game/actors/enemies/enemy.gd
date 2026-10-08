@@ -91,6 +91,8 @@ const REPLICATED_PROPERTIES: Dictionary = {
 	".:_sees": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_hears": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	"Health:current": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# What a Skald's verse has done to it (ADR-387): every peer draws the mark.
+	"Turned:mood": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 }
 
 ## The ladder state, and the single place its visible consequences happen.
@@ -202,6 +204,8 @@ var _hears: bool = false
 @onready var _hurtbox: Hurtbox = $Hurtbox
 @onready var _hitbox: Hitbox = $Hitbox
 @onready var _visual: EnemyVisual = $Visual
+## Maddened, provoked or unnerved by a verse (ADR-387).
+@onready var turned: Turned = $Turned
 @onready var _eyes: Node3D = $Eyes
 @onready var _ears: ClamorSensor = $Ears
 ## **What makes an enemy audible to other enemies.** `DES-013`'s ladder diagram
@@ -243,6 +247,7 @@ func configure_replication() -> void:
 func _ready() -> void:
 	add_to_group("enemies")
 	_ears.heard.connect(_on_heard)
+	turned.changed.connect(_on_turned)
 	_home = global_position
 	# Seeded from the spawn transform. Left at zero, a client's first ease
 	# would drag every enemy across the level from the origin before the first
@@ -536,6 +541,7 @@ func _physics_process(delta: float) -> void:
 	if _state == State.DEAD:
 		return
 	var tuning: TuningProfile = Config.tuning
+	turned.tick(delta)
 
 	if not is_on_floor():
 		velocity.y -= tuning.gravity * delta
@@ -603,6 +609,11 @@ func _look(tuning: TuningProfile) -> void:
 	var player: Node3D = _nearest_visible_player(tuning)
 	_sees = player != null
 	if not _sees:
+		return
+	# **Turned, it is not looking for you** (ADR-387): a maddened body has its
+	# own fight and an unnerved one wants distance. It still sees you — the
+	# readout says so — and takes up the chase once the verse wears off.
+	if turned.mood != Turned.Mood.NONE:
 		return
 	_target = player
 	_last_seen = player.global_position
@@ -749,6 +760,9 @@ func _can_see(player: Player, tuning: TuningProfile) -> bool:
 
 
 func _act(delta: float, tuning: TuningProfile) -> void:
+	if turned.mood != Turned.Mood.NONE:
+		_act_turned(tuning)
+		return
 	match _state:
 		State.UNAWARE:
 			_settle(tuning)
@@ -805,6 +819,90 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 					_begin_attack(tuning)
 				else:
 					_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+
+
+## **A Skald's verse, ended within earshot** (ADR-387), on the host: what it
+## does to this body, decided here because only the body knows what it is.
+##
+## - **Maddened** when another enemy stands within `galdr_foe_reach` to fight:
+##   it hunts the nearest one, and its blows land on its own kind.
+## - **Unnerved** otherwise — and always for a Guardian, whose room stays a
+##   committal fight (ADR-032), and for a thrower, which has no blow to brawl
+##   with: it gives ground from where the song was sung.
+func hear_the_song(from: Vector3, tuning: TuningProfile) -> Turned.Mood:
+	if not multiplayer.is_server() or _state == State.DEAD:
+		return Turned.Mood.NONE
+	var guardian: bool = _kind.leash > 0.0
+	var thrower: bool = _kind.attack != null and _kind.attack.missile_speed > 0.0
+	var other: Enemy = null if guardian or thrower else _nearest_foe(tuning.galdr_foe_reach)
+	if other != null:
+		turned.take(Turned.Mood.MADDENED, tuning.galdr_madness_seconds, other, from)
+	else:
+		turned.take(Turned.Mood.UNNERVED, tuning.galdr_unnerve_seconds, null, from)
+	return turned.mood
+
+
+## The nearest other living enemy within `reach`, or null.
+func _nearest_foe(reach: float) -> Enemy:
+	var best: Enemy = null
+	var nearest: float = reach
+	for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+		var other := node as Enemy
+		if other == null or other == self or other.state() == State.DEAD:
+			continue
+		var far: float = global_position.distance_to(other.global_position)
+		if far <= nearest:
+			best = other
+			nearest = far
+	return best
+
+
+## **Turned** (ADR-387): fight the foe, or give ground from the song.
+func _act_turned(tuning: TuningProfile) -> void:
+	if turned.mood == Turned.Mood.UNNERVED:
+		var away: Vector3 = global_position - turned.song_at
+		away.y = 0.0
+		if away.length() < 0.01:
+			away = -facing()
+		_steer_toward(_on_its_leash(global_position + away.normalized() * 4.0),
+			_kind.run_speed, tuning)
+		return
+	var foe := turned.foe as Enemy
+	if foe == null or not is_instance_valid(foe) or foe.state() == State.DEAD:
+		# A maddened body that killed its foe finds the next; a provoked one
+		# had only the one quarrel, and it is over.
+		foe = _nearest_foe(tuning.galdr_foe_reach) if turned.mood == Turned.Mood.MADDENED else null
+		if foe == null:
+			turned.clear()
+			return
+		turned.foe = foe
+	_target = foe
+	_last_seen = foe.global_position
+	var to_foe: Vector3 = foe.global_position - global_position
+	to_foe.y = 0.0
+	if to_foe.length() > _kind.attack.reach:
+		_steer_toward(foe.global_position, _kind.run_speed, tuning)
+		return
+	# **Turned to it before the blow** (ADR-387). The reach is a sphere in front
+	# of the body, and a foe that was already within it when the verse ended is
+	# rarely in front: swung at once, the blow lands on the air beside it.
+	velocity.x = 0.0
+	velocity.z = 0.0
+	if to_foe.length() > 0.01:
+		_face(to_foe.normalized(), tuning)
+		if facing().dot(to_foe.normalized()) < 0.85:
+			return
+	_begin_attack(tuning)
+
+
+## The blow follows the mood, on the host that resolves it: turned on its own
+## kind, it strikes enemies too; itself again, players alone.
+func _on_turned(mood: Turned.Mood) -> void:
+	if not multiplayer.is_server():
+		return
+	_hitbox.collision_mask = CollisionLayers.PLAYER_HURTBOX
+	if mood == Turned.Mood.MADDENED or mood == Turned.Mood.PROVOKED:
+		_hitbox.collision_mask |= CollisionLayers.ENEMY_HURTBOX
 
 
 ## **Where it may go after `point`** (ADR-232): the point itself for a body with
@@ -1067,6 +1165,13 @@ func _on_hurt(amount: float, from: Node) -> void:
 	if attacker != null:
 		_target = attacker
 		_last_seen = attacker.global_position
+	# **Struck by one the song turned, it fights back** (ADR-387): provoked
+	# against that one, for as long as the striker's madness has left. This is
+	# how one verse becomes a brawl rather than one enemy's tantrum.
+	var turned_on_it := attacker as Enemy
+	if turned_on_it != null and turned_on_it != self and turned_on_it.turned.fighting() \
+			and not turned.fighting():
+		turned.take(Turned.Mood.PROVOKED, maxf(turned_on_it.turned.left, 1.0), turned_on_it)
 
 
 func _tick_stagger(delta: float, tuning: TuningProfile) -> void:
@@ -1089,6 +1194,8 @@ func _on_died(_from: Node) -> void:
 	# setter turns it into a corpse here *and* on every client when the value
 	# arrives, which is why there is no death RPC.
 	_death_elapsed = 0.0
+	# The dead are nobody's to madden; the mark goes with the body.
+	turned.clear()
 	_state = State.DEAD
 	died.emit()
 

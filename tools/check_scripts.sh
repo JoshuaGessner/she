@@ -1597,6 +1597,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Skald's verse turns the dungeon on itself** (ADR-387). A maddened
+	# enemy strikes its own kind and the one struck strikes back; madness wears
+	# off and the blow reaches players alone again; an enemy alone gives
+	# ground; a Guardian and a thrower are only unnerved; the dead lose the mark.
+	galdr="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --galdr-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[galdr\] the verse turns the dungeon on itself' <<<"$galdr" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$galdr"; then
+		echo "FAIL the Skald's verse turns the dungeon on itself" >&2
+		printf '%s\n' "$galdr" | grep -E '\[galdr\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Scale, the Aspect of staying power** (ADR-346): twelve nodes, each
 	# against the same case without it — the damp, the lamp, scree, the
 	# keystone's ground and its lost sprint, a concussion, an old scar, a set

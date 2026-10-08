@@ -269,6 +269,11 @@ extends Resource
 ## moment it gives is — a spent Waystone's noise, laid where she stands.
 @export var haugbrot_seconds: float = 4.0
 @export var haugbrot_clamor: float = 14.0
+## **What a verse does** (ADR-387) ⟨tune⟩: how long it holds what it turned,
+## and how far a maddened enemy will look for something to fight.
+@export var galdr_madness_seconds: float = 10.0
+@export var galdr_unnerve_seconds: float = 6.0
+@export var galdr_foe_reach: float = 14.0
 
 @export_group("Seiðr")
 ## **Seiðr** (ADR-379), every number ⟨tune⟩. How long the trance is sat for.
