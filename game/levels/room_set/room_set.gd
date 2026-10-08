@@ -17230,6 +17230,33 @@ func _galdr_probe() -> void:
 	print("[galdr] the dead   mood %s (want NONE)" % Turned.Mood.keys()[dying.turned.mood])
 	if dying.turned.mood != Turned.Mood.NONE:
 		problems.append("a dead enemy kept the song's mark")
+
+	# ─ 1f. provoked, a Guardian still keeps its post ─
+	# A maddened Wretch strikes a Hall-Warden, which fights back — from inside
+	# its leash (ADR-232), however far the Wretch is driven back.
+	var post: Array[Enemy] = await _galdr_spawn([
+		[body.global_position + ahead * 8.0, &"enm_hall_warden"],
+		[body.global_position + ahead * 8.0 + side * 1.6, EnemyCatalogue.DEFAULT]])
+	var warden_home: Vector3 = post[0].global_position
+	post[1].hear_the_song(song, tuning)
+	await _hold_until(func() -> bool: return post[0].turned.mood == Turned.Mood.PROVOKED, 6.0)
+	# Its quarrel held 9 m off, past the 5 m leash: provoked, it goes to the
+	# edge of its post and no further.
+	if is_instance_valid(post[1]):
+		post[1].rooted.hold_for(30.0)
+		post[1].global_position = warden_home + side * 9.0
+	var farthest: float = 0.0
+	for i: int in 80:
+		await _hold(0.1)
+		if is_instance_valid(post[0]):
+			farthest = maxf(farthest, Vector2(post[0].global_position.x - warden_home.x,
+				post[0].global_position.z - warden_home.z).length())
+	var leash: float = EnemyCatalogue.by_id(&"enm_hall_warden").leash
+	print("[galdr] its post   a provoked Hall-Warden %s, at most %.1f m from its post (leash %.1f)"
+		% [Turned.Mood.keys()[post[0].turned.mood] if is_instance_valid(post[0]) else "gone", farthest, leash])
+	if farthest > leash + 0.6:
+		problems.append("a provoked Guardian left its post — walking past its reach must stay a route")
+
 	_session.clear_enemies()
 
 	# ─ 2. the verse, sung by the real body ─

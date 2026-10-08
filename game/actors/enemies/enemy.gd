@@ -881,7 +881,10 @@ func _act_turned(tuning: TuningProfile) -> void:
 	var to_foe: Vector3 = foe.global_position - global_position
 	to_foe.y = 0.0
 	if to_foe.length() > _kind.attack.reach:
-		_steer_toward(foe.global_position, _kind.run_speed, tuning)
+		# On its leash, as any chase is (ADR-232): a Guardian provoked by a
+		# maddened neighbour fights it from its post, or one verse would drag a
+		# Hall-Warden out of the doorway that walking past it depends on.
+		_steer_toward(_on_its_leash(foe.global_position), _kind.run_speed, tuning)
 		return
 	# **Turned to it before the blow** (ADR-387). The reach is a sphere in front
 	# of the body, and a foe that was already within it when the verse ended is
