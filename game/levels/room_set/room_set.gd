@@ -6170,7 +6170,9 @@ func _machine_probe() -> void:
 		var glint: int = 0 if made.vista().is_empty() else 1
 		var standing_without_gear: int = 1 if made.prize_item() != null else 0
 		for row: Array in made.fixtures():
-			if row[0] == DelvingsFloor.WAYSTONE:
+			# The key is laid by rule (ADR-381), as the Waystone is: counted as
+			# gear, a locked floor's key would stand in for a lost piece.
+			if row[0] == DelvingsFloor.WAYSTONE or row[0] == LockedDoor.KEY_ITEM:
 				standing_without_gear += 1
 		var laid_gear: int = made.fixtures().size() - glint - standing_without_gear
 		if wants_gear > 0 and laid_gear <= 0:
@@ -6549,8 +6551,9 @@ func _hud_probe() -> void:
 
 
 ## Every row a floor dealt that `table` does not allow at `depth`, one sentence
-## each (`--machine-probe` row 9b, ADR-220). The Waystone is laid by rule and
-## is nobody's loot, so it is the one row not asked.
+## each (`--machine-probe` row 9b, ADR-220). The Waystone and a locked floor's
+## key (ADR-381) are laid by rule and are nobody's loot, so they are the rows
+## not asked — `data_probe`'s source list says the same of both.
 func _dealt_faults(made: DelvingsFloor, depth: int, table: LootTable) -> PackedStringArray:
 	var out := PackedStringArray()
 	var guarded: ItemResource = made.prize_item()
@@ -6567,7 +6570,7 @@ func _dealt_faults(made: DelvingsFloor, depth: int, table: LootTable) -> PackedS
 		rows.append([row[0], LootEntry.Deal.FILLER])
 	for row: Array in rows:
 		var id: StringName = row[0]
-		if id == DelvingsFloor.WAYSTONE:
+		if id == DelvingsFloor.WAYSTONE or id == LockedDoor.KEY_ITEM:
 			continue
 		var entry: LootEntry = table.entry_for(id)
 		if entry == null:
