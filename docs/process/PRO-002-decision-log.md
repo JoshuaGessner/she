@@ -13324,8 +13324,9 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
   - menu buttons, in all their states: the small kit, without the gilt bead, so a stack of buttons is a stack of plaques and not a ladder.
 
   - sockets, the bag's cells and the paper doll's slots: the small kit's iron rim and inner shadow, **without corners** (`kit_corners`), because two brackets would bury every edge of a cell under fifty pixels. A slot is a well.
+  - chips (the Pact's nodes) and the bag's item tiles: a **tiny** kit, a 4 px forged rim with no corners. A chip is a plate set in a panel, and its lettering needs the room that a heavier band would take.
 
-  Chips and fields keep the drawn plate.
+  Fields keep the drawn plate.
 - **Rejected: an authored nine-patch.** It stretches its edges, so a stud becomes a smear. Tiling the edges by hand keeps a stud round on a panel of any length.
 
 **Measured:**

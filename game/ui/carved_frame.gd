@@ -153,6 +153,7 @@ const KIT_PATH: String = "res://art/ui/frame/%s_%s.png"
 const KIT_SIZES: Dictionary = {
 	&"large": {"band": 14.0, "corner": 52.0, "outset": 9.0},
 	&"small": {"band": 7.0, "corner": 20.0, "outset": 4.0},
+	&"tiny": {"band": 4.0, "corner": 0.0, "outset": 0.0},
 }
 static var _kit_textures: Dictionary = {}
 
@@ -246,11 +247,11 @@ func _lay_kit(to: RID, whole: Rect2) -> void:
 	# never meet in the middle.
 	var full: float = float(KIT_SIZES[kit]["corner"])
 	var c: float = minf(full, minf(rect.size.x, rect.size.y) * 0.5)
-	var m: float = float(KIT_SIZES[kit]["outset"]) * c / full
+	var m: float = float(KIT_SIZES[kit]["outset"]) * c / maxf(full, 1.0)
 	var span := Vector2(c + m, c + m)
 	for piece_at: Array in ([["corner_tl", o - Vector2(m, m)], ["corner_tr", Vector2(e.x - c, o.y - m)],
 			["corner_br", e - Vector2(c, c)], ["corner_bl", Vector2(o.x - m, e.y - c)]]
-			if kit_corners else []):
+			if kit_corners and full > 0.0 else []):
 		var piece: Texture2D = kit_piece(kit, piece_at[0])
 		if piece != null:
 			RenderingServer.canvas_item_add_texture_rect(to,

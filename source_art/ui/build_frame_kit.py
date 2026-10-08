@@ -16,14 +16,15 @@ toward the panel; corner brackets ending in lozenge terminals, after the
 strap-hinges on the Mästermyr chest and the Urnes door; a gilt boss ringed by
 an interlaced pair, the knot every Norse mount ends in.
 
-Run (from the repo root):
-    Blender --background --python source_art/ui/build_frame_kit.py
+Run (from the repo root), every kit or only those named:
+    Blender --background --python source_art/ui/build_frame_kit.py [-- tiny ...]
 Writes game/art/ui/frame/*.png. 1 Blender unit is 1 interface pixel; each
 piece is rendered at `PX` pixels per unit and drawn at 1.
 """
 from __future__ import annotations
 
 import math
+import sys
 from pathlib import Path
 
 import bpy
@@ -42,6 +43,9 @@ SIZES = {
     # over it, as the reference's ornaments do, not tucked inside it.
     "large": {"band": 14.0, "corner": 52.0, "outset": 9.0, "tile": 64.0, "crest": (96.0, 34.0)},
     "small": {"band": 7.0, "corner": 20.0, "outset": 4.0, "tile": 32.0, "crest": (0.0, 0.0)},
+    # A rim, no corners: a chip or an item tile is a plate set in the panel,
+    # and its lettering needs the room a heavier band would take.
+    "tiny": {"band": 4.0, "corner": 0.0, "outset": 0.0, "tile": 16.0, "crest": (0.0, 0.0)},
 }
 
 
@@ -267,8 +271,13 @@ SIDES = {"top": 0.0, "right": -math.pi / 2.0, "bottom": math.pi, "left": math.pi
 CORNERS = {"tl": 0.0, "tr": -math.pi / 2.0, "br": math.pi, "bl": math.pi / 2.0}
 
 
-def build() -> None:
+def build(only: list[str]) -> None:
+    """Every kit, or only the ones named after `--`. A render is not
+    byte-for-byte repeatable, so rebuilding a kit that did not change would
+    commit seventeen new pictures of the same iron."""
     for size, s in SIZES.items():
+        if only and size not in only:
+            continue
         for side, angle in SIDES.items():
             reset()
             lights()
@@ -277,7 +286,7 @@ def build() -> None:
             wide, tall = (s["tile"], s["band"]) if side in ("top", "bottom") else (s["band"], s["tile"])
             camera((0.0, 0.0), wide, tall)
             render(f"{size}_edge_{side}")
-        for corner, angle in CORNERS.items():
+        for corner, angle in (CORNERS.items() if s["corner"] > 0.0 else []):
             reset()
             lights()
             parts = corner_piece(size)
@@ -286,15 +295,16 @@ def build() -> None:
             turn(parts, angle, middle)
             camera(middle, c + m, c + m)
             render(f"{size}_corner_{corner}")
-    reset()
-    lights()
-    crest_piece()
-    w, h = SIZES["large"]["crest"]
-    camera((0.0, 0.0), w, h)
-    render("large_crest")
+    if not only or "large" in only:
+        reset()
+        lights()
+        crest_piece()
+        w, h = SIZES["large"]["crest"]
+        camera((0.0, 0.0), w, h)
+        render("large_crest")
+        review()
     import json
     (OUT / "frame_kit.json").write_text(json.dumps({"px": PX, "sizes": SIZES}, indent=2))
-    review()
     print("[frame_kit] done")
 
 
@@ -346,4 +356,4 @@ def review(w: float = 260.0, h: float = 150.0) -> None:
     print("[frame_kit] review")
 
 
-build()
+build(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])

@@ -310,6 +310,7 @@ bevel = 2.0
 metal = Color(0.3, 0.25, 0.19, 1)
 grain = Color(0, 0, 0, 0.32)
 vignette = 0.5
+kit = &"tiny"
 
 [sub_resource type="StyleBox" id="StyleBox_chip_lit"]
 resource_local_to_scene = false
@@ -332,6 +333,7 @@ grain = Color(0, 0, 0, 0.32)
 vignette = 0.4
 plates = 9.0
 gilt = Color(0.8, 0.6, 0.32, 1)
+kit = &"tiny"
 
 [sub_resource type="StyleBox" id="StyleBox_chip_down"]
 resource_local_to_scene = false
@@ -355,6 +357,7 @@ grain = Color(0, 0, 0, 0.32)
 vignette = 0.7
 plates = 9.0
 gilt = Color(0.8, 0.6, 0.32, 1)
+kit = &"tiny"
 
 [sub_resource type="StyleBox" id="StyleBox_chip_taken"]
 resource_local_to_scene = false
@@ -376,6 +379,7 @@ bevel = 2.0
 metal = Color(0.55, 0.4, 0.18, 1)
 grain = Color(0, 0, 0, 0.22)
 vignette = 0.5
+kit = &"tiny"
 
 [sub_resource type="Texture2D" id="Texture_box_off"]
 script = ExtResource("box_script")
