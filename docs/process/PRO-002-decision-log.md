@@ -13430,4 +13430,25 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - **`--galdr-probe`:** a Skald's brief is 51 words and holds 14.6 s, its reading time, against the 4.5 s floor.
 - **The walkthrough on seed 31346:** the brief was on screen from 2.1 s to 14.6 s, where it had been gone by 6.2 s.
 
+## ADR-389 — A standing post keeps out of sight of the arrival where its room allows
+
+**Date:** 2026-10-08 · **Status:** accepted · **Amends `DES-015` step 6 (population); from the G3 first-timer walkthrough**
+
+**Context:**
+- **Found walking a first floor.** A Haugbrjótr on seed 40404 floor 0 arrived 10 m from a posted enemy. The walk was within 4 m of it at 4 s and was struck at 6.3 s, while the arrival brief, now held for its reading time (ADR-388), was still on screen.
+- **Measured over 120 floors** (40 seeds × 3 depths):
+  - the nearest post stood within 16 m of the arrival point on 24 floors, within 12 m on 7, and at 7.5 m at its closest;
+  - on 4 floors a post within 16 m had a clear line of sight to the arrival point.
+- **What the arrival is for.** `DES-015`'s legibility rule gives the first thirty seconds to reading the entrance: *"look at the entrance and know what killed this place."* An enemy posted inside its lit sight range (`enemy_vision_range`, 16 m) of that spot spends the moment on a fight nobody chose. That is PRO-005's *"I got jumped before I could look"*, which is not a sentence a player can learn from.
+- **Posts are where the graph says danger is** (one per held room, ADR-032), and that must not move.
+
+**Decision:**
+- **A post drawn within `ARRIVAL_CLEAR` (16 m ⟨tune⟩) of the arrival point moves to the open spot of its own room farthest from it.** It stays in the same room, so the graph's danger is where the graph put it. The spot is found on a metre grid, not drawn, so the floor's seeded draws after it (loot, bait, the vista) do not move.
+- **Where the room is too small, the post stays as near as the room forces.** That is honest about the floor rather than a moved room.
+
+**Measured (the same 120 floors):**
+- Posts within 16 m: 24 → 13 floors. Within 12 m: 7 → 5.
+- **Posts within 16 m with a clear line to the arrival: 4 → 2.** Both are rooms too small to stand further off (55433/1 at 10.2 m, 182137/1 at 7.5 m).
+- Unchanged and green: `--vista-probe` (31346, floors 0 and 2), `--machine-probe`, `--population-probe` (seed 3, floor 2), `--warden-probe`, `data_probe`, and `--reach-probe` (its 24 floors routed and 9 walked).
+
 *Entries below to be added as design decisions are signed off.*

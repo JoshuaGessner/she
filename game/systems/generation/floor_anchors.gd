@@ -81,6 +81,10 @@ const DRAWS: int = 8
 ## How far a placed point keeps from a hub pillar's axis: half the pillar's
 ## diagonal and a body's width (ADR-306) ⟨tune⟩.
 const PILLAR_CLEAR: float = 1.2
+## How far a standing post is kept from the arrival point, where its room
+## allows (ADR-389) ⟨tune⟩: an enemy's lit sight range (`enemy_vision_range`),
+## so nothing posted sees the party arrive in the light.
+const ARRIVAL_CLEAR: float = 16.0
 
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
@@ -253,13 +257,49 @@ func _deepest(skipped: PackedInt32Array) -> int:
 ## held arm is the short paid route and the unheld one is ADR-032's bypass; a
 ## post in the bypass would delete the choice between them, which is the whole
 ## point of a cycle. One post per held room, drawn inside it.
+##
+## **And out of sight of the arrival where the room allows** (ADR-389). The
+## first floor's first thirty seconds are `DES-015`'s legibility window — look
+## at the entrance and read what happened here — and the arrival brief is held
+## for its reading time (ADR-388). A post drawn within `ARRIVAL_CLEAR` of the
+## arrival point moves to the open spot of its own room farthest from it: the
+## same room, so the graph's danger is where the graph put it, and found on a
+## grid rather than drawn, so no draw after it on the floor moves.
 func posts() -> Array[Vector3]:
 	var out: Array[Vector3] = []
+	var arrival: Vector3 = centre_of(_graph.node_with(MissionGraph.Role.ENTRANCE))
 	for node: int in _graph.size():
 		if not _graph.is_held(node):
 			continue
-		out.append(_within(node))
+		var post: Vector3 = _within(node)
+		if _flat_gap(post, arrival) < ARRIVAL_CLEAR:
+			post = _farthest_open(node, arrival, post)
+		out.append(post)
 	return out
+
+
+## The open point of `node`'s room farthest from `from`, on a metre grid, or
+## `fallback` if none beats it.
+func _farthest_open(node: int, from: Vector3, fallback: Vector3) -> Vector3:
+	var room: AABB = inside_of(node)
+	var best: Vector3 = fallback
+	var far: float = _flat_gap(fallback, from)
+	var x: float = room.position.x
+	while x <= room.end.x + 0.001:
+		var z: float = room.position.z
+		while z <= room.end.z + 0.001:
+			var at := Vector3(x, room.position.y, z)
+			var gap: float = _flat_gap(at, from)
+			if gap > far and _is_open(at):
+				best = at
+				far = gap
+			z += 1.0
+		x += 1.0
+	return best
+
+
+func _flat_gap(a: Vector3, b: Vector3) -> float:
+	return Vector2(a.x - b.x, a.z - b.z).length()
 
 
 ## Every doorway on the floor, at lamp height (`ART-005`, `M2-T13`).

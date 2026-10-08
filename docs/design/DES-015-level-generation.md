@@ -4,7 +4,7 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-10-07
+updated: 2026-10-08
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
@@ -72,7 +72,7 @@ Then the payoff mechanism:
 
 This maps exactly onto ADR-005's three floors, and mechanically it's **a weighted prop/room table keyed on depth** — ⟨a weekend⟩ once the room system exists. That's an absurd return on investment: systemic environmental storytelling for the price of a lookup table.
 
-**Legibility rule:** the Calamity must be readable within **30 seconds of arriving**. You should be able to look at the entrance and know what killed this place.
+**Legibility rule:** the Calamity must be readable within **30 seconds of arriving**. *(ADR-389: a standing post is kept out of its lit sight range of the arrival point where its room allows, so those thirty seconds are not spent on a fight.)* You should be able to look at the entrance and know what killed this place.
 
 ### Every Calamity is hers (ADR-018)
 
