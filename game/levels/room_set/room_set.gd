@@ -177,6 +177,22 @@ const GENERATED_NAV_GROUP: StringName = &"generated_nav_source"
 const REACH_PANEL: Array[int] = [
 	31346, 11111, 40404, 57721, 66666, 78901, 13579, 24680,
 ]
+
+
+## The panel `--reach-probe` walks: `REACH_PANEL`, or the seeds named by
+## `--reach-seeds=1,2,3` — the widening the note above asks for at a gate, and
+## the way to ask about one floor a walkthrough found stuck without moving the
+## sweep's panel.
+func _reach_panel() -> Array[int]:
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--reach-seeds="):
+			var named: Array[int] = []
+			for part: String in arg.split("=", true, 1)[1].split(","):
+				if part.strip_edges().is_valid_int():
+					named.append(part.strip_edges().to_int())
+			if not named.is_empty():
+				return named
+	return REACH_PANEL
 ## Which of those seeds a **player body** is walked across, not merely routed
 ## (`M4-T25`).
 ##
@@ -199,6 +215,14 @@ const REACH_PANEL: Array[int] = [
 ## each end of the list, so the three are not neighbours in whatever order the
 ## sweep happened to try.
 const WALK_PANEL: Array[int] = [31346, 78901, 24680]
+
+
+## The seeds a body walks: `WALK_PANEL`, or with `--reach-seeds=` every seed
+## named, so a floor a walkthrough found stuck is walked by the body as well as
+## routed by the mesh.
+func _walk_panel() -> Array[int]:
+	var named: Array[int] = _reach_panel()
+	return WALK_PANEL if named == REACH_PANEL else named
 ## How far a room centre may sit from the mesh before the room counts as
 ## off it. One body-width plus slack ⟨tune⟩.
 const NAV_REACH: float = 1.5
@@ -864,6 +888,8 @@ func _ready() -> void:
 			_crossing_probe()
 		elif arg.begins_with("--delvings-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--walkthrough-shot="):
+			_walkthrough_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--ink-shot="):
 			_delvings_shot(arg.split("=", true, 1)[1], true)
 		elif arg == "--perf-shot":
@@ -1908,7 +1934,7 @@ func _reach_probe() -> void:
 					_planar_gap(walk["stopped"], walk["wanted"])])
 
 
-	for run_seed: int in REACH_PANEL:
+	for run_seed: int in _reach_panel():
 		# `RunFile.LAST_FLOOR`, because that is the file that clamps a descent
 		# and `--build-probe` writing `in 3` inline is the second place saying
 		# how long an expedition is.
@@ -2003,7 +2029,7 @@ func _reach_probe() -> void:
 			else:
 				walked += 1
 				# The mesh says there is a way down. Now send the body.
-				if player != null and WALK_PANEL.has(run_seed):
+				if player != null and _walk_panel().has(run_seed):
 					var began: int = Time.get_ticks_msec()
 					var trek: Dictionary = await _walk_route(player, out)
 					legs += int(trek["walked"])
@@ -2061,7 +2087,7 @@ func _reach_probe() -> void:
 	print("[reach] panel      %d floor(s) walked end to end, %d refused, "
 		% [walked, problems.size()]
 		+ "across %d seed(s) x %d depth(s)"
-		% [REACH_PANEL.size(), RunFile.LAST_FLOOR + 1])
+		% [_reach_panel().size(), RunFile.LAST_FLOOR + 1])
 	# **The row that says what walking found.** Each stall above is a failure in
 	# its own right (ADR-213); this is the total, printed unconditionally so a
 	# build where it silently reached zero is as loud as one where it reached
@@ -2071,7 +2097,7 @@ func _reach_probe() -> void:
 	# from ADR-209 to ADR-214. It existed to stop the step-up turning furniture
 	# into stairs, and went with the step-up: a capsule with nothing but its own
 	# rounding cannot mount a 0.70 m kerb, so the row could no longer fail.
-	var asked: int = WALK_PANEL.size() * (RunFile.LAST_FLOOR + 1)
+	var asked: int = _walk_panel().size() * (RunFile.LAST_FLOOR + 1)
 	print("[reach] body       %d of %d floor(s) crossed by the player capsule, "
 		% [bodies, asked]
 		+ "%d route leg(s) walked" % legs)
@@ -2140,7 +2166,7 @@ func _hunter_fit() -> void:
 		var fits: int = 0
 		var floors: int = 0
 		var refused := PackedStringArray()
-		for run_seed: int in REACH_PANEL:
+		for run_seed: int in _reach_panel():
 			for depth: int in RunFile.LAST_FLOOR + 1:
 				var graph: MissionGraph = MissionGraph.build(run_seed, depth)
 				var lore := ExpeditionHistory.roll(run_seed, calamities, kinds)
@@ -3972,6 +3998,75 @@ func _perf_shot() -> void:
 	print("[perf] nodes %d, objects %d" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
 		Performance.get_monitor(Performance.OBJECT_COUNT)])
 	get_tree().quit()
+
+
+## **`--walkthrough-shot=DIR`**: a first floor as a first-timer walks it.
+##
+## Every other shot stands somewhere the generator chose and looks; this one
+## *walks*, along the navmesh route from the arrival point to the Shaft, with
+## the floor's enemies in it, and every two seconds keeps a frame and writes one
+## line of what the screen was saying — the brief, the reticle, the body's
+## health and noise, and the nearest enemy's state. A still shows how a place
+## looks; this shows what the game tells someone who has never played, and
+## when — which is the question a loop review has to answer (`PRO-005` §5:
+## *"the player should be able to explain their death in one sentence"*).
+func _walkthrough_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	await _hold(0.8)
+	var player: Player = _session.local_player()
+	var spawns: Array[Vector3] = _floor.spawns()
+	if player == null or _shaft == null or spawns.is_empty():
+		printerr("[walk] FAIL no body, no Shaft or no arrival point to walk between")
+		get_tree().quit(1)
+		return
+	var route: PackedVector3Array = await _route_when_ready(
+		get_world_3d().navigation_map, spawns[0], _shaft.position)
+	var walking: Array[bool] = [true]
+	var outcome: Array[Dictionary] = [{}]
+	var walk := func() -> void:
+		outcome[0] = await _walk_route(player, route)
+		walking[0] = false
+	walk.call()
+	var began: int = Time.get_ticks_msec()
+	var shot: int = 0
+	while walking[0] and shot < WALKTHROUGH_FRAMES and not player.is_incapacitated():
+		await _hold(WALKTHROUGH_EVERY)
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("%s/walk_%02d.png" % [dir, shot])
+		var nearest: String = "none"
+		var near_at: float = INF
+		for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+			var foe := node as Enemy
+			if foe == null:
+				continue
+			var far: float = foe.global_position.distance_to(player.global_position)
+			if far < near_at:
+				near_at = far
+				nearest = "%s %.0f m" % [Enemy.State.keys()[foe.state()], far]
+		var brief: PackedStringArray = PackedStringArray()
+		for node: Node in find_children("*", "ArrivalBrief", true, false):
+			for label: Node in node.find_children("*", "Label", true, false):
+				if (label as Label).is_visible_in_tree() and (label as Control).modulate.a > 0.05:
+					brief.append((label as Label).text)
+		var mark: Reticle = _reticle()
+		print("[walk] %02d %4.1fs  health %3.0f  clamor %4.1f  nearest %-16s said '%s'  brief '%s'" % [
+			shot, float(Time.get_ticks_msec() - began) / 1000.0, player.health.current,
+			player.clamor.level, nearest, mark.showing() if mark != null else "",
+			" / ".join(brief)])
+		shot += 1
+	print("[walk] done      %d frame(s), arrived %s, down %s, %.0f m of route" % [
+		shot, outcome[0].get("arrived", false), player.is_incapacitated(), _route_length(route)])
+	if not walking[0] and not bool(outcome[0].get("arrived", false)):
+		print("[walk] stopped   at %s wanting %s after %d of %d leg(s); on a wall %s, a step of %.2f m, against '%s'" % [
+			outcome[0].get("stopped"), outcome[0].get("wanted"), outcome[0].get("walked", 0),
+			outcome[0].get("of", 0), outcome[0].get("on_wall"), outcome[0].get("step", 0.0),
+			outcome[0].get("against", "")])
+	get_tree().quit(0)
+
+
+## Seconds between a walkthrough's frames, and the most it keeps.
+const WALKTHROUGH_EVERY: float = 2.0
+const WALKTHROUGH_FRAMES: int = 45
 
 
 func _delvings_shot(path: String, ink: bool = false) -> void:
