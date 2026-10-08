@@ -70,8 +70,11 @@ func show_these(ids: Array[String]) -> void:
 			shown.append(mark)
 	var grid := GridContainer.new()
 	grid.columns = 1 if shown.size() <= ONE_COLUMN_MAX else 2
-	grid.add_theme_constant_override("h_separation", 20)
-	grid.add_theme_constant_override("v_separation", 14)
+	# Wider than two forged corners' outset (ADR-386): at 14 the bosses of one
+	# row stood on the next row's, and a deed's lettering needs the Slate's
+	# own margin, so the plates move apart rather than in.
+	grid.add_theme_constant_override("h_separation", 22)
+	grid.add_theme_constant_override("v_separation", 22)
 	grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	column.add_child(grid)
 	for mark: DeedResource in shown:
