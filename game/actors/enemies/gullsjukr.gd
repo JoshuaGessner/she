@@ -282,7 +282,7 @@ func _ready() -> void:
 	# walked into them and was pushing. A check written for one thing failing
 	# on another is the argument for keeping it in the sweep.
 	collision_layer = CollisionLayers.ENEMY_BODY
-	collision_mask = CollisionLayers.WORLD
+	collision_mask = CollisionLayers.WORLD | CollisionLayers.GATE
 	_build_body()
 	_build_voice()
 	_apply_tint()

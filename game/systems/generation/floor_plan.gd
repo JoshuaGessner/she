@@ -1099,6 +1099,18 @@ func door_between(a: int, b: int) -> Vector2i:
 			return Vector2i(door.x, door.y)
 	return NO_CELL
 
+## **The route that joins `a` to `b`** (ADR-384), or -1 — the corridor
+## `door_between` finds its doorway on.
+func route_between(a: int, b: int) -> int:
+	var corridors: Dictionary = {}
+	for door: Vector4i in _doors:
+		if door.z == b:
+			corridors[door.w] = true
+	for door: Vector4i in _doors:
+		if door.z == a and corridors.has(door.w):
+			return door.w
+	return -1
+
 ## The corridor cells that open into `node`, sorted.
 ##
 ## A wall has to be cut where a corridor arrives and nowhere else — a room whose

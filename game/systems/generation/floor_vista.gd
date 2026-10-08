@@ -56,6 +56,15 @@ const FAR: float = 20.0
 ## seed 66666 floor 1 counted its Prize as the floor's vista on the strength of
 ## **one** sample, laid no bead, and the navmesh walk never saw the Prize at all.
 const SEEN_LEAST: int = 4
+## How many samples a spot's sight must hold for **before distance counts** ⟨tune⟩.
+##
+## **Margin first, then range** (ADR-384). `best` once ranked by distance and
+## broke ties on samples, and `FAR` caps distance, so a spot seen at 20 m from
+## five samples beat one seen at 19 m from twenty-five. Seed 31346 floor 2,
+## once its gates closed the old walk, laid its bead for five samples, and the
+## navmesh walk saw it from two. Twice `SEEN_LEAST` is the margin that rounding
+## a corner differently may eat.
+const SEEN_SURE: int = 8
 ## Eye height on the walk, and the one `--vista-probe` measures from.
 const EYE: float = 1.6
 ## Where a glint is looked for: an item sits `FloorAnchors.CLEARANCE` off the
@@ -85,6 +94,8 @@ var _bounds: Array[AABB] = []
 ## Plan cell → the occluders whose bounds reach into it.
 var _grid: Dictionary = {}
 var _stamp: PackedInt32Array = PackedInt32Array()
+## Route index → true, for every route a gate stands shut across.
+var _shut: Dictionary = {}
 var _pass: int = 0
 
 
@@ -94,12 +105,19 @@ var _pass: int = 0
 ## `FloorAnchors`, because *which* of the party's arrival points the walk leaves
 ## from is the level's to say, and the probes that measure this walk leave from
 ## the first of a full party's.
+##
+## **The walk goes round a gate** (ADR-384). A locked door or a barred shortcut
+## stands shut when the party arrives, so the route it closes is no part of the
+## walk — the navmesh route goes round it too, and a glint laid for a walk
+## through a shut gate is seen by nobody.
 static func of(plan: FloorPlan, graph: MissionGraph, anchors: FloorAnchors,
 		occluders: Array, arrival: Vector3) -> FloorVista:
 	var vista := FloorVista.new()
 	vista._plan = plan
 	vista._graph = graph
 	vista._anchors = anchors
+	for gate: Vector2i in graph.key_gates() + graph.cost_gates():
+		vista._shut[plan.route_between(gate.x, gate.y)] = true
 	vista._index(occluders)
 	vista._sample(vista._walk(arrival))
 	return vista
@@ -171,6 +189,7 @@ func best(avoid: Array[Vector3], keep: float,
 	var entrance: int = _graph.node_with(MissionGraph.Role.ENTRANCE)
 	var found: Dictionary = {}
 	var top := Vector2.ZERO
+	var top_sure: int = 0
 	for node: int in _graph.size():
 		if node == entrance:
 			continue
@@ -192,9 +211,11 @@ func best(avoid: Array[Vector3], keep: float,
 				var score: Vector2 = view(at)
 				if score.x < NEAR or int(score.y) < SEEN_LEAST:
 					continue
-				if score.x > top.x or (is_equal_approx(score.x, top.x)
-						and score.y > top.y):
+				var sure: int = mini(int(score.y), SEEN_SURE)
+				if sure > top_sure or (sure == top_sure and (score.x > top.x
+						or (is_equal_approx(score.x, top.x) and score.y > top.y))):
 					top = score
+					top_sure = sure
 					found = {"at": at, "room": node,
 						"far": score.x, "seen": int(score.y)}
 			x += STEP
@@ -338,7 +359,7 @@ func _walk(arrival: Vector3) -> Array[Vector3]:
 	var doorway: Dictionary = {}
 	for route: int in _plan.routes():
 		var path: Array[Vector2i] = _plan.path_of(route)
-		if path.is_empty():
+		if path.is_empty() or _shut.has(route):
 			continue
 		var ends: Array[int] = []
 		for cell: Vector2i in [path[0], path[path.size() - 1]]:

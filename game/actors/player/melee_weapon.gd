@@ -591,7 +591,9 @@ func _meets_the_world() -> bool:
 		var along: Vector3 = forward.rotated(Vector3.UP, angle)
 		var line := PhysicsRayQueryParameters3D.create(global_position,
 			global_position + along * _held.reach)
-		line.collision_mask = CollisionLayers.WORLD | _hitbox.collision_mask
+		# Iron bars clang as a wall does (ADR-384) — no blow through a gate.
+		line.collision_mask = CollisionLayers.WORLD | CollisionLayers.GATE \
+			| _hitbox.collision_mask
 		line.collide_with_areas = true
 		var hit: Dictionary = space.intersect_ray(line)
 		if not hit.is_empty() and not (hit["collider"] is Hurtbox):

@@ -112,7 +112,8 @@ func _physics_process(delta: float) -> void:
 	# reported at the top of the next physics frame — before this ray runs again.
 	var ahead := PhysicsRayQueryParameters3D.create(global_position,
 		global_position + travel * step)
-	ahead.collision_mask = CollisionLayers.WORLD
+	# A gate's bars stop an arrow (ADR-384); only sight passes them.
+	ahead.collision_mask = CollisionLayers.WORLD | CollisionLayers.GATE
 	var wall: Dictionary = get_world_3d().direct_space_state.intersect_ray(ahead)
 	if not wall.is_empty():
 		global_position = wall["position"] as Vector3

@@ -13226,4 +13226,30 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 
 **Measured:** `--seidr-probe` row 4 reads *the sight is resting — 29 s* while the key is held, and row 4b reads *the sight shows nothing here* for an empty reading.
 
+## ADR-384 — A gate is an iron grille: solid to bodies, open to sight, and the vista walks round it
+
+**Date:** 2026-10-07 · **Status:** accepted · **Amends ADR-381 and ADR-215; amends `DES-015` and `TEC-007`** · **From the sweep at `a6351c6`, which failed `worth is what you can see` on floor 2**
+
+**Context:**
+- **The doors broke the vista guarantee.** Seed 31346 floor 2 laid its bait for a walk from 25 points and the probe's walk saw it from **none**. The cause was not sight. `FloorVista`'s walk went through a route a locked door now shuts; the navmesh route went round it, and from there the bead was out of view.
+- **And the guarantee was thinner than it read.** With the walk corrected, `best` picked a spot seen from 5 samples at 20 m. The navmesh walk, cutting its corners differently, saw it from 2. `best` ranked by distance first, and `FAR` caps distance at 20 m, so a spot seen briefly at 20 m beat one seen for 25 m at 19 m.
+- **A door of timber hides what it keeps.** ADR-381's door is planks. A locked vault behind it is a wall with a keyhole, and the thing worth unlocking is never seen.
+
+**References:**
+- **Zelda's barred doors and Dark Souls' iron gates.** The treasure or the shortcut is visible through bars before it is reachable. Seeing it is the reason to go and find the key, which is `DES-015`'s vista rule applied to a lock.
+
+**Decision:**
+- **A gate is an iron grille** of nine bars, three rails and two stiles, on a new collision layer, **`GATE`** (layer 7).
+  - **Bodies collide with it.** That means the player's and enemies' bodies, the Gold-Sick's, a thrown thing's flight, an arrow's flight and a melee swing's wall test, which clangs on iron as on stone.
+  - **Sight passes through it**, because every sight ray asks `WORLD` alone: enemy sight, exposure, clamor and the vista probe. Sound and light pass through bars, and so does a Hunt's glance.
+- **`FloorVista`'s walk goes round a shut gate.** Every route a key gate or cost gate closes is left out of the walk (`FloorPlan.route_between`). A gate stands shut when the party arrives, and the navmesh walk goes round it too.
+- **Margin first, then range.** `best` ranks a spot by how many samples see it, up to `SEEN_SURE` = 8 ⟨tune⟩ (twice `SEEN_LEAST`). Only then does it rank by distance. The margin is what corner-cutting on the navmesh may eat.
+- **The vista probe says when its route stops short.** The navmesh agent cannot enter a crawl. Where the locked doors leave a crawl as the only way to the Shaft, the probe's route ends at the crawl's mouth. It now says so and names the point, instead of reporting `0 of N` as though the floor had no view.
+
+**Measured:**
+- **Seed 31346** (the sweep's floors): floor 0, 19 samples see a glint forward; floor 2, 11 samples (it was 0). Floor 1 gives 14.
+- **Seeds 66666, 1 and 9001**, floors 0–2: 11 to 54 samples, all passing.
+- **Seed 4242 floor 2** fails, for the reason the new line gives. The route stops 29.7 m short, at a crawl that the locked doors leave as the only way down. The player can crouch through it and the agent cannot. This is a limit of the probe, not of the floor, and the sweep's seed does not meet it.
+- **`--lock-probe`** still passes: the door is solid, refused without its key, opened with it, and barred from one side.
+
 *Entries below to be added as design decisions are signed off.*

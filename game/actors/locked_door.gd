@@ -55,6 +55,9 @@ func _ready() -> void:
 	add_to_group(GROUP)
 	var body := StaticBody3D.new()
 	body.name = "Body"
+	# On `GATE` alone (ADR-384): solid to every body, transparent to sight.
+	body.collision_layer = CollisionLayers.GATE
+	body.collision_mask = 0
 	add_child(body)
 	_solid = CollisionShape3D.new()
 	var box := BoxShape3D.new()
@@ -69,9 +72,10 @@ func _ready() -> void:
 	_pose()
 
 
-## The leaf, hinged at its left edge: planks of dark timber, two iron bands
-## across them and a ring where a hand would be. For a barred door, a beam
-## across the bar side.
+## The leaf, hinged at its left edge: an **iron grille** (ADR-384) — rails top
+## and bottom, a band across, upright bars between, a ring where a hand would
+## be — so what is kept behind it can be seen. For a barred door, a timber
+## beam across the bar side.
 func _build_leaf() -> Node3D:
 	var hinge := Node3D.new()
 	hinge.name = "Leaf"
@@ -81,14 +85,14 @@ func _build_leaf() -> Node3D:
 	# a door was a black slab with no planks — a hole, not a door.
 	var timber := _material(Color(0.46, 0.37, 0.27), 0.9)
 	var iron := _material(Color(0.30, 0.30, 0.32), 0.5)
-	var planks: int = 5
-	for i: int in planks:
-		var wide: float = SIZE.x / float(planks)
-		_box(hinge, Vector3(wide - 0.025, SIZE.y - 0.04, SIZE.z),
-			Vector3(wide * (float(i) + 0.5), SIZE.y * 0.5, 0.0), timber)
-	for y: float in [0.55, SIZE.y - 0.55]:
-		_box(hinge, Vector3(SIZE.x - 0.06, 0.12, SIZE.z + 0.04),
-			Vector3(SIZE.x * 0.5, y, 0.0), iron)
+	var bars: int = 9
+	for i: int in bars:
+		var x: float = SIZE.x * (float(i) + 0.5) / float(bars)
+		_box(hinge, Vector3(0.05, SIZE.y - 0.1, 0.05), Vector3(x, SIZE.y * 0.5, 0.0), iron)
+	for y: float in [0.06, 1.1, SIZE.y - 0.06]:
+		_box(hinge, Vector3(SIZE.x - 0.02, 0.11, 0.09), Vector3(SIZE.x * 0.5, y, 0.0), iron)
+	for x: float in [0.04, SIZE.x - 0.04]:
+		_box(hinge, Vector3(0.08, SIZE.y, 0.09), Vector3(x, SIZE.y * 0.5, 0.0), iron)
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
 	torus.inner_radius = 0.06

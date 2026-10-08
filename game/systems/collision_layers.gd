@@ -30,3 +30,10 @@ const ENEMY_HURTBOX: int = 1 << 4
 ## joins. Putting a planted body on `WORLD` would have blocked the people it
 ## exists to protect.
 const BULWARK: int = 1 << 5
+
+## **A gate** (ADR-384): an iron grille in a doorway (`LockedDoor`). Every body
+## collides with it; no sight ray is cast against it, because sight asks
+## `WORLD` alone — so a locked gate shows the treasure it keeps, as Zelda's
+## barred doors and Dark Souls' gates do, and `DES-015`'s promised glint is
+## not hidden by a door the generator put in its way.
+const GATE: int = 1 << 6

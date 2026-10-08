@@ -279,7 +279,8 @@ func _physics_process(delta: float) -> void:
 		return
 	var query := PhysicsRayQueryParameters3D.create(
 		global_position, global_position + step)
-	query.collision_mask = CollisionLayers.WORLD
+	# A gate's bars stop a thrown thing (ADR-384) as a wall does.
+	query.collision_mask = CollisionLayers.WORLD | CollisionLayers.GATE
 	var hit: Dictionary = space.intersect_ray(query)
 	if hit.is_empty():
 		global_position += step

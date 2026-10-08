@@ -186,7 +186,7 @@ Loot and enemies placed against the rules already established: greed gradient (`
                        ADR-170]
 ```
 
-> **The lock/key structure is built as doors (ADR-381).** From ADR-171 until then the graph's gates were validated and never stood, so lock-and-key and shortcut floors played as detours. A key gate is now a locked door at the held span's mouth, with the floor's key in the `KEY` room. A cost gate is a door barred from its deep side, so the shortcut opens on the way out. Over 120 floors, 47 draw gates: 69 gates, 69 doors and 22 keys (`--lock-probe`).
+> **The lock/key structure is built as doors (ADR-381).** From ADR-171 until then the graph's gates were validated and never stood, so lock-and-key and shortcut floors played as detours. A key gate is now a locked door at the held span's mouth, with the floor's key in the `KEY` room. A cost gate is a door barred from its deep side, so the shortcut opens on the way out. Over 120 floors, 47 draw gates: 69 gates, 69 doors and 22 keys (`--lock-probe`). **A gate is an iron grille (ADR-384)**, solid to every body and open to sight, so a locked vault shows what it keeps. The vista walk goes round a shut gate.
 
 **Step 8 is not optional.** A generator without a validation pass ships soft-locks. Failing validation should re-roll the offending sub-graph, not the whole level.
 

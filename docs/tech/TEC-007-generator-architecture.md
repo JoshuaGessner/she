@@ -338,6 +338,9 @@ character of a floor, and each is a rewrite rule, not a special case in
 > A key gate is a locked door in the doorway `FloorPlan` cut, opened by the floor's
 > key from the `KEY` node. A cost gate is a door barred on its deep side. Both are
 > the host's, and the navmesh is baked again when one opens.
+> **A gate stands on `CollisionLayers.GATE` (ADR-384)**: bodies, flights and
+> blows collide with it, and sight rays, which ask `WORLD` alone, pass it.
+> `FloorVista` leaves every gated route out of its walk.
 - **Nested** — a cycle inside an arm of a cycle. Rare, deep floors only.
 
 Each names a question the floor asks. That is the same test `DES-015` Layer 3

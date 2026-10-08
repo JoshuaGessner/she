@@ -193,7 +193,8 @@ def check_settings() -> list[Issue]:
 # `CollisionLayers` and against the scenes themselves by `check_collision_layers`.
 LAYER_CONTRACT: dict[tuple[str, str], tuple[str | None, str | None]] = {
     # (scene, node)                     (layer constant, mask constant)
-    ("actors/player/player.tscn", "Player"): ("PLAYER_BODY", "WORLD"),
+    # `|GATE` on both bodies: a locked grille stops everyone (ADR-384).
+    ("actors/player/player.tscn", "Player"): ("PLAYER_BODY", "WORLD|GATE"),
     ("actors/player/player.tscn", "Hurtbox"): ("PLAYER_HURTBOX", None),
     ("actors/player/player.tscn", "Hitbox"): (None, "ENEMY_HURTBOX"),
     # `WORLD|BULWARK`: an enemy is stopped by geometry and by a planted
@@ -201,7 +202,7 @@ LAYER_CONTRACT: dict[tuple[str, str], tuple[str | None, str | None]] = {
     # here would make every teammate a wall; `BULWARK` is a layer only a body
     # holding a doorway ever carries, which is what lets allies retreat
     # *through* that body with no rule saying "except teammates".
-    ("actors/enemies/enemy.tscn", "Enemy"): ("ENEMY_BODY", "WORLD|BULWARK"),
+    ("actors/enemies/enemy.tscn", "Enemy"): ("ENEMY_BODY", "WORLD|BULWARK|GATE"),
     ("actors/enemies/enemy.tscn", "Hurtbox"): ("ENEMY_HURTBOX", None),
     ("actors/enemies/enemy.tscn", "Hitbox"): (None, "PLAYER_HURTBOX"),
 }

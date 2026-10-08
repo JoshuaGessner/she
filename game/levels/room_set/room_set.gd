@@ -4514,6 +4514,19 @@ func _vista_probe() -> void:
 				+ "floor with no view and a floor nobody asked about print the "
 				+ "same zero") % NAV_SYNC_FRAMES)
 		walk_run = _route_length(route)
+		# **A route that stops short is not a walk with no view** (ADR-384).
+		# The agent stands 1.8 m and a crawl has no navmesh, so a floor whose
+		# locked doors leave a crawl the only way down routes to the crawl's
+		# mouth and stops — the player ducks through and the walk measured here
+		# does not. Said, so `0 of N` names the walk it sampled.
+		if route.size() > 1 and Vector2(route[route.size() - 1].x - _shaft.position.x,
+				route[route.size() - 1].z - _shaft.position.z).length() > 2.0:
+			problems.append(("the route stops %.1f m short of the Shaft, at %s — "
+				+ "the navmesh walk ends where the agent cannot go (a crawl, or a "
+				+ "shut gate), so the view below was sampled on part of the way")
+				% [Vector2(route[route.size() - 1].x - _shaft.position.x,
+					route[route.size() - 1].z - _shaft.position.z).length(),
+					route[route.size() - 1]])
 		var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 		var target: Vector3 = item.global_position + Vector3(0.0, 0.25, 0.0)
 		# **Every glitter on the floor, not only the Prize** (`M4-T28`).
