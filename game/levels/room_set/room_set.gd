@@ -16892,6 +16892,49 @@ func _lock_probe() -> void:
 	if near != &"barred" or far != &"" or not barred.open:
 		problems.append("a barred door opened from the near side, or not from the bar side")
 
+	# ─ 3b. no blow through the bars (ADR-384) ─
+	# A striker's arc on the far side of a shut grille, reaching well past it
+	# to the body: armed with the gate shut, then again with it open as the
+	# control. Shut first, so a hurt body's grace after the control cannot be
+	# what kept the first blow off.
+	var grille: LockedDoor = _session.spawn_door(body.global_position + ahead * 1.0,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+	var striker := Node3D.new()
+	striker.name = "BarsStriker"
+	add_child(striker)
+	striker.global_position = body.global_position + ahead * 2.0
+	var arc := Hitbox.new()
+	arc.collision_layer = 0
+	arc.collision_mask = CollisionLayers.PLAYER_HURTBOX
+	arc.damage = 5.0
+	var reach := CollisionShape3D.new()
+	var ball := SphereShape3D.new()
+	ball.radius = 2.2
+	reach.shape = ball
+	arc.add_child(reach)
+	striker.add_child(arc)
+	arc.owner = striker
+	arc.position = Vector3.UP * 1.0
+	await _hold(0.2)
+	var whole: float = body.health.current
+	arc.arm()
+	await _hold(0.2)
+	arc.disarm()
+	var through_shut: float = whole - body.health.current
+	grille.host_open()
+	await _hold(0.3)
+	var before_open: float = body.health.current
+	arc.arm()
+	await _hold(0.2)
+	arc.disarm()
+	var through_open: float = before_open - body.health.current
+	striker.queue_free()
+	print("[lock] bars        a blow through a shut grille took %.1f; through it open, %.1f"
+		% [through_shut, through_open])
+	if through_shut > 0.0 or through_open <= 0.0:
+		problems.append("a blow landed through a shut gate's bars, or the open-gate control did not land")
+	body.restore_for_descent()
+
 	# ─ 4. the key stays with its floor (B49) ─
 	var down: Array = LockedDoor.leaving_floor(body.inventory.pack())
 	var down_keys: int = 0

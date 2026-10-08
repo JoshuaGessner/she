@@ -13241,6 +13241,7 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 **Decision:**
 - **A gate is an iron grille** of nine bars, three rails and two stiles, on a new collision layer, **`GATE`** (layer 7).
   - **Bodies collide with it.** That means the player's and enemies' bodies, the Gold-Sick's, a thrown thing's flight, an arrow's flight and a melee swing's wall test, which clangs on iron as on stone.
+  - **No blow lands through it.** A hit is refused when a ray from the striker's chest to what it struck crosses a gate (`Hitbox._through_bars`). Without that, an enemy's arc reached past the 9 cm of iron and struck a player behind the bars, while the player's own swing clanged on them. The ray asks the gate layer alone, so no other blow in the game changes.
   - **Sight passes through it**, because every sight ray asks `WORLD` alone: enemy sight, exposure, clamor and the vista probe. Sound and light pass through bars, and so does a Hunt's glance.
 - **`FloorVista`'s walk goes round a shut gate.** Every route a key gate or cost gate closes is left out of the walk (`FloorPlan.route_between`). A gate stands shut when the party arrives, and the navmesh walk goes round it too.
 - **Margin first, then range.** `best` ranks a spot by how many samples see it, up to `SEEN_SURE` = 8 ⟨tune⟩ (twice `SEEN_LEAST`). Only then does it rank by distance. The margin is what corner-cutting on the navmesh may eat.
@@ -13251,5 +13252,6 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - **Seeds 66666, 1 and 9001**, floors 0–2: 11 to 54 samples, all passing.
 - **Seed 4242 floor 2** fails, for the reason the new line gives. The route stops 29.7 m short, at a crawl that the locked doors leave as the only way down. The player can crouch through it and the agent cannot. This is a limit of the probe, not of the floor, and the sweep's seed does not meet it.
 - **`--lock-probe`** still passes: the door is solid, refused without its key, opened with it, and barred from one side.
+- **No blow through the bars** (`--lock-probe` row 3b). A 2.2 m arc on the far side of a shut grille dealt **0.0**. The same arc with the gate open, as the control, dealt **1.7**.
 
 *Entries below to be added as design decisions are signed off.*

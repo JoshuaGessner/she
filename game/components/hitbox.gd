@@ -33,6 +33,9 @@ signal struck(hurtbox: Hurtbox)
 ## they strike has a guard to go through.
 var heavy: bool = false
 
+## Where a blow is reckoned from on the striker, metres above its feet.
+const CHEST: float = 1.0
+
 var _armed: bool = false
 var _already_hit: Array[Hurtbox] = []
 
@@ -92,6 +95,24 @@ func _on_area_entered(area: Area3D) -> void:
 	var hurtbox := area as Hurtbox
 	if hurtbox == null or hurtbox in _already_hit:
 		return
+	if _through_bars(hurtbox):
+		return
 	_already_hit.append(hurtbox)
 	hurtbox.receive(damage, damage_type, self)
 	struck.emit(hurtbox)
+
+
+## **No blow through a gate** (ADR-384). A grille is 9 cm of iron, and an arc
+## reaches well past it: a Draugr at the bars could strike the player behind
+## them while the player's own swing clanged on the iron. Asked of the gate
+## layer alone, from the striker's chest to what it struck, so no other blow
+## in the game changes. Not remembered as struck: step round the gate and the
+## same swing may still land.
+func _through_bars(hurtbox: Hurtbox) -> bool:
+	var striker: Node3D = actor()
+	if striker == null or not is_inside_tree():
+		return false
+	var query := PhysicsRayQueryParameters3D.create(
+		striker.global_position + Vector3.UP * CHEST, hurtbox.global_position)
+	query.collision_mask = CollisionLayers.GATE
+	return not get_world_3d().direct_space_state.intersect_ray(query).is_empty()
