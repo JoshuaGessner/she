@@ -923,14 +923,23 @@ func _draw_bar_row(key: String, fraction: float, x: float, y: float) -> void:
 	draw_string(font, Vector2(x, y), key, HORIZONTAL_ALIGNMENT_LEFT, STAT_KEY,
 		ItemCard.TEXT, palette()[&"dim"] as Color)
 	var track := Rect2(Vector2(x + STAT_KEY, y - 9.0), Vector2(DOLL_WIDTH - STAT_KEY, 9.0))
-	draw_rect(track, palette()[&"cell"] as Color)
+	_forge_track(track)
 	var low: bool = fraction < 0.34
 	draw_rect(Rect2(track.position, Vector2(track.size.x * clampf(fraction, 0.0, 1.0),
 		track.size.y)), palette()[&"overload" if low else &"load"] as Color)
-	draw_rect(track, palette()[&"line"] as Color, false, 1.0)
 	if low:
 		CarvedFrame.hatch_into(get_canvas_item(), track,
 			palette()[&"cell"] as Color, OVER_PITCH, 1.0)
+
+
+## **A bar's trough, forged** (ADR-386): the tiny kit's iron rim around it, as
+## every chip and tile in the bag wears, and the sunken cell inside — so a bar
+## is set in the plate rather than ruled onto it. The fill goes on top.
+func _forge_track(track: Rect2) -> void:
+	var rim: StyleBox = get_theme_stylebox(&"normal", MenuStyle.ASPECT_CHIP)
+	if rim != null:
+		rim.draw(get_canvas_item(), track.grow(CarvedFrame.KIT_SIZES[&"tiny"]["band"]))
+	draw_rect(track, palette()[&"cell"] as Color)
 
 
 ## The three numbers the decision is actually made on.
@@ -962,8 +971,7 @@ func _draw_header(column: Rect2) -> void:
 	# shapes for feel and digits only for arithmetic, and both are here doing
 	# their own job.
 	var track := Rect2(at + Vector2(0.0, 12.0), Vector2(column.size.x, 8.0))
-	draw_rect(track, palette()[&"cell"] as Color)
-	draw_rect(track, palette()[&"line"] as Color, false, 1.0)
+	_forge_track(track)
 	var fraction: float = clampf(kilograms / maxf(capacity, 0.001), 0.0, 1.0)
 	var filled := Rect2(track.position, Vector2(track.size.x * fraction, track.size.y))
 	var over: bool = kilograms >= capacity
