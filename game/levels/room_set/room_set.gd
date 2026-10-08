@@ -7268,7 +7268,11 @@ func _coop_probe(out: String) -> void:
 		await _hold(0.4)
 	else:
 		await _hold_until(func() -> bool: return felt.size() >= 2, 6.0)
-		await _hold(0.3)
+		# **On the payment, not on 0.3 s** (ADR-378, B74): the host's charge to
+		# this bar is its own message, and it read 0.0 of 22 once in five runs
+		# a frame before it landed. A payment that never comes still fails.
+		await _hold_until(func() -> bool:
+			return guard_from - mine.stamina.current >= Config.tuning.block_stamina_cost * 0.8, 2.0)
 		Input.action_release("block")
 		_probe_guard = {"guarded": float(felt[1]["guarded"]) if felt.size() >= 2 else 0.0,
 			"paid": guard_from - mine.stamina.current,
