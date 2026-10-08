@@ -13341,4 +13341,48 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
   - A button's 9 px margin let the gilt line of a lit state cut through its lettering; the margin is now 11 px.
   - Blender's `transform_apply` applies location unless told not to, so every rotated block turned about the world origin, which put corner terminals out in the panel. The fix is noted in the builder.
 
+## ADR-387 — The Skald: Galdr, a verse sung loud that turns the dungeon on itself
+
+**Date:** 2026-10-08 · **Status:** accepted. Made unattended: the developer asked for the classes to be researched and built one at a time, and every number is ⟨tune⟩. · **Amends `DES-011` §3 and ADR-031; pulls the Skald forward from `M5-T01` as `M4-T37`**
+
+**Context:**
+- **The last class.** ADR-012 requires all six for launch. The Úlfheðinn, the Völva and the Haugbrjótr were pulled forward and built one at a time (ADR-345, ADR-379, ADR-382). The Skald remains.
+- **ADR-031 recast him as a controller.** His songs act on the dungeon first and on allies second, which makes solo play a playstyle rather than a diminished one. ADR-031 called the recast cheap because *"`DES-013`'s mutually hostile enemy factions already simulate the interesting half."*
+- **They do not.** No enemy targets another, and an enemy's hitbox masks player hurtboxes alone (`enemy.tscn`, mask 8). Sight re-acquires the nearest visible player every frame. So *"madden a Draugr into fighting a Wretch"* is a new behaviour, not a reuse. One piece does exist: a struck enemy already turns on whoever struck it (`Enemy._on_hurt`). That is what lets infighting propagate once a single enemy starts it.
+
+**Research:**
+- **Egils saga, ch. 57.** Egill raises a *níðstöng*, a scorn-pole with a horse's head, and carves the curse that turns the land-spirits against King Eiríkr and Queen Gunnhildr until they leave the land. A verse that turns a place's own denizens against whoever holds it is this class's sentence.
+- **Hávamál st. 146–163, the Ljóðatal.** Óðinn's list of charms (*galdr*, sung, never merely spoken). In st. 156 he chants under the shields of friends he leads to battle, and they go out unhurt and come home unhurt. The ally half is real in the sources, and it is the lesser half.
+- **Heimskringla, Óláfs saga helga.** Before Stiklestad, Þormóðr Kolbrúnarskáld recites *Bjarkamál* at dawn and wakes the army. The poem is the rally.
+- **Brogue's discord** (a wand and a gas), and **Dungeon Crawl's Discord.** Monsters under discord fight whatever is nearest. In both games it is the controller's best tool because the dungeon does the killing, and it is legible because the affected monsters are marked.
+- **Darkest Dungeon's Jester.** A song is a resource with a price, sung at the wrong moment as often as the right one.
+
+**Decision — Galdr:**
+- **Hold the craft key to sing a verse.** It lasts 3 s ⟨tune⟩ on the host's clock. He may walk, at half pace, but cannot guard, swing or run. A blow breaks the verse off. **It is loud the whole time** (`galdr_clamor` a second ⟨tune⟩), which is ADR-031's inverted cost: the Skald chooses to be heard.
+- **When the verse ends, every enemy within earshot** (`galdr_reach`, 12 m ⟨tune⟩) is:
+  - **maddened** for 10 s ⟨tune⟩, when another enemy stands within reach of it to fight. A maddened enemy hunts the nearest other enemy, and its blows land on enemies. An enemy it strikes is **provoked**: it fights back, and its blows land on its striker. That is ADR-031's argument, now built;
+  - **unnerved** for 6 s ⟨tune⟩, when it has no one to fight. It turns and keeps its distance from the singer, which is DES-011's *"breaking morale"* and the solo case: one enemy alone still gives way;
+  - **Guardians are unnerved, never maddened.** A Guardian room stays a committal fight (ADR-032). The song buys a window, never the room.
+- **Not the Hunt.** The Gold-Sick is not a denizen of the floor; it is the price, and the song calls it.
+- **Legible** (`DES-018`, PRO-005 §5). A maddened enemy carries a mark and a sound, and so does an unnerved one, on every peer. A player must be able to say *"the song turned them"*.
+
+**Decision — the Rite (4 nodes, opening at pact rank 3; Cinder, Hoard and Scale are all written):** each node lets him do something new (ADR-058).
+- **Níðstöng.** The verse lands where he looks, up to 10 m ⟨tune⟩, not where he stands: the noise, and the madness, are placed. This is Egill's pole and Thief's noisemaker.
+- **Lausavísa** *(after Níðstöng)*. A tap sings a single stanza, a loose verse. It is quick, it is half as loud, and it maddens or unnerves **only the nearest** enemy. That is a second, quieter way to use the verb.
+- **Bjarkamál.** A finished verse wakes one downed ally in earshot, standing, as a rescue would. This is Þormóðr at Stiklestad.
+- **Under Shields** *(after Bjarkamál)*. Allies in earshot when the verse ends take the next heavy blow on the guard without it breaking. This is Hávamál st. 156.
+
+**Kit, dress and portrait:**
+- **Kit:** the bearded axe (Egill's weapon) and two linen bindings.
+- **Dress:** a fine cloak over the tunic with a tablet-woven border, a guest's clothes rather than a fighter's. The pin is gilt, the ring-giver's reward, and it is the one saturated colour, as `ART-005` allows only gold.
+
+**Cost:** about a week, in pieces:
+- Enemy madness, provocation and unnerving, with its tells, host-side and replicated: a weekend.
+- The verb, with its probe and co-op row: a weekend.
+- The Rite: a weekend.
+- The dress and portrait: a day.
+- The class screen at six cards: a day (ADR-385 left six failing across).
+
+**Not built:** recording deeds for Lineage (`DES-011`'s Rite list). It is economy, not a verb; it waits for the deeds system to want it.
+
 *Entries below to be added as design decisions are signed off.*

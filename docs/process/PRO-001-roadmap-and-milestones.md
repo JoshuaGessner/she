@@ -4,7 +4,7 @@ title: Roadmap & Milestones
 status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-10-07
+updated: 2026-10-08
 related: [DES-001, TEC-001, TEC-003]
 ---
 
@@ -258,6 +258,7 @@ The most common way a project like this dies is building the meta-progression fi
 - [x] `M4-T34` **The third class: the Úlfheðinn.** ***Closed by ADR-345 and ADR-346: the fury delays the blood instead of refusing it, and Scale is the road to its Rite.*** *Pulled forward from `M5-T01` at the developer's request, which was to research and fully build the planned classes one at a time. Built: Wolf-Fury, its four-node Rite, kit, arms, portrait and class card, with `--fury-probe` in the sweep. **And the Aspect it needed** (ADR-346): Scale's twelve nodes, the first Aspect the Úlfheðinn can enter and a second road for the Húskarl, with `--scale-probe` in the sweep. That probe walks an Úlfheðinn to rank 3 and opens its Rite. **Left to the art pass** (`M4-T10`): a worn wolf-coat, and a howl in the foley.* → DES-011, DES-004
 - [x] `M4-T35` **The fourth class: the Völva.** ***Closed by ADR-379 and ADR-380: a reading is a snapshot bought with stillness.*** *Pulled forward from `M5-T01`, one class at a time as the developer asked. Built: Seiðr, a trance sat for 3 s on the host's clock (broken by a step, a blow or letting go; the view dims and the ring fills), giving the whole party a 12 s snapshot of the Gold-Sick, the best unlooted find and the way out, drawn as ping shapes labelled *seen*, with the sight spent for 30 s after. Four Rite nodes reached through Wing (Varðlokkur, Marking Prey, Spá, Vé). The völr, an iron staff after Fyrkat and Birka, as her weapon; Þorbjörg's mantle and hood as her dress; portrait, card and arms. `--seidr-probe` (eight rows, each Rite node against a control, and the road through Wing to rank 3) and a co-op smoke row (a client's reading reaches both peers) are in the sweep. **And the screen it broke** (ADR-380): four cards fitted across and ran off the bottom, so the class screen is measured down as well. **Left to the art pass** (`M4-T10`): the staff carried upright at rest, and the arm-ink at ranks 3, 5 and 7 (ADR-057).* → DES-011, DES-004
 - [x] `M4-T36` **The fifth class: the Haugbrjótr.** ***Closed by ADR-382 and ADR-385: what is shut is hers to break, and everyone hears it.*** *Pulled forward from `M5-T01` (ADR-382), one class at a time. Haugbrot: hold to break what is shut (a locked or barred door, the shut barrow), 4 s, loud as a Waystone. Four Rite nodes: Hidden Way (which replaced Appraise at build), Grave-Sense, Wedge, the Long Pry. Built on ADR-381's doors, with a dress, a portrait, `--haug-probe` in the sweep and a co-op row.* → DES-011, DES-004
+- [ ] `M4-T37` **The sixth class: the Skald.** *Pulled forward from `M5-T01` (ADR-387), one class at a time. Galdr: hold to sing a 3 s verse, loud, that maddens enemies in earshot into fighting each other or unnerves one alone; Guardians are only unnerved. It needs enemy madness and provocation built first, because ADR-031's faction infighting was never in the code. Four Rite nodes: Níðstöng, Lausavísa, Bjarkamál, Under Shields. Kit, dress, portrait, a probe and a co-op row; the class screen at six.* → DES-011, DES-013
 
 ### The gates `M3` could not ask
 
@@ -355,7 +356,7 @@ audio, vertex-channel authoring, inversion, or the human playtest gate.
 ## M5 — Content & Breadth
 
 <!-- milestone id=M5 depends=M4 size=unknown -->
-- [ ] `M5-T01` **The remaining four classes**, moved here by ADR-061; all six are required for launch (ADR-012). *The Skald remains: the Úlfheðinn went back to M4 as `M4-T34` (ADR-345), the Völva as `M4-T35` (ADR-379), and the Haugbrjótr as `M4-T36` (ADR-382).* → DES-011
+- [ ] `M5-T01` **The remaining four classes**, moved here by ADR-061; all six are required for launch (ADR-012). *The Skald remains: the Úlfheðinn went back to M4 as `M4-T34` (ADR-345), the Völva as `M4-T35` (ADR-379), the Haugbrjótr as `M4-T36` (ADR-382), and the Skald as `M4-T37` (ADR-387), which leaves this task empty when it closes.* → DES-011
 - [ ] `M5-T02` Remaining biomes — Barrow-Fields, Sunken Wood → DES-006, DES-015
 - [ ] `M5-T03` Remaining factions and Aspects → DES-007, DES-004
 - [ ] `M5-T04` Full enemy roster and modifier set → DES-013
