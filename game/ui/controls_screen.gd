@@ -154,7 +154,7 @@ func _ready() -> void:
 	var column: VBoxContainer = MenuStyle.column(8)
 	_body = column
 	centre.add_child(column)
-	column.add_child(MenuStyle.title("CONTROLS", MenuStyle.SCREEN_TITLE))
+	column.add_child(MenuStyle.title(tr("ui.controls"), MenuStyle.SCREEN_TITLE))
 
 	# **Two columns, because one did not fit** (ADR-137). Stacked in a single
 	# table this ran past the bottom of a 648-line viewport and cut the BACK
@@ -171,18 +171,18 @@ func _ready() -> void:
 	_fill()
 
 	column.add_child(_gap(8))
-	_status = MenuStyle.line("press a key or a button to change it", MenuStyle.CAPTION_DIM)
+	_status = MenuStyle.line(tr("ui.press_a_key_or_a_button_to_change_it"), MenuStyle.CAPTION_DIM)
 	column.add_child(_status)
 	column.add_child(_gap(6))
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 16)
 	buttons.alignment = BoxContainer.ALIGNMENT_CENTER
 	column.add_child(buttons)
-	var reset: Button = MenuStyle.button("DEFAULTS")
+	var reset: Button = MenuStyle.button(tr("ui.defaults"))
 	reset.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	reset.pressed.connect(restore_defaults)
 	buttons.add_child(reset)
-	var back: Button = MenuStyle.button("BACK")
+	var back: Button = MenuStyle.button(tr("ui.back"))
 	# Every other menu's column is one button wide, so a stretched button looks
 	# right there and looks like a banner here. Shrink to its own width instead.
 	back.size_flags_horizontal = Control.SIZE_SHRINK_CENTER

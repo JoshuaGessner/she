@@ -36,18 +36,18 @@ func _ready() -> void:
 
 	var column: VBoxContainer = MenuStyle.column(14)
 	centre.add_child(column)
-	column.add_child(MenuStyle.title("SETTINGS", MenuStyle.SCREEN_TITLE))
+	column.add_child(MenuStyle.title(tr("ui.settings"), MenuStyle.SCREEN_TITLE))
 	column.add_child(MenuStyle.line(
 		"Changes apply as you make them and are kept when you quit.",
 		MenuStyle.CAPTION_DIM))
 
 	column.add_child(_gap(8))
-	column.add_child(MenuStyle.line("SOUND", MenuStyle.CAPTION_WARM))
+	column.add_child(MenuStyle.line(tr("ui.sound"), MenuStyle.CAPTION_WARM))
 	for bus: String in Settings.VOLUME_BUSES:
 		column.add_child(_volume_row(bus))
 
 	column.add_child(_gap(10))
-	column.add_child(MenuStyle.line("LOOK", MenuStyle.CAPTION_WARM))
+	column.add_child(MenuStyle.line(tr("ui.look"), MenuStyle.CAPTION_WARM))
 	column.add_child(_sensitivity_row())
 	column.add_child(_toggle_row("Invert vertical look", Settings.invert_look,
 		func(on: bool) -> void:
@@ -61,7 +61,7 @@ func _ready() -> void:
 			Settings.save()))
 
 	column.add_child(_gap(14))
-	var back: Button = MenuStyle.button("BACK")
+	var back: Button = MenuStyle.button(tr("ui.back"))
 	back.pressed.connect(func() -> void: closed.emit())
 	column.add_child(back)
 	back.grab_focus()
@@ -102,7 +102,7 @@ func _sensitivity_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 
-	var name_label: Label = MenuStyle.line("sensitivity", MenuStyle.BODY_TEXT)
+	var name_label: Label = MenuStyle.line(tr("ui.sensitivity"), MenuStyle.BODY_TEXT)
 	name_label.custom_minimum_size = Vector2(110.0, 0.0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(name_label)
@@ -132,7 +132,7 @@ func _sensitivity_row() -> HBoxContainer:
 func _motion_row() -> HBoxContainer:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
-	var name_label: Label = MenuStyle.line("camera motion", MenuStyle.BODY_TEXT)
+	var name_label: Label = MenuStyle.line(tr("ui.camera_motion"), MenuStyle.BODY_TEXT)
 	name_label.custom_minimum_size = Vector2(110.0, 0.0)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(name_label)

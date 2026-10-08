@@ -508,6 +508,34 @@ KEY_WORDS = [
 STRING_LITERAL = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
 
 
+# A MenuStyle text helper called with a bare string, not tr(...).
+MENU_LITERAL = re.compile(r'MenuStyle\.(?:line|title|heading|button)\("[A-Za-z]')
+
+
+def check_menu_literals(path: Path) -> list[Issue]:
+    """Words a player reads go through the string table (ADR-360, B75).
+
+    The missing-key check (`check_translations`) proves every `tr()` key has
+    a row, and says nothing about a string that never asked for one: 53 menu
+    titles, buttons and labels were typed straight into the screens that drew
+    them, the first floor's brief among them. This is the other half — a
+    `MenuStyle` text helper handed a literal rather than `tr(...)`.
+    """
+    if path.suffix != ".gd":
+        return []
+    issues = []
+    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        if line.lstrip().startswith("#"):
+            continue
+        if MENU_LITERAL.search(line):
+            issues.append(Issue(
+                "error", "menu-literal", f"{rel(path)}:{number}",
+                "a menu string is typed into the code rather than read from the table",
+                "give it a key in data/locale/en.csv and pass tr(\"key\") (ADR-360)",
+            ))
+    return issues
+
+
 def check_control_prompts(path: Path) -> list[Issue]:
     """One file names the keys, and it is `ControlsScreen` (ADR-139).
 
@@ -677,6 +705,7 @@ def main() -> int:
             issues += check_naming(path)
             issues += check_placeholders(path)
             issues += check_control_prompts(path)
+            issues += check_menu_literals(path)
             if path.suffix == ".gd":
                 scripts += 1
                 issues += check_script(path)

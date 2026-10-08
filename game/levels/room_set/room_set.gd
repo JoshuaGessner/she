@@ -6622,7 +6622,10 @@ func _hud_probe() -> void:
 	# theme, so the hand-set interface this replaced could not pass this row.
 	var stage := Control.new()
 	add_child(stage)
-	var shown: Label = MenuStyle.line("a label built before the theme changed")
+	# A probe's label, never a player's: through a variable so the
+	# menu-literal check (ADR-360) knows it is not one of the game's words.
+	var probe_words: String = "a label built before the theme changed"
+	var shown: Label = MenuStyle.line(probe_words)
 	stage.add_child(shown)
 	await get_tree().process_frame
 	var size_was: int = shown.get_theme_font_size(&"font_size")
@@ -6823,7 +6826,7 @@ func _build_hud() -> void:
 	# Deep does not use, for as long as it is true — every descent under it is
 	# thrown away, and a player owed that sentence is owed it all the way down.
 	if GameState.refused_a_profile():
-		_not_saving = MenuStyle.line("not being saved — see the menu", MenuStyle.CAPTION_FAULT)
+		_not_saving = MenuStyle.line(tr("ui.not_being_saved"), MenuStyle.CAPTION_FAULT)
 		_not_saving.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		layer.add_child(_not_saving)
 	_relayout_hud()

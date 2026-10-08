@@ -90,7 +90,7 @@ func _ready() -> void:
 	add_child(column)
 	_column = column
 
-	column.add_child(MenuStyle.title("WHO GOES DOWN"))
+	column.add_child(MenuStyle.title(tr("ui.who_goes_down")))
 	# The cost stated before the choice rather than after it. `PRO-005` is
 	# explicit that the harshness has to be legible in advance — a lock the
 	# player discovers on their first death is a different game from the one

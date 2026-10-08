@@ -74,7 +74,7 @@ func _ready() -> void:
 	var page := VBoxContainer.new()
 	page.add_theme_constant_override("separation", 8)
 	margin.add_child(page)
-	page.add_child(MenuStyle.title("HER PILE", MenuStyle.SCREEN_TITLE))
+	page.add_child(MenuStyle.title(tr("ui.her_pile"), MenuStyle.SCREEN_TITLE))
 	page.add_child(MenuStyle.line(
 		"What you give pays what she is owed. Whatever is past that becomes boon, and boon buys her aspects.",
 		MenuStyle.BODY_WARM))
@@ -104,12 +104,12 @@ func _ready() -> void:
 	var column := VBoxContainer.new()
 	column.add_theme_constant_override("separation", 6)
 	ledger.add_child(column)
-	column.add_child(_left(MenuStyle.heading("The Tithe")))
+	column.add_child(_left(MenuStyle.heading(tr("ui.the_tithe"))))
 	_tithe_bar = LedgerBar.new()
 	column.add_child(_tithe_bar)
 	_tithe_line = _left(MenuStyle.line("", MenuStyle.CAPTION_TEXT))
 	column.add_child(_tithe_line)
-	column.add_child(_left(MenuStyle.heading("Boon")))
+	column.add_child(_left(MenuStyle.heading(tr("ui.boon"))))
 	_boon_bar = LedgerBar.new()
 	column.add_child(_boon_bar)
 	_boon_line = _left(MenuStyle.line("", MenuStyle.CAPTION_TEXT))
@@ -230,7 +230,7 @@ func _describe() -> void:
 		GameState.boon_progress, per, GameState.boon]
 
 	if _selected == null:
-		_detail.add_child(_left(MenuStyle.line("You carry nothing.", MenuStyle.BODY_DIM)))
+		_detail.add_child(_left(MenuStyle.line(tr("ui.you_carry_nothing"), MenuStyle.BODY_DIM)))
 		_give.text = "Nothing to give"
 		_give.disabled = true
 		return

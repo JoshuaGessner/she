@@ -1209,7 +1209,7 @@ func _build_readout() -> void:
 	_place.theme = MenuStyle.LAIR
 	var place_body := VBoxContainer.new()
 	place_body.add_theme_constant_override("separation", 5)
-	place_body.add_child(MenuStyle.heading("The Chamber"))
+	place_body.add_child(MenuStyle.heading(tr("ui.the_chamber")))
 	# **First, when nothing is being kept** (`M4-T06`, ADR-246): what she is
 	# given here is thrown away on quitting, and that is the first thing a
 	# player standing at her pile is owed.
@@ -1247,7 +1247,7 @@ func _build_readout() -> void:
 	_tithe.theme = MenuStyle.LAIR
 	var tithe_body := VBoxContainer.new()
 	tithe_body.add_theme_constant_override("separation", 5)
-	tithe_body.add_child(MenuStyle.heading("The Tithe"))
+	tithe_body.add_child(MenuStyle.heading(tr("ui.the_tithe")))
 	_rows["rank"] = MenuStyle.row("rank", "")
 	tithe_body.add_child(_rows["rank"])
 	_rows["paid"] = MenuStyle.row("paid", "")

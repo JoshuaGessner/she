@@ -66,7 +66,7 @@ func _redraw() -> void:
 	var lodge: FactionResource = GameState.lodge()
 	_column.add_child(MenuStyle.title(
 		tr(String(lodge.name_key)).to_upper() if lodge != null else "THE LODGE"))
-	_column.add_child(MenuStyle.line("trust %d · favour %d · work taken %d of %d" % [
+	_column.add_child(MenuStyle.line(tr("ui.trust_n_favour_n_work_taken_n_of_n") % [
 		GameState.lodge_trust, GameState.lodge_favour, GameState.contracts.size(),
 		ContractBoard.TAKEN_MAX], MenuStyle.BODY_WARM))
 	_column.add_child(MenuStyle.line(
@@ -85,7 +85,7 @@ func _redraw() -> void:
 	var work := VBoxContainer.new()
 	work.add_theme_constant_override("separation", 12)
 	halves.add_child(work)
-	var board_head: Label = MenuStyle.line("The Board", MenuStyle.DISPLAY_WARM)
+	var board_head: Label = MenuStyle.line(tr("ui.the_board"), MenuStyle.DISPLAY_WARM)
 	board_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	work.add_child(board_head)
 	for offer: Contract in GameState.board():
@@ -93,7 +93,7 @@ func _redraw() -> void:
 	var gifts := VBoxContainer.new()
 	gifts.add_theme_constant_override("separation", 12)
 	halves.add_child(gifts)
-	var gift_head: Label = MenuStyle.line("Favours", MenuStyle.DISPLAY_WARM)
+	var gift_head: Label = MenuStyle.line(tr("ui.favours"), MenuStyle.DISPLAY_WARM)
 	gift_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	gifts.add_child(gift_head)
 	gifts.add_child(MenuStyle.line(
@@ -170,7 +170,7 @@ func _offer_row(offer: Contract, lodge: FactionResource) -> Control:
 	said.custom_minimum_size = Vector2(inner_width(), 0.0)
 	row.add_child(said)
 	if held:
-		var taken: Label = MenuStyle.line("taken — failing it costs %d trust" % lodge.trust_lost,
+		var taken: Label = MenuStyle.line(tr("ui.taken_failing_it_costs_n_trust") % lodge.trust_lost,
 			MenuStyle.SUB_WARM)
 		taken.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 		row.add_child(taken)

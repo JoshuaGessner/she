@@ -84,12 +84,12 @@ func _rebuild() -> void:
 		_build_confirmation()
 		MenuStyle.focus_first.call_deferred(_root)
 		return
-	_column.add_child(MenuStyle.title("PAUSED", MenuStyle.SCREEN_TITLE))
+	_column.add_child(MenuStyle.title(tr("ui.paused"), MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line(
 		"The Deep does not stop while this is open.", MenuStyle.CAPTION_DIM))
 	_column.add_child(_gap(14))
 
-	var resume: Button = MenuStyle.button("BACK TO IT")
+	var resume: Button = MenuStyle.button(tr("ui.back_to_it"))
 	resume.pressed.connect(close)
 	_column.add_child(resume)
 
@@ -108,7 +108,7 @@ func _rebuild() -> void:
 	# Read-only, and that is not a limitation to apologise for: `DES-003` buys
 	# the Aspects **where you give**, so a purchase from in here would decouple
 	# power from the Tithe and make a pact into a shop.
-	var pact: Button = MenuStyle.button("YOUR PACT")
+	var pact: Button = MenuStyle.button(tr("ui.your_pact"))
 	pact.pressed.connect(_show_pact)
 	_column.add_child(pact)
 
@@ -116,25 +116,25 @@ func _rebuild() -> void:
 	# which key drops loot forgets it while holding loot, and the Deep does not
 	# stop while this is open — so the answer has to be one screen away from
 	# where the question is actually asked.
-	var controls: Button = MenuStyle.button("CONTROLS")
+	var controls: Button = MenuStyle.button(tr("ui.controls"))
 	controls.pressed.connect(_show_controls)
 	_column.add_child(controls)
 
-	var settings: Button = MenuStyle.button("SETTINGS")
+	var settings: Button = MenuStyle.button(tr("ui.settings"))
 	settings.pressed.connect(_show_settings)
 	_column.add_child(settings)
 
 	# **What this costs depends on where you are standing** (ADR-152), and it is
 	# rebuilt on every open because a run resolving is what changes the answer.
 	if leaving_ends_the_life():
-		_way_out = MenuStyle.button("ABANDON THE RUN")
+		_way_out = MenuStyle.button(tr("ui.abandon_the_run"))
 		_way_out.pressed.connect(_ask_first)
 	else:
-		_way_out = MenuStyle.button("TO THE MENU")
+		_way_out = MenuStyle.button(tr("ui.to_the_menu"))
 		_way_out.pressed.connect(_leave)
 	_column.add_child(_way_out)
 
-	var quit: Button = MenuStyle.button("QUIT TO DESKTOP")
+	var quit: Button = MenuStyle.button(tr("ui.quit_to_desktop"))
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	_column.add_child(quit)
 
@@ -149,7 +149,7 @@ func _ask_first() -> void:
 
 
 func _build_confirmation() -> void:
-	_column.add_child(MenuStyle.title("ABANDON THE RUN", MenuStyle.DIALOG_TITLE))
+	_column.add_child(MenuStyle.title(tr("ui.abandon_the_run"), MenuStyle.DIALOG_TITLE))
 	_column.add_child(MenuStyle.line(
 		"This ends the life. The tree, the stash, what you are wearing and "
 		+ "everything you are carrying go with it."))
@@ -157,11 +157,11 @@ func _build_confirmation() -> void:
 		"The hoard is untouched. It always is.", MenuStyle.CAPTION_WARM))
 	_column.add_child(_gap(14))
 
-	_way_out = MenuStyle.button("END IT")
+	_way_out = MenuStyle.button(tr("ui.end_it"))
 	_way_out.pressed.connect(_leave)
 	_column.add_child(_way_out)
 
-	var back: Button = MenuStyle.button("NOT YET")
+	var back: Button = MenuStyle.button(tr("ui.not_yet"))
 	back.pressed.connect(func() -> void:
 		_confirming = false
 		_rebuild())

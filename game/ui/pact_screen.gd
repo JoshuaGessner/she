@@ -191,7 +191,7 @@ func _redraw() -> void:
 	_detail = null
 	_act = null
 
-	_page.add_child(MenuStyle.title("WHAT SHE OFFERS", MenuStyle.SCREEN_TITLE))
+	_page.add_child(MenuStyle.title(tr("ui.what_she_offers"), MenuStyle.SCREEN_TITLE))
 	# The coupling said out loud, on the screen where it is chosen, and on the
 	# same line as the number it moves. `DES-003`'s whole argument is that power
 	# costs obligation, and a tree that showed only the power would be teaching
@@ -209,7 +209,7 @@ func _redraw() -> void:
 
 	var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
 	if body == null:
-		_page.add_child(MenuStyle.line("No life has been sworn yet."))
+		_page.add_child(MenuStyle.line(tr("ui.no_life_has_been_sworn_yet")))
 		return
 	var paths: Array[StringName] = paths_shown()
 	if paths.is_empty():

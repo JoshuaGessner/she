@@ -148,7 +148,7 @@ func _clear() -> void:
 
 func _show_root() -> void:
 	_clear()
-	_column.add_child(MenuStyle.title("SHE", MenuStyle.MASTHEAD))
+	_column.add_child(MenuStyle.title(tr("ui.she"), MenuStyle.MASTHEAD))
 	_column.add_child(MenuStyle.line(
 		"a hoard-dragon buys your soul one run at a time", MenuStyle.SUB_DIM))
 	var said: Array = lineage_line(SaveFile.standing())
@@ -159,15 +159,15 @@ func _show_root() -> void:
 		_column.add_child(told)
 	_column.add_child(_gap(18))
 
-	var play: Button = MenuStyle.button("DESCEND ALONE")
+	var play: Button = MenuStyle.button(tr("ui.descend_alone"))
 	play.pressed.connect(_play_solo)
 	_column.add_child(play)
 
-	var host: Button = MenuStyle.button("HOST A DESCENT")
+	var host: Button = MenuStyle.button(tr("ui.host_a_descent"))
 	host.pressed.connect(_show_host)
 	_column.add_child(host)
 
-	var join: Button = MenuStyle.button("JOIN A DESCENT")
+	var join: Button = MenuStyle.button(tr("ui.join_a_descent"))
 	join.pressed.connect(_show_join)
 	_column.add_child(join)
 
@@ -175,11 +175,11 @@ func _show_root() -> void:
 	# no coaching beyond this list, so it is the one menu entry a first-time
 	# player is expected to open before their first descent — and a person
 	# looking for *how do I play* does not look under a heading called settings.
-	var controls: Button = MenuStyle.button("CONTROLS")
+	var controls: Button = MenuStyle.button(tr("ui.controls"))
 	controls.pressed.connect(_show_controls)
 	_column.add_child(controls)
 
-	var settings: Button = MenuStyle.button("SETTINGS")
+	var settings: Button = MenuStyle.button(tr("ui.settings"))
 	settings.pressed.connect(_show_settings)
 	_column.add_child(settings)
 
@@ -188,11 +188,11 @@ func _show_root() -> void:
 	# not this build's to touch, which is the whole of what it is told.
 	var standing: Dictionary = SaveFile.standing()
 	if String(standing["state"]) == "readable":
-		var abandon: Button = MenuStyle.button("ABANDON THIS LINEAGE")
+		var abandon: Button = MenuStyle.button(tr("ui.abandon_this_lineage"))
 		abandon.pressed.connect(_show_abandon)
 		_column.add_child(abandon)
 
-	var quit: Button = MenuStyle.button("QUIT")
+	var quit: Button = MenuStyle.button(tr("ui.quit"))
 	quit.pressed.connect(func() -> void: get_tree().quit())
 	_column.add_child(quit)
 	# Down the left edge, like a title page's colophon, not centred on nothing.
@@ -300,13 +300,13 @@ func _show_host() -> void:
 	var address: String = NetPlan.local_address()
 	var code: String = NetPlan.code_for(address, NetPlan.DEFAULT_PORT)
 
-	_column.add_child(MenuStyle.title("HOST", MenuStyle.SCREEN_TITLE))
-	_column.add_child(MenuStyle.line("On this network, join at",
+	_column.add_child(MenuStyle.title(tr("ui.host"), MenuStyle.SCREEN_TITLE))
+	_column.add_child(MenuStyle.line(tr("ui.on_this_network_join_at"),
 		MenuStyle.CAPTION_DIM))
 	var shown: Label = MenuStyle.line("%s : %d" % [address, NetPlan.DEFAULT_PORT],
 		MenuStyle.BANNER_WARM)
 	_column.add_child(shown)
-	_column.add_child(MenuStyle.line("or with the code  %s" % code))
+	_column.add_child(MenuStyle.line(tr("ui.or_with_the_code_s") % code))
 
 	_column.add_child(_gap(10))
 	# The honest part, where somebody will actually read it.
@@ -321,17 +321,17 @@ func _show_host() -> void:
 	_column.add_child(warning)
 
 	_column.add_child(_gap(10))
-	var copy: Button = MenuStyle.button("COPY ADDRESS")
+	var copy: Button = MenuStyle.button(tr("ui.copy_address"))
 	copy.pressed.connect(func() -> void:
 		DisplayServer.clipboard_set("%s:%d" % [address, NetPlan.DEFAULT_PORT])
 		copy.text = "COPIED")
 	_column.add_child(copy)
 
-	var start: Button = MenuStyle.button("OPEN THE THRESHOLD")
+	var start: Button = MenuStyle.button(tr("ui.open_the_threshold"))
 	start.pressed.connect(_enter)
 	_column.add_child(start)
 
-	var back: Button = MenuStyle.button("BACK")
+	var back: Button = MenuStyle.button(tr("ui.back"))
 	back.pressed.connect(_show_root)
 	_column.add_child(back)
 	start.grab_focus()
@@ -339,7 +339,7 @@ func _show_host() -> void:
 
 func _show_join() -> void:
 	_clear()
-	_column.add_child(MenuStyle.title("JOIN", MenuStyle.SCREEN_TITLE))
+	_column.add_child(MenuStyle.title(tr("ui.join"), MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line(
 		"The host's address. Port %d is assumed if you leave it off."
 			% NetPlan.DEFAULT_PORT, MenuStyle.CAPTION_DIM))
@@ -350,7 +350,7 @@ func _show_join() -> void:
 	var problem: Label = MenuStyle.line("", MenuStyle.CAPTION_FAULT)
 	_column.add_child(problem)
 
-	var go: Button = MenuStyle.button("JOIN")
+	var go: Button = MenuStyle.button(tr("ui.join"))
 	go.pressed.connect(func() -> void:
 		if not NetPlan.adopt_code(field.text):
 			problem.text = NetPlan.last_error
@@ -360,7 +360,7 @@ func _show_join() -> void:
 	_column.add_child(go)
 	field.text_submitted.connect(func(_text: String) -> void: go.pressed.emit())
 
-	var back: Button = MenuStyle.button("BACK")
+	var back: Button = MenuStyle.button(tr("ui.back"))
 	back.pressed.connect(_show_root)
 	_column.add_child(back)
 	field.grab_focus()
@@ -403,7 +403,7 @@ var _abandon_held: float = -1.0
 
 func _show_abandon() -> void:
 	_clear()
-	_column.add_child(MenuStyle.title("ABANDON", MenuStyle.SCREEN_TITLE))
+	_column.add_child(MenuStyle.title(tr("ui.abandon"), MenuStyle.SCREEN_TITLE))
 	var told: Label = MenuStyle.line(("Everything she has kept of you — the hoard, "
 		+ "the deeds, the lives — is set aside, and your next descent begins a new "
 		+ "lineage. The old one is kept on disk under another name. Hold the "
@@ -421,7 +421,7 @@ func _show_abandon() -> void:
 		_abandon = null
 		_abandon_held = -1.0)
 	_column.add_child(_abandon)
-	var back: Button = MenuStyle.button("BACK")
+	var back: Button = MenuStyle.button(tr("ui.back"))
 	back.pressed.connect(_show_root)
 	_column.add_child(back)
 	# BACK first: the safe choice is where a pad lands.
