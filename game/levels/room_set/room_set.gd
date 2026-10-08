@@ -17577,6 +17577,20 @@ func _galdr_probe() -> void:
 		Input.action_release("verb")
 		await _hold(tuning.galdr_stanza_seconds + 0.4)
 		rite.append("lausavísa %s: turned %d" % [stanza, sang_turned[0]])
+		# And the bag ends a stanza as it ends a verse (B78).
+		if stanza:
+			Input.action_press("verb")
+			await _hold(0.1)
+			Input.action_release("verb")
+			await _hold(0.15)
+			var mid_stanza: float = body.singing
+			await _press(&"bag")
+			await _hold(0.4)
+			rite.append("lausavísa, the bag opened mid-stanza: %.2f -> %.2f" % [mid_stanza, body.singing])
+			if mid_stanza <= 0.0 or body.singing > 0.0:
+				problems.append("a stanza sang on through an open bag")
+			await _press(&"bag")
+			await _hold(0.4)
 		if (sang_turned[0] == 1) != stanza or (not stanza and sang_turned[0] > 0):
 			problems.append("Lausavísa's tap did not turn the nearest alone, or a tap sang without the node")
 	_session.clear_enemies()

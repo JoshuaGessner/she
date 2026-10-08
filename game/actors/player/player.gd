@@ -446,6 +446,8 @@ signal sang(turned: int)
 var _singing: float = 0.0
 var _singing_total: float = 0.0
 var _asked_song: bool = false
+## Owner-side: the bag has already ended this verse.
+var _hushed: bool = false
 ## Where the verse lands (ADR-387): with Níðstöng, where he looked when he
 ## began; otherwise not finite, which means *on the singer, as he walks*.
 ## Replicated, so the song is heard from there on every peer.
@@ -4102,6 +4104,18 @@ func barrow_at_hand() -> Barrow:
 ## its end tells every enemy in earshot it has been sung to — what that does
 ## is each enemy's to decide (`Enemy.hear_the_song`).
 func _galdr() -> void:
+	# **The bag ends any verse** (B78), a Lausavísa's stanza included: the
+	# stanza sings on after the key is up, so letting go cannot stop it, and
+	# rummaging takes the breath a verse is made of. Said once, by the owner,
+	# who is the only one that knows the bag is open.
+	if singing > 0.0 and _bag > 0.0 and not _hushed:
+		_hushed = true
+		if multiplayer.is_server():
+			_stop_song()
+		else:
+			_request_hush.rpc_id(HOST_PEER)
+	elif singing <= 0.0:
+		_hushed = false
 	var body: ClassResource = ClassCatalogue.by_id(sworn)
 	var wants: bool = (body != null and body.verb == &"galdr"
 		and _driving and Input.is_action_pressed("verb")
@@ -4137,6 +4151,15 @@ func _request_song(sing: bool) -> void:
 	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
 		return
 	_set_song(sing)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_hush() -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_stop_song()
 
 
 @rpc("any_peer", "call_remote", "reliable")
