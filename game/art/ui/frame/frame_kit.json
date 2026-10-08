@@ -1,0 +1,25 @@
+{
+  "px": 2,
+  "sizes": {
+    "large": {
+      "band": 14.0,
+      "corner": 52.0,
+      "outset": 9.0,
+      "tile": 64.0,
+      "crest": [
+        96.0,
+        34.0
+      ]
+    },
+    "small": {
+      "band": 7.0,
+      "corner": 20.0,
+      "outset": 4.0,
+      "tile": 32.0,
+      "crest": [
+        0.0,
+        0.0
+      ]
+    }
+  }
+}

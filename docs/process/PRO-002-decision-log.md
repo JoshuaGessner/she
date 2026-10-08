@@ -13292,4 +13292,50 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - **A sixth card will not fit across as built.** That is the next thing this screen has to answer, before the Skald.
 - **The plate spoke for 5 of 5 lives** as each card took focus. The row is required, because a fit check alone would pass a plate that only ever described the first card.
 
+## ADR-386 — The frame is forged iron, modelled and lit once: a rendered kit laid by `CarvedFrame`
+
+**Date:** 2026-10-07 · **Status:** accepted · **Amends ADR-341; amends `TEC-009` §3.3** · **From play: *"the simple little frames aren't doing it for me — just a little more to them, and take reference from Diablo"***
+
+**Context:**
+- **ADR-341 forged the frame in geometry.** The border is a round bar, a gilt inlay and strap-hinged corners, each drawn as two or three flat-coloured polygons. In a screenshot it still reads as a line around a box: about 6 px of two-tone bar with small diamond studs.
+- **What the reference does that ours did not.** ADR-341 read Diablo II and IV, Grim Dawn and Path of Exile for four properties: material, inlay, heavy corners, and a ground with depth. It built three of them out of flat colour. What actually sells *material* in those frames is light: a forged band catches it on the upper edge and loses it on the lower, a stud is round, and a corner piece stands in relief and casts a shadow. Flat polygons cannot do that.
+- **`TEC-009` §3.3 named the cost of the rest:** *"9-slice ornament assets — a real art budget."* It was deferred, and the deferral is what the developer is now reporting.
+
+**References:**
+- **Diablo IV:** dark frames with a lit metal edge, corner pieces in relief, a header ornament on the top edge's middle, and panels that cast shadows onto the world behind them.
+- **Grim Dawn:** iron bands with studs, lit from the upper left.
+- **Our own shapes** are period ironwork: the strap-hinges of the Mästermyr chest and the Urnes door, lozenge terminals, and a gilt boss ringed by an interlaced pair. There are no spikes, gothic tracery or skulls, as ADR-341 already ruled.
+
+**Decision:**
+- **The iron is modelled and lit, once.** `source_art/ui/build_frame_kit.py` builds the pieces in Blender:
+  - a forged band with a raised spine, a gilt bead toward the panel and studs;
+  - a corner bracket whose arms taper to lozenge points, with a lozenge boss-plate on the angle and a spur running inward;
+  - a crest for the top edge's middle.
+
+  The pieces are lit from the upper left, as every interface in the genre is, and rendered at 2× to `game/art/ui/frame/`. There is a large kit (14 px band, 40 px corners) and a small kit (7 px band, 18 px corners).
+- **`CarvedFrame` lays them.** A style sets `kit`. Each edge is stamped along at its own size (a StyleBox cannot set texture repeat), the corners sit over the joins, and the crest goes on the screen frame. Two shadows are added:
+  - an **inner shadow** where the band meets the ground, so the panel sits under the iron;
+  - a **cast shadow** past the bottom and right, so a panel sits on the screen rather than being printed into it.
+
+  Layout stays geometry, so every panel size still works; only the material is a picture. A lit state (hover, focus) shows a gilt line inside the iron, because the pieces are the same in every state. `kit_inset` lays the kit inside the style's rect wherever an outset has nowhere to stand: a frame that fills the screen, or a button stacked against the next.
+- **Where it is used:**
+  - plates and panels, `Slate` and `Frame`: the large kit with a cast shadow, and the crest on any plate wide enough to carry it;
+  - the screen frame: the small kit. Fourteen pixels of iron at the screen's edge overlapped the titles of every page that keeps an 18 px margin, and the heavy iron belongs on the panels you work in;
+  - menu buttons, in all their states: the small kit, without the gilt bead, so a stack of buttons is a stack of plaques and not a ladder.
+
+  Sockets, chips and fields keep the drawn plate: a 44 px cell is too small for corners.
+- **Rejected: an authored nine-patch.** It stretches its edges, so a stud becomes a smear. Tiling the edges by hand keeps a stud round on a panel of any length.
+
+**Measured:**
+- **Every fit and wiring probe that draws the interface passes:** `--menu-probe`, `--pact-probe`, `--hud-probe`, `--bag-probe` and `--offering-probe`.
+- **`--threshold-probe`: five cards need 1149 px of 1152, and 519 of 648 down.**
+  - The forged buttons first took the class screen to 1153 px, one over.
+  - Its margin went from 48 to 40 px and its gap between cards from 24 to 16 px, which leaves 8 px of slack in every card.
+  - A sixth card still will not fit across (ADR-385).
+- **Before and after shots of every screen** are under `.claude/shots/ui_f4before` and `ui_f4kit6`.
+- **Found by looking and fixed:**
+  - The screen frame's ground was 94% opaque, and the menu under every page showed through it as faint text; it is now 98.5%.
+  - A button's 9 px margin let the gilt line of a lit state cut through its lettering; the margin is now 11 px.
+  - Blender's `transform_apply` applies location unless told not to, so every rotated block turned about the world origin, which put corner terminals out in the panel. The fix is noted in the builder.
+
 *Entries below to be added as design decisions are signed off.*

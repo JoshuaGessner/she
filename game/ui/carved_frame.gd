@@ -114,6 +114,45 @@ extends StyleBox
 ## A crest on the top and bottom edges, its half-width. 0 draws none.
 @export var crest: float = 0.0
 
+## ## The forged kit (ADR-386)
+##
+## Reported again from play: *"the simple little frames aren't doing it for
+## me — a little more to them, and take reference from Diablo."* The drawn
+## border above is a bevel of two flat colours, and light is what says metal:
+## Diablo IV's and Grim Dawn's frames read as made because their iron catches
+## light on one edge and falls into shadow on the other, their studs are
+## round, their corners stand in relief. So the iron is modelled and lit once
+## (`source_art/ui/build_frame_kit.py`) and rendered to a few small pieces —
+## an edge strip for each side, a corner bracket for each corner, a crest —
+## and this lays them. The layout stays geometry, so every panel size still
+## works; only the material is a picture.
+##
+## Empty draws the forged or carved plate as before.
+@export var kit: StringName = &""
+## The crest at the top edge's middle. The large kit only.
+@export var kit_crest: bool = false
+## A shadow cast past the frame onto whatever is behind it, in pixels; the
+## panel then sits *on* the screen rather than being printed into it.
+@export var shadow: float = 0.0
+## How far in from the style's rect the kit is laid, in pixels. A frame that
+## fills the screen, or a button stacked against the next, has nowhere for a
+## corner's outset to stand; laid this far in, the boss reaches the edge and
+## no further.
+@export var kit_inset: float = 0.0
+
+## Rendered at this many pixels per interface pixel (`build_frame_kit.py`'s
+## `PX`), so a piece is drawn at half its texture's size.
+const KIT_PX: float = 2.0
+const KIT_PATH: String = "res://art/ui/frame/%s_%s.png"
+## Band and corner, interface pixels, by kit — `frame_kit.json`'s numbers.
+## `outset` is how far a corner's boss stands out past the frame: it sits on
+## the corner, over it, as the reference's ornaments do.
+const KIT_SIZES: Dictionary = {
+	&"large": {"band": 14.0, "corner": 52.0, "outset": 9.0},
+	&"small": {"band": 7.0, "corner": 20.0, "outset": 4.0},
+}
+static var _kit_textures: Dictionary = {}
+
 ## One texture for every plate in the game, built once. Grain is a surface,
 ## and a surface that changed per panel would read as different materials.
 static var _grain_texture: ImageTexture = null
@@ -123,9 +162,14 @@ const GRAIN_SIZE: int = 256
 func _draw(to_canvas_item: RID, rect: Rect2) -> void:
 	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
 		return
+	if shadow > 0.0:
+		_cast_shadow(to_canvas_item, rect)
 	RenderingServer.canvas_item_add_rect(to_canvas_item, rect, ground)
 	if grain.a > 0.0 or vignette > 0.0:
 		_forged_ground(to_canvas_item, rect)
+	if KIT_SIZES.has(kit):
+		_lay_kit(to_canvas_item, rect)
+		return
 	# The carved plate sits inside the forged border, when there is one.
 	var framed: Rect2 = rect.grow(-bevel)
 	# Inside the band, so the grain never runs over the carved edge — a stroke
@@ -151,8 +195,105 @@ func _draw(to_canvas_item: RID, rect: Rect2) -> void:
 ## The minimum a frame can be and still be a frame: both lines, the gap between
 ## them, and a pixel of ground to put something on.
 func _get_minimum_size() -> Vector2:
+	if KIT_SIZES.has(kit):
+		var least: float = float(KIT_SIZES[kit]["band"]) * 2.0 + 1.0
+		return Vector2(least, least)
 	var side: float = (bevel + band + inset + hairline) * 2.0 + 1.0
 	return Vector2(side, side)
+
+
+## The kit's piece `name` (`edge_top`, `corner_tl`, `crest`…), loaded once.
+static func kit_piece(size: StringName, name: String) -> Texture2D:
+	var key: String = "%s_%s" % [size, name]
+	if not _kit_textures.has(key):
+		_kit_textures[key] = load(KIT_PATH % [size, name]) as Texture2D
+	return _kit_textures[key]
+
+
+## The forged kit laid on `rect`: four edges tiled at their own size, an inner
+## shadow where the band meets the ground, four corners over the joins, and
+## the crest. Corners shrink on a panel too small for them, never overlap.
+func _lay_kit(to: RID, whole: Rect2) -> void:
+	var rect: Rect2 = whole.grow(-kit_inset)
+	if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+		return
+	var b: float = minf(float(KIT_SIZES[kit]["band"]), minf(rect.size.x, rect.size.y) * 0.5)
+	var o: Vector2 = rect.position
+	var e: Vector2 = rect.end
+	_tile(to, Rect2(o, Vector2(rect.size.x, b)), kit_piece(kit, "edge_top"), true)
+	_tile(to, Rect2(Vector2(o.x, e.y - b), Vector2(rect.size.x, b)), kit_piece(kit, "edge_bottom"), true)
+	_tile(to, Rect2(o, Vector2(b, rect.size.y)), kit_piece(kit, "edge_left"), false)
+	_tile(to, Rect2(Vector2(e.x - b, o.y), Vector2(b, rect.size.y)), kit_piece(kit, "edge_right"), false)
+	# Where the band meets the ground the ground falls into its shadow: the
+	# panel sits under the iron, not beside it.
+	var inner: Rect2 = rect.grow(-b)
+	if inner.size.x > 0.0 and inner.size.y > 0.0:
+		var deep: float = minf(b * 0.6, minf(inner.size.x, inner.size.y) * 0.25)
+		var dark := Color(0.0, 0.0, 0.0, 0.6)
+		var clear := Color(0.0, 0.0, 0.0, 0.0)
+		_fade(to, inner.position, Vector2(inner.end.x, inner.position.y), Vector2(0.0, deep), dark, clear)
+		_fade(to, inner.position, Vector2(inner.position.x, inner.end.y), Vector2(deep, 0.0), dark, clear)
+		_fade(to, Vector2(inner.position.x, inner.end.y), inner.end, Vector2(0.0, -deep * 0.5), dark, clear)
+		_fade(to, Vector2(inner.end.x, inner.position.y), inner.end, Vector2(-deep * 0.5, 0.0), dark, clear)
+		# A lit state (hover, focus) says so with a gilt line inside the iron,
+		# as the drawn plate's hairline did: the kit is the same in every state.
+		if hairline > 0.0 and ink.a > 0.0:
+			_draw_band(to, inner.grow(-1.0), hairline, ink)
+	# A corner shrinks with a panel too small for it, outset and all, so two
+	# never meet in the middle.
+	var full: float = float(KIT_SIZES[kit]["corner"])
+	var c: float = minf(full, minf(rect.size.x, rect.size.y) * 0.5)
+	var m: float = float(KIT_SIZES[kit]["outset"]) * c / full
+	var span := Vector2(c + m, c + m)
+	for piece_at: Array in [["corner_tl", o - Vector2(m, m)], ["corner_tr", Vector2(e.x - c, o.y - m)],
+			["corner_br", e - Vector2(c, c)], ["corner_bl", Vector2(o.x - m, e.y - c)]]:
+		var piece: Texture2D = kit_piece(kit, piece_at[0])
+		if piece != null:
+			RenderingServer.canvas_item_add_texture_rect(to,
+				Rect2(piece_at[1] as Vector2, span), piece.get_rid())
+	if kit_crest and kit == &"large":
+		var crest_piece: Texture2D = kit_piece(kit, "crest")
+		if crest_piece != null:
+			var size: Vector2 = crest_piece.get_size() / KIT_PX
+			if rect.size.x > size.x + c * 2.0:
+				RenderingServer.canvas_item_add_texture_rect(to, Rect2(
+					Vector2(o.x + (rect.size.x - size.x) * 0.5, o.y + b * 0.5 - size.y * 0.5),
+					size), crest_piece.get_rid())
+
+
+## One edge piece stamped along `rect` at its own size, the last stamp cut to
+## fit: a `StyleBox` cannot set the repeat flag of the item it draws into
+## (`_forged_ground` says the same of the grain).
+func _tile(to: RID, rect: Rect2, piece: Texture2D, across: bool) -> void:
+	if piece == null:
+		return
+	var step: float = (piece.get_width() if across else piece.get_height()) / KIT_PX
+	var at: float = 0.0
+	var length: float = rect.size.x if across else rect.size.y
+	while at < length:
+		var run: float = minf(step, length - at)
+		var drawn: Rect2
+		var source: Rect2
+		if across:
+			drawn = Rect2(rect.position + Vector2(at, 0.0), Vector2(run, rect.size.y))
+			source = Rect2(0.0, 0.0, run * KIT_PX, piece.get_height())
+		else:
+			drawn = Rect2(rect.position + Vector2(0.0, at), Vector2(rect.size.x, run))
+			source = Rect2(0.0, 0.0, piece.get_width(), run * KIT_PX)
+		RenderingServer.canvas_item_add_texture_rect_region(to, drawn, piece.get_rid(), source)
+		at += step
+
+
+## A soft shadow past the frame's bottom and right, the way the light falls.
+func _cast_shadow(to: RID, rect: Rect2) -> void:
+	var fall := Vector2(shadow * 0.35, shadow * 0.5)
+	var dark := Color(0.0, 0.0, 0.0, 0.55)
+	var clear := Color(0.0, 0.0, 0.0, 0.0)
+	var cast: Rect2 = Rect2(rect.position + fall, rect.size)
+	_fade(to, Vector2(cast.position.x, cast.end.y), cast.end, Vector2(0.0, shadow), dark, clear)
+	_fade(to, Vector2(cast.end.x, cast.position.y), cast.end, Vector2(shadow, 0.0), dark, clear)
+	_fade(to, cast.position, Vector2(cast.position.x, cast.end.y), Vector2(-shadow * 0.4, 0.0), dark, clear)
+	_fade(to, cast.position, Vector2(cast.end.x, cast.position.y), Vector2(0.0, -shadow * 0.4), dark, clear)
 
 
 ## Four rects rather than a rect with a border, because the border has to be

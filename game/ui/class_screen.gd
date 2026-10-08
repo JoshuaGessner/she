@@ -36,12 +36,14 @@ extends Control
 ## Raised with the id the player committed to.
 signal chosen(id: StringName)
 
-const MARGIN: float = 48.0
+## 40 and 16 rather than 48 and 24 since ADR-386: the forged buttons are
+## wider, and five cards at 192 px needed 193 for the longest name.
+const MARGIN: float = 40.0
 ## The widest a card is drawn. With more lives than fit at that width side by
 ## side, every card narrows to share the screen (ADR-345: the third class was
 ## the first time the row was wider than the window).
 const CARD_WIDTH: float = 420.0
-const CARD_GAP: float = 24.0
+const CARD_GAP: float = 16.0
 ## The portrait banner's height over its width.
 const BANNER: float = 0.42
 ## The plate under the row: as wide as a reading line wants, not the screen.

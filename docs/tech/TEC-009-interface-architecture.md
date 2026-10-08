@@ -289,6 +289,15 @@ about 70% of the benefit with a hairline rule and one border weight, which is
 > Diablo II and IV, Grim Dawn and Path of Exile were read for *why* their frames
 > look made — material, inlay, heavy corners, a ground with depth — and none of
 > their shapes was taken: no spikes, no gothic tracery, no skulls.
+>
+> **And then the iron was modelled (ADR-386).** Drawn in flat colour, the forged
+> bar still read as a line around a box, because light is what says metal. The
+> iron is now modelled and lit once in Blender (`source_art/ui/build_frame_kit.py`)
+> and rendered to a few pieces in `game/art/ui/frame/`: an edge strip per side, a
+> corner bracket per corner, and a crest. `CarvedFrame` lays them (`kit`), tiling
+> the edges by hand, and adds an inner shadow and a cast shadow. The layout is
+> still geometry, so every panel size works. Panels and plates take the large
+> kit; buttons and the screen frame take the small one.
 
 **Inscryption.** Diegetic-adjacent, everything is objects on a table.
 **Rejected**: we are first-person with a lantern and there is no table.
