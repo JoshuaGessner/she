@@ -1597,6 +1597,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Nothing posted sees the party arrive** (ADR-389): over 120 floors, a
+	# post within its lit sight range of the arrival point may see it only where
+	# its room cannot stand further off — held to the two ADR-389 measured.
+	arrival="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/room_set/room_set.tscn -- --arrival-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[arrival\] nothing posted sees the party arrive' <<<"$arrival" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$arrival"; then
+		echo "FAIL nothing posted sees the party arrive" >&2
+		printf '%s\n' "$arrival" | grep -E '\[arrival\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The Skald's verse turns the dungeon on itself** (ADR-387). A maddened
 	# enemy strikes its own kind and the one struck strikes back; madness wears
 	# off and the blow reaches players alone again; an enemy alone gives

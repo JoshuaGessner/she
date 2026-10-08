@@ -1002,6 +1002,8 @@ func _ready() -> void:
 			_galdr_probe()
 		elif arg == "--lock-probe":
 			_lock_probe()
+		elif arg == "--arrival-probe":
+			_arrival_probe()
 		elif arg == "--fury-probe":
 			_fury_probe()
 		elif arg == "--scale-probe":
@@ -17256,6 +17258,55 @@ func _lock_probe() -> void:
 	if problems.is_empty():
 		print("[lock] every gate stands, and opens for what it says")
 	_report(problems, "lock")
+
+
+## **`--arrival-probe`** (ADR-389): nothing posted sees the party arrive.
+##
+## Over 120 floors (40 seeds × 3 depths), every standing post within
+## `FloorAnchors.ARRIVAL_CLEAR` of the arrival point is asked for a clear line
+## to it, at eye height, against the slabs the floor is built from — the same
+## test `FloorVista` gives a glint. A post that sees the arrival is allowed only
+## where its room cannot stand it further off, which is the rule's own
+## exception; the count is held to what ADR-389 measured, so a change that
+## brings posts back into the first thirty seconds fails here rather than in a
+## first-timer's run.
+func _arrival_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var floors: int = 0
+	var near: int = 0
+	var seen: PackedStringArray = PackedStringArray()
+	for run_seed: int in range(1, 41):
+		for depth: int in RunFile.LAST_FLOOR + 1:
+			var made: DelvingsFloor = DelvingsFloor.of(run_seed * 7919, depth)
+			if made == null or not made.problems().is_empty() or made.spawns().is_empty():
+				continue
+			floors += 1
+			var sight := FloorVista.new()
+			sight._index(made._occluders())
+			var arrival: Vector3 = made.spawns()[0]
+			for post: Vector3 in made.enemy_posts():
+				var gap: float = Vector2(post.x - arrival.x, post.z - arrival.z).length()
+				if gap >= FloorAnchors.ARRIVAL_CLEAR:
+					continue
+				near += 1
+				if sight.clear(post + Vector3.UP * FloorVista.EYE, arrival + Vector3.UP * FloorVista.EYE):
+					seen.append("%d/%d at %.1f m" % [run_seed * 7919, depth, gap])
+	print("[arrival] census     %d floor(s); %d post(s) within %.0f m of the arrival, %d with a clear line to it: %s"
+		% [floors, near, FloorAnchors.ARRIVAL_CLEAR, seen.size(), ", ".join(seen)])
+	if floors < 100:
+		problems.append("only %d floor(s) were asked — the census measured too little to mean anything" % floors)
+	if seen.size() > ARRIVAL_SEEN_MOST:
+		problems.append(("%d post(s) see the arrival point from inside their sight range, against "
+			+ "ADR-389's %d — a party is being watched before it has read the entrance")
+			% [seen.size(), ARRIVAL_SEEN_MOST])
+	if problems.is_empty():
+		print("[arrival] nothing posted sees the party arrive, where its room allows")
+	_report(problems, "arrival")
+
+
+## How many posts on `--arrival-probe`'s 120 floors may still see the arrival:
+## ADR-389's measurement, both in rooms too small to stand further off.
+const ARRIVAL_SEEN_MOST: int = 2
 
 
 ## **`--galdr-probe`** (ADR-387): the Skald's verse, and what it does to the
