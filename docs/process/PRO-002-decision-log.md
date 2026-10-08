@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-05
+updated: 2026-10-07
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -13209,6 +13209,22 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 **Not built:** curses, until the Barrow-Fields.
 
 **Amended at build (2026-10-07): Hidden Way replaces Appraise.** The Appraise node promised *the exact tribute figure at her hands, where every other class reads only the band*. But every class's item card already shows the exact figure (*tribute 140*, ADR-363), and the Hoard node Tally names worth at the crosshair. The node would have been a card everyone already has, the fault that reshaped the verb. **Hidden Way:** every door still shut on her floor is marked for her at the screen's edge, in the ping's shapes. It is the back door *"nobody else knew existed"* (`DES-011` §6), and something new (ADR-058). The Rite is now Hidden Way, **Grave-Sense** *(after Hidden Way)*, **Wedge**, and **the Long Pry** *(after Wedge)*. Her kit is the dvergar hammer, a dwarf-made weight for breaking in, so she needs no new weapon.
+
+**Measured, as built (`M4-T36` closed):**
+- **`--haug-probe`, every row against the real body:**
+  - Held at a locked door, she is told *hold to break it*. A step breaks it off at 40%, and so does a blow.
+  - Held through, the ring reads 0.50 at half, and no guard is raised while breaking. The door breaks in, and the clamor goes from 0.5 to 13.4.
+  - A barred door breaks from the wrong side.
+  - A shut barrow breaks back open with its find, and is spent after its second shutting.
+  - Each of the four Rite nodes passes against the same case without it. A Wedge never shuts on a body in the doorway.
+  - A Húskarl holding the same key at the same door opens nothing.
+- **Co-op, 5 runs of 5.** A client holds its own key; the host's clock breaks the door, and both peers see it stand open.
+- **Found on the first runs.** Every failure was in the probes, none in the game:
+  - A teleport turned her back on the door with a stray `+ PI`, which failed every row after the first.
+  - Grave-Sense was asked about a barrow the row before had just spent.
+  - The co-op row stood a locked door before a client still holding the floor's key from the door row, so nothing was shut against her.
+- **The dress** is a leather jerkin to mid-thigh, a hood with a short cape over the braid, and a haul strap. The strap is a band lying on the leather: the first build buried a cord in the jerkin, and it read in the portrait as a rod stuck in her. The portrait is `--portrait-shot`'s.
+- **Still open:** on the 61% of floors with no gate, her only target is the barrow, late. That question is the developer's.
 
 ## ADR-383 — The Völva's sight says when it is resting, and when it saw nothing
 

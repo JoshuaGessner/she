@@ -42,6 +42,7 @@ func _process(_delta: float) -> void:
 
 
 func _draw() -> void:
+	_hidden_drawn = 0
 	var eye: Camera3D = get_viewport().get_camera_3d()
 	var screen: Vector2 = get_viewport_rect().size
 	if eye != null:
@@ -93,6 +94,7 @@ func _draw() -> void:
 				draw_arc(point, SIZE + 5.0, 0.0, TAU, 24, Color(faded, faded.a * 0.6), 1.0)
 				draw_string(get_theme_default_font(), point + Vector2(-40.0, SIZE + 14.0),
 					tr("seidr.seen"), HORIZONTAL_ALIGNMENT_CENTER, 80.0, 11, faded)
+		_draw_hidden(eye, screen)
 	var local := _local_pinger()
 	if local != null and local.wheel_open:
 		_wheel(screen * 0.5, local.aimed())
@@ -131,6 +133,53 @@ static func place(eye: Camera3D, world: Vector3, screen: Vector2) -> Dictionary:
 		half.x / maxf(absf(toward.x), 0.0001),
 		half.y / maxf(absf(toward.y), 0.0001))
 	return {"at": centre + toward * reach, "edge": true, "toward": toward}
+
+
+## **What a mound-breaker knows is there** (ADR-382), for her eyes only:
+## with Hidden Way, every door still shut on her floor; with Grave-Sense, the
+## barrow until it is spent. The ping's own shapes, pinned at the edge when out
+## of sight, so they read as the party's marks do — and they are true now, not
+## a snapshot: a door and a barrow do not walk.
+func _draw_hidden(eye: Camera3D, screen: Vector2) -> void:
+	var local := _local_pinger()
+	var me := (local.owner_body() if local != null else null) as Player
+	if me == null:
+		return
+	var font: Font = get_theme_default_font()
+	if me.has_effect(&"haugbrot_hidden_way"):
+		for node: Node in get_tree().get_nodes_in_group(LockedDoor.GROUP):
+			var door := node as LockedDoor
+			if door == null or door.open:
+				continue
+			_hidden_mark(eye, screen, door.global_position + Vector3.UP * 2.2,
+				Pinger.Kind.STOP, tr("door.hidden"), font)
+	if me.has_effect(&"haugbrot_grave_sense"):
+		for node: Node in get_tree().get_nodes_in_group(Barrow.GROUP):
+			var barrow := node as Barrow
+			if barrow == null or barrow.state == Barrow.State.SPENT:
+				continue
+			_hidden_mark(eye, screen, barrow.global_position + Vector3.UP * 0.8,
+				Pinger.Kind.LOOT, tr("barrow.sensed"), font)
+
+
+func _hidden_mark(eye: Camera3D, screen: Vector2, world: Vector3, kind: int,
+		said: String, font: Font) -> void:
+	var shown: Dictionary = place(eye, world, screen)
+	var ink: Color = _ink(kind)
+	ink.a = 0.7
+	var at: Vector2 = shown["at"]
+	_shape(kind, at, SIZE * 0.8, ink)
+	draw_string(font, at + Vector2(-40.0, SIZE + 12.0), said,
+		HORIZONTAL_ALIGNMENT_CENTER, 80.0, 10, ink)
+	_hidden_drawn += 1
+
+
+## How many marks the last frame drew for Hidden Way and Grave-Sense, for the probe.
+var _hidden_drawn: int = 0
+
+
+func hidden_drawn() -> int:
+	return _hidden_drawn
 
 
 ## The shape for a kind, at a point.

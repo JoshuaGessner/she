@@ -471,6 +471,17 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"host refused {door_host.get('refused', False)}, open {door_host.get('open', False)}; "
         f"client found {door_client.get('found', False)}, open {door_client.get('open', False)}"))
 
+    # A client's Haugbrot is the host's to finish (ADR-382): the client held
+    # its key, the host's clock broke the door, and both peers see it open.
+    haug_host = host.get("haug", {})
+    haug_client = client.get("haug", {})
+    rows.append(check(
+        "a client breaks a door on the host's clock",
+        haug_host.get("open", False) and haug_client.get("open", False)
+        and haug_client.get("breaking", 0.0) > 0.0,
+        f"host open {haug_host.get('open', False)}; client open "
+        f"{haug_client.get('open', False)}, breaking reached {haug_client.get('breaking', 0.0):.2f}"))
+
     # What the client heard (ADR-311). The host decides a pickup and a blow,
     # and played their sounds where it decided them — so a client never heard
     # its own loot go into the bag, nor itself hurt.

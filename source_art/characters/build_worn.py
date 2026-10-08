@@ -229,6 +229,38 @@ def volva_mantle(p):
     return r
 
 
+def mound_jerkin(p):
+    """**The Haugbrjótr's working leathers** (ADR-382): what a mound-breaker
+    goes down in. A jerkin of thick leather to mid-thigh over the tunic,
+    against stone edges and a barrow's damp; a hood of the same with a short
+    cape to keep the earth off the neck; and a strap slung across the chest
+    for the haul. A worker's outline, stocky and square, where the others are
+    a wolf's head, a mantle and a hunter's hood."""
+    r = underlayer(p)
+    r["linen"] = np.minimum(Hm.tunic(p, B, hem=0.62, flare=0.06, slit=True, grow=0.020),
+                            np.minimum(Hm.sleeve(p, "l", B, to=0.40, grow=0.010),
+                                       Hm.sleeve(p, "r", B, to=0.40, grow=0.010)))
+    jerkin = Hm.tunic(p, B, hem=0.70, flare=0.07, slit=True, grow=0.034)
+    hood = Hm.hood(p, B, grow=0.026, cape=0.14)
+    # Over the braid, as every hood here must be.
+    hood = S.smin(hood, S.chain(p, [V((0.0, 0.13, 1.74)), V((0.0, 0.18, 1.62)), V((0.0, 0.20, 1.48))],
+                                [0.060, 0.055, 0.050], 0.02), 0.03)
+    r["leather"] = S.smin(jerkin, hood, 0.03)
+    # The haul strap, from the left shoulder across to the right hip: a band
+    # **lying on** the leather, not a cord through it. A tube the jerkin's
+    # thickness buried everywhere but mid-chest, where it read in the portrait
+    # as a rod stuck in her. So: a 1.2 cm skin over the jerkin, cut to a 6 cm
+    # band on the plane through that diagonal and the body's depth.
+    run = np.array([-0.29, -0.49])
+    across = np.array([run[1], -run[0]]) / np.linalg.norm(run)
+    on_line = (p[:, 0] - 0.0) * across[0] + (p[:, 2] - 1.22) * across[1]
+    skin = np.maximum(jerkin - 0.012, -jerkin)
+    band = np.abs(on_line) - 0.03
+    r["dark"] = np.maximum(np.maximum(skin, band),
+                           np.maximum(0.92 - p[:, 2], p[:, 2] - 1.52))
+    return r
+
+
 ITEMS = {
     "mail_byrnie_worn": (byrnie, dict(voxel=0.010, body_tris=7500, texture=1024, ceiling=10000)),
     # Seen from the eye in first person, not only across a room: dense enough
@@ -238,6 +270,7 @@ ITEMS = {
     "wolf_coat_worn": (wolf_coat, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
     "hunter_hood_worn": (hunter_hood, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
     "volva_mantle_worn": (volva_mantle, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
+    "mound_jerkin_worn": (mound_jerkin, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
 }
 
 
@@ -285,7 +318,7 @@ def review(name):
 ## Pieces in the body slot, which hide the body under them, and the bones
 ## whose vertices they hide (`BodyRig.BODY_COVERED_BONES`).
 BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn", "hunter_hood_worn",
-               "volva_mantle_worn")
+               "volva_mantle_worn", "mound_jerkin_worn")
 COVERED = {"pelvis", "spine_01", "spine_02", "chest", "thigh_l", "calf_l", "foot_l",
            "thigh_r", "calf_r", "foot_r", "upper_arm_l", "upper_arm_r"}
 

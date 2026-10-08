@@ -265,6 +265,10 @@ extends Resource
 @export_group("Doors")
 ## **A door opening** (ADR-381) ⟨tune⟩: how loud the grind is.
 @export var door_open_clamor: float = 6.0
+## **Haugbrot** (ADR-382) ⟨tune⟩: how long breaking in takes, and how loud the
+## moment it gives is — a spent Waystone's noise, laid where she stands.
+@export var haugbrot_seconds: float = 4.0
+@export var haugbrot_clamor: float = 14.0
 
 @export_group("Seiðr")
 ## **Seiðr** (ADR-379), every number ⟨tune⟩. How long the trance is sat for.

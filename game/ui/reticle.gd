@@ -191,7 +191,11 @@ func _process(delta: float) -> void:
 		# pressed, from the door's own rule — the one the host asks.
 		var why: StringName = _door.refusal(_body)
 		var key: String = ControlsScreen.glyphs_for("interact")
-		if why == &"locked":
+		var sworn_as: ClassResource = ClassCatalogue.by_id(_body.sworn)
+		if why != &"" and sworn_as != null and sworn_as.verb == &"haugbrot":
+			# **What is shut is hers to break** (ADR-382), said before she asks.
+			_name.text = tr("door.break") % ControlsScreen.glyphs_for("verb")
+		elif why == &"locked":
 			_name.text = tr("door.locked")
 		elif why == &"barred":
 			_name.text = tr("door.barred")
@@ -199,6 +203,14 @@ func _process(delta: float) -> void:
 			_name.text = tr("door.lift") % key
 		else:
 			_name.text = tr("door.unlock") % key
+	elif _wedges():
+		# **Wedge, said** (ADR-382): a door her hands broke can be shut behind
+		# her, and an action nothing announces is an action nobody finds.
+		_name.text = tr("door.wedge") % ControlsScreen.glyphs_for("interact")
+	elif _breaks_barrow():
+		# **The barrow, to a mound-breaker** (ADR-382): shut on its find, and
+		# hers to open again — said before she asks, as a door's is.
+		_name.text = tr("barrow.break") % ControlsScreen.glyphs_for("verb")
 	elif _held > 0.0:
 		# **Why the Waystone did nothing** (ADR-371), after the Shaft because
 		# standing in the way out says the same thing louder.
@@ -252,19 +264,10 @@ func _listen_for_refusals() -> void:
 		_listening_body = _body
 		_held = 0.0
 		if _body != null:
-			_body.waystone_held.connect(func() -> void:
-				_held = HELD_SECONDS
-				_held_text = &"waystone"
-				_refused = 1.0)
-			_body.sight_resting.connect(func() -> void:
-				_held = HELD_SECONDS
-				_held_text = &"sight"
-				_refused = 1.0)
+			_body.waystone_held.connect(_say_for_a_moment.bind(&"waystone"))
+			_body.sight_resting.connect(_say_for_a_moment.bind(&"sight"))
 			if _body.sight != null:
-				_body.sight.saw_nothing.connect(func() -> void:
-					_held = HELD_SECONDS
-					_held_text = &"nothing"
-					_refused = 1.0)
+				_body.sight.saw_nothing.connect(_say_for_a_moment.bind(&"nothing"))
 	var weapon: MeleeWeapon = _body.weapon if _body != null else null
 	if weapon == _listening:
 		return
@@ -275,6 +278,29 @@ func _listen_for_refusals() -> void:
 		# nothing. The clang is what tells the two apart by ear, and the recoil
 		# of the blade is what tells them apart by eye.
 		weapon.glanced.connect(func() -> void: _refused = 1.0)
+
+
+## **A key that did nothing, said for a moment** (ADR-371, ADR-383): which
+## refusal, held for `HELD_SECONDS`, and the crosshair flinches. One gesture,
+## so the next refusal is one connection rather than a fourth copy of it.
+func _say_for_a_moment(what: StringName) -> void:
+	_held = HELD_SECONDS
+	_held_text = what
+	_refused = 1.0
+
+
+## Whether the body holds Wedge and stands at an open door it could shut.
+func _wedges() -> bool:
+	return _body != null and is_instance_valid(_body) \
+		and _body.has_effect(&"haugbrot_wedge") and _body.broken_door_at_hand() != null
+
+
+## Whether the body is a Haugbrjótr standing at a shut barrow (ADR-382).
+func _breaks_barrow() -> bool:
+	if _body == null or not is_instance_valid(_body):
+		return false
+	var sworn_as: ClassResource = ClassCatalogue.by_id(_body.sworn)
+	return sworn_as != null and sworn_as.verb == &"haugbrot" and _body.barrow_at_hand() != null
 
 
 ## The empty-handed flinch: the same four ticks the dot opens outward when a
@@ -367,6 +393,10 @@ func _draw_channel(middle: Vector2) -> void:
 		# **And the howl** (ADR-372): a hold that starts something is the same
 		# grammar, so the fury fills the ring the way leaving does.
 		progress = _body.howling()
+		waiting = true
+	elif _body != null and is_instance_valid(_body) and _body.breaking > 0.0:
+		# **And breaking in** (ADR-382): the same timed, breakable grammar.
+		progress = _body.breaking
 		waiting = true
 	elif _body != null and is_instance_valid(_body) and _body.trance > 0.0:
 		# **And the trance** (ADR-379): sat, timed, broken by a step or a blow

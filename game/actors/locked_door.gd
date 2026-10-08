@@ -34,6 +34,9 @@ const REPLICATED_PROPERTIES: Dictionary = {
 }
 
 signal opened(door: LockedDoor)
+## **Shut again** (ADR-382, Wedge), on the host: the level puts it back in the
+## navmesh's sources and bakes again.
+signal shut(door: LockedDoor)
 
 var kind: Kind = Kind.LOCKED
 ## Toward the side a bar is lifted from, in the world's plane. Barred only.
@@ -43,8 +46,11 @@ var open: bool = false:
 	set(value):
 		var was: bool = open
 		open = value
-		if open and not was and _solid != null:
-			_solid.set_deferred("disabled", true)
+		if open != was and _solid != null:
+			_solid.set_deferred("disabled", open)
+## The peer whose Haugbrot broke it, or 0: host-side, so a Wedge shuts only a
+## door its own hands broke (ADR-382).
+var broken_by: int = 0
 
 var _solid: CollisionShape3D = null
 var _leaf: Node3D = null
@@ -155,6 +161,23 @@ func refusal(body: Player) -> StringName:
 	return &"" if carries_key(body) else &"locked"
 
 
+## **Nobody in the doorway** (ADR-015): a door that shut on a body would trap
+## it inside the leaf, which is the barrow's own rule (`Barrow`) for the same
+## reason. Every player and enemy is asked in the door's own frame: inside its
+## width, and within half a metre of the leaf on either side.
+func doorway_clear() -> bool:
+	var into: Transform3D = global_transform.affine_inverse()
+	for group: StringName in [&"player", &"enemies"]:
+		for node: Node in get_tree().get_nodes_in_group(group):
+			var body := node as Node3D
+			if body == null:
+				continue
+			var local: Vector3 = into * body.global_position
+			if absf(local.x) < SIZE.x * 0.5 + 0.3 and absf(local.z) < 0.5:
+				return false
+	return true
+
+
 ## Whether `at` is on the side the bar is lifted from.
 func on_bar_side(at: Vector3) -> bool:
 	var off: Vector3 = at - global_position
@@ -183,12 +206,22 @@ static func carries_key(body: Player) -> bool:
 	return false
 
 
-## The host's half: open it, once.
+## The host's half: open it.
 func host_open() -> void:
 	if open or not multiplayer.is_server():
 		return
 	open = true
 	opened.emit(self)
+
+
+## **Wedged shut again** (ADR-382), host-side: solid, back in the bake, and as
+## locked as it was — the key still opens it and a Haugbrjótr can break it again.
+func host_shut() -> void:
+	if not open or not multiplayer.is_server() or not doorway_clear():
+		return
+	open = false
+	broken_by = 0
+	shut.emit(self)
 
 
 func _process(delta: float) -> void:

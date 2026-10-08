@@ -130,8 +130,10 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Rite themes:** carrying capacity, lockpicking, cache mastery, disarming grave-curses, finding hidden ways.
 **Cost:** the greed class in a game about greed punishing you. Their strengths actively tempt them into the exact behaviour that gets people killed.
 
-> **Being built at `M4-T36` (ADR-382): what is shut is hers to break, and everyone hears it.** *Appraise* as written is a card every class already reads (ADR-363) plus a curse reader with no curses until the Barrow-Fields. So the verb is the class's name:
+> **Built at `M4-T36` (ADR-382): what is shut is hers to break, and everyone hears it.** *Appraise* as written is a card every class already reads (ADR-363) plus a curse reader with no curses until the Barrow-Fields. So the verb is the class's name:
 > - **Haugbrot.** Hold the craft key at what is shut — a locked door without its key, a barred door from the wrong side, the barrow once it has shut (ADR-381, ADR-242) — and the ring fills over 4 s ⟨tune⟩. A step or a blow breaks it off. **Loud** as a spent Waystone: the greed draws the Hunt. A broken door stays open.
+>   - **A barrow is broken once.** Broken in, it wakes as it did when first entered: the same find and the same clock. When it shuts the second time it is spent. Otherwise a barrow could be farmed: break it, loot it, let it shut, and break it again.
+>   - **A Wedge never shuts on a body.** It is refused while anyone, friend or foe, stands in the doorway, and the reticle says she can shut it only when the doorway is clear.
 > - **The Rite (pact rank 3):** **Hidden Way**, every door still shut on her floor marked for her · **Grave-Sense** *(after Hidden Way)*, the barrow marked from anywhere on its floor · **Wedge**, a door she broke can be shut again behind her · **The Long Pry** *(after Wedge)*, a blow does not break off her breaking. *Appraise* was dropped at build: every card already shows the exact figure (ADR-382's amendment).
 > - **Not built:** curses, until the Barrow-Fields (`M5-T02`).
 

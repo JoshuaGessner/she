@@ -172,5 +172,34 @@
       "upper_arm_l",
       "upper_arm_r"
     ]
+  },
+  "mound_jerkin_worn": {
+    "triangles": 9000,
+    "mesh_parts": 1,
+    "bones": 28,
+    "source_rig": "humanoid_rig.blend",
+    "sculpted": true,
+    "weighted_bones": [
+      "calf_l",
+      "calf_r",
+      "chest",
+      "clavicle_l",
+      "clavicle_r",
+      "foot_l",
+      "foot_r",
+      "forearm_l",
+      "forearm_r",
+      "hand_l",
+      "hand_r",
+      "head",
+      "neck",
+      "pelvis",
+      "spine_01",
+      "spine_02",
+      "thigh_l",
+      "thigh_r",
+      "upper_arm_l",
+      "upper_arm_r"
+    ]
   }
 }

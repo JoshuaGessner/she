@@ -1,0 +1,24 @@
+[gd_resource type="Resource" script_class="ClassResource" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
+[ext_resource type="PackedScene" path="res://art/characters/haugbrjotr_arms.glb" id="2_arms"]
+[ext_resource type="Texture2D" path="res://art/ui/classes/haugbrjotr.png" id="90_portrait"]
+[ext_resource type="PackedScene" path="res://art/characters/mound_jerkin_worn.glb" id="91_dress"]
+
+[resource]
+script = ExtResource("1_class")
+id = &"haugbrjotr"
+name_key = &"class.haugbrjotr.name"
+description_key = &"class.haugbrjotr.desc"
+exit_key = &"class.haugbrjotr.exit"
+portrait = ExtResource("90_portrait")
+aspects = Array[StringName]([&"hoard", &"wing", &"scale"])
+verb = &"haugbrot"
+health_scale = 1.0
+stamina_scale = 1.0
+speed_scale = 0.96
+carry_scale = 1.1
+bare_arms = ExtResource("2_arms")
+dress = ExtResource("91_dress")
+kit = Array[StringName]([&"wpn_dvergar_hammer", &"con_linen_binding", &"con_linen_binding"])
+carried = Array[StringName]([&"tol_horn_lantern"])

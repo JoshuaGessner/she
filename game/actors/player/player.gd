@@ -208,6 +208,8 @@ const STATE_PROPERTIES: Dictionary = {
 	# **Seiðr** (ADR-379): the trance's fraction and the spent sight, both the
 	# host's clock, read by the owner's controls and every peer's screen.
 	".:trance": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# **Haugbrot** (ADR-382): how far through breaking in, the host's clock.
+	".:breaking": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:sight_spent": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:fury_spent": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:blood_owed": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
@@ -422,6 +424,19 @@ var _trance_speed: float = 0.0
 ## Owner-side: whether this body has asked the host to sit, so the key is a
 ## request when it changes and not twenty a second.
 var _asked_trance: bool = false
+
+## **Haugbrot** (ADR-382, `DES-011` §6) — the Haugbrjótr's verb. How far
+## through breaking what is shut, 0–1, on every peer: the trance's shape.
+var breaking: float = 0.0
+## Host-side: seconds left, the length, what is being broken, and the measure
+## of movement a step breaks it off by.
+var _breaking: float = 0.0
+var _breaking_total: float = 0.0
+var _breaking_what: NodePath = NodePath()
+var _breaking_at: Vector3 = Vector3.ZERO
+var _breaking_speed: float = 0.0
+## Owner-side: the door this body last asked to break, or empty.
+var _asked_break: NodePath = NodePath()
 
 ## Guard up (`M3-T02`, `DES-009`).
 ##
@@ -1249,6 +1264,10 @@ func _bear(amount: float, from: Node) -> void:
 	# hold (ADR-346, Knot Holds).
 	if not has_effect(&"knot_holds"):
 		_stop_binding()
+	# **And the breaking** (ADR-382): a blow knocks the bar from her hands —
+	# unless she has learned the Long Pry. The blow still lands.
+	if _breaking > 0.0 and not has_effect(&"haugbrot_holds"):
+		_stop_breaking()
 	# **And the trance** (ADR-379), unless the ward-songs hold for one blow.
 	if _trance > 0.0:
 		if _trance_warded:
@@ -1509,6 +1528,16 @@ func door_at_hand() -> LockedDoor:
 
 
 func _reach_for_door() -> bool:
+	# **Wedge** (ADR-382): a door her own hands broke, shut again by the hand
+	# that broke it — something to put between the party and what follows.
+	if has_effect(&"haugbrot_wedge"):
+		var behind: LockedDoor = broken_door_at_hand()
+		if behind != null:
+			if multiplayer.is_server():
+				_wedge_door(behind.get_path())
+			else:
+				_request_wedge.rpc_id(HOST_PEER, behind.get_path())
+			return true
 	var door: LockedDoor = door_at_hand()
 	if door == null:
 		return false
@@ -1517,6 +1546,44 @@ func _reach_for_door() -> bool:
 	else:
 		_request_door.rpc_id(HOST_PEER, door.get_path())
 	return true
+
+
+## An open door this body broke, within reach, or null (ADR-382, Wedge). Owner
+## and host each ask it; only the host's `broken_by` is trusted.
+func broken_door_at_hand() -> LockedDoor:
+	for node: Node in get_tree().get_nodes_in_group(LockedDoor.GROUP):
+		var door := node as LockedDoor
+		if door == null or not door.open:
+			continue
+		var off: Vector3 = door.global_position - global_position
+		off.y = 0.0
+		if off.length() <= hand_reach() + LockedDoor.SIZE.x * 0.5:
+			if not multiplayer.is_server() or door.broken_by == get_multiplayer_authority():
+				return door
+	return null
+
+
+@rpc("any_peer", "reliable")
+func _request_wedge(path: NodePath) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_wedge_door(path)
+
+
+## Host-side: only the hand that broke it, only with Wedge, only within reach.
+func _wedge_door(path: NodePath) -> void:
+	var door := get_node_or_null(path) as LockedDoor
+	if door == null or not door.open or not has_effect(&"haugbrot_wedge") \
+			or door.broken_by != get_multiplayer_authority() or is_incapacitated():
+		return
+	var off: Vector3 = door.global_position - global_position
+	off.y = 0.0
+	if off.length() > hand_reach() + LockedDoor.SIZE.x * 0.5 + 0.5:
+		return
+	door.host_shut()
+	_sound_for_all(Foley.Sound.THUMP, 0.8)
 
 
 @rpc("any_peer", "reliable")
@@ -3001,6 +3068,7 @@ func _physics_process(delta: float) -> void:
 		_tick_wounds(delta)
 		_tick_fury(delta)
 		_tick_trance(delta, tuning)
+		_tick_breaking(delta, tuning)
 		_tick_bleeding(delta)
 	# Pose after weapons and use actions have advanced, so grips are this frame's.
 	if _is_local and _hands != null:
@@ -3308,6 +3376,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	_snare(delta, tuning)
 	_wolf_fury(delta, tuning)
 	_seidr()
+	_haugbrot()
 	_show_setting()
 	# **Nor with a broken arm** (`DES-009`, ADR-239): the arm is what a guard is
 	# made of. Asked here so the guard never shows, and again by the host in
@@ -3317,6 +3386,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 		and _bag <= 0.0
 		and not _arm_broken()
 		and trance <= 0.0
+		and breaking <= 0.0
 		and not is_incapacitated())
 
 
@@ -3850,6 +3920,131 @@ func _wolf_fury(delta: float, tuning: TuningProfile) -> void:
 	# A bag that was opening when the fury came shuts.
 	if fury > 0.0:
 		_bag_wanted = false
+
+
+## **Haugbrot** (ADR-382) — the Haugbrjótr's verb, and only hers.
+##
+## > *"Grettir broke open the mound and went in, and it was dark and the smell
+## > was not pleasant."* — Grettis saga, ch. 18
+##
+## Held at what is shut — a door locked against her, or barred from the wrong
+## side — she breaks it in. The owner only asks; the host runs the clock, ends
+## it on a step or a blow, and on the last second opens the door with a noise
+## the whole floor hears. Greed is her strength, and the Hunt comes for it.
+func _haugbrot() -> void:
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	var target: NodePath = NodePath()
+	if body != null and body.verb == &"haugbrot" and _driving \
+			and Input.is_action_pressed("verb") and not is_incapacitated() and _bag <= 0.0:
+		var door: LockedDoor = door_at_hand()
+		var barrow: Barrow = barrow_at_hand()
+		if door != null and door.refusal(self) != &"":
+			target = door.get_path()
+		elif barrow != null:
+			target = barrow.get_path()
+	if target == _asked_break:
+		return
+	_asked_break = target
+	if multiplayer.is_server():
+		_set_breaking(target)
+	else:
+		_request_breaking.rpc_id(HOST_PEER, target)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_breaking(target: NodePath) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_set_breaking(target)
+
+
+## Host-side. Only a Haugbrjótr, only at a door that is shut against her (a
+## door her key or her side would open is opened the ordinary way), and only
+## within reach of it.
+func _set_breaking(target: NodePath) -> void:
+	if target.is_empty():
+		_stop_breaking()
+		return
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	if body == null or body.verb != &"haugbrot" or not _breakable(target) \
+			or is_incapacitated() or _breaking > 0.0:
+		return
+	_breaking_total = maxf(Config.tuning.haugbrot_seconds, 0.01)
+	_breaking = _breaking_total
+	_breaking_what = target
+	_breaking_at = global_position
+	_breaking_speed = 0.0
+	breaking = 0.0
+
+
+func _stop_breaking() -> void:
+	_breaking = 0.0
+	_breaking_what = NodePath()
+	breaking = 0.0
+
+
+## The clock, on the host: the trance's rule for a step (`_tick_trance`), and
+## on the last second the door opens, loud as a spent Waystone.
+func _tick_breaking(delta: float, tuning: TuningProfile) -> void:
+	if _breaking <= 0.0:
+		return
+	var moved: Vector3 = global_position - _breaking_at
+	moved.y = 0.0
+	_breaking_at = global_position
+	_breaking_speed = lerpf(_breaking_speed, moved.length() / maxf(delta, 0.0001),
+		clampf(delta * 8.0, 0.0, 1.0))
+	if not _breakable(_breaking_what) or is_incapacitated() \
+			or _breaking_speed > tuning.seidr_break_speed:
+		_stop_breaking()
+		return
+	_breaking -= delta
+	breaking = clampf(1.0 - _breaking / _breaking_total, 0.0, 1.0)
+	if _breaking > 0.0:
+		return
+	var broken: Node = get_node_or_null(_breaking_what)
+	_stop_breaking()
+	if broken is LockedDoor:
+		(broken as LockedDoor).broken_by = get_multiplayer_authority()
+		(broken as LockedDoor).host_open()
+	elif broken is Barrow:
+		(broken as Barrow).break_in()
+	clamor.add(tuning.haugbrot_clamor)
+	_sound_for_all(Foley.Sound.CLANG, 0.6)
+
+
+## **Whether what `path` names is hers to break, from where she stands**: a door
+## shut against her, or a barrow shut on its find, within reach. One rule for
+## the start and for every tick of the clock, on the host.
+func _breakable(path: NodePath) -> bool:
+	var thing: Node = get_node_or_null(path)
+	var door := thing as LockedDoor
+	if door != null:
+		var off: Vector3 = door.global_position - global_position
+		off.y = 0.0
+		return not door.open and door.refusal(self) != &"" \
+			and off.length() <= hand_reach() + LockedDoor.SIZE.x * 0.5 + 0.5
+	var barrow := thing as Barrow
+	if barrow != null:
+		return barrow.state == Barrow.State.SHUT \
+			and barrow.global_position.distance_to(global_position) <= hand_reach() + 1.0
+	return false
+
+
+## A barrow shut on its find within reach, or null (ADR-382).
+func barrow_at_hand() -> Barrow:
+	for node: Node in get_tree().get_nodes_in_group(Barrow.GROUP):
+		var barrow := node as Barrow
+		if barrow != null and barrow.state == Barrow.State.SHUT \
+				and barrow.global_position.distance_to(global_position) <= hand_reach() + 1.0:
+			return barrow
+	return null
+
+
+## How far a hand reaches for anything at all: interact's reach and its slack.
+func hand_reach() -> float:
+	return Config.tuning.interact_reach + Config.tuning.interact_reach_slack
 
 
 ## **Seiðr** (ADR-379) — the Völva's verb, and only hers.

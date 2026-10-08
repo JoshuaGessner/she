@@ -1583,6 +1583,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **What is shut is the Haugbrjótr's to break, and everyone hears it**
+	# (ADR-382). Held at a door shut against her, the ring fills and the door
+	# breaks in loud; a step or a blow breaks it off; a barred door gives from
+	# the wrong side; a shut barrow breaks back open once and never again;
+	# each Rite node against a control; a Húskarl's held key opens nothing.
+	haug="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 60000 \
+		levels/room_set/room_set.tscn -- --haug-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[haug\] what is shut is hers to break' <<<"$haug" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$haug"; then
+		echo "FAIL what is shut is the Haugbrjótr's to break" >&2
+		printf '%s\n' "$haug" | grep -E '\[haug\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Scale, the Aspect of staying power** (ADR-346): twelve nodes, each
 	# against the same case without it — the damp, the lamp, scree, the
 	# keystone's ground and its lost sprint, a concussion, an old scar, a set

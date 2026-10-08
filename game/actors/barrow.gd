@@ -34,6 +34,10 @@ extends Node3D
 
 signal changed(state: int)
 
+## **Broken back into** (ADR-382), on the host. The level answers it, as it
+## answers the first waking: the barrow is not the floor's to fill.
+signal broken_in
+
 ## `SPENT` is `SHUT` found rather than watched: a resumed floor's barrow, drawn
 ## dark and said nothing about.
 enum State { SEALED, OPEN, CLOSING, SHUT, SPENT }
@@ -68,6 +72,8 @@ var _shown: int = State.SEALED
 ## it opened on, and the field the grind is laid in.
 var _left: float = 0.0
 var _grinding: float = 0.0
+## Whether a Haugbrjótr has broken it back open on this floor (host-side).
+var _broken: bool = false
 var _find: WorldItem = null
 var _field: ClamorField = null
 var _slab: MeshInstance3D = null
@@ -166,6 +172,20 @@ func open(laid: WorldItem) -> void:
 	state = State.OPEN
 
 
+## **A Haugbrjótr's pry, at the last** (ADR-382): only a barrow that shut on
+## its find, never one found spent on a resumed floor — that one was emptied in
+## a session that is over, and breaking it would lay its find a second time.
+##
+## **Once.** Broken open it lays the same find again, so a barrow that could be
+## broken every time it shut would lay that find for ever, for the price of a
+## noise. The second shutting leaves it spent, dark, and nobody's to break.
+func break_in() -> void:
+	if not multiplayer.is_server() or state != State.SHUT or _broken:
+		return
+	_broken = true
+	broken_in.emit()
+
+
 ## **Already woken** (host): a floor resumed after its barrow opened finds it
 ## shut and empty, as `RunFile.stripped` finds its loot gone.
 func spend() -> void:
@@ -179,9 +199,14 @@ func spend() -> void:
 
 ## **A fresh descent on the same level** (host) — the probes' reset, which
 ## frees the floor's loot and lays it again.
-func reseal() -> void:
+##
+## `fresh` false is a break-in's reseal (ADR-382), which keeps the mark that it
+## was broken; a fresh descent clears it.
+func reseal(fresh: bool = true) -> void:
 	if not multiplayer.is_server():
 		return
+	if fresh:
+		_broken = false
 	_left = 0.0
 	_grinding = 0.0
 	_find = null
@@ -211,7 +236,7 @@ func advance(delta: float) -> void:
 		# Freed by the host, so the spawner frees it everywhere.
 		left_behind.queue_free()
 	_find = null
-	state = State.SHUT
+	state = State.SPENT if _broken else State.SHUT
 
 
 func _process(delta: float) -> void:

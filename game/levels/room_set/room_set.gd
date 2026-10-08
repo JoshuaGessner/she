@@ -970,6 +970,8 @@ func _ready() -> void:
 			_rite_probe()
 		elif arg == "--seidr-probe":
 			_seidr_probe()
+		elif arg == "--haug-probe":
+			_haug_probe()
 		elif arg == "--lock-probe":
 			_lock_probe()
 		elif arg == "--fury-probe":
@@ -6863,6 +6865,8 @@ var _probe_fury: Dictionary = {}
 var _probe_seidr: Dictionary = {}
 ## A client's door, as each peer saw it (ADR-381).
 var _probe_door: Dictionary = {}
+## A client's Haugbrot, as each peer saw it (ADR-382).
+var _probe_haug: Dictionary = {}
 const PROBE_STRIKE: float = 10.0
 
 
@@ -7234,6 +7238,41 @@ func _coop_probe(out: String) -> void:
 		await _press(&"interact")
 		await _hold_until(func() -> bool: return gate != null and gate.open, 4.0)
 		_probe_door = {"open": gate != null and gate.open, "found": gate != null}
+	# **A client's Haugbrot is the host's to finish** (ADR-382). The host
+	# swears the client a Haugbrjótr and stands a locked door before it; the
+	# client holds its own craft key; the host's clock breaks the door, and
+	# both peers see it stand open. Events, not clocks (ADR-378).
+	if host:
+		var breaker: Player = _client_body()
+		if breaker != null:
+			var was_sworn: StringName = breaker.sworn
+			breaker.sworn = &"haugbrjotr"
+			var facing: Vector3 = -breaker.global_basis.z
+			facing.y = 0.0
+			facing = facing.normalized()
+			# **Barred, from the wrong side**, not locked: the door row above
+			# put the floor's key in the client's bag, and a locked door does
+			# not refuse the hand holding its key — there would be nothing
+			# shut against her to break.
+			var shut_door: LockedDoor = _session.spawn_door(breaker.global_position + facing * 1.4,
+				atan2(facing.x, facing.z), LockedDoor.Kind.BARRED, facing)
+			await _hold_until(func() -> bool: return shut_door.open,
+				Config.tuning.haugbrot_seconds + 6.0)
+			_probe_haug = {"open": shut_door.open}
+			await _hold(0.4)
+			breaker.sworn = was_sworn
+	else:
+		await _hold_until(func() -> bool:
+			return mine.sworn == &"haugbrjotr" and mine.door_at_hand() != null, 4.0)
+		var target: LockedDoor = mine.door_at_hand()
+		Input.action_press("verb")
+		var deepest: Array[float] = [0.0]
+		await _hold_until(func() -> bool:
+			deepest[0] = maxf(deepest[0], mine.breaking)
+			return target != null and target.open, Config.tuning.haugbrot_seconds + 6.0)
+		Input.action_release("verb")
+		_probe_haug = {"open": target != null and target.open, "breaking": deepest[0]}
+		await _hold_until(func() -> bool: return mine.sworn != &"haugbrjotr", 3.0)
 	if not host:
 		mine.struck.disconnect(on_struck)
 	if host:
@@ -7450,6 +7489,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"fury": _probe_fury,
 		"seidr": _probe_seidr,
 		"door": _probe_door,
+		"haug": _probe_haug,
 		# What this peer heard, by sound name (ADR-311).
 		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,
@@ -8045,6 +8085,10 @@ func _spawn_doors() -> void:
 		door.opened.connect(func(opened: LockedDoor) -> void:
 			opened.remove_from_group(NAV_SOURCE_GROUP)
 			_rebake_navigation.call_deferred())
+		# Wedged shut again (ADR-382): back in the bake, and baked again.
+		door.shut.connect(func(closed: LockedDoor) -> void:
+			closed.add_to_group(NAV_SOURCE_GROUP)
+			_rebake_navigation.call_deferred())
 		placed += 1
 	if placed > 0:
 		print("[doors] %d gate(s) stand on this floor" % placed)
@@ -8355,6 +8399,7 @@ func _build_barrow() -> void:
 	_barrow.configure_replication()
 	_world.add_child(_barrow)
 	_barrow.changed.connect(_on_barrow_changed)
+	_barrow.broken_in.connect(_on_barrow_broken)
 	if not multiplayer.is_server():
 		return
 	_barrow.hear_with(_field)
@@ -8385,6 +8430,15 @@ func _someone_at_the_way_on() -> bool:
 
 ## Host: lay the find, open the slab, and write it down so a resumed floor
 ## remembers.
+## **Broken back into** (ADR-382): sealed and woken again, so the same find
+## lies in it and the same clock runs — the grind and all.
+func _on_barrow_broken() -> void:
+	if _barrow == null or not multiplayer.is_server():
+		return
+	_barrow.reseal(false)
+	_wake_the_barrow()
+
+
 func _wake_the_barrow() -> void:
 	var row: Array = _floor.barrow()
 	var find: WorldItem = _session.spawn_world_item(row[0] as StringName,
@@ -16956,6 +17010,220 @@ func _lock_probe() -> void:
 	if problems.is_empty():
 		print("[lock] every gate stands, and opens for what it says")
 	_report(problems, "lock")
+
+
+## **`--haug-probe`** (ADR-382): Haugbrot, asked of the real body.
+##
+## 1. **Said** — at a door shut against her, the reticle says to hold.
+## 2. **Broken off** — by a step, and by a blow, each leaving the door shut.
+## 3. **Broken in** — held through, the door opens, loud as a Waystone.
+## 4. **Barred** — broken from the wrong side too.
+## 5. **Hers alone** — a Húskarl holding his key at the same door breaks nothing.
+func _haug_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	await _hold(0.5)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	var tuning: TuningProfile = Config.tuning
+	body.sworn = &"haugbrjotr"
+	body.effects = PackedStringArray()
+	body.restore_for_descent()
+	await _hold(0.3)
+	var striker := Node3D.new()
+	add_child(striker)
+	var ahead: Vector3 = -body.global_basis.z
+	ahead.y = 0.0
+	ahead = ahead.normalized()
+	var spot: Vector3 = body.global_position
+	var mark: Reticle = _reticle()
+
+	# ─ 1. said ─
+	var door: LockedDoor = _session.spawn_door(spot + ahead * 1.6,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+	await _hold(0.3)
+	var said: String = mark.showing() if mark != null else ""
+	print("[haug] said        '%s'" % said)
+	if not said.ends_with(tr("door.break").get_slice("%s", 1)):
+		problems.append("a door shut against her did not say to hold: '%s'" % said)
+
+	# ─ 2. broken off, by a step and by a blow ─
+	var off: Array[String] = []
+	for how: String in ["step", "blow"]:
+		Input.action_press("verb")
+		await _hold(tuning.haugbrot_seconds * 0.4)
+		var began: float = body.breaking
+		if how == "step":
+			Input.action_press("move_back")
+			await _hold(0.4)
+			Input.action_release("move_back")
+		else:
+			body._on_hurt(5.0, striker)
+			await get_tree().physics_frame
+		var after: float = body.breaking
+		Input.action_release("verb")
+		# Back, and facing the door again: a yaw of atan2(-x, -z) looks along
+		# (x, z). The `+ PI` this once carried turned her back on it, and every
+		# row after the first asked a body that could not see its door.
+		body.teleport(spot, atan2(-ahead.x, -ahead.z))
+		await _hold(0.4)
+		off.append("%s %.2f -> %.2f, open %s" % [how, began, after, door.open])
+		if began <= 0.0 or after > 0.0 or door.open:
+			problems.append("breaking in was not broken off by a %s" % how)
+	print("[haug] broken off  " + "; ".join(off))
+
+	# ─ 3. broken in ─
+	var quiet: float = body.clamor.level
+	Input.action_press("verb")
+	await _hold(tuning.haugbrot_seconds * 0.5)
+	var ring: float = mark.channel_drawn() if mark != null else 0.0
+	Input.action_press("block")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var guarded: bool = body.blocking
+	Input.action_release("block")
+	await _hold(tuning.haugbrot_seconds * 0.5 + 0.4)
+	Input.action_release("verb")
+	print("[haug] broken in   ring %.2f at half, guard %s; open %s, clamor %.1f -> %.1f"
+		% [ring, guarded, door.open, quiet, body.clamor.level])
+	if ring <= 0.2 or guarded or not door.open \
+			or body.clamor.level - quiet < tuning.haugbrot_clamor * 0.5:
+		problems.append("held through, the door did not break in loudly, or the ring or guard was wrong")
+
+	# ─ 4. barred, from the wrong side ─
+	var barred: LockedDoor = _session.spawn_door(spot + ahead * 1.6,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.BARRED, ahead)
+	await _hold(0.3)
+	Input.action_press("verb")
+	await _hold(tuning.haugbrot_seconds + 0.5)
+	Input.action_release("verb")
+	print("[haug] barred      from the wrong side '%s' before; broken %s"
+		% ["barred", barred.open])
+	if not barred.open:
+		problems.append("a barred door did not break from the wrong side")
+
+	# ─ 4b. the barrow, shut on its find, broken back into ─
+	if _barrow == null:
+		problems.append("no barrow on this floor to break into (run with --delvings)")
+	else:
+		_barrow.reseal()
+		_wake_the_barrow()
+		_barrow.state = Barrow.State.SHUT
+		await _hold(0.3)
+		body.teleport(_barrow.global_position + Vector3(0.0, 0.1, 0.0), body.rotation.y)
+		await _hold(0.3)
+		var barrow_said: String = mark.showing() if mark != null else ""
+		Input.action_press("verb")
+		await _hold(tuning.haugbrot_seconds + 0.6)
+		Input.action_release("verb")
+		await _hold(0.3)
+		print("[haug] barrow      said '%s'; broken back open %s, with a find %s"
+			% [barrow_said, _barrow.is_open(), _barrow.find() != null])
+		if not _barrow.is_open() or _barrow.find() == null \
+				or not barrow_said.ends_with(tr("barrow.break").get_slice("%s", 1)):
+			problems.append("a shut barrow was not broken back open with its find, or said nothing")
+		# **Once** — the second shutting leaves it spent, and nothing to break.
+		_barrow.advance(Config.tuning.barrow_open_seconds + 1.0)
+		var second: StringName = &"spent" if _barrow.state == Barrow.State.SPENT else &"shut"
+		print("[haug] barrow      after its second shutting: %s (want spent)" % second)
+		if second != &"spent":
+			problems.append("a broken barrow shut again breakable — its find could be laid for ever")
+		body.teleport(spot, body.rotation.y)
+		await _hold(0.3)
+
+	# ─ 4c. the Rite, each against the same case without it ─
+	var rows: PackedStringArray = PackedStringArray()
+	var layer: PingLayer = null
+	for node: Node in find_children("*", "PingLayer", true, false):
+		layer = node as PingLayer
+	# The Long Pry: a blow does not knock the bar from her hands.
+	for holding: bool in [false, true]:
+		var pried: LockedDoor = _session.spawn_door(spot + ahead * 1.6,
+			atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+		await _hold(0.2)
+		body.effects = PackedStringArray(["haugbrot_holds"]) if holding else PackedStringArray()
+		body._set_breaking(pried.get_path())
+		body._on_hurt(5.0, striker)
+		var still: bool = body._breaking > 0.0
+		body._stop_breaking()
+		pried.queue_free()
+		rows.append("long pry %s: still breaking after a blow %s" % [holding, still])
+		if still != holding:
+			problems.append("the Long Pry did not hold through a blow, or a blow held without it")
+	# Wedge: a door she broke, shut again — only with the node.
+	for wedging: bool in [false, true]:
+		var wedged: LockedDoor = _session.spawn_door(spot + ahead * 1.6,
+			atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+		await _hold(0.2)
+		wedged.broken_by = body.get_multiplayer_authority()
+		wedged.host_open()
+		body.effects = PackedStringArray(["haugbrot_wedge"]) if wedging else PackedStringArray()
+		body._wedge_door(wedged.get_path())
+		var shut_again: bool = not wedged.open
+		wedged.queue_free()
+		rows.append("wedge %s: shut again %s" % [wedging, shut_again])
+		if shut_again != wedging:
+			problems.append("Wedge did not shut her broken door, or it shut without the node")
+	# And never on a body (ADR-015): a door with someone in its frame stays open.
+	var blocked_door: LockedDoor = _session.spawn_door(spot + ahead * 1.6,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+	await _hold(0.2)
+	blocked_door.broken_by = body.get_multiplayer_authority()
+	blocked_door.host_open()
+	var standing := Node3D.new()
+	standing.add_to_group(&"enemies")
+	add_child(standing)
+	standing.global_position = blocked_door.global_position
+	body.effects = PackedStringArray(["haugbrot_wedge"])
+	body._wedge_door(blocked_door.get_path())
+	rows.append("wedge with a body in the doorway: shut %s (want false)" % (not blocked_door.open))
+	if not blocked_door.open:
+		problems.append("Wedge shut a door on a body in its frame — a trap")
+	standing.queue_free()
+	blocked_door.queue_free()
+	# Hidden Way and Grave-Sense: marks drawn for her, only with each node.
+	var hidden: LockedDoor = _session.spawn_door(spot + ahead * 6.0,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+	# 4b left the barrow spent, which Grave-Sense rightly does not mark; a fresh
+	# barrow is the one it is for.
+	if _barrow != null:
+		_barrow.reseal()
+	for sensing: Array in [[&"haugbrot_hidden_way", false], [&"haugbrot_hidden_way", true],
+			[&"haugbrot_grave_sense", false], [&"haugbrot_grave_sense", true]]:
+		body.effects = PackedStringArray([String(sensing[0])]) if bool(sensing[1]) else PackedStringArray()
+		await get_tree().process_frame
+		await get_tree().process_frame
+		var drawn: int = layer.hidden_drawn() if layer != null else -1
+		rows.append("%s %s: %d mark(s)" % [sensing[0], sensing[1], drawn])
+		var wanted: bool = bool(sensing[1]) and (sensing[0] != &"haugbrot_grave_sense" or _barrow != null)
+		if (drawn > 0) != wanted:
+			problems.append("%s marked %d without matching the node" % [sensing[0], drawn])
+	hidden.queue_free()
+	body.effects = PackedStringArray()
+	for row: String in rows:
+		print("[haug] rite        " + row)
+
+	# ─ 5. hers alone ─
+	body.sworn = &"huskarl"
+	await _hold(0.3)
+	var control: LockedDoor = _session.spawn_door(spot + ahead * 1.6,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
+	await _hold(0.3)
+	Input.action_press("verb")
+	await _hold(tuning.haugbrot_seconds + 0.5)
+	Input.action_release("verb")
+	print("[haug] control     a Húskarl's held verb at a locked door: open %s (want false)" % control.open)
+	if control.open:
+		problems.append("a door broke for a class that is not a Haugbrjótr")
+	body.sworn = &"haugbrjotr"
+
+	# ─ 6. told ─
+	var told: String = ArrivalBrief.verb_line(&"haugbrjotr")
+	print("[haug] told        '%s'" % told)
+	if not told.contains("hold"):
+		problems.append("the first floor's brief does not say how Haugbrot is begun")
+	if problems.is_empty():
+		print("[haug] what is shut is hers to break, and everyone hears it")
+	_report(problems, "haug")
 
 
 ## Press and release an action through the real input path (ADR-140).
