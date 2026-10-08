@@ -44,6 +44,8 @@ const CARD_WIDTH: float = 420.0
 const CARD_GAP: float = 24.0
 ## The portrait banner's height over its width.
 const BANNER: float = 0.42
+## The plate under the row: as wide as a reading line wants, not the screen.
+const DETAIL_WIDTH: float = 760.0
 
 ## The width every card is drawn at, for this many of them.
 var _card_width: float = CARD_WIDTH
@@ -51,6 +53,11 @@ var _card_width: float = CARD_WIDTH
 var _row: HBoxContainer = null
 ## Everything stacked down the screen, for `height_needed`.
 var _column: VBoxContainer = null
+## **The plate under the row** (ADR-385): the focused life's description and
+## how it gets out, one at a time.
+var _about: Label = null
+var _way: Label = null
+var _shown_entry: ClassResource = null
 
 
 func _ready() -> void:
@@ -97,6 +104,27 @@ func _ready() -> void:
 	column.add_child(row)
 	for entry: ClassResource in sworn:
 		row.add_child(_card(entry))
+	# **What the focused life is, under the row** (ADR-385). Five cards each
+	# carrying two paragraphs ran off the screen across or down however they
+	# were cut; Darkest Dungeon's roster, and this game's own Pact page, show a
+	# row to choose from and one plate that says what the chosen one is.
+	var plate := PanelContainer.new()
+	plate.theme_type_variation = MenuStyle.SLATE
+	var words := VBoxContainer.new()
+	words.add_theme_constant_override("separation", 8)
+	plate.add_child(words)
+	var wide: float = minf(MenuStyle.base_screen().x - MARGIN * 2.0, DETAIL_WIDTH)
+	_about = MenuStyle.line("", MenuStyle.BODY_TEXT)
+	_about.custom_minimum_size = Vector2(MenuStyle.inside(self, MenuStyle.SLATE, wide), 0.0)
+	words.add_child(_about)
+	_way = MenuStyle.line("", MenuStyle.BODY_DIM)
+	_way.custom_minimum_size = Vector2(MenuStyle.inside(self, MenuStyle.SLATE, wide), 0.0)
+	words.add_child(_way)
+	var centred := CenterContainer.new()
+	centred.add_child(plate)
+	column.add_child(centred)
+	if not sworn.is_empty():
+		_show(sworn[0])
 
 	if sworn.is_empty():
 		# Not a friendly empty state — a loud one. An export whose class table
@@ -129,14 +157,35 @@ func width_needed() -> float:
 ## narrower cards wrap to more lines, so a row that fits across can stop
 ## fitting down.
 func height_needed() -> float:
-	return (_column.get_combined_minimum_size().y if _column != null else 0.0) + MARGIN * 2.0
+	if _column == null:
+		return 0.0
+	# The plate's height is the longest life's, not the one shown now: asked
+	# of every class, so a long exit cannot pass by not being the first.
+	var was: ClassResource = _shown_entry
+	var tallest: float = 0.0
+	for entry: ClassResource in ClassCatalogue.all():
+		_show(entry)
+		tallest = maxf(tallest, _column.get_combined_minimum_size().y)
+	if was != null:
+		_show(was)
+	return tallest + MARGIN * 2.0
 
 
-## One class, led by how it gets out (`DES-011`).
+## Say what `entry` is, in the plate under the row.
+func _show(entry: ClassResource) -> void:
+	_shown_entry = entry
+	if _about != null:
+		_about.text = tr(String(entry.description_key)) if entry.description_key != &"" else ""
+	if _way != null:
+		_way.text = tr(String(entry.exit_key)) if entry.exit_key != &"" else ""
+
+
+## One class: who you would be, and its name to swear by (ADR-385). What it
+## is and how it gets out are said under the row when it has focus.
 func _card(entry: ClassResource) -> Control:
 	var plate := PanelContainer.new()
 	plate.theme_type_variation = MenuStyle.SLATE
-	plate.custom_minimum_size = Vector2(_card_width, 260.0)
+	plate.custom_minimum_size = Vector2(_card_width, 0.0)
 	var card := VBoxContainer.new()
 	card.add_theme_constant_override("separation", 10)
 	plate.add_child(card)
@@ -158,20 +207,11 @@ func _card(entry: ClassResource) -> Control:
 	var pick: Button = MenuStyle.button(entry.display())
 	pick.custom_minimum_size = Vector2(_inner_width(), 48.0)
 	pick.pressed.connect(func() -> void: _commit(entry))
+	# Focus and the pointer both say which life the plate speaks for, so a pad
+	# and a mouse read the same thing before either commits.
+	pick.focus_entered.connect(func() -> void: _show(entry))
+	pick.mouse_entered.connect(func() -> void: _show(entry))
 	card.add_child(pick)
-	card.add_child(MenuStyle.rule())
-
-	if entry.description_key != &"":
-		var about: Label = MenuStyle.line(tr(String(entry.description_key)), MenuStyle.BODY_TEXT)
-		about.custom_minimum_size = Vector2(_inner_width(), 0.0)
-		card.add_child(about)
-	if entry.exit_key != &"":
-		# The voice's italic at its own size while the card has the room, a
-		# size down once three share the screen.
-		var way: Label = MenuStyle.line(tr(String(entry.exit_key)),
-			MenuStyle.SUB_DIM if _card_width >= 400.0 else MenuStyle.BODY_DIM)
-		way.custom_minimum_size = Vector2(_inner_width(), 0.0)
-		card.add_child(way)
 	return plate
 
 

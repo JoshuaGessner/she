@@ -813,6 +813,22 @@ func _threshold_probe() -> void:
 			if wide <= 0.0 or wide > MenuStyle.base_screen().x:
 				problems.append("the class screen needs %.0f px in a %.0f px window"
 					% [wide, MenuStyle.base_screen().x])
+			# **The plate speaks for the card in focus** (ADR-385): each life's
+			# button focused in turn, and the plate under the row read back. Fit
+			# alone would pass a plate that only ever said the first one.
+			var spoke: int = 0
+			for entry: ClassResource in ClassCatalogue.all():
+				for node: Node in picking.find_children("*", "Button", true, false):
+					var pick := node as Button
+					if pick != null and pick.text == entry.display():
+						pick.grab_focus()
+				await get_tree().process_frame
+				if picking._about != null and picking._about.text == tr(String(entry.description_key)):
+					spoke += 1
+			print("[camp] the plate     spoke for %d of %d focused life(s)" % [
+				spoke, ClassCatalogue.all().size()])
+			if spoke != ClassCatalogue.all().size():
+				problems.append("the plate under the row did not follow the focused life")
 			var tall: float = picking.height_needed()
 			print("[camp] the lives     %.0f px tall of %.0f" % [tall, MenuStyle.base_screen().y])
 			if tall <= 0.0 or tall > MenuStyle.base_screen().y:

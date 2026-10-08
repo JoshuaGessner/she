@@ -13254,4 +13254,26 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - **`--lock-probe`** still passes: the door is solid, refused without its key, opened with it, and barred from one side.
 - **No blow through the bars** (`--lock-probe` row 3b). A 2.2 m arc on the far side of a shut grille dealt **0.0**. The same arc with the gate open, as the control, dealt **1.7**.
 
+## ADR-385 — The class screen is a row of names and one plate that speaks for the focused life
+
+**Date:** 2026-10-07 · **Status:** accepted · **Amends ADR-380; amends `TEC-009`** · **From `M4-T36`: the fifth class did not fit**
+
+**Context:**
+- **Five cards each carrying two paragraphs do not fit.** ADR-380 measured the screen down as well as across at four cards. The Haugbrjótr made five, and every card still carried its description and its way out. Cut across, the cards were too narrow to read; cut down, they ran past 648 px.
+- **A sixth is planned** (the Skald, `DES-011` §4), so a screen that fits five by trimming would break again.
+
+**References:**
+- **Darkest Dungeon's roster and hiring screen.** A row of portraits to choose from, and one panel that describes the one under the cursor. The choice is made by looking along a row, not by reading every card at once.
+- **This game's own Pact page** already reads that way: a row of Aspects and one plate for the focused node.
+
+**Decision:**
+- **A card is a banner and a name.** The portrait and the name to swear by.
+- **One plate under the row** says what the focused life is and how it gets out. It is 760 px wide at most, a reading line rather than the screen. Focus and the pointer both choose it, so a pad and a mouse read the same thing before either commits.
+- **`height_needed` is asked of every class**, and takes the tallest plate. A long exit line cannot pass by not being the first one shown.
+
+**Measured** (`--threshold-probe`, with the Haugbrjótr's card from `M4-T36`):
+- **Five cards fit 1152 px across, with no room to spare** (1152 px needed of 1152), and **529 px of 648 down**.
+- **A sixth card will not fit across as built.** That is the next thing this screen has to answer, before the Skald.
+- **The plate spoke for 5 of 5 lives** as each card took focus. The row is required, because a fit check alone would pass a plate that only ever described the first card.
+
 *Entries below to be added as design decisions are signed off.*

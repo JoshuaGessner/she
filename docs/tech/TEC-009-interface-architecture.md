@@ -432,7 +432,7 @@ the **one** button that takes it or gives it back. Looking is not buying: hover
 does not select, so a pointer on its way to that button cannot change what it
 buys. The class screen is measured **down as well as across** (ADR-380):
 four cards fitted across at 1152 and the Völva's ran off the bottom, because
-narrower cards wrap every line once more. `--threshold-probe` asks
+narrower cards wrap every line once more. Since ADR-385 a class card is a banner and a name, and one plate under the row says what the focused life is and how it gets out, as the Pact page does; `height_needed()` asks every class's plate and takes the tallest. `--threshold-probe` asks
 `ClassScreen.height_needed()` beside `width_needed()`. `--pact-probe` asks every page of every class in the catalogue to fit
 the base screen. That screen is `MenuStyle.base_screen()`, the project's
 viewport setting (1152 x 648, Godot's default), and every fit check asks it
