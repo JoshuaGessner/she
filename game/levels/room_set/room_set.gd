@@ -7317,9 +7317,37 @@ func _coop_probe(out: String) -> void:
 			for held: Enemy in heard:
 				if is_instance_valid(held):
 					moods.append(Turned.Mood.keys()[held.turned.mood])
-			_probe_galdr = {"moods": moods}
+			# **And a tap, from the client** (ADR-387): Lausavísa's stanza
+			# must survive the wire — the client's own copy of the verse's
+			# progress is still zero a tenth of a second in.
 			await _hold(0.8)
 			_session.clear_enemies()
+			await _hold(0.3)
+			var was_effects: PackedStringArray = singer.effects
+			singer.effects = PackedStringArray(["galdr_stanza"])
+			for offset: Vector3 in [ahead * 8.0, ahead * 8.0 + across * 2.0]:
+				_session.spawn_enemy(singer.global_position + offset, 0.0)
+			await _hold(0.3)
+			var tapped: Array[Enemy] = []
+			for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+				var held := node as Enemy
+				if held != null:
+					held.rooted.hold_for(30.0)
+					tapped.append(held)
+			await _hold_until(func() -> bool:
+				for held: Enemy in tapped:
+					if is_instance_valid(held) and held.turned.mood != Turned.Mood.NONE:
+						return true
+				return false, Config.tuning.galdr_stanza_seconds + 6.0)
+			await _hold(0.6)
+			var stanza_turned: int = 0
+			for held: Enemy in tapped:
+				if is_instance_valid(held) and held.turned.mood != Turned.Mood.NONE:
+					stanza_turned += 1
+			_probe_galdr = {"moods": moods, "stanza": stanza_turned}
+			await _hold(0.6)
+			_session.clear_enemies()
+			singer.effects = was_effects
 			singer.sworn = was_sworn
 	else:
 		await _hold_until(func() -> bool:
@@ -7341,9 +7369,19 @@ func _coop_probe(out: String) -> void:
 			var copy := node as Enemy
 			if copy != null:
 				seen.append(Turned.Mood.keys()[copy.turned.mood])
-		mine.sang.disconnect(on_sang)
 		_probe_galdr = {"singing": loudest[0], "told": told[0], "seen": seen}
-		await _hold_until(func() -> bool: return mine.sworn != &"skald", 4.0)
+		await _hold_until(func() -> bool:
+			return mine.has_effect(&"galdr_stanza") \
+				and get_tree().get_nodes_in_group(&"enemies").size() >= 2, 6.0)
+		await _hold(0.4)
+		told[0] = -1
+		Input.action_press("verb")
+		await _hold(0.1)
+		Input.action_release("verb")
+		await _hold_until(func() -> bool: return told[0] >= 0, Config.tuning.galdr_stanza_seconds + 4.0)
+		_probe_galdr["stanza_told"] = told[0]
+		mine.sang.disconnect(on_sang)
+		await _hold_until(func() -> bool: return mine.sworn != &"skald", 6.0)
 	if not host:
 		mine.struck.disconnect(on_struck)
 	if host:

@@ -4114,7 +4114,10 @@ func _galdr() -> void:
 		_song_pressed_at = Time.get_ticks_msec()
 	# **Lausavísa** (ADR-387): let go almost at once, and the verse becomes a
 	# single stanza — sung through on its own, quieter, at the nearest only.
-	elif has_effect(&"galdr_stanza") and singing > 0.0 \
+	# Not gated on `singing`: on a client that is the host's progress, still
+	# zero on the wire a tenth of a second in, and the tap would cancel the
+	# verse it meant to shorten. The host refuses a stanza with no verse begun.
+	elif has_effect(&"galdr_stanza") \
 			and float(Time.get_ticks_msec() - _song_pressed_at) / 1000.0 <= Config.tuning.galdr_tap_seconds:
 		if multiplayer.is_server():
 			_set_stanza()

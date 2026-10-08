@@ -496,6 +496,10 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         and len(seen) == 2 and "NONE" not in seen,
         f"host turned {host_moods}; client sang to {galdr_client.get('singing', 0.0):.2f}, "
         f"was told {galdr_client.get('told', -1)}, sees {seen}"))
+    rows.append(check(
+        "and a client's tap sings one stanza at the nearest",
+        galdr_host.get("stanza", -1) == 1 and galdr_client.get("stanza_told", -1) == 1,
+        f"host turned {galdr_host.get('stanza', -1)}; client was told {galdr_client.get('stanza_told', -1)}"))
 
     # What the client heard (ADR-311). The host decides a pickup and a blow,
     # and played their sounds where it decided them — so a client never heard
