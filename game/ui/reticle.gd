@@ -71,6 +71,10 @@ var _held: float = 0.0
 const HELD_SECONDS: float = 1.5
 ## Which refusal the held line is saying: the Waystone's, or the sight's.
 var _held_text: StringName = &"waystone"
+## How many the last verse turned, for its line (ADR-387).
+var _turned: int = 0
+## Under Shields as last read, to say it once when it is given.
+var _shields_seen: float = 0.0
 ## The progress the last frame's ring was drawn at, 0 for none. Written **inside
 ## the draw**, so `--use-probe` asks what reached the screen rather than what the
 ## body knows — the two disagreed for every Waystone spent with nothing in reach.
@@ -145,6 +149,13 @@ func _process(delta: float) -> void:
 	_listen_for_refusals()
 	_refused = maxf(0.0, _refused - delta * 4.0)
 	_held = maxf(0.0, _held - delta)
+	# **Under Shields, said to the shielded** (ADR-387): a friend's verse is
+	# something done *to* you, and the first you would otherwise know of it is
+	# the heavy blow that did not break your guard.
+	var shields: float = _body.under_shields if _body != null and is_instance_valid(_body) else 0.0
+	if shields > _shields_seen + 0.5:
+		_say_for_a_moment(&"shields", false)
+	_shields_seen = shields
 	var reaching: WorldItem = null
 	var hidden: bool = true
 	_shaft = null
@@ -218,6 +229,12 @@ func _process(delta: float) -> void:
 			_name.text = tr("seidr.resting") % ceili(_body.sight_spent)
 		elif _held_text == &"nothing":
 			_name.text = tr("seidr.nothing")
+		elif _held_text == &"shields":
+			_name.text = tr("galdr.shields")
+		elif _held_text == &"sang":
+			# **What the verse did** (ADR-387): a song that turned nothing is
+			# said too, or a verse on an empty room reads as a broken key.
+			_name.text = tr("galdr.turned") % _turned if _turned > 0 else tr("galdr.none")
 		else:
 			_name.text = tr("waystone.fury_holds")
 	elif _offer != "":
@@ -268,6 +285,9 @@ func _listen_for_refusals() -> void:
 			_body.sight_resting.connect(_say_for_a_moment.bind(&"sight"))
 			if _body.sight != null:
 				_body.sight.saw_nothing.connect(_say_for_a_moment.bind(&"nothing"))
+			_body.sang.connect(func(count: int) -> void:
+				_turned = count
+				_say_for_a_moment(&"sang", false))
 	var weapon: MeleeWeapon = _body.weapon if _body != null else null
 	if weapon == _listening:
 		return
@@ -283,10 +303,11 @@ func _listen_for_refusals() -> void:
 ## **A key that did nothing, said for a moment** (ADR-371, ADR-383): which
 ## refusal, held for `HELD_SECONDS`, and the crosshair flinches. One gesture,
 ## so the next refusal is one connection rather than a fourth copy of it.
-func _say_for_a_moment(what: StringName) -> void:
+func _say_for_a_moment(what: StringName, refusal: bool = true) -> void:
 	_held = HELD_SECONDS
 	_held_text = what
-	_refused = 1.0
+	if refusal:
+		_refused = 1.0
 
 
 ## Whether the body holds Wedge and stands at an open door it could shut.
@@ -397,6 +418,10 @@ func _draw_channel(middle: Vector2) -> void:
 	elif _body != null and is_instance_valid(_body) and _body.breaking > 0.0:
 		# **And breaking in** (ADR-382): the same timed, breakable grammar.
 		progress = _body.breaking
+		waiting = true
+	elif _body != null and is_instance_valid(_body) and _body.singing > 0.0:
+		# **And the verse** (ADR-387): sung, timed, broken by a blow.
+		progress = _body.singing
 		waiting = true
 	elif _body != null and is_instance_valid(_body) and _body.trance > 0.0:
 		# **And the trance** (ADR-379): sat, timed, broken by a step or a blow

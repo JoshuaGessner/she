@@ -56,6 +56,9 @@ Dt.MATERIALS.update({
     # The seeress's (ADR-379): Þorbjörg's blue mantle and black lambskin hood.
     "wool_blue": ((0.105, 0.125, 0.185), 0.92, lambda p: 0.0007 * S.noise(p, 0.006)),
     "fur_dark": ((0.055, 0.050, 0.048), 0.85, _fur),
+    # The skald's (ADR-387): a madder-dyed cloak, the dye gone dark as wool's
+    # does — muted, because `ART-005` spends saturation on gold alone.
+    "wool_red": ((0.185, 0.095, 0.075), 0.92, lambda p: 0.0007 * S.noise(p, 0.006)),
 })
 
 
@@ -261,6 +264,43 @@ def mound_jerkin(p):
     return r
 
 
+def skald_cloak(p):
+    """**The Skald's cloak** (ADR-387): what a poet wore to a king's hall. A
+    *feldr* of madder-red wool to the knee, hung from the right shoulder and
+    pinned there with a gilt ring-headed pin, so the sword arm stays free and
+    the cloak falls open down that side — as the sagas pin every cloak, and as
+    the Birka graves lay the pin. A tablet-woven border runs along the
+    opening and round the hem, in pale linen. Over a linen tunic, and no
+    hood: a skald is heard, and wants his face seen. Bare-headed, he is the one
+    delver whose outline is not a hood, and that is the point."""
+    r = underlayer(p)
+    r["linen"] = np.minimum(Hm.tunic(p, B, hem=0.58, flare=0.07, slit=True, grow=0.020),
+                            np.minimum(Hm.sleeve(p, "l", B, to=0.40, grow=0.010),
+                                       Hm.sleeve(p, "r", B, to=0.40, grow=0.010)))
+    cloak = Hm.tunic(p, B, hem=0.42, flare=0.22, slit=False, grow=0.050)
+    # Hung from the shoulders, a cloak falls lower behind than before: the hem
+    # rises from the back of the knee to mid-thigh at the front.
+    front = np.clip(-p[:, 1] / 0.16, 0.0, 1.0)
+    hemline = 0.46 + 0.18 * front
+    cloak = S.carve(cloak, p[:, 2] - hemline, 0.02)
+    # Open down the right front, below the pin: +x is his left, -y his front.
+    opening = np.maximum(np.maximum(p[:, 0] - 0.02, p[:, 1] + 0.03), p[:, 2] - 1.40)
+    cloak = S.carve(cloak, opening, 0.02)
+    # The tablet-woven border: a band along the opening's edge and the hem.
+    edge = np.maximum(np.abs(opening) - 0.016, cloak - 0.004)
+    hem = np.maximum(np.abs(p[:, 2] - hemline - 0.016) - 0.016, cloak - 0.004)
+    border = np.minimum(edge, hem)
+    r["wool_red"] = np.maximum(cloak, -border)
+    r["linen"] = np.minimum(r["linen"], np.maximum(border, cloak - 0.006))
+    # The pin at the right shoulder's front, standing off the wool: a ring on
+    # a shaft, in gilt — the one bright thing on him, as a ring-giver's gift.
+    ring_at = V((-0.115, -0.175, 1.39))
+    ring = np.maximum(np.abs(S.sphere(p - ring_at, 0.030)) - 0.0065, np.abs(p[:, 1] - ring_at[1]) - 0.008)
+    shaft = S.round_cone(p, ring_at + V((0.0, 0.0, -0.028)), ring_at + V((0.035, 0.005, -0.13)), 0.0055, 0.003)
+    r["gold"] = np.minimum(ring, shaft)
+    return r
+
+
 ITEMS = {
     "mail_byrnie_worn": (byrnie, dict(voxel=0.010, body_tris=7500, texture=1024, ceiling=10000)),
     # Seen from the eye in first person, not only across a room: dense enough
@@ -271,6 +311,7 @@ ITEMS = {
     "hunter_hood_worn": (hunter_hood, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
     "volva_mantle_worn": (volva_mantle, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
     "mound_jerkin_worn": (mound_jerkin, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
+    "skald_cloak_worn": (skald_cloak, dict(voxel=0.008, body_tris=9000, texture=1024, ceiling=10000)),
 }
 
 
@@ -318,7 +359,7 @@ def review(name):
 ## Pieces in the body slot, which hide the body under them, and the bones
 ## whose vertices they hide (`BodyRig.BODY_COVERED_BONES`).
 BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn", "hunter_hood_worn",
-               "volva_mantle_worn", "mound_jerkin_worn")
+               "volva_mantle_worn", "mound_jerkin_worn", "skald_cloak_worn")
 COVERED = {"pelvis", "spine_01", "spine_02", "chest", "thigh_l", "calf_l", "foot_l",
            "thigh_r", "calf_r", "foot_r", "upper_arm_l", "upper_arm_r"}
 

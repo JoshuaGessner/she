@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-07
+updated: 2026-10-08
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -13366,7 +13366,7 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - **Not the Hunt.** The Gold-Sick is not a denizen of the floor; it is the price, and the song calls it.
 - **Legible** (`DES-018`, PRO-005 §5). A maddened enemy carries a mark and a sound, and so does an unnerved one, on every peer. A player must be able to say *"the song turned them"*.
 
-**Decision — the Rite (4 nodes, opening at pact rank 3; Cinder, Hoard and Scale are all written):** each node lets him do something new (ADR-058).
+**Decision — the Rite (4 nodes, opening at pact rank 3):** each node lets him do something new (ADR-058). *Corrected at build: of his Aspects only Hoard and Scale are written. Cinder is not, as for the Húskarl, so his Pact pages are Hoard, Scale and his Rite.*
 - **Níðstöng.** The verse lands where he looks, up to 10 m ⟨tune⟩, not where he stands: the noise, and the madness, are placed. This is Egill's pole and Thief's noisemaker.
 - **Lausavísa** *(after Níðstöng)*. A tap sings a single stanza, a loose verse. It is quick, it is half as loud, and it maddens or unnerves **only the nearest** enemy. That is a second, quieter way to use the verb.
 - **Bjarkamál.** A finished verse wakes one downed ally in earshot, standing, as a rescue would. This is Þormóðr at Stiklestad.
@@ -13384,5 +13384,30 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - The class screen at six cards: a day (ADR-385 left six failing across).
 
 **Not built:** recording deeds for Lineage (`DES-011`'s Rite list). It is economy, not a verb; it waits for the deeds system to want it.
+
+**Measured, as built (`M4-T37` closed):**
+- **The enemies** (`--galdr-probe` §1):
+  - A maddened Wretch struck its neighbour for 34, and the neighbour, provoked, struck back for 34.
+  - Madness wore off, and the blow reached players alone again.
+  - An enemy alone gave 3.3 m of ground.
+  - A Hall-Warden and a slinger were only unnerved, and the dead carried no mark.
+  - Found by running it: a maddened enemy swung before it faced its foe, because its reach is a sphere in front of it, and struck the air for 0. It now turns first.
+- **The verse** (§2):
+  - It was sung half-way at 1.5 s with the ring at 0.51; the song played, and no guard could be raised while singing.
+  - Noise rose from 0.5 to 7.3. Clamor decays while it gathers, so 5 a second for 3 s nets about 7.
+  - It turned both enemies in earshot, and the reticle said *the verse turns 2*. Sung to an empty room it said *the verse falls on no one*.
+  - A blow at 41% broke it, and nothing was turned.
+  - He walked at 1.35 m/s against 2.71.
+  - A Húskarl's held key sang nothing.
+- **The Rite** (§3), each against the same case without it:
+  - Níðstöng: turned 2 against 0, and the singer stayed quiet, because the noise stood where the verse landed.
+  - Lausavísa: a tap turned 1 of 2, against nothing.
+  - Bjarkamál: stood a fallen body. Which friend it chooses is proved by code reading only; solo has no friend.
+  - Under Shields: a heavy blow on a raised guard took 8 of 20 against 20, the shield was spent after one blow, and the shielded body's reticle said so.
+  - Found by running it: an unplaced verse would have stayed behind at the spot it was begun. It now walks with the singer.
+- **Co-op, 5 runs of 5.** A client sang; the host's clock turned both enemies; the client was told 2 and saw both marks.
+- **The song** is synthesised: four syllables on D, F, G and F, sung on formant vowels, and looped while he sings. It is heard on every peer from where the verse lands.
+- **The dress** is a madder-red cloak to the knee, pinned at the right shoulder with a gilt ring-pin and open down that side, with a pale tablet-woven border. He goes bare-headed, the one delver whose outline is not a hood.
+- **The class screen at six** (ADR-385's open point): 1150 px of 1152 across and 483 of 648 down. A card is a `CardPlate` (`Frame` ground, its bosses laid 5 px in so neighbours do not collide) with a `CardName` a size down. The margin is 32 px and the gap 12.
 
 *Entries below to be added as design decisions are signed off.*

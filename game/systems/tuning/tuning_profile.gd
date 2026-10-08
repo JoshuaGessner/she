@@ -269,6 +269,19 @@ extends Resource
 ## moment it gives is — a spent Waystone's noise, laid where she stands.
 @export var haugbrot_seconds: float = 4.0
 @export var haugbrot_clamor: float = 14.0
+## **Galdr** (ADR-387) ⟨tune⟩: how long a verse is sung, how loud each second
+## of it is, how far it carries, and the pace it is sung at.
+@export var galdr_seconds: float = 3.0
+@export var galdr_clamor: float = 5.0
+@export var galdr_reach: float = 12.0
+@export var galdr_walk_scale: float = 0.5
+## **The Rite's verses** (ADR-387) ⟨tune⟩: how far Níðstöng throws the verse; how
+## short a press is a Lausavísa's tap, and how long that stanza takes; how long
+## Under Shields holds if no heavy blow comes.
+@export var galdr_aim: float = 10.0
+@export var galdr_tap_seconds: float = 0.25
+@export var galdr_stanza_seconds: float = 0.9
+@export var galdr_shields_seconds: float = 20.0
 ## **What a verse does** (ADR-387) ⟨tune⟩: how long it holds what it turned,
 ## and how far a maddened enemy will look for something to fight.
 @export var galdr_madness_seconds: float = 10.0

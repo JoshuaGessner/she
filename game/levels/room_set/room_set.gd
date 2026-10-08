@@ -6869,6 +6869,7 @@ var _probe_seidr: Dictionary = {}
 var _probe_door: Dictionary = {}
 ## A client's Haugbrot, as each peer saw it (ADR-382).
 var _probe_haug: Dictionary = {}
+var _probe_galdr: Dictionary = {}
 const PROBE_STRIKE: float = 10.0
 
 
@@ -7275,6 +7276,66 @@ func _coop_probe(out: String) -> void:
 		Input.action_release("verb")
 		_probe_haug = {"open": target != null and target.open, "breaking": deepest[0]}
 		await _hold_until(func() -> bool: return mine.sworn != &"haugbrjotr", 3.0)
+	# **A client's verse is the host's to land** (ADR-387). The host swears the
+	# client a Skald and stands two held enemies ahead of it; the client sings;
+	# the host's clock turns them, the host tells the singer how many, and the
+	# client sees the marks on its own copies. Events, not clocks (ADR-378).
+	if host:
+		var singer: Player = _client_body()
+		if singer != null:
+			var was_sworn: StringName = singer.sworn
+			singer.sworn = &"skald"
+			var ahead: Vector3 = -singer.global_basis.z
+			ahead.y = 0.0
+			ahead = ahead.normalized()
+			var across := Vector3(ahead.z, 0.0, -ahead.x)
+			_session.clear_enemies()
+			await _hold(0.2)
+			for offset: Vector3 in [ahead * 9.0, ahead * 9.0 + across * 1.8]:
+				_session.spawn_enemy(singer.global_position + offset, 0.0)
+			await _hold(0.3)
+			var heard: Array[Enemy] = []
+			for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+				var held := node as Enemy
+				if held != null:
+					held.rooted.hold_for(30.0)
+					heard.append(held)
+			await _hold_until(func() -> bool:
+				for held: Enemy in heard:
+					if not is_instance_valid(held) or held.turned.mood == Turned.Mood.NONE:
+						return false
+				return not heard.is_empty(), Config.tuning.galdr_seconds + 8.0)
+			var moods: Array[String] = []
+			for held: Enemy in heard:
+				if is_instance_valid(held):
+					moods.append(Turned.Mood.keys()[held.turned.mood])
+			_probe_galdr = {"moods": moods}
+			await _hold(0.8)
+			_session.clear_enemies()
+			singer.sworn = was_sworn
+	else:
+		await _hold_until(func() -> bool:
+			return mine.sworn == &"skald" \
+				and get_tree().get_nodes_in_group(&"enemies").size() >= 2, 5.0)
+		await _hold(0.3)
+		var told: Array[int] = [-1]
+		var on_sang := func(count: int) -> void: told[0] = count
+		mine.sang.connect(on_sang)
+		Input.action_press("verb")
+		var loudest: Array[float] = [0.0]
+		await _hold_until(func() -> bool:
+			loudest[0] = maxf(loudest[0], mine.singing)
+			return told[0] >= 0, Config.tuning.galdr_seconds + 6.0)
+		Input.action_release("verb")
+		await _hold(0.3)
+		var seen: Array[String] = []
+		for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+			var copy := node as Enemy
+			if copy != null:
+				seen.append(Turned.Mood.keys()[copy.turned.mood])
+		mine.sang.disconnect(on_sang)
+		_probe_galdr = {"singing": loudest[0], "told": told[0], "seen": seen}
+		await _hold_until(func() -> bool: return mine.sworn != &"skald", 4.0)
 	if not host:
 		mine.struck.disconnect(on_struck)
 	if host:
@@ -7492,6 +7553,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"seidr": _probe_seidr,
 		"door": _probe_door,
 		"haug": _probe_haug,
+		"galdr": _probe_galdr,
 		# What this peer heard, by sound name (ADR-311).
 		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,
@@ -17091,6 +17153,209 @@ func _galdr_probe() -> void:
 	if dying.turned.mood != Turned.Mood.NONE:
 		problems.append("a dead enemy kept the song's mark")
 	_session.clear_enemies()
+
+	# ─ 2. the verse, sung by the real body ─
+	body.sworn = &"skald"
+	body.effects = PackedStringArray()
+	body.restore_for_descent()
+	await _hold(0.3)
+	var sang_turned: Array[int] = [-1]
+	var on_sang := func(count: int) -> void: sang_turned[0] = count
+	body.sang.connect(on_sang)
+	# Held where they stand (the Veiðimaðr's snare), so nothing walks up and
+	# breaks the verse before it is sung; two metres apart, each in the
+	# other's reach.
+	var heard_by: Array[Enemy] = await _galdr_spawn([
+		[body.global_position + ahead * 9.0, EnemyCatalogue.DEFAULT],
+		[body.global_position + ahead * 9.0 + side * 1.8, EnemyCatalogue.DEFAULT]])
+	for heard: Enemy in heard_by:
+		heard.rooted.hold_for(30.0)
+	var quiet: float = body.clamor.level
+	Input.action_press("verb")
+	await _hold(tuning.galdr_seconds * 0.5)
+	var half: float = body.singing
+	var heard_song: bool = body.get_node_or_null("Song") != null \
+		and (body.get_node("Song") as AudioStreamPlayer3D).playing
+	Input.action_press("block")
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	var guarded: bool = body.blocking
+	Input.action_release("block")
+	var mark: Reticle = _reticle()
+	var ring: float = mark.channel_drawn() if mark != null else 0.0
+	await _hold(tuning.galdr_seconds * 0.5 + 0.4)
+	Input.action_release("verb")
+	await get_tree().process_frame
+	var said: String = mark.showing() if mark != null else ""
+	var moods: Array[String] = []
+	for heard: Enemy in heard_by:
+		moods.append(Turned.Mood.keys()[heard.turned.mood])
+	print("[galdr] sung       half-way %.2f, the ring %.2f, the song heard %s, a guard %s; loud %.1f -> %.1f; turned %d: %s; said '%s'"
+		% [half, ring, heard_song, guarded, quiet, body.clamor.level, sang_turned[0], ", ".join(moods), said])
+	if half < 0.3 or ring < 0.3 or not heard_song or guarded \
+			or said != tr("galdr.turned") % 2 \
+			or body.clamor.level - quiet < tuning.galdr_clamor \
+			or sang_turned[0] != 2 or moods.has("NONE"):
+		problems.append("the verse was not sung through, heard and loud, or did not turn what heard it")
+
+	# ─ 2b. a blow breaks it, and nothing is turned ─
+	var spared: Array[Enemy] = await _galdr_spawn([
+		[body.global_position + ahead * 9.0, EnemyCatalogue.DEFAULT],
+		[body.global_position + ahead * 9.0 + side * 1.8, EnemyCatalogue.DEFAULT]])
+	for heard: Enemy in spared:
+		heard.rooted.hold_for(30.0)
+	var striker := Node3D.new()
+	add_child(striker)
+	Input.action_press("verb")
+	await _hold(tuning.galdr_seconds * 0.4)
+	var before_blow: float = body.singing
+	body._on_hurt(3.0, striker)
+	await get_tree().physics_frame
+	var after_blow: float = body.singing
+	await _hold(tuning.galdr_seconds * 0.8)
+	Input.action_release("verb")
+	striker.queue_free()
+	var spared_ok: bool = spared[0].turned.mood == Turned.Mood.NONE and spared[1].turned.mood == Turned.Mood.NONE
+	print("[galdr] broken     %.2f -> %.2f by a blow; what heard it untouched %s" % [before_blow, after_blow, spared_ok])
+	if before_blow <= 0.0 or after_blow > 0.0 or not spared_ok:
+		problems.append("a blow did not break the verse, or a broken verse still turned what heard it")
+	body.restore_for_descent()
+
+	# ─ 2c. sung walking, at half pace, with no swing ─
+	_session.clear_enemies()
+	await _hold(0.2)
+	var paces: Array[float] = []
+	for sing: bool in [false, true]:
+		body.teleport(song, body.rotation.y)
+		await _hold(0.3)
+		if sing:
+			Input.action_press("verb")
+		Input.action_press("move_forward")
+		await _hold(1.0)
+		paces.append(body.planar_speed())
+		Input.action_release("move_forward")
+		await _hold(tuning.galdr_seconds - 0.8)
+		Input.action_release("verb")
+		await get_tree().process_frame
+	var on_no_one: String = _reticle().showing() if _reticle() != null else ""
+	print("[galdr] pace       walking %.2f m/s, singing %.2f m/s; to an empty room, '%s'"
+		% [paces[0], paces[1], on_no_one])
+	if paces[1] <= 0.1 or paces[1] > paces[0] * (tuning.galdr_walk_scale + 0.15):
+		problems.append("a verse was not sung walking at half pace")
+	if on_no_one != tr("galdr.none"):
+		problems.append("a verse sung to an empty room said nothing — it reads as a broken key")
+	await _hold(1.0)
+
+	# ─ 2d. his alone, and said ─
+	body.sworn = &"huskarl"
+	await _hold(0.2)
+	Input.action_press("verb")
+	await _hold(0.5)
+	var not_his: float = body.singing
+	Input.action_release("verb")
+	body.sworn = &"skald"
+	var told: String = ArrivalBrief.verb_line(&"skald")
+	print("[galdr] control    a Húskarl's held key sings %.2f (want 0); told '%s'" % [not_his, told])
+	if not_his > 0.0 or not told.contains("hold"):
+		problems.append("a class that is not a Skald sang, or the first floor does not say how Galdr begins")
+	_session.clear_enemies()
+
+	# ─ 3. the Rite, each against the same case without it ─
+	var rite: PackedStringArray = PackedStringArray()
+	# Níðstöng: the verse lands where he looks. The reach is narrowed for the
+	# row so a 9 m room can tell the two apart: placed, it lands among them;
+	# sung where he stands, it reaches nobody.
+	var reach_was: float = tuning.galdr_reach
+	tuning.galdr_reach = 4.0
+	for placed: bool in [false, true]:
+		body.teleport(song, atan2(-ahead.x, -ahead.z))
+		body.effects = PackedStringArray(["galdr_placed"]) if placed else PackedStringArray()
+		var far_off: Array[Enemy] = await _galdr_spawn([
+			[song + ahead * 9.0, EnemyCatalogue.DEFAULT],
+			[song + ahead * 9.0 + side * 1.8, EnemyCatalogue.DEFAULT]])
+		for held: Enemy in far_off:
+			held.rooted.hold_for(30.0)
+		var calm: float = body.clamor.level
+		sang_turned[0] = -1
+		Input.action_press("verb")
+		await _hold(tuning.galdr_seconds + 0.4)
+		Input.action_release("verb")
+		rite.append("níðstöng %s: turned %d, the singer's own noise %.1f -> %.1f"
+			% [placed, sang_turned[0], calm, body.clamor.level])
+		if (sang_turned[0] == 2) != placed:
+			problems.append("Níðstöng did not carry the verse to where he looked, or it carried without the node")
+		if placed and body.clamor.level - calm >= tuning.galdr_clamor:
+			problems.append("a placed verse was still loud on the singer — its noise belongs where it lands")
+	tuning.galdr_reach = reach_was
+	# Lausavísa: a tap sings one stanza, quieter, and turns only the nearest.
+	for stanza: bool in [false, true]:
+		body.teleport(song, atan2(-ahead.x, -ahead.z))
+		body.effects = PackedStringArray(["galdr_stanza"]) if stanza else PackedStringArray()
+		var two: Array[Enemy] = await _galdr_spawn([
+			[song + ahead * 8.0, EnemyCatalogue.DEFAULT],
+			[song + ahead * 8.0 + side * 2.0, EnemyCatalogue.DEFAULT]])
+		for held: Enemy in two:
+			held.rooted.hold_for(30.0)
+		sang_turned[0] = -1
+		Input.action_press("verb")
+		await _hold(0.1)
+		Input.action_release("verb")
+		await _hold(tuning.galdr_stanza_seconds + 0.4)
+		rite.append("lausavísa %s: turned %d" % [stanza, sang_turned[0]])
+		if (sang_turned[0] == 1) != stanza or (not stanza and sang_turned[0] > 0):
+			problems.append("Lausavísa's tap did not turn the nearest alone, or a tap sang without the node")
+	_session.clear_enemies()
+	# Bjarkamál: the verse stands a fallen friend up, as a hand would. The
+	# choosing of whom is the coop smoke's to show — solo has no friend.
+	body.effects = PackedStringArray()
+	body.health.apply_damage(body.health.maximum * 2.0)
+	await _hold(0.3)
+	var was_down: bool = body.is_downed()
+	body.roused_by_song()
+	await _hold(0.2)
+	rite.append("bjarkamál: down %s, stood by the verse %s" % [was_down, not body.is_downed()])
+	if not was_down or body.is_downed():
+		problems.append("Bjarkamál's verse did not stand a fallen body up")
+	body.restore_for_descent()
+	# Under Shields: the next heavy blow on the guard is held.
+	var hammer := Node3D.new()
+	add_child(hammer)
+	hammer.global_position = body.global_position + ahead * 1.2
+	var blow := Hitbox.new()
+	blow.heavy = true
+	hammer.add_child(blow)
+	blow.owner = hammer
+	# An empty off hand: a shield already takes a heavy blow (ADR-238), and
+	# the row asks what the verse adds to a guard that would not.
+	body.equipment.unequip(Enums.Slot.OFF_HAND)
+	for shielded: bool in [false, true]:
+		body.restore_for_descent()
+		body.teleport(song, atan2(-ahead.x, -ahead.z))
+		hammer.global_position = body.global_position + ahead * 1.2
+		body.effects = PackedStringArray(["galdr_shields"]) if shielded else PackedStringArray()
+		Input.action_press("verb")
+		await _hold(tuning.galdr_seconds + 0.4)
+		Input.action_release("verb")
+		await get_tree().process_frame
+		var said_shields: String = _reticle().showing() if _reticle() != null else ""
+		var given: float = body.under_shields
+		Input.action_press("block")
+		await _hold(0.2)
+		var whole: float = body.health.current
+		body._on_hurt(20.0, blow)
+		var took: float = whole - body.health.current
+		Input.action_release("block")
+		rite.append("under shields %s: given %.0f s, said '%s'; a heavy blow on the guard took %.1f of 20, left %.0f s"
+			% [shielded, given, said_shields, took, body.under_shields])
+		if shielded != (took < 20.0) or (shielded and (given <= 0.0 or body.under_shields > 0.0
+				or said_shields != tr("galdr.shields"))):
+			problems.append("Under Shields did not hold a heavy blow on the guard once, or held it without the node")
+	hammer.queue_free()
+	body.effects = PackedStringArray()
+	body.restore_for_descent()
+	for row: String in rite:
+		print("[galdr] rite       " + row)
+	body.sang.disconnect(on_sang)
 
 	if problems.is_empty():
 		print("[galdr] the verse turns the dungeon on itself")

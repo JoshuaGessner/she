@@ -482,6 +482,21 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"host open {haug_host.get('open', False)}; client open "
         f"{haug_client.get('open', False)}, breaking reached {haug_client.get('breaking', 0.0):.2f}"))
 
+    # A client's Galdr is the host's to land (ADR-387): the client sang on its
+    # own key, the host's clock turned both enemies, the host told the singer
+    # how many, and the client sees the marks on its own copies.
+    galdr_host = host.get("galdr", {})
+    galdr_client = client.get("galdr", {})
+    host_moods = galdr_host.get("moods", [])
+    seen = galdr_client.get("seen", [])
+    rows.append(check(
+        "a client's verse turns the dungeon on the host's clock",
+        len(host_moods) == 2 and "NONE" not in host_moods
+        and galdr_client.get("singing", 0.0) > 0.0 and galdr_client.get("told", -1) == 2
+        and len(seen) == 2 and "NONE" not in seen,
+        f"host turned {host_moods}; client sang to {galdr_client.get('singing', 0.0):.2f}, "
+        f"was told {galdr_client.get('told', -1)}, sees {seen}"))
+
     # What the client heard (ADR-311). The host decides a pickup and a blow,
     # and played their sounds where it decided them — so a client never heard
     # its own loot go into the bag, nor itself hurt.

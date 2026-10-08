@@ -89,7 +89,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 >
 > Ally-buff tuning must not make a Skald mandatory in a 4-stack.
 >
-> **Being built at `M4-T37` (ADR-387): Galdr, a verse sung loud that turns the dungeon on itself.**
+> **Built at `M4-T37` (ADR-387): Galdr, a verse sung loud that turns the dungeon on itself.**
 > - **Galdr.** Hold the craft key to sing a 3 s verse ⟨tune⟩, walking at half pace with no guard; a blow breaks it off, and it is loud throughout. When it ends, enemies in earshot are **maddened** (they fight the nearest other enemy, and whoever they strike fights back) or, alone, **unnerved** (they give way). Guardians are only unnerved. The Hunt is called, never turned. Both states are marked and heard on every peer.
 > - **The Rite (pact rank 3):** **Níðstöng**, the verse lands where he looks · **Lausavísa** *(after Níðstöng)*, a tap sings one quiet stanza at the nearest enemy · **Bjarkamál**, a finished verse wakes a downed ally in earshot · **Under Shields** *(after Bjarkamál)*, allies in earshot take the next heavy blow on the guard.
 > - **Not built:** recording deeds for Lineage.

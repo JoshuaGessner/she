@@ -78,6 +78,7 @@ enum Sound {
 	CRACKLE,    # the camp's fire (ADR-287), looped — a world sound, never the score
 	COIN,       # coin shifting in the bag at a step (ADR-326) — how rich you sound
 	HOWL,       # the Úlfheðinn's fury, opening (ADR-358) — a throat, not a wolf
+	VERSE,      # the Skald's Galdr, sung (ADR-387) — a chant, looped while it lasts
 }
 
 ## How far a one-shot carries by default: roughly the Deep's scale, audible
@@ -263,6 +264,8 @@ static func looping_stream_for(sound: Sound) -> AudioStream:
 static func _render(sound: Sound) -> AudioStreamWAV:
 	if sound == Sound.HOWL:
 		return _howl()
+	if sound == Sound.VERSE:
+		return _verse()
 	var seconds: float = 0.32
 	match sound:
 		Sound.NOTICED: seconds = 0.55
@@ -317,6 +320,66 @@ static func _howl() -> AudioStreamWAV:
 		var breath: float = fmod(sin(float(frame) * 12.9898) * 43758.5453, 1.0) * 2.0 - 1.0
 		var envelope: float = smoothstep(0.0, 0.10, when) * (1.0 - smoothstep(0.70, 1.0, p))
 		var value: float = (voice * 0.26 + breath * 0.05 * (0.4 + p)) * envelope
+		data.encode_s16(frame * 2, clampi(int(value * 32767.0), -32768, 32767))
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = RATE
+	stream.stereo = false
+	stream.data = data
+	stream.loop_mode = AudioStreamWAV.LOOP_DISABLED
+	return stream
+
+
+## **The Skald's verse** (ADR-387), synthesised for the howl's reason: no
+## recording of a man chanting is on the CC0 shelf. *Galdr* is sung, not
+## spoken, so this is a voice: four syllables on four notes of a low mode,
+## stepping up and back the way a chanted line rises to its stave and falls,
+## each a vowel shaped by its formants over a voice of harmonics.
+##
+## One line, `VERSE_SECONDS` long, and played **looped** for as long as the
+## verse is being sung (`Player`): the song's length is tuning, and a one-shot
+## would end before a longer verse did. Every syllable starts and ends in
+## silence, so the loop's seam is a breath between lines, not a click.
+const VERSE_SECONDS: float = 1.6
+## The line's notes (D, F, G, F in the octave below middle C) and vowels.
+const VERSE_NOTES: Array[float] = [146.8, 174.6, 196.0, 174.6]
+## First and second formants of the vowel each syllable is sung on: *a*, *o*.
+const VERSE_VOWELS: Array[Vector2] = [Vector2(730.0, 1090.0), Vector2(570.0, 840.0),
+	Vector2(730.0, 1090.0), Vector2(500.0, 1000.0)]
+
+
+static func _verse() -> AudioStreamWAV:
+	var frames: int = int(float(RATE) * VERSE_SECONDS)
+	var data := PackedByteArray()
+	data.resize(frames * 2)
+	var syllable: float = VERSE_SECONDS / float(VERSE_NOTES.size())
+	# The harmonics' weights, per syllable: a formant is a resonance, so each
+	# harmonic is as loud as the vowel's two peaks let it be near its pitch.
+	var weights: Array[PackedFloat32Array] = []
+	for index: int in VERSE_NOTES.size():
+		var shape := PackedFloat32Array()
+		for k: int in range(1, 13):
+			var harmonic: float = VERSE_NOTES[index] * float(k)
+			var vowel: Vector2 = VERSE_VOWELS[index]
+			var gain: float = exp(-pow((harmonic - vowel.x) / 160.0, 2.0)) \
+				+ 0.7 * exp(-pow((harmonic - vowel.y) / 220.0, 2.0)) + 0.12 / float(k)
+			shape.append(gain / float(k) * 2.0)
+		weights.append(shape)
+	var phase: float = 0.0
+	for frame: int in range(frames):
+		var when: float = float(frame) / float(RATE)
+		var index: int = mini(int(when / syllable), VERSE_NOTES.size() - 1)
+		var into: float = when - float(index) * syllable
+		var pitch: float = VERSE_NOTES[index] * (1.0 + 0.012 * sin(TAU * 5.5 * when))
+		phase = fmod(phase + TAU * pitch / float(RATE), TAU * 64.0)
+		var voice: float = 0.0
+		var shape: PackedFloat32Array = weights[index]
+		for k: int in shape.size():
+			voice += shape[k] * sin(phase * float(k + 1))
+		# Each syllable sung in, held, and let go before the next.
+		var envelope: float = smoothstep(0.0, 0.05, into) * (1.0 - smoothstep(syllable - 0.07, syllable, into))
+		var breath: float = fmod(sin(float(frame) * 12.9898) * 43758.5453, 1.0) * 2.0 - 1.0
+		var value: float = (voice * 0.16 + breath * 0.02) * envelope
 		data.encode_s16(frame * 2, clampi(int(value * 32767.0), -32768, 32767))
 	var stream := AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS

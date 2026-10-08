@@ -145,6 +145,12 @@ const FRAME: StringName = &"Frame"
 ## on the screen, so `CarvedFrame.hatch` belongs on a panel you cannot see
 ## through and nowhere else.
 const SLATE: StringName = &"Slate"
+## **A life's card on the class screen** (ADR-387): the `Frame` plate with its
+## forged corners laid 5 px in, so six cards side by side do not stand their
+## bosses on each other; and the name on it, a size down from `ACTION`, so
+## the longest name fits a sixth of the screen.
+const CARD_PLATE: StringName = &"CardPlate"
+const CARD_NAME: StringName = &"CardName"
 ## A hole in a slate: an inventory cell, an equipment slot. One band and a tick
 ## at each corner, because 44 px has no room for furniture.
 const SOCKET: StringName = &"Socket"

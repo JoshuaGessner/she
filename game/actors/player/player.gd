@@ -210,6 +210,13 @@ const STATE_PROPERTIES: Dictionary = {
 	".:trance": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	# **Haugbrot** (ADR-382): how far through breaking in, the host's clock.
 	".:breaking": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# **Galdr** (ADR-387): how far through the verse, the host's clock — and the
+	# song every peer hears while it is above zero.
+	".:singing": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	# Where the verse is sung from — Níðstöng's placed song, heard there.
+	".:song_at": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# Under Shields' seconds left, so the shielded body's own screen can say so.
+	".:under_shields": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:sight_spent": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:fury_spent": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:blood_owed": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
@@ -428,6 +435,32 @@ var _asked_trance: bool = false
 ## **Haugbrot** (ADR-382, `DES-011` §6) — the Haugbrjótr's verb. How far
 ## through breaking what is shut, 0–1, on every peer: the trance's shape.
 var breaking: float = 0.0
+## **Galdr** (ADR-387, `DES-011` §3) — the Skald's verb. How far through the
+## verse, 0–1, on every peer.
+var singing: float = 0.0
+## Raised on the singer's own peer when a verse is sung through: how many it
+## turned. The host decides it and tells the owner (`_tell_sang`).
+signal sang(turned: int)
+## Host-side: seconds left on the verse and its length. Owner-side: whether
+## this body has asked to sing, so the key is a request when it changes.
+var _singing: float = 0.0
+var _singing_total: float = 0.0
+var _asked_song: bool = false
+## Where the verse lands (ADR-387): with Níðstöng, where he looked when he
+## began; otherwise not finite, which means *on the singer, as he walks*.
+## Replicated, so the song is heard from there on every peer.
+var song_at: Vector3 = Vector3.INF
+## Host-side: this verse is a Lausavísa's single stanza, not the whole verse.
+var _stanza: bool = false
+## Owner-side: when the key went down, to tell a Lausavísa's tap from a hold.
+var _song_pressed_at: int = 0
+## Host-side: the noise of a placed verse, standing where it lands.
+var _stave: ClamorSource = null
+## **Under Shields** (ADR-387): seconds left in which the next heavy blow on
+## the guard is held. Host-set, replicated so the body's own screen says it.
+var under_shields: float = 0.0
+## Every peer: the verse, looped while `singing` is above zero.
+var _song: AudioStreamPlayer3D = null
 ## Host-side: seconds left, the length, what is being broken, and the measure
 ## of movement a step breaks it off by.
 var _breaking: float = 0.0
@@ -1034,6 +1067,8 @@ func view_kick() -> Vector3:
 ## read off the replicated health, so a client is kicked by the hit the host
 ## decided exactly as the host is (ADR-279).
 func _process(delta: float) -> void:
+	# The verse is heard on every peer, the singer's own included (ADR-387).
+	_voice_the_song()
 	if not _is_local:
 		# **A teammate struck, heard by the rest of the party** (ADR-311), off
 		# the replicated health every peer has. Being hurt is the struck body's
@@ -1268,6 +1303,9 @@ func _bear(amount: float, from: Node) -> void:
 	# unless she has learned the Long Pry. The blow still lands.
 	if _breaking > 0.0 and not has_effect(&"haugbrot_holds"):
 		_stop_breaking()
+	# **And the verse** (ADR-387): a blow takes the breath from it.
+	if _singing > 0.0:
+		_stop_song()
 	# **And the trance** (ADR-379), unless the ward-songs hold for one blow.
 	if _trance > 0.0:
 		if _trance_warded:
@@ -1288,11 +1326,17 @@ func _bear(amount: float, from: Node) -> void:
 		and equipment.trait_in(Enums.Slot.OFF_HAND, ShieldTrait) != null
 	# **Iron Wrist** (ADR-346): a blade held up turns a heavy blow as a shield
 	# does. Not a stone or an arrow — those still pass a weapon's guard.
+	# **Under Shields** (ADR-387): a Skald's verse holds the next heavy blow on
+	# any guard, as Iron Wrist does on a blade — once, and then it is spent.
+	var sung_shield: bool = heavy and not from is Arrow and under_shields > 0.0
 	var guardable: bool = shielded or not past_a_weapon \
-		or (heavy and not from is Arrow and has_effect(&"blade_takes_heavy"))
+		or (heavy and not from is Arrow and has_effect(&"blade_takes_heavy")) \
+		or sung_shield
 	var raised: bool = blocking and _guard_faces(from)
 	if raised and guardable and not _arm_broken() \
 			and stamina.current >= Config.tuning.block_stamina_minimum:
+		if sung_shield and not shielded:
+			under_shields = 0.0
 		var tuning: TuningProfile = Config.tuning
 		# **A scarred arm guards dearer** (ADR-240): the broken arm's *no guard*,
 		# worn down to a price.
@@ -2995,7 +3039,8 @@ func _physics_process(delta: float) -> void:
 		# needs no button of its own.
 		# **A broken arm takes the two-hander** (`DES-009`, ADR-239), and says so
 		# with the empty hand's refusal: the button is not broken, the arm is.
-		if not _arm_holds():
+		if not _arm_holds() or singing > 0.0:
+			# Nor while singing (ADR-387): the breath is in the verse.
 			weapon.refuse()
 		elif ranged != null:
 			ranged.request_draw(stamina)
@@ -3069,6 +3114,7 @@ func _physics_process(delta: float) -> void:
 		_tick_fury(delta)
 		_tick_trance(delta, tuning)
 		_tick_breaking(delta, tuning)
+		_tick_song(delta, tuning)
 		_tick_bleeding(delta)
 	# Pose after weapons and use actions have advanced, so grips are this frame's.
 	if _is_local and _hands != null:
@@ -3336,7 +3382,9 @@ func _target_speed(sprinting: bool, tuning: TuningProfile) -> float:
 			else 1.0)
 		# **Weaker than their wont** (ADR-345), for as long as the fury's
 		# price is being paid.
-		* (tuning.fury_spent_speed if fury_spent > 0.0 else 1.0))
+		* (tuning.fury_spent_speed if fury_spent > 0.0 else 1.0)
+		# **A verse is sung walking** (ADR-387): at half pace, never running.
+		* (tuning.galdr_walk_scale if singing > 0.0 else 1.0))
 
 
 func _acceleration(tuning: TuningProfile) -> float:
@@ -3377,6 +3425,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	_wolf_fury(delta, tuning)
 	_seidr()
 	_haugbrot()
+	_galdr()
 	_show_setting()
 	# **Nor with a broken arm** (`DES-009`, ADR-239): the arm is what a guard is
 	# made of. Asked here so the guard never shows, and again by the host in
@@ -3387,6 +3436,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 		and not _arm_broken()
 		and trance <= 0.0
 		and breaking <= 0.0
+		and singing <= 0.0
 		and not is_incapacitated())
 
 
@@ -4040,6 +4090,233 @@ func barrow_at_hand() -> Barrow:
 				and barrow.global_position.distance_to(global_position) <= hand_reach() + 1.0:
 			return barrow
 	return null
+
+
+## **Galdr** (ADR-387) — the Skald's verb, and only his.
+##
+## > *"That I know, the eleventh: if I lead old friends to battle, I chant
+## > under their shields, and they go out whole."* — Hávamál st. 156
+##
+## Held, he asks the host to sing; let go, to stop. The host runs the verse's
+## clock, lays its noise every second, breaks it on a blow or a fall, and at
+## its end tells every enemy in earshot it has been sung to — what that does
+## is each enemy's to decide (`Enemy.hear_the_song`).
+func _galdr() -> void:
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	var wants: bool = (body != null and body.verb == &"galdr"
+		and _driving and Input.is_action_pressed("verb")
+		and not is_incapacitated()
+		and _bag <= 0.0)
+	if wants == _asked_song:
+		return
+	_asked_song = wants
+	if wants:
+		_song_pressed_at = Time.get_ticks_msec()
+	# **Lausavísa** (ADR-387): let go almost at once, and the verse becomes a
+	# single stanza — sung through on its own, quieter, at the nearest only.
+	elif has_effect(&"galdr_stanza") and singing > 0.0 \
+			and float(Time.get_ticks_msec() - _song_pressed_at) / 1000.0 <= Config.tuning.galdr_tap_seconds:
+		if multiplayer.is_server():
+			_set_stanza()
+		else:
+			_request_stanza.rpc_id(HOST_PEER)
+		return
+	if multiplayer.is_server():
+		_set_song(wants)
+	else:
+		_request_song.rpc_id(HOST_PEER, wants)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_song(sing: bool) -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_set_song(sing)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _request_stanza() -> void:
+	if not multiplayer.is_server():
+		return
+	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
+		return
+	_set_stanza()
+
+
+## Host-side. Refused to any but a Skald, while down, or mid-verse.
+func _set_song(sing: bool) -> void:
+	if not sing:
+		# A stanza, once begun, is sung through on its own: the key is already up.
+		if not _stanza:
+			_stop_song()
+		return
+	var body: ClassResource = ClassCatalogue.by_id(sworn)
+	if body == null or body.verb != &"galdr" or is_incapacitated() or _singing > 0.0:
+		return
+	_stanza = false
+	_singing_total = maxf(Config.tuning.galdr_seconds, 0.01)
+	_singing = _singing_total
+	singing = 0.0
+	song_at = _song_lands(Config.tuning)
+
+
+## Host-side: the verse under way becomes a Lausavísa's stanza — only for one
+## who knows it, and only a verse that has just begun.
+func _set_stanza() -> void:
+	if not has_effect(&"galdr_stanza") or _singing <= 0.0 or _stanza:
+		return
+	_stanza = true
+	_singing_total = maxf(Config.tuning.galdr_stanza_seconds, 0.01)
+	_singing = _singing_total
+	singing = 0.0
+
+
+## **Where the verse lands** (ADR-387): where he stands, or with Níðstöng the
+## first stone his gaze meets within `galdr_aim` — Egill's pole, planted.
+func _song_lands(tuning: TuningProfile) -> Vector3:
+	if not has_effect(&"galdr_placed"):
+		return Vector3.INF
+	var eye: Vector3 = _camera.global_position
+	var look: Vector3 = -_camera.global_basis.z
+	var query := PhysicsRayQueryParameters3D.create(eye, eye + look * tuning.galdr_aim)
+	query.collision_mask = CollisionLayers.WORLD | CollisionLayers.GATE
+	var hit: Dictionary = get_world_3d().direct_space_state.intersect_ray(query)
+	var landed: Vector3 = (hit["position"] as Vector3) - look * 0.4 if not hit.is_empty() \
+		else eye + look * tuning.galdr_aim
+	landed.y = global_position.y
+	return landed
+
+
+func _stop_song() -> void:
+	_singing = 0.0
+	singing = 0.0
+	_stanza = false
+
+
+## The verse's clock, on the host: loud every second it is sung, and sung
+## through, it lands on everything in earshot.
+func _tick_song(delta: float, tuning: TuningProfile) -> void:
+	if under_shields > 0.0:
+		under_shields = maxf(0.0, under_shields - delta)
+	if _singing <= 0.0:
+		return
+	if is_incapacitated():
+		_stop_song()
+		return
+	_sound_the_verse(tuning.galdr_clamor * delta * (0.5 if _stanza else 1.0))
+	_singing -= delta
+	singing = clampf(1.0 - _singing / _singing_total, 0.0, 1.0)
+	if _singing > 0.0:
+		return
+	var stanza: bool = _stanza
+	_stop_song()
+	_sing_out(tuning, stanza)
+
+
+## The verse's noise, laid where it is sung: on the singer, or with Níðstöng at
+## a stave of its own where it lands, which the floor and the Hunt hear there.
+func _sound_the_verse(amount: float) -> void:
+	if not song_at.is_finite():
+		clamor.add(amount)
+		return
+	if _stave == null or not is_instance_valid(_stave):
+		_stave = ClamorSource.new()
+		_stave.name = "Stave"
+		_stave.top_level = true
+		_stave.add_to_group("clamor_sources")
+		add_child(_stave)
+	_stave.global_position = song_at + Vector3.UP * 1.0
+	_stave.add(amount)
+
+
+## **The verse lands** (ADR-387): every living enemy within `galdr_reach` of
+## where it is sung hears it — or, for a Lausavísa's stanza, only the nearest.
+## Not the Hunt, which is not of the floor. With the Rite it also rallies a
+## fallen friend (Bjarkamál) and sets friends under shields.
+func _sing_out(tuning: TuningProfile, stanza: bool) -> void:
+	var turned_count: int = 0
+	var landed: Vector3 = song_at if song_at.is_finite() else global_position
+	var hearing: Array[Enemy] = []
+	for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+		var heard := node as Enemy
+		if heard == null or heard.state() == Enemy.State.DEAD \
+				or heard.global_position.distance_to(landed) > tuning.galdr_reach:
+			continue
+		hearing.append(heard)
+	if stanza and hearing.size() > 1:
+		hearing.sort_custom(func(a: Enemy, b: Enemy) -> bool:
+			return a.global_position.distance_to(landed) < b.global_position.distance_to(landed))
+		hearing = [hearing[0]]
+	for heard: Enemy in hearing:
+		if heard.hear_the_song(landed, tuning) != Turned.Mood.NONE:
+			turned_count += 1
+	if not stanza:
+		_rally_and_shield(tuning)
+	if get_multiplayer_authority() == multiplayer.get_unique_id():
+		sang.emit(turned_count)
+	else:
+		_tell_sang.rpc_id(get_multiplayer_authority(), turned_count)
+
+
+## **Bjarkamál and Under Shields** (ADR-387), host-side at a whole verse's end.
+## Þormóðr woke the army with the poem; the nearest fallen friend who hears it
+## stands. And Hávamál st. 156: friends who hear it, the singer too, take the
+## next heavy blow on the guard and the guard holds.
+func _rally_and_shield(tuning: TuningProfile) -> void:
+	var rally: bool = has_effect(&"galdr_rallies")
+	var shields: bool = has_effect(&"galdr_shields")
+	if not rally and not shields:
+		return
+	var fallen: Player = null
+	for node: Node in get_tree().get_nodes_in_group(&"player"):
+		var friend := node as Player
+		if friend == null or friend.global_position.distance_to(global_position) > tuning.galdr_reach:
+			continue
+		if shields and not friend.is_incapacitated():
+			friend.under_shields = tuning.galdr_shields_seconds
+		if rally and friend != self and friend.is_downed() and (fallen == null
+				or friend.global_position.distance_to(global_position)
+					< fallen.global_position.distance_to(global_position)):
+			fallen = friend
+	if fallen != null:
+		fallen.roused_by_song()
+
+
+## Host-side: stood up by a Skald's Bjarkamál, as a friend's hand would.
+func roused_by_song() -> void:
+	if not multiplayer.is_server() or not is_downed():
+		return
+	_stand_up(Config.tuning.revive_health_fraction)
+
+
+## The host telling the singer what the verse did, so a client's reticle can
+## say it (`DES-018`): the count is the host's, and only the host may send it.
+@rpc("any_peer", "call_remote", "reliable")
+func _tell_sang(turned_count: int) -> void:
+	if multiplayer.get_remote_sender_id() != HOST_PEER:
+		return
+	sang.emit(turned_count)
+
+
+## Every peer: the verse is heard while it is sung, from the singer.
+func _voice_the_song() -> void:
+	if singing > 0.0:
+		if _song == null:
+			_song = AudioStreamPlayer3D.new()
+			_song.name = "Song"
+			_song.stream = Foley.looping_stream_for(Foley.Sound.VERSE)
+			_song.bus = "diegetic"
+			_song.max_distance = Foley.REACH
+			add_child(_song)
+			_song.top_level = true
+		_song.global_position = (song_at if song_at.is_finite() else global_position) \
+			+ Vector3.UP * 1.6
+		if not _song.playing:
+			_song.play()
+	elif _song != null and _song.playing:
+		_song.stop()
 
 
 ## How far a hand reaches for anything at all: interact's reach and its slack.

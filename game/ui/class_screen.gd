@@ -36,14 +36,20 @@ extends Control
 ## Raised with the id the player committed to.
 signal chosen(id: StringName)
 
-## 40 and 16 rather than 48 and 24 since ADR-386: the forged buttons are
-## wider, and five cards at 192 px needed 193 for the longest name.
-const MARGIN: float = 40.0
+## 32 and 12 since ADR-387: the sixth life. 48 and 24 held four; the forged
+## buttons (ADR-386) took five to 40 and 16; six cards at that measure needed
+## 1209 px of a 1152 px screen.
+const MARGIN: float = 32.0
 ## The widest a card is drawn. With more lives than fit at that width side by
 ## side, every card narrows to share the screen (ADR-345: the third class was
 ## the first time the row was wider than the window).
 const CARD_WIDTH: float = 420.0
-const CARD_GAP: float = 16.0
+const CARD_GAP: float = 12.0
+## Six lives share the row (ADR-387), so a card is a `CardPlate` rather than a
+## `Slate` — five pixels less ground each side, its bosses laid in so two
+## neighbours' do not collide — and its name a size down (`CardName`) once
+## the cards are narrower than this.
+const NARROW_CARD: float = 200.0
 ## The portrait banner's height over its width.
 const BANNER: float = 0.42
 ## The plate under the row: as wide as a reading line wants, not the screen.
@@ -142,7 +148,7 @@ func _ready() -> void:
 ## What fits inside a card (ADR-361): `MenuStyle.inside`, the one home of the
 ## rule a remembered 40 px padding broke here.
 func _inner_width() -> float:
-	return MenuStyle.inside(self, MenuStyle.SLATE, _card_width)
+	return MenuStyle.inside(self, MenuStyle.CARD_PLATE, _card_width)
 
 
 ## **How wide the row of lives needs to be** (ADR-361): the built cards'
@@ -186,7 +192,7 @@ func _show(entry: ClassResource) -> void:
 ## is and how it gets out are said under the row when it has focus.
 func _card(entry: ClassResource) -> Control:
 	var plate := PanelContainer.new()
-	plate.theme_type_variation = MenuStyle.SLATE
+	plate.theme_type_variation = MenuStyle.CARD_PLATE
 	plate.custom_minimum_size = Vector2(_card_width, 0.0)
 	var card := VBoxContainer.new()
 	card.add_theme_constant_override("separation", 10)
@@ -208,6 +214,8 @@ func _card(entry: ClassResource) -> Control:
 
 	var pick: Button = MenuStyle.button(entry.display())
 	pick.custom_minimum_size = Vector2(_inner_width(), 48.0)
+	if _card_width < NARROW_CARD:
+		pick.theme_type_variation = MenuStyle.CARD_NAME
 	pick.pressed.connect(func() -> void: _commit(entry))
 	# Focus and the pointer both say which life the plate speaks for, so a pad
 	# and a mouse read the same thing before either commits.
