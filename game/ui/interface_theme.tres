@@ -270,10 +270,10 @@ kit_crest = true
 [sub_resource type="StyleBox" id="StyleBox_to8it"]
 resource_local_to_scene = false
 resource_name = ""
-content_margin_left = 6.0
-content_margin_top = 6.0
-content_margin_right = 6.0
-content_margin_bottom = 6.0
+content_margin_left = 8.0
+content_margin_top = 8.0
+content_margin_right = 8.0
+content_margin_bottom = 8.0
 script = ExtResource("1_8wi2f")
 ground = Color(0.06, 0.054, 0.048, 1)
 ink = Color(0.3, 0.26, 0.21, 1)
@@ -288,6 +288,8 @@ metal = Color(0.17, 0.15, 0.13, 1)
 sunken = true
 vignette = 0.9
 grain = Color(0, 0, 0, 0.25)
+kit = &"small"
+kit_corners = false
 
 [sub_resource type="StyleBox" id="StyleBox_chip"]
 resource_local_to_scene = false

@@ -139,6 +139,9 @@ extends StyleBox
 ## corner's outset to stand; laid this far in, the boss reaches the edge and
 ## no further.
 @export var kit_inset: float = 0.0
+## The kit's corner pieces. Off for a socket: on a slot under fifty pixels
+## two brackets would bury every edge, and a well wants only its iron rim.
+@export var kit_corners: bool = true
 
 ## Rendered at this many pixels per interface pixel (`build_frame_kit.py`'s
 ## `PX`), so a piece is drawn at half its texture's size.
@@ -245,8 +248,9 @@ func _lay_kit(to: RID, whole: Rect2) -> void:
 	var c: float = minf(full, minf(rect.size.x, rect.size.y) * 0.5)
 	var m: float = float(KIT_SIZES[kit]["outset"]) * c / full
 	var span := Vector2(c + m, c + m)
-	for piece_at: Array in [["corner_tl", o - Vector2(m, m)], ["corner_tr", Vector2(e.x - c, o.y - m)],
-			["corner_br", e - Vector2(c, c)], ["corner_bl", Vector2(o.x - m, e.y - c)]]:
+	for piece_at: Array in ([["corner_tl", o - Vector2(m, m)], ["corner_tr", Vector2(e.x - c, o.y - m)],
+			["corner_br", e - Vector2(c, c)], ["corner_bl", Vector2(o.x - m, e.y - c)]]
+			if kit_corners else []):
 		var piece: Texture2D = kit_piece(kit, piece_at[0])
 		if piece != null:
 			RenderingServer.canvas_item_add_texture_rect(to,

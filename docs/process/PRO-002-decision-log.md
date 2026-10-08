@@ -13323,7 +13323,9 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
   - the screen frame: the small kit. Fourteen pixels of iron at the screen's edge overlapped the titles of every page that keeps an 18 px margin, and the heavy iron belongs on the panels you work in;
   - menu buttons, in all their states: the small kit, without the gilt bead, so a stack of buttons is a stack of plaques and not a ladder.
 
-  Sockets, chips and fields keep the drawn plate: a 44 px cell is too small for corners.
+  - sockets, the bag's cells and the paper doll's slots: the small kit's iron rim and inner shadow, **without corners** (`kit_corners`), because two brackets would bury every edge of a cell under fifty pixels. A slot is a well.
+
+  Chips and fields keep the drawn plate.
 - **Rejected: an authored nine-patch.** It stretches its edges, so a stud becomes a smear. Tiling the edges by hand keeps a stud round on a panel of any length.
 
 **Measured:**
