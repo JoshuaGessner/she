@@ -6970,7 +6970,15 @@ func _coop_probe(out: String) -> void:
 	#    other player's collider and hurtbox on every peer.
 	if not host:
 		Input.action_press("crouch")
-	await _hold(0.8)
+	# **On the crouch, not on a clock** (ADR-378): a fixed 0.8 s read the
+	# host's copy before the stance arrived under a loaded sweep, and failed a
+	# row that was true a frame later. Both peers wait for the two capsules to
+	# differ; never differing still fails, on the same report.
+	await _hold(0.4)
+	await _hold_until(func() -> bool:
+		var heights: Array = _probe_capsule_heights().values()
+		return heights.size() >= 2 \
+			and absf(float(heights[0]) - float(heights[1])) >= 0.3, 3.0)
 	_probe_heights = _probe_capsule_heights()
 	if not host:
 		Input.action_release("crouch")
