@@ -87,9 +87,10 @@ func _ready() -> void:
 	# beacon as the exit, so the tall pale column stops being scenery the moment
 	# the player first sees one.
 	_line(place, MenuStyle.DISPLAY_WARM)
-	_line("take what you can carry", MenuStyle.BODY_TEXT)
-	_line("climb %s at the light — it is loud, and it is watched"
-		% ("out" if way_out else "down"), MenuStyle.BODY_TEXT)
+	# Every line through the string table (ADR-360): the first thing a new
+	# player reads was the one block of the game no translation could reach.
+	_line(tr("brief.take"), MenuStyle.BODY_TEXT)
+	_line(tr("brief.climb_out" if way_out else "brief.climb_down"), MenuStyle.BODY_TEXT)
 	if verb != "":
 		_line(verb, MenuStyle.BODY_WARM)
 	# **Where the controls went** (ADR-139). This brief holds for 4.5 seconds and
@@ -99,8 +100,7 @@ func _ready() -> void:
 	# reported no guidance in the level at all. A player who forgets a key
 	# forgets it under pressure, and this is the line that tells them the answer
 	# is one keypress away rather than back at the fire.
-	_line("%s — the menu, and every control on it"
-		% ControlsScreen.glyphs_for("ui_cancel"), MenuStyle.CAPTION_DIM)
+	_line(tr("brief.menu") % ControlsScreen.glyphs_for("ui_cancel"), MenuStyle.CAPTION_DIM)
 	# **A fourth line only when she is owed** (ADR-124). The Chamber says how
 	# short you are *before* you descend, and then the floor said nothing at
 	# all — the Hunt was simply four minutes further along than the player had
@@ -108,7 +108,7 @@ func _ready() -> void:
 	# one sentence, and *"I did not pay her"* is only available to somebody who
 	# was told it was still true down here.
 	if sent_early > 0.0:
-		_line("she was not paid — the Hunt began without you", MenuStyle.BODY_WARM)
+		_line(tr("brief.unpaid"), MenuStyle.BODY_WARM)
 	for note: String in notes:
 		_line(note, MenuStyle.BODY_TEXT)
 
