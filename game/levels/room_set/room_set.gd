@@ -6992,6 +6992,16 @@ var _probe_blows: Dictionary = {}
 ## How far from the client's body the host fields its Warden: inside the
 ## shove's reach, so the shove (listed first) is the blow it chooses.
 const PROBE_WARDEN_OFF: float = 1.2
+## **A ready the host can see** (B93): the facing a client turns to, in place,
+## to say it is ready for the fury, the shove and the Warden in turn. Each
+## differs from the one before it, and from the guard phase's PI/2.
+const PROBE_ACK_FURY: float = 0.0
+const PROBE_ACK_SHOVE: float = PI
+const PROBE_ACK_BLOW: float = -PI * 0.5
+## How close a replicated facing must come to count as the turn, radians.
+const PROBE_ACK_SLACK: float = 0.15
+## How long either side waits on the other's half of a handshake.
+const PROBE_ACK_WITHIN: float = 6.0
 ## What a client's Seiðr read, as each peer holds it (ADR-379).
 var _probe_seidr: Dictionary = {}
 ## A client's door, as each peer saw it (ADR-381).
@@ -7310,36 +7320,40 @@ func _coop_probe(out: String) -> void:
 	# debt on the client's body; both are read back on both sides after the
 	# client has seen them. Sent with what the owner sends, the client's own
 	# zero overwrote the host's on every packet.
+	#
+	# **Held until the client has seen it** (B93). The host held the fury a
+	# fixed 0.8 s, and a client running behind — long frames on a loaded
+	# machine — saw it set and cleared inside one of its own frames, read
+	# nothing, and every phase after it ran on a clock the client had already
+	# missed. The client now turns to `PROBE_ACK_FURY` once it has read the
+	# fury, and the host ends it when it sees the turn.
 	if host:
 		var raging: Player = _client_body()
 		if raging != null:
 			raging.fury = 3.0
 			raging.blood_owed = 7.0
-		await _hold(0.8)
+			await _client_faces(PROBE_ACK_FURY, PROBE_ACK_WITHIN)
 		_probe_fury = {"fury": raging.fury if raging != null else -1.0,
 			"owed": raging.blood_owed if raging != null else -1.0}
 		if raging != null:
 			raging.fury = 0.0
 			raging.blood_owed = 0.0
 	else:
-		await _hold_until(func() -> bool: return mine.fury > 0.0, 3.0)
+		await _hold_until(func() -> bool: return mine.fury > 0.0, PROBE_ACK_WITHIN)
 		_probe_fury = {"fury": mine.fury, "owed": mine.blood_owed}
-		# **Out of the phase when the host is** (ADR-378): the host holds a
-		# fixed 0.8 s and then ends the fury, and a client that held its own
-		# 0.4 s after *seeing* the fury left half a second early, and stayed
-		# ahead. The last two phases are timed tightly enough that it failed
-		# them most runs. Waiting on the host's end puts both peers back on
-		# one clock.
-		await _hold_until(func() -> bool: return mine.fury <= 0.0, 3.0)
+		mine.teleport(mine.global_position, PROBE_ACK_FURY)
+		# **Out of the phase when the host is** (ADR-378): waiting on the
+		# host's end puts both peers back on one clock.
+		await _hold_until(func() -> bool: return mine.fury <= 0.0, PROBE_ACK_WITHIN)
 	# **A shove is decided by the host and walked by the body's owner**
 	# (ADR-391): the host strikes the client's body with a blow that shoves,
 	# from a striker standing beside it; the client says how far its own body
-	# moved on its own screen. Event to event: the client waits for the blow it
-	# feels, the host for nothing but its own clock after the fury phase.
+	# moved on its own screen. Event to event: the client counts what it has
+	# felt and turns to `PROBE_ACK_SHOVE`; the host strikes when it sees the
+	# turn, so the blow cannot land before the client is counting (B93).
 	if host:
-		await _hold(0.5)
 		var shoved: Player = _client_body()
-		if shoved != null:
+		if shoved != null and await _client_faces(PROBE_ACK_SHOVE, PROBE_ACK_WITHIN):
 			var striker := Node3D.new()
 			add_child(striker)
 			striker.global_position = shoved.global_position + Vector3(-1.0, 0.0, 0.0)
@@ -7353,7 +7367,8 @@ func _coop_probe(out: String) -> void:
 	else:
 		var stood: Vector3 = mine.global_position
 		var felt_before: int = felt.size()
-		await _hold_until(func() -> bool: return felt.size() > felt_before, 4.0)
+		mine.teleport(stood, PROBE_ACK_SHOVE)
+		await _hold_until(func() -> bool: return felt.size() > felt_before, PROBE_ACK_WITHIN)
 		await _hold_until(func() -> bool: return mine.shoved() >= PROBE_SHOVE * 0.7, 1.5)
 		await _hold(0.3)
 		_probe_shoved = {"felt": felt.size() > felt_before,
@@ -7364,15 +7379,14 @@ func _coop_probe(out: String) -> void:
 	# the swing's clip and then jump. The host fields a Hall-Warden at the
 	# client's body, inside its shove's reach, and watches until both of its
 	# blows have been dealt and recovered; the client records every clip its copy of the
-	# Warden is told to play. Event to event: the client starts on the Warden appearing
+	# Warden is told to play. Event to event: the host fields it when it sees the
+	# client turn to `PROBE_ACK_BLOW`; the client starts on the Warden appearing
 	# and stops on the host clearing it.
 	if host:
-		await _hold(0.5)
 		var near: Player = _client_body()
 		var chose: Array[String] = []
-		if near != null:
-			_session.clear_enemies()
-			await _hold(0.3)
+		_session.clear_enemies()
+		if near != null and await _client_faces(PROBE_ACK_BLOW, PROBE_ACK_WITHIN):
 			var at: Vector3 = near.global_position + Vector3(PROBE_WARDEN_OFF, 0.0, 0.0)
 			var toward: Vector3 = near.global_position - at
 			_session.spawn_enemy(at, atan2(-toward.x, -toward.z), &"enm_hall_warden")
@@ -7396,10 +7410,13 @@ func _coop_probe(out: String) -> void:
 			_session.clear_enemies()
 		_probe_blows = {"chose": chose}
 	else:
-		var fielded: int = get_tree().get_nodes_in_group("enemies").size()
 		var seen: Array[String] = []
+		mine.teleport(mine.global_position, PROBE_ACK_BLOW)
 		var came: bool = await _hold_until(func() -> bool:
-			return get_tree().get_nodes_in_group("enemies").size() > fielded, 6.0)
+			for node: Node in get_tree().get_nodes_in_group("enemies"):
+				if node is Enemy and (node as Enemy).archetype == &"enm_hall_warden":
+					return true
+			return false, PROBE_ACK_WITHIN)
 		# What the copy is told to draw — its replicated phase and the blow's
 		# clip family, the two things `present_enemy` is handed — because a
 		# headless peer draws nothing. Which clip that pair plays is the
@@ -7418,6 +7435,11 @@ func _coop_probe(out: String) -> void:
 					seen.append(shown)
 			return wardens.is_empty(), 16.0)
 		_probe_blows = {"came": came, "clips": seen}
+		# Back to the guard phase's facing: every phase after this one lays its
+		# door or its enemies ahead of the client, where that facing looks into
+		# open floor. Left on the last handshake's turn, the verse's two bodies
+		# stood nine metres ahead of it in the rock.
+		mine.teleport(mine.global_position, PI * 0.5)
 	# **A client's reading is the host's to make** (ADR-379). The host swears
 	# the client's body a Völva; the client holds its own craft key; the host
 	# runs the trance and says what was seen, and both peers hold the same
@@ -8029,6 +8051,15 @@ func _client_body() -> Player:
 		if player != _session.local_player():
 			return player
 	return null
+
+
+## Has the client turned its body to `yaw`, as this host sees it (B93)? The
+## turn is the client's "ready": a facing it owns and the host already gets.
+func _client_faces(yaw: float, seconds: float) -> bool:
+	return await _hold_until(func() -> bool:
+		var them: Player = _client_body()
+		return them != null and absf(angle_difference(them.net_yaw, yaw)) < PROBE_ACK_SLACK,
+		seconds)
 
 
 ## What each body is carrying, as both peers see it. Kilograms come from the
