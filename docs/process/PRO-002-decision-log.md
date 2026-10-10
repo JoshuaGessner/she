@@ -13659,7 +13659,28 @@ The fixed clearances the first two faults had suggested (0.6 cells from rock and
 
 Unchanged and green: `--reach-probe` (24 floors routed, 9 walked end to end by the player capsule, 757 legs), `--plan-probe`, `--delvings-probe` ×3, `--vista-probe` on floors 0 and 2, `--population-probe`, `--machine-probe`, `--lock-probe`, `--arrival-probe`, `--crossing-probe`, `--lantern-probe` and `--barrow-probe`. The key rooms are 2–3 cells and take nothing yet; `M4-T41`'s larger footprints are theirs.
 
-**Measured for `M4-T41`:** to be appended: corridor share, re-rolls and generation time over 120 floors.
+**Measured for `M4-T41`, and the larger rooms not shipped.** The survey in ADR-390 quoted 41% of a floor as corridor. That was ADR-180's measurement from before the hub halls (ADR-306). Re-measured over 120 floors (40 seeds × 3 floors), the corridor share was already **32.4%**, so this ADR's target was met before `M4-T41` began.
+
+Growing the rooms was measured anyway, since a ring of waiting bodies (ADR-391) wants about seven metres and the key rooms are too small for any interior:
+
+| | as committed | largest footprint 6, fifteen modules grown |
+|---|---|---|
+| corridor share | 32.4% | 27.0% |
+| median room | 13 cells | 16 cells |
+| re-rolls / floors failed | 91 / 0 | 85 / 0 |
+| plan time, mean / worst | 82 ms / 0.6 s | 82 ms / 1.05 s |
+| room floor near cover (`--interior-probe`) | 56.8% | 53.2% |
+| **floors keeping `DES-015`'s guaranteed glint (21-floor panel)** | **19** | **about 16** |
+
+**The last row decided it.** The floor's guaranteed glint is laid where the plan's own walk sees it, and that walk runs down cell centres while the navmesh walk hugs whichever wall is nearer. Larger rooms changed which way the navmesh went often enough to lose the guarantee on more floors. The guarantee was already short on 2 of 21 floors, both floor 0, and that is now its own task.
+
+Two changes to the bait's sight were tried and measured:
+- **Seen from both sides of the walk:** 20/21, but the sweep's own seed fell from 20 sightings to 5.
+- **Seen from the centre and one side:** 19/21, no change.
+
+Neither shipped.
+
+**The larger rooms wait on that task**, and come back with their numbers above.
 
 ## ADR-393 — The camp is re-laid on one axis, and every station can be named from the arrival
 
