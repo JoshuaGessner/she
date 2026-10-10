@@ -13785,4 +13785,18 @@ The second note, the throat's haze, stands, and is not yet diagnosed.
 
 **Probes:** `--moveset-probe` row 2b (a planted Húskarl under the same Warden: **0.00 m** against 1.55 m loose); `--engage-probe` row 4 (a turn-holder snared 4 m off: holds no turn after 3 s, and the waiting bodies swing). Each was run first on the unfixed code and failed (1.55 m; the turn kept).
 
+## ADR-395 — The Skald carries the ash spear; no two lives begin with the same weapon
+
+**Date:** 2026-10-10 · **Status:** accepted · **Amends `DES-011` (the Skald's kit)**
+
+**Context:** The Skald and the Úlfheðinn began with the same kit, the bearded axe and two bindings. Their bodies were within 0.05 of each other on every scale. `DES-011` balance rule 5 says a class is *recognised from ten seconds of watching*. From behind, before either used its verb, these two were the same body with the same swing.
+
+**Decision:** the Skald carries **the ash spear** (`wpn_ash_spear`). It is already authored, with a model, an icon and a place in the loot table, and it was the one weapon no class began with.
+- **Why the spear.** Óðinn is the god of poetry and of galdr, and the spear is his: he opens the first war by hurling it over the host (*Völuspá* 24), and a spear thrown over an army gives it to him (*Styrbjarnar þáttr*). The Skald's verse turns the host on itself.
+- **Why it plays.** The Skald starts the quarrels he means to stay out of. The spear reaches 3.7 m against the axe's 2.3, so he fights from behind the brawl he made, or past a Húskarl's Hold, as a spear does behind a shield line (Vermintide 2's spears, which reach past an ally holding the front).
+- **Not a bigger number (ADR-058).** The reach is paid for: a wind-up of 0.20 s against 0.16, a recovery of 0.34 against 0.28, 16 breath a swing against 12, a louder blow (3.6 against 2.8), and both hands. He also gives up the axe's throw.
+- **The Úlfheðinn keeps the axe.** ADR-345 gave it that kit. Of the two classes, it is the one that closes on what it fights, and the axe's 2.3 m and quicker swing suit a body that cannot step back.
+
+**Checked by probe:** `--class-probe` now fails any two classes whose first main-hand item is the same. Run first on the old kits, it failed: *"skald and ulfhedinn both begin with wpn_bearded_axe"*. With the spear it passes, six weapons for six classes. `--galdr-probe`, `--verbs-probe`, `--rite-probe`, `--scaling-probe` and `--gear-probe` are green.
+
 *Entries below to be added as design decisions are signed off.*

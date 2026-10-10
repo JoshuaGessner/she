@@ -20,5 +20,5 @@ speed_scale = 1.0
 carry_scale = 1.0
 bare_arms = ExtResource("2_arms")
 dress = ExtResource("91_dress")
-kit = Array[StringName]([&"wpn_bearded_axe", &"con_linen_binding", &"con_linen_binding"])
+kit = Array[StringName]([&"wpn_ash_spear", &"con_linen_binding", &"con_linen_binding"])
 carried = Array[StringName]([&"tol_horn_lantern"])

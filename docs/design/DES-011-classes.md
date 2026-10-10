@@ -94,6 +94,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 > - **Galdr.** Hold the craft key to sing a 3 s verse ⟨tune⟩, walking at half pace with no guard; a blow breaks it off, and it is loud throughout. When it ends, enemies in earshot are **maddened** (they fight the nearest other enemy, and whoever they strike fights back) or, alone, **unnerved** (they give way). Guardians are only unnerved. The Hunt is called, never turned. Both states are marked and heard on every peer.
 > - **The Rite (pact rank 3):** **Níðstöng**, the verse lands where he looks · **Lausavísa** *(after Níðstöng)*, a tap sings one quiet stanza at the nearest enemy · **Bjarkamál**, a finished verse wakes a downed ally in earshot · **Under Shields** *(after Bjarkamál)*, allies in earshot take the next heavy blow on the guard.
 > - **Not built:** recording deeds for Lineage.
+> - **Kit: the ash spear (ADR-395)** and two bindings, with the lantern carried. Óðinn, god of poetry and of galdr, is a spear-god, and a spear thrown over a host gives it to him (*Völuspá* 24; *Styrbjarnar þáttr*). The spear's reach lets the singer fight from behind the quarrel he starts, or past a Húskarl's Hold. It is a sidegrade of the Úlfheðinn's axe, not a better one: 3.7 m of reach against 2.3, bought with a slower wind-up and recovery, more breath and a louder blow.
 
 ### 4. Úlfheðinn — *Wolf-Coat*
 **Aspects:** Cinder · Maw · Scale

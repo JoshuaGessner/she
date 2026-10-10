@@ -1261,6 +1261,22 @@ func _class_probe() -> void:
 	for entry: ClassResource in sworn:
 		for problem: String in entry.validate():
 			problems.append("%s is malformed: %s" % [entry.id, problem])
+	# **No two lives begin with the same weapon** (ADR-395, `DES-011` rule 5:
+	# a class is recognised from ten seconds of watching). The Skald and the
+	# Úlfheðinn both began with the bearded axe and two bindings, and from
+	# behind, before either used its verb, they were the same body.
+	var armed_by := {}
+	for entry: ClassResource in sworn:
+		for kit_id: StringName in entry.kit:
+			var kit_item: ItemResource = ItemCatalogue.by_id(kit_id)
+			if kit_item == null or kit_item.slot != Enums.Slot.MAIN_HAND:
+				continue
+			if armed_by.has(kit_id):
+				problems.append("%s and %s both begin with %s — DES-011 rule 5"
+					% [armed_by[kit_id], entry.id, kit_id])
+			armed_by[kit_id] = entry.id
+			break
+	print("[class] weapons      %s" % str(armed_by))
 
 	# ── the screen builds, has a rect, and its buttons reach the oath ────
 	var screen := ClassScreen.new()
