@@ -4,7 +4,7 @@ title: Classes — The Sworn
 status: accepted
 owner: design
 tags: [classes, builds, skill-tree, identity, co-op, progression]
-updated: 2026-10-08
+updated: 2026-10-10
 related: [DES-004, DES-003, DES-012, DES-009]
 ---
 
@@ -58,6 +58,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 
 > **The slice's Rite (ADR-273), four nodes, opening at Pact Rank 3:** **Shield Wall** — while you Hold, a raised shield stops blows from the sides too · **Shove** — letting go throws what is in front back a step and staggers it, loudly · **Take the Blow** *(after Shield Wall)* — while you Hold, a blow aimed at a friend behind you lands on you · **Last Door** *(after Shove)* — hold on with no breath left, paid in health. Carrying the wounded waits for `M5-T01`.
 > **Hold can be seen (ADR-272):** a lunge with the shield raised square, a thump when it lands, and your own eye dropping behind the shield.
+> **A Hold is not shoved (ADR-394).** The Hall-Warden's shove (ADR-391) throws any other body 1.5 m. A planted Húskarl takes the blow and stays where it is, so Hold is the one answer to the Warden at its own doorway.
 **Cost:** loud, slow, and the Hunt finds them easily.
 
 ### 2. Völva — *Seeress*
@@ -125,6 +126,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 
 > **The slice's Rite (ADR-273), four nodes, opening at Pact Rank 3:** **Lure** — your snare steps until something comes · **Gag** — what it holds cannot call · **Pinning Shot** *(after Lure)* — an arrow into something unaware pins it, springing your snare · **Cover of the Snap** *(after Gag)* — silent for a few seconds after your snare fires. Reading tracks waits for `M5-T01`.
 > **Setting a snare can be seen (ADR-272):** the ring grows at your feet as you kneel to it, a set snare breathes, and a sprung one snaps shut.
+> **A snare frees a turn (ADR-394).** Enemies take turns on a player (ADR-391). A body snared where none of its blows reaches gives its turn up, so the snare takes a body out of the fight rather than taking a turn out of it.
 **Cost:** poor in a straight fight; a Stalker who is cornered is usually dead.
 
 ### 6. Haugbrjótr — *Mound-Breaker*

@@ -13184,6 +13184,20 @@ func _engage_probe() -> void:
 			% float(queue["nearest"]))
 	if int(queue["peak"]) > int(kept[0]):
 		problems.append("%d wound up at once in a corridor with %d tokens" % [int(queue["peak"]), int(kept[0])])
+	# 4. **A snared body gives its turn up** (ADR-394, the class audit). A
+	# Veiðimaðr's snare roots a body where it stands; one that held a turn
+	# and is rooted out of reach can neither strike nor walk in, and kept the
+	# turn — so a snare took one of the two turns off the fight for its whole
+	# length, and a third body that could swing stood in the ring waiting.
+	var snared: Dictionary = await _engage_snared(player, ground)
+	print("[engage] a turn-holder snared out of reach   still holds a turn %s; a body waiting began %d blow(s) in 3 s"
+		% [snared["holds"], snared["others"]])
+	if not bool(snared["set"]):
+		problems.append("two of three bodies never held turns at once, so the snare row measured nothing")
+	elif bool(snared["holds"]):
+		problems.append("a body snared out of reach still held its turn after 3 s — it can neither strike nor close")
+	if int(snared["others"]) < 1:
+		problems.append("no waiting body took the snared one's turn in 3 s")
 	player.health.maximum = 100.0
 	player.health.restore()
 
@@ -13220,6 +13234,62 @@ func _engage_probe() -> void:
 			% behind_off["first"])
 	_session.clear_enemies()
 	_report(problems, "engage")
+
+
+## Row 4 of `_engage_probe`: three swipe-only bodies close on a still `player`;
+## once two hold turns, one of them is set four metres off — out of its reach,
+## inside the ring a walking-away body keeps its turn within — and snared for
+## six seconds. Returns whether it still holds a turn three seconds later, and
+## how many blows the bodies that were waiting began meanwhile.
+func _engage_snared(player: Player, ground: Vector3) -> Dictionary:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	player.teleport(ground, 0.0)
+	await _hold(0.2)
+	for lateral: float in [-1.6, 0.0, 1.6]:
+		_session.spawn_enemy(ground + Vector3(lateral, 0.0, -3.4), 0.0, ENGAGE_KIND)
+	await _hold(0.2)
+	var bodies: Array[Enemy] = []
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body == null:
+			continue
+		bodies.append(body)
+		body.set("_home", body.global_position)
+		body.set("_target", player)
+		body.set("_last_seen", player.global_position)
+		body.set("_patience", 30.0)
+		body.set("_state", Enemy.State.ALERTED)
+	await _hold_until(func() -> bool:
+		return bodies.filter(func(body: Enemy) -> bool: return Engagement.holds(body)).size() >= 2,
+		4.0)
+	# Picked out here: a lambda's assignment to a local never leaves it.
+	var holder: Enemy = null
+	for body: Enemy in bodies:
+		if Engagement.holds(body):
+			holder = body
+	var out := {"holds": false, "others": 0, "set": holder != null}
+	if holder == null:
+		_session.clear_enemies()
+		return out
+	holder.global_position = ground + Vector3(0.0, 0.0, 4.0)
+	holder.rooted.hold_for(6.0)
+	var was := {}
+	for body: Enemy in bodies:
+		was[body] = body.attack_phase()
+	var left: float = 3.0
+	while left > 0.0:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time()
+		for body: Enemy in bodies:
+			var phase: Enemy.Attack = body.attack_phase()
+			if body != holder and phase == Enemy.Attack.TELEGRAPH and was[body] != Enemy.Attack.TELEGRAPH:
+				out["others"] = int(out["others"]) + 1
+			was[body] = phase
+	out["holds"] = Engagement.holds(holder)
+	_session.clear_enemies()
+	return out
 
 
 ## One run of `_engage_probe`: four Wretches hunting `player`, who stands still
@@ -13378,6 +13448,23 @@ func _moveset_probe() -> void:
 	if not bool(shoved["next_heavy"]):
 		problems.append("the blow after the shove was '%s' and not heavy — the shove makes room for the overhead"
 			% shoved["next_clip"])
+	# 2b. **Nothing pushes past a Hold** (ADR-394, the class audit): the same
+	# Warden's shove on a Húskarl planted to meet it. The shove came after
+	# the Hold was built, and threw a planted body 1.5 m.
+	var was_sworn: StringName = player.sworn
+	player.sworn = &"huskarl"
+	Input.action_press("verb")
+	var braced: Dictionary = await _first_blow(player, ground, &"enm_hall_warden", 1.5, 4.0)
+	Input.action_release("verb")
+	player.sworn = was_sworn
+	print("[moveset] the Hall-Warden on a Hold   first '%s', the planted body moved %.2f m (%.2f m loose)"
+		% [braced["clip"], braced["moved"], shoved["moved"]])
+	if String(braced["clip"]) != "shove":
+		problems.append("the Warden's first blow on a planted Húskarl was '%s', so the Hold row is not about the shove"
+			% braced["clip"])
+	if float(braced["moved"]) > 0.3:
+		problems.append("a planted Húskarl was shoved %.2f m — nothing pushes past a Hold"
+			% float(braced["moved"]))
 
 	# ─ 3. the sweep catches a body at its side ─
 	var keeper: EnemyResource = EnemyCatalogue.by_id(&"enm_hoard_keeper")

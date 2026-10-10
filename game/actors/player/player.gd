@@ -1256,7 +1256,11 @@ func _feel_struck(taken: float, from_point: Vector3, guarded: float,
 	_jolt_struck(taken, from_point, guarded)
 	# Thrown back `push` metres: the speed that the floor's own friction spends
 	# over exactly that distance (v² = 2·a·d), so a shove is a step, not a slide.
-	if push.length() > 0.01:
+	# **Never a planted Hold** (ADR-394): *"nothing pushes past you"* is the
+	# Húskarl's whole promise, and the shove came after it was built — a
+	# Warden threw a planted body as far as a loose one. Judged here, by the
+	# owner, who knows its own plant exactly; the host's copy is a packet old.
+	if push.length() > 0.01 and planted < 1.0:
 		_knock = push.normalized() * sqrt(2.0 * Config.tuning.ground_friction * push.length())
 	struck.emit(taken, from_point, guarded)
 

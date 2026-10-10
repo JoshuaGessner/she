@@ -910,13 +910,20 @@ func _engage(range_to: float, missile: bool, can_start: bool, tuning: TuningProf
 	# A token kept while you walk away is a token nobody else can use.
 	if Engagement.holds(self) and range_to > maxf(ring, _kind.longest_reach()) + 2.0:
 		Engagement.release(self)
+	# **Nor while snared out of reach** (ADR-394): a body a Veiðimaðr's snare
+	# holds where none of its blows reaches can neither strike nor close, and
+	# its turn kept the next body waiting for the snare's whole length. It
+	# still swings at whatever comes within reach — then it asks again.
+	var stuck: bool = rooted.held() and range_to > _kind.longest_reach()
+	if stuck and Engagement.holds(self):
+		Engagement.release(self)
 	# **A thrower keeps its distance** (ADR-391): inside `keeps_off` it backs
 	# away to throw again — unless there is nowhere to back to, and then it
 	# throws from where it stands.
 	if missile and _sees and range_to < _kind.keeps_off and _room_behind(1.5):
 		_back_off(tuning)
 		return
-	var asks: bool = can_start and _rest <= 0.0 \
+	var asks: bool = can_start and _rest <= 0.0 and not stuck \
 		and (range_to <= maxf(ring + 1.0, _kind.longest_reach()) \
 			or (missile and range_to <= reach))
 	if asks and Engagement.take(self, _target, missile, tuning, ring + 3.0):

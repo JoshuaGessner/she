@@ -13764,4 +13764,25 @@ The camp before this ADR fails the last two rows: its plots stood at 6 m, inside
 
 The second note, the throat's haze, stands, and is not yet diagnosed.
 
+## ADR-394 — The classes meet the new combat: a Hold is not shoved, a snare frees a turn
+
+**Date:** 2026-10-10 · **Status:** accepted · **Amends `DES-011` (the Húskarl and the Veiðimaðr) and ADR-391**
+
+**Context:** the developer asked for the classes, *"and the systems and combat related to them,"* to be polished extensively. All six verbs were built (`M3-T02`, `M3-T11`, `M4-T34`..`M4-T37`) before ADR-391 changed how enemies fight. Enemies now take turns on a player (two tokens), wait in a ring, lunge, shove and sweep. None of those had been put against a class verb. So the first pass is an audit: every verb and its Rite, read against each new mechanic, and every mismatch fixed with a probe row run first against the unfixed code.
+
+**Found and fixed:**
+
+| verb × mechanic | what happened | now |
+|---|---|---|
+| **Hold × the Warden's shove** | A planted Húskarl was thrown **1.55 m**, exactly as far as a loose body. `DES-011`'s whole promise is *"nothing pushes past you,"* and `_speed()` returning nothing while planted never covered a push laid on top of the move. | A planted body is not moved by a shove (`_feel_struck`, judged by the owner, who knows its own plant exactly). **0.00 m.** The shove still lands as a blow, and the Warden still follows with its overhead. Hold is now the one counter to the Warden's shove, which gives the Húskarl a job at the doorway the Warden guards. |
+| **Snare × tokens** (B91) | A body that held a turn, then was snared where none of its blows reached, could neither strike nor close, and kept the turn for the snare's whole length. A third body that could swing stood in the ring and waited. | A body snared out of reach neither keeps nor asks for a turn. It still swings at whatever comes within reach, which is what makes a held body dangerous rather than switched off (`M3-T11`). The waiting bodies began **4 blows in 3 s against 2**. |
+
+**Read and left as they are:**
+- **Galdr × tokens.** A verse already gives back the turn of every body it turns (`hear_the_song`). A maddened body fights through its own branch, never the ring. Fine.
+- **Seiðr and Haugbrot × the shove.** Both break on a step, judged by how far the body moved. A shove moves the body, so it breaks the trance or the breaking, even under **Varðlokkur** or **The Long Pry**. Those two Rites say *a blow* does not break the act, and they are about the hurt: being thrown across the floor is not sitting still. **Kept deliberately:** Hold is the one verb that holds its ground, and giving the same immunity to two more would blur the Húskarl's identity (`DES-011` balance rule 5).
+- **Wolf-Fury × the shove.** The fury's lock-in forbids *choosing* to step back, and a shove is not a choice. A Wolf-Coat can be thrown, and pays in the open for it.
+- **Wolf-Fury × tokens.** Every blow in the fury breaks poise, and a staggered body gives up its turn (ADR-391). So a fury frees turns as it lands, which is the class's fantasy: the room opens round it.
+
+**Probes:** `--moveset-probe` row 2b (a planted Húskarl under the same Warden: **0.00 m** against 1.55 m loose); `--engage-probe` row 4 (a turn-holder snared 4 m off: holds no turn after 3 s, and the waiting bodies swing). Each was run first on the unfixed code and failed (1.55 m; the turn kept).
+
 *Entries below to be added as design decisions are signed off.*
