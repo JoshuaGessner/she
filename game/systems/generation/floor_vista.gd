@@ -72,10 +72,17 @@ const EYE: float = 1.6
 const GLINT: float = 0.35
 ## Metres between samples of the walk.
 const STRIDE: float = 1.0
-## Metres between candidate spots in a room. Coarse on purpose: the score is
-## seen-from-the-walk, which does not change much across half a cell, and the
-## search runs on every floor a host lays.
-const STEP: float = 2.0
+## Metres between candidate spots in a room: half a cell.
+##
+## **Fine enough to step round what stands in a room** (ADR-392). At a whole
+## cell, a feature standing on a grid point took the only spot the walk saw
+## well: the mine head's and deep seam's carts took the sweep's own floor
+## (31346/2) from a bead seen from 9 samples to one seen from 5, which the
+## navmesh walk saw from 2. Over the 21-floor panel with the carts, a whole
+## cell held 18 floors and half a cell holds 19 (the two floor-0 failures
+## filed before either). Measured cost over the panel: 71 ms mean and 174 ms
+## worst became 203 ms and 515 ms, once per floor a host lays.
+const STEP: float = 1.0
 ## Clear space a spot needs above it. A glint tucked under the high end of a
 ## ledge ramp can be in sight and still be somewhere nobody can stand to take it.
 const HEADROOM: float = 2.0

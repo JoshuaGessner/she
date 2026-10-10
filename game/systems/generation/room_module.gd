@@ -65,6 +65,7 @@ enum Interior {
 	ROWS,       ## Waist-high biers or heaps: lanes you see over and cannot walk through.
 	BAYS,       ## Short returns of wall, alternate sides: a bay to stand in, a blind corner each.
 	RUBBLE,     ## Fallen blocks: broken cover, and a slower way across.
+	CARTS,      ## Ore carts left standing in lines: waist-high cover, seen between at the couplings.
 }
 @export var interior: Interior = Interior.OPEN
 

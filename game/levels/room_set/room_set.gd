@@ -13450,6 +13450,18 @@ func _interior_probe() -> void:
 	if after < before + INTERIOR_COVER_GAIN:
 		problems.append("cover rose %.1f points (%.1f%% to %.1f%%), short of %.0f — the interiors are not changing the fight"
 			% [after - before, before, after, INTERIOR_COVER_GAIN])
+	# 5. **A cart's model fills its box** and no more: the box is what a body
+	# stops against, so a larger model is walked into and a smaller one is
+	# stopped short of by air.
+	var cart: AABB = FloorDressing.bounds_of(FloorBuilder.CART_PIECE)
+	var box := Vector3(FloorPlan.CART_LONG * FloorBuilder.CELL, FloorPlan.CART_HEIGHT,
+		FloorPlan.CART_WIDE * FloorBuilder.CELL)
+	print("[interior] a cart's model %v, centred at %v, in a box %v" % [cart.size, cart.get_center(), box])
+	var off: Vector3 = (cart.size - box).abs()
+	if maxf(off.x, maxf(off.y, off.z)) > 0.03 or absf(cart.position.y) > 0.03 \
+			or Vector2(cart.get_center().x, cart.get_center().z).length() > 0.03:
+		problems.append("the ore cart's model %v does not fill its %v box, standing on the floor and centred"
+			% [cart.size, box])
 	_report(problems, "interior")
 
 

@@ -266,6 +266,9 @@ const SURFACES: Dictionary = {
 	"rubble": DelvingsKit.WALL,
 }
 
+## The piece a `cart` feature is drawn as.
+const CART_PIECE: StringName = &"dressing_ore_cart"
+
 var _into: Node3D = null
 ## Where the cladding that belongs to no one slab hangs — see `_trim_shelf`.
 var _trim: Node3D = null
@@ -649,8 +652,25 @@ func _furnish(plan: FloorPlan, node: int, height: float) -> void:
 		var middle := Vector3((cells.position.x + cells.size.x * 0.5) * CELL, tall * 0.5,
 			(cells.position.y + cells.size.y * 0.5) * CELL)
 		var role: String = feature["role"]
-		_slab(footprint, middle, RUBBLE[_depth] if role == "rubble" else STONE[_depth], 0.0, role)
+		var made: MeshInstance3D = _slab(footprint, middle,
+			RUBBLE[_depth] if role == "rubble" else STONE[_depth], 0.0, role)
+		if role == "cart" and made != null:
+			_cart(made, footprint)
 		_furnished += 1
+
+
+## **A cart, drawn as one** (ADR-392). The box stays the solid — the navmesh
+## bakes round it and a body stops against it, as against any feature — and
+## the delivered ore cart stands in it in place of cladding, turned to the
+## box's long side. Its own collider goes, as every delivered piece's does
+## where the room's boxes are the solid (`DelvingsKit.look_of`).
+func _cart(slab: MeshInstance3D, size: Vector3) -> void:
+	slab.mesh = null
+	var look: Node3D = DelvingsKit.look_of(load(FloorDressing.SHELF % CART_PIECE) as PackedScene)
+	look.position.y = -size.y * 0.5
+	if size.z > size.x:
+		look.rotation.y = PI * 0.5
+	slab.add_child(look)
 
 
 ## The cells of `rect` lying against one of its four walls, in order.
@@ -1303,7 +1323,7 @@ func _mark(size: Vector3, centre: Vector3, colour: Color, yaw: float) -> void:
 ## doorways are.
 func _slab(size: Vector3, centre: Vector3, colour: Color,
 		yaw: float = 0.0, role: String = "slab",
-		tilt: Basis = Basis(), clad: bool = true) -> void:
+		tilt: Basis = Basis(), clad: bool = true) -> MeshInstance3D:
 	# Recorded whether or not it is laid, from the same numbers the node gets:
 	# a tilt replaces the yaw, exactly as `node.basis` does below.
 	var turned: Basis = tilt if tilt != Basis() else Basis(Vector3.UP, yaw)
@@ -1312,7 +1332,7 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	_occluders.append([Transform3D(turned, centre), size, role])
 	if _into == null:
 		_slabs += 1
-		return
+		return null
 	var mesh := BoxMesh.new()
 	mesh.size = size
 	# Navigation parses STATIC_COLLIDERS, not rendered meshes. Keep its tested
@@ -1369,3 +1389,4 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 			DelvingsKit.recess(node)
 	_into.add_child(node)
 	_slabs += 1
+	return node

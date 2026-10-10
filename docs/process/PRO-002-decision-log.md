@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-09
+updated: 2026-10-10
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -13656,6 +13656,22 @@ The fixed clearances the first two faults had suggested (0.6 cells from rock and
 | features standing in a builder's ledge (30 floors built) | 0 |
 
 **The probe holds each layout to at least 90% furnished.** The first rules furnished none of the Prize rooms, cisterns or mine heads, and every other probe passed.
+
+**As built, the mine head and the deep seam stand ore carts (`CARTS`).** The table gave the mine head `ROWS` "(ore carts)" and the deep seam `BAYS`. As built, both were biers:
+- `BAYS` is never laid in a great room, whose ledge may take any wall, so the deep seam had fallen back to `ROWS`.
+- A waist-high stone block is what the first-person shots showed, and nobody would call it a cart.
+
+`CARTS` is a seventh layout, appended to the wire order. It lays the rows' lines, broken at the middle the same way, as delivered ore carts end to end with a gap at each coupling: seen through, too narrow to walk. A half too short for one cart lengthwise takes one turned across it, which is what a 3 × 4 mine head holds.
+
+The feature's box stays the solid: the navmesh bakes round it, and a body stops against it. The cart is drawn in it (`DelvingsKit.look_of`) in place of cladding. `--interior-probe` holds the model to its box within 3 cm, centred and standing on the floor (measured 1.480 × 1.108 × 1.150 m in a 1.48 × 1.10 × 1.15 m box), because a larger model is walked into and a smaller one is stopped short of by air. Mine heads 58/58 and deep seams 27/27 furnished; room floor near cover 56.9%.
+
+**The carts cost the sweep's own floor its glint, and the fault was the search's grid.** On seed 31346 floor 2, `--vista-probe` fell to 2 sightings against the 4 asked. Bisected by module, it was the deep seam's carts. One stood on the whole-cell grid point that `FloorVista.best` had laid the bead on, which the walk saw from 9 samples. The best spot left was held by 5 samples, and the navmesh walk saw it from 2. The candidate grid is now half a cell (`FloorVista.STEP` 1.0 m), so the search can step round anything standing in a room:
+
+| over the 21-floor vista panel, with carts | whole cell | half a cell |
+|---|---|---|
+| floors keeping the glint | 18 | **19** (the two floor-0 failures filed before either) |
+| sweep floor 31346/2 | 2 sightings | 8 |
+| vista search per floor, mean / worst | 71 / 174 ms | 203 / 515 ms |
 
 Unchanged and green: `--reach-probe` (24 floors routed, 9 walked end to end by the player capsule, 757 legs), `--plan-probe`, `--delvings-probe` ×3, `--vista-probe` on floors 0 and 2, `--population-probe`, `--machine-probe`, `--lock-probe`, `--arrival-probe`, `--crossing-probe`, `--lantern-probe` and `--barrow-probe`. The key rooms are 2–3 cells and take nothing yet; `M4-T41`'s larger footprints are theirs.
 

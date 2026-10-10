@@ -124,7 +124,7 @@ const KEEP_OFF: Array[String] = ["ledge_floor", "ledge_ramp", "ramp", "chamfer"]
 ## from a mine head's bier and a broken bracing 1.25 m from the other closed
 ## both lanes once the navmesh had eroded each side by the agent's 0.45 m, and
 ## the reach panel's body could not cross the room — each piece legal alone.
-const INTERIOR: Array[String] = ["column", "pier", "bier", "bay", "rubble"]
+const INTERIOR: Array[String] = ["column", "pier", "bier", "bay", "rubble", "cart"]
 ## How far a piece keeps from what stands in a room: a body's width and the
 ## navmesh's erosion on both sides of the lane between them.
 const INTERIOR_CLEAR: float = 1.4

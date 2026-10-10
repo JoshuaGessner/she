@@ -1116,6 +1116,27 @@ func features_of(node: int) -> Array[Dictionary]:
 					if span.y - span.x >= 0.4:
 						wanted.append(_feature((span.x + span.y) * 0.5, at, span.y - span.x, 0.45,
 							ROW_HEIGHT, "bier"))
+		RoomModule.Interior.CARTS:
+			# The rows' lines, broken at the middle the same way, filled with as
+			# many carts as each half holds end to end with a gap at each
+			# coupling; a half too short for one lengthwise takes one turned
+			# across it. The builder turns the cart to the box's long side.
+			var centre: float = float(long) * 0.5
+			for at: float in _rows_across(short, CART_LONG * 0.5):
+				for span: Vector2 in [Vector2(FEATURE_MARGIN, centre - FEATURE_MIDDLE - 0.02),
+						Vector2(centre + FEATURE_MIDDLE + 0.02, float(long) - FEATURE_MARGIN)]:
+					var room_for: float = span.y - span.x
+					var count: int = floori((room_for + CART_GAP) / (CART_LONG + CART_GAP))
+					if count == 0:
+						if room_for >= CART_WIDE:
+							wanted.append(_feature((span.x + span.y) * 0.5, at, CART_WIDE, CART_LONG,
+								CART_HEIGHT, "cart"))
+						continue
+					var first: float = (span.x + span.y) * 0.5 \
+						- float(count - 1) * (CART_LONG + CART_GAP) * 0.5
+					for index: int in count:
+						wanted.append(_feature(first + float(index) * (CART_LONG + CART_GAP), at,
+							CART_LONG, CART_WIDE, CART_HEIGHT, "cart"))
 		RoomModule.Interior.BAYS:
 			# Returns stand against a wall, so never in a great room, whose ledge
 			# may run along any wall.
@@ -1341,6 +1362,14 @@ const FEATURE_ROCK_CLEAR: float = 0.1
 const ROW_HEIGHT: float = 1.0
 ## How far a bay's return of wall reaches into the room, cells.
 const BAY_DEPTH: float = 0.7
+## An ore cart's box, in cells across the floor and metres high:
+## `dressing_ore_cart` measures 1.48 m by 1.15 m and 1.11 m high, and
+## `--interior-probe` holds the model to these.
+const CART_LONG: float = 0.74
+const CART_WIDE: float = 0.575
+const CART_HEIGHT: float = 1.1
+## The gap at a coupling, cells: seen through, too narrow to walk.
+const CART_GAP: float = 0.25
 ## How many blocks a room of rubble has fallen.
 const RUBBLE_BLOCKS: int = 3
 ## Its own stream, so rubble never shifts a draw anything else makes.
