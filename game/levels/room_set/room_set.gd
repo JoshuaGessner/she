@@ -18469,6 +18469,10 @@ const ARRIVAL_SEEN_MOST: int = 2
 ## **`--galdr-probe`** (ADR-387): the Skald's verse, and what it does to the
 ## dungeon. Section 1 asks the enemies directly — `Enemy.hear_the_song` is the
 ## one place a verse lands — so the brawl is proved before anything sings it.
+## Seeds `--galdr-probe` reads the floors' posts from, three floors each.
+const GALDR_SURVEY_SEEDS: int = 20
+
+
 func _galdr_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	await _hold(0.5)
@@ -18802,6 +18806,29 @@ func _galdr_probe() -> void:
 	for row: String in rite:
 		print("[galdr] rite       " + row)
 	body.sang.disconnect(on_sang)
+
+	# **On real floors** (the class survey, ADR-398): a verse maddens a body
+	# only with another within `galdr_foe_reach` of it, and alone it unnerves.
+	# How often each holds is read off the posts the floor lays.
+	var tuning_now: TuningProfile = Config.tuning
+	var posted: int = 0
+	var paired: int = 0
+	for index: int in GALDR_SURVEY_SEEDS:
+		for depth: int in 3:
+			# Every body the floor lays: its posts, its machines' and the Keeper
+			# on the Prize. Any of them is a foe to a maddened body.
+			var surveyed: DelvingsFloor = DelvingsFloor.of(index * 7919 + 13, depth)
+			var posts: Array[Vector3] = surveyed.enemy_posts()
+			posts.append_array(surveyed.machine_posts())
+			posts.append(surveyed.prize())
+			for i: int in posts.size():
+				posted += 1
+				for j: int in posts.size():
+					if i != j and posts[i].distance_to(posts[j]) <= tuning_now.galdr_foe_reach:
+						paired += 1
+						break
+	print("[galdr] on floors  %d of %d posted bodies have another within %.0f m (%.0f%%)"
+		% [paired, posted, tuning_now.galdr_foe_reach, 100.0 * paired / maxf(1.0, posted)])
 
 	if problems.is_empty():
 		print("[galdr] the verse turns the dungeon on itself")

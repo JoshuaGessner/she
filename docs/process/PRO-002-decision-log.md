@@ -13851,4 +13851,23 @@ Cutting it orphaned all of them, so it is restated as *the Rites' remaining syst
 - **A sealed side-room** (the larger form recommended in the question). Unlike a recess, a room meets loot placement, spawns, the vista, reach and population, and a dead-end room is a corridor's worth of walking for one find.
 - **Breaking a barrow before it wakes.** The barrow stands open until it is woken, so there is nothing shut to break.
 
+## ADR-398 — The class survey: where each class is weakest, measured
+
+**Date:** 2026-10-10 · **Status:** accepted · **Records the survey behind ADR-395 and ADR-397; opens `M4-T46`**
+
+**Context:** the class pass asks for an improvement where each class is weakest. Every verb and Rite works as specified: their probes all pass, and each Rite node passes against a control. So the survey asked a different question, **how often a floor gives each verb something to act on**, and looked for what each class promises that was never built.
+
+**Measured:**
+
+| class | the verb's opportunity on a floor | finding |
+|---|---|---|
+| Húskarl | anywhere he stands; a doorway on every floor | none in the verb. Its promise against the shove was broken, and ADR-394 fixed it |
+| Völva | anywhere, once every 30 s | none |
+| Skald | needs ears within 12 m, and a second body within 14 m to madden. **156 of 190 bodies a floor lays have another within 14 m (82%)**, counting posts, machines and the Keeper (`--galdr-probe`, 60 floors) | none in the verb. Its kit was the Úlfheðinn's, and ADR-395 fixed that |
+| Úlfheðinn | anywhere | none |
+| Veiðimaðr | anywhere | none in the verb. A snare against tokens was fixed in ADR-394 |
+| Haugbrjótr | **something shut on 39% of floors**, otherwise the barrow, late | the weakest found; fixed in ADR-397, now on 118 of 120 floors |
+
+**And one promise, unbuilt, that touches all six:** ADR-057 decided that *"Rites visibly change your bare arms,"* with a mesh swap at Pact Ranks 3, 5 and 7: the Úlfheðinn's arms becoming more wolf, the Völva's ink spreading, the Haugbrjótr's hands more grave-stained. `DES-011` places those changes in the runs 11–25 sag that `DES-022` names, and `DES-022` counts *"non-numeric progression you can see on your own body"* as a growth channel. No code or task holds it. It becomes **`M4-T46`**. The arms are scripted (`build_class_arms.py`), one branch of marks per class, so a stage is more of the same marks and needs no new tooling.
+
 *Entries below to be added as design decisions are signed off.*
