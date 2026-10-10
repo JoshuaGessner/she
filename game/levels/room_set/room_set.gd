@@ -13680,11 +13680,19 @@ func _interior_probe() -> void:
 	var built_floors: int = 0
 	var niches: int = 0
 	var niche_rooms := {}
+	var seams: int = 0
+	var seamed: int = 0
 	for index: int in INTERIOR_SEEDS:
 		var run_seed: int = index * 7919 + 13
 		for depth: int in 3:
 			var floor_at: DelvingsFloor = DelvingsFloor.of(run_seed, depth)
 			var plan: FloorPlan = floor_at.get("_plan")
+			# **Seams** (B77, ADR-401): sides walled where two corridors ran
+			# side by side and stood open on each other.
+			var walled: int = int(FloorBuilder.build(plan, floor_at.graph(), run_seed, depth, null)["seams"])
+			seams += walled
+			if walled > 0:
+				seamed += 1
 			var niche: Dictionary = plan.grave_niche()
 			if not niche.is_empty():
 				niches += 1
@@ -13772,6 +13780,7 @@ func _interior_probe() -> void:
 				% [rooms - laid, rooms, module])
 	print("[interior] furnished: %s" % ", ".join(rates))
 	print("[interior] grave-niches on %d of %d floors, in %s" % [niches, INTERIOR_SEEDS * 3, str(niche_rooms)])
+	print("[interior] corridor seams walled: %d side(s) on %d of %d floors" % [seams, seamed, INTERIOR_SEEDS * 3])
 	print("[interior] room floor within 3 m of something to stand behind: %.1f%% with the hub's pillars alone, %.1f%% with every room's interior"
 		% [before, after])
 	if broken > 0:

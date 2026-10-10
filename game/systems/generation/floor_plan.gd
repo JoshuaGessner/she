@@ -1497,6 +1497,12 @@ func path_of(route: int) -> Array[Vector2i]:
 	return _paths.get(route, [] as Array[Vector2i])
 
 
+## The routes crossing `cell`: none for rock or a room, one for a corridor,
+## two for a bridge (one over the other, never joined).
+func routes_at(cell: Vector2i) -> Array:
+	return _corridor.get(cell, [])
+
+
 ## The cells of `route` that cross above another corridor.
 func over_of(route: int) -> Array[Vector2i]:
 	return _over.get(route, [] as Array[Vector2i])

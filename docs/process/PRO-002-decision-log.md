@@ -13923,4 +13923,22 @@ Of the three fresh floors that still fail:
 
 Generation probes green: kit, interior, plan, reach, the three delvings floors, vista0, vista2, population, machine, lock, arrival, crossing, lantern, barrow. Larger rooms (ADR-392) waited on this guarantee and can be measured again.
 
+## ADR-401 — Two corridors running side by side are two corridors
+
+**Date:** 2026-10-10 · **Status:** accepted · **Fixes B77; `TEC-008` (corridor walls)**
+
+**Context:** `FloorBuilder._tunnel` walled a corridor side only where the cell beyond was not floor, and another corridor's cell counted as floor. So two routes laid next to each other stood open on each other, a passage the plan never drew, against the plan's own rule that *"every other corridor cell is walled from whatever it runs past."* On level ground it was an unplanned opening. Across a rise it was a lip that the navmesh stepped and the player's capsule did not. Found by ADR-400's fresh vista panel:
+- On 55555/0 the navmesh route stepped out of the corridor leading to a locked gate, crossed into the corridor beside it, and reached the Shaft **without passing the door**. Locked doors were bypassable, and enemies could cut through what reads as a wall (principle 4).
+- `--interior-probe`'s census: **2,322 such sides on 90 of 90 floors**, about 26 a floor.
+
+**Decision:** a side whose neighbour is a cell of a **different** corridor is walled (`FloorBuilder._seam`). Left as they were:
+- **Bridges**, whose cell carries two routes, one over the other (ADR-306). Their sides are the deck's view down.
+- **A corridor doubling back beside itself** (a hairpin). It joins nothing it was not already joined to. Walling between its legs left a turn the navmesh could not round: 12345/2's walk stopped 4.4 m short of the Shaft, and 31346/2's guaranteed glint fell to 2 sightings. Both are restored with the hairpin left open (34 and 8 sightings).
+
+A wall is 0.3 m, so a corridor beside another is 1.7 m clear at that side, wide for the agent's 0.45 m.
+
+**Measured:**
+- Every generation probe is green: kit, interior, plan, reach, the three delvings floors, vista0, vista2, population, machine, lock, arrival, crossing, lantern, barrow.
+- On the first version, which walled hairpins too, the vista panels held 20/21 (tuned) and 19/21 (fresh): both 55555 floors were fixed, and 12345/2 and 31346/2 were lost to the hairpins. With the hairpins left open, both of those pass. The full panels have not been re-run on the final rule.
+
 *Entries below to be added as design decisions are signed off.*

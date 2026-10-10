@@ -285,6 +285,8 @@ var _roughness: float = 0.0
 var _surface_band: int = DelvingsKit.BAND_WORKED
 var _depth: int = 0
 var _alcoves_cut: int = 0
+## Sides walled between two corridors running side by side (B77).
+var _seams_walled: int = 0
 var _ledges_raised: int = 0
 var _fallen_laid: int = 0
 var _hazards_laid: int = 0
@@ -346,6 +348,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		# leave every other row here passing about a floor that had quietly gone
 		# back to being boxes and corridors (`TEC-007` §1).
 		"alcoves": builder._alcoves_cut,
+		"seams": builder._seams_walled,
 		"ledges": builder._ledges_raised,
 		"fallen": builder._fallen_laid,
 		"hazards": builder._hazards_laid,
@@ -1126,7 +1129,9 @@ func _tunnel(plan: FloorPlan, cell: Vector2i, enters: float, leaves: float,
 	# opens a hole a door did not authorise.
 	for step: Vector2i in FloorPlan.STEPS:
 		if plan.holds(cell + step):
-			continue
+			if not _seam(plan, cell, step, level, sloped):
+				continue
+			_seams_walled += 1
 		var thick := Vector3(CELL, CORRIDOR_CEILING, WALL_THICK)
 		if step.x != 0:
 			thick = Vector3(WALL_THICK, CORRIDOR_CEILING, CELL)
@@ -1134,6 +1139,30 @@ func _tunnel(plan: FloorPlan, cell: Vector2i, enters: float, leaves: float,
 		_slab(thick, mid + out + Vector3(0.0, height + CORRIDOR_CEILING * 0.5, 0.0),
 			RUBBLE[_depth], 0.0, "wall")
 	_shore(plan, cell, mid, raised, rise, travel)
+
+
+## **Two corridors running side by side are two corridors** (B77, ADR-401).
+## A tunnel side stayed open wherever the cell beyond was floor, and that held
+## for another corridor's cell too: two routes laid next to each other shared
+## an open side the plan never drew — level, a passage nobody planned; across a
+## rise, a lip the navmesh stepped and the player's capsule did not, so a route
+## and every enemy on it went sideways through what looks like a wall. The plan
+## says every corridor cell is walled from whatever it runs past.
+##
+## A seam is a side whose neighbour is another corridor's cell. A bridge is
+## left as it was:
+## its cell carries two routes, one over the other, and its sides are the
+## deck's view down, decided by ADR-306.
+static func _seam(plan: FloorPlan, cell: Vector2i, step: Vector2i,
+		level: Array[Vector2i], sloped: Array[Vector2i]) -> bool:
+	if level.has(step) or sloped.has(step):
+		return false
+	var mine: Array = plan.routes_at(cell)
+	var theirs: Array = plan.routes_at(cell + step)
+	# Two corridors only: a corridor doubling back beside itself (a hairpin)
+	# joins nothing it was not already joined to, and walling between its legs
+	# left a turn the navmesh could not round (12345/2 stopped 4.4 m short).
+	return mine.size() == 1 and theirs.size() == 1 and mine[0] != theirs[0]
 
 
 ## **The Delvings are a mine, and a mine's corridors are shored** (ADR-301).
