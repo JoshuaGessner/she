@@ -24,7 +24,8 @@ extends RefCounted
 
 ## Holders per pool: `_key(target, missile)` → Array of `Enemy`.
 static var _holders: Dictionary = {}
-## Each waiting body's claimed bearing: Enemy → [target id, radians].
+## Each waiting body's claim: Enemy → [target id, bearing in radians, the point
+## it was given, msec when it was worked out].
 static var _bearing: Dictionary = {}
 
 ## Bearings tried each side of a body's own, in steps of this many degrees.
@@ -89,15 +90,32 @@ static func in_view(target: Node3D, point: Vector3, tuning: TuningProfile) -> bo
 	return look.normalized().dot(to.normalized()) >= cos(deg_to_rad(tuning.engage_view_half_angle))
 
 
-## **Where `body` waits** round `target`: `radius` out, on the free bearing
-## nearest its own, at least `engage_ring_spacing` from every other body waiting
-## on or striking that target. Pulled in short of a wall between the two, so a
-## ring point is never somewhere the body cannot stand and see.
+## **Where `body` waits** round `target`, `radius` out:
+##
+## - on the free bearing nearest its own, at least `engage_ring_spacing` from
+##   every other body waiting on or striking that target, **and only where the
+##   ring fits** — a bearing whose wall is nearer than `radius` is no place to
+##   wait. Pulling such a point in short of the wall, as the first version did,
+##   stood a waiting body at the player's shoulder in every corridor (0.59 m,
+##   `--engage-probe`), and two fifths of a floor is corridor.
+## - with no such bearing free, **queued** down the most open way nearest its
+##   own: `QUEUE_STEP` further out for each body already waiting that way and
+##   nearer the target, so a passage fills front to back like a line at a door.
+##
+## Recomputed at most every `RING_REFRESH_MS`: each recompute casts a ray per
+## candidate bearing, and a body walking to a point does not need a new one
+## sixty times a second.
 static func ring_point(body: Enemy, target: Node3D, radius: float, tuning: TuningProfile) -> Vector3:
 	var key: int = target.get_instance_id()
+	var now: int = Time.get_ticks_msec()
+	if _bearing.has(body):
+		var cached: Array = _bearing[body]
+		if int(cached[0]) == key and now - int(cached[3]) < RING_REFRESH_MS:
+			return cached[2]
 	var centre: Vector3 = target.global_position
 	var mine: float = _bearing_of(body.global_position, centre)
 	var taken: Array[float] = []
+	var queued: Array[Enemy] = []
 	for other: Variant in _bearing.keys():
 		if other == body:
 			continue
@@ -108,39 +126,84 @@ static func ring_point(body: Enemy, target: Node3D, radius: float, tuning: Tunin
 		var entry: Array = _bearing[other]
 		if int(entry[0]) == key:
 			taken.append(float(entry[1]))
+			queued.append(other as Enemy)
 	for holder: Enemy in _live_holders(_key(target, false), target):
 		if holder != body:
 			taken.append(_bearing_of(holder.global_position, centre))
 	var spacing: float = deg_to_rad(tuning.engage_ring_spacing)
-	var chosen: float = mine
-	var found: bool = false
-	for step: int in range(0, int(180.0 / BEARING_STEP) + 1):
-		for side: float in [1.0, -1.0]:
-			var bearing: float = mine + side * deg_to_rad(BEARING_STEP * step)
-			if _clear_of(bearing, taken, spacing):
-				chosen = bearing
-				found = true
-				break
-			if step == 0:
-				break
-		if found:
+	var space: PhysicsDirectSpaceState3D = body.get_world_3d().direct_space_state
+	var reach_out: float = radius + QUEUE_STEP * 4.0
+	var chosen: float = NAN
+	var distance: float = radius
+	var open_way: float = NAN
+	var open_room: float = 0.0
+	for bearing: float in _bearings_from(mine):
+		var room: float = _room_toward(space, centre, bearing, reach_out)
+		if room < radius:
+			continue
+		if is_nan(open_way):
+			open_way = bearing
+			open_room = room
+		if _clear_of(bearing, taken, spacing):
+			chosen = bearing
 			break
-	_bearing[body] = [key, chosen]
-	var out := Vector3(cos(chosen), 0.0, sin(chosen))
-	var point: Vector3 = centre + out * radius
-	var from: Vector3 = centre + Vector3.UP
-	var query := PhysicsRayQueryParameters3D.create(from, point + Vector3.UP)
-	query.collision_mask = CollisionLayers.WORLD
-	var hit: Dictionary = body.get_world_3d().direct_space_state.intersect_ray(query)
-	if not hit.is_empty():
-		var short: float = maxf(0.0, from.distance_to(hit["position"]) - NAV_CLEARANCE)
-		point = centre + out * short
+	if is_nan(chosen) and not is_nan(open_way):
+		# **The queue.** Ranked by who is nearer the target already, so two
+		# bodies waiting the same way never both claim the front of it.
+		chosen = open_way
+		var mine_far: float = body.global_position.distance_to(centre)
+		var ahead: int = 0
+		for other: Enemy in queued:
+			if absf(angle_difference(_bearing_of(other.global_position, centre), chosen)) < spacing \
+					and other.global_position.distance_to(centre) < mine_far:
+				ahead += 1
+		distance = minf(radius + QUEUE_STEP * float(ahead), open_room)
+	elif is_nan(chosen):
+		# Nowhere the ring fits at all — a dead end no wider than a body. Wait
+		# as far out along its own bearing as the walls allow.
+		chosen = mine
+		distance = _room_toward(space, centre, mine, radius)
+	var point: Vector3 = centre + Vector3(cos(chosen), 0.0, sin(chosen)) * distance
 	point.y = body.global_position.y
+	_bearing[body] = [key, chosen, point, now]
 	return point
 
 
 ## How far short of a wall a ring point stands: a body's half-width and a margin.
 const NAV_CLEARANCE: float = 0.6
+## How much further out each body queued the same way stands than the one ahead.
+const QUEUE_STEP: float = 1.1
+## How often a waiting body's point is worked out afresh.
+const RING_REFRESH_MS: int = 250
+## How far round from its own bearing a waiting body will look for room, in
+## degrees.
+const FAN: float = 100.0
+
+
+## Bearings to try, nearest `mine` first: its own, then alternately each side
+## in `BEARING_STEP` steps, out to `FAN` either way. **A waiting body fans out;
+## it does not go round.** Searching to the far side sent a body in a corridor
+## past the player's shoulder to the free bearing behind them (0.29 m).
+static func _bearings_from(mine: float) -> Array[float]:
+	var out: Array[float] = [mine]
+	for step: int in range(1, int(FAN / BEARING_STEP) + 1):
+		out.append(mine + deg_to_rad(BEARING_STEP * step))
+		out.append(mine - deg_to_rad(BEARING_STEP * step))
+	return out
+
+
+## Open floor from `centre` along `bearing`, up to `limit`, short of the first
+## wall by a body's clearance.
+static func _room_toward(space: PhysicsDirectSpaceState3D, centre: Vector3, bearing: float,
+		limit: float) -> float:
+	var from: Vector3 = centre + Vector3.UP
+	var out := Vector3(cos(bearing), 0.0, sin(bearing))
+	var query := PhysicsRayQueryParameters3D.create(from, from + out * (limit + NAV_CLEARANCE))
+	query.collision_mask = CollisionLayers.WORLD
+	var hit: Dictionary = space.intersect_ray(query)
+	if hit.is_empty():
+		return limit
+	return maxf(0.0, from.distance_to(hit["position"]) - NAV_CLEARANCE)
 
 
 static func _key(target: Node3D, missile: bool) -> int:

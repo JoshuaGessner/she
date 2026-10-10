@@ -13538,6 +13538,19 @@ The systems under all three are strong: the awareness ladder, the call, poise an
 
 Unchanged and green: `--fight-probe`, `--combat-probe`, `--swarm-probe`, `--warden-probe`, `--keeper-probe`, `--sling-probe`, `--galdr-probe` (infighting takes no tokens), `--archetype-probe`, and `--escalation-probe` on seed 4.
 
+**And in a corridor (found on review).** Every row above was measured on open ground, but two fifths of a floor is passage two cells wide, where no ring fits. A third row put four Wretches in a column down a 2.4 m passage, and against the code as committed (7914bf3) a body waiting its turn stood **0.59 m** from the player. The ring point had been pulled in short of the wall, which put it at the player's shoulder. The first fix let a waiting body search all the way round for a bearing with room, so one walked past the player to the free side behind them (0.29 m). The rule as built:
+- **A bearing counts only where the ring fits:** the wall that way stands further off than the ring.
+- **A waiting body looks no more than 100° either side of where it stands.** It fans out and never goes round.
+- **With nothing free, it queues** down the most open way, 1.1 m further out for each body already waiting there nearer the player.
+
+| a column of four down a 2.4 m passage | nearest a waiting body stood to the player |
+|---|---|
+| as committed in 7914bf3 | 0.59 m — FAIL |
+| searching all the way round | 0.29 m — FAIL |
+| **fanning, fitted, queued** | **3.35 m** |
+
+On open ground the waiting now spread 67° apart (49° before; 14° without the rule), and the other rows are unchanged. Points are worked out at most four times a second per body, because each one casts a ray per candidate bearing.
+
 **Measured for `M4-T39`:** to be appended with the movesets.
 
 ## ADR-392 — A room is built as what it is called; rooms grow and corridors shrink

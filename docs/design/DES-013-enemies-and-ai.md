@@ -161,7 +161,7 @@ The ladder decides *whether* a body fights; this decides *how* several fight one
 
 - **They take turns.** Each player has two melee attack tokens and one missile token ⟨tune⟩ (DOOM 2016's token pool). A body must hold one to begin a blow and gives it back when its recovery ends.
 - **What you can see goes first.** A body behind the player is refused a token while any body in view is still closing on them. The blow from behind still exists, but it is never the first one, so a death stays explainable (principle 4).
-- **The rest stand round you.** A body waiting for a token holds a ring just outside its reach, on its own bearing, spread from the others, facing you and walking (Arkham's and the Souls games' ring). After its blow it steps back out to the ring.
+- **The rest stand round you.** A body waiting for a token holds a ring just outside its reach, on its own bearing, spread from the others, facing you and walking (Arkham's and the Souls games' ring). After its blow it steps back out to the ring. Where no ring fits, as in a corridor, the rest queue down the open way, front to back.
 - **Every melee body has more than one blow** (ADR-391's movesets): Wretches and Bellringers lunge across three metres, the Hall-Warden shoves you off its door before the overhead, the Hoard-Keeper sweeps a body circling it, and the Sling-Wretch backs away to sling rather than throwing point-blank. Each blow is chosen by range, in the order its `.tres` lists them, so the choice can be learned.
 
 ## Co-op considerations (ADR-008/010)

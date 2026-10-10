@@ -12955,6 +12955,21 @@ func _engage_probe() -> void:
 	tuning.engage_tokens = int(kept[0])
 	tuning.engage_view_half_angle = float(kept[1])
 	tuning.engage_rest = float(kept[2])
+	# 3. **A corridor** (the ADR-391 review): two fifths of a floor is passage
+	# two cells wide, where no ring fits. Bodies without a turn must queue down
+	# it, not stand at the player's shoulder where the walls cut the ring short.
+	var passage: Vector3 = ground + ENGAGE_PASSAGE
+	_passage_walls(passage, ENGAGE_PASSAGE_WIDE, 24.0)
+	await _hold(0.2)
+	var queue: Dictionary = await _engage_queue(player, passage, 6.0)
+	print("[engage] four down a corridor     a waiting body came within %.2f m of the player; peak winding %d"
+		% [queue["nearest"], queue["peak"]])
+	if float(queue["nearest"]) < 2.0:
+		problems.append(("a body waiting its turn in a corridor stood %.2f m from the player — "
+			+ "the ring is cut short by the walls, and the queue belongs down the passage")
+			% float(queue["nearest"]))
+	if int(queue["peak"]) > int(kept[0]):
+		problems.append("%d wound up at once in a corridor with %d tokens" % [int(queue["peak"]), int(kept[0])])
 	player.health.maximum = 100.0
 	player.health.restore()
 
@@ -13078,11 +13093,78 @@ func _engage_scenario(player: Player, ground: Vector3, pack: bool, seconds: floa
 
 ## Far from the room set, so its walls, lights and navmesh are nobody's business.
 const ENGAGE_ARENA: Vector3 = Vector3(0.0, 0.0, 400.0)
+## And a passage on it, off to one side, as wide as a corridor's floor.
+const ENGAGE_PASSAGE: Vector3 = Vector3(9.0, 0.0, 0.0)
+const ENGAGE_PASSAGE_WIDE: float = 2.4
 
 
-## A flat square of floor `size` across at `centre`, solid and walkable: a
-## collider on the world layer and a navigation polygon on the default map, so
-## a body paths there as it would on a floor. Returns where to stand.
+## Four Wretches in a column hunting `player`, who stands still facing down a
+## walled passage at `passage`. Returns the nearest any body *waiting* (no turn,
+## not swinging) came to the player, and the peak winding up at once.
+func _engage_queue(player: Player, passage: Vector3, seconds: float) -> Dictionary:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	player.teleport(passage, 0.0)
+	await _hold(0.2)
+	for step: int in range(4):
+		_session.spawn_enemy(passage + Vector3(0.0, 0.0, -5.5 - 1.1 * float(step)), 0.0)
+	await _hold(0.3)
+	var bodies: Array[Enemy] = []
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null:
+			body.set("_home", body.global_position)
+			body.set("_target", player)
+			body.set("_last_seen", player.global_position)
+			body.set("_patience", 30.0)
+			body.set("_state", Enemy.State.ALERTED)
+			bodies.append(body)
+	var nearest: float = INF
+	var peak: int = 0
+	var left: float = seconds
+	while left > 0.0:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time()
+		player.health.restore()
+		var winding: int = 0
+		for body: Enemy in bodies:
+			if not is_instance_valid(body):
+				continue
+			var phase: Enemy.Attack = body.attack_phase()
+			if phase in [Enemy.Attack.TELEGRAPH, Enemy.Attack.ACTIVE]:
+				winding += 1
+			# Settled first: a body still closing from its spawn is not waiting.
+			if left < seconds - 1.5 and phase == Enemy.Attack.NONE and not Engagement.holds(body) \
+					and float(body.get("_rest")) <= 0.0:
+				nearest = minf(nearest, _flat_distance(body.global_position, player.global_position))
+		peak = maxi(peak, winding)
+	_session.clear_enemies()
+	return {"nearest": nearest, "peak": peak}
+
+
+## Two walls `wide` apart and `long` long, down the Z axis through `centre`:
+## a generated corridor's cross-section, stood on an arena's floor so its
+## navigation polygon is the arena's own (a second region beside the first
+## joined nothing, and every path on it led back to the first).
+func _passage_walls(centre: Vector3, wide: float, long: float) -> void:
+	var walls := StaticBody3D.new()
+	walls.collision_layer = CollisionLayers.WORLD
+	walls.collision_mask = 0
+	for side: float in [-1.0, 1.0]:
+		var wall := CollisionShape3D.new()
+		var slab := BoxShape3D.new()
+		slab.size = Vector3(0.5, 3.0, long)
+		wall.shape = slab
+		wall.position = Vector3(side * (wide * 0.5 + 0.25), 1.5, 0.0)
+		walls.add_child(wall)
+	add_child(walls)
+	walls.global_position = centre
+
+
+## A flat floor `size` across at `centre`, solid and walkable: a collider on
+## the world layer and a navigation polygon on the default map, so a body paths
+## there as it would on a floor. Returns where to stand.
 func _flat_arena(centre: Vector3, size: float) -> Vector3:
 	var half: float = size * 0.5
 	var floor_body := StaticBody3D.new()
