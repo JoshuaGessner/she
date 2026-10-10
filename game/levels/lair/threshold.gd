@@ -1720,6 +1720,7 @@ func _build_fire() -> void:
 ## camp dug out of a hillside. All delivered dressing (`ART-004`), each solid,
 ## none of it on a spawn or a path between the fire and a door.
 const CAMP_HEARTH: PackedScene = preload("res://art/props/camp_hearth.glb")
+const CAMP_GROUND: Shader = preload("res://art/shaders/camp_ground.gdshader")
 const CAMP_LOG: PackedScene = preload("res://art/props/camp_log.glb")
 const CAMP_MINE_SET: PackedScene = preload("res://art/props/mine_set.glb")
 ## **Against the walls** (ADR-393): the mine's gear in the throat's corners,
@@ -2004,12 +2005,11 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	node.add_child(body)
 	if clad == DelvingsKit.FLOOR and colour == ROCK:
 		# Packed earth underfoot (ADR-287): the camp is outdoors, and the
-		# mine's flagstones begin at the mine.
+		# mine's flagstones begin at the mine. Darker than it was, and worn to
+		# dust round the fire (ADR-393).
 		var earth := ShaderMaterial.new()
-		earth.shader = DelvingsKit.WEATHERED
-		earth.set_shader_parameter("albedo", Color(0.30, 0.25, 0.19))
-		earth.set_shader_parameter("mottle", 0.22)
-		earth.set_shader_parameter("stain", 0.3)
+		earth.shader = CAMP_GROUND
+		earth.set_shader_parameter("fire", Vector2(FIRE_AT.x, FIRE_AT.z))
 		node.material_override = earth
 	elif clad == DelvingsKit.WALL and colour == ROCK:
 		# The camp's own walls are the hillside (ADR-287), not the mine's

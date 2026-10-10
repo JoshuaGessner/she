@@ -13758,4 +13758,10 @@ Neither shipped.
 
 The camp before this ADR fails the last two rows: its plots stood at 6 m, inside the ring, lit only by the fire. Shots from the same seven viewpoints, plus the arrival, are in `--camp-shot`. Unchanged and green: `--threshold-probe`, `--board-probe`, `--settle-probe`, and `--edges-probe` (closed on all 80 bearings, furthest wall 24.6 m, nothing outside the ground).
 
+**The ground, quieter (the first note above).** The busy pattern was the Deep page's pale strokes, cut into whatever floor is lit, and the earth (0.30, 0.25, 0.19) was light enough that every brazier's pool on it was a field of them. The ground is now `camp_ground.gdshader`: the same earth, darker (0.21, 0.175, 0.135), with a ring round the fire worn to dust and ash, its edge wandering. In the shots from the same viewpoints, the brazier pools no longer stripe the floor. The fire stands in a calm worn ring, with strokes only past its rim, and is the one light place on the ground. Two things were tried and dropped:
+- **A worn way down the axis, as decided above.** Nothing lights the ground between the fire and the hole, so it never showed, in any shot. Lamps along it would break this ADR's rule that light on safe ground means a station. It is cut, not deferred.
+- **A transparent layer over the earth.** It was never drawn at all: the ink pass composites the screen as the opaque pass left it. The wear is in the ground's own material.
+
+The second note, the throat's haze, stands, and is not yet diagnosed.
+
 *Entries below to be added as design decisions are signed off.*
