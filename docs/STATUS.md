@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`106/123` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`107/123` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>33/40"]:::current
+  M4["M4 Vertical Slice<br/>34/40"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/10"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `████████████████▒░░░` | 33/40 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████████████████▒░░` | 34/40 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -184,7 +184,7 @@ _None. Sequencing is clean._
 - ✔ `M4-T39` **Every melee body has a lunge, and the heavies a second blow** — ***closed by ADR-391's measure: a Wretch lunges from 3.6 m where a swipe began at 2.2, the Warden throws a player 1.55 m before its overhead, the Keeper's sweep catches a body at its side and never one behind, and a slinger backs off to 4 m.*** *ADR-391: `EnemyResource.attacks` replaces `attack`; `AttackResource` gains `min_range`, `lunge`, `cooldown` and `clip`; chosen by range in listed order. Wretch and Bellringer lunge, the Hall-Warden shoves, the Hoard-Keeper sweeps, the Sling-Wretch backs off to sling. Every telegraph over the 250 ms floor; each blow its own clip.* `DES-013` `DES-009`
 - ✔ `M4-T40` **A room is built as what it is called** — ***closed by ADR-392's measure: room floor within 3 m of something to stand behind rose from 29.4% to 56.8%, every named layout lands in nine rooms of ten or more, and every floor in the reach panel is still walked end to end.*** *ADR-392: `RoomModule.interior` (colonnade, pier, rows, bays, rubble, plinth, open), laid by `FloorBuilder` with a clear apron at every door, every feature walkable round, floors flat, on the floor's own stream. Measured: room floor within 3 m of something to stand behind, before and after; plan shots; reach, vista, plan and determinism probes green.* `DES-015` `TEC-008`
 - · `M4-T41` **Rooms grow and corridors shrink** — *ADR-392: the largest footprint from 5 to 7 cells with the lattice retuned; corridor share from 41% to 32% or under over 120 floors, every floor valid, generation under 2 s.* `DES-015` `TEC-007`
-- · `M4-T42` **The camp re-laid on one axis** — *ADR-393: ground to about 36 × 40 m, arrival → fire → descent clear, plots on the rim, every station with its own silhouette and light, clutter at the walls, quieter ground. Probe: the descent, fire, board and chest each in clear sight from the arrival, the axis clear; before/after shots from the same seven viewpoints.* `DES-014`
+- ✔ `M4-T42` **The camp re-laid on one axis** — ***closed by ADR-393's measure: from the arrival the fire, the Descent and the board are in view down an open axis, the fire keeps an open ring, and the four plots stand on the rim each lit by its own brazier.*** *ADR-393: ground to about 36 × 40 m, arrival → fire → descent clear, plots on the rim, every station with its own silhouette and light, clutter at the walls, quieter ground. Probe: the descent, fire, board and chest each in clear sight from the arrival, the axis clear; before/after shots from the same seven viewpoints.* `DES-014`
 
 ### M5 — Content & Breadth
 

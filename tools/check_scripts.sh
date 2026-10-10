@@ -1779,6 +1779,19 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The camp reads from its arrival** (`M4-T42`, ADR-393): the fire, the
+	# Descent and the board in sight and in view down the axis, every plot in
+	# sight; nothing across the axis; the fire's ring open; every plot on the
+	# rim with its own light. The camp before the ADR fails the last two.
+	axis="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 20000 \
+		levels/lair/threshold.tscn -- --axis-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR' <<<"$axis" \
+			|| ! grep -q "^\[axis\] the plots" <<<"$axis"; then
+		echo "FAIL the camp has to read from where a life comes into it" >&2
+		printf '%s\n' "$axis" | grep -E '\[axis\]' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Do the enemies path, or was a navmesh merely baked (`M2-T14`)? Two
 	# different claims — the mesh baked cleanly with every doorway closed, six
 	# navigable islands and no route between them, because Recast erodes by

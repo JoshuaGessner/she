@@ -51,29 +51,40 @@ extends Node3D
 ## door at 7.5 m and the Descent at 9 m behind it, so 17 m of the old slab in
 ## every direction was rock nobody had a reason to walk on — and empty ground
 ## is the most expensive thing to dress with real art later (`M4-T10`).
-const GROUND_WIDE: float = 20.0
-const GROUND_DEEP: float = 22.0
+##
+## **Grown again, and laid on one axis** (ADR-393). At 20 × 22 m the plots
+## stood six metres from the fire, their tents filled the view from three
+## places of seven, and nothing said what was a station and what was dressing.
+## The Rogue Encampment ADR-255 aimed at is an open middle round one fire with
+## everyone on the rim and the way out in view — small for a town, not
+## cramped. So: an open ring round the fire, the plots on the rim where each
+## has a job and a light, and nothing tall on the line from the arrival
+## through the fire to the Descent. The ground is no longer empty for want of
+## a reason to walk on it: the rim is where the plots and the board are.
+const GROUND_WIDE: float = 32.0
+const GROUND_DEEP: float = 38.0
 ## Pushed back rather than centred on the fire, because the Descent end needs
-## more room than the Chamber end: z runs from -12 to +10.
-const GROUND_AT: float = -1.0
+## more room than the Chamber end: z runs from -22 to +16.
+const GROUND_AT: float = -3.0
 const WALL_HIGH: float = 9.0
 const WALL_THICK: float = 0.8
 ## Where the mountain closes in on the Descent ⟨tune⟩. Wide enough that the
 ## hole is approached rather than squeezed into, narrow enough that the walk
 ## down reads as going *into* something.
-const THROAT_HALF: float = 5.5
+const THROAT_HALF: float = 6.0
 ## How far in front of the Descent the throat opens ⟨tune⟩.
-const THROAT_FROM: float = -5.0
+const THROAT_FROM: float = -14.0
 const FIRE_AT: Vector3 = Vector3(0.0, 0.0, 0.0)
 ## Inside the passages `LairPassage` cuts (ADR-282): the north wall's mine
 ## mouth and the south wall's door to her. Derived there and stated here, so
 ## the probes and the triggers read one number.
-const DESCENT_AT: Vector3 = Vector3(0.0, 0.0, -15.11)
-const CHAMBER_AT: Vector3 = Vector3(0.0, 0.0, 13.11)
-## **The Lodge's board** (`M4-T04`, ADR-241), beside its fire and short of the
-## hole — the last thing you pass on the way down, and the first on the way
-## back.
-const BOARD_AT: Vector3 = Vector3(3.4, 0.0, -2.2)
+const DESCENT_AT: Vector3 = Vector3(0.0, 0.0, -25.11)
+const CHAMBER_AT: Vector3 = Vector3(0.0, 0.0, 19.11)
+## **The Lodge's board** (`M4-T04`, ADR-241), beside the way down and short of
+## the hole — the last thing you pass on the way down, and the first on the
+## way back. Off the axis by more than its own width (ADR-393), under its own
+## lamp, so it is named from the arrival as a station and not as dressing.
+const BOARD_AT: Vector3 = Vector3(4.6, 0.0, -9.0)
 ## How close you have to be to read it.
 const BOARD_REACH: float = 2.4
 ## The board's claim on the body, on the Pact tree's terms (ADR-146).
@@ -102,9 +113,11 @@ const REBUILD_FRAMES: int = 8
 ## neither is a fault. Long enough to be sure, short enough that a player who
 ## is about to file a bug report has not stood up yet.
 const NO_BODY_GRACE: float = 1.5
+## At the arrival from her Chamber (ADR-393): the first thing a life sees is
+## the axis — the fire ahead, the Descent's cold light beyond it.
 const SPAWNS: Array[Vector3] = [
-	Vector3(-1.6, 0.1, 3.2), Vector3(1.6, 0.1, 3.2),
-	Vector3(-3.4, 0.1, 4.0), Vector3(3.4, 0.1, 4.0),
+	Vector3(-1.6, 0.1, 11.0), Vector3(1.6, 0.1, 11.0),
+	Vector3(-3.4, 0.1, 12.2), Vector3(3.4, 0.1, 12.2),
 ]
 
 var _session: CoopSession = null
@@ -202,6 +215,8 @@ func _ready() -> void:
 			_arrived_from_the_deep()
 		elif arg == "--edges-probe":
 			_edges_probe()
+		elif arg == "--axis-probe":
+			_axis_probe()
 		elif arg == "--board-probe":
 			_board_probe()
 		elif arg == "--again":
@@ -1000,6 +1015,128 @@ func _hold(seconds: float) -> void:
 	await get_tree().create_timer(seconds).timeout
 
 
+## **The camp reads from its arrival** (ADR-393, `M4-T42`), asked of the
+## built camp rather than of its constants:
+##
+## 1. **Every station is named from the arrival**: the fire, the Descent, the
+##    board and each plot stand in a clear line of sight from where a life
+##    comes in, inside a view looking down the axis.
+## 2. **The axis is open**: no collider on three lines down it (the middle
+##    and either side) from the arrival to the throat, but the fire itself.
+## 3. **The fire keeps its ring**: nothing between its seats and six metres.
+## 4. **The plots are on the rim**, each at least nine metres out and lit by
+##    its own fire.
+##
+## The camp before this ADR fails rows 3 and 4: its plots stood six metres
+## from the fire, inside the ring, and only the fire lit them.
+func _axis_probe() -> void:
+	var problems := PackedStringArray()
+	await _hold(0.8)
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var arrival := Vector3(0.0, 1.6, (SPAWNS[0].z + SPAWNS[2].z) * 0.5)
+	var ahead: Vector3 = Vector3(FIRE_AT.x - arrival.x, 0.0, FIRE_AT.z - arrival.z).normalized()
+	var stations: Dictionary = {
+		"the fire": FIRE_AT + Vector3(0.0, 0.8, 0.0),
+		"the Descent": DESCENT_AT + Vector3(0.0, 1.5, 0.0),
+		"the board": BOARD_AT + Vector3(0.0, 1.6, 0.25),
+	}
+	# A plot is seen by its brazier's fire — the tent is behind it — and in
+	# sight rather than in view: the near two stand level with the arrival,
+	# which is walked in between them.
+	for i: int in CampDressing.PLOTS.size():
+		var plot: Vector3 = CampDressing.PLOTS[i][0]
+		var toward: Vector3 = (FIRE_AT - plot).normalized()
+		var aside := Vector3(-toward.z, 0.0, toward.x)
+		stations["plot %d" % i] = plot + toward * 2.4 + aside * 1.3 + Vector3(0.0, 1.3, 0.0)
+	var unseen := PackedStringArray()
+	for what: String in stations:
+		var at: Vector3 = stations[what]
+		var to: Vector3 = at - arrival
+		var flat := Vector3(to.x, 0.0, to.z).normalized()
+		var bearing: float = rad_to_deg(acos(clampf(flat.dot(ahead), -1.0, 1.0)))
+		var query := PhysicsRayQueryParameters3D.create(arrival, at - to.normalized() * 0.6)
+		query.collision_mask = CollisionLayers.WORLD
+		var blocked: bool = not space.intersect_ray(query).is_empty()
+		var in_view: bool = bearing <= AXIS_VIEW_HALF or what.begins_with("plot")
+		if blocked or not in_view:
+			unseen.append("%s (%s, %.0f° off the axis)" % [what, "behind something" if blocked else "in sight", bearing])
+	print("[axis] from the arrival       %d of %d station(s) seen down the axis%s"
+		% [stations.size() - unseen.size(), stations.size(),
+			"" if unseen.is_empty() else ": not " + ", ".join(unseen)])
+	if not unseen.is_empty():
+		problems.append("from the arrival a station is hidden or out of view: %s" % ", ".join(unseen))
+	# 2. three lines down the axis, at knee and head height, skipping the fire.
+	var throat_end: float = GROUND_AT - GROUND_DEEP * 0.5 + 1.0
+	var crossings := PackedStringArray()
+	for side: float in [-AXIS_HALF_WIDTH, 0.0, AXIS_HALF_WIDTH]:
+		for height: float in [0.5, 1.5]:
+			for span: Vector2 in [Vector2(arrival.z, FIRE_AT.z + AXIS_FIRE_SKIP),
+					Vector2(FIRE_AT.z - AXIS_FIRE_SKIP, throat_end)]:
+				var from := Vector3(side, height, span.x)
+				var query := PhysicsRayQueryParameters3D.create(from, Vector3(side, height, span.y))
+				query.collision_mask = CollisionLayers.WORLD
+				var hit: Dictionary = space.intersect_ray(query)
+				if not hit.is_empty():
+					crossings.append("%s at x %.1f, z %.1f" % [(hit["collider"] as Node).name,
+						(hit["position"] as Vector3).x, (hit["position"] as Vector3).z])
+	print("[axis] down the axis          %d thing(s) across it, ±%.1f m, arrival to throat%s"
+		% [crossings.size(), AXIS_HALF_WIDTH, "" if crossings.is_empty() else ": " + ", ".join(crossings)])
+	if not crossings.is_empty():
+		problems.append("the axis from the arrival to the Descent is crossed: %s" % ", ".join(crossings))
+	# 3. the fire's ring.
+	var in_ring: int = 0
+	for step: int in 32:
+		var angle: float = TAU * float(step) / 32.0
+		var out := Vector3(cos(angle), 0.0, sin(angle))
+		var query := PhysicsRayQueryParameters3D.create(FIRE_AT + out * AXIS_SEATS + Vector3.UP,
+			FIRE_AT + out * AXIS_RING + Vector3.UP)
+		query.collision_mask = CollisionLayers.WORLD
+		if not space.intersect_ray(query).is_empty():
+			in_ring += 1
+	print("[axis] the fire's ring         %d of 32 bearing(s) crossed between %.1f and %.1f m"
+		% [in_ring, AXIS_SEATS, AXIS_RING])
+	if in_ring > 0:
+		problems.append("%d bearings of the fire's ring have something standing in them" % in_ring)
+	# 4. the plots on the rim, each with its own light.
+	var lights: Array[Node] = find_children("*", "FlickerLight", true, false)
+	var dim := PackedStringArray()
+	for i: int in CampDressing.PLOTS.size():
+		var plot: Vector3 = CampDressing.PLOTS[i][0]
+		var lit: bool = false
+		for node: Node in lights:
+			var lamp := node as Node3D
+			if lamp != null and Vector2(lamp.global_position.x - plot.x,
+					lamp.global_position.z - plot.z).length() <= AXIS_PLOT_LIGHT:
+				lit = true
+		var out: float = Vector2(plot.x - FIRE_AT.x, plot.z - FIRE_AT.z).length()
+		if out < AXIS_RIM or not lit:
+			dim.append("plot %d at %.1f m%s" % [i, out, "" if lit else ", unlit"])
+	print("[axis] the plots              %d of %d on the rim and lit%s"
+		% [CampDressing.PLOTS.size() - dim.size(), CampDressing.PLOTS.size(),
+			"" if dim.is_empty() else ": not " + ", ".join(dim)])
+	if not dim.is_empty():
+		problems.append("a plot stands inside the ring or has no light of its own: %s" % ", ".join(dim))
+	for problem: String in problems:
+		printerr("[axis] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## How far either side of the axis must be clear, metres (ADR-393).
+const AXIS_HALF_WIDTH: float = 1.8
+## How far round from the axis a station may stand and still be seen from the
+## arrival: about the camera's horizontal half-view.
+const AXIS_VIEW_HALF: float = 55.0
+## The fire's own footprint on the axis, skipped by the axis rows.
+const AXIS_FIRE_SKIP: float = 3.0
+## The fire's seats stand inside this; nothing may stand between it and the
+## ring's edge.
+const AXIS_SEATS: float = 3.2
+const AXIS_RING: float = 6.0
+## How far out a plot stands to be on the rim, and how near its light is.
+const AXIS_RIM: float = 9.0
+const AXIS_PLOT_LIGHT: float = 4.0
+
+
 ## **The Lodge's board** (`M4-T04`, ADR-241): the key opens it where you stand
 ## and nowhere else, it takes the body's attention and gives it back, it offers
 ## three and lets two be taken, a favour is bought and then refused as already
@@ -1585,14 +1722,17 @@ func _build_fire() -> void:
 const CAMP_HEARTH: PackedScene = preload("res://art/props/camp_hearth.glb")
 const CAMP_LOG: PackedScene = preload("res://art/props/camp_log.glb")
 const CAMP_MINE_SET: PackedScene = preload("res://art/props/mine_set.glb")
+## **Against the walls** (ADR-393): the mine's gear in the throat's corners,
+## the candles at the board's foot, the rubble at the arrival's corners — none
+## of it within reach of the axis, the fire's ring, or a plot.
 const CAMP_DRESSING: Array = [
-	[&"dressing_ore_cart", Vector3(-3.3, 0.0, -10.4), 0.4],
-	[&"dressing_rope_coil", Vector3(3.0, 0.0, -11.0), 0.0],
-	[&"dressing_broken_bracing", Vector3(4.6, 0.0, -7.4), -1.57],
-	[&"dressing_spoil_heap", Vector3(-4.4, 0.0, -6.6), 0.8],
-	[&"dressing_guttered_candles", Vector3(2.7, 0.0, -1.7), 0.0],
-	[&"dressing_fallen_masonry", Vector3(-8.4, 0.0, 7.6), 2.2],
-	[&"dressing_rusted_fittings", Vector3(8.2, 0.0, 7.0), -0.6],
+	[&"dressing_ore_cart", Vector3(-4.6, 0.0, -19.8), 0.4],
+	[&"dressing_rope_coil", Vector3(4.4, 0.0, -20.4), 0.0],
+	[&"dressing_broken_bracing", Vector3(14.6, 0.0, -16.0), -1.57],
+	[&"dressing_spoil_heap", Vector3(-14.2, 0.0, -16.6), 0.8],
+	[&"dressing_guttered_candles", Vector3(5.6, 0.0, -8.4), 0.0],
+	[&"dressing_fallen_masonry", Vector3(-14.0, 0.0, 13.6), 2.2],
+	[&"dressing_rusted_fittings", Vector3(14.2, 0.0, 13.2), -0.6],
 ]
 
 
@@ -1607,8 +1747,15 @@ func _dress_the_camp() -> void:
 		GROUND_AT + GROUND_DEEP * 0.5, WALL_HIGH, clear)
 	for i: int in CampDressing.PLOTS.size():
 		var plot: Array = CampDressing.PLOTS[i]
-		CampDressing.campsite(self, plot[0] as Vector3, plot[1] as Color, FIRE_AT,
-			float(i) * 1.7)
+		var at: Vector3 = plot[0] as Vector3
+		CampDressing.campsite(self, at, plot[1] as Color, FIRE_AT, float(i) * 1.7)
+		# **Each plot its own light** (ADR-393): a brazier by the tent's door,
+		# on the fire's side. On safe ground a light means *somebody's place*,
+		# which is what a plot is; across the ring, the plots read as four
+		# warm points on the rim rather than as tents in the dark.
+		var toward: Vector3 = (FIRE_AT - at).normalized()
+		var aside := Vector3(-toward.z, 0.0, toward.x)
+		Hearth.brazier(self, at + toward * 2.4 + aside * 1.3, PLOT_LIGHT_ENERGY, PLOT_LIGHT_REACH)
 	var crackle := AudioStreamPlayer3D.new()
 	crackle.stream = Foley.looping_stream_for(Foley.Sound.CRACKLE)
 	crackle.bus = "diegetic"
@@ -1640,6 +1787,18 @@ func _dress_the_camp() -> void:
 func _build_board() -> void:
 	# A board with a roof and notices on it (ADR-287), not a plank on a post.
 	CampDressing.board(self, BOARD_AT, 4)
+	# **Its own light** (ADR-393), under the roof on the notices' side: the
+	# board was lit only by the fire behind it and read as a dark frame.
+	Hearth.light(self, BOARD_AT + Vector3(0.0, 2.3, 0.7), Color(1.0, 0.7, 0.38),
+		BOARD_LIGHT_ENERGY, BOARD_LIGHT_REACH, false)
+
+
+## A plot's brazier and the board's lamp: enough to name a station from the
+## arrival, never enough to light the ground between them (ADR-393) ⟨tune⟩.
+const PLOT_LIGHT_ENERGY: float = 1.1
+const PLOT_LIGHT_REACH: float = 6.0
+const BOARD_LIGHT_ENERGY: float = 0.9
+const BOARD_LIGHT_REACH: float = 4.5
 
 
 func _offer_the_board(player: Player) -> void:
@@ -1896,8 +2055,10 @@ func _camp_shot(dir: String) -> void:
 		["way_down", FIRE_AT + Vector3(0.0, stand, -4.0), DESCENT_AT + Vector3(0.0, 1.5, 0.0)],
 		["way_home", FIRE_AT + Vector3(0.0, stand, 4.0), CHAMBER_AT + Vector3(0.0, 1.5, 0.0)],
 		["board", BOARD_AT + Vector3(-1.2, stand, 2.2), BOARD_AT + Vector3(0.0, 1.4, 0.0)],
-		["flank_left", Vector3(-7.5, stand, 2.0), Vector3(4.0, 1.2, -4.0)],
-		["flank_right", Vector3(7.5, stand, 2.0), Vector3(-4.0, 1.2, -4.0)],
+		["flank_left", Vector3(-12.5, stand, 3.0), Vector3(6.0, 1.2, -6.0)],
+		["flank_right", Vector3(12.5, stand, 3.0), Vector3(-6.0, 1.2, -6.0)],
+		# The arrival as a first life meets it (ADR-393): down the axis.
+		["arrival", Vector3(0.0, stand, 14.0), Vector3(0.0, 1.2, -6.0)],
 	]
 	get_tree().paused = true
 	for view: Array in views:

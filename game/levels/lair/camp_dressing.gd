@@ -19,11 +19,15 @@ const CLOTH: Shader = preload("res://art/shaders/cloth.gdshader")
 ## The four plots (`DES-014`): position, which way the tent opens (toward the
 ## fire), and its canvas. Muted dyes — ochre, rust, moss, slate — because
 ## `ART-005` keeps saturated colour for treasure.
+##
+## **On the rim** (ADR-393), two each side of the axis and about eleven metres
+## out: far enough that the ring round the fire is open ground to gather on,
+## near enough that each plot is part of the camp and not a corner of it.
 const PLOTS: Array = [
-	[Vector3(-6.4, 0.0, 0.2), Color(0.42, 0.33, 0.20)],
-	[Vector3(6.6, 0.0, 1.4), Color(0.40, 0.22, 0.16)],
-	[Vector3(-5.6, 0.0, 6.6), Color(0.26, 0.30, 0.22)],
-	[Vector3(5.8, 0.0, 6.8), Color(0.24, 0.27, 0.32)],
+	[Vector3(-11.0, 0.0, -5.0), Color(0.42, 0.33, 0.20)],
+	[Vector3(11.0, 0.0, -5.0), Color(0.40, 0.22, 0.16)],
+	[Vector3(-10.5, 0.0, 6.0), Color(0.26, 0.30, 0.22)],
+	[Vector3(10.5, 0.0, 6.0), Color(0.24, 0.27, 0.32)],
 ]
 
 

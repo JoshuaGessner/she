@@ -13699,6 +13699,26 @@ Unchanged and green: `--reach-probe` (24 floors routed, 9 walked end to end by t
 
 **Cost:** a weekend, with the shots.
 
-**Measured:** to be appended by `M4-T42`: the before/after shots from the same seven viewpoints, and the probe rows.
+**As built (`M4-T42`).**
+- **The ground is 32 × 38 m.** The arrival is at the Chamber door (z +16), the fire at 0, and the Descent at the throat's end (z −22). The four spawns stand at the arrival, so a life's first view runs down the axis.
+- **The plots stand on the rim** at about 11 m, two each side, each tent opening toward the fire. Each has a brazier by its door on the fire's side (`Hearth.brazier`, 1.1 energy, 6 m).
+- **The board is 4.6 m off the axis** on the way down, with its own lamp under its roof. The mine's dressing stands in the throat's corners and the rubble in the arrival's corners.
+- **Correction to the Decision above:** there is no stash chest at the camp. The stash is in her Chamber. The camp's stations are the fire, the board, the two doors and the four plots.
+- **Two notes for later:**
+  - The floor's hatching is still the busiest pattern on the open ground.
+  - The throat end reads through haze.
+
+  Both are a look pass, not a layout one.
+
+**Measured (`--axis-probe`, new, in the sweep):**
+
+| row | result |
+|---|---|
+| stations seen from the arrival (fire, Descent and board in view; four plots in sight) | **7 of 7** |
+| colliders across the axis, ±1.8 m, knee and head height, arrival to throat | **0** |
+| the fire's ring, 3.2–6 m, 32 bearings | **0 crossed** |
+| plots on the rim (≥ 9 m) with a light of their own | **4 of 4** |
+
+The camp before this ADR fails the last two rows: its plots stood at 6 m, inside the ring, lit only by the fire. Shots from the same seven viewpoints, plus the arrival, are in `--camp-shot`. Unchanged and green: `--threshold-probe`, `--board-probe`, `--settle-probe`, and `--edges-probe` (closed on all 80 bearings, furthest wall 24.6 m, nothing outside the ground).
 
 *Entries below to be added as design decisions are signed off.*
