@@ -13232,8 +13232,84 @@ func _engage_probe() -> void:
 	if String(behind_off["first"]) != "behind":
 		problems.append("without the rule the first blow came from %s, so the row cannot see the rule"
 			% behind_off["first"])
+	# 6. **Each player is fought on their own turns** (B100). Two players eight
+	# metres apart, three bodies on each, with the rule and without it: with it
+	# no more than `engage_tokens` wind up on either, and more than that do
+	# across the room — one player's fight takes none of the other's turns.
+	var pair: Dictionary = await _engage_two(player, ground)
+	tuning.engage_tokens = 99
+	var pair_off: Dictionary = await _engage_two(player, ground)
+	tuning.engage_tokens = int(kept[0])
+	print("[engage] two players, three bodies each   peak winding on one %d (%d without), across both %d"
+		% [pair["each"], pair_off["each"], pair["both"]])
+	if int(pair["each"]) > int(kept[0]):
+		problems.append("%d wound up on one of two players with %d turns each" % [int(pair["each"]), int(kept[0])])
+	if int(pair_off["each"]) <= int(kept[0]):
+		problems.append("without the rule only %d wound up on one player, so the row cannot see the rule"
+			% int(pair_off["each"]))
+	if int(pair["both"]) <= int(kept[0]):
+		problems.append(("only %d wound up across two players at once — the turns are per player, and two "
+			+ "players fought by six bodies share none") % int(pair["both"]))
 	_session.clear_enemies()
+	# 5. **Nothing is kept for bodies that are gone** (B90). The pools are
+	# static and outlive every floor; a body freed without dying — a floor
+	# laid over it, a clear — left its claim and its pool's key behind for the
+	# rest of the process.
+	await _hold(0.3)
+	var left_holding: int = 0
+	for key: int in Engagement._holders.keys():
+		left_holding += (Engagement._holders[key] as Array).size()
+	print("[engage] after the floor is cleared   %d turn(s) held, %d pool key(s), %d waiting claim(s)"
+		% [left_holding, Engagement._holders.size(), Engagement._bearing.size()])
+	if left_holding > 0 or Engagement._holders.size() > 0 or Engagement._bearing.size() > 0:
+		problems.append("with every body gone the pools still held %d turn(s), %d key(s) and %d claim(s)"
+			% [left_holding, Engagement._holders.size(), Engagement._bearing.size()])
 	_report(problems, "engage")
+
+
+## Row 6 of `_engage_probe`: `player` and a stand-in teammate eight metres
+## apart, still and facing −Z, three swipe-only bodies set on each. Returns the
+## peak number winding up on either one, and on both together, over six seconds.
+func _engage_two(player: Player, ground: Vector3) -> Dictionary:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	player.teleport(ground + Vector3(-4.0, 0.0, 0.0), 0.0)
+	var mate: Player = _session.spawn_player(TEAMMATE_PEER, ground + Vector3(4.0, 0.0, 0.0))
+	mate.health.maximum = 100000.0
+	mate.health.restore()
+	await _hold(0.2)
+	for target: Player in [player, mate]:
+		for lateral: float in [-1.2, 0.0, 1.2]:
+			_session.spawn_enemy(target.global_position + Vector3(lateral, 0.0, -3.4), 0.0, ENGAGE_KIND)
+	await _hold(0.2)
+	var aimed := {}
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body == null:
+			continue
+		var target: Player = player if body.global_position.x < ground.x else mate
+		aimed[body] = target
+		body.set("_home", body.global_position)
+		body.set("_target", target)
+		body.set("_last_seen", target.global_position)
+		body.set("_patience", 30.0)
+		body.set("_state", Enemy.State.ALERTED)
+	var out := {"each": 0, "both": 0}
+	var left: float = 6.0
+	while left > 0.0:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time()
+		var on := {player: 0, mate: 0}
+		for body: Enemy in aimed.keys():
+			if is_instance_valid(body) and body.attack_phase() in [Enemy.Attack.TELEGRAPH, Enemy.Attack.ACTIVE]:
+				on[aimed[body]] = int(on[aimed[body]]) + 1
+		out["each"] = maxi(int(out["each"]), maxi(int(on[player]), int(on[mate])))
+		out["both"] = maxi(int(out["both"]), int(on[player]) + int(on[mate]))
+	_session.clear_enemies()
+	_session.despawn_player(TEAMMATE_PEER)
+	await _hold(0.2)
+	return out
 
 
 ## Row 4 of `_engage_probe`: three swipe-only bodies close on a still `player`;

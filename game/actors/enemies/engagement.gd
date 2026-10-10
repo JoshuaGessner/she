@@ -64,10 +64,15 @@ static func take(body: Enemy, target: Node3D, missile: bool, tuning: TuningProfi
 	return true
 
 
-## Give back whatever `body` holds or claims, everywhere. Host only.
+## Give back whatever `body` holds or claims, everywhere, and drop a pool left
+## empty — its target may be gone for good, and a key per player ever fought
+## would outlive the session. Host only.
 static func release(body: Enemy) -> void:
 	for key: int in _holders.keys():
-		(_holders[key] as Array).erase(body)
+		var holders: Array = _holders[key]
+		holders.erase(body)
+		if holders.is_empty():
+			_holders.erase(key)
 	_bearing.erase(body)
 
 

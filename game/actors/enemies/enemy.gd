@@ -357,6 +357,13 @@ func _break_poise() -> void:
 	Engagement.release(self)
 
 
+## **Gone without dying** — a floor laid over it, a clear — its turns and its
+## place in the ring go with it (B90). The pools are static and outlive every
+## floor; dying already gave them back, and leaving did not.
+func _exit_tree() -> void:
+	Engagement.release(self)
+
+
 ## **Has this body got you?** ALERTED, CALLING and SWARM are three answers to
 ## one question, and every existing caller asking `state() == ALERTED` meant
 ## this one. Two probes compared against ALERTED directly and would have gone
