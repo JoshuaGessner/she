@@ -371,7 +371,7 @@ audio, vertex-channel authoring, inversion, or the human playtest gate.
 ## M5 — Content & Breadth
 
 <!-- milestone id=M5 depends=M4 size=unknown -->
-- [ ] `M5-T01` **The remaining four classes**, moved here by ADR-061; all six are required for launch (ADR-012). *The Skald remains: the Úlfheðinn went back to M4 as `M4-T34` (ADR-345), the Völva as `M4-T35` (ADR-379), the Haugbrjótr as `M4-T36` (ADR-382), and the Skald as `M4-T37` (ADR-387), which leaves this task empty when it closes.* → DES-011
+- [-] `M5-T01` **The remaining four classes** — ***cut: empty, all four were pulled forward and built in M4 as `M4-T34` to `M4-T37`, so this row has nothing left to hold.*** Moved here by ADR-061; all six are required for launch (ADR-012). *The Skald remains: the Úlfheðinn went back to M4 as `M4-T34` (ADR-345), the Völva as `M4-T35` (ADR-379), the Haugbrjótr as `M4-T36` (ADR-382), and the Skald as `M4-T37` (ADR-387), which leaves this task empty when it closes.* → DES-011
 - [ ] `M5-T02` Remaining biomes — Barrow-Fields, Sunken Wood → DES-006, DES-015
 - [ ] `M5-T03` Remaining factions and Aspects → DES-007, DES-004
 - [ ] `M5-T04` Full enemy roster and modifier set → DES-013

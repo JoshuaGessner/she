@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`107/122` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`107/121` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -21,7 +21,7 @@ flowchart LR
   M2 --> M3
   M4["M4 Vertical Slice<br/>34/39"]:::current
   M3 --> M4
-  M5["M5 Content & Breadth<br/>0/10"]:::ahead
+  M5["M5 Content & Breadth<br/>0/9"]:::ahead
   M4 --> M5
   M6["M6 Ship<br/>0/0"]:::ahead
   M5 --> M6
@@ -39,7 +39,7 @@ flowchart LR
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
 | ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████████████████▒░░` | 34/39 (1 cut) | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
-|  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
+|  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/9 (1 cut) | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
 ## Blockers
@@ -54,6 +54,7 @@ _None. Sequencing is clean._
 | `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33, M3-T37, M3-T38, M3-T42, M4-T33) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-005 is fully implemented (M1-T01, M1-T04, M2-T01, M2-T02, M2-T04, M2-T14, M2-T17, M2-T18, M3-T11, M3-T12, M4-T01, M4-T15) but still has 8 ⟨tune⟩ marker(s) |
 | `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19, M4-T16, M4-T17, M4-T32, M4-T27, M4-T29, M4-T38, M4-T39) but still has 15 ⟨tune⟩ marker(s) |
+| `untuned` | DES-011 is fully implemented (M3-T02, M3-T11, M3-T05, M3-T12, M3-T17, M3-T20, M3-T27, M3-T37, M4-T03, M4-T34, M4-T35, M4-T36, M4-T37) but still has 11 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08, M4-T01) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-017 is fully implemented (M2-T02, M2-T03, M2-T19, M2-T21, M3-T04, M3-T21, M3-T22, M4-T01) but still has 8 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
@@ -189,7 +190,7 @@ _None. Sequencing is clean._
 
 ### M5 — Content & Breadth
 
-- · `M5-T01` **The remaining four classes**, moved here by ADR-061; all six are required for launch (ADR-012). *The Skald remains: the Úlfheðinn went back to M4 as `M4-T34` (ADR-345), the Völva as `M4-T35` (ADR-379), the Haugbrjótr as `M4-T36` (ADR-382), and the Skald as `M4-T37` (ADR-387), which leaves this task empty when it closes.* `DES-011`
+- ✗ `M5-T01` **The remaining four classes** — ***cut: empty, all four were pulled forward and built in M4 as `M4-T34` to `M4-T37`, so this row has nothing left to hold.*** Moved here by ADR-061; all six are required for launch (ADR-012). *The Skald remains: the Úlfheðinn went back to M4 as `M4-T34` (ADR-345), the Völva as `M4-T35` (ADR-379), the Haugbrjótr as `M4-T36` (ADR-382), and the Skald as `M4-T37` (ADR-387), which leaves this task empty when it closes.* `DES-011`
 - · `M5-T02` Remaining biomes — Barrow-Fields, Sunken Wood `DES-006` `DES-015`
 - · `M5-T03` Remaining factions and Aspects `DES-007` `DES-004`
 - · `M5-T04` Full enemy roster and modifier set `DES-013`
