@@ -268,6 +268,10 @@ const SURFACES: Dictionary = {
 
 ## The piece a `cart` feature is drawn as.
 const CART_PIECE: StringName = &"dressing_ore_cart"
+## Its scene, held once loaded, as the kit holds its own meshes. Loaded per
+## floor, it was dropped with the last floor that drew it and reloaded with new
+## meshes, so one seed drew two different sets of stone (`kit_probe`).
+static var _cart_look: PackedScene = null
 
 var _into: Node3D = null
 ## Where the cladding that belongs to no one slab hangs — see `_trim_shelf`.
@@ -666,7 +670,9 @@ func _furnish(plan: FloorPlan, node: int, height: float) -> void:
 ## where the room's boxes are the solid (`DelvingsKit.look_of`).
 func _cart(slab: MeshInstance3D, size: Vector3) -> void:
 	slab.mesh = null
-	var look: Node3D = DelvingsKit.look_of(load(FloorDressing.SHELF % CART_PIECE) as PackedScene)
+	if _cart_look == null:
+		_cart_look = load(FloorDressing.SHELF % CART_PIECE) as PackedScene
+	var look: Node3D = DelvingsKit.look_of(_cart_look)
 	look.position.y = -size.y * 0.5
 	if size.z > size.x:
 		look.rotation.y = PI * 0.5
