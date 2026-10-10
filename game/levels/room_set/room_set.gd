@@ -13225,6 +13225,17 @@ func _moveset_probe() -> void:
 	_report(problems, "moveset")
 
 
+## Load `body`'s heavy blow into its hitbox (ADR-391): a probe that strikes
+## with an archetype's hitbox and means its overhead has to say so, now that
+## an archetype has more than one blow and rests holding the first listed.
+func _load_heaviest(body: Enemy) -> void:
+	var kind: EnemyResource = EnemyCatalogue.by_id(body.archetype)
+	for blow: AttackResource in kind.attacks:
+		if blow.heavy:
+			body.call("_load_blow", blow)
+			return
+
+
 ## Register a scratch archetype for one probe run.
 func _probe_kind(kind: EnemyResource) -> void:
 	EnemyCatalogue.all()
@@ -14585,6 +14596,10 @@ func _shield_probe() -> void:
 	wretch.process_mode = Node.PROCESS_MODE_DISABLED
 	var hurtbox := player.get_node("Hurtbox") as Hurtbox
 	var overhead := warden.get("_hitbox") as Hitbox
+	# The overhead by name (ADR-391): the Warden lists its shove first, and a
+	# hitbox is loaded with whichever blow is being dealt, so a resting Warden
+	# holds the shove — which is not heavy, and a weapon's guard takes a share.
+	_load_heaviest(warden)
 	var cut := wretch.get("_hitbox") as Hitbox
 	# **Off the line the two strikers stand on**: the first draft threw down it,
 	# the Warden took the stone — a body in the way is cover (ADR-235) — woke, and
@@ -14756,6 +14771,9 @@ func _wound_probe() -> void:
 		if body != null:
 			# Held still, for `_shield_probe`'s reason: a struck body wakes.
 			body.process_mode = Node.PROCESS_MODE_DISABLED
+			# Its heavy blow, where it has one (ADR-391): the Warden rests
+			# holding its shove and the Keeper its sweep.
+			_load_heaviest(body)
 			strikers[body.archetype] = body.get("_hitbox") as Hitbox
 	var overhead := strikers.get(&"enm_hall_warden") as Hitbox
 	var spear := strikers.get(&"enm_hoard_keeper") as Hitbox
