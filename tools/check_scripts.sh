@@ -797,6 +797,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **A room is built as what it is called** (`M4-T40`, ADR-392): over ninety
+	# floors every interior feature keeps its rules, the named layouts land,
+	# room floor near cover rises by twenty points over the hub's pillars alone,
+	# and no feature stands in a ledge the builder raised. The reach panel above
+	# walks the same floors with the interiors standing.
+	interior="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --interior-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$interior" \
+			|| ! grep -q "^\[interior\] room floor within 3 m" <<<"$interior"; then
+		echo "FAIL a room has to be built as what it is called" >&2
+		printf '%s\n' "$interior" | grep -E '\[interior\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The Sling-Wretch** (`M4-T02` step 5, ADR-235). It stands off and slings;
 	# a guard takes nothing off a stone; a body in the way takes it and its thrower
 	# never does; a wall stops an arrow and a stone; and nothing is thrown at a

@@ -1050,6 +1050,329 @@ func pillars() -> Array[Vector2i]:
 	return out
 
 
+## **What stands inside a room** (ADR-392): its module's `interior`, laid out.
+##
+## Each feature is `{"rect": Rect2, "height": float, "role": String}`, the rect
+## in **cells** (floats, from the floor's origin) and the height in metres.
+## Like `pillars()`, a pure function of the plan — the room's rectangle, its
+## doors, its rock — so the builder that lays them, the anchors that keep off
+## them and the probes that measure them cannot disagree. Rubble's scatter is
+## drawn from a stream keyed on the room's own cell, so nothing else on the
+## floor moves when it changes.
+##
+## What every layout keeps, checked per feature and the feature dropped if not:
+## - **a clear apron at every doorway** (`FEATURE_APRON` cells from the door);
+## - **the room's middle open** (`FEATURE_MIDDLE`), where its centre, spawns,
+##   rings and Prize are measured from;
+## - **off its rock and off its walls** — and further off them in a great room,
+##   whose ledge the builder lays along a wall of its own choosing;
+## - never in the hub, the entrance (its first thirty seconds are for reading
+##   it, ADR-389) or the Shaft.
+func features_of(node: int) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if node < 0 or node >= _mods.size() or _mods[node] == null or node == _hub:
+		return out
+	var module: RoomModule = _mods[node]
+	if module.interior == RoomModule.Interior.OPEN \
+			or node == _graph.node_with(MissionGraph.Role.ENTRANCE) \
+			or node == _graph.node_with(MissionGraph.Role.SHAFT):
+		return out
+	var rect: Rect2i = _rect[node]
+	var long_x: bool = rect.size.x >= rect.size.y
+	var long: int = rect.size.x if long_x else rect.size.y
+	var short: int = rect.size.y if long_x else rect.size.x
+	var great: bool = module.volume == RoomModule.Volume.GREAT
+	# The open floor a feature may stand on: a cell off every wall.
+	var inner_long: float = float(long) - FEATURE_MARGIN * 2.0
+	var inner_short: float = float(short) - FEATURE_MARGIN * 2.0
+	var wanted: Array[Dictionary] = []
+	# Positions are given as (along, across) the room's long axis and turned
+	# into cells below, so one rule serves a room either way round.
+	match module.interior:
+		RoomModule.Interior.COLONNADE:
+			var across: Array[float] = _rows_across(short, 0.2)
+			var along: float = FEATURE_MARGIN + 0.2
+			while along <= float(long) - FEATURE_MARGIN - 0.2 + 0.001:
+				for at: float in across:
+					wanted.append(_feature(along, at, 0.4, 0.4, -1.0, "column"))
+				along += 2.0
+		RoomModule.Interior.PIERS:
+			# Four, diagonally off the middle by as much as the room allows and
+			# never under 0.6 cells, so the lanes round the middle are a body
+			# wide and the room is a loop.
+			var off: float = minf(1.0, minf(float(long), float(short)) * 0.5 - FEATURE_MARGIN - 0.25)
+			if off >= 0.6:
+				for along: float in [-off, off]:
+					for at: float in [-off, off]:
+						wanted.append(_feature(float(long) * 0.5 + along, float(short) * 0.5 + at,
+							0.5, 0.5, -1.0, "pier"))
+		RoomModule.Interior.ROWS:
+			# Each row broken where the middle is, so the lanes join there and
+			# the middle stays open.
+			var mid: float = float(long) * 0.5
+			for at: float in _rows_across(short, 0.225):
+				for span: Vector2 in [Vector2(FEATURE_MARGIN, mid - 0.5),
+						Vector2(mid + 0.5, float(long) - FEATURE_MARGIN)]:
+					if span.y - span.x >= 0.4:
+						wanted.append(_feature((span.x + span.y) * 0.5, at, span.y - span.x, 0.45,
+							ROW_HEIGHT, "bier"))
+		RoomModule.Interior.BAYS:
+			# Returns stand against a wall, so never in a great room, whose ledge
+			# may run along any wall.
+			if not great:
+				for along: int in range(1, long):
+					var low: bool = along % 2 == 1
+					var at: float = BAY_DEPTH * 0.5 if low else float(short) - BAY_DEPTH * 0.5
+					wanted.append(_feature(float(along), at, 0.25, BAY_DEPTH, -1.0, "bay"))
+		RoomModule.Interior.RUBBLE:
+			if inner_long >= 1.0 and inner_short >= 1.0:
+				var scatter := RandomNumberGenerator.new()
+				scatter.seed = MissionGraph._mix(rect.position.x * 73856093 ^ rect.position.y * 19349663
+					^ FEATURE_STREAM)
+				for _fallen: int in RUBBLE_BLOCKS:
+					var size: float = scatter.randf_range(0.35, 0.6)
+					var wide: float = size * scatter.randf_range(0.7, 1.3)
+					wanted.append(_feature(
+						FEATURE_MARGIN + size * 0.5 + scatter.randf() * maxf(0.0, inner_long - size),
+						FEATURE_MARGIN + wide * 0.5 + scatter.randf() * maxf(0.0, inner_short - wide),
+						size, wide, scatter.randf_range(0.7, 1.4), "rubble"))
+	var doors: Array[Vector2i] = doors_of(node)
+	var middle := Vector2(rect.position) + Vector2(rect.size) * 0.5
+	var floor_rect := Rect2(Vector2(rect.position), Vector2(rect.size))
+	# The ledge's strip and a body's width beside it: its ramp fills the lane
+	# the wall margin leaves everywhere else.
+	var ledge_keep := Rect2()
+	var ledge: int = ledge_side(node)
+	if ledge >= 0:
+		var strip: Array[Vector2i] = FloorBuilder._strip(rect, ledge)
+		ledge_keep = Rect2(Vector2(strip[0]), Vector2.ONE).merge(
+			Rect2(Vector2(strip[strip.size() - 1]), Vector2.ONE)).grow(FEATURE_ROCK_CLEAR)
+	for raw: Dictionary in wanted:
+		var local: Rect2 = raw["rect"]
+		# (along, across) → cells.
+		var placed := Rect2(
+			Vector2(rect.position) + (local.position if long_x else Vector2(local.position.y, local.position.x)),
+			local.size if long_x else Vector2(local.size.y, local.size.x))
+		if not floor_rect.encloses(placed):
+			continue
+		if placed.grow(FEATURE_MIDDLE).has_point(middle):
+			continue
+		var clear: bool = true
+		for door: Vector2i in doors:
+			if _rect_gap(placed, Vector2(door) + Vector2(0.5, 0.5)) < FEATURE_APRON:
+				clear = false
+				break
+		# **A body's width from any rock** (`--reach-probe`): a carved corner
+		# juts into the one-cell lane round the walls, and a feature touching it
+		# sealed the lane — four floors in the reach panel had no walkable way
+		# from the entrance to the Shaft.
+		if clear:
+			var kept: Rect2 = placed.grow(FEATURE_ROCK_CLEAR)
+			for x: int in range(floori(kept.position.x), ceili(kept.end.x)):
+				for y: int in range(floori(kept.position.y), ceili(kept.end.y)):
+					if notched(Vector2i(x, y)):
+						clear = false
+		# **A cell off every wall**, which is also why no feature can stand in
+		# a ledge: the builder lays a ledge's deck and ramp in the one-cell
+		# strip along whichever wall it picks. A bay is a wall's own.
+		if clear and raw["role"] != "bay" \
+				and not floor_rect.grow(-FEATURE_MARGIN + 0.001).encloses(placed):
+			clear = false
+		if clear and ledge >= 0 and ledge_keep.intersects(placed):
+			clear = false
+		if not clear:
+			continue
+		out.append({"rect": placed, "height": raw["height"], "role": raw["role"]})
+	# **And the room still crosses** (`DES-015` step 8, at room scale). The
+	# rules above are each local, and three floors in the reach panel had a
+	# mine head's row or a stope's rubble close the way between two doorways
+	# anyway — a carved corner and a ledge's ramp narrowing what the margin
+	# assumed was a lane. So the room is flooded on a quarter-cell grid with
+	# every wall, rock, ledge and feature grown by a body's radius, and while
+	# any doorway or the middle is cut off, the last feature laid is taken up.
+	var points: Array[Vector2] = [middle]
+	for door: Vector2i in doors:
+		var mouth := Vector2(door) + Vector2(0.5, 0.5)
+		points.append(Vector2(clampf(mouth.x, floor_rect.position.x + 0.35, floor_rect.end.x - 0.35),
+			clampf(mouth.y, floor_rect.position.y + 0.35, floor_rect.end.y - 0.35)))
+	var ledge_strip := ledge_keep.grow(-FEATURE_ROCK_CLEAR) if ledge >= 0 else Rect2()
+	# Asked against the empty room, not against an ideal: the model counts a
+	# ledge's whole strip as solid, so a doorway at a ledge's end can read as
+	# cut off with nothing in the room — and the room then lost every feature
+	# for a fault none of them made.
+	var bare: PackedInt32Array = _joined(rect, [], ledge_strip, points)
+	while not out.is_empty() and not _keeps(bare, _joined(rect, out, ledge_strip, points)):
+		out.pop_back()
+	return out
+
+
+## Does `now` still join every pair of points `bare` joined? Each is a region
+## label per point, 0 for a point standing in the solid.
+static func _keeps(bare: PackedInt32Array, now: PackedInt32Array) -> bool:
+	for i: int in bare.size():
+		for j: int in range(i + 1, bare.size()):
+			if bare[i] != 0 and bare[i] == bare[j] and (now[i] == 0 or now[i] != now[j]):
+				return false
+	return true
+
+
+## A body's radius in cells, for the crossing test: the navmesh agent's 0.45 m
+## and a little.
+const BODY_CELLS: float = 0.25
+
+
+## The region each of `points` stands in, for a body `BODY_CELLS` wide in
+## `rect` with its rock, its ledge's strip and `features` standing: two points
+## with the same label can reach each other; 0 is a point in the solid.
+func _joined(rect: Rect2i, features: Array[Dictionary], ledge_strip: Rect2,
+		points: Array[Vector2]) -> PackedInt32Array:
+	var step: float = 0.25
+	var columns: int = rect.size.x * 4
+	var rows: int = rect.size.y * 4
+	var open := PackedByteArray()
+	open.resize(columns * rows)
+	var inner := Rect2(Vector2(rect.position), Vector2(rect.size)).grow(-BODY_CELLS)
+	for cx: int in columns:
+		for cy: int in rows:
+			var at := Vector2(rect.position) + Vector2(cx + 0.5, cy + 0.5) * step
+			var free: bool = inner.has_point(at)
+			if free:
+				for x: int in range(floori(at.x - BODY_CELLS), floori(at.x + BODY_CELLS) + 1):
+					for y: int in range(floori(at.y - BODY_CELLS), floori(at.y + BODY_CELLS) + 1):
+						if notched(Vector2i(x, y)) and _rect_gap(Rect2(x, y, 1, 1), at) < BODY_CELLS:
+							free = false
+			if free and ledge_strip.size != Vector2.ZERO \
+					and _rect_gap(ledge_strip, at) < BODY_CELLS:
+				free = false
+			if free:
+				for feature: Dictionary in features:
+					if _rect_gap(feature["rect"], at) < BODY_CELLS:
+						free = false
+						break
+			open[cx + cy * columns] = 1 if free else 0
+	var index_of := func(point: Vector2) -> int:
+		var local: Vector2 = (point - Vector2(rect.position)) / step
+		return clampi(floori(local.x), 0, columns - 1) + clampi(floori(local.y), 0, rows - 1) * columns
+	# Each open sample labelled with its region, flooded from each point in
+	# turn; a point standing in the solid keeps label 0.
+	var label := PackedInt32Array()
+	label.resize(columns * rows)
+	var regions := PackedInt32Array()
+	for point: Vector2 in points:
+		var start: int = index_of.call(point)
+		if open[start] == 0:
+			regions.append(0)
+			continue
+		if label[start] == 0:
+			var mark: int = regions.size() + 1
+			label[start] = mark
+			var queue: Array[int] = [start]
+			while not queue.is_empty():
+				var at: int = queue.pop_back()
+				var ax: int = at % columns
+				var ay: int = at / columns
+				for next: Vector2i in [Vector2i(ax + 1, ay), Vector2i(ax - 1, ay),
+						Vector2i(ax, ay + 1), Vector2i(ax, ay - 1)]:
+					if next.x < 0 or next.y < 0 or next.x >= columns or next.y >= rows:
+						continue
+					var index: int = next.x + next.y * columns
+					if open[index] == 1 and label[index] == 0:
+						label[index] = mark
+						queue.append(index)
+		regions.append(label[start])
+	return regions
+
+
+## **Which wall a great room's ledge runs along** (ADR-392, `TEC-008`
+## §3.3.1), or −1 for none. The builder laid it from its own stream, so the
+## room's interior could not know where it was, and a pillar beside a ledge's
+## ramp sealed the lane between them (three floors of the reach panel had no
+## walkable way from the entrance to the Shaft). Decided here instead, by the
+## builder's own rules — two deck cells beyond the ramp, no doorway along the
+## wall, no rock on it, and not a doorway at both ends (ADR-213) — and chosen
+## among the walls that qualify from a stream keyed on the room's own cell.
+func ledge_side(node: int) -> int:
+	if node < 0 or node >= _mods.size() or _mods[node] == null \
+			or _mods[node].volume != RoomModule.Volume.GREAT:
+		return -1
+	var rect: Rect2i = _rect[node]
+	var doors: Array[Vector2i] = doors_of(node)
+	var sides: Array[int] = []
+	for side: int in 4:
+		var wall: Array[Vector2i] = FloorBuilder._strip(rect, side)
+		if wall.size() < FloorBuilder.LEDGE_RAMP_CELLS + 2:
+			continue
+		var clear: bool = true
+		for cell: Vector2i in wall:
+			if doors.has(cell + FloorBuilder._outward(side)) or notched(cell):
+				clear = false
+				break
+		if FloorBuilder._door_at_end(wall, doors, true) \
+				and FloorBuilder._door_at_end(wall, doors, false):
+			clear = false
+		if clear:
+			sides.append(side)
+	if sides.is_empty():
+		return -1
+	var pick: int = MissionGraph._mix(rect.position.x * 73856093 ^ rect.position.y * 19349663
+		^ LEDGE_STREAM)
+	return sides[posmod(pick, sides.size())]
+
+
+## Its own stream, so moving a ledge moves nothing else.
+const LEDGE_STREAM: int = 0x1ED6
+
+
+## Cells a feature keeps from any doorway, measured from the door's middle —
+## half a cell outside the wall, so this is the cell inside it and a little.
+const FEATURE_APRON: float = 1.4
+## Cells a feature keeps from the room's middle: room for the point every
+## centre, spawn, ring and Prize is measured from.
+const FEATURE_MIDDLE: float = 0.4
+## Cells a feature keeps off the walls: the one-cell strip a ledge may take.
+const FEATURE_MARGIN: float = 1.0
+## Cells a feature keeps from rock and from a ledge's strip: only enough that
+## two solids never share a face. Whether a body still gets past is the
+## crossing test's question (`_crosses`), asked of the whole room at once —
+## a fixed clearance here guessed at it per feature, emptied half the
+## galleries, and still missed the cases the test catches.
+const FEATURE_ROCK_CLEAR: float = 0.1
+## Height of a waist-high row, metres: seen over, not walked through.
+const ROW_HEIGHT: float = 1.0
+## How far a bay's return of wall reaches into the room, cells.
+const BAY_DEPTH: float = 0.7
+## How many blocks a room of rubble has fallen.
+const RUBBLE_BLOCKS: int = 3
+## Its own stream, so rubble never shifts a draw anything else makes.
+const FEATURE_STREAM: int = 0x5EA7
+
+
+## Where a room's rows stand across it: a cell off both walls, `half` being a
+## row's own half-width, or down the middle when the room is too narrow for
+## two with a lane between them.
+static func _rows_across(short: int, half: float) -> Array[float]:
+	var low: float = FEATURE_MARGIN + half
+	var high: float = float(short) - FEATURE_MARGIN - half
+	if high - low < 0.9:
+		return [float(short) * 0.5]
+	return [low, high]
+
+
+## A feature centred at (`along`, `across`), `long_size` by `wide_size` cells,
+## `height` metres or −1 for floor to ceiling.
+static func _feature(along: float, across: float, long_size: float, wide_size: float,
+		height: float, role: String) -> Dictionary:
+	return {"rect": Rect2(along - long_size * 0.5, across - wide_size * 0.5, long_size, wide_size),
+		"height": height, "role": role}
+
+
+## The gap from a rectangle to a point, 0 inside.
+static func _rect_gap(rect: Rect2, point: Vector2) -> float:
+	var dx: float = maxf(maxf(rect.position.x - point.x, 0.0), point.x - rect.end.x)
+	var dy: float = maxf(maxf(rect.position.y - point.y, 0.0), point.y - rect.end.y)
+	return Vector2(dx, dy).length()
+
+
 func corridor_cells() -> int:
 	return _corridor.size()
 

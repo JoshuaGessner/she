@@ -960,6 +960,8 @@ func _ready() -> void:
 			_engage_probe()
 		elif arg == "--moveset-probe":
 			_moveset_probe()
+		elif arg == "--interior-probe":
+			_interior_probe()
 		elif arg == "--escalation-probe":
 			_escalation_probe()
 		elif arg == "--sling-probe":
@@ -2023,10 +2025,19 @@ func _reach_probe() -> void:
 				and out[out.size() - 1].distance_to(down) <= NAV_REACH
 
 			if not arrives:
+				# **Where it stops**, so a failure names a room rather than a
+				# floor: the route's last point, and the room or corridor
+				# whose cells hold it.
+				var stop: Vector3 = out[out.size() - 1] if not out.is_empty() else start_at
+				var stop_cell: Vector2i = FloorBuilder.cell_of(stop)
+				var where: String = "a corridor"
+				for node: int in graph.size():
+					if plan.rect_of(node).has_point(stop_cell):
+						where = String(plan.module_of(node))
 				problems.append(("seed %d floor %d: nothing that walks can get "
 					+ "from the entrance to the Shaft — a run that spawns here "
-					+ "is over before it starts")
-					% [run_seed, depth])
+					+ "is over before it starts (the route stops at %s, in %s)")
+					% [run_seed, depth, stop, where])
 			elif stranded > 0:
 				problems.append(("seed %d floor %d: %d of %d standing room(s) "
 					+ "cannot be reached from the entrance — a room the Hunt "
@@ -13229,6 +13240,150 @@ func _moveset_probe() -> void:
 	player.health.restore()
 	_session.clear_enemies()
 	_report(problems, "moveset")
+
+
+## **A room is built as what it is called** (ADR-392, `M4-T40`).
+##
+## Over `INTERIOR_SEEDS` seeds × three floors, from the plan alone and then
+## from the builder's own slabs:
+##
+## 1. **Every feature keeps the rules**: inside its room a cell off every wall
+##    (a bay against one), on no rock, out of every doorway's apron, off the
+##    room's middle — asked of each feature, not of the floor.
+## 2. **The layouts land**: every pillared hall, gallery, cistern, barrow row,
+##    mine head and Prize room is furnished. The first version of the rules
+##    furnished none of the Prize rooms, cisterns or mine heads and passed
+##    every other probe — this row is what would have said so.
+## 3. **The floor is better to fight on**: room floor within 3 m of something
+##    to stand behind rises by at least `INTERIOR_COVER_GAIN` points over the
+##    hub's pillars alone (measured 29.5% to 61.8% over 120 floors).
+## 4. **No feature stands in a ledge**, asked of the builder's slabs, because
+##    the plan cannot see which wall the builder raises one along.
+func _interior_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var must_furnish: Array[StringName] = [&"hld_pillared_hall", &"con_gallery", &"con_cistern",
+		&"hld_barrow_row", &"con_mine_head", &"prz_hoard_chamber", &"prz_kings_barrow",
+		&"prz_deep_seam", &"prz_sealed_vault"]
+	var seen := {}
+	var furnished := {}
+	var broken: int = 0
+	var samples: int = 0
+	var near_before: int = 0
+	var near_after: int = 0
+	var in_ledges: int = 0
+	var built_floors: int = 0
+	for index: int in INTERIOR_SEEDS:
+		var run_seed: int = index * 7919 + 13
+		for depth: int in 3:
+			var floor_at: DelvingsFloor = DelvingsFloor.of(run_seed, depth)
+			var plan: FloorPlan = floor_at.get("_plan")
+			var graph: MissionGraph = floor_at.graph()
+			var pillars: Array[Rect2] = []
+			for corner: Vector2i in plan.pillars():
+				pillars.append(Rect2(Vector2(corner) - Vector2(0.2, 0.2), Vector2(0.4, 0.4)))
+			var all_features: Array[Rect2] = []
+			for node: int in graph.size():
+				var module: StringName = plan.module_of(node)
+				var features: Array[Dictionary] = plan.features_of(node)
+				seen[module] = int(seen.get(module, 0)) + 1
+				if not features.is_empty():
+					furnished[module] = int(furnished.get(module, 0)) + 1
+				var rect: Rect2i = plan.rect_of(node)
+				var room := Rect2(Vector2(rect.position), Vector2(rect.size))
+				var middle: Vector2 = room.get_center()
+				var solids: Array[Rect2] = pillars.duplicate()
+				for feature: Dictionary in features:
+					var at: Rect2 = feature["rect"]
+					solids.append(at)
+					all_features.append(at)
+					var off_walls: bool = room.grow(-FloorPlan.FEATURE_MARGIN + 0.002).encloses(at) \
+						if feature["role"] != "bay" else room.encloses(at)
+					var on_rock: bool = false
+					for x: int in range(floori(at.position.x), ceili(at.end.x)):
+						for y: int in range(floori(at.position.y), ceili(at.end.y)):
+							on_rock = on_rock or plan.notched(Vector2i(x, y))
+					var in_doorway: bool = false
+					for door: Vector2i in plan.doors_of(node):
+						in_doorway = in_doorway or FloorPlan._rect_gap(at,
+							Vector2(door) + Vector2(0.5, 0.5)) < FloorPlan.FEATURE_APRON - 0.001
+					if not off_walls or on_rock or in_doorway \
+							or at.grow(FloorPlan.FEATURE_MIDDLE - 0.001).has_point(middle):
+						broken += 1
+						if broken <= 3:
+							problems.append(("%s on seed %d floor %d stands %s"
+								% [feature["role"], run_seed, depth,
+								"off its walls" if not off_walls else "on rock" if on_rock
+								else "in a doorway" if in_doorway else "on the middle"]))
+				# Cover, sampled on a quarter-cell grid of the room's own floor.
+				for sx: int in range(rect.size.x * 4):
+					for sy: int in range(rect.size.y * 4):
+						var point := Vector2(rect.position) + Vector2(sx + 0.5, sy + 0.5) * 0.25
+						if plan.notched(Vector2i(floori(point.x), floori(point.y))):
+							continue
+						var inside: bool = false
+						for solid: Rect2 in solids:
+							inside = inside or solid.has_point(point)
+						if inside:
+							continue
+						samples += 1
+						if _within_of(point, pillars, 1.5):
+							near_before += 1
+						if _within_of(point, solids, 1.5):
+							near_after += 1
+			# 4. against the builder's own ledges, on every third floor (a
+			# floor's slabs cost a build without nodes).
+			if (index * 3 + depth) % 3 == 0:
+				built_floors += 1
+				for slab: Array in FloorBuilder.occluders(plan, graph, run_seed, depth):
+					if not String(slab[2]).begins_with("ledge"):
+						continue
+					var box: AABB = (slab[0] as Transform3D) * AABB(-(slab[1] as Vector3) * 0.5, slab[1] as Vector3)
+					var ledge_cells := Rect2(box.position.x / FloorBuilder.CELL, box.position.z / FloorBuilder.CELL,
+						box.size.x / FloorBuilder.CELL, box.size.z / FloorBuilder.CELL).grow(-0.02)
+					for at: Rect2 in all_features:
+						if ledge_cells.intersects(at):
+							in_ledges += 1
+	var before: float = 100.0 * near_before / maxf(1.0, samples)
+	var after: float = 100.0 * near_after / maxf(1.0, samples)
+	print("[interior] %d floors: features breaking a rule %d; standing in a ledge %d (of %d floors built)"
+		% [INTERIOR_SEEDS * 3, broken, in_ledges, built_floors])
+	var rates: PackedStringArray = PackedStringArray()
+	for module: StringName in must_furnish:
+		var rooms: int = int(seen.get(module, 0))
+		var laid: int = int(furnished.get(module, 0))
+		rates.append("%s %d/%d" % [module, laid, rooms])
+		# Nine in ten, not every one: a room the crossing test or its doorways
+		# leave no room in stands open, and says less than a sealed one would.
+		if rooms > 0 and float(laid) < float(rooms) * INTERIOR_FURNISHED:
+			problems.append("%d of %d %s rooms stood empty — a room is built as what it is called"
+				% [rooms - laid, rooms, module])
+	print("[interior] furnished: %s" % ", ".join(rates))
+	print("[interior] room floor within 3 m of something to stand behind: %.1f%% with the hub's pillars alone, %.1f%% with every room's interior"
+		% [before, after])
+	if broken > 0:
+		problems.append("%d features broke a placement rule" % broken)
+	if in_ledges > 0:
+		problems.append("%d features stood in a ledge's deck or ramp" % in_ledges)
+	if after < before + INTERIOR_COVER_GAIN:
+		problems.append("cover rose %.1f points (%.1f%% to %.1f%%), short of %.0f — the interiors are not changing the fight"
+			% [after - before, before, after, INTERIOR_COVER_GAIN])
+	_report(problems, "interior")
+
+
+## Seeds the interior probe reads, three floors each.
+const INTERIOR_SEEDS: int = 30
+## The least the interiors must add to room floor near cover, in points.
+const INTERIOR_COVER_GAIN: float = 20.0
+## The least share of each named layout's rooms that must be furnished.
+const INTERIOR_FURNISHED: float = 0.9
+
+
+## Is `point` within `reach` cells of any of `solids`?
+static func _within_of(point: Vector2, solids: Array[Rect2], reach: float) -> bool:
+	for solid: Rect2 in solids:
+		if FloorPlan._rect_gap(solid, point) <= reach:
+			return true
+	return false
 
 
 ## Load `body`'s heavy blow into its hitbox (ADR-391): a probe that strikes

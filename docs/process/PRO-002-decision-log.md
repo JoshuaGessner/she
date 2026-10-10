@@ -13625,7 +13625,41 @@ ADR-391's ring needs room as well: a ring at reach + 1.4 m is about 7 m across, 
 
 **Cost:** a weekend for the layouts, a weekend for the retune and its measurement.
 
-**Measured:** to be appended by `M4-T40` and `M4-T41`: the share of room floor within 3 m of something to stand behind, before and after; corridor share, re-rolls and generation time over 120 floors.
+**As built (`M4-T40`).**
+
+*Two changes to the table above:*
+- **No plinth.** A raised stone under the Prize is a height, and this ADR keeps floors flat. The Prize rooms take **rows**: waist-high biers and heaps that leave the Prize in view from the door, which `--vista-probe`'s guaranteed glint needs.
+- **The pier is four piers framing the middle**, not one mass in it. The middle of every room is where its centre, spawns, rings and Prize are measured from.
+
+That leaves six layouts: `OPEN`, `COLONNADE`, `PIERS`, `ROWS`, `BAYS` and `RUBBLE`. `FloorPlan.features_of(node)` lays them out as a pure function of the room, as `pillars()` already did for the hub, so the builder, the anchors, the dressing and the probes read one list.
+
+*What it took to keep every floor walkable.* The first rules were local. Every feature kept:
+- a cell off every wall;
+- off rock;
+- out of a 1.4-cell apron at each doorway;
+- 0.8 m off the middle.
+
+`--reach-probe` then found four floors with no walkable way from the entrance to the Shaft. Bisecting by module (one layout at a time) and reading where each route stopped found three separate faults:
+1. **A ledge's ramp fills the lane the wall margin leaves.** The builder chose a ledge's wall from its own stream, so the plan could not know which wall. **The ledge's wall is now the plan's** (`FloorPlan.ledge_side`), by the builder's own rules and its own stream, and the builder lays it there.
+2. **Local rules cannot see a room whole.** `features_of` now ends with a **crossing test**. The room is flooded on a quarter-cell grid, with walls, rock, the ledge's strip and every feature grown by a body's radius. While two places the empty room joined (its doorways and its middle) are no longer joined, the last feature laid is taken up. The test asks against the empty room, not an ideal. Asked against the ideal, it emptied every room where a doorway sits at a ledge's end, for a fault none of the features made.
+3. **Dressing and interiors were each legal alone.** A spoil heap 1.01 m from a mine head's bier and a broken bracing 1.25 m from the other closed both lanes once the navmesh had eroded each side by the agent's 0.45 m. Dressing now keeps **1.4 m** (`FloorDressing.INTERIOR_CLEAR`) from anything standing in a room, as it keeps 1.0 m from ramps.
+
+The fixed clearances the first two faults had suggested (0.6 cells from rock and from the ledge) were then cut to a hair's breadth. A per-feature guess at walkability had emptied half the galleries, and the crossing test answers that question exactly.
+
+**Measured (`--interior-probe`, 30 seeds × 3 floors):**
+
+| | |
+|---|---|
+| room floor within 3 m of something to stand behind | **29.4% → 56.8%** (the hub's pillars alone → every room's interior) |
+| rooms furnished, by layout | pillared hall 115/115, gallery 61/64, cistern 40/40, barrow row 46/46, mine head 58/58, hoard chamber 24/24, king's barrow 21/21, deep seam 27/27, sealed vault 18/18 |
+| features breaking a placement rule | 0 |
+| features standing in a builder's ledge (30 floors built) | 0 |
+
+**The probe holds each layout to at least 90% furnished.** The first rules furnished none of the Prize rooms, cisterns or mine heads, and every other probe passed.
+
+Unchanged and green: `--reach-probe` (24 floors routed, 9 walked end to end by the player capsule, 757 legs), `--plan-probe`, `--delvings-probe` ×3, `--vista-probe` on floors 0 and 2, `--population-probe`, `--machine-probe`, `--lock-probe`, `--arrival-probe`, `--crossing-probe`, `--lantern-probe` and `--barrow-probe`. The key rooms are 2–3 cells and take nothing yet; `M4-T41`'s larger footprints are theirs.
+
+**Measured for `M4-T41`:** to be appended: corridor share, re-rolls and generation time over 120 floors.
 
 ## ADR-393 — The camp is re-laid on one axis, and every station can be named from the arrival
 

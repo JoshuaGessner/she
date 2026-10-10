@@ -7,6 +7,7 @@ script = ExtResource("1_room")
 id = &"hld_barrow_row"
 footprint = Vector2i(3, 5)
 volume = 1
+interior = 3
 roles = PackedInt32Array()
 held_capable = true
 max_links = 2

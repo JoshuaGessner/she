@@ -85,11 +85,18 @@ const PILLAR_CLEAR: float = 1.2
 ## allows (ADR-389) ⟨tune⟩: an enemy's lit sight range (`enemy_vision_range`),
 ## so nothing posted sees the party arrive in the light.
 const ARRIVAL_CLEAR: float = 16.0
+## How far a placed point keeps from a room's interior features (ADR-392): a
+## body's half-width and a margin, so nothing is placed against a bier or in
+## the gap behind a pier ⟨tune⟩.
+const FEATURE_CLEAR: float = 0.6
 
 var _graph: MissionGraph = null
 var _plan: FloorPlan = null
 var _rng: RandomNumberGenerator = null
 var _kept_out: Array[Rect2] = []
+## Every interior feature's footprint on this floor, grown by `FEATURE_CLEAR`.
+var _features: Array[Rect2] = []
+var _features_read: bool = false
 
 
 ## Read the anchors of `plan`. Deterministic in `run_seed` and `floor_index`,
@@ -444,7 +451,8 @@ func spots_in(node: int, count: int) -> Array[Vector3]:
 		# along its own spoke, which keeps the ring's separation by angle.
 		# So does one beside a hub pillar (ADR-306).
 		for _pull: int in 4:
-			if not _plan.notched(FloorBuilder.cell_of(spot)) and not _by_pillar(spot):
+			if not _plan.notched(FloorBuilder.cell_of(spot)) and not _by_pillar(spot) \
+					and not _on_feature(spot):
 				break
 			spot = middle.lerp(spot, 0.6)
 		out.append(spot)
@@ -488,8 +496,25 @@ func _is_open(point: Vector3) -> bool:
 		if rect.has_point(Vector2(point.x, point.z)):
 			return false
 	# Nor in a corner of the room left as rock (ADR-304), nor against a hub
-	# pillar (ADR-306).
-	return not _plan.notched(FloorBuilder.cell_of(point)) and not _by_pillar(point)
+	# pillar (ADR-306), nor on what stands in a room (ADR-392).
+	return not _plan.notched(FloorBuilder.cell_of(point)) and not _by_pillar(point) \
+		and not _on_feature(point)
+
+
+## Within a body's width of anything standing in a room (ADR-392)? Its
+## footprints in metres, gathered once per floor.
+func _on_feature(point: Vector3) -> bool:
+	if _features.is_empty() and not _features_read:
+		_features_read = true
+		for node: int in _graph.size():
+			for feature: Dictionary in _plan.features_of(node):
+				var cells: Rect2 = feature["rect"]
+				_features.append(Rect2(cells.position * FloorBuilder.CELL,
+					cells.size * FloorBuilder.CELL).grow(FEATURE_CLEAR))
+	for rect: Rect2 in _features:
+		if rect.has_point(Vector2(point.x, point.z)):
+			return true
+	return false
 
 
 ## Within a body's width of one of the hub's pillars (ADR-306)?

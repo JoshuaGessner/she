@@ -120,6 +120,14 @@ const OVERHEAD: float = 3.0
 ## keep `RAMP_CLEAR` from — see `FloorBuilder.SURFACES` for what each is.
 const BACKING: Array[String] = ["wall"]
 const KEEP_OFF: Array[String] = ["ledge_floor", "ledge_ramp", "ramp", "chamfer"]
+## **And a room's interior** (ADR-392), kept further off: a spoil heap 1.01 m
+## from a mine head's bier and a broken bracing 1.25 m from the other closed
+## both lanes once the navmesh had eroded each side by the agent's 0.45 m, and
+## the reach panel's body could not cross the room — each piece legal alone.
+const INTERIOR: Array[String] = ["column", "pier", "bier", "bay", "rubble"]
+## How far a piece keeps from what stands in a room: a body's width and the
+## navmesh's erosion on both sides of the lane between them.
+const INTERIOR_CLEAR: float = 1.4
 const UNDERFOOT: Array[String] = ["floor", "ceiling"]
 
 ## Each piece's bounds in its own frame, measured once from its render mesh.
@@ -310,10 +318,11 @@ static func _fit(face: Vector3, inward: Vector3, solids: Array,
 		var bounds: AABB = solid[0]
 		if UNDERFOOT.has(role):
 			continue
-		if KEEP_OFF.has(role):
+		if KEEP_OFF.has(role) or INTERIOR.has(role):
 			var column := AABB(
 				Vector3(body.position.x, -0.5, body.position.z),
-				Vector3(body.size.x, OVERHEAD + 0.5, body.size.z)).grow(RAMP_CLEAR)
+				Vector3(body.size.x, OVERHEAD + 0.5, body.size.z)).grow(
+					INTERIOR_CLEAR if INTERIOR.has(role) else RAMP_CLEAR)
 			if column.intersects(bounds):
 				return {}
 			continue

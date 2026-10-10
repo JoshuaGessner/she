@@ -51,6 +51,23 @@ enum Volume {
 ## is its reader, so it arrives now.
 @export var volume: Volume = Volume.HALL
 
+## **What stands in the room** (ADR-392). A module's name promises a place —
+## a pillared hall, a barrow row, a cistern — and until this the builder gave
+## every one the same empty box. Chosen by the module, never drawn, so the
+## name and the room agree; `FloorPlan.features_of` lays it out and every stage
+## that places something in a room keeps clear of it.
+##
+## The order is the wire order, and it is in every `.tres`. Append, never insert.
+enum Interior {
+	OPEN,       ## Nothing new: a room for crossing or for seeing across.
+	COLONNADE,  ## Rows of pillars: break their sight, circle one so the ring cannot close.
+	PIERS,      ## Four piers framing the middle: the room becomes a loop round it.
+	ROWS,       ## Waist-high biers or heaps: lanes you see over and cannot walk through.
+	BAYS,       ## Short returns of wall, alternate sides: a bay to stand in, a blind corner each.
+	RUBBLE,     ## Fallen blocks: broken cover, and a slower way across.
+}
+@export var interior: Interior = Interior.OPEN
+
 @export_group("Fit")
 ## Which `MissionGraph.Role` values this module may serve. **Empty means
 ## connective tissue only**, which is the common case and the safe default: a

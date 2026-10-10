@@ -253,6 +253,14 @@ const SURFACES: Dictionary = {
 	"wall": DelvingsKit.WALL,
 	"chamfer": DelvingsKit.CHAMFER,
 	"pillar": DelvingsKit.PILLAR,
+	# A room's interior (ADR-392), dressed in the pieces the kit already has:
+	# a pier is a heavier pillar, a bay and a bier are coursed stone, and a
+	# fallen block is the rock a chamfer is cut from.
+	"column": DelvingsKit.PILLAR,
+	"pier": DelvingsKit.PILLAR,
+	"bay": DelvingsKit.WALL,
+	"bier": DelvingsKit.WALL,
+	"rubble": DelvingsKit.CHAMFER,
 }
 
 var _into: Node3D = null
@@ -273,6 +281,8 @@ var _hazards_laid: int = 0
 var _shored: int = 0
 var _notched: int = 0
 var _pillared: int = 0
+## Pieces of a room's interior laid (ADR-392).
+var _furnished: int = 0
 var _shore_view: Dictionary = {}
 ## Every solid slab laid, as `[Transform3D, size, role]` — see `occluders`.
 var _occluders: Array = []
@@ -332,6 +342,7 @@ static func build(plan: FloorPlan, graph: MissionGraph, run_seed: int,
 		"shored": builder._shored,
 		"notched": builder._notched,
 		"pillared": builder._pillared,
+		"furnished": builder._furnished,
 		"shore_view": builder._shore_view,
 		"occluders": builder._occluders,
 	}
@@ -414,6 +425,7 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 		_notch(rect, block, height)
 	if node == plan.hub():
 		_pillars(plan, height)
+	_furnish(plan, node, height)
 
 	# Corners cut back as the working gives way to the seam. At roughness 0
 	# this emits nothing at all, which is what makes floor 1 read as built.
@@ -469,7 +481,7 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 
 	# A great room gets somewhere to see it from before you are in it.
 	if module != null and module.volume == RoomModule.Volume.GREAT:
-		_ledge(plan, rect, doors, rng)
+		_ledge(plan, node, rect, doors, rng)
 
 
 ## Which cells beside `rect` become alcoves (`TEC-008` §3.3.3).
@@ -621,8 +633,25 @@ func _pillars(plan: FloorPlan, height: float) -> void:
 		_pillared += 1
 
 
+## **What stands in the room** (ADR-392), where `FloorPlan.features_of` puts
+## it: solid, so the navmesh bakes round it, and clad as what it is. A feature
+## of no stated height stands floor to ceiling.
+func _furnish(plan: FloorPlan, node: int, height: float) -> void:
+	for feature: Dictionary in plan.features_of(node):
+		var cells: Rect2 = feature["rect"]
+		var tall: float = float(feature["height"])
+		if tall <= 0.0:
+			tall = height
+		var footprint := Vector3(cells.size.x * CELL, tall, cells.size.y * CELL)
+		var middle := Vector3((cells.position.x + cells.size.x * 0.5) * CELL, tall * 0.5,
+			(cells.position.y + cells.size.y * 0.5) * CELL)
+		var role: String = feature["role"]
+		_slab(footprint, middle, RUBBLE[_depth] if role == "rubble" else STONE[_depth], 0.0, role)
+		_furnished += 1
+
+
 ## The cells of `rect` lying against one of its four walls, in order.
-func _strip(rect: Rect2i, side: int) -> Array[Vector2i]:
+static func _strip(rect: Rect2i, side: int) -> Array[Vector2i]:
 	var cells: Array[Vector2i] = []
 	match side:
 		0:
@@ -641,7 +670,7 @@ func _strip(rect: Rect2i, side: int) -> Array[Vector2i]:
 
 
 ## Which way is out through the wall `side` runs along.
-func _outward(side: int) -> Vector2i:
+static func _outward(side: int) -> Vector2i:
 	match side:
 		0: return Vector2i(0, -1)
 		1: return Vector2i(0, 1)
@@ -674,29 +703,16 @@ func _outward(side: int) -> Vector2i:
 ## 144 floors), and a ledge is the vista rule's delivery mechanism. Refusing only
 ## both-ends walls costs 3% (281). Turning a one-doorway ledge so its deck faces
 ## the door was tried as well and changed nothing measurable, so it is not here.
-func _ledge(plan: FloorPlan, rect: Rect2i, doors: Array[Vector2i],
+func _ledge(plan: FloorPlan, node: int, rect: Rect2i, doors: Array[Vector2i],
 		rng: RandomNumberGenerator) -> void:
-	var sides: Array[int] = []
-	for side: int in 4:
-		var wall: Array[Vector2i] = _strip(rect, side)
-		# Two cells of deck, not one: see `LEDGE_RAMP_CELLS`.
-		if wall.size() < LEDGE_RAMP_CELLS + 2:
-			continue
-		var clear: bool = true
-		for cell: Vector2i in wall:
-			# Nor along a wall with a corner left as rock (ADR-304).
-			if doors.has(cell + _outward(side)) or plan.notched(cell):
-				clear = false
-				break
-		if _door_at_end(wall, doors, true) and _door_at_end(wall, doors, false):
-			clear = false
-		if clear:
-			sides.append(side)
-	if sides.is_empty():
+	# **The plan says which wall** (ADR-392), by the rules below, so that what
+	# stands in the room can keep clear of the ramp: chosen here from this
+	# stream, the interior could not know, and a pillar beside a ramp sealed
+	# the lane between them on three floors of the reach panel.
+	var side: int = plan.ledge_side(node)
+	if side < 0:
 		return
-
-	var cells: Array[Vector2i] = _strip(rect,
-		sides[rng.randi_range(0, sides.size() - 1)])
+	var cells: Array[Vector2i] = _strip(rect, side)
 	# Which end you climb from is half of what makes two ledges read differently.
 	#
 	# **Never toward a doorway** (ADR-306). A wall with a doorway at one end
