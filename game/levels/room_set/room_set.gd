@@ -10682,6 +10682,12 @@ func _toll_probe() -> void:
 	player.inventory.clear()
 	player.inventory.add(ItemCatalogue.by_id(&"glt_altar_plate"))
 	player.inventory.add(ItemCatalogue.by_id(&"mat_bog_iron"))
+	# **Nobody here but the Gullsjúkr.** The spot below is inside the Hoard-
+	# Keeper's waking radius, and this row's 'no damage' passed only because
+	# the Keeper began its blows facing away and struck the air — once a body
+	# squared up to its target before a blow (ADR-391), its sweep landed 30
+	# here, and the row read the Keeper's blow as the Hunt's.
+	_session.clear_enemies()
 	# On real floor: the Guardian's room, which is where it starts.
 	player.teleport(PRIZE_AT + Vector3(0.0, 0.1, 2.0), 0.0)
 	await _hold(0.4)
