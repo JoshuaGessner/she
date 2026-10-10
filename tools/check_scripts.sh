@@ -769,6 +769,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **How a group fights one body** (`M4-T38`, ADR-391). Four Wretches on one
+	# still body, with the rule and with it switched off in the same run: no
+	# more than the tokens wind up at once, the waiting spread round instead of
+	# stacking, and the first blow comes from in view. The run without the rule
+	# has to fail each row, or the row is not measuring the rule.
+	engage="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --engage-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$engage" \
+			|| ! grep -q "^\[engage\] two behind" <<<"$engage"; then
+		echo "FAIL a group has to take turns and stand round you" >&2
+		printf '%s\n' "$engage" | grep -E '\[engage\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The Sling-Wretch** (`M4-T02` step 5, ADR-235). It stands off and slings;
 	# a guard takes nothing off a stone; a body in the way takes it and its thrower
 	# never does; a wall stops an arrow and a stone; and nothing is thrown at a

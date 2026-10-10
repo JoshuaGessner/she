@@ -13525,7 +13525,20 @@ The systems under all three are strong: the awareness ladder, the call, poise an
 
 **Cost:** a weekend each, plus the clips.
 
-**Measured:** to be appended by `M4-T38` and `M4-T39`: overlapping wind-ups on one body with four Wretches, their angular spread, and a body's blows from behind its view, each against the code without the rule.
+**Built as decided, with one correction found while measuring.** *In view first* first deferred only to bodies that had already been refused a token. A Wretch two metres behind the player therefore asked before the two in front had closed, was given a turn, and landed the first blow. The rule now refuses a body behind while any body in view is closing on the same player without a turn: hunting, within its ring plus three metres, and not turned by a verse. A body behind still fights a player who turns their back on an otherwise empty room.
+
+**Measured (`M4-T38`, `--engage-probe`).** Four Wretches hunt one still body on a flat arena. The probe builds the arena itself, because the room set has no level ground six metres round: its open spots are the world's edge, and a body spawned behind the player there fell out of it. Each scenario runs twice in one process: with the rule, and with it switched off (unlimited tokens, everything counted in view, no rest).
+
+| | with the rule | without |
+|---|---|---|
+| a pack from in front: most winding up at once | **2** | 4 |
+| bodies waiting within 6 m: mean least bearing between them | **49°** | 19° |
+| blows begun in 8 s on one still body | 9 | 28 |
+| two close behind, two further in front: first blow from | **in front** | behind |
+
+Unchanged and green: `--fight-probe`, `--combat-probe`, `--swarm-probe`, `--warden-probe`, `--keeper-probe`, `--sling-probe`, `--galdr-probe` (infighting takes no tokens), `--archetype-probe`, and `--escalation-probe` on seed 4.
+
+**Measured for `M4-T39`:** to be appended with the movesets.
 
 ## ADR-392 — A room is built as what it is called; rooms grow and corridors shrink
 

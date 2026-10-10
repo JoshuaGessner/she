@@ -839,6 +839,22 @@ extends Resource
 ## delay stops a single footstep at the edge of earshot from flipping a whole
 ## room, which would make crouching pointless.
 @export var enemy_hearing_patience: float = 0.35
+## **How a group fights one body** (ADR-391, `M4-T38`). Melee blows that may be
+## wound up on one player at once — DOOM's token pool, per target ⟨tune⟩.
+@export var engage_tokens: int = 2
+## Missiles that may be in the air at one player at once ⟨tune⟩.
+@export var engage_missile_tokens: int = 1
+## How far outside its own reach a body without a token waits, in metres ⟨tune⟩.
+@export var engage_ring_margin: float = 1.4
+## The least bearing between two bodies waiting round one player ⟨tune⟩.
+@export var engage_ring_spacing: float = 50.0
+## Seconds after its blow before a body is offered a token again, spent
+## stepping back out to the ring ⟨tune⟩.
+@export var engage_rest: float = 0.6
+## A body inside this half-angle of where its target is looking is offered a
+## token before one behind it — about the camera's horizontal half-view plus a
+## margin, so a blow from behind is never the first one (principle 4) ⟨tune⟩.
+@export var engage_view_half_angle: float = 60.0
 
 @export_group("Clamor")
 ## DES-005 Layer 1: noise is continuous, player-caused pressure. Units are

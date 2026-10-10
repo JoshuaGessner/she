@@ -956,6 +956,8 @@ func _ready() -> void:
 			_warden_probe()
 		elif arg == "--keeper-probe":
 			_keeper_probe()
+		elif arg == "--engage-probe":
+			_engage_probe()
 		elif arg == "--escalation-probe":
 			_escalation_probe()
 		elif arg == "--sling-probe":
@@ -12910,6 +12912,201 @@ func _warden_probe() -> void:
 
 	_session.clear_enemies()
 	_report(problems, "warden")
+
+
+## **How a group fights one body** (ADR-391, `M4-T38`).
+##
+## Four Wretches hunt one still body, each scenario run twice: with the rule,
+## and with it switched off in the same run (tokens unlimited, everything "in
+## view", no rest), so the row proves the measure can tell them apart rather
+## than trusting that it can.
+##
+## 1. **A pack from in front.** All four start in a clump seven metres ahead.
+##    With the rule no more than `engage_tokens` wind up at once, and the ones
+##    waiting spread round the body instead of stacking in an arc.
+## 2. **Two close behind, two further in front.** With the rule the first blow
+##    comes from in front; without it, from behind, where it cannot be read.
+func _engage_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	# **Its own floor.** The room set has no level ground six metres round —
+	# its open spots are at the edge of the world, and a body spawned behind
+	# the player there fell out of it. A ring is measured where nothing but
+	# the rule decides where a body stands.
+	var ground: Vector3 = await _flat_arena(ENGAGE_ARENA, 30.0)
+	player.health.maximum = 100000.0
+	var tuning: TuningProfile = Config.tuning
+	var kept: Array = [tuning.engage_tokens, tuning.engage_view_half_angle, tuning.engage_rest]
+	var rows := {}
+	for rule: bool in [true, false]:
+		if rule:
+			tuning.engage_tokens = int(kept[0])
+			tuning.engage_view_half_angle = float(kept[1])
+			tuning.engage_rest = float(kept[2])
+		else:
+			tuning.engage_tokens = 99
+			tuning.engage_view_half_angle = 180.0
+			tuning.engage_rest = 0.0
+		rows["pack/%s" % rule] = await _engage_scenario(player, ground, true, 8.0, float(kept[1]))
+		rows["behind/%s" % rule] = await _engage_scenario(player, ground, false, 4.0, float(kept[1]))
+	tuning.engage_tokens = int(kept[0])
+	tuning.engage_view_half_angle = float(kept[1])
+	tuning.engage_rest = float(kept[2])
+	player.health.maximum = 100.0
+	player.health.restore()
+
+	var pack_on: Dictionary = rows["pack/true"]
+	var pack_off: Dictionary = rows["pack/false"]
+	print("[engage] a pack from in front     peak winding %d / %d without, spread %.0f° / %.0f° without, blows %d / %d"
+		% [pack_on["peak"], pack_off["peak"], pack_on["spread"], pack_off["spread"],
+			pack_on["starts"], pack_off["starts"]])
+	if int(pack_on["starts"]) < 3:
+		problems.append("only %d blows in eight seconds with the rule — a pack that does not fight passes every other row"
+			% int(pack_on["starts"]))
+	if int(pack_on["peak"]) > int(kept[0]):
+		problems.append("%d wound up on one body at once with %d tokens"
+			% [int(pack_on["peak"]), int(kept[0])])
+	if int(pack_off["peak"]) <= int(kept[0]):
+		problems.append("without the rule only %d wound up at once, so the peak row is not measuring tokens"
+			% int(pack_off["peak"]))
+	if float(pack_on["spread"]) < 35.0:
+		problems.append("bodies waiting round one player stood %.0f° apart — the ring is to spread them"
+			% float(pack_on["spread"]))
+	if float(pack_on["spread"]) <= float(pack_off["spread"]) + 10.0:
+		problems.append("the ring spread them %.0f° against %.0f° without it — no better than a clump"
+			% [float(pack_on["spread"]), float(pack_off["spread"])])
+
+	var behind_on: Dictionary = rows["behind/true"]
+	var behind_off: Dictionary = rows["behind/false"]
+	print("[engage] two behind, two in front first blow from %s / %s without"
+		% [behind_on["first"], behind_off["first"]])
+	if String(behind_on["first"]) != "in front":
+		problems.append("the first blow came from %s with the rule — a blow from behind is never the first one"
+			% behind_on["first"])
+	if String(behind_off["first"]) != "behind":
+		problems.append("without the rule the first blow came from %s, so the row cannot see the rule"
+			% behind_off["first"])
+	_session.clear_enemies()
+	_report(problems, "engage")
+
+
+## One run of `_engage_probe`: four Wretches hunting `player`, who stands still
+## facing −Z at `ground`. Returns the peak number winding up at once, the mean
+## least bearing between bodies *waiting* within six metres (holding no turn and
+## not swinging — the two given turns close side by side, as they should), how
+## many blows were begun, and where the first came from, judged against the
+## real view half-angle `view_half` even while the rule's own is switched off.
+func _engage_scenario(player: Player, ground: Vector3, pack: bool, seconds: float,
+		view_half: float) -> Dictionary:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	player.teleport(ground, 0.0)
+	await _hold(0.2)
+	var ahead := Vector3(0.0, 0.0, -1.0)
+	var across := Vector3(1.0, 0.0, 0.0)
+	var spots: Array[Vector3] = []
+	if pack:
+		for lateral: float in [-1.5, -0.5, 0.5, 1.5]:
+			spots.append(ground + ahead * 5.5 + across * lateral)
+	else:
+		spots.append(ground - ahead * 2.6 + across * 0.8)
+		spots.append(ground - ahead * 2.6 - across * 0.8)
+		spots.append(ground + ahead * 5.5 + across * 1.0)
+		spots.append(ground + ahead * 5.5 - across * 1.0)
+	for spot: Vector3 in spots:
+		_session.spawn_enemy(spot, 0.0)
+	await _hold(0.3)
+	var bodies: Array[Enemy] = []
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		var body := node as Enemy
+		if body != null:
+			body.set("_home", body.global_position)
+			body.set("_target", player)
+			body.set("_last_seen", player.global_position)
+			body.set("_patience", 30.0)
+			body.set("_state", Enemy.State.ALERTED)
+			bodies.append(body)
+	var was := {}
+	for body: Enemy in bodies:
+		was[body] = body.attack_phase()
+	var peak: int = 0
+	var starts: int = 0
+	var first: String = "nowhere"
+	var gaps: Array[float] = []
+	var left: float = seconds
+	while left > 0.0:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time()
+		player.health.restore()
+		var winding: int = 0
+		var bearings: Array[float] = []
+		for body: Enemy in bodies:
+			if not is_instance_valid(body):
+				continue
+			var phase: Enemy.Attack = body.attack_phase()
+			if phase in [Enemy.Attack.TELEGRAPH, Enemy.Attack.ACTIVE]:
+				winding += 1
+			var flat: Vector3 = body.global_position - player.global_position
+			flat.y = 0.0
+			if phase == Enemy.Attack.TELEGRAPH and was[body] != Enemy.Attack.TELEGRAPH:
+				starts += 1
+				if first == "nowhere":
+					var facing_dot: float = Vector3(0.0, 0.0, -1.0).dot(flat.normalized())
+					first = "in front" if facing_dot >= cos(deg_to_rad(view_half)) else "behind"
+			was[body] = phase
+			if flat.length() <= 6.0 and phase == Enemy.Attack.NONE \
+					and not Engagement.holds(body):
+				bearings.append(atan2(flat.z, flat.x))
+		peak = maxi(peak, winding)
+		if bearings.size() >= 2:
+			var least: float = TAU
+			for i: int in bearings.size():
+				for j: int in range(i + 1, bearings.size()):
+					least = minf(least, absf(angle_difference(bearings[i], bearings[j])))
+			gaps.append(rad_to_deg(least))
+	var spread: float = 0.0
+	for gap: float in gaps:
+		spread += gap
+	spread = spread / maxf(1.0, float(gaps.size()))
+	_session.clear_enemies()
+	return {"peak": peak, "starts": starts, "first": first, "spread": spread}
+
+
+## Far from the room set, so its walls, lights and navmesh are nobody's business.
+const ENGAGE_ARENA: Vector3 = Vector3(0.0, 0.0, 400.0)
+
+
+## A flat square of floor `size` across at `centre`, solid and walkable: a
+## collider on the world layer and a navigation polygon on the default map, so
+## a body paths there as it would on a floor. Returns where to stand.
+func _flat_arena(centre: Vector3, size: float) -> Vector3:
+	var half: float = size * 0.5
+	var floor_body := StaticBody3D.new()
+	floor_body.collision_layer = CollisionLayers.WORLD
+	floor_body.collision_mask = 0
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(size, 1.0, size)
+	shape.shape = box
+	shape.position = Vector3(0.0, -0.5, 0.0)
+	floor_body.add_child(shape)
+	add_child(floor_body)
+	floor_body.global_position = centre
+	var mesh := NavigationMesh.new()
+	mesh.vertices = PackedVector3Array([
+		Vector3(-half, 0.0, -half), Vector3(half, 0.0, -half),
+		Vector3(half, 0.0, half), Vector3(-half, 0.0, half)])
+	mesh.add_polygon(PackedInt32Array([0, 1, 2, 3]))
+	var region := NavigationRegion3D.new()
+	region.navigation_mesh = mesh
+	add_child(region)
+	region.global_position = centre
+	await _hold(0.2)
+	return centre + Vector3(0.0, 0.1, 0.0)
 
 
 ## Where the Keeper's probe stands the player: well inside its post, then well

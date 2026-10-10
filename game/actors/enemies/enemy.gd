@@ -132,6 +132,9 @@ var _attack: Attack = Attack.NONE:
 
 var _attack_timer: float = 0.0
 var _stagger_timer: float = 0.0
+## Seconds before this body is offered another turn (ADR-391): the beat after
+## its blow, spent stepping back out to the ring.
+var _rest: float = 0.0
 ## The authority samples corpse time into the replicated presentation phase.
 var _death_elapsed: float = 0.0
 ## Normalized presentation phase, including spawn state for late arrivals.
@@ -340,6 +343,8 @@ func _break_poise() -> void:
 	_poise = 0.0
 	_stagger_timer = _kind.stagger
 	_state = State.STAGGERED
+	# A staggered body is out of the fight for its beat; its turn passes on.
+	Engagement.release(self)
 
 
 ## **Has this body got you?** ALERTED, CALLING and SWARM are three answers to
@@ -353,6 +358,12 @@ func is_hunting() -> bool:
 
 func state() -> State:
 	return _state
+
+
+## Who this body is after, or null. `Engagement` counts a token as held only
+## while its holder is still after the body it was given on.
+func target() -> Node3D:
+	return _target as Node3D
 
 
 ## Where sight is cast from. Used by the gym's vision overlay so the drawn
@@ -542,6 +553,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var tuning: TuningProfile = Config.tuning
 	turned.tick(delta)
+	_rest = maxf(0.0, _rest - delta)
 
 	if not is_on_floor():
 		velocity.y -= tuning.gravity * delta
@@ -794,6 +806,7 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				_patience = tuning.enemy_patience
 				_alerted_for = 0.0
 				_called = false
+				Engagement.release(self)
 			else:
 				# **The clock that makes leaving an answer** (`M4-T16`, ADR-196).
 				# Nothing on this ladder used to escalate: an enemy that had you
@@ -814,11 +827,68 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				# two metres was never going to be thrown through a wall; a stone
 				# from twelve would be, at a body the thrower last saw round a
 				# corner — so out of sight it closes on where you were instead.
-				var can_start: bool = _kind.attack.missile_speed <= 0.0 or _sees
-				if range_to <= _kind.attack.reach and can_start:
-					_begin_attack(tuning)
-				else:
-					_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+				var missile: bool = _kind.attack.missile_speed > 0.0
+				var can_start: bool = not missile or _sees
+				if not (_target is Player):
+					if range_to <= _kind.attack.reach and can_start:
+						_begin_attack(tuning)
+					else:
+						_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+					return
+				_engage(range_to, missile, can_start, tuning)
+
+
+## **Taking turns on a player** (ADR-391, `M4-T38`). A body near enough to
+## strike asks `Engagement` for a token first; given one, it closes and swings
+## as it always did. Refused, it holds the ring: just outside its reach, on its
+## own bearing, facing in, walking. After its blow it rests there a beat before
+## it may ask again — that is the step back that lets the next one in.
+##
+## A thrower refused stands where it is and keeps you in sight: the ring is for
+## bodies that close, and a slinger already stands off.
+func _engage(range_to: float, missile: bool, can_start: bool, tuning: TuningProfile) -> void:
+	var ring: float = _kind.attack.reach + tuning.engage_ring_margin
+	# A token kept while you walk away is a token nobody else can use.
+	if Engagement.holds(self) and range_to > ring + 2.0:
+		Engagement.release(self)
+	var asks: bool = can_start and _rest <= 0.0 \
+		and (range_to <= ring + 1.0 or (missile and range_to <= _kind.attack.reach))
+	if asks and Engagement.take(self, _target, missile, tuning, ring + 3.0):
+		if range_to <= _kind.attack.reach:
+			_begin_attack(tuning)
+		else:
+			_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+		return
+	if missile:
+		if range_to <= _kind.attack.reach and _sees:
+			velocity.x = 0.0
+			velocity.z = 0.0
+			_face_target(tuning)
+		else:
+			_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+		return
+	if range_to <= ring + 2.0 and _sees:
+		_hold_ring(ring, tuning)
+	else:
+		_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+
+
+## **The ring** (ADR-391): walk to this body's free bearing round its target,
+## and watch the target, not the way it walks — a waiting body is still in the
+## fight, and has to read as in it.
+func _hold_ring(ring: float, tuning: TuningProfile) -> void:
+	var point: Vector3 = _on_its_leash(Engagement.ring_point(self, _target, ring, tuning))
+	_steer_toward(point, _kind.walk_speed, tuning, false)
+	_face_target(tuning)
+
+
+func _face_target(tuning: TuningProfile) -> void:
+	if not is_instance_valid(_target):
+		return
+	var to_target: Vector3 = _target.global_position - global_position
+	to_target.y = 0.0
+	if to_target.length() > 0.01:
+		_face(to_target.normalized(), tuning)
 
 
 ## **A Skald's verse, ended within earshot** (ADR-387), on the host: what it
@@ -835,6 +905,8 @@ func hear_the_song(from: Vector3, tuning: TuningProfile) -> Turned.Mood:
 	var guardian: bool = _kind.leash > 0.0
 	var thrower: bool = _kind.attack != null and _kind.attack.missile_speed > 0.0
 	var other: Enemy = null if guardian or thrower else _nearest_foe(tuning.galdr_foe_reach)
+	# Turned, it is nobody's to queue for: its turn on a player passes on.
+	Engagement.release(self)
 	if other != null:
 		turned.take(Turned.Mood.MADDENED, tuning.galdr_madness_seconds, other, from)
 	else:
@@ -994,7 +1066,8 @@ func _settle(tuning: TuningProfile) -> void:
 ## up, an agent asked too early answers with its own position, and up close a
 ## path node is worse than simply walking at the thing. So — path at range,
 ## walk directly when near or when the map has nothing to say.
-func _steer_toward(point: Vector3, speed: float, tuning: TuningProfile) -> void:
+func _steer_toward(point: Vector3, speed: float, tuning: TuningProfile,
+		face_the_way: bool = true) -> void:
 	var to_point: Vector3 = point - global_position
 	to_point.y = 0.0
 	# Snared (`M3-T11`). It still turns to watch you and still swings at
@@ -1034,7 +1107,8 @@ func _steer_toward(point: Vector3, speed: float, tuning: TuningProfile) -> void:
 	direction = direction.normalized()
 	velocity.x = direction.x * speed
 	velocity.z = direction.z * speed
-	_face(direction, tuning)
+	if face_the_way:
+		_face(direction, tuning)
 
 
 func _face(direction: Vector3, _tuning: TuningProfile) -> void:
@@ -1091,6 +1165,10 @@ func _tick_attack(delta: float, tuning: TuningProfile) -> void:
 			_hitbox.disarm()
 		Attack.RECOVERY:
 			_attack = Attack.NONE
+			# The blow is over: its turn passes on, and it steps back (ADR-391).
+			if Engagement.holds(self):
+				Engagement.release(self)
+				_rest = tuning.engage_rest
 		Attack.NONE:
 			pass
 
@@ -1199,6 +1277,7 @@ func _on_died(_from: Node) -> void:
 	_death_elapsed = 0.0
 	# The dead are nobody's to madden; the mark goes with the body.
 	turned.clear()
+	Engagement.release(self)
 	_state = State.DEAD
 	died.emit()
 
