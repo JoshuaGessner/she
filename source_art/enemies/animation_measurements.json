@@ -5,6 +5,7 @@
       "search": 3,
       "walk": 1,
       "run": 1,
+      "strafe": 1,
       "telegraph": 1,
       "attack": 1,
       "recovery": 1,
@@ -18,6 +19,7 @@
       "idle",
       "run",
       "search",
+      "strafe",
       "walk"
     ],
     "bones": 28
@@ -28,6 +30,7 @@
       "search": 3,
       "walk": 1,
       "run": 1,
+      "strafe": 1,
       "telegraph": 1,
       "attack": 1,
       "recovery": 1,
@@ -38,6 +41,7 @@
       "idle",
       "run",
       "search",
+      "strafe",
       "walk"
     ],
     "bones": 28
@@ -48,6 +52,7 @@
       "search": 3,
       "walk": 1,
       "run": 1,
+      "strafe": 1,
       "telegraph": 1,
       "attack": 1,
       "recovery": 1,
@@ -62,6 +67,7 @@
       "idle",
       "run",
       "search",
+      "strafe",
       "walk"
     ],
     "bones": 28
@@ -72,6 +78,7 @@
       "search": 3,
       "walk": 1,
       "run": 1,
+      "strafe": 1,
       "telegraph": 1,
       "attack": 1,
       "recovery": 1,
@@ -85,6 +92,7 @@
       "idle",
       "run",
       "search",
+      "strafe",
       "walk"
     ],
     "bones": 28
@@ -95,6 +103,7 @@
       "search": 3,
       "walk": 1,
       "run": 1,
+      "strafe": 1,
       "telegraph": 1,
       "attack": 1,
       "recovery": 1,
@@ -108,6 +117,7 @@
       "idle",
       "run",
       "search",
+      "strafe",
       "walk"
     ],
     "bones": 28

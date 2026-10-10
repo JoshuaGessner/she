@@ -78,14 +78,24 @@ func _run() -> void:
 			[Enemy.State.ALERTED, &"run", &"idle"],
 			[Enemy.State.SWARM, &"run", &"idle"],
 		]
+		# Moved forward — the body faces −Z — since a hunting body's feet now
+		# follow the way it goes against the way it faces (ADR-391).
 		for row: Array in travels:
 			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 0), 0.1)
-			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 0.1), 0.1)
+			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, -0.1), 0.1)
 			var moving: StringName = visual.get("_clip")
-			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 0.1), 0.1)
+			visual.present_enemy(row[0], Enemy.Attack.NONE, 0, 0, Vector3(0, 0, -0.1), 0.1)
 			var still: StringName = visual.get("_clip")
 			_check(moving == row[1] and still == row[2], "%s in state %d %s moving, %s still (got %s, %s)"
 				% [kind, row[0], row[1], row[2], moving, still])
+		# **A body holding its ring steps sideways and back** (ADR-391): facing
+		# −Z, a step along X is a side-step and a step along +Z is a walk back.
+		for row: Array in [[Vector3(0.1, 0, -0.1), &"strafe", "sideways"],
+				[Vector3(0, 0, 0.1), &"walk", "backwards"]]:
+			visual.present_enemy(Enemy.State.ALERTED, Enemy.Attack.NONE, 0, 0, Vector3(0, 0, -0.1), 0.1)
+			visual.present_enemy(Enemy.State.ALERTED, Enemy.Attack.NONE, 0, 0, row[0], 0.1)
+			_check(visual.get("_clip") == row[1], "%s hunting and stepping %s plays %s (got %s)"
+				% [kind, row[2], row[1], visual.get("_clip")])
 		var player := visual.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
 		# Measured as an advance, from wherever the rows above left the cycle.
 		visual.present_enemy(Enemy.State.UNAWARE, Enemy.Attack.NONE, 0, 0, Vector3(0, 0, 1.0), 0.1)

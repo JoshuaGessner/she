@@ -18,10 +18,10 @@ from mathutils import Quaternion, Vector
 SRC = Path(__file__).resolve().parent
 ROOT = SRC.parents[1]
 KINDS = ('wretch', 'sling_wretch', 'bellringer', 'hall_warden', 'hoard_keeper', 'gullsjukr')
-CLIPS = {'idle': 6, 'search': 3, 'walk': 1, 'run': 1, 'telegraph': 1,
+CLIPS = {'idle': 6, 'search': 3, 'walk': 1, 'run': 1, 'strafe': 1, 'telegraph': 1,
          'attack': 1, 'recovery': 1, 'stagger': 1, 'death': 1,
          'call': 1, 'collect': 1, 'take': 1, 'shrug': 1}
-LOOPS = {'idle', 'search', 'walk', 'run', 'collect'}
+LOOPS = {'idle', 'search', 'walk', 'run', 'strafe', 'collect'}
 PHASES = ('telegraph', 'attack', 'recovery')
 # **A second blow per archetype** (ADR-391): each is a family of three clips,
 # `<family>_telegraph`, `<family>_attack` and `<family>_recovery`, named by the
@@ -33,7 +33,7 @@ FAMILIES = {'wretch': ('lunge',), 'bellringer': ('lunge',),
 def clips_for(kind):
     names = (('idle', 'search', 'walk', 'run', 'collect', 'take', 'shrug')
              if kind == 'gullsjukr' else
-             ('idle', 'search', 'walk', 'run', 'telegraph', 'attack', 'recovery', 'stagger', 'death'))
+             ('idle', 'search', 'walk', 'run', 'strafe', 'telegraph', 'attack', 'recovery', 'stagger', 'death'))
     if kind == 'bellringer':
         names += ('call',)
     clips = {name: CLIPS[name] for name in names}
@@ -132,6 +132,45 @@ def pose(kind, clip, t):
             add('forearm_'+side, .15+(.10 if running else .04)*swing)
         add('pelvis', 0, .035*math.sin(t*math.tau), 0)
         add('chest', .08 if running else .025, 0, -.045*math.sin(t*math.tau))
+    elif clip == 'strafe':
+        # **A side-step** (ADR-391), for a body holding its ring: facing its
+        # target and moving to its own left across it. One cycle is the left
+        # foot stepping out and the right brought in beside it — never crossed
+        # — with the planted foot sliding under the body at the speed the body
+        # travels, so it stays put on the floor. Played reversed, the right
+        # foot leads and the body goes right. The same two-bone IK as the walk,
+        # solved in the sideways plane: a thigh's +Y swings its foot to the
+        # body's right, measured on the baked rig.
+        side_step = .30  # each foot's travel per step; a cycle covers twice this
+        open_ = .5 - .5 * math.cos(t * math.tau)
+        root.z = -.065 - .025 * open_
+        for side, offset, sign in (('l', 0, 1), ('r', .5, -1)):
+            phase = (t + offset) % 1
+            if phase < .5:
+                u = phase * 2
+                reach = ease(u)
+                lift = .075 * math.sin(u * math.pi) ** 2
+            else:
+                reach = 1 - (phase - .5) * 2
+                lift = 0
+            # Out from the hip toward the body's left, the leading foot reaching
+            # .26 and the trailing one closing to within .04 of the leader.
+            if side == 'l':
+                out = -.04 + side_step * reach
+            else:
+                out = -.26 + side_step * reach
+            down = .82 + root.z - lift
+            span = math.hypot(out, down)
+            knee = -math.acos(max(-1, min(1, (span**2 - .39**2 - .43**2) / (2 * .39 * .43))))
+            hip = -math.atan2(.43 * math.sin(knee), .39 + .43 * math.cos(knee))
+            add('thigh_' + side, hip, -math.atan2(out, down), 0)
+            add('calf_' + side, knee)
+            add('foot_' + side, -hip - knee)
+            add('upper_arm_' + side, -.22, .06 * sign, 0)
+            add('forearm_' + side, .38)
+        # Weight rides over the planted foot.
+        add('pelvis', 0, .04 * math.sin(t * math.tau), 0)
+        add('chest', .10, -.03 * math.sin(t * math.tau), 0)
     elif clip in ('telegraph', 'attack', 'recovery'):
         # The three clips share exact end poses: no reset between wind-up and hit.
         wind = {'upper_arm_r': (-1.30, -.20, -.20), 'forearm_r': (1.05, 0, 0),

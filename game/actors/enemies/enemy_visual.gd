@@ -50,6 +50,16 @@ var _delta: float = 0.0
 var _sling_stone: MeshInstance3D = null
 ## The clip family of the blow being dealt (ADR-391); empty for the swing.
 var _blow: StringName = &""
+## The flat direction of the last step taken, for `_gait`.
+var _heading: Vector3 = Vector3.ZERO
+
+enum { GAIT_FORWARD, GAIT_BACK, GAIT_LEFT, GAIT_RIGHT }
+## How far toward the facing (or away from it) a step must point to be a walk
+## forward (or back) rather than a side-step: about 50° either side.
+const GAIT_ALONG: float = 0.64
+## Metres a full side-step cycle carries the body: two steps of the planted
+## foot sliding .28 m under it, as baked by animate_enemies.py.
+const ENEMY_STRAFE_STRIDE: float = 0.56
 
 
 func configure_enemy(kind: EnemyResource) -> void:
@@ -282,10 +292,21 @@ func _present_enemy(state: int, attack: int, state_progress: float,
 			else:
 				_play_loop(&"search")
 		ENEMY_ALERTED, ENEMY_SWARM:
-			if _moved > 0.0001:
-				_play_locomotion(&"run", ENEMY_RUN_STRIDE, _run_metres)
-			else:
+			if _moved <= 0.0001:
 				_play_loop(&"idle")
+			else:
+				# **Feet that go where the body goes** (ADR-391): a body holding
+				# its ring faces its target and walks sideways or back, and the
+				# run played forward under it slid it across the floor.
+				match _gait():
+					GAIT_BACK:
+						_play_locomotion(&"walk", ENEMY_WALK_STRIDE, -_walk_metres)
+					GAIT_LEFT:
+						_play_locomotion(&"strafe", ENEMY_STRAFE_STRIDE, _walk_metres)
+					GAIT_RIGHT:
+						_play_locomotion(&"strafe", ENEMY_STRAFE_STRIDE, -_walk_metres)
+					_:
+						_play_locomotion(&"run", ENEMY_RUN_STRIDE, _run_metres)
 		ENEMY_CALLING:
 			_play_event(&"call", state_progress)
 		_:
@@ -342,6 +363,24 @@ func _idle_or_walk(stride: float) -> void:
 		_play_loop(&"idle")
 
 
+## Which way the body is going against the way it faces: forward, back, or
+## stepping to its left or right — read off the last step and this node's own
+## facing, so every peer reads it from the transform it already has.
+func _gait() -> int:
+	var forward: Vector3 = -global_basis.z
+	forward.y = 0.0
+	if forward.length() < 0.01 or _heading.length() < 0.01:
+		return GAIT_FORWARD
+	forward = forward.normalized()
+	var along: float = _heading.dot(forward)
+	if along >= GAIT_ALONG:
+		return GAIT_FORWARD
+	if along <= -GAIT_ALONG:
+		return GAIT_BACK
+	var left := Vector3(forward.z, 0.0, -forward.x)
+	return GAIT_LEFT if _heading.dot(left) > 0.0 else GAIT_RIGHT
+
+
 func _track_distance(at: Vector3) -> void:
 	if not _has_last_at:
 		_last_at = at
@@ -351,6 +390,8 @@ func _track_distance(at: Vector3) -> void:
 	moved.y = 0.0
 	var metres: float = moved.length()
 	_moved = metres
+	if metres > 0.0001:
+		_heading = moved / metres
 	_walk_metres += metres
 	_run_metres += metres
 	_last_at = at
