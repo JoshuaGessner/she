@@ -13551,7 +13551,35 @@ Unchanged and green: `--fight-probe`, `--combat-probe`, `--swarm-probe`, `--ward
 
 On open ground the waiting now spread 67° apart (49° before; 14° without the rule), and the other rows are unchanged. Points are worked out at most four times a second per body, because each one casts a ray per candidate bearing.
 
-**Measured for `M4-T39`:** to be appended with the movesets.
+**Movesets as built (`M4-T39`).**
+- **`EnemyResource.attacks` replaced `attack`**, read through two accessors:
+  - `everyday()`: the first listed blow it can strike at arm's length;
+  - `close_reach()`: what its ring is measured from. A lunge's reach is the ground it covers, so it is not counted.
+- **The Hall-Warden lists its shove before its overhead**, so it shoves first and the overhead follows once the shove is cooling.
+- **Each blow loads the hitbox for itself:**
+  - a narrow blow is a sphere of half its reach, out in front;
+  - a lunge's blade reaches only what is left once the body has arrived (its reach less the lunge), and is carried there;
+  - the sweep is a sphere set ahead of the chest, reaching about 2.6 m ahead and 1.5 m to either side, never behind.
+- **`blow_index` is replicated**, so every peer plays the blow's own clip.
+- **A shove is decided by the host and walked by the body's owner** (`_struck_here` carries it): a push whose speed the floor's own friction spends over exactly that distance.
+- **The clips** (`lunge_`, `shove_`, `sweep_` × telegraph, attack, recovery) are baked by `animate_enemies.py` from the same three-phase rig as the swing.
+
+**Three faults found and fixed before the commit**, two by the correctness review and one by the probe:
+- **The sweep first reached 1.8 m behind the Keeper.** A blow from a body with its back to you is principle 4's unexplainable death. Fixed, and a probe row now holds it.
+- **A snared body could still lunge.** The Stalker's snare promises that nothing follows. A held body no longer lunges.
+- **A body began its blow whichever way it faced.** A Warden turned away shoved the air: the player moved 0.00 m. Older than this ADR, and found because the probe spawned the Warden facing away. A melee body now squares up to its target, within about 30°, before it begins, as a turned body already did against its own kind (ADR-387).
+
+**Measured (`--moveset-probe`, each row against the same body without the thing it asks about):**
+
+| row | with | without |
+|---|---|---|
+| a Wretch 3.6 m off: its first blow, begun from | **the lunge, 3.60 m**, carrying it 2.53 m | the swipe, 2.16 m |
+| a Hall-Warden at 1.5 m: the player thrown | **1.55 m** by the shove, then the heavy overhead | 0.00 m |
+| a body at the Hoard-Keeper's side: dealt | **10** by the sweep | 0 by the thrust |
+| a body 1.3 m behind the Keeper: dealt by the sweep | **0** | — |
+| a Sling-Wretch from 3 m, 1.5 s later stood | **4.01 m off** | 2.04 m |
+
+Every clip is baked, and each blow's wind-up puts the hand somewhere the swing's does not: 0.26 m apart for the Wretch's and Bellringer's lunge, 0.71 m for the Warden's shove, 0.36 m for the Keeper's sweep (`enemy_animation_probe`). Every telegraph clears the 250 ms floor, and every lunge clears twice it (`AttackResource.validate`).
 
 ## ADR-392 — A room is built as what it is called; rooms grow and corridors shrink
 

@@ -48,6 +48,8 @@ var _blend_from: Array[Transform3D] = []
 var _blend_elapsed: float = 1.0
 var _delta: float = 0.0
 var _sling_stone: MeshInstance3D = null
+## The clip family of the blow being dealt (ADR-391); empty for the swing.
+var _blow: StringName = &""
 
 
 func configure_enemy(kind: EnemyResource) -> void:
@@ -192,10 +194,19 @@ func senses(sees: bool, hears: bool) -> void:
 	_hears = hears
 
 
+## `blow` names the clip family of the blow being dealt (ADR-391): empty plays
+## the swing's `telegraph`, `attack` and `recovery`; `lunge` plays
+## `lunge_telegraph` and the rest.
 func present_enemy(state: int, attack: int, state_progress: float,
-		attack_progress: float, at: Vector3, delta: float) -> void:
+		attack_progress: float, at: Vector3, delta: float, blow: StringName = &"") -> void:
+	_blow = blow
 	_present_enemy(state, attack, state_progress, attack_progress, at, delta)
 	_apply_senses(delta, state != ENEMY_DEAD)
+
+
+## The clip for one phase of the blow being dealt.
+func _blow_clip(phase: String) -> StringName:
+	return StringName(phase) if _blow == &"" else StringName("%s_%s" % [_blow, phase])
 
 
 func _apply_senses(delta: float, alive: bool) -> void:
@@ -256,13 +267,13 @@ func _present_enemy(state: int, attack: int, state_progress: float,
 		_play_event(&"stagger", state_progress)
 		return
 	if attack == ATTACK_TELEGRAPH:
-		_play_event(&"telegraph", attack_progress)
+		_play_event(_blow_clip("telegraph"), attack_progress)
 		return
 	if attack == ATTACK_ACTIVE:
-		_play_event(&"attack", attack_progress)
+		_play_event(_blow_clip("attack"), attack_progress)
 		return
 	if attack == ATTACK_RECOVERY:
-		_play_event(&"recovery", attack_progress)
+		_play_event(_blow_clip("recovery"), attack_progress)
 		return
 	match state:
 		ENEMY_SUSPICIOUS:
@@ -379,7 +390,10 @@ func _sample(clip: StringName, time: float) -> void:
 		_blend_from.clear()
 		for bone: int in range(_rig.get_bone_count()):
 			_blend_from.append(_rig.get_bone_pose(bone))
-		_blend_elapsed = 1.0 if clip in [&"attack", &"recovery"] else 0.0
+		# A blow's phases meet at their authored boundary poses; only a cut into
+		# a wind-up blends, whichever blow it is.
+		_blend_elapsed = 1.0 if String(clip).ends_with("attack") \
+			or String(clip).ends_with("recovery") else 0.0
 		_clip = clip
 		_player.play(clip, 0.0)
 	_player.seek(time, true)

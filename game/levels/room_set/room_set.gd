@@ -958,6 +958,8 @@ func _ready() -> void:
 			_keeper_probe()
 		elif arg == "--engage-probe":
 			_engage_probe()
+		elif arg == "--moveset-probe":
+			_moveset_probe()
 		elif arg == "--escalation-probe":
 			_escalation_probe()
 		elif arg == "--sling-probe":
@@ -12679,7 +12681,7 @@ func _archetype_probe() -> void:
 	blow.damage = 19.0
 	blow.damage_type = Enums.DamageType.BLUNT
 	blow.reach = 2.6
-	odd.attack = blow
+	odd.attacks = [blow]
 	EnemyCatalogue.all()
 	EnemyCatalogue._by_id[String(odd.id)] = odd
 	EnemyCatalogue._ids.append(String(odd.id))
@@ -12717,12 +12719,12 @@ func _archetype_probe() -> void:
 			+ "blow %.0f %s (want %.0f %s)") % [pair[2], body.health.maximum,
 			kind.health, Enums.ArmourClass.keys()[hurtbox.armour],
 			Enums.ArmourClass.keys()[kind.armour_class], hitbox.damage,
-			Enums.DamageType.keys()[hitbox.damage_type], kind.attack.damage,
-			Enums.DamageType.keys()[kind.attack.damage_type]])
+			Enums.DamageType.keys()[hitbox.damage_type], kind.everyday().damage,
+			Enums.DamageType.keys()[kind.everyday().damage_type]])
 		if not is_equal_approx(body.health.maximum, kind.health) \
 				or hurtbox.armour != kind.armour_class \
-				or not is_equal_approx(hitbox.damage, kind.attack.damage) \
-				or hitbox.damage_type != kind.attack.damage_type:
+				or not is_equal_approx(hitbox.damage, kind.everyday().damage) \
+				or hitbox.damage_type != kind.everyday().damage_type:
 			problems.append(("a body spawned as %s is not built from it — the "
 				+ "archetype on its spawn is not what it reads") % pair[2])
 	_session.clear_enemies()
@@ -12825,6 +12827,12 @@ func _warden_probe() -> void:
 	for pair: Array in [[warden, "warden"], [wretch, "wretch"]]:
 		var body: Enemy = pair[0]
 		var enemy_blow := body.get("_hitbox") as Hitbox
+		# The Warden's overhead, by name: it lists its shove first (ADR-391),
+		# and a hitbox is loaded with whichever blow is being dealt.
+		if pair[1] == "warden":
+			for each: AttackResource in warden_kind.attacks:
+				if each.heavy:
+					body.call("_load_blow", each)
 		var taken: Array[float] = []
 		var toward: Vector3 = body.global_position - player.global_position
 		player.teleport(player.global_position, atan2(-toward.x, -toward.z))
@@ -12938,6 +12946,14 @@ func _engage_probe() -> void:
 	# the rule decides where a body stands.
 	var ground: Vector3 = await _flat_arena(ENGAGE_ARENA, 30.0)
 	player.health.maximum = 100000.0
+	# **Turns, and nothing else**: Wretches with their swipe alone. Since the
+	# movesets (`M4-T39`) a Wretch in front lunges from 4.4 m, which beat the
+	# swipe of one 2.6 m behind with the rule switched off — so the row about
+	# the first blow could no longer see the rule it asks about.
+	var swiping := EnemyCatalogue.by_id(&"enm_wretch").duplicate() as EnemyResource
+	swiping.id = ENGAGE_KIND
+	swiping.attacks = [EnemyCatalogue.by_id(&"enm_wretch").everyday()]
+	_probe_kind(swiping)
 	var tuning: TuningProfile = Config.tuning
 	var kept: Array = [tuning.engage_tokens, tuning.engage_view_half_angle, tuning.engage_rest]
 	var rows := {}
@@ -13019,7 +13035,12 @@ func _engage_scenario(player: Player, ground: Vector3, pack: bool, seconds: floa
 	_session.clear_enemies()
 	await _hold(0.2)
 	player.restore_for_descent()
-	player.teleport(ground, 0.0)
+	# **Out of sight while they arrive**, behind every one of them: a body
+	# that saw the player during the spawn hold alerted itself and took the
+	# first turns before the rest knew anyone was there, which is a fight the
+	# rule allows and not the one this row asks about. All four are told at
+	# once, in the frame the player steps in.
+	player.teleport(ground + Vector3(0.0, 0.0, 13.0), 0.0)
 	await _hold(0.2)
 	var ahead := Vector3(0.0, 0.0, -1.0)
 	var across := Vector3(1.0, 0.0, 0.0)
@@ -13033,8 +13054,9 @@ func _engage_scenario(player: Player, ground: Vector3, pack: bool, seconds: floa
 		spots.append(ground + ahead * 5.5 + across * 1.0)
 		spots.append(ground + ahead * 5.5 - across * 1.0)
 	for spot: Vector3 in spots:
-		_session.spawn_enemy(spot, 0.0)
+		_session.spawn_enemy(spot, 0.0, ENGAGE_KIND)
 	await _hold(0.3)
+	player.teleport(ground, 0.0)
 	var bodies: Array[Enemy] = []
 	for node: Node in get_tree().get_nodes_in_group("enemies"):
 		var body := node as Enemy
@@ -13091,8 +13113,249 @@ func _engage_scenario(player: Player, ground: Vector3, pack: bool, seconds: floa
 	return {"peak": peak, "starts": starts, "first": first, "spread": spread}
 
 
+## **Every melee body has a second blow** (ADR-391, `M4-T39`). Each row against
+## the same body without the thing it asks about, on the engagement arena:
+##
+## 1. **The Wretch lunges** from 3.6 m — its first blow begins where a swipe
+##    could not, and carries it two metres; one with no lunge walks in first.
+## 2. **The Hall-Warden shoves, then brings the overhead down**: the player is
+##    thrown back, and the blow after the shove is the heavy one.
+## 3. **The Hoard-Keeper's sweep catches a body at its side**, where its thrust,
+##    armed in the same place, does not.
+## 4. **The Sling-Wretch backs off** from a body at three metres to throw again;
+##    one that does not keep off stands where it is.
+func _moveset_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	var ground: Vector3 = await _flat_arena(ENGAGE_ARENA, 30.0)
+	player.health.maximum = 100000.0
+
+	# ─ 1. the lunge ─
+	var wretch: EnemyResource = EnemyCatalogue.by_id(&"enm_wretch")
+	var swipe_only := wretch.duplicate(true) as EnemyResource
+	swipe_only.id = &"enm_probe_swipe_only"
+	swipe_only.attacks = [wretch.everyday()]
+	_probe_kind(swipe_only)
+	var lunging: Dictionary = await _first_blow(player, ground, &"enm_wretch", 3.6, 3.0)
+	var walking: Dictionary = await _first_blow(player, ground, swipe_only.id, 3.6, 3.0)
+	print("[moveset] the Wretch from 3.6 m     first blow '%s' begun at %.2f m, carried %.2f m; with no lunge begun at %.2f m"
+		% [lunging["clip"], lunging["from"], lunging["carried"], walking["from"]])
+	if String(lunging["clip"]) != "lunge" or float(lunging["from"]) < 2.6:
+		problems.append("a Wretch 3.6 m off began '%s' from %.2f m — it lunges across the gap"
+			% [lunging["clip"], float(lunging["from"])])
+	if float(lunging["carried"]) < 1.8:
+		problems.append("the lunge carried the body %.2f m of its 2.4" % float(lunging["carried"]))
+	if float(lunging["dealt"]) <= 0.0:
+		problems.append("the lunge landed nothing on a body that stood still")
+	if float(walking["from"]) > wretch.everyday().reach + 0.05:
+		problems.append("with no lunge the Wretch began from %.2f m, so the row is not about the lunge"
+			% float(walking["from"]))
+
+	# ─ 2. the shove, then the overhead ─
+	var warden: EnemyResource = EnemyCatalogue.by_id(&"enm_hall_warden")
+	var shoveless := warden.duplicate(true) as EnemyResource
+	shoveless.id = &"enm_probe_shoveless"
+	# Each blow copied by hand: a deep copy is not promised to reach into an
+	# array, and the catalogue's own Warden must keep its shove.
+	var unshoved: Array[AttackResource] = []
+	for blow: AttackResource in warden.attacks:
+		var copy := blow.duplicate() as AttackResource
+		copy.shove = 0.0
+		unshoved.append(copy)
+	shoveless.attacks = unshoved
+	_probe_kind(shoveless)
+	var shoved: Dictionary = await _first_blow(player, ground, &"enm_hall_warden", 1.5, 4.0)
+	var held: Dictionary = await _first_blow(player, ground, shoveless.id, 1.5, 4.0)
+	print("[moveset] the Hall-Warden at 1.5 m   first '%s', the player thrown %.2f m (%.2f m with no shove); its next blow '%s', heavy %s"
+		% [shoved["clip"], shoved["moved"], held["moved"], shoved["next_clip"], shoved["next_heavy"]])
+	if String(shoved["clip"]) != "shove" or float(shoved["moved"]) < 1.0:
+		problems.append("the Warden's first blow at 1.5 m was '%s' and moved the player %.2f m — it shoves"
+			% [shoved["clip"], float(shoved["moved"])])
+	if float(held["moved"]) > 0.3:
+		problems.append("with no shove the player still moved %.2f m, so the row is not about the shove"
+			% float(held["moved"]))
+	if not bool(shoved["next_heavy"]):
+		problems.append("the blow after the shove was '%s' and not heavy — the shove makes room for the overhead"
+			% shoved["next_clip"])
+
+	# ─ 3. the sweep catches a body at its side ─
+	var keeper: EnemyResource = EnemyCatalogue.by_id(&"enm_hoard_keeper")
+	var side: Dictionary = {}
+	var behind: float = 0.0
+	for blow: AttackResource in keeper.attacks:
+		side[String(blow.clip) if blow.clip != &"" else "thrust"] = \
+			await _armed_beside(player, ground, &"enm_hoard_keeper", blow, Vector3(1.6, 0.0, 0.0))
+		if blow.wide:
+			# **And never behind it** (the correctness review): a wide blow
+			# from something with its back to you is a death nobody can explain.
+			behind = await _armed_beside(player, ground, &"enm_hoard_keeper", blow, Vector3(0.0, 0.0, 1.3))
+	print("[moveset] the Hoard-Keeper, a body at its side   the sweep dealt %.0f, the thrust %.0f; the sweep on a body 1.3 m behind it %.0f"
+		% [side.get("sweep", 0.0), side.get("thrust", 0.0), behind])
+	if float(side.get("sweep", 0.0)) <= 0.0:
+		problems.append("the sweep missed a body at the Keeper's side — it is for the body circling it")
+	if float(side.get("thrust", 0.0)) > 0.0:
+		problems.append("the thrust caught a body at the Keeper's side, so the row is not about the sweep")
+	if behind > 0.0:
+		problems.append("the sweep struck a body 1.3 m behind the Keeper — it reaches round, not back")
+
+	# ─ 4. the sling keeps off ─
+	var sling: EnemyResource = EnemyCatalogue.by_id(&"enm_sling_wretch")
+	var standing := sling.duplicate(true) as EnemyResource
+	standing.id = &"enm_probe_stands"
+	standing.keeps_off = 0.0
+	_probe_kind(standing)
+	var backed: float = await _gap_after(player, ground, &"enm_sling_wretch", 3.0, 1.5)
+	var stood: float = await _gap_after(player, ground, standing.id, 3.0, 1.5)
+	print("[moveset] the Sling-Wretch from 3 m  after 1.5 s it stood %.2f m off (%.2f m with no keeping off)"
+		% [backed, stood])
+	if backed < 3.8:
+		problems.append("a Sling-Wretch at 3 m was %.2f m off 1.5 s later — it backs off to throw" % backed)
+	if stood > 3.3:
+		problems.append("one that does not keep off was %.2f m off, so the row is not about keeping off" % stood)
+
+	for id: StringName in [swipe_only.id, shoveless.id, standing.id]:
+		EnemyCatalogue._by_id.erase(String(id))
+		EnemyCatalogue._ids.erase(String(id))
+	player.health.maximum = 100.0
+	player.health.restore()
+	_session.clear_enemies()
+	_report(problems, "moveset")
+
+
+## Register a scratch archetype for one probe run.
+func _probe_kind(kind: EnemyResource) -> void:
+	EnemyCatalogue.all()
+	EnemyCatalogue._by_id[String(kind.id)] = kind
+	EnemyCatalogue._ids.append(String(kind.id))
+
+
+## One body of `archetype` set on a still `player` from `metres` in front.
+## Returns the first blow's clip, how far off it began, how far it carried the
+## body, what it dealt, how far the player was moved by the time the next blow
+## began, and that next blow's clip and weight.
+func _first_blow(player: Player, ground: Vector3, archetype: StringName, metres: float,
+		seconds: float) -> Dictionary:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	player.teleport(ground, 0.0)
+	await _hold(0.2)
+	_session.spawn_enemy(ground + Vector3(0.0, 0.0, -metres), 0.0, archetype)
+	await _hold(0.2)
+	var body: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		body = node as Enemy
+	var out := {"clip": "none", "from": 0.0, "carried": 0.0, "dealt": 0.0, "moved": 0.0,
+		"next_clip": "none", "next_heavy": false}
+	if body == null:
+		return out
+	body.set("_home", body.global_position)
+	body.set("_target", player)
+	body.set("_last_seen", player.global_position)
+	body.set("_patience", 30.0)
+	body.set("_state", Enemy.State.ALERTED)
+	var stood_at: Vector3 = player.global_position
+	var health_was: float = player.health.current
+	var was: Enemy.Attack = Enemy.Attack.NONE
+	var blows: int = 0
+	var active_at := Vector3.INF
+	var left: float = seconds
+	while left > 0.0 and blows < 2:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time()
+		var phase: Enemy.Attack = body.attack_phase()
+		if phase == Enemy.Attack.TELEGRAPH and was != Enemy.Attack.TELEGRAPH:
+			blows += 1
+			var blow: AttackResource = body.current_blow()
+			if blows == 1:
+				out["clip"] = String(blow.clip)
+				out["from"] = _flat_distance(body.global_position, player.global_position)
+			else:
+				out["next_clip"] = String(blow.clip)
+				out["next_heavy"] = blow.heavy
+				out["moved"] = _flat_distance(player.global_position, stood_at)
+		if blows == 1 and phase == Enemy.Attack.ACTIVE and was != Enemy.Attack.ACTIVE:
+			active_at = body.global_position
+		if blows == 1 and phase == Enemy.Attack.RECOVERY and was == Enemy.Attack.ACTIVE:
+			out["carried"] = _flat_distance(body.global_position, active_at)
+			out["dealt"] = health_was - player.health.current
+		was = phase
+	if blows < 2:
+		out["moved"] = _flat_distance(player.global_position, stood_at)
+	_session.clear_enemies()
+	player.health.restore()
+	return out
+
+
+## A body of `archetype` held still facing −Z, the player set at `offset` from
+## it, and `blow` armed in it once: what it dealt.
+func _armed_beside(player: Player, ground: Vector3, archetype: StringName,
+		blow: AttackResource, offset: Vector3) -> float:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	_session.spawn_enemy(ground, 0.0, archetype)
+	await _hold(0.2)
+	var body: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		body = node as Enemy
+	if body == null:
+		return 0.0
+	body.set_physics_process(false)
+	player.teleport(ground + offset, 0.0)
+	await _hold(0.2)
+	player.health.restore()
+	var was: float = player.health.current
+	body.call("_load_blow", blow)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	(body.get("_hitbox") as Hitbox).arm()
+	await get_tree().physics_frame
+	(body.get("_hitbox") as Hitbox).disarm()
+	var dealt: float = was - player.health.current
+	_session.clear_enemies()
+	player.health.restore()
+	return dealt
+
+
+## A body of `archetype` hunting a still player from `metres` in front: how far
+## off it stands `seconds` later.
+func _gap_after(player: Player, ground: Vector3, archetype: StringName, metres: float,
+		seconds: float) -> float:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	player.teleport(ground, 0.0)
+	await _hold(0.2)
+	_session.spawn_enemy(ground + Vector3(0.0, 0.0, -metres), 0.0, archetype)
+	await _hold(0.2)
+	var body: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		body = node as Enemy
+	if body == null:
+		return 0.0
+	body.set("_home", body.global_position)
+	body.set("_target", player)
+	body.set("_last_seen", player.global_position)
+	body.set("_patience", 30.0)
+	body.set("_state", Enemy.State.ALERTED)
+	var left: float = seconds
+	while left > 0.0:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time()
+		player.health.restore()
+	var gap: float = _flat_distance(body.global_position, player.global_position)
+	_session.clear_enemies()
+	return gap
+
+
 ## Far from the room set, so its walls, lights and navmesh are nobody's business.
 const ENGAGE_ARENA: Vector3 = Vector3(0.0, 0.0, 400.0)
+## The Wretch the engagement probe fights: its swipe and nothing else.
+const ENGAGE_KIND: StringName = &"enm_probe_engage"
 ## And a passage on it, off to one side, as wide as a corridor's floor.
 const ENGAGE_PASSAGE: Vector3 = Vector3(9.0, 0.0, 0.0)
 const ENGAGE_PASSAGE_WIDE: float = 2.4
@@ -13108,7 +13371,7 @@ func _engage_queue(player: Player, passage: Vector3, seconds: float) -> Dictiona
 	player.teleport(passage, 0.0)
 	await _hold(0.2)
 	for step: int in range(4):
-		_session.spawn_enemy(passage + Vector3(0.0, 0.0, -5.5 - 1.1 * float(step)), 0.0)
+		_session.spawn_enemy(passage + Vector3(0.0, 0.0, -5.5 - 1.1 * float(step)), 0.0, ENGAGE_KIND)
 	await _hold(0.3)
 	var bodies: Array[Enemy] = []
 	for node: Node in get_tree().get_nodes_in_group("enemies"):
@@ -13561,7 +13824,7 @@ func _sling_probe() -> void:
 		problems.append("no enm_sling_wretch or no wpn_yew_bow in the catalogues")
 		_report(problems, "sling")
 		return
-	var sling: AttackResource = sling_kind.attack
+	var sling: AttackResource = sling_kind.everyday()
 	var bow: RangedTrait = bow_item.first_trait(RangedTrait) as RangedTrait
 	var chest := Vector3.UP * 0.9
 	player.restore_for_descent()
@@ -14355,7 +14618,7 @@ func _shield_probe() -> void:
 				elif blow == "cut":
 					hurtbox.receive(cut.damage, cut.damage_type, cut)
 				else:
-					_session.spawn_missile(stone_from, stone_way, sling_kind.attack, null)
+					_session.spawn_missile(stone_from, stone_way, sling_kind.everyday(), null)
 					await _hold(0.6)
 				var key: String = "%s %s %s" % [way, guard, blow]
 				taken[key] = health_was - player.health.current
@@ -14544,7 +14807,7 @@ func _wound_probe() -> void:
 			"cut":
 				hurtbox.receive(cut.damage, cut.damage_type, cut)
 			"stone":
-				_session.spawn_missile(stone_from, stone_way, sling_kind.attack, null)
+				_session.spawn_missile(stone_from, stone_way, sling_kind.everyday(), null)
 				await _hold(0.6)
 		var landed: float = was - player.health.current
 		if row[4] == "cut":

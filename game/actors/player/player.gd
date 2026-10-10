@@ -526,6 +526,13 @@ var _driving: bool = true
 var _kick: Vector3 = Vector3.ZERO
 ## The recoil the last blow you landed sent up the arm (ADR-335).
 var _recoil: float = 0.0
+## **A shove in flight** (ADR-391): horizontal speed added over your own,
+## spent at the floor's friction. Owner-side, like all of this body's movement.
+var _knock: Vector3 = Vector3.ZERO
+## How far the last shove has carried this body, and whether the next one
+## starts the count afresh.
+var _shoved_metres: float = 0.0
+var _knock_fresh: bool = true
 var _health_seen: float = 0.0
 ## What `_apply_pointer` last decided about the cursor. See `pointer_captured`.
 var _pointer_captured: bool = true
@@ -1214,28 +1221,49 @@ func _tell_struck(taken: float, from: Node, guarded: float) -> void:
 	var source := from as Node3D
 	var placed: bool = source != null and is_instance_valid(source)
 	var at: Vector3 = source.global_position if placed else Vector3.ZERO
+	# **A shove moves you** (ADR-391), guarded or not — a shield takes the edge
+	# off the Warden's shove, not the weight. Decided here, from where the
+	# striker stands; walked by the body's owner, who owns its movement.
+	var push := Vector3.ZERO
+	var blow := from as Hitbox
+	if blow != null and blow.shove > 0.0 and blow.actor() != null:
+		var away: Vector3 = global_position - blow.actor().global_position
+		away.y = 0.0
+		if away.length() > 0.01:
+			push = away.normalized() * blow.shove
 	if is_multiplayer_authority():
-		_feel_struck(taken, at if placed else Vector3.INF, guarded)
+		_feel_struck(taken, at if placed else Vector3.INF, guarded, push)
 	elif _owner_connected():
-		_struck_here.rpc_id(get_multiplayer_authority(), taken, at, placed, guarded)
+		_struck_here.rpc_id(get_multiplayer_authority(), taken, at, placed, guarded, push)
 
 
 ## The blow, arrived on the peer it landed on.
 @rpc("any_peer", "call_remote", "reliable")
-func _struck_here(taken: float, at: Vector3, placed: bool, guarded: float) -> void:
+func _struck_here(taken: float, at: Vector3, placed: bool, guarded: float,
+		push: Vector3) -> void:
 	var sender: int = multiplayer.get_remote_sender_id()
 	if sender != 0 and sender != CoopSession.HOST_PEER:
 		return
-	_feel_struck(taken, at if placed else Vector3.INF, guarded)
+	_feel_struck(taken, at if placed else Vector3.INF, guarded, push)
 
 
 ## The body it landed on hears being hurt; everyone else hears it land, from
 ## the replicated health (`_process`, ADR-311).
-func _feel_struck(taken: float, from_point: Vector3, guarded: float) -> void:
+func _feel_struck(taken: float, from_point: Vector3, guarded: float,
+		push: Vector3 = Vector3.ZERO) -> void:
 	if taken > 0.0:
 		Foley.at(self, Foley.Sound.HURT)
 	_jolt_struck(taken, from_point, guarded)
+	# Thrown back `push` metres: the speed that the floor's own friction spends
+	# over exactly that distance (v² = 2·a·d), so a shove is a step, not a slide.
+	if push.length() > 0.01:
+		_knock = push.normalized() * sqrt(2.0 * Config.tuning.ground_friction * push.length())
 	struck.emit(taken, from_point, guarded)
+
+
+## How far a shove carried this body last, metres — for `--moveset-probe`.
+func shoved() -> float:
+	return _shoved_metres
 
 
 ## **What you hold takes the blow** (ADR-335). A guarded one drives the shield
@@ -2933,6 +2961,9 @@ func _apply_teleport(to: Vector3, yaw: float) -> void:
 		return
 	global_position = to
 	velocity = Vector3.ZERO
+	# And no shove left over (ADR-391): a body moved by the host mid-shove would
+	# otherwise be carried on from wherever it was put.
+	_knock = Vector3.ZERO
 	_yaw = yaw
 	rotation.y = yaw
 	_last_position = to
@@ -3171,7 +3202,23 @@ func _drive(delta: float, tuning: TuningProfile) -> void:
 			else carried.scale_by_load(tuning.jump_at_capacity)
 		velocity.y = tuning.jump_velocity * lift
 
+	# **A shove rides on top of your own movement** (ADR-391), and is taken off
+	# again after the move, so the controller's acceleration never mistakes it
+	# for your own speed and fights it.
+	var knock: Vector3 = _knock
+	velocity.x += knock.x
+	velocity.z += knock.z
 	move_and_slide()
+	velocity.x -= knock.x
+	velocity.z -= knock.z
+	if knock.length_squared() > 0.0001:
+		if _knock_fresh:
+			_shoved_metres = 0.0
+			_knock_fresh = false
+		_shoved_metres += knock.length() * delta
+		_knock = _knock.move_toward(Vector3.ZERO, tuning.ground_friction * delta)
+	else:
+		_knock_fresh = true
 	grounded = is_on_floor()
 
 ## Footfalls and landings, the continuous half of DES-005 Layer 1.

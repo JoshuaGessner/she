@@ -22,6 +22,12 @@ CLIPS = {'idle': 6, 'search': 3, 'walk': 1, 'run': 1, 'telegraph': 1,
          'attack': 1, 'recovery': 1, 'stagger': 1, 'death': 1,
          'call': 1, 'collect': 1, 'take': 1, 'shrug': 1}
 LOOPS = {'idle', 'search', 'walk', 'run', 'collect'}
+PHASES = ('telegraph', 'attack', 'recovery')
+# **A second blow per archetype** (ADR-391): each is a family of three clips,
+# `<family>_telegraph`, `<family>_attack` and `<family>_recovery`, named by the
+# blow's `AttackResource.clip`, so a lunge never plays as a swipe.
+FAMILIES = {'wretch': ('lunge',), 'bellringer': ('lunge',),
+            'hall_warden': ('shove',), 'hoard_keeper': ('sweep',)}
 
 
 def clips_for(kind):
@@ -30,7 +36,46 @@ def clips_for(kind):
              ('idle', 'search', 'walk', 'run', 'telegraph', 'attack', 'recovery', 'stagger', 'death'))
     if kind == 'bellringer':
         names += ('call',)
-    return {name: CLIPS[name] for name in names}
+    clips = {name: CLIPS[name] for name in names}
+    for family in FAMILIES.get(kind, ()):
+        for phase in PHASES:
+            clips[family + '_' + phase] = 1
+    return clips
+
+
+def family_blow(family):
+    """Wind-up and strike poses for a second blow, in the same world-axis
+    offsets as the swing: x leans or raises forward, z twists the trunk."""
+    if family == 'lunge':
+        # Coiled low with the weight back, then the whole body thrown forward:
+        # the front leg reaches, the back leg drives, the knife arm leads.
+        wind = {'spine_01': (-.10, 0, 0), 'chest': (-.18, 0, -.30),
+                'upper_arm_r': (-.95, -.30, -.35), 'forearm_r': (1.25, 0, 0),
+                'upper_arm_l': (.25, .30, .20), 'thigh_l': (-.35, 0, 0),
+                'calf_l': (.55, 0, 0), 'thigh_r': (-.30, 0, 0), 'calf_r': (.65, 0, 0)}
+        hit = {'spine_01': (.30, 0, 0), 'chest': (.40, 0, .20),
+               'upper_arm_r': (.95, .05, .15), 'forearm_r': (.10, 0, 0),
+               'upper_arm_l': (-.55, .20, -.10), 'thigh_l': (-.75, 0, 0),
+               'calf_l': (.35, 0, 0), 'thigh_r': (.45, 0, 0), 'calf_r': (.20, 0, 0)}
+        return wind, hit, -.10
+    if family == 'shove':
+        # Dead armour lowering its shoulder, then both arms driving forward:
+        # a blocker making room for the overhead.
+        wind = {'chest': (-.10, 0, .35), 'upper_arm_l': (-.35, .40, .30),
+                'forearm_l': (1.10, 0, 0), 'upper_arm_r': (-.25, -.35, -.10),
+                'forearm_r': (1.00, 0, 0), 'thigh_r': (-.25, 0, 0), 'calf_r': (.40, 0, 0)}
+        hit = {'chest': (.35, 0, -.10), 'upper_arm_l': (-1.30, .10, .05),
+               'forearm_l': (.15, 0, 0), 'upper_arm_r': (-1.25, -.10, -.05),
+               'forearm_r': (.15, 0, 0), 'thigh_l': (-.40, 0, 0), 'calf_l': (.25, 0, 0)}
+        return wind, hit, -.04
+    # 'sweep': the haft drawn far round to the right, then a flat arc across.
+    wind = {'chest': (-.05, 0, -.75), 'spine_01': (0, 0, -.25),
+            'upper_arm_r': (-.55, -.85, -.40), 'forearm_r': (.55, 0, 0),
+            'upper_arm_l': (-.45, .25, -.40), 'forearm_l': (.70, 0, 0)}
+    hit = {'chest': (.10, 0, .80), 'spine_01': (0, 0, .30),
+           'upper_arm_r': (-.80, .85, .45), 'forearm_r': (.15, 0, 0),
+           'upper_arm_l': (-.60, -.30, .45), 'forearm_l': (.30, 0, 0)}
+    return wind, hit, -.08
 
 
 def ease(t):
@@ -112,6 +157,20 @@ def pose(kind, clip, t):
                 [a[i]*(1-blend)+b[i]*blend for i in range(3)] if clip == 'attack'
                 else [v*(1-blend) for v in b])
             add(bone, *row)
+    elif '_' in clip and clip.split('_', 1)[1] in PHASES:
+        family, phase = clip.split('_', 1)
+        wind, hit, drop = family_blow(family)
+        blend = ease(t)
+        for bone in set(wind) | set(hit):
+            a, b = wind.get(bone, (0, 0, 0)), hit.get(bone, (0, 0, 0))
+            row = [v*blend for v in a] if phase == 'telegraph' else (
+                [a[i]*(1-blend)+b[i]*blend for i in range(3)] if phase == 'attack'
+                else [v*(1-blend) for v in b])
+            add(bone, *row)
+        # The body sinks into the wind-up and rises out of the recovery, so
+        # the coil reads from across a room as well as up close.
+        sink = blend if phase == 'telegraph' else (1.0 if phase == 'attack' else 1-blend)
+        root.z = drop*sink
     elif clip in ('stagger', 'shrug'):
         jolt = math.sin(math.pi*t)*(1-t)
         add('chest', -.55*jolt if clip == 'stagger' else -.20*jolt, 0, .16*jolt)

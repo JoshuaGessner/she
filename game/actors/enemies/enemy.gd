@@ -87,6 +87,7 @@ const REPLICATED_PROPERTIES: Dictionary = {
 	".:net_yaw": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:_state": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_attack": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	".:blow_index": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:visual_progress": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_sees": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:_hears": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
@@ -135,6 +136,13 @@ var _stagger_timer: float = 0.0
 ## Seconds before this body is offered another turn (ADR-391): the beat after
 ## its blow, spent stepping back out to the ring.
 var _rest: float = 0.0
+## **Which of its blows it is dealing** (ADR-391), as an index into its
+## archetype's `attacks`: replicated, so every peer plays that blow's clip.
+var blow_index: int = 0
+## Seconds left before each blow may be chosen again: AttackResource → seconds.
+var _cooldowns: Dictionary = {}
+## The hitbox's own reach shape, made this body's in `_ready`.
+var _reach_shape: CollisionShape3D = null
 ## The authority samples corpse time into the replicated presentation phase.
 var _death_elapsed: float = 0.0
 ## Normalized presentation phase, including spawn state for late arrivals.
@@ -291,9 +299,11 @@ func _ready() -> void:
 	# touch of anything — the failure the pool exists to prevent, arriving as
 	# an initialisation bug rather than as a design one.
 	_poise = _kind.poise
-	_hitbox.damage = _kind.attack.damage
-	_hitbox.damage_type = _kind.attack.damage_type
-	_hitbox.heavy = _kind.attack.heavy
+	# **Its own reach** (ADR-391): the scene's sphere is shared by every enemy,
+	# and a wide blow widens it for this body alone.
+	_reach_shape = _hitbox.get_node("CollisionShape3D") as CollisionShape3D
+	_reach_shape.shape = _reach_shape.shape.duplicate()
+	_load_blow(_kind.everyday())
 	# Its body turns a blow by its class (`DES-023` §3), as a player's coat does.
 	_hurtbox.armour = _kind.armour_class
 	_hurtbox.hit.connect(_on_hurt)
@@ -363,7 +373,10 @@ func state() -> State:
 ## Who this body is after, or null. `Engagement` counts a token as held only
 ## while its holder is still after the body it was given on.
 func target() -> Node3D:
-	return _target as Node3D
+	# A player who left mid-fight is freed out from under every body after
+	# them, and stays in `_target` until that body's own `_act` notices — but
+	# `Engagement` asks every hunting body, every frame, from any other.
+	return _target if is_instance_valid(_target) else null
 
 
 ## Where sight is cast from. Used by the gym's vision overlay so the drawn
@@ -473,7 +486,7 @@ func _process(delta: float) -> void:
 	# to draw. The animation probe invokes the visual explicitly when headless.
 	if DisplayServer.get_name() != "headless":
 		_visual.present_enemy(int(_state), int(_attack), visual_progress.x,
-				visual_progress.y, global_position, delta)
+				visual_progress.y, global_position, delta, current_blow().clip)
 
 
 ## **Where it was struck, seen** (ADR-303): sparks off mail and plate, chips
@@ -521,13 +534,45 @@ func _state_progress() -> float:
 func _attack_progress() -> float:
 	if _attack == Attack.NONE:
 		return -1.0
-	var duration: float = _kind.attack.telegraph
+	var blow: AttackResource = current_blow()
+	var duration: float = blow.telegraph
 	match _attack:
 		Attack.ACTIVE:
-			duration = _kind.attack.active
+			duration = blow.active
 		Attack.RECOVERY:
-			duration = _kind.attack.recovery
+			duration = blow.recovery
 	return 1.0 - _attack_timer / maxf(duration, 0.001)
+
+
+## The blow being dealt now, or last dealt — read off the replicated index, so
+## every peer animates the same one.
+func current_blow() -> AttackResource:
+	return _kind.attacks[clampi(blow_index, 0, _kind.attacks.size() - 1)]
+
+
+## Ready the hitbox for `blow`: what it deals, and where it reaches. A narrow
+## blow is a sphere half its reach across, out in front; a wide one is centred
+## near the chest and reaches round the sides, so a body circling it is caught.
+func _load_blow(blow: AttackResource) -> void:
+	_hitbox.damage = blow.damage
+	_hitbox.damage_type = blow.damage_type
+	_hitbox.heavy = blow.heavy
+	_hitbox.shove = blow.shove
+	# A lunge's reach is mostly the ground it covers: the blade reaches only
+	# what is left once the body has arrived, and is carried there.
+	var arm: float = blow.reach - blow.lunge
+	var sphere := _reach_shape.shape as SphereShape3D
+	if blow.wide:
+		# Round the front and sides, not behind: centred ahead of the chest by
+		# more than it reaches back, so the edge behind sits inside a body's
+		# own width and a sweep never lands on someone it has its back to.
+		# Measured with a body's own width added: at 2.4 m this reaches about
+		# 2.6 m ahead and 1.5 m to either side, and stops short of 1.3 m behind.
+		sphere.radius = arm * 0.71
+		_reach_shape.position = Vector3(0.0, 1.0, -arm * 0.375)
+	else:
+		sphere.radius = arm * 0.5
+		_reach_shape.position = Vector3(0.0, 1.0, -arm * 0.5)
 
 
 ## Carry the body to where the host says it is, rather than putting it there.
@@ -554,6 +599,8 @@ func _physics_process(delta: float) -> void:
 	var tuning: TuningProfile = Config.tuning
 	turned.tick(delta)
 	_rest = maxf(0.0, _rest - delta)
+	for blow: Variant in _cooldowns.keys():
+		_cooldowns[blow] = maxf(0.0, float(_cooldowns[blow]) - delta)
 
 	if not is_on_floor():
 		velocity.y -= tuning.gravity * delta
@@ -827,15 +874,26 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 				# two metres was never going to be thrown through a wall; a stone
 				# from twelve would be, at a body the thrower last saw round a
 				# corner — so out of sight it closes on where you were instead.
-				var missile: bool = _kind.attack.missile_speed > 0.0
+				var missile: bool = _kind.everyday().missile_speed > 0.0
 				var can_start: bool = not missile or _sees
 				if not (_target is Player):
-					if range_to <= _kind.attack.reach and can_start:
-						_begin_attack(tuning)
+					var blow: AttackResource = _choose_blow(range_to) if can_start else null
+					if blow != null:
+						_begin_attack(tuning, blow)
 					else:
 						_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
 					return
 				_engage(range_to, missile, can_start, tuning)
+
+
+## **Which blow, from here** (ADR-391): the first listed whose range holds
+## `range_to` and whose cooldown has run, or null when none does.
+func _choose_blow(range_to: float) -> AttackResource:
+	for blow: AttackResource in _kind.attacks:
+		if range_to <= blow.reach and range_to >= blow.min_range \
+				and float(_cooldowns.get(blow, 0.0)) <= 0.0:
+			return blow
+	return null
 
 
 ## **Taking turns on a player** (ADR-391, `M4-T38`). A body near enough to
@@ -847,20 +905,29 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 ## A thrower refused stands where it is and keeps you in sight: the ring is for
 ## bodies that close, and a slinger already stands off.
 func _engage(range_to: float, missile: bool, can_start: bool, tuning: TuningProfile) -> void:
-	var ring: float = _kind.attack.reach + tuning.engage_ring_margin
+	var reach: float = _kind.close_reach()
+	var ring: float = reach + tuning.engage_ring_margin
 	# A token kept while you walk away is a token nobody else can use.
-	if Engagement.holds(self) and range_to > ring + 2.0:
+	if Engagement.holds(self) and range_to > maxf(ring, _kind.longest_reach()) + 2.0:
 		Engagement.release(self)
+	# **A thrower keeps its distance** (ADR-391): inside `keeps_off` it backs
+	# away to throw again — unless there is nowhere to back to, and then it
+	# throws from where it stands.
+	if missile and _sees and range_to < _kind.keeps_off and _room_behind(1.5):
+		_back_off(tuning)
+		return
 	var asks: bool = can_start and _rest <= 0.0 \
-		and (range_to <= ring + 1.0 or (missile and range_to <= _kind.attack.reach))
+		and (range_to <= maxf(ring + 1.0, _kind.longest_reach()) \
+			or (missile and range_to <= reach))
 	if asks and Engagement.take(self, _target, missile, tuning, ring + 3.0):
-		if range_to <= _kind.attack.reach:
-			_begin_attack(tuning)
-		else:
+		var blow: AttackResource = _choose_blow(range_to)
+		if blow == null:
 			_steer_toward(_on_its_leash(_last_seen), _kind.run_speed, tuning)
+		elif _squared_up(tuning):
+			_begin_attack(tuning, blow)
 		return
 	if missile:
-		if range_to <= _kind.attack.reach and _sees:
+		if range_to <= reach and _sees:
 			velocity.x = 0.0
 			velocity.z = 0.0
 			_face_target(tuning)
@@ -880,6 +947,64 @@ func _hold_ring(ring: float, tuning: TuningProfile) -> void:
 	var point: Vector3 = _on_its_leash(Engagement.ring_point(self, _target, ring, tuning))
 	_steer_toward(point, _kind.walk_speed, tuning, false)
 	_face_target(tuning)
+
+
+## **Turned to its target before the blow** (the moveset probe's finding,
+## ADR-391). A blow struck in place keeps the facing it began with, and a body
+## given its turn while looking elsewhere — spawned, shoved, stepping back to
+## its ring — swung at the air beside the player. Stands and turns until it
+## faces them, as a turned body already did before striking its own kind
+## (ADR-387). A thrower and a lunge aim through their wind-up, so they do too.
+func _squared_up(tuning: TuningProfile) -> bool:
+	velocity.x = 0.0
+	velocity.z = 0.0
+	if not is_instance_valid(_target):
+		return false
+	var to_target: Vector3 = _target.global_position - global_position
+	to_target.y = 0.0
+	if to_target.length() < 0.01:
+		return true
+	_face(to_target.normalized(), tuning)
+	return facing().dot(to_target.normalized()) >= SQUARED_UP
+
+
+## How square to its target a body must stand to begin a blow: about 30°.
+const SQUARED_UP: float = 0.85
+## How near its target a lunge stops carrying the body, metres: two bodies'
+## half-widths and a hand.
+const LUNGE_STOP: float = 1.0
+
+
+func _within_lunge_stop() -> bool:
+	if not is_instance_valid(_target):
+		return false
+	var gap: Vector3 = _target.global_position - global_position
+	gap.y = 0.0
+	return gap.length() <= LUNGE_STOP
+
+
+## Walk straight away from the target, still facing it.
+func _back_off(tuning: TuningProfile) -> void:
+	var away: Vector3 = global_position - _target.global_position
+	away.y = 0.0
+	_steer_toward(_on_its_leash(global_position + away.normalized() * 2.0),
+		_kind.walk_speed, tuning, false)
+	_face_target(tuning)
+
+
+## Is there `metres` of open floor straight behind this body, away from its
+## target? A thrower with its back to a wall stands and throws.
+func _room_behind(metres: float) -> bool:
+	if not is_instance_valid(_target):
+		return false
+	var away: Vector3 = global_position - _target.global_position
+	away.y = 0.0
+	if away.length() < 0.01:
+		return false
+	var from: Vector3 = global_position + Vector3.UP
+	var query := PhysicsRayQueryParameters3D.create(from, from + away.normalized() * metres)
+	query.collision_mask = CollisionLayers.WORLD
+	return get_world_3d().direct_space_state.intersect_ray(query).is_empty()
 
 
 func _face_target(tuning: TuningProfile) -> void:
@@ -903,7 +1028,7 @@ func hear_the_song(from: Vector3, tuning: TuningProfile) -> Turned.Mood:
 	if not multiplayer.is_server() or _state == State.DEAD:
 		return Turned.Mood.NONE
 	var guardian: bool = _kind.leash > 0.0
-	var thrower: bool = _kind.attack != null and _kind.attack.missile_speed > 0.0
+	var thrower: bool = _kind.everyday().missile_speed > 0.0
 	var other: Enemy = null if guardian or thrower else _nearest_foe(tuning.galdr_foe_reach)
 	# Turned, it is nobody's to queue for: its turn on a player passes on.
 	Engagement.release(self)
@@ -952,7 +1077,9 @@ func _act_turned(tuning: TuningProfile) -> void:
 	_last_seen = foe.global_position
 	var to_foe: Vector3 = foe.global_position - global_position
 	to_foe.y = 0.0
-	if to_foe.length() > _kind.attack.reach:
+	# Whichever of its blows reaches from here, as against a player (ADR-391).
+	var blow: AttackResource = _choose_blow(to_foe.length())
+	if blow == null:
 		# On its leash, as any chase is (ADR-232): a Guardian provoked by a
 		# maddened neighbour fights it from its post, or one verse would drag a
 		# Hall-Warden out of the doorway that walking past it depends on.
@@ -967,7 +1094,7 @@ func _act_turned(tuning: TuningProfile) -> void:
 		_face(to_foe.normalized(), tuning)
 		if facing().dot(to_foe.normalized()) < 0.85:
 			return
-	_begin_attack(tuning)
+	_begin_attack(tuning, blow)
 
 
 ## The blow follows the mood, on the host that resolves it: turned on its own
@@ -1125,43 +1252,65 @@ func _face(direction: Vector3, _tuning: TuningProfile) -> void:
 # ── attacking ─────────────────────────────────────────────────────────────
 
 
-func _begin_attack(_tuning: TuningProfile) -> void:
+func _begin_attack(_tuning: TuningProfile, blow: AttackResource) -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
+	# Which blow, before the phase that animates it: a client reading the new
+	# phase must already know which clip to play.
+	blow_index = _kind.attacks.find(blow)
+	_load_blow(blow)
+	_cooldowns[blow] = blow.cooldown
 	_attack = Attack.TELEGRAPH
 	# DES-009's hard floor: human visual reaction time is ~250 ms before any
 	# decision or input. Anything faster produces a death the player cannot
 	# explain, which PRO-005 §5 identifies as the attribution failure that
 	# makes people quit rather than retry. `AttackResource` enforces the floor
 	# on every archetype's blow (ADR-231).
-	_attack_timer = _kind.attack.telegraph
+	_attack_timer = blow.telegraph
 
 
 func _tick_attack(delta: float, tuning: TuningProfile) -> void:
 	velocity.x = 0.0
 	velocity.z = 0.0
-	var missile: bool = _kind.attack.missile_speed > 0.0
-	# A thrower winds up **at you**, so the telegraph reads as aimed. A blow
-	# keeps the facing it began with, as it always has.
-	if missile and _attack == Attack.TELEGRAPH and is_instance_valid(_target):
+	var blow: AttackResource = current_blow()
+	var missile: bool = blow.missile_speed > 0.0
+	# A thrower winds up **at you**, so the telegraph reads as aimed — and so
+	# does a lunge, which commits to its line only when it leaps (ADR-391): a
+	# body that steps aside as the wind-up ends is a body it leaps past. A blow
+	# struck in place keeps the facing it began with, as it always has.
+	if (missile or blow.lunge > 0.0) and _attack == Attack.TELEGRAPH \
+			and is_instance_valid(_target):
 		var to_target: Vector3 = _target.global_position - global_position
 		to_target.y = 0.0
 		if to_target.length() > 0.01:
 			_face(to_target.normalized(), tuning)
+	# **The lunge carries the body** over its active phase, at the speed that
+	# covers `lunge` metres in it.
+	# Not while snared (`M3-T11`): what the Stalker bought is that nothing
+	# follows, and a lunge is following.
+	# **And stops at you, not through you**: bodies do not collide with players
+	# (an enemy's mask holds no player layer), so a lunge carried its full
+	# distance straight through whoever it was aimed at — the swarm probe's
+	# Bellringer called from inside the player. It stops `LUNGE_STOP` short.
+	if _attack == Attack.ACTIVE and blow.lunge > 0.0 and not rooted.held() \
+			and not _within_lunge_stop():
+		var ahead: Vector3 = facing() * (blow.lunge / maxf(blow.active, 0.01))
+		velocity.x = ahead.x
+		velocity.z = ahead.z
 	_attack_timer -= delta
 	if _attack_timer > 0.0:
 		return
 	match _attack:
 		Attack.TELEGRAPH:
 			_attack = Attack.ACTIVE
-			_attack_timer = _kind.attack.active
+			_attack_timer = blow.active
 			if missile:
 				_throw()
 			else:
 				_hitbox.arm()
 		Attack.ACTIVE:
 			_attack = Attack.RECOVERY
-			_attack_timer = _kind.attack.recovery
+			_attack_timer = blow.recovery
 			_hitbox.disarm()
 		Attack.RECOVERY:
 			_attack = Attack.NONE
@@ -1185,7 +1334,7 @@ func _throw() -> void:
 	if aim.length() < 0.01:
 		return
 	var travel: Vector3 = aim.normalized()
-	threw.emit(from + travel * 0.5, travel, _kind.attack, self)
+	threw.emit(from + travel * 0.5, travel, current_blow(), self)
 
 
 # ── damage ────────────────────────────────────────────────────────────────

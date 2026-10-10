@@ -33,6 +33,11 @@ signal struck(hurtbox: Hurtbox)
 ## they strike has a guard to go through.
 var heavy: bool = false
 
+## Metres a blow pushes what it strikes back from the striker (ADR-391), set
+## by an enemy from the blow it is dealing. The struck body moves itself — the
+## host only says how far, and which way.
+var shove: float = 0.0
+
 ## Where a blow is reckoned from on the striker, metres above its feet.
 const CHEST: float = 1.0
 

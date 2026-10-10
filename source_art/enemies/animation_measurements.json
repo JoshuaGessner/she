@@ -9,7 +9,10 @@
       "attack": 1,
       "recovery": 1,
       "stagger": 1,
-      "death": 1
+      "death": 1,
+      "lunge_telegraph": 1,
+      "lunge_attack": 1,
+      "lunge_recovery": 1
     },
     "loops": [
       "idle",
@@ -50,7 +53,10 @@
       "recovery": 1,
       "stagger": 1,
       "death": 1,
-      "call": 1
+      "call": 1,
+      "lunge_telegraph": 1,
+      "lunge_attack": 1,
+      "lunge_recovery": 1
     },
     "loops": [
       "idle",
@@ -70,7 +76,10 @@
       "attack": 1,
       "recovery": 1,
       "stagger": 1,
-      "death": 1
+      "death": 1,
+      "shove_telegraph": 1,
+      "shove_attack": 1,
+      "shove_recovery": 1
     },
     "loops": [
       "idle",
@@ -90,7 +99,10 @@
       "attack": 1,
       "recovery": 1,
       "stagger": 1,
-      "death": 1
+      "death": 1,
+      "sweep_telegraph": 1,
+      "sweep_attack": 1,
+      "sweep_recovery": 1
     },
     "loops": [
       "idle",

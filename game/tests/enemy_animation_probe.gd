@@ -45,6 +45,24 @@ func _run() -> void:
 		rig.force_update_all_bone_transforms()
 		_check(raised.distance_to(rig.get_bone_global_pose(hand).origin) > 0.10,
 			kind + " follows through when the hit becomes active")
+		# **Every blow its own clip** (ADR-391): each blow an archetype lists
+		# with a clip family has all three phases baked, and its wind-up puts
+		# the knife hand somewhere the swing's does not — a lunge that looked
+		# like a swipe would be read as one.
+		var anim := visual.find_children("*", "AnimationPlayer", true, false)[0] as AnimationPlayer
+		var kind_data: EnemyResource = EnemyCatalogue.by_id(StringName("enm_" + kind))
+		for blow: AttackResource in kind_data.attacks:
+			if blow.clip == &"":
+				continue
+			for phase: String in ["telegraph", "attack", "recovery"]:
+				_check(anim.has_animation("%s_%s" % [blow.clip, phase]),
+					"%s has %s_%s baked" % [kind, blow.clip, phase])
+			visual.present_enemy(Enemy.State.ALERTED, Enemy.Attack.TELEGRAPH, 0, 1, Vector3.ZERO,
+				0.2, blow.clip)
+			rig.force_update_all_bone_transforms()
+			var coiled: Vector3 = rig.get_bone_global_pose(hand).origin
+			_check(coiled.distance_to(raised) > 0.15, "%s's %s winds up unlike its swing (%.2f m apart)"
+				% [kind, blow.clip, coiled.distance_to(raised)])
 		if kind == "sling_wretch":
 			var stone := visual.find_child("sling_stone", true, false) as MeshInstance3D
 			_check(stone != null and not stone.visible, "sling releases its visible stone with the missile")

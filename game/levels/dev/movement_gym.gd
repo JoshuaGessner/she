@@ -359,7 +359,7 @@ func _combat_probe(player: Player) -> void:
 			telegraph_ms = Time.get_ticks_msec() - telegraph_start
 			break
 	print("[combat] enemy telegraph          %4d ms   floor  250, expected %4d"
-		% [telegraph_ms, int(_wretch().attack.telegraph * 1000.0)])
+		% [telegraph_ms, int(_wretch().everyday().telegraph * 1000.0)])
 
 	# 4. A **light** hit does not interrupt a windup (ADR-194).
 	#
@@ -394,7 +394,7 @@ func _combat_probe(player: Player) -> void:
 	print("[combat] enemy dies in            %4d swings" % [
 		int(ceil(_wretch().health / edge.damage))])
 	print("[combat] player dies in           %4d hits" % [
-		int(ceil(tuning.player_health / _wretch().attack.damage))])
+		int(ceil(tuning.player_health / _wretch().everyday().damage))])
 
 	# 6. An enemy closing on the player faces the way it is travelling.
 	#    Nothing tested this before: every earlier check either left the enemy
@@ -906,7 +906,7 @@ func _fight_probe(player: Player) -> void:
 	var failures: int = 0
 
 	var cycle: float = edge.windup + edge.active + edge.recovery
-	var guard: float = _wretch().stagger + _wretch().attack.telegraph
+	var guard: float = _wretch().stagger + _wretch().everyday().telegraph
 	print("[fight] weapon cycle              %4d ms  (%s)" % [
 		int(cycle * 1000.0),
 		player.equipment.in_slot(Enums.Slot.MAIN_HAND).definition.id])
@@ -1095,6 +1095,13 @@ func _swarm_probe(player: Player) -> void:
 	var beat_ms: int = 0
 	var swarmed_at: float = -1.0
 	var began: int = Time.get_ticks_msec()
+	# **Held where it was posted** (ADR-391). Since a body steps back to its
+	# ring after a blow and lunges back in, a Bellringer left free calls from
+	# wherever its last lunge left it — and how far a shout carries through
+	# the gym's walls depends on that spot. Row 2 asks whether a call reaches
+	# anybody, not where a Bellringer wanders, so it calls from its post. Held
+	# is not gagged: it still turns, swings and shouts (`M3-T11`).
+	caller.rooted.hold_for(ringing.calls_after + 6.0)
 	for i: int in range(int(90.0 * (ringing.calls_after + 4.0))):
 		player.health.restore()
 		if caller.state() == Enemy.State.CALLING and beat_began == 0:

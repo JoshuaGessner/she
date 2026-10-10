@@ -783,6 +783,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Every melee body has a second blow** (`M4-T39`, ADR-391): the Wretch
+	# lunges across the gap a swipe cannot, the Hall-Warden shoves before its
+	# overhead, the Hoard-Keeper's sweep catches a body at its side and never one
+	# behind it, and the Sling-Wretch backs off to throw. Each row against the
+	# same body without the thing it asks about.
+	moveset="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --moveset-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$moveset" \
+			|| ! grep -q "^\[moveset\] the Sling-Wretch" <<<"$moveset"; then
+		echo "FAIL every melee body has a second blow, and each does what it says" >&2
+		printf '%s\n' "$moveset" | grep -E '\[moveset\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The Sling-Wretch** (`M4-T02` step 5, ADR-235). It stands off and slings;
 	# a guard takes nothing off a stone; a body in the way takes it and its thrower
 	# never does; a wall stops an arrow and a stone; and nothing is thrown at a

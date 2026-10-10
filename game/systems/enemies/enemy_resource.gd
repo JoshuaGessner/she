@@ -58,14 +58,51 @@ extends Resource
 ## ringer left standing or never kept out of sight ⟨tune⟩.
 @export var calls_after: float = 0.0
 
+## **Keeps its distance** (ADR-391), in metres, or `0`: a thrower inside this
+## backs away to throw again rather than slinging point-blank ⟨tune⟩.
+@export var keeps_off: float = 0.0
+
 @export_group("Attack")
-## The one blow it deals. One, not `TEC-006`'s list: no archetype in the slice
-## has two, and a list that is only ever read at index zero is a field nothing reads.
-@export var attack: AttackResource = null
+## **Every blow it deals** (ADR-391), in the order it prefers them: the first
+## listed whose range holds the distance and whose cooldown has run is the one
+## it strikes, so a designer reads the choice straight off this list. A Wretch
+## lists its lunge first and so lunges whenever it can; the Warden lists its
+## shove before its overhead, and so shoves first and then brings it down.
+@export var attacks: Array[AttackResource] = []
 
 
 func display() -> String:
 	return tr(String(name_key)) if name_key != &"" else String(id)
+
+
+## **Its everyday blow**: the first listed it can strike at arm's length. Every
+## archetype has one (`validate`) — a body at arm's length with nothing to do
+## would be a statue.
+func everyday() -> AttackResource:
+	for blow: AttackResource in attacks:
+		if blow != null and blow.min_range <= 0.0:
+			return blow
+	return null
+
+
+## The longest reach of a blow it strikes where it stands — what a body waiting
+## its turn stands just outside of (ADR-391). A lunge's reach is not counted:
+## it is the ground the lunge covers, not the blade.
+func close_reach() -> float:
+	var longest: float = 0.0
+	for blow: AttackResource in attacks:
+		if blow != null and blow.min_range <= 0.0:
+			longest = maxf(longest, blow.reach)
+	return longest
+
+
+## The longest reach of any blow it has.
+func longest_reach() -> float:
+	var longest: float = 0.0
+	for blow: AttackResource in attacks:
+		if blow != null:
+			longest = maxf(longest, blow.reach)
+	return longest
 
 
 func validate() -> PackedStringArray:
@@ -96,6 +133,7 @@ func validate() -> PackedStringArray:
 	if wakes_within > 0.0 and leash <= 0.0:
 		problems.append(("%s wakes only within %.1f m of its post and has no leash — "
 			+ "once woken it would follow you off the Prize") % [id, wakes_within])
+	var attack: AttackResource = everyday()
 	# A leash shorter than its own reach holds it somewhere it can never land a
 	# blow on anything that came to it, which is a statue.
 	if leash > 0.0 and attack != null and leash < attack.reach:
@@ -107,9 +145,15 @@ func validate() -> PackedStringArray:
 		problems.append(("%s telegraphs for %.2f s and calls the floor at %.1f s — "
 			+ "every fight with it would call the floor")
 			% [id, attack.telegraph, calls_after])
-	if attack == null:
-		problems.append("%s has no attack" % id)
+	if attack == null or attacks.has(null):
+		problems.append("%s has no blow it can strike at arm's length, or an empty one in its list" % id)
 	else:
-		for problem: String in attack.validate():
-			problems.append("%s: %s" % [id, problem])
+		for blow: AttackResource in attacks:
+			for problem: String in blow.validate():
+				problems.append("%s: %s" % [id, problem])
+			if (blow.missile_speed > 0.0) != (attack.missile_speed > 0.0):
+				problems.append("%s both throws and strikes — one or the other" % id)
+	if keeps_off < 0.0 or (keeps_off > 0.0 and attack != null and keeps_off >= attack.reach):
+		problems.append("%s keeps off to %.1f m and throws from %.1f m — it could back away out of its own reach"
+			% [id, keeps_off, attack.reach if attack != null else 0.0])
 	return problems

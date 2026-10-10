@@ -1,7 +1,19 @@
-[gd_resource type="Resource" script_class="EnemyResource" load_steps=4 format=3]
+[gd_resource type="Resource" script_class="EnemyResource" load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://systems/enemies/enemy_resource.gd" id="1_enemy"]
 [ext_resource type="Script" path="res://systems/enemies/attack_resource.gd" id="2_attack"]
+
+[sub_resource type="Resource" id="Resource_sweep"]
+script = ExtResource("2_attack")
+telegraph = 0.6
+active = 0.2
+recovery = 0.8
+damage = 30.0
+damage_type = 0
+reach = 2.4
+wide = true
+cooldown = 5.0
+clip = &"sweep"
 
 [sub_resource type="Resource" id="Resource_attack"]
 script = ExtResource("2_attack")
@@ -29,4 +41,4 @@ armour_class = 1
 leash = 4.0
 clamor_struck = 0.0
 wakes_within = 5.0
-attack = SubResource("Resource_attack")
+attacks = Array[ExtResource("2_attack")]([SubResource("Resource_sweep"), SubResource("Resource_attack")])

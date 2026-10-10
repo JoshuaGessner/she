@@ -120,12 +120,14 @@ func _check_enemies_against_the_profile() -> void:
 	if _tuning == null:
 		return
 	for kind: EnemyResource in _enemies:
-		if kind.attack == null or kind.attack.missile_speed > 0.0:
+		if kind.everyday() == null or kind.everyday().missile_speed > 0.0:
 			continue
-		if _tuning.enemy_vision_dark <= kind.attack.reach:
+		# Every blow it has, the lunge's included (ADR-391): a lunge from past
+		# the dark's sight range would strike something it never saw.
+		if _tuning.enemy_vision_dark <= kind.longest_reach():
 			_fail(("%s reaches %.1f m and a body in the dark is seen from %.1f m — "
 				+ "it could strike something it never saw")
-				% [kind.id, kind.attack.reach, _tuning.enemy_vision_dark])
+				% [kind.id, kind.longest_reach(), _tuning.enemy_vision_dark])
 
 
 ## **Every contract has to be answerable on the floor it points at** (`M4-T04`,

@@ -37,6 +37,28 @@ extends Resource
 ## `DES-023` §3: it goes through a weapon's guard and stops on a shield ⟨tune⟩.
 @export var missile_speed: float = 0.0
 
+@export_group("Moveset")
+## **The nearest it will start this blow from** (ADR-391), in metres. A lunge
+## closes distance, so it starts only from where there is distance to close;
+## nearer than this, the archetype's other blows are the ones in range ⟨tune⟩.
+@export var min_range: float = 0.0
+## Metres the blow carries the body forward over its active phase (ADR-391):
+## a lunge. `0` for a blow struck where it stands ⟨tune⟩.
+@export var lunge: float = 0.0
+## Metres it pushes what it strikes back from the striker (ADR-391): the
+## Hall-Warden's shove, a blocker making room for its overhead ⟨tune⟩.
+@export var shove: float = 0.0
+## **A wide blow** (ADR-391): its reach is swept round the striker's front and
+## sides, so a body circling it is caught — the Hoard-Keeper's sweep. Narrow
+## blows reach straight ahead.
+@export var wide: bool = false
+## Seconds before this blow may be chosen again after it is struck ⟨tune⟩.
+@export var cooldown: float = 0.0
+## The animation family it plays (ADR-391): `lunge` plays `lunge_telegraph`,
+## `lunge_attack` and `lunge_recovery`. Empty plays the archetype's swing, so a
+## second blow never looks like the first.
+@export var clip: StringName = &""
+
 
 func validate() -> PackedStringArray:
 	var problems := PackedStringArray()
@@ -54,4 +76,17 @@ func validate() -> PackedStringArray:
 		problems.append("an attack with no reach can never begin")
 	if missile_speed < 0.0:
 		problems.append("a missile thrown at %.1f m/s flies backwards" % missile_speed)
+	if min_range < 0.0 or min_range >= reach:
+		problems.append(("starts from %.1f m and reaches %.1f m — no distance at which it "
+			+ "could begin") % [min_range, reach])
+	if lunge < 0.0 or shove < 0.0 or cooldown < 0.0:
+		problems.append("a negative lunge, shove or cooldown")
+	if missile_speed > 0.0 and (lunge > 0.0 or shove > 0.0 or wide):
+		problems.append("a missile neither lunges, shoves nor sweeps — it leaves the hand")
+	# A lunge's wind-up is read across the distance it closes (ADR-391), so it
+	# has to be longer than the floor that covers a blow struck in place.
+	if lunge > 0.0 and telegraph < TuningProfile.TELEGRAPH_FLOOR * 2.0:
+		problems.append(("a lunge of %.1f m winds up in %.2f s — a blow that closes "
+			+ "distance must telegraph at least %.2f s") % [lunge, telegraph,
+			TuningProfile.TELEGRAPH_FLOOR * 2.0])
 	return problems
