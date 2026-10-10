@@ -13898,4 +13898,29 @@ Cutting it orphaned all of them, so it is restated as *the Rites' remaining syst
 - `tests/art_probe.gd`: 101 models, none faulted.
 - `--rite-arms-shot=DIR`: each class at Rank 1 and Rank 7 in first person, by lamplight.
 
+## ADR-400 — The floor's guaranteed glint holds on every near-equal route
+
+**Date:** 2026-10-10 · **Status:** accepted · **Amends ADR-215 and ADR-384 (`FloorVista`); `DES-015`'s vista rule**
+
+**Context:** `FloorVista` lays a bait where the plan's walk sees it best. Two floors of the 21-floor panel failed the guarantee (`--vista-probe`, B97), and each failure was diagnosed:
+- **11111/0, a near tie.** The plan's walk prices a corridor by its cells, and the navmesh cuts corners. Here it chose the 83 m route through a junction, and the navmesh walked the 79 m one through the hub. The bead lay in the junction, and nobody saw it.
+- **78901/0, no margin.** The floor's Prize *"already offered the moment"* on five samples at 8.7 m. The bait search had demanded a margin since ADR-384 (`SEEN_SURE`), and this check had not. The navmesh walk saw the Prize from two.
+
+**Decision:**
+- **The next route is walked too.** It is found by searching again with the first route's links made three times dearer (`ROUTE_DETOUR`). If its true length is within `ROUTE_SLACK` (15%) of the shortest, it is sampled as a second walk. A spot then counts by the **fewer** samples of the two walks, so a bait is laid where it is seen whichever near-equal way the floor is walked.
+- **`offers()` asks the bait's margin** (`SEEN_SURE`, 8 samples), so a find that only just counts no longer stands in for the floor's one moment.
+
+**Measured (`--vista-probe`):**
+
+| panel | before | after |
+|---|---|---|
+| the 21 floors the fix was diagnosed on | 19 | **21** |
+| 21 floors never tuned on (seeds 13579, 22222, 98765, 55555, 12345, 77777, 10101) | 16 | **18** |
+
+Of the three fresh floors that still fail:
+- **22222/1:** the navmesh route stops short at a crawl, the probe's known limit (ADR-384).
+- **55555/0 and /2:** the navmesh crosses sideways from one corridor into another where the two touch, a route no player can take. It is B77, a bake fault and not a vista one, and is now evidenced and queued.
+
+Generation probes green: kit, interior, plan, reach, the three delvings floors, vista0, vista2, population, machine, lock, arrival, crossing, lantern, barrow. Larger rooms (ADR-392) waited on this guarantee and can be measured again.
+
 *Entries below to be added as design decisions are signed off.*

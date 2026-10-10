@@ -86,6 +86,16 @@ const STEP: float = 1.0
 ## Clear space a spot needs above it. A glint tucked under the high end of a
 ## ledge ramp can be in sight and still be somewhere nobody can stand to take it.
 const HEADROOM: float = 2.0
+## **Two routes nearly as short are both the walk** (B97) ⟨tune⟩. The plan's
+## walk prices a corridor by its cells and a room by its door-to-door line, and
+## the navmesh cuts corners the plan does not; where two routes are this close,
+## either may be the one walked. Seed 11111 floor 0 laid its bead on the plan's
+## 83 m route through a junction while the navmesh took the 79 m one through
+## the hub, and nobody saw it. So the next route is walked too, and a spot
+## counts by the fewer samples of the two.
+const ROUTE_SLACK: float = 0.15
+## How much dearer the first route's links are made, to find the other one.
+const ROUTE_DETOUR: float = 3.0
 
 var _plan: FloorPlan = null
 var _graph: MissionGraph = null
@@ -94,6 +104,10 @@ var _anchors: FloorAnchors = null
 var _eyes: Array[Vector3] = []
 var _facing: Array[Vector3] = []
 var _inside: PackedInt32Array = PackedInt32Array()
+## Per sample: which walk it is on — 0 the shortest, 1 the near-equal other.
+var _walk_of: PackedInt32Array = PackedInt32Array()
+## How many walks were sampled: 1, or 2 when another route is near enough.
+var _walks: int = 1
 ## Per occluder: the inverse of its transform, its half-size, and its bounds.
 var _inverse: Array[Transform3D] = []
 var _half: Array[Vector3] = []
@@ -126,7 +140,17 @@ static func of(plan: FloorPlan, graph: MissionGraph, anchors: FloorAnchors,
 	for gate: Vector2i in graph.key_gates() + graph.cost_gates():
 		vista._shut[plan.route_between(gate.x, gate.y)] = true
 	vista._index(occluders)
-	vista._sample(vista._walk(arrival))
+	var shortest: Dictionary = vista._route(arrival, {})
+	vista._sample(shortest["line"], 0)
+	var used: Array = shortest["links"]
+	if not used.is_empty():
+		var dearer: Dictionary = {}
+		for link: String in used:
+			dearer[link] = ROUTE_DETOUR
+		var other: Dictionary = vista._route(arrival, dearer)
+		if other["links"] != used and float(other["cost"]) <= float(shortest["cost"]) * (1.0 + ROUTE_SLACK):
+			vista._sample(other["line"], 1)
+			vista._walks = 2
 	return vista
 
 
@@ -154,7 +178,9 @@ func view(point: Vector3) -> Vector2:
 	var glint := Vector3(point.x, GLINT, point.z)
 	var room: int = room_at(point)
 	var furthest: float = 0.0
-	var seen: int = 0
+	var seen_on := PackedInt32Array()
+	seen_on.resize(_walks)
+	seen_on.fill(0)
 	for i: int in _eyes.size():
 		if room >= 0 and _inside[i] == room:
 			continue
@@ -167,15 +193,22 @@ func view(point: Vector3) -> Vector2:
 			continue
 		if not clear(eye, glint):
 			continue
-		seen += 1
+		seen_on[_walk_of[i]] += 1
 		furthest = maxf(furthest, minf(length, FAR))
+	var seen: int = seen_on[0]
+	for count: int in seen_on:
+		seen = mini(seen, count)
 	return Vector2(furthest, seen)
 
 
-## Is `point` a vista — far enough, and held for long enough?
+## Is `point` a vista the floor can rely on — far enough, and held with the
+## margin a bait is laid with (`SEEN_SURE`)? **Margin here too** (B97): seed
+## 78901 floor 0 let its Prize stand in for the moment on five samples at
+## 8.7 m, and the navmesh walk saw it from two. A find that only just counts
+## is not trusted to be the floor's one moment; the bait is laid as well.
 func offers(point: Vector3) -> bool:
 	var score: Vector2 = view(point)
-	return score.x >= NEAR and int(score.y) >= SEEN_LEAST
+	return score.x >= NEAR and int(score.y) >= SEEN_SURE
 
 
 ## The spot on this floor the walk sees best, never within `keep` of anything in
@@ -351,14 +384,17 @@ func _index(occluders: Array) -> void:
 	_stamp.fill(0)
 
 
-## The shortest door-to-door line from the arrival point to the Shaft.
+## The shortest door-to-door line from the arrival point to the Shaft, as
+## `{"line", "cost", "links"}`: the polyline, its length, and the links it used
+## (a corridor `r<route>`, a room crossing `x<a>-<b>`). `dearer` multiplies the
+## price of the links it names, to find the next route that does not reuse them.
 ##
 ## Points are the arrival point, the Shaft, and every corridor's two doorway
 ## cells. A room joins every pair of its own doorways in a straight line, which
 ## is how a body crosses a room; a corridor joins its two ends through its own
 ## cells, at the heights `FloorPlan.deck_rises` gives them. Dijkstra over that,
 ## with ties kept by lower index, so equal routes resolve the same way every time.
-func _walk(arrival: Vector3) -> Array[Vector3]:
+func _route(arrival: Vector3, dearer: Dictionary) -> Dictionary:
 	var entrance: int = _graph.node_with(MissionGraph.Role.ENTRANCE)
 	var shaft: int = _graph.node_with(MissionGraph.Role.SHAFT)
 	var points: Array[Vector3] = [arrival, _anchors.shaft()]
@@ -384,8 +420,9 @@ func _walk(arrival: Vector3) -> Array[Vector3]:
 		var cost: float = float(path.size() - 1) * FloorBuilder.CELL
 		var back: Array[Vector3] = line.duplicate()
 		back.reverse()
-		(links[ends[0]] as Array).append([ends[1], cost, line])
-		(links[ends[1]] as Array).append([ends[0], cost, back])
+		var corridor: String = "r%d" % route
+		(links[ends[0]] as Array).append([ends[1], cost, line, corridor])
+		(links[ends[1]] as Array).append([ends[0], cost, back, corridor])
 	for node: int in _graph.size():
 		var members: Array[int] = []
 		for cell: Vector2i in _plan.doors_of(node):
@@ -400,8 +437,8 @@ func _walk(arrival: Vector3) -> Array[Vector3]:
 				if a == b:
 					continue
 				var across: Array[Vector3] = [points[a], points[b]]
-				(links[a] as Array).append(
-					[b, points[a].distance_to(points[b]), across])
+				(links[a] as Array).append([b, points[a].distance_to(points[b]), across,
+					"x%d-%d" % [mini(a, b), maxi(a, b)]])
 
 	var cost_to := PackedFloat32Array()
 	cost_to.resize(points.size())
@@ -423,24 +460,28 @@ func _walk(arrival: Vector3) -> Array[Vector3]:
 		settled[next] = 1
 		for link: Array in links[next]:
 			var to: int = link[0]
-			var through: float = cost_to[next] + float(link[1])
+			var through: float = cost_to[next] + float(link[1]) * float(dearer.get(link[3], 1.0))
 			if through < cost_to[to]:
 				cost_to[to] = through
-				came[to] = [next, link[2]]
+				came[to] = [next, link[2], link[3], float(link[1])]
 	var pieces: Array = []
+	var used: Array = []
+	var length: float = 0.0
 	var at: int = 1
 	while came[at] != null:
 		pieces.push_front(came[at][1])
+		used.push_front(came[at][2])
+		length += float(came[at][3])
 		at = int(came[at][0])
 	var out: Array[Vector3] = []
 	for piece: Array[Vector3] in pieces:
 		for point: Vector3 in piece:
 			if out.is_empty() or out[out.size() - 1].distance_to(point) > 0.01:
 				out.append(point)
-	return out
+	return {"line": out, "cost": length, "links": used}
 
 
-func _sample(line: Array[Vector3]) -> void:
+func _sample(line: Array[Vector3], walk: int) -> void:
 	for i: int in range(1, line.size()):
 		var a: Vector3 = line[i - 1]
 		var b: Vector3 = line[i]
@@ -454,6 +495,7 @@ func _sample(line: Array[Vector3]) -> void:
 			_eyes.append(foot + Vector3.UP * EYE)
 			_facing.append(facing)
 			_inside.append(room_at(foot))
+			_walk_of.append(walk)
 
 
 func _centre(cell: Vector2i, height: float) -> Vector3:
