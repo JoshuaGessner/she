@@ -6986,6 +6986,12 @@ var _probe_fury: Dictionary = {}
 var _probe_shoved: Dictionary = {}
 ## The shove the co-op probe strikes with, metres.
 const PROBE_SHOVE: float = 1.5
+## The blows a Hall-Warden dealt the client's body, as the host chose them, and
+## the clips the client's copy of it played (ADR-391).
+var _probe_blows: Dictionary = {}
+## How far from the client's body the host fields its Warden: inside the
+## shove's reach, so the shove (listed first) is the blow it chooses.
+const PROBE_WARDEN_OFF: float = 1.2
 ## What a client's Seiðr read, as each peer holds it (ADR-379).
 var _probe_seidr: Dictionary = {}
 ## A client's door, as each peer saw it (ADR-381).
@@ -7352,6 +7358,66 @@ func _coop_probe(out: String) -> void:
 		await _hold(0.3)
 		_probe_shoved = {"felt": felt.size() > felt_before,
 			"moved": _flat_distance(mine.global_position, stood)}
+	# **The blow the host chose is the blow the client sees** (ADR-391). Each
+	# blow is the host's choice, carried by `blow_index` beside `_attack`, and a
+	# client that drew the attack phase before the index arrived would wind up
+	# the swing's clip and then jump. The host fields a Hall-Warden at the
+	# client's body, inside its shove's reach, and watches until both of its
+	# blows have been dealt and recovered; the client records every clip its copy of the
+	# Warden is told to play. Event to event: the client starts on the Warden appearing
+	# and stops on the host clearing it.
+	if host:
+		await _hold(0.5)
+		var near: Player = _client_body()
+		var chose: Array[String] = []
+		if near != null:
+			_session.clear_enemies()
+			await _hold(0.3)
+			var at: Vector3 = near.global_position + Vector3(PROBE_WARDEN_OFF, 0.0, 0.0)
+			var toward: Vector3 = near.global_position - at
+			_session.spawn_enemy(at, atan2(-toward.x, -toward.z), &"enm_hall_warden")
+			# Both of its blows: the shove (its first, index 0) and then, the
+			# shove cooling, the overhead (index 1). A client that never took
+			# the index would draw the second as a shove too, and only the
+			# second can say so — 0 is what an index that never arrived reads.
+			await _hold_until(func() -> bool:
+				for node: Node in get_tree().get_nodes_in_group("enemies"):
+					var warden := node as Enemy
+					if warden == null:
+						continue
+					if int(warden.get("_attack")) != Enemy.Attack.NONE:
+						var clip: String = String(warden.current_blow().clip)
+						if not chose.has(clip):
+							chose.append(clip)
+					elif chose.size() >= 2:
+						return true
+				return false, 12.0)
+			await _hold(0.4)
+			_session.clear_enemies()
+		_probe_blows = {"chose": chose}
+	else:
+		var fielded: int = get_tree().get_nodes_in_group("enemies").size()
+		var seen: Array[String] = []
+		var came: bool = await _hold_until(func() -> bool:
+			return get_tree().get_nodes_in_group("enemies").size() > fielded, 6.0)
+		# What the copy is told to draw — its replicated phase and the blow's
+		# clip family, the two things `present_enemy` is handed — because a
+		# headless peer draws nothing. Which clip that pair plays is the
+		# animation probe's row; that the pair arrives together is this one's.
+		await _hold_until(func() -> bool:
+			var wardens: Array[Node] = get_tree().get_nodes_in_group("enemies")
+			for node: Node in wardens:
+				var copy := node as Enemy
+				var phase: int = int(copy.get("_attack")) if copy != null else Enemy.Attack.NONE
+				if phase == Enemy.Attack.NONE:
+					continue
+				var family: String = String(copy.current_blow().clip)
+				var shown: String = "%s%s" % ["" if family.is_empty() else family + "_",
+					["", "telegraph", "attack", "recovery"][phase]]
+				if seen.is_empty() or seen[seen.size() - 1] != shown:
+					seen.append(shown)
+			return wardens.is_empty(), 16.0)
+		_probe_blows = {"came": came, "clips": seen}
 	# **A client's reading is the host's to make** (ADR-379). The host swears
 	# the client's body a Völva; the client holds its own craft key; the host
 	# runs the trance and says what was seen, and both peers hold the same
@@ -7782,6 +7848,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"guard": _probe_guard,
 		"fury": _probe_fury,
 		"shoved": _probe_shoved,
+		"blows": _probe_blows,
 		"seidr": _probe_seidr,
 		"door": _probe_door,
 		"haug": _probe_haug,

@@ -454,6 +454,20 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         shoved.get("felt", False) and shoved.get("moved", 0.0) >= 1.0,
         f"felt {shoved.get('felt', False)}, moved {shoved.get('moved', 0.0):.2f} m"))
 
+    # The blow the host chose is the blow the client sees (ADR-391): the host's
+    # Warden dealt its shove (index 0) and then its overhead (index 1, the
+    # swing's own clips), and the client's copy was told to draw each on its
+    # own clips. A client that never took the index would draw both as shoves.
+    blows_host = host.get("blows", {})
+    blows_client = client.get("blows", {})
+    clips = blows_client.get("clips", [])
+    rows.append(check(
+        "the client plays the blow the host chose",
+        blows_host.get("chose", []) == ["shove", ""]
+        and "shove_telegraph" in clips and "shove_attack" in clips
+        and "telegraph" in clips and "attack" in clips,
+        f"host chose {blows_host.get('chose', [])}; client played {clips}"))
+
     # A client's reading is the host's (ADR-379): the client held its own key,
     # the host ran the trance and said what was seen, and both peers hold the
     # same marks — the loot and the way out at least, and the sight spent.
