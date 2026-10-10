@@ -13591,6 +13591,19 @@ func _moveset_probe() -> void:
 		problems.append("a planted Húskarl was shoved %.2f m — nothing pushes past a Hold"
 			% float(braced["moved"]))
 
+	# ─ 1b. a snared Wretch does not lunge (the correctness review, ADR-394) ─
+	# A lunge carries the body, and a snared body does not move — so a Wretch
+	# held 3.6 m off chose its lunge, swung it at the air, and kept a turn the
+	# whole while, because a lunge's reach counted as a reach it had.
+	var snared_lunges: Array = await _snared_wretch(player, ground, 3.6, 3.0)
+	print("[moveset] a Wretch snared 3.6 m off   began %d lunge(s) in 3 s, holds a turn %s"
+		% [snared_lunges[0], snared_lunges[1]])
+	if int(snared_lunges[0]) > 0:
+		problems.append("a snared Wretch began %d lunge(s) — a lunge carries a body a snare holds"
+			% int(snared_lunges[0]))
+	if bool(snared_lunges[1]):
+		problems.append("a Wretch snared beyond its swipe kept a turn it could not use")
+
 	# ─ 3. the sweep catches a body at its side ─
 	var keeper: EnemyResource = EnemyCatalogue.by_id(&"enm_hoard_keeper")
 	var side: Dictionary = {}
@@ -13815,6 +13828,43 @@ func _probe_kind(kind: EnemyResource) -> void:
 	EnemyCatalogue.all()
 	EnemyCatalogue._by_id[String(kind.id)] = kind
 	EnemyCatalogue._ids.append(String(kind.id))
+
+
+## A Wretch set on a still `player` from `metres` in front and snared where it
+## stands; over `seconds`, how many lunges it began and whether it holds a turn.
+func _snared_wretch(player: Player, ground: Vector3, metres: float, seconds: float) -> Array:
+	_session.clear_enemies()
+	await _hold(0.2)
+	player.restore_for_descent()
+	player.teleport(ground, 0.0)
+	await _hold(0.2)
+	_session.spawn_enemy(ground + Vector3(0.0, 0.0, -metres), 0.0, &"enm_wretch")
+	await _hold(0.2)
+	var body: Enemy = null
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		body = node as Enemy
+	if body == null:
+		return [0, false]
+	body.rooted.hold_for(seconds + 2.0)
+	body.set("_home", body.global_position)
+	body.set("_target", player)
+	body.set("_last_seen", player.global_position)
+	body.set("_patience", 30.0)
+	body.set("_state", Enemy.State.ALERTED)
+	var lunges: int = 0
+	var was: Enemy.Attack = Enemy.Attack.NONE
+	var left: float = seconds
+	while left > 0.0:
+		await get_tree().physics_frame
+		left -= get_physics_process_delta_time()
+		var phase: Enemy.Attack = body.attack_phase()
+		if phase == Enemy.Attack.TELEGRAPH and was != Enemy.Attack.TELEGRAPH \
+				and body.current_blow().lunge > 0.0:
+			lunges += 1
+		was = phase
+	var holding: bool = Engagement.holds(body)
+	_session.clear_enemies()
+	return [lunges, holding]
 
 
 ## One body of `archetype` set on a still `player` from `metres` in front.

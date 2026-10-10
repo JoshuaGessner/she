@@ -896,11 +896,27 @@ func _act(delta: float, tuning: TuningProfile) -> void:
 ## **Which blow, from here** (ADR-391): the first listed whose range holds
 ## `range_to` and whose cooldown has run, or null when none does.
 func _choose_blow(range_to: float) -> AttackResource:
+	var held: bool = rooted.held()
 	for blow: AttackResource in _kind.attacks:
+		# **Never a lunge while snared** (the correctness review, ADR-394): a
+		# lunge's reach is the ground it carries the body across, and a snared
+		# body crosses none — a Wretch held 3.6 m off lunged at the air.
+		if held and blow.lunge > 0.0:
+			continue
 		if range_to <= blow.reach and range_to >= blow.min_range \
 				and float(_cooldowns.get(blow, 0.0)) <= 0.0:
 			return blow
 	return null
+
+
+## The furthest any blow reaches from where this body stands, without the
+## ground a lunge carries it across: what it can still strike while snared.
+func _reach_in_place() -> float:
+	var furthest: float = 0.0
+	for blow: AttackResource in _kind.attacks:
+		if blow.lunge <= 0.0:
+			furthest = maxf(furthest, blow.reach)
+	return furthest
 
 
 ## **Taking turns on a player** (ADR-391, `M4-T38`). A body near enough to
@@ -921,7 +937,7 @@ func _engage(range_to: float, missile: bool, can_start: bool, tuning: TuningProf
 	# holds where none of its blows reaches can neither strike nor close, and
 	# its turn kept the next body waiting for the snare's whole length. It
 	# still swings at whatever comes within reach — then it asks again.
-	var stuck: bool = rooted.held() and range_to > _kind.longest_reach()
+	var stuck: bool = rooted.held() and range_to > _reach_in_place()
 	if stuck and Engagement.holds(self):
 		Engagement.release(self)
 	# **A thrower keeps its distance** (ADR-391): inside `keeps_off` it backs
