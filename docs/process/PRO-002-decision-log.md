@@ -13797,6 +13797,25 @@ The second note, the throat's haze, stands, and is not yet diagnosed.
 - **Not a bigger number (ADR-058).** The reach is paid for: a wind-up of 0.20 s against 0.16, a recovery of 0.34 against 0.28, 16 breath a swing against 12, a louder blow (3.6 against 2.8), and both hands. He also gives up the axe's throw.
 - **The Úlfheðinn keeps the axe.** ADR-345 gave it that kit. Of the two classes, it is the one that closes on what it fights, and the axe's 2.3 m and quicker swing suit a body that cannot step back.
 
-**Checked by probe:** `--class-probe` now fails any two classes whose first main-hand item is the same. Run first on the old kits, it failed: *"skald and ulfhedinn both begin with wpn_bearded_axe"*. With the spear it passes, six weapons for six classes. `--galdr-probe`, `--verbs-probe`, `--rite-probe`, `--scaling-probe` and `--gear-probe` are green.
+**Checked by probe (ADR-395):** `--class-probe` now fails any two classes whose first main-hand item is the same. Run first on the old kits, it failed: *"skald and ulfhedinn both begin with wpn_bearded_axe"*. With the spear it passes, six weapons for six classes. `--galdr-probe`, `--verbs-probe`, `--rite-probe`, `--scaling-probe` and `--gear-probe` are green.
+
+## ADR-396 — The class audit closed; `M5-T01` reopened for what it still holds
+
+**Date:** 2026-10-10 · **Status:** accepted · **Closes ADR-394's audit; reverses `M5-T01`'s cut (d3a8dd4)**
+
+**The rest of the audit, read in code:**
+- **The Úlfheðinn's Howl and the Húskarl's Shove** both stagger through `Enemy.shove` → `_break_poise`, which gives the body's turn back (ADR-391). A Howl into a ring of waiting bodies frees every turn it breaks, which is the fury's fantasy: the room opens round it.
+- **Shield Wall against the Hoard-Keeper's sweep.** The guard is judged from the striker's position (`_guard_faces`), not from where its reach sphere sits. A sweep at a planted Húskarl's side is a striker at his side, which is exactly what Shield Wall covers. Without the node, a sweep from the side is not guarded, and that is the sweep's purpose (ADR-391).
+- **Take the Blow against a shove meant for a friend.** The blow is borne by the guard (`_bear`), and the push is worked out from the striker to whoever bears it. A planted guard is not moved (ADR-394), and neither is the friend behind.
+- **A Húskarl's Shove on a snared body** moves it a step, and it is still held where it lands: the snare holds the step, not the spot. Left as it is.
+
+Two mismatches in all, both fixed in ADR-394. The rest were sound.
+
+**`M5-T01` reopened.** It was cut at d3a8dd4 as *"empty, all four classes were built in M4,"* and that was true of its title and false of what points at it:
+- ADR-273 parks **Rites of about seven nodes** here (four were built), with **trap variety** and **carrying the wounded**.
+- `DES-011` parks **reading tracks** and **carrying the wounded** here.
+- `DES-023` parks **Identification**, the Haugbrjótr's grave-curses, here.
+
+Cutting it orphaned all of them, so it is restated as *the Rites' remaining systems* and is open again. The cut was made without searching for the task's ID, and the lesson is to do that search before closing anything.
 
 *Entries below to be added as design decisions are signed off.*
