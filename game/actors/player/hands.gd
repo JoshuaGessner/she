@@ -93,6 +93,8 @@ var _raised: float = 0.0
 var _arms: Node3D = null
 var _arms_skeleton: Skeleton3D = null
 var _arms_class: ClassResource = null
+## The forearms worn, for the rank they were chosen at (ADR-057).
+var _arms_scene: PackedScene = null
 var _arms_item: ItemResource = null
 var _main_grip: Node3D = null
 
@@ -143,11 +145,16 @@ func hold(item: ItemResource) -> void:
 ## Build the local player's actual forearms, then layer the Arms-slot mesh over
 ## them. The class data owns the bare mesh; an absent class arm is a failed data
 ## contract and deliberately produces no generated substitute.
-func dress_arms(body: ClassResource, bracers: ItemResource) -> void:
-	if body == _arms_class and bracers == _arms_item:
+##
+## `rank` is the life's Pact Rank: from Rank 3 the Rite's stage of the arms is
+## worn instead of the bare ones (ADR-057, `M4-T46`).
+func dress_arms(body: ClassResource, bracers: ItemResource, rank: int = 1) -> void:
+	var scene: PackedScene = body.arms_at(rank) if body != null else null
+	if body == _arms_class and bracers == _arms_item and scene == _arms_scene:
 		return
 	_arms_class = body
 	_arms_item = bracers
+	_arms_scene = scene
 	if _arms != null:
 		_arms.free()
 		_arms = null
@@ -155,10 +162,10 @@ func dress_arms(body: ClassResource, bracers: ItemResource) -> void:
 	# An unsworn body is valid in the gym and before class selection.
 	if body == null:
 		return
-	if body.bare_arms == null:
+	if scene == null:
 		push_error("Hands: the local class has no first-person bare arms")
 		return
-	_arms = body.bare_arms.instantiate() as Node3D
+	_arms = scene.instantiate() as Node3D
 	if _arms == null:
 		push_error("Hands: bare arms for %s did not make a Node3D" % body.id)
 		return

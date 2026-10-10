@@ -998,6 +998,8 @@ func _ready() -> void:
 			_body_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hands-probe":
 			_hands_probe()
+		elif arg.begins_with("--rite-arms-shot="):
+			_rite_arms_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--hands-shot="):
 			_hands_shot(arg.split("=", true, 1)[1])
 		elif arg == "--verbs-probe":
@@ -17317,6 +17319,25 @@ func _hands_probe() -> void:
 		problems.append("a broken rune showed %d shard(s) and left %d behind"
 			% [shards, shards_left])
 
+	# **The Rites change the arms** (ADR-057, `M4-T46`): every class, at each
+	# Rite rank, wears that rank's stage on the shared skeleton, and the bare
+	# arms below Rank 3.
+	var staged: Array[String] = []
+	for sworn: ClassResource in ClassCatalogue.all():
+		for rank: int in [1, 3, 5, 7]:
+			hands.dress_arms(sworn, null, rank)
+			var want: PackedScene = sworn.bare_arms
+			var stage: int = ClassResource.RITE_RANKS.find(rank)
+			if stage >= 0 and stage < sworn.rite_arms.size():
+				want = sworn.rite_arms[stage]
+			var worn: PackedScene = hands.get("_arms_scene")
+			if worn != want or _hands_skeleton(hands) == null:
+				problems.append("a %s at Pact Rank %d wore %s, not %s"
+					% [sworn.id, rank, worn.resource_path.get_file() if worn != null else "nothing",
+						want.resource_path.get_file() if want != null else "nothing"])
+		staged.append(String(sworn.id))
+	print("[hands] rite arms   %s wear a stage at Ranks %s" % [", ".join(staged), str(ClassResource.RITE_RANKS)])
+
 	# The gym and pre-selection state may return to an unsworn body.
 	hands.dress_arms(null, null)
 	var unsworn_empty: bool = _hands_skeleton(hands) == null
@@ -18960,7 +18981,9 @@ func _haug_probe() -> void:
 	Input.action_release("verb")
 	print("[haug] grave       to a Húskarl '%s', interact kept it shut %s; to her '%s', broken %s"
 		% [grave_said, kept_shut, hers_said, grave.open])
-	if grave_said != tr("door.sealed") or not kept_shut:
+	# Against the key itself as well: with the string missing, `tr` hands back
+	# the key on both sides, and this row passed on a raw `door.sealed` (B108).
+	if grave_said != tr("door.sealed") or grave_said == "door.sealed" or not kept_shut:
 		problems.append("a grave-niche's grate opened to another hand, or did not say whose it is")
 	if not grave.open or not hers_said.ends_with(tr("door.break").get_slice("%s", 1)):
 		problems.append("a Haugbrjótr did not break a grave-niche's grate open")
@@ -20170,6 +20193,39 @@ func _verbs_shot(path: String) -> void:
 	get_viewport().get_texture().get_image().save_png(path.replace(".png", "-fp-setting.png"))
 	print("[verbs] fp-setting")
 	Input.action_release("verb")
+	get_tree().quit()
+
+
+## **`--rite-arms-shot=DIR`** (ADR-399, `M4-T46`): each class's own forearms in
+## first person, bare, holding its own weapon by lamplight, at Pact Rank 1 and
+## at Rank 7 — what the Rite changed, as the player sees it.
+func _rite_arms_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var body: Player = _session.local_player()
+	_session.clear_enemies()
+	for layer: Node in find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	await _hold(0.4)
+	var ahead: Vector3 = -body.global_transform.basis.z
+	ahead.y = 0.0
+	for sworn: ClassResource in ClassCatalogue.all():
+		body.sworn = sworn.id
+		var gear: Equipment = body.equipment
+		gear.clear()
+		var weapon: ItemResource = ItemCatalogue.by_id(sworn.kit[0])
+		gear.equip(ItemInstance.of(weapon, 9810))
+		if not weapon.two_handed:
+			gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"tol_horn_lantern"), 9811))
+			body.lit = true
+		body.face_toward(body.global_position + ahead * 4.0 + Vector3.DOWN * 0.6)
+		for rank: int in [1, 7]:
+			body.hands().dress_arms(sworn, null, rank)
+			await _hold(0.8)
+			await RenderingServer.frame_post_draw
+			var path: String = "%s/%s_rank%d.png" % [dir, sworn.id, rank]
+			get_viewport().get_texture().get_image().save_png(path)
+			print("[hands] rite arms %s rank %d → %s" % [sworn.id, rank, path.get_file()])
+		body.lit = false
 	get_tree().quit()
 
 

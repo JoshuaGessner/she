@@ -1,10 +1,14 @@
-[gd_resource type="Resource" script_class="ClassResource" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="ClassResource" load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://systems/classes/class_resource.gd" id="1_class"]
 [ext_resource type="PackedScene" path="res://art/characters/veidimadr_arms.glb" id="2_arms"]
 
 [ext_resource type="Texture2D" path="res://art/ui/classes/veidimadr.png" id="90_portrait"]
 [ext_resource type="PackedScene" path="res://art/characters/hunter_hood_worn.glb" id="91_dress"]
+
+[ext_resource type="PackedScene" path="res://art/characters/veidimadr_arms_r3.glb" id="80_rite3"]
+[ext_resource type="PackedScene" path="res://art/characters/veidimadr_arms_r5.glb" id="80_rite5"]
+[ext_resource type="PackedScene" path="res://art/characters/veidimadr_arms_r7.glb" id="80_rite7"]
 
 [resource]
 script = ExtResource("1_class")
@@ -20,5 +24,6 @@ stamina_scale = 1.15
 speed_scale = 1.08
 carry_scale = 0.75
 bare_arms = ExtResource("2_arms")
+rite_arms = Array[PackedScene]([ExtResource("80_rite3"), ExtResource("80_rite5"), ExtResource("80_rite7")])
 dress = ExtResource("91_dress")
 kit = Array[StringName]([&"wpn_yew_bow", &"con_linen_binding", &"con_linen_binding"])

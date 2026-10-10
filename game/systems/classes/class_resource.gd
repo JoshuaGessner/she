@@ -76,6 +76,15 @@ const ASPECTS: Array[StringName] = [
 ## shared 28-bone topology, so an Arms item can be skinned over them without a
 ## class-specific armour mesh or a generated arm standing in for one.
 @export var bare_arms: PackedScene
+## **The Rites change the arms** (ADR-057, `M4-T46`): the same forearms carrying
+## more of this class's own marks, worn from Pact Rank 3, 5 and 7 (`RITE_RANKS`)
+## — the Völva's ink spreading, the wolf-skin climbing, the grave-stain on a
+## mound-breaker's hands. Growth you can see on your own body, placed in the
+## runs where nothing else visibly changes (`DES-022`). Empty, or one per rank.
+@export var rite_arms: Array[PackedScene] = []
+
+## The Pact Ranks at which each of `rite_arms` is first worn.
+const RITE_RANKS: Array[int] = [3, 5, 7]
 ## **What the class wears when nothing is in its body slot** (ADR-354) — a
 ## look, not an item: never in the bag, never in the catalogue, weighs nothing
 ## and turns nothing away. The Úlfheðinn's wolf-coat is what they are named
@@ -86,6 +95,16 @@ const ASPECTS: Array[StringName] = [
 ## once, and never an entry in any catalogue — a data file of its own would be
 ## an item with no name, no icon and no place in a bag (`TEC-006`).
 var _dress_item: ItemResource = null
+
+
+## The forearms a life of this class wears at `rank`: the bare arms, or the
+## last Rite stage the rank has reached.
+func arms_at(rank: int) -> PackedScene:
+	var worn: PackedScene = bare_arms
+	for stage: int in mini(rite_arms.size(), RITE_RANKS.size()):
+		if rank >= RITE_RANKS[stage] and rite_arms[stage] != null:
+			worn = rite_arms[stage]
+	return worn
 
 
 func dress_item() -> ItemResource:
@@ -149,4 +168,11 @@ func validate() -> PackedStringArray:
 	if bare_arms == null:
 		problems.append("%s has no bare_arms mesh — DES-020 makes forearms the "
 			+ "one armour a player sees on their own body")
+	# ADR-057: one stage per Rite rank, every one of them real — a rank that
+	# changed nothing on the arms would be the growth `DES-022` promises,
+	# absent where it was said to be.
+	if rite_arms.size() != RITE_RANKS.size() or rite_arms.has(null):
+		problems.append("%s has %d Rite arm stage(s) for %d ranks — ADR-057's arms change at each"
+			% [id, rite_arms.filter(func(s: PackedScene) -> bool: return s != null).size(),
+				RITE_RANKS.size()])
 	return problems

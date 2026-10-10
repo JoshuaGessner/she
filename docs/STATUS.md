@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`110/126` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`111/126` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>37/43"]:::current
+  M4["M4 Vertical Slice<br/>38/43"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/10"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████████████████▒░░` | 37/43 (1 cut) | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `██████████████████▒░` | 38/43 (1 cut) | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -189,7 +189,7 @@ _None. Sequencing is clean._
 - ✔ `M4-T43` **The classes meet the new combat** — ***closed by ADR-394 and ADR-396: a planted Hold is not shoved (1.55 m to 0.00 m), a body snared out of reach gives its turn up, and the rest of the six verbs read sound against tokens, the ring, the lunge, the shove and the sweep.*** `DES-011`
 - ✔ `M4-T44` **No two lives begin with the same weapon** — ***closed by ADR-395: the Skald carries the ash spear, and `--class-probe` fails any two classes that start with one weapon.*** `DES-011`
 - ✔ `M4-T45` **A grave on most floors** — ***closed by ADR-397: a grave-niche on 118 of 120 floors, its grate opened by no hand but a Haugbrjótr's.*** *ADR-397: a sealed grave-niche cut into a room's wall, its grate opened by no hand but a Haugbrjótr's Haugbrot, with grave-goods behind it. Her verb had something shut to break on 39% of floors.* `DES-011` `DES-015`
-- · `M4-T46` **The Rites change the bare arms** — *ADR-057 decided it and ADR-398 found it unbuilt: at Pact Ranks 3, 5 and 7 each class's forearms carry more of their own marks (the Völva's ink spreads, the Úlfheðinn's fur climbs, the Haugbrjótr's hands grave-stained, the Húskarl's scars, the Veiðimaðr's wrappings, the Skald's rings). Growth you can see on your own body, in the runs 11–25 sag (`DES-022`). Built in `build_class_arms.py` as stages of the same marks; swapped by rank.* `DES-011` `DES-020` `DES-022`
+- ✔ `M4-T46` **The Rites change the bare arms** — ***closed by ADR-399: three stages of each class's own marks at Pact Ranks 3, 5 and 7, worn by every class, checked in `--hands-probe`.*** *ADR-057 decided it and ADR-398 found it unbuilt: at Pact Ranks 3, 5 and 7 each class's forearms carry more of their own marks (the Völva's ink spreads, the Úlfheðinn's fur climbs, the Haugbrjótr's hands grave-stained, the Húskarl's scars, the Veiðimaðr's wrappings, the Skald's rings). Growth you can see on your own body, in the runs 11–25 sag (`DES-022`). Built in `build_class_arms.py` as stages of the same marks; swapped by rank.* `DES-011` `DES-020` `DES-022`
 
 ### M5 — Content & Breadth
 
@@ -206,6 +206,6 @@ _None. Sequencing is clean._
 
 ---
 
-_49 docs (46 accepted) · 398 ADRs · 0 open questions · 410 ⟨tune⟩ markers._
+_49 docs (46 accepted) · 399 ADRs · 0 open questions · 410 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

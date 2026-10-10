@@ -167,7 +167,7 @@ All six must therefore be playable and balanced by **M4, not M5** (`PRO-001`).
 
 This is deliberate pacing, not a gate for its own sake. `DES-022` identifies **runs 11–25 as the sag in felt growth** — the same window `DES-010` names as churn point C3. Holding the Rite back gives the mid-life a **second identity beat**, arriving exactly as the first keystone stops feeling new.
 
-**Visible arm changes at Ranks 3, 5 and 7** (ADR-057) sit in the same window: the Úlfheðinn's arms becoming more wolf, the Völva's ink spreading, the Haugbrjótr's hands more grave-stained. Non-numeric progression you can see on your own body, placed where nothing else is visibly changing.
+**Visible arm changes at Ranks 3, 5 and 7** (ADR-057) sit in the same window: the Úlfheðinn's arms becoming more wolf, the Völva's ink spreading, the Haugbrjótr's hands more grave-stained. **Built (ADR-399):** three stages of each class's own marks, worn from those ranks — the Húskarl's cuts, the Veiðimaðr's bindings, the Völva's ink, the Skald's rings given for verse, the Úlfheðinn's pelt and the Haugbrjótr's barrow-earth. Non-numeric progression you can see on your own body, placed where nothing else is visibly changing.
 
 **Greater nodes cluster at Ranks 4–6; lesser nodes front-load at 1–3**, where knowledge growth already carries the feeling.
 

@@ -58,12 +58,20 @@ Dt.MATERIALS.update({
     "bone": ((0.66, 0.63, 0.53), 0.80, Dt.MATERIALS["wood"][2]),
     "nail": ((0.62, 0.52, 0.44), 0.80, _scar),
     "fur": ((0.24, 0.22, 0.19), 0.80, lambda p: 0.0014 * S.fbm(p * np.array([1.0, 1.0, 0.3]), 0.008, 2)),
+    # Barrow-earth worked into the skin (ADR-057): a mound-breaker's hands.
+    "grave": ((0.27, 0.21, 0.16), 0.85, _skin),
 })
 
 ## A first-person budget: most of a character's, because these are seen from
 ## centimetres away; a voxel a finger can be sculpted in, and a dense map.
 PLAN = dict(voxel=0.0028, body_tris=9000, texture=1024, ceiling=10000, sparse=True)
 CLASSES = ("huskarl", "veidimadr", "volva", "skald", "ulfhedinn", "haugbrjotr")
+## **The Rites change the arms** (ADR-057, `M4-T46`): the Pact Ranks at which a
+## class's forearms carry more of their own marks — stage 1, 2 and 3. Stage 0
+## is the arms a life begins with, exported as `{kind}_arms`; stage n as
+## `{kind}_arms_r{rank}`. Each stage is the stage before it and more: the marks
+## a class already has, spread, never a new costume.
+RITE_RANKS = (3, 5, 7)
 
 
 class Side:
@@ -103,6 +111,17 @@ class Side:
         return np.stack([q @ self.across, q @ self.front, q @ self.axis], axis=1)
 
 
+STATIONS = [-0.07, 0.05, 0.23, 0.46, 0.70, 0.88, 1.01]
+ACROSS = [0.046, 0.046, 0.046, 0.042, 0.035, 0.029, 0.029]
+FRONT = [0.040, 0.042, 0.040, 0.036, 0.031, 0.025, 0.024]
+
+
+def girth(t):
+    """The forearm's section at `t`: half its width across, and its depth to
+    the front — where a mark at that station sits on the skin."""
+    return float(np.interp(t, STATIONS, ACROSS)), float(np.interp(t, STATIONS, FRONT))
+
+
 def forearm(p, s: Side):
     """The forearm narrowing through the wrist: an elliptical section at each
     station, flattening toward the wrist as the radius and ulna do, with the
@@ -110,9 +129,8 @@ def forearm(p, s: Side):
     q = s.local(p)
     length = float(np.linalg.norm(s.end - s.start))
     t = q[:, 2] / length
-    ts = [-0.07, 0.05, 0.23, 0.46, 0.70, 0.88, 1.01]
-    rx = np.interp(t, ts, [0.046, 0.046, 0.046, 0.042, 0.035, 0.029, 0.029])
-    ry = np.interp(t, ts, [0.040, 0.042, 0.040, 0.036, 0.031, 0.025, 0.024])
+    rx = np.interp(t, STATIONS, ACROSS)
+    ry = np.interp(t, STATIONS, FRONT)
     k = np.sqrt((q[:, 0] / rx) ** 2 + (q[:, 1] / ry) ** 2)
     d = (k - 1.0) * np.minimum(rx, ry)
     d = S.smax(d, np.maximum(-0.07 * length - q[:, 2], q[:, 2] - 1.01 * length), 0.01)
@@ -168,7 +186,22 @@ def band(p, s: Side, t0, t1, r, rough=0.0):
     return S.smax(radial - rr, np.abs(q[:, 2] - mid) - half, 0.003)
 
 
-def regions_for(kind, sides):
+def sleeve(p, s: Side, t0, t1, pad, rough=0.0):
+    """A sleeve from `t0` to `t1` that follows the forearm's own section, `pad`
+    proud of it all the way — a pelt worn on the arm, not rings round it."""
+    q = s.local(p)
+    length = float(np.linalg.norm(s.end - s.start))
+    t = q[:, 2] / length
+    across = np.interp(t, STATIONS, ACROSS) + pad
+    front = np.interp(t, STATIONS, FRONT) + pad
+    k = np.sqrt((q[:, 0] / across) ** 2 + (q[:, 1] / front) ** 2)
+    d = (k - 1.0) * np.minimum(across, front)
+    d = d + rough * np.sin(np.arctan2(q[:, 1], q[:, 0]) * 9.0 + t * 23.0)
+    mid, half = (t0 + t1) * 0.5 * length, (t1 - t0) * 0.5 * length
+    return S.smax(d, np.abs(q[:, 2] - mid) - half, 0.004)
+
+
+def regions_for(kind, sides, stage=0):
     def regions(p):
         out = {"skin": np.full(len(p), 1e3)}
         extra = {}
@@ -180,9 +213,11 @@ def regions_for(kind, sides):
             hand, fingers = fist(p, s)
             out["skin"] = np.minimum(out["skin"], S.smin(forearm(p, s), hand, 0.012))
             if kind == "huskarl":
-                # Two healed cuts raised across the back of the forearm.
-                for t in (0.35, 0.46):
-                    c = s.at(t) + s.front * 0.039
+                # Two healed cuts raised across the back of the forearm, and a
+                # cut more for each stage of the Rite: a shield-wall's record.
+                for t in (0.35, 0.46, 0.58, 0.68, 0.77)[:2 + stage]:
+                    # The first two keep the place ADR-319 sculpted them at.
+                    c = s.at(t) + s.front * (0.039 if t in (0.35, 0.46) else girth(t)[1] + 0.001)
                     add("scar", S.round_cone(p, c - s.across * 0.021 - s.axis * 0.006,
                                              c + s.across * 0.020 + s.axis * 0.006, 0.0032, 0.0028))
             elif kind == "veidimadr":
@@ -192,31 +227,62 @@ def regions_for(kind, sides):
                     add("linen", S.chain(p, [s.around(math.radians(92), along), s.around(math.radians(40), along)],
                                          [0.0128, 0.0124], 0.0))
                 add("linen", band(p, s, 0.90, 0.99, 0.0325))
+                # The stalker's bindings climb the forearm, stage by stage.
+                for t0, t1 in ((0.78, 0.84), (0.62, 0.68), (0.46, 0.52))[:stage]:
+                    add("linen", band(p, s, t0, t1, girth(t0)[0] + 0.0025))
             elif kind == "volva":
                 add("ink", band(p, s, 0.905, 0.94, 0.0322))
                 for j in range(3):
                     c = s.end + s.front * 0.028 + s.across * ((j - 1) * 0.020)
                     add("bone", S.round_cone(p, c, c + s.axis * 0.03, 0.006, 0.003))
             elif kind == "ulfhedinn":
+                # The wolf-skin climbs from the wrist toward the elbow as the
+                # Rite grows: "more wolf" (ADR-057).
+                start = (0.89, 0.72, 0.52, 0.30)[stage]
                 add("fur", band(p, s, 0.89, 1.09, 0.036, rough=0.003))
+                if stage > 0:
+                    # One sleeve of pelt up the arm, following its taper.
+                    add("fur", sleeve(p, s, start, 0.92, 0.005, rough=0.0016))
             elif kind == "haugbrjotr":
                 add("leather", band(p, s, 0.89, 1.02, 0.0345))
+                # **Grave-stained** (ADR-057): barrow-earth worked into the skin
+                # from the fingertips up — the fingers, then the hand, then half
+                # the forearm. A region a hair outside the skin, as the Skald's
+                # inked fingers are, so it wins the surface it recolours.
+                if stage >= 1:
+                    add("grave", fingers - 0.0004)
+                if stage >= 2:
+                    add("grave", hand - 0.0004)
+                if stage >= 3:
+                    q = s.local(p)
+                    length = float(np.linalg.norm(s.end - s.start))
+                    # A ragged edge: earth worked into the skin, not a sleeve.
+                    edge = 0.6 * length - q[:, 2] + 0.012 * S.noise(p, 0.02)
+                    add("grave", S.smax(forearm(p, s) - 0.0004, edge, 0.006))
                 for j in (-1, 1):
                     c = s.end + s.across * (j * 0.021) + s.front * 0.027
                     add("iron", S.round_cone(p, c - s.axis * 0.03, c + s.axis * 0.035, 0.004, 0.0015))
             elif kind == "skald":
                 add("linen", band(p, s, 0.905, 0.945, 0.0322))
-                # Ink-stained fingers: a skald writes.
-                add("ink", fingers + 0.0005)
+                # **Rings given for verse** (Egils saga ch. 55: Æthelstan gives
+                # Egill a gold ring off his own arm for his drápa). One more
+                # arm-ring for each stage, worn up the forearm.
+                for t in (0.78, 0.66, 0.54)[:stage]:
+                    add("gold", band(p, s, t, t + 0.035, girth(t)[0] + 0.0028))
+                # Ink-stained fingers: a skald writes. A hair *outside* the
+                # skin, so the stain wins the surface it lies on (inside, as
+                # first built, it never showed).
+                add("ink", fingers - 0.0004)
         out.update(extra)
         return out
     return regions
 
 
-def tattoo(sides):
+def tattoo(sides, stage=0):
     """The Völva's ink (ADR-319), painted into the skin's colour: two bands of
     interlace round the forearm, the pattern of the Mammen and Jelling
-    ribbons drawn as a tattooist's line."""
+    ribbons drawn as a tattooist's line — and a band more for each stage of
+    her Rite, the ink spreading toward the elbow (ADR-057)."""
     def colour(points, which, names):
         out = Dt.colour(points, which, names)
         skin = which == names.index("skin")
@@ -226,7 +292,7 @@ def tattoo(sides):
             t = q[:, 2] / length
             a = np.arctan2(q[:, 1], q[:, 0])
             line = np.zeros(len(points), bool)
-            for t0 in (0.36, 0.62):
+            for t0 in (0.36, 0.62, 0.16, 0.80, 0.49)[:2 + stage]:
                 wave = t0 + 0.035 * np.sin(a * 4.0)
                 line |= (np.abs(t - wave) < 0.006) | (np.abs(t - (t0 + 0.035 * np.sin(a * 4.0 + math.pi))) < 0.006)
                 line |= (np.abs(t - t0 + 0.05) < 0.003) | (np.abs(t - t0 - 0.05) < 0.003)
@@ -253,29 +319,36 @@ def weigh(obj, sides):
             group.add([v.index], value, "REPLACE")
 
 
-def build(kind):
+def stem(kind, stage):
+    """The exported name: the arms a life begins with, or a Rite stage's."""
+    return f"{kind}_arms" if stage == 0 else f"{kind}_arms_r{RITE_RANKS[stage - 1]}"
+
+
+def build(kind, stage=0):
     rig = em.begin()
     sides = [Side(rig, "l"), Side(rig, "r")]
     lo = np.min([np.minimum(s.start, s.grip) for s in sides], axis=0) - 0.09
     hi = np.max([np.maximum(s.start, s.grip) for s in sides], axis=0) + 0.09
     plan = dict(PLAN, bounds=(lo, hi))
-    arms = E.sculpt(f"{kind}_arms", regions_for(kind, sides), plan, rig,
-                    colour=tattoo(sides) if kind == "volva" else None)
+    paint = None
+    if kind == "volva":
+        paint = tattoo(sides, stage)
+    arms = E.sculpt(stem(kind, stage), regions_for(kind, sides, stage), plan, rig, colour=paint)
     weigh(arms, sides)
     arms.name = f"{kind}_arms"
     em.PARTS.append(arms)
     return rig
 
 
-def export(kind, rig):
+def export(kind, rig, stage=0):
     em.validate(PLAN["ceiling"])
     bpy.ops.object.select_all(action="DESELECT")
     for obj in em.PARTS:
         obj.select_set(True)
     rig.select_set(True)
     bpy.context.view_layer.objects.active = rig
-    bpy.ops.wm.save_as_mainfile(filepath=str(SRC / f"{kind}_arms.blend"))
-    bpy.ops.export_scene.gltf(filepath=str(OUT / f"{kind}_arms.glb"), export_format="GLB", use_selection=True,
+    bpy.ops.wm.save_as_mainfile(filepath=str(SRC / f"{stem(kind, stage)}.blend"))
+    bpy.ops.export_scene.gltf(filepath=str(OUT / f"{stem(kind, stage)}.glb"), export_format="GLB", use_selection=True,
         export_yup=True, export_apply=False, export_skins=True, export_def_bones=False,
         export_leaf_bone=False, export_animations=False, export_morph=False, export_cameras=False,
         export_lights=False, export_vertex_color="ACTIVE", export_attributes=True, export_extras=True)
@@ -284,7 +357,7 @@ def export(kind, rig):
             "weighted_bones": sorted({g.name for o in em.PARTS for g in o.vertex_groups})}
 
 
-def review(kind):
+def review(kind, stage=0):
     """Close enough to read the fingers and the class work."""
     scene = bpy.context.scene
     scene.render.engine = "CYCLES"
@@ -303,19 +376,29 @@ def review(kind):
     scene.camera = camera
     camera.rotation_euler = (Vector((0, 0, 1.17)) - camera.location).to_track_quat("-Z", "Y").to_euler()
     camera.data.type, camera.data.ortho_scale = "ORTHO", 1.30
-    scene.render.filepath = str(SRC / f"{kind}_arms_review.png")
+    scene.render.filepath = str(SRC / f"{stem(kind, stage)}_review.png")
     bpy.ops.render.render(write_still=True)
 
 
 def main():
-    chosen = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else list(CLASSES)
+    """`-- [kind ...] [--stages 1,2,3]`: the classes (all by default) and the
+    stages to build (0 alone by default, the arms a life begins with)."""
+    args = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    stages = [0]
+    if "--stages" in args:
+        at = args.index("--stages")
+        stages = [int(v) for v in args[at + 1].split(",")]
+        args = args[:at] + args[at + 2:]
+    chosen = args or list(CLASSES)
     path = SRC / "class_arms_measurements.json"
     report = json.loads(path.read_text()) if path.exists() else {}
     for kind in chosen:
-        rig = build(kind)
-        report[kind] = export(kind, rig)
-        review(kind)
-        print(kind, report[kind]["triangles"])
+        for stage in stages:
+            rig = build(kind, stage)
+            name = kind if stage == 0 else stem(kind, stage)
+            report[name] = export(kind, rig, stage)
+            review(kind, stage)
+            print(name, report[name]["triangles"])
     path.write_text(json.dumps(report, indent=2) + "\n")
 
 

@@ -912,7 +912,7 @@ func _ready() -> void:
 		_hands.hold(off.definition if off != null else null)
 		var arms: ItemInstance = equipment.in_slot(Enums.Slot.ARMS)
 		_hands.dress_arms(ClassCatalogue.by_id(sworn),
-			arms.definition if arms != null else null)
+			arms.definition if arms != null else null, GameState.pact_rank)
 	_ink.visible = _is_local
 	set_process_unhandled_input(_is_local)
 	if _is_local:
@@ -3858,7 +3858,7 @@ func _on_equipment_changed() -> void:
 		_hands.hold(off.definition if off != null else null)
 		var arms: ItemInstance = equipment.in_slot(Enums.Slot.ARMS)
 		_hands.dress_arms(ClassCatalogue.by_id(sworn),
-			arms.definition if arms != null else null)
+			arms.definition if arms != null else null, GameState.pact_rank)
 	var carried_light := equipment.trait_in(
 		Enums.Slot.OFF_HAND, LightTrait) as LightTrait
 	lantern.carry(carried_light)

@@ -13870,4 +13870,31 @@ Cutting it orphaned all of them, so it is restated as *the Rites' remaining syst
 
 **And one promise, unbuilt, that touches all six:** ADR-057 decided that *"Rites visibly change your bare arms,"* with a mesh swap at Pact Ranks 3, 5 and 7: the Úlfheðinn's arms becoming more wolf, the Völva's ink spreading, the Haugbrjótr's hands more grave-stained. `DES-011` places those changes in the runs 11–25 sag that `DES-022` names, and `DES-022` counts *"non-numeric progression you can see on your own body"* as a growth channel. No code or task holds it. It becomes **`M4-T46`**. The arms are scripted (`build_class_arms.py`), one branch of marks per class, so a stage is more of the same marks and needs no new tooling.
 
+## ADR-399 — The Rites change the arms: three stages of each class's own marks
+
+**Date:** 2026-10-10 · **Status:** accepted · **Builds ADR-057's decision; amends `DES-011` (Rite pacing) and `DES-020`; `M4-T46`**
+
+**Decision:** at Pact Ranks **3, 5 and 7** (`ClassResource.RITE_RANKS`), a life's first-person forearms are swapped for the next stage of its class's arms (`ClassResource.rite_arms`, `arms_at(rank)`). Each stage is the stage before it with more of the class's own marks, never a new costume:
+
+| class | stage 1 → 3 |
+|---|---|
+| Húskarl | a healed cut more each stage, down the back of the forearm (a shield-wall's record) |
+| Veiðimaðr | linen bindings climbing from the wrist toward the elbow |
+| Völva | the Mammen-and-Jelling interlace spreads, a band more each stage, to the elbow |
+| Skald | a gold arm-ring for each stage: rings given for verse (*Egils saga* ch. 55, Æthelstan's ring off his own arm for Egill's drápa) |
+| Úlfheðinn | the wolf-skin climbs the arm, one pelt following its taper: *"more wolf"* |
+| Haugbrjótr | barrow-earth worked into the skin: the fingers, then the hand, then half the forearm, with a ragged edge |
+
+**Why here:** `DES-011` puts these changes in the runs 11–25 sag, alongside the Rite unlocking at Rank 3. `DES-022` counts *"non-numeric progression you can see on your own body"* as a growth channel. Nothing else on the body changes in that window.
+
+**Built:** `build_class_arms.py` takes `--stages 1,2,3`. Stage 0 is untouched unless asked for. Marks are placed from the forearm's own section (`girth(t)`, the stations the sculpt is built from), because a fixed offset from the axis buried a cut near the elbow and would float one near the wrist. Each stage is 9,000 triangles, the base arms' budget. `Hands.dress_arms` takes the Pact Rank and wears `arms_at(rank)`. `ClassResource.validate` refuses a class without all three stages.
+
+**Found on the way:** the Skald's *"ink-stained fingers"* (ADR-319) had never shown. A recolouring region has to sit a hair *outside* the skin to win the nearest-surface test, and it was built a hair inside. Fixed with the grave-stain, which first copied the mistake. The Skald's base arms are rebuilt with inked fingers.
+
+**Checked:**
+- `--hands-probe`: for all six classes, Ranks 1, 3, 5 and 7 each wear the right scene on the shared skeleton.
+- `--class-probe`: every class validates with its stages.
+- `tests/art_probe.gd`: 101 models, none faulted.
+- `--rite-arms-shot=DIR`: each class at Rank 1 and Rank 7 in first person, by lamplight.
+
 *Entries below to be added as design decisions are signed off.*
