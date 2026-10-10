@@ -4,7 +4,7 @@ title: Enemies & AI
 status: accepted
 owner: design
 tags: [enemies, ai, combat, clamor, systems, co-op]
-updated: 2026-10-08
+updated: 2026-10-09
 related: [DES-005, DES-007, DES-009, TEC-001, TEC-004]
 ---
 
@@ -154,6 +154,15 @@ This is a Barony inheritance and it earns its cost several times over: it produc
 > - **The tell:** a ring over the head on every peer (gold and turning when maddened, pale and tipped when unnerved), with a sound for each.
 >
 > `Turned` is the component that holds the mood. Standing faction hostility, when the factions above arrive, sets the same mood for its own reasons.
+
+## How a group fights (ADR-391)
+
+The ladder decides *whether* a body fights; this decides *how* several fight one player.
+
+- **They take turns.** Each player has two melee attack tokens and one missile token ⟨tune⟩ (DOOM 2016's token pool). A body must hold one to begin a blow and gives it back when its recovery ends.
+- **What you can see goes first.** A token is offered to a body inside the player's view before one behind it. The blow from behind still exists, but it is never the first one, so a death stays explainable (principle 4).
+- **The rest stand round you.** A body waiting for a token holds a ring just outside its reach, on its own bearing, spread from the others, facing you and walking (Arkham's and the Souls games' ring). After its blow it steps back out to the ring.
+- **Every melee body has more than one blow** (ADR-391's movesets): Wretches and Bellringers lunge across three metres, the Hall-Warden shoves you off its door before the overhead, the Hoard-Keeper sweeps a body circling it, and the Sling-Wretch backs away to sling rather than throwing point-blank. Each blow is chosen by range, in the order its `.tres` lists them, so the choice can be learned.
 
 ## Co-op considerations (ADR-008/010)
 

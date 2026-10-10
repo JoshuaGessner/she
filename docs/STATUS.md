@@ -2,13 +2,13 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-10-08_
+<!-- generated-stamp --> _Regenerated 2026-10-09_
 
 **Current milestone: M4 — Vertical Slice**
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`103/118` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`103/123` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>30/35"]:::current
+  M4["M4 Vertical Slice<br/>30/40"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/10"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████████████████▒░░` | 30/35 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `███████████████▒░░░░` | 30/40 | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -53,12 +53,9 @@ _None. Sequencing is clean._
 | `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30, M3-T31, M3-T34, M3-T35, M3-T38, M3-T39, M4-T16) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-003 is fully implemented (M2-T05, M3-T04, M3-T10, M3-T01, M3-T03, M3-T05, M3-T13, M3-T20, M3-T23, M3-T26, M3-T27, M3-T28, M3-T32, M3-T33, M3-T37, M3-T38, M3-T42, M4-T33) but still has 6 ⟨tune⟩ marker(s) |
 | `untuned` | DES-005 is fully implemented (M1-T01, M1-T04, M2-T01, M2-T02, M2-T04, M2-T14, M2-T17, M2-T18, M3-T11, M3-T12, M4-T01, M4-T15) but still has 8 ⟨tune⟩ marker(s) |
-| `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19, M4-T16, M4-T17, M4-T32, M4-T27, M4-T29) but still has 15 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08, M4-T01) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-017 is fully implemented (M2-T02, M2-T03, M2-T19, M2-T21, M3-T04, M3-T21, M3-T22, M4-T01) but still has 8 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
-| `untuned` | TEC-007 is fully implemented (M4-T01, M4-T25, M4-T28, M4-T29) but still has 2 ⟨tune⟩ marker(s) |
-| `untuned` | TEC-008 is fully implemented (M4-T01, M4-T25, M4-T23, M4-T28, M4-T29, M4-T30) but still has 3 ⟨tune⟩ marker(s) |
 
 ## Tasks
 
@@ -181,6 +178,11 @@ _None. Sequencing is clean._
 - ✔ `M4-T22` **`check_dead.py` counts English words in tool docstrings as uses** — ***ADR-208: the hole was twenty-four names wide and nothing had fallen in.*** *`body_text()` drops `##` lines and hands the rest to `strip_comments()`, which leaves string literals alone deliberately — right for GDScript, where what remains is code, and wrong for Python, where a **docstring is a string literal** and survives both. `strip_py_docstrings()` now blanks any string-literal expression standing first in a module, class or function, via `ast` rather than a regex, because a triple-quoted string is only a docstring in that position. **Docstrings only, never every string**: `tools/*.py` is in the corpus precisely because build tooling reads names, and `check_project.py` asserts the scenes agree with `CollisionLayers` **by name, in a string literal** — stripping all Python strings would close false positives by opening false negatives, the worse trade for a checker whose findings each need judging. The corpus loses **31,924 characters** of prose, 255,899 → 223,975 across 105 files, and comparing the two corpora against all **1,430** declared names finds **24** that Python docstrings alone were keeping alive:* `PATH`, `_descend`, `_end_the_run`, `_reset_floor`, `arm`, `blocked`, `chosen`, `claimed`, `definition`, `denser`, `describe`, `driving`, `edge`, `extracted`, `field`, `flat`, `machines`, `phase`, `progress`, `reachable`, `routes`, `settle`, `sworn`, `validate`. ***All twenty-four are genuinely used elsewhere, so the checker still reports nothing** — this entry predicted a backlog needing judgement and there is none, which is on the record as wrong rather than quietly dropped. **Planted in both directions**, because a nonsense-named canary was already caught and proves nothing about this hole: `func grouped()` added to `FloorMachines` and called by nothing is `DEAD-FUNC` with the stripping and **invisible without it**, because `status.py`'s docstring says* "Open questions grouped by the milestone" *and GDScript mentions `grouped` only inside `##` comments the corpus already drops. The tool was blind for twenty-four names and got lucky about which ones died;* `questions()` *was the unlucky draw that happened to be seen. A checker whose accuracy depends on which English words a maintainer picked for a function is a coin. Original scope follows —* *found by falling into it (ADR-192): `FloorMachines.questions()` was called by nothing and the checker passed, in the same session as an ADR about dead names. The tool works — a nonsense-named canary is caught at once — and the hole is in the corpus. `scenes_and_data()` includes `tools/*.py` on purpose, because build tooling genuinely is a reader (`CollisionLayers` is read only by `check_project.py`), but `body_text()` strips `#` comments and **a Python docstring is not a `#` comment**. `status.py`'s* "Open questions grouped by the milestone" *counted as a call to a GDScript `questions()`. So **any GDScript name that is also an ordinary English word used in a tool's prose is invisible**, and has been since the tool was written. Filed rather than fixed inline because closing it will surface a backlog that each needs judging — which is the point* `TEC-002`
 - ✔ `M4-T30` **The Hunter could not cross a single floor** — ***ADR-211, and a deferral from ADR-142 is why.*** *Reported from play as* "the hunter doesn't really traverse the whole levels well and is too wide for some doorways" *— and it was worse than* some*. `gullsjukr.gd` had carried a header since ADR-142 saying its collider was 0.75 against a mesh baked at 0.45, deferred to `M4-T01` and true* "until the mesh is hand-authored"*. `M4-T01` shipped, the Delvings generates the mesh, and nothing went back for the* until then *— ADR-098's shape applied to a **deferral**, which no check in the repository can notice because a comment is not a check. `--hunter-fit` bakes the reach panel at a given body size: at **0.75 × 2.40 the Gullsjúkr routed 0 of 24 floors**, with each dimension independently fatal — 0.75 wide alone is **0 of 24**, 2.40 tall alone is **8 of 24**. Resized to **0.55 × 2.00**, which is **23 of 24** and sits at both cliffs: 0.65 costs seven floors, 2.20 costs six, and the one floor it still misses is one `M4-T29`'s player cannot walk either. **(Wrong, corrected by ADR-213:** the missed floor was 57721 floor 1, which is not on the walk panel — nothing could say so while refusals went unnamed. It was a great-room ledge laid between two doorways, and the Hunter now routes **24 of 24**.) `ART-005` survives it — still half again wider than the 0.35 m player and taller than one — and `_build_body` now derives collider, hurtbox and mesh from the two constants so they cannot drift apart again. **The despawn-and-respawn system was considered and rejected** (ADR-211): at 0 of 24 it would have been the Hunter's only locomotion rather than a pacing tool, it would have hidden the cause permanently, and it costs `DES-005`'s counter-play, since going quiet and doubling back all assume a pursuer bound by the floor you are on. **Kept as its own idea**: an Alien-Isolation-style director that repositions the Hunter once it has genuinely lost you, judged on its own merits now the body can walk. **Two drafts of the probe measured something other than their labels** and its own control caught both — the first held height at 2.40 while sweeping width, the second polled for *any* route and scored partial paths from an unsettled bake as refusals, reading 15 of 24 where `--reach-probe` gets 24. The control is an assertion for exactly that reason, planted at a 0.70 m bake and caught* `DES-013` `TEC-008` `ART-005`
 - · `M4-T21` **Re-run the pre-mortem at the gate** — *`PRO-007`'s own last section says* "re-run it at each milestone gate — the failure modes change as the project does", *and after `M3` cleared it was not: the document sat at `updated: 2026-08-15` through the whole of `M3` and the start of `M4`. A mitigation the project wrote for itself and then did not take, which is ADR-098's shape applied to process rather than to code. ADR-191 ran it late and found §1 mutated (*"M1 never ended"* is now *"M4 never ends"*, seventeen open rows and the two-week timebox applied nowhere), §4 being realised (two play sessions reporting* not fun yet*, both answered with a resequence rather than with more game), and §6's precondition met since ADR-070 with nothing posted. This task exists so the ritual has an owner and a trigger instead of a sentence at the bottom of a document* `PRO-007`
+- · `M4-T38` **Enemies take turns and stand round you** — *ADR-391: attack tokens per target (two melee, one missile ⟨tune⟩), offered to a body in the target's view before one behind it; a body without one holds a ring at reach + 1.4 m on its own bearing, spread at least 50° from the next, and steps back out after its blow. Host-only; nothing new on the wire. `--engage-probe`: four Wretches on one body, overlapping wind-ups and angular spread, against the code without tokens.* `DES-013` `DES-009`
+- · `M4-T39` **Every melee body has a lunge, and the heavies a second blow** — *ADR-391: `EnemyResource.attacks` replaces `attack`; `AttackResource` gains `min_range`, `lunge`, `cooldown` and `clip`; chosen by range in listed order. Wretch and Bellringer lunge, the Hall-Warden shoves, the Hoard-Keeper sweeps, the Sling-Wretch backs off to sling. Every telegraph over the 250 ms floor; each blow its own clip.* `DES-013` `DES-009`
+- · `M4-T40` **A room is built as what it is called** — *ADR-392: `RoomModule.interior` (colonnade, pier, rows, bays, rubble, plinth, open), laid by `FloorBuilder` with a clear apron at every door, every feature walkable round, floors flat, on the floor's own stream. Measured: room floor within 3 m of something to stand behind, before and after; plan shots; reach, vista, plan and determinism probes green.* `DES-015` `TEC-008`
+- · `M4-T41` **Rooms grow and corridors shrink** — *ADR-392: the largest footprint from 5 to 7 cells with the lattice retuned; corridor share from 41% to 32% or under over 120 floors, every floor valid, generation under 2 s.* `DES-015` `TEC-007`
+- · `M4-T42` **The camp re-laid on one axis** — *ADR-393: ground to about 36 × 40 m, arrival → fire → descent clear, plots on the rim, every station with its own silhouette and light, clutter at the walls, quieter ground. Probe: the descent, fire, board and chest each in clear sight from the arrival, the axis clear; before/after shots from the same seven viewpoints.* `DES-014`
 
 ### M5 — Content & Breadth
 
@@ -197,6 +199,6 @@ _None. Sequencing is clean._
 
 ---
 
-_49 docs (46 accepted) · 389 ADRs · 0 open questions · 398 ⟨tune⟩ markers._
+_49 docs (46 accepted) · 393 ADRs · 0 open questions · 410 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

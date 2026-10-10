@@ -4,7 +4,7 @@ title: The Lair
 status: accepted
 owner: design
 tags: [hub, lair, retention, social, co-op, ui, progression, networking]
-updated: 2026-10-06
+updated: 2026-10-09
 related: [DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004]
 ---
 
@@ -122,6 +122,8 @@ Tall, worn, deeply-notched staves belong to people who have been feeding her a l
 ## The Threshold in detail
 
 **Target vibe:** Barony's tactile grubbiness, Dark and Darker's huddled-at-the-mouth-of-hell staging, and **Diablo's Rogue Encampment** — which is the key reference, because it is *tiny*, dense, warm, and unforgettable. Tristram's power was never square metres; it was a handful of characters, a fire, and a guitar.
+
+> **Re-laid (ADR-393).** The Rogue Encampment was the right reference and was read as *cramped*. It is an open middle round one fire, with everyone on the rim and the way out in view. The camp is therefore about 36 × 40 m ⟨tune⟩ on one axis: arrival → fire → descent, with nothing tall within 2 m of it. The four plots stand on the rim and open toward the fire. Every station (the board, the chest, each plot's brazier) has its own silhouette and its own light, and on safe ground a light means *you can do something here*. Clutter goes against the walls.
 
 ### Two layers (ADR-025)
 

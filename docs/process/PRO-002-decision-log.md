@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-08
+updated: 2026-10-09
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -13450,5 +13450,167 @@ Each node lets her do something new rather than making a number bigger (ADR-058)
 - Posts within 16 m: 24 → 13 floors. Within 12 m: 7 → 5.
 - **Posts within 16 m with a clear line to the arrival: 4 → 2.** Both are rooms too small to stand further off (55433/1 at 10.2 m, 182137/1 at 7.5 m).
 - Unchanged and green: `--vista-probe` (31346, floors 0 and 2), `--machine-probe`, `--population-probe` (seed 3, floor 2), `--warden-probe`, `data_probe`, and `--reach-probe` (its 24 floors routed and 9 walked).
+
+## ADR-390 — The play pass: enemies fight as a group, rooms are places, the camp reads
+
+**Date:** 2026-10-09 · **Status:** accepted · **Opens `M4-T38`..`M4-T42`; frames ADR-391..393**
+
+**Context:** the developer, after five classes and a forged interface: *"we need to get level generation and enemy combat improved drastically … get our plan aligned with a clear idea moving forward so this is fun and playable … the camp layout is too small and cluttered and doesn't really read."*
+
+Before any change I looked at the game, not the documents:
+- **Enemy combat.** Every archetype carries exactly one `AttackResource`. `Enemy._act` paths to its target and swings when in reach. Nothing decides who swings, where a waiting body stands, or when it steps back. Three Wretches on one body arrive in a line and wind up together, and whichever is behind the player lands a blow the player never saw.
+- **Floors.** Top-down plans of five floors (seeds 0 and 7) show rooms that are rectangles of at most 10 m with empty middles, joined by one-wide tubes that are 41% of the walkable floor (ADR-180). Only the hub has pillars. A module is a footprint and a ceiling height, so `con_cistern` and `key_foremans_room` are built as the same box: the name is the only thing that differs.
+- **The camp.** 20 × 22 m of ground in a gully, two tent pyramids filling the near view, the descent in the back corner, stations with no silhouette or light of their own, and floor hatching louder than anything standing on it.
+
+The systems under all three are strong: the awareness ladder, the call, poise and the recovery punish, infighting (ADR-387), the cyclic graph with locks, machines, history and validation. **The gap is what happens in the room once a fight starts, and what the room is.** That is where a first-person extraction game is felt.
+
+**Decision:** one named pass, sequenced, each step measured and shown to fail without its rule.
+
+| Order | Task | ADR | What it changes |
+|---|---|---|---|
+| 1 | `M4-T38` | ADR-391 | **Engagement:** attack tokens and a ring. A group takes turns and stands round you, in view. |
+| 2 | `M4-T39` | ADR-391 | **Movesets:** a lunge for every melee body; a second blow for the heavies. |
+| 3 | `M4-T40` | ADR-392 | **Rooms with identity:** every module lays its own interior (pillars, dais, basin, rows, bays, rubble). |
+| 4 | `M4-T41` | ADR-392 | **Floor shape:** larger rooms, less tube. |
+| 5 | `M4-T42` | ADR-393 | **The camp re-laid:** an axis, stations you can name from across the ground. |
+
+**Why this order.** Combat first: it is the largest gap between what the documents promise (`DES-009`'s *weighty, committal, legible*) and what a player meets, and it is data and AI with no art blocking it. Rooms second, because a ring and a lunge are only interesting against pillars and edges, and rooms with cover are where the ring gets broken. The camp last, because it is self-contained.
+
+**What this does not change:** the thesis that combat is usually a bad idea (`DES-009`, ADR-053), the noise economy, the 250 ms floor, avoidable encounters (ADR-032), host authority, and determinism of generation. None of the five adds a bigger number (ADR-058): each lets an enemy or a room do something new.
+
+**Rejected:**
+- **More enemy archetypes first.** Variety in *who* fights does nothing for *how* a fight goes, and `M5-T04` owns the roster.
+- **A new generator (rooms by accretion, as in Brogue).** The cyclic graph is the right spine (`DES-015` Layer 1) and is validated across hundreds of floors. Brogue's lesson taken here is the cheaper one: its rooms are never plain rectangles.
+
+**Cost:** about a month across the five, each its own commit with its own probe.
+
+## ADR-391 — Enemies take turns and stand round you; every melee body has a lunge
+
+**Date:** 2026-10-09 · **Status:** accepted · **Amends `DES-013` (a new section, *How a group fights*) and `DES-009` §3; `M4-T38`, `M4-T39`**
+
+**Context:** ADR-390's survey. One attack per archetype; chase and swing; no turn-taking, no spacing.
+
+**References, and what each teaches:**
+- **DOOM (2016)**, *Embracing Push Forward Combat*, GDC 2018: a shared pool of attack tokens. A demon must hold one to attack and returns it when the attack ends, so the number attacking at once is capped. It is the cheapest fix for a melee mob, and it is invisible: nobody sees a token, they see a fight they can read.
+- **Batman: Arkham's freeflow and the Souls games:** the group that is not attacking still matters. It stands in a ring at mid distance, faces you, and shifts. The ring is what makes a crowd look dangerous without making it unfair.
+- **DOOM's off-screen rule:** a demon you cannot see attacks less. Principle 4 says a death must be explainable in one sentence, and *"something hit me from behind while I fought the one in front"* is not a sentence anyone learns from.
+- **Dark Souls' hollows and For Honor's minions** are the reference for a lunge. A weak body that can close three metres in one committed motion punishes backing straight off, so footwork has to be sideways, round pillars, through doors. That is `DES-009`'s *defense is positional* made real.
+
+**Decision — engagement (`M4-T38`):**
+- **Tokens, per target, on the host.** Each player has `engage_tokens` (2 ⟨tune⟩) melee tokens and one missile token. A melee body in reach must hold one to begin a blow, and it is given back when the recovery ends, or on a stagger, a death, a lost target or a Skald's verse. Turned enemies fighting each other take no tokens (ADR-387).
+- **In view first.** A body standing in the target's view cone (the camera's half-angle plus a margin ⟨tune⟩) is offered a token before one standing behind. A body behind takes one only when nobody in view wants it. The blow from behind still exists (a party member who abandons a friend should see that friend surrounded), but it is never the first one.
+- **The ring.** A body that wants a token and has none holds at `ring` (its reach + 1.4 m ⟨tune⟩) on its own bearing round the target. Bearings are spread: each body steers to the free bearing nearest its own, at least `ring_spacing` (50° ⟨tune⟩) from every other waiting body. It faces the target and walks, never runs. A body whose blow has just ended steps back out to the ring and is not offered a token again for `engage_rest` (0.6 s ⟨tune⟩).
+- **Guardians keep their leash** (ADR-232/233); a ring point beyond it is clamped like any other point.
+- **Nothing new on the wire.** Tokens and bearings are host-only; a client sees bodies move and wind up, which it already receives.
+
+**Decision — movesets (`M4-T39`):**
+- **`EnemyResource.attacks` replaces `attack`.** It is a list, and every entry is used. There is no parallel single field (ADR-064).
+- **`AttackResource` gains:** `min_range` (it starts only at or beyond this distance), `lunge` (metres it carries the body forward during its active phase), `cooldown` (seconds before this blow may be chosen again) and `clip` (the animation it plays, so a lunge never looks like a swipe).
+- **Choosing:** among attacks whose `[min_range, reach]` holds the distance and whose cooldown has run, the first one listed wins. The list order is the designer's priority, so the choice can be read straight from the `.tres`.
+- **The slice's sets ⟨tune⟩:**
+
+| Archetype | Blows |
+|---|---|
+| Wretch, Bellringer | the swipe; **the lunge** (2.6–4.5 m, a 0.6 s telegraph, carried 2.4 m, 4 s cooldown) |
+| Hall-Warden | the overhead (heavy); **the shove** (to 1.7 m, light, knocks the body back 1.5 m, 3 s cooldown): it makes room for the overhead, as a blocker should |
+| Hoard-Keeper | the thrust (heavy); **the sweep** (a wide arc at 2.4 m that catches a body circling it, 5 s cooldown) |
+| Sling-Wretch | the sling; inside 4 m ⟨tune⟩ it **backs off to sling again** rather than slinging point-blank. That is movement, not a blow |
+
+- **The 250 ms floor holds for every entry** (`AttackResource.validate`). A lunge's telegraph is longer than the swipe's, because the distance it closes is part of what the player must read.
+
+**Rejected:**
+- **A random attack choice.** It reads as noise. Priority by range is learnable, and *learnable* is principle 3.
+- **Blocking and parrying enemies.** The player's guard is the one answer `DES-009` gives; an enemy that blocks makes a fight longer, not more interesting, and longer is louder. Revisit with the full roster (`M5-T04`).
+- **A behaviour tree.** The state machine is small and correct; the ring is a movement target, and tokens are a question asked before `_begin_attack`.
+
+**Cost:** a weekend each, plus the clips.
+
+**Measured:** to be appended by `M4-T38` and `M4-T39`: overlapping wind-ups on one body with four Wretches, their angular spread, and a body's blows from behind its view, each against the code without the rule.
+
+## ADR-392 — A room is built as what it is called; rooms grow and corridors shrink
+
+**Date:** 2026-10-09 · **Status:** accepted · **Amends `DES-015` (Layer 3's anti-boxiness list, step 4) and `TEC-008` §3; `M4-T40`, `M4-T41`**
+
+**Context:** ADR-390's survey. A `RoomModule` is a footprint (3×3 to 5×5 cells, so 6–10 m) and a ceiling height. `FloorBuilder` gives every room the same treatment: walls, sometimes an alcove, a notched corner, a ledge, and pillars only in the hub. So `hld_pillared_hall` has no pillars, `hld_barrow_row` has no barrows and `con_cistern` holds no cistern. **The name promises a place and the builder delivers a box.** Two things follow:
+- **For the fight:** an empty 8 m box gives the player nothing to use: nothing to circle, nothing to break a ring (ADR-391), nothing to stand a door's width from. Every fight is the same fight.
+- **For reading the floor:** `DES-015`'s thesis is *"a place where something specific happened, that you can read as you move through it."* A room that only differs by its name in a debug overlay reads as nothing.
+
+ADR-391's ring needs room as well: a ring at reach + 1.4 m is about 7 m across, and many rooms are 6 m.
+
+**References:**
+- **Brogue:** every room is a cross of two overlapping rectangles, because plain rectangles read as boring (brogue.wiki, *Level generation*). Its interest comes from what is *in* a room (lakes, chasms, pillars, machines), not from the corridor network.
+- **Spelunky:** hand-authored room templates with procedural variation inside a fixed grid. Small authored layouts multiply, because each one is a situation.
+- **Dark and Darker** (the counter-example of `DES-015`'s diagnosis): rooms that are *"a room, with pots, and a skeleton."* A layout that does not change what you do in the room is dressing, not identity.
+- **Unexplored:** the cyclic spine stays (`DES-015` Layer 1). Nothing here touches the graph.
+
+**Decision — every module names an interior (`M4-T40`):** `RoomModule.interior` is one of a small set of layouts. `FloorBuilder` lays each one, and the layout is chosen by the module, never drawn at random, so the name and the room agree. Each layout exists because of a question it asks in a fight:
+
+| Layout | What stands in the room | What it asks | Modules |
+|---|---|---|---|
+| `COLONNADE` | rows of pillars, spaced for a body to pass | *break their sight; circle one so the ring cannot close* | `hld_pillared_hall`, `con_gallery` |
+| `PIER` | one broad mass in the middle | *go round it: the room becomes a loop, so the chaser chases* | `con_junction`, `con_cistern` (the cistern's well-head) |
+| `ROWS` | parallel low biers or heaps, waist high | *lanes: you can see over them, you cannot walk through them* | `hld_barrow_row`, `prz_hoard_chamber`, `con_mine_head` (ore carts) |
+| `BAYS` | wall stubs from the long walls | *bays to hide in, and one blind corner per bay* | `key_overseers_room`, `key_foremans_room`, `prz_deep_seam` (seam ribs) |
+| `RUBBLE` | irregular fallen blocks | *broken cover, and a slower crossing* | `ent_collapsed_gate`, `hld_stope` |
+| `PLINTH` | a raised stone where the prize sits, with four posts round it | *the prize is seen from the door, and taking it means standing in the middle* | `prz_sealed_vault`, `prz_kings_barrow` |
+| `OPEN` | nothing new | a room whose job is to be crossed or seen across | the passages, the crawl, the Shafts and the landings |
+
+**The rules every layout keeps,** checked by `--plan-probe` (generation) and `--reach-probe` (bodies):
+- **A clear apron at every door** (1 cell): nothing stands where a body enters.
+- **Every open cell stays reachable, and every feature can be walked round:** no dead pocket and no wall that turns a room into two.
+- **Floors stay flat** (`TEC-008`): a feature is something you go round, not up. Ledges (ADR-213) remain the only height inside a room.
+- **Drawn on the floor's own stage stream:** the same seed builds the same room on every peer (`TEC-004`).
+- **The Prize, a post, a machine's fallen gear and the barrow keep their places.** A layout is laid after them and around them, never on them.
+
+**Decision — rooms grow, corridors shrink (`M4-T41`):** the largest footprint rises from 5 to 7 cells (14 m), with the lattice retuned so the gutters still carry their corridors. The bigger modules are the held, Prize and hub-adjacent rooms, where fights happen. **The target is a corridor share at or under 32%** (from 41%), measured over 120 floors, with every floor valid and generation under 2 s (`TEC-001`).
+
+**Rejected:**
+- **A feature list per module** (`FeatureResource`: a kind, a count, a size and a rule). It is more general, but it moves the hard part (*does this leave the room walkable?*) into data a designer cannot check by eye. Seven layouts, each written once and probed, is the budget.
+- **Sunken floors and raised daises.** A body climbs 0.10 m and the navmesh 0.30 m (ADR-213); every new height is a new place to be stuck, which is principle 4's *"the game glitched."*
+- **Rooms by accretion.** See ADR-390.
+
+**Cost:** a weekend for the layouts, a weekend for the retune and its measurement.
+
+**Measured:** to be appended by `M4-T40` and `M4-T41`: the share of room floor within 3 m of something to stand behind, before and after; corridor share, re-rolls and generation time over 120 floors.
+
+## ADR-393 — The camp is re-laid on one axis, and every station can be named from the arrival
+
+**Date:** 2026-10-09 · **Status:** accepted · **Amends `DES-014` (*The Threshold in detail*) and ADR-287's layout; `M4-T42`**
+
+**Context:** the developer: *"the camp layout is too small and cluttered and doesn't really read that well."* Shot from seven viewpoints (`--camp-shot`), it is:
+- **20 × 22 m of ground** in a gully with 9 m walls. The descent is 15 m from the fire and the way home 13 m behind it.
+- **Four plots 6 m from the fire.** Their A-frame tents are big flat pyramids, and from three of the seven viewpoints a tent fills a third of the frame.
+- **Stations without their own form or light.** The Lodge's board, the stash chest and the plots are lit by the one fire. Nothing tells you from the arrival what is a station and what is dressing.
+- **The floor's radial hatching** round the fire is the busiest thing in view, which `ART-005`'s *"ink describes form"* rule says it should never be.
+
+`DES-014` names the Rogue Encampment as the reference, *"tiny, dense, warm."* The reference was right and the reading was wrong. **The Encampment is small for an RPG town, about 60 m across, but it is not cramped.** A palisade ring, an open middle round one fire, each person standing at their own spot on the edge, and the way out a gate you can see from anywhere. Its density is in *people*, not in objects between you and them.
+
+**References:**
+- **Diablo II's Rogue Encampment:** an open centre, everyone on the rim, the exit always in view.
+- **Deep Rock Galactic's Space Rig:** every station is a silhouette with its own light and stands on one walkway, so a new player can name each from where they spawn.
+- **Hades' House of Hades:** one long axis from the arrival to the way out. The stations sit beside it, so the way out is always straight ahead.
+
+**Decision:**
+- **The ground grows to about 36 × 40 m ⟨tune⟩**, still a hollow in rock. The walls rise further from the fire, so the night sky (ADR-300) reads overhead.
+- **One axis, arrival → fire → descent,** and nothing taller than the fire ring stands within 2 m of it. The descent is a great dark mouth at the end of the axis with its own cold light, seen from the arrival and from the fire.
+- **The fire keeps a clear ring of 6 m ⟨tune⟩** where the party gathers (`DES-014`'s diegetic lobby).
+- **The plots stand on the rim, at about 12 m, two on each side of the axis.** Each tent opens toward the fire, with its long side turned so it hides nothing behind it.
+- **Every station has its own silhouette and its own warm light,** and the light means *you can do something here*: the Lodge's board, the stash chest under a lean-to, and each plot's brazier. This keeps the rule of `M2-T13` and ADR-204 that light is a signal. In the Deep light means worth or a way out; on safe ground it means a station, and it is never decorative.
+- **Clutter against the walls only:** boulders, crates and gear.
+- **The ground is quieter than what stands on it:** a trodden path down the axis, and the hatching fainter on the camp floor than on things.
+
+**Checked by probe, not by eye:**
+- **From the arrival:** the descent, the fire, the board and the chest each have a clear sight line, and each sits inside the arrival's view.
+- **The axis is clear:** no collider within 2 m of it except the fire ring.
+- **Every plot keeps its plot:** four plots, each within reach of its own brazier.
+- The existing `--threshold-probe`, `--camp-shot` and `--board-probe`, and the co-op camp rows, stay green.
+
+**Rejected:**
+- **Keeping the size and removing tents.** Subtraction first (CLAUDE.md), but the tents are `DES-014`'s plots, permanent and personal; what was wrong is where they stood.
+- **A bigger, open valley.** The Threshold is a mouth in a mountain (ADR-021); it stays a hollow, larger.
+
+**Cost:** a weekend, with the shots.
+
+**Measured:** to be appended by `M4-T42`: the before/after shots from the same seven viewpoints, and the probe rows.
 
 *Entries below to be added as design decisions are signed off.*

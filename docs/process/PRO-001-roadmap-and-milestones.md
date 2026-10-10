@@ -4,7 +4,7 @@ title: Roadmap & Milestones
 status: accepted
 owner: process
 tags: [roadmap, milestones, scope, planning, production]
-updated: 2026-10-08
+updated: 2026-10-09
 related: [DES-001, TEC-001, TEC-003]
 ---
 
@@ -352,6 +352,21 @@ world-space hatching, contextual UI contrast and controller focus, and authored
 icons for the current item corpus. These tasks stay open for their remaining
 production requirements; this pass does not certify final bespoke models,
 audio, vertex-channel authoring, inversion, or the human playtest gate.
+
+### The play pass — ADR-390
+
+> **Asked for by the developer (2026-10-09):** level generation and enemy
+> combat *"improved drastically"*, and the camp re-laid. Looked at before it was
+> planned: one attack per archetype and no turn-taking; rooms that are boxes
+> whatever they are called, joined by 41% corridor; a camp of 20 × 22 m with
+> tents in the way. **In this order**, each step measured against the code
+> without it:
+
+- [ ] `M4-T38` **Enemies take turns and stand round you** — *ADR-391: attack tokens per target (two melee, one missile ⟨tune⟩), offered to a body in the target's view before one behind it; a body without one holds a ring at reach + 1.4 m on its own bearing, spread at least 50° from the next, and steps back out after its blow. Host-only; nothing new on the wire. `--engage-probe`: four Wretches on one body, overlapping wind-ups and angular spread, against the code without tokens.* → DES-013, DES-009
+- [ ] `M4-T39` **Every melee body has a lunge, and the heavies a second blow** — *ADR-391: `EnemyResource.attacks` replaces `attack`; `AttackResource` gains `min_range`, `lunge`, `cooldown` and `clip`; chosen by range in listed order. Wretch and Bellringer lunge, the Hall-Warden shoves, the Hoard-Keeper sweeps, the Sling-Wretch backs off to sling. Every telegraph over the 250 ms floor; each blow its own clip.* → DES-013, DES-009
+- [ ] `M4-T40` **A room is built as what it is called** — *ADR-392: `RoomModule.interior` (colonnade, pier, rows, bays, rubble, plinth, open), laid by `FloorBuilder` with a clear apron at every door, every feature walkable round, floors flat, on the floor's own stream. Measured: room floor within 3 m of something to stand behind, before and after; plan shots; reach, vista, plan and determinism probes green.* → DES-015, TEC-008
+- [ ] `M4-T41` **Rooms grow and corridors shrink** — *ADR-392: the largest footprint from 5 to 7 cells with the lattice retuned; corridor share from 41% to 32% or under over 120 floors, every floor valid, generation under 2 s.* → DES-015, TEC-007
+- [ ] `M4-T42` **The camp re-laid on one axis** — *ADR-393: ground to about 36 × 40 m, arrival → fire → descent clear, plots on the rim, every station with its own silhouette and light, clutter at the walls, quieter ground. Probe: the descent, fire, board and chest each in clear sight from the arrival, the axis clear; before/after shots from the same seven viewpoints.* → DES-014
 
 ## M5 — Content & Breadth
 

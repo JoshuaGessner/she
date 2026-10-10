@@ -4,7 +4,7 @@ title: Combat, Movement & Player Systems
 status: accepted
 owner: design
 tags: [combat, movement, feel, vitals, inventory, gameplay]
-updated: 2026-10-06
+updated: 2026-10-09
 related: [DES-005, DES-007, DES-008, PRO-001]
 ---
 
@@ -149,6 +149,8 @@ Every attack has three phases: **Anticipation (windup) → Active (the strike) �
 > **Rule: no enemy attack has a telegraph under 250 ms. Standard attacks sit at 400–600 ms** ⟨tune⟩; heavy, deadly attacks longer still.
 
 This is not generosity — it is **Principle 4** with a number attached. An attack faster than human reaction time produces a death the player cannot explain, which `PRO-005 §5` identifies as the attribution failure that makes people quit rather than retry.
+
+> **More than one blow, chosen by range (ADR-391).** A lunge's telegraph is longer than a swipe's, because the distance it closes is part of what you read. It is what makes backing straight off a mistake and stepping sideways, round a pillar or through a door the answer, which is *defense is positional* made literal.
 
 ### 4. Forgiveness — invisible, and it decides whether the game feels responsive
 

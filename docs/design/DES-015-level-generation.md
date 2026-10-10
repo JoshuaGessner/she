@@ -4,7 +4,7 @@ title: Level Generation
 status: accepted
 owner: design
 tags: [procgen, levels, narrative, generation, pacing, technical]
-updated: 2026-10-08
+updated: 2026-10-09
 related: [DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007]
 ---
 
@@ -129,6 +129,8 @@ Machines are the authored content budget — ⟨~a day each⟩ — and unlike ha
 > loud, or leave it?* **The Choke Seam** (the lower two floors) — a seam breached and
 > the air is bad: *go in dark and winded?* Hazards arrive only this way, by the
 > developer's call, so a hazard is always part of a situation that asks something.
+
+> **A room is built as what it is called (ADR-392).** A module names an interior layout (colonnade, pier, rows, bays, rubble, plinth or open), and the builder lays it: a pillared hall has pillars, a barrow row has its biers, a vault has its plinth. Each layout is there for a question it asks in a fight: break their sight, go round, lanes you can see over, a bay to hide in. Every door keeps a clear apron, every feature can be walked round, and floors stay flat. **Rooms also grow**: the largest footprint rises from 5 to 7 cells, and the corridor share falls from 41% toward 32% (`M4-T41`).
 
 ## Layer 4 — Population
 
