@@ -1344,6 +1344,83 @@ func ledge_side(node: int) -> int:
 const LEDGE_STREAM: int = 0x1ED6
 
 
+## **The grave-niche** (ADR-397): one recess on the floor, cut into a room's
+## wall and sealed, with grave-goods behind the seal that only a Haugbrjótr's
+## Haugbrot opens. `{}` when the floor has nowhere to cut one; otherwise
+## `{"cell", "room", "mouth"}` — the recess, the room it opens from, and the
+## room cell in front of it.
+##
+## Chosen here rather than by the builder, which cuts its other alcoves from
+## its own stream, because the floor that lays the seal and the goods has the
+## plan and not the builder: the ledge's reason (ADR-392) again. A pocket
+## qualifies on the builder's alcove rules — rock on every side but the room,
+## its mouth on floor — and on three of its own: never in the entrance, the
+## Shaft's room, the hub or the held span; never on the wall a great room's
+## ledge runs along; and never beside a doorway, where it would crowd the way
+## in. Among those, one is picked on its own stream.
+func grave_niche() -> Dictionary:
+	if _niche_asked:
+		return _niche
+	_niche_asked = true
+	var skip: Array[int] = [_graph.node_with(MissionGraph.Role.ENTRANCE),
+		_graph.node_with(MissionGraph.Role.SHAFT), _graph.node_with(MissionGraph.Role.PRIZE), _hub]
+	var pockets: Array[Dictionary] = []
+	for node: int in _graph.size():
+		if node in skip or node >= _mods.size() or _mods[node] == null or _graph.is_held(node) \
+				or _mods[node].volume == RoomModule.Volume.CRAWL:
+			continue
+		var rect: Rect2i = _rect[node]
+		if mini(rect.size.x, rect.size.y) < FloorBuilder.ALCOVE_MIN_ROOM:
+			continue
+		var ledge: int = ledge_side(node)
+		var strip: Array[Vector2i] = []
+		if ledge >= 0:
+			strip = FloorBuilder._strip(rect, ledge)
+		var doors: Array[Vector2i] = doors_of(node)
+		var beside: Array[Vector2i] = []
+		for x: int in range(rect.position.x, rect.end.x):
+			beside.append(Vector2i(x, rect.position.y - 1))
+			beside.append(Vector2i(x, rect.end.y))
+		for z: int in range(rect.position.y, rect.end.y):
+			beside.append(Vector2i(rect.position.x - 1, z))
+			beside.append(Vector2i(rect.end.x, z))
+		beside.sort()
+		for cell: Vector2i in beside:
+			if holds(cell):
+				continue
+			var mouth := NO_CELL
+			var sealed: bool = true
+			for step: Vector2i in STEPS:
+				var side: Vector2i = cell + step
+				if rect.has_point(side):
+					mouth = side
+				elif holds(side):
+					sealed = false
+			if not sealed or mouth == NO_CELL or notched(mouth) or strip.has(mouth):
+				continue
+			var crowded: bool = false
+			for door: Vector2i in doors:
+				if absi(door.x - cell.x) + absi(door.y - cell.y) <= GRAVE_DOOR_CLEAR:
+					crowded = true
+			if not crowded:
+				pockets.append({"cell": cell, "room": node, "mouth": mouth})
+	if pockets.is_empty():
+		return _niche
+	var first: Rect2i = _rect[0] if not _rect.is_empty() else Rect2i()
+	var pick: int = MissionGraph._mix(first.position.x * 73856093 ^ first.position.y * 19349663
+		^ pockets.size() * 83492791 ^ GRAVE_STREAM)
+	_niche = pockets[posmod(pick, pockets.size())]
+	return _niche
+
+
+## How far, in cells walked, a grave-niche keeps from a room's doorway cell.
+const GRAVE_DOOR_CLEAR: int = 2
+## Its own stream: the niche moves nothing else.
+const GRAVE_STREAM: int = 0x96A7
+var _niche: Dictionary = {}
+var _niche_asked: bool = false
+
+
 ## Cells a feature keeps from any doorway, measured from the door's middle —
 ## half a cell outside the wall, so this is the cell inside it and a little.
 const FEATURE_APRON: float = 1.4

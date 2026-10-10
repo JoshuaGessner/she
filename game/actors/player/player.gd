@@ -1596,7 +1596,7 @@ func door_at_hand() -> LockedDoor:
 		var off: Vector3 = door.global_position - global_position
 		off.y = 0.0
 		var far: float = off.length()
-		if far > reach + LockedDoor.SIZE.x * 0.5 or far >= nearest:
+		if far > reach + door.leaf_size().x * 0.5 or far >= nearest:
 			continue
 		if far > 0.3 and off.normalized().dot(ahead) < 0.2:
 			continue
@@ -1635,7 +1635,7 @@ func broken_door_at_hand() -> LockedDoor:
 			continue
 		var off: Vector3 = door.global_position - global_position
 		off.y = 0.0
-		if off.length() <= hand_reach() + LockedDoor.SIZE.x * 0.5:
+		if off.length() <= hand_reach() + door.leaf_size().x * 0.5:
 			if not multiplayer.is_server() or door.broken_by == get_multiplayer_authority():
 				return door
 	return null
@@ -1658,7 +1658,7 @@ func _wedge_door(path: NodePath) -> void:
 		return
 	var off: Vector3 = door.global_position - global_position
 	off.y = 0.0
-	if off.length() > hand_reach() + LockedDoor.SIZE.x * 0.5 + 0.5:
+	if off.length() > hand_reach() + door.leaf_size().x * 0.5 + 0.5:
 		return
 	door.host_shut()
 	_sound_for_all(Foley.Sound.THUMP, 0.8)
@@ -1682,7 +1682,7 @@ func _open_door(path: NodePath) -> void:
 	var off: Vector3 = door.global_position - global_position
 	off.y = 0.0
 	var reach: float = Config.tuning.interact_reach + Config.tuning.interact_reach_slack
-	if off.length() > reach + LockedDoor.SIZE.x * 0.5 + 0.5:
+	if off.length() > reach + door.leaf_size().x * 0.5 + 0.5:
 		return
 	if door.refusal(self) != &"":
 		return
@@ -4127,7 +4127,7 @@ func _breakable(path: NodePath) -> bool:
 		var off: Vector3 = door.global_position - global_position
 		off.y = 0.0
 		return not door.open and door.refusal(self) != &"" \
-			and off.length() <= hand_reach() + LockedDoor.SIZE.x * 0.5 + 0.5
+			and off.length() <= hand_reach() + door.leaf_size().x * 0.5 + 0.5
 	var barrow := thing as Barrow
 	if barrow != null:
 		return barrow.state == Barrow.State.SHUT \

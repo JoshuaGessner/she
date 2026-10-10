@@ -862,6 +862,8 @@ func _ready() -> void:
 			_plan_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--interior-shot="):
 			_interior_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--grave-shot="):
+			_grave_shot(arg.split("=", true, 1)[1])
 		elif arg == "--route-probe":
 			_route_probe()
 		elif arg == "--sight-probe":
@@ -6688,6 +6690,10 @@ func _dealt_faults(made: DelvingsFloor, depth: int, table: LootTable) -> PackedS
 			role = LootEntry.Deal.PRIZE
 		elif not bait.is_empty() and row == bait:
 			role = LootEntry.Deal.PRIZE | LootEntry.Deal.FILLER
+		elif made.grave_goods() != null and row[0] == made.grave_goods().id \
+				and row[1] == made.grave_at():
+			# The grave-niche's goods (ADR-397): a barrow's deal, in a grave.
+			role = LootEntry.Deal.BARROW
 		rows.append([row[0], role])
 	for row: Array in made.filler():
 		rows.append([row[0], LootEntry.Deal.FILLER])
@@ -10630,6 +10636,47 @@ func _interior_shot(dir: String) -> void:
 	get_tree().quit()
 
 
+## **`--grave-shot=DIR`** (ADR-397): the floor's grave-niche from the room it
+## opens off, three metres back from its grate at eye height, sealed and then
+## broken open — what a player sees of it, and whether the goods show.
+func _grave_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var delved := _floor as DelvingsFloor
+	var player: Player = _session.local_player()
+	var plan: FloorPlan = delved.get("_plan") if delved != null else null
+	if plan == null or player == null or plan.grave_niche().is_empty():
+		printerr("[grave] FAIL --grave-shot needs --delvings and a floor with a niche")
+		get_tree().quit(1)
+		return
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	for layer: Node in find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	var niche: Dictionary = plan.grave_niche()
+	var cell: Vector2i = niche["cell"]
+	var mouth: Vector2i = niche["mouth"]
+	var into := Vector3(float(cell.x - mouth.x), 0.0, float(cell.y - mouth.y))
+	var recess: Vector3 = FloorBuilder.at(cell) + Vector3(FloorBuilder.CELL * 0.5, 0.0, FloorBuilder.CELL * 0.5)
+	var stand: Vector3 = recess - into * (FloorBuilder.CELL * 0.5 + 3.0) + Vector3(0.0, 0.1, 0.0)
+	player.teleport(stand, atan2(-into.x, -into.z))
+	var grate: LockedDoor = null
+	for node: Node in get_tree().get_nodes_in_group(LockedDoor.GROUP):
+		var door := node as LockedDoor
+		if door != null and door.kind == LockedDoor.Kind.SEALED:
+			grate = door
+	for state: String in ["sealed", "broken"]:
+		if state == "broken" and grate != null:
+			grate.host_open()
+		for i: int in 40:
+			await get_tree().physics_frame
+		await RenderingServer.frame_post_draw
+		var path: String = "%s/grave_%s_%s.png" % [dir, plan.module_of(int(niche["room"])), state]
+		get_viewport().get_texture().get_image().save_png(path)
+		print("[grave] %s → %s" % [state, path.get_file()])
+	get_tree().quit()
+
+
 ## How many furnished rooms `--interior-shot` photographs.
 const INTERIOR_SHOTS: int = 8
 
@@ -13616,11 +13663,18 @@ func _interior_probe() -> void:
 	var near_after: int = 0
 	var in_ledges: int = 0
 	var built_floors: int = 0
+	var niches: int = 0
+	var niche_rooms := {}
 	for index: int in INTERIOR_SEEDS:
 		var run_seed: int = index * 7919 + 13
 		for depth: int in 3:
 			var floor_at: DelvingsFloor = DelvingsFloor.of(run_seed, depth)
 			var plan: FloorPlan = floor_at.get("_plan")
+			var niche: Dictionary = plan.grave_niche()
+			if not niche.is_empty():
+				niches += 1
+				var holder: String = String(plan.module_of(int(niche["room"])))
+				niche_rooms[holder] = int(niche_rooms.get(holder, 0)) + 1
 			var graph: MissionGraph = floor_at.graph()
 			var pillars: Array[Rect2] = []
 			for corner: Vector2i in plan.pillars():
@@ -13702,6 +13756,7 @@ func _interior_probe() -> void:
 			problems.append("%d of %d %s rooms stood empty — a room is built as what it is called"
 				% [rooms - laid, rooms, module])
 	print("[interior] furnished: %s" % ", ".join(rates))
+	print("[interior] grave-niches on %d of %d floors, in %s" % [niches, INTERIOR_SEEDS * 3, str(niche_rooms)])
 	print("[interior] room floor within 3 m of something to stand behind: %.1f%% with the hub's pillars alone, %.1f%% with every room's interior"
 		% [before, after])
 	if broken > 0:
@@ -18139,6 +18194,10 @@ func _scale_probe() -> void:
 	_report(problems, "scale")
 
 
+## The least share of floors that must hold a grave-niche (ADR-397).
+const GRAVE_FLOORS: float = 0.8
+
+
 ## **`--lock-probe`** (ADR-381): the gates, built.
 ##
 ## 1. **The census** — over many floors, every key gate and every cost gate is a
@@ -18160,6 +18219,8 @@ func _lock_probe() -> void:
 	var doors: int = 0
 	var keyed: int = 0
 	var keys: int = 0
+	var graves: int = 0
+	var niched: int = 0
 	var missing: PackedStringArray = PackedStringArray()
 	for run_seed: int in range(1, 41):
 		for depth: int in 3:
@@ -18169,7 +18230,17 @@ func _lock_probe() -> void:
 			floors += 1
 			var graph: MissionGraph = made.graph()
 			var wanted: int = graph.key_gates().size() + graph.cost_gates().size()
-			var stood: int = made.doors().size()
+			# Gates only: a grave-niche's grate (ADR-397) is no gate, and is
+			# counted below on its own.
+			var stood: int = 0
+			for row: Array in made.doors():
+				if int(row[2]) == LockedDoor.Kind.SEALED:
+					graves += 1
+				else:
+					stood += 1
+			var plan_at: FloorPlan = made.get("_plan")
+			if not plan_at.grave_niche().is_empty():
+				niched += 1
 			if wanted > 0:
 				gated += 1
 			gates += wanted
@@ -18186,6 +18257,15 @@ func _lock_probe() -> void:
 		% [floors, gated, gates, doors, keyed, keys])
 	if gated == 0 or doors != gates or keys != keyed:
 		problems.append("gates went unbuilt or keys unlaid: %s" % "; ".join(missing.slice(0, 3)))
+	# **A grave on most floors** (ADR-397): the Haugbrjótr's verb had a target
+	# on 39% of floors; every floor with a niche stands one sealed grate in it.
+	print("[lock] graves      %d floor(s) with a grave-niche, %d sealed grate(s), of %d floor(s)"
+		% [niched, graves, floors])
+	if graves != niched:
+		problems.append("%d grave-niche(s) and %d sealed grate(s) — each niche is shut by one" % [niched, graves])
+	if float(niched) < float(floors) * GRAVE_FLOORS:
+		problems.append("a grave-niche on %d of %d floors — a mound-breaker needs something shut on most"
+			% [niched, floors])
 
 	# ─ 2. a locked door, on the real body ─
 	await _hold(0.5)
@@ -18835,6 +18915,28 @@ func _haug_probe() -> void:
 		% ["barred", barred.open])
 	if not barred.open:
 		problems.append("a barred door did not break from the wrong side")
+
+	# ─ 4c. a grave-niche's grate (ADR-397): no hand opens it but hers ─
+	var grave: LockedDoor = _session.spawn_door(spot + ahead * 1.4,
+		atan2(ahead.x, ahead.z), LockedDoor.Kind.SEALED, Vector3.ZERO)
+	body.sworn = &"huskarl"
+	await _hold(0.3)
+	var grave_said: String = mark.showing() if mark != null else ""
+	await _press(&"interact")
+	await _hold(0.4)
+	var kept_shut: bool = not grave.open
+	body.sworn = &"haugbrjotr"
+	await _hold(0.2)
+	var hers_said: String = mark.showing() if mark != null else ""
+	Input.action_press("verb")
+	await _hold(tuning.haugbrot_seconds + 0.5)
+	Input.action_release("verb")
+	print("[haug] grave       to a Húskarl '%s', interact kept it shut %s; to her '%s', broken %s"
+		% [grave_said, kept_shut, hers_said, grave.open])
+	if grave_said != tr("door.sealed") or not kept_shut:
+		problems.append("a grave-niche's grate opened to another hand, or did not say whose it is")
+	if not grave.open or not hers_said.ends_with(tr("door.break").get_slice("%s", 1)):
+		problems.append("a Haugbrjótr did not break a grave-niche's grate open")
 
 	# ─ 4b. the barrow, shut on its find, broken back into ─
 	if _barrow == null:

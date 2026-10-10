@@ -210,6 +210,10 @@ func _process(delta: float) -> void:
 			_name.text = tr("door.locked")
 		elif why == &"barred":
 			_name.text = tr("door.barred")
+		elif why == &"sealed":
+			# **A grave-niche** (ADR-397): no key, no bar — said as what it is,
+			# and whose it is to open.
+			_name.text = tr("door.sealed")
 		elif _door.kind == LockedDoor.Kind.BARRED:
 			_name.text = tr("door.lift") % key
 		else:

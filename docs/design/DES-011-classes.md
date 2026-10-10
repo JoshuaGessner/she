@@ -143,6 +143,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 >   - **A barrow is broken once.** Broken in, it wakes as it did when first entered: the same find and the same clock. When it shuts the second time it is spent. Otherwise a barrow could be farmed: break it, loot it, let it shut, and break it again.
 >   - **A Wedge never shuts on a body.** It is refused while anyone, friend or foe, stands in the doorway, and the reticle says she can shut it only when the doorway is clear.
 > - **The Rite (pact rank 3):** **Hidden Way**, every door still shut on her floor marked for her · **Grave-Sense** *(after Hidden Way)*, the barrow marked from anywhere on its floor · **Wedge**, a door she broke can be shut again behind her · **The Long Pry** *(after Wedge)*, a blow does not break off her breaking. *Appraise* was dropped at build: every card already shows the exact figure (ADR-382's amendment).
+> - **A grave on most floors (ADR-397).** A grave-niche is cut into a room's wall, shut by a grate that no key opens and no bar lifts, with grave-goods glinting behind it. To every other hand the reticle says *a grave, sealed — a mound-breaker's to open*; to hers, *hold to break it*. Before this, her verb had something shut to break on 39% of floors. Now it has one on nearly all of them (118 of 120 in `--lock-probe`'s census). The others see what they are missing: party composition matters, and no class is required (balance rule 4).
 > - **Not built:** curses, until the Barrow-Fields (`M5-T02`).
 
 ---

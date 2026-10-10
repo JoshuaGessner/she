@@ -368,6 +368,16 @@ audio, vertex-channel authoring, inversion, or the human playtest gate.
 - [-] `M4-T41` **Rooms grow and corridors shrink** — ***cut: by ADR-392's measure, the corridor share was already 32.4%, at the target; larger rooms (corridor 27%, median room 16 cells) cost the floor's guaranteed glint on about five floors in twenty-one, against two before. They return once the glint holds on every floor.*** *ADR-392: the largest footprint from 5 to 7 cells with the lattice retuned; corridor share from 41% to 32% or under over 120 floors, every floor valid, generation under 2 s.* → DES-015, TEC-007
 - [x] `M4-T42` **The camp re-laid on one axis** — ***closed by ADR-393's measure: from the arrival the fire, the Descent and the board are in view down an open axis, the fire keeps an open ring, and the four plots stand on the rim each lit by its own brazier.*** *ADR-393: ground to about 36 × 40 m, arrival → fire → descent clear, plots on the rim, every station with its own silhouette and light, clutter at the walls, quieter ground. Probe: the descent, fire, board and chest each in clear sight from the arrival, the axis clear; before/after shots from the same seven viewpoints.* → DES-014
 
+### The class pass — ADR-394
+
+> **Asked for by the developer (2026-10-10):** the classes, *"and the systems and combat
+> related to them,"* polished extensively. Every verb was built before ADR-391 changed how
+> enemies fight, so the pass begins by putting the two against each other.
+
+- [x] `M4-T43` **The classes meet the new combat** — ***closed by ADR-394 and ADR-396: a planted Hold is not shoved (1.55 m to 0.00 m), a body snared out of reach gives its turn up, and the rest of the six verbs read sound against tokens, the ring, the lunge, the shove and the sweep.*** → DES-011
+- [x] `M4-T44` **No two lives begin with the same weapon** — ***closed by ADR-395: the Skald carries the ash spear, and `--class-probe` fails any two classes that start with one weapon.*** → DES-011
+- [x] `M4-T45` **A grave on most floors** — ***closed by ADR-397: a grave-niche on 118 of 120 floors, its grate opened by no hand but a Haugbrjótr's.*** *ADR-397: a sealed grave-niche cut into a room's wall, its grate opened by no hand but a Haugbrjótr's Haugbrot, with grave-goods behind it. Her verb had something shut to break on 39% of floors.* → DES-011, DES-015
+
 ## M5 — Content & Breadth
 
 <!-- milestone id=M5 depends=M4 size=unknown -->

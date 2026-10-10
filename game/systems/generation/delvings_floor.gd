@@ -290,6 +290,10 @@ func _dress_the_rooms() -> Array[Dictionary]:
 	clear.append([hunter(), reach])
 	clear.append([survey_point(), reach])
 	clear.append([_anchors.barrow(), Barrow.SLAB.z + reach])
+	# The grave-niche's mouth (ADR-397): a cart in front of a grave she has
+	# to kneel at is a grave nobody opens.
+	if not _plan.grave_niche().is_empty():
+		clear.append([grave_at(), FloorBuilder.CELL * 0.5 + reach])
 	return FloorDressing.plan_for(_plan, _graph, _occluders(), clear, skipped)
 
 
@@ -428,6 +432,12 @@ func fixtures() -> Array:
 	var key_room: int = _graph.node_with(MissionGraph.Role.KEY)
 	if not _graph.key_gates().is_empty() and key_room >= 0:
 		out.append([LockedDoor.KEY_ITEM, _anchors.centre_of(key_room)])
+	# **The grave-goods** (ADR-397), behind the niche's seal. Laid here and not
+	# among the standing finds: a glint only one class can reach is no floor's
+	# vista, and `vista()` reads the standing ones.
+	var goods: ItemResource = grave_goods()
+	if goods != null:
+		out.append([goods.id, grave_at()])
 	var bait: Array = vista()
 	if not bait.is_empty():
 		out.append(bait)
@@ -584,7 +594,47 @@ func doors() -> Array:
 	for gate: Vector2i in _graph.cost_gates():
 		var deep: int = maxi(gate.x, gate.y)
 		_door_at(out, deep, mini(gate.x, gate.y), LockedDoor.Kind.BARRED)
+	# **The grave-niche's grate** (ADR-397), in the recess's mouth, facing out
+	# of it: sealed against every hand but a Haugbrjótr's.
+	var niche: Dictionary = _plan.grave_niche()
+	if not niche.is_empty():
+		var cell: Vector2i = niche["cell"]
+		var mouth: Vector2i = niche["mouth"]
+		var into := Vector3(float(cell.x - mouth.x), 0.0, float(cell.y - mouth.y))
+		var at: Vector3 = grave_at() - into * FloorBuilder.CELL * 0.5
+		out.append([at, atan2(into.x, into.z), LockedDoor.Kind.SEALED, Vector3.ZERO])
 	return out
+
+
+## The middle of the grave-niche's recess, on its floor, or `NOWHERE`.
+func grave_at() -> Vector3:
+	var niche: Dictionary = _plan.grave_niche()
+	if niche.is_empty():
+		return FloorAnchors.NOWHERE
+	return FloorBuilder.at(niche["cell"]) + Vector3(FloorBuilder.CELL * 0.5, 0.0,
+		FloorBuilder.CELL * 0.5)
+
+
+## **What lies in the grave** (ADR-397): from what this depth may deal a
+## barrow, which is the same thing — goods buried with the dead — chosen by
+## the seed from the cheaper half, so a niche is a mound-breaker's errand and
+## never a second Prize. Null where the floor has no niche or nothing to deal.
+func grave_goods() -> ItemResource:
+	if _plan.grave_niche().is_empty():
+		return null
+	var goods: Array[ItemResource] = LOOT.items_at(_depth, LootEntry.Deal.BARROW)
+	if goods.is_empty():
+		return null
+	goods.sort_custom(func(a: ItemResource, b: ItemResource) -> bool:
+		return a.tribute_value < b.tribute_value or (a.tribute_value == b.tribute_value
+			and String(a.id) < String(b.id)))
+	var cheaper: int = maxi(1, (goods.size() + 1) / 2)
+	var pick: int = MissionGraph._mix(MissionGraph.stage_seed(_seed, _depth) + GRAVE_STAGE)
+	return goods[posmod(pick, cheaper)]
+
+
+## The grave-goods' own draw from the floor's stage seed.
+const GRAVE_STAGE: int = 0x6A7E
 
 
 ## One door where the corridor from `other` opens into `room`, on the line

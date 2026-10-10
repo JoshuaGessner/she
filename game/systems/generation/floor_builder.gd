@@ -425,6 +425,12 @@ func _room(plan: FloorPlan, node: int, rng: RandomNumberGenerator) -> void:
 	# recessed, and nowhere else.
 	var doors: Array[Vector2i] = plan.doors_of(node)
 	var alcoves: Array[Vector2i] = _alcoves(plan, rect, rng)
+	# **And the grave-niche** (ADR-397), which the plan chose: cut as any
+	# alcove is, after the builder's own picks so its stream draws as before.
+	var niche: Dictionary = plan.grave_niche()
+	if not niche.is_empty() and int(niche["room"]) == node and not alcoves.has(niche["cell"]):
+		alcoves.append(niche["cell"])
+		_alcoves_cut += 1
 	_wall_x(plan, rect, doors, alcoves, height, true)
 	_wall_x(plan, rect, doors, alcoves, height, false)
 	_wall_z(plan, rect, doors, alcoves, height, true)

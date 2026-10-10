@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`107/122` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`110/125` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>34/39"]:::current
+  M4["M4 Vertical Slice<br/>37/42"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/10"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████████████████▒░░` | 34/39 (1 cut) | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `██████████████████▒░` | 37/42 (1 cut) | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -186,6 +186,9 @@ _None. Sequencing is clean._
 - ✔ `M4-T40` **A room is built as what it is called** — ***closed by ADR-392's measure: room floor within 3 m of something to stand behind rose from 29.4% to 56.8%, every named layout lands in nine rooms of ten or more, and every floor in the reach panel is still walked end to end.*** *ADR-392: `RoomModule.interior` (colonnade, pier, rows, bays, rubble, plinth, open), laid by `FloorBuilder` with a clear apron at every door, every feature walkable round, floors flat, on the floor's own stream. Measured: room floor within 3 m of something to stand behind, before and after; plan shots; reach, vista, plan and determinism probes green.* `DES-015` `TEC-008`
 - ✗ `M4-T41` **Rooms grow and corridors shrink** — ***cut: by ADR-392's measure, the corridor share was already 32.4%, at the target; larger rooms (corridor 27%, median room 16 cells) cost the floor's guaranteed glint on about five floors in twenty-one, against two before. They return once the glint holds on every floor.*** *ADR-392: the largest footprint from 5 to 7 cells with the lattice retuned; corridor share from 41% to 32% or under over 120 floors, every floor valid, generation under 2 s.* `DES-015` `TEC-007`
 - ✔ `M4-T42` **The camp re-laid on one axis** — ***closed by ADR-393's measure: from the arrival the fire, the Descent and the board are in view down an open axis, the fire keeps an open ring, and the four plots stand on the rim each lit by its own brazier.*** *ADR-393: ground to about 36 × 40 m, arrival → fire → descent clear, plots on the rim, every station with its own silhouette and light, clutter at the walls, quieter ground. Probe: the descent, fire, board and chest each in clear sight from the arrival, the axis clear; before/after shots from the same seven viewpoints.* `DES-014`
+- ✔ `M4-T43` **The classes meet the new combat** — ***closed by ADR-394 and ADR-396: a planted Hold is not shoved (1.55 m to 0.00 m), a body snared out of reach gives its turn up, and the rest of the six verbs read sound against tokens, the ring, the lunge, the shove and the sweep.*** `DES-011`
+- ✔ `M4-T44` **No two lives begin with the same weapon** — ***closed by ADR-395: the Skald carries the ash spear, and `--class-probe` fails any two classes that start with one weapon.*** `DES-011`
+- ✔ `M4-T45` **A grave on most floors** — ***closed by ADR-397: a grave-niche on 118 of 120 floors, its grate opened by no hand but a Haugbrjótr's.*** *ADR-397: a sealed grave-niche cut into a room's wall, its grate opened by no hand but a Haugbrjótr's Haugbrot, with grave-goods behind it. Her verb had something shut to break on 39% of floors.* `DES-011` `DES-015`
 
 ### M5 — Content & Breadth
 
@@ -202,6 +205,6 @@ _None. Sequencing is clean._
 
 ---
 
-_49 docs (46 accepted) · 396 ADRs · 0 open questions · 410 ⟨tune⟩ markers._
+_49 docs (46 accepted) · 397 ADRs · 0 open questions · 410 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

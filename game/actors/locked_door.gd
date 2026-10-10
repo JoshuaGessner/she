@@ -14,17 +14,24 @@ extends Node3D
 ##   that came the long way lifts the bar and takes the short way out, and from
 ##   the near side it is shut and says so. Dark Souls' shortcut, made
 ##   structural.
+## - **Sealed** — a grave-niche's grate (ADR-397), the height and width of the
+##   recess it shuts. No key opens it and no bar lifts: what lies behind it is
+##   the Haugbrjótr's to break in to, and everyone else's to see.
 ##
 ## The host decides and replicates `open`; every peer swings its own leaf. It
 ## opens loudly — a hinge nobody has oiled — and once only.
 
-enum Kind { LOCKED, BARRED }
+enum Kind { LOCKED, BARRED, SEALED }
 
 const GROUP: StringName = &"locked_doors"
 ## The floor's key, which opens every locked door on it.
 const KEY_ITEM: StringName = &"tol_floor_key"
 ## The leaf: the corridor's own width and height, and a plank's depth.
 const SIZE := Vector3(2.0, 2.6, 0.2)
+## A sealed grate: the alcove's mouth and just under its ceiling
+## (`FloorBuilder.ALCOVE_MOUTH`, `ALCOVE_CEILING`), so it stands in the recess
+## and never through the rock round it.
+const NICHE_SIZE := Vector3(1.5, 2.1, 0.12)
 ## How far the leaf swings when it opens, and how fast.
 const SWING: float = 1.75
 const SWING_SECONDS: float = 0.7
@@ -67,9 +74,9 @@ func _ready() -> void:
 	add_child(body)
 	_solid = CollisionShape3D.new()
 	var box := BoxShape3D.new()
-	box.size = SIZE
+	box.size = leaf_size()
 	_solid.shape = box
-	_solid.position = Vector3(0.0, SIZE.y * 0.5, 0.0)
+	_solid.position = Vector3(0.0, leaf_size().y * 0.5, 0.0)
 	_solid.disabled = open
 	body.add_child(_solid)
 	_leaf = _build_leaf()
@@ -85,20 +92,21 @@ func _ready() -> void:
 func _build_leaf() -> Node3D:
 	var hinge := Node3D.new()
 	hinge.name = "Leaf"
-	hinge.position = Vector3(-SIZE.x * 0.5, 0.0, 0.0)
+	var size: Vector3 = leaf_size()
+	hinge.position = Vector3(-size.x * 0.5, 0.0, 0.0)
 	# In the world's own range of values, not the colour of old oak: the ink
 	# pass prints anything this dark as solid ink, and the first photograph of
 	# a door was a black slab with no planks — a hole, not a door.
 	var timber := _material(Color(0.46, 0.37, 0.27), 0.9)
 	var iron := _material(Color(0.30, 0.30, 0.32), 0.5)
-	var bars: int = 9
+	var bars: int = 9 if kind != Kind.SEALED else 7
 	for i: int in bars:
-		var x: float = SIZE.x * (float(i) + 0.5) / float(bars)
-		_box(hinge, Vector3(0.05, SIZE.y - 0.1, 0.05), Vector3(x, SIZE.y * 0.5, 0.0), iron)
-	for y: float in [0.06, 1.1, SIZE.y - 0.06]:
-		_box(hinge, Vector3(SIZE.x - 0.02, 0.11, 0.09), Vector3(SIZE.x * 0.5, y, 0.0), iron)
-	for x: float in [0.04, SIZE.x - 0.04]:
-		_box(hinge, Vector3(0.08, SIZE.y, 0.09), Vector3(x, SIZE.y * 0.5, 0.0), iron)
+		var x: float = size.x * (float(i) + 0.5) / float(bars)
+		_box(hinge, Vector3(0.05, size.y - 0.1, 0.05), Vector3(x, size.y * 0.5, 0.0), iron)
+	for y: float in [0.06, 1.1, size.y - 0.06]:
+		_box(hinge, Vector3(size.x - 0.02, 0.11, 0.09), Vector3(size.x * 0.5, y, 0.0), iron)
+	for x: float in [0.04, size.x - 0.04]:
+		_box(hinge, Vector3(0.08, size.y, 0.09), Vector3(x, size.y * 0.5, 0.0), iron)
 	var ring := MeshInstance3D.new()
 	var torus := TorusMesh.new()
 	torus.inner_radius = 0.06
@@ -106,12 +114,12 @@ func _build_leaf() -> Node3D:
 	ring.mesh = torus
 	ring.material_override = iron
 	ring.rotation = Vector3(PI * 0.5, 0.0, 0.0)
-	ring.position = Vector3(SIZE.x * 0.82, 1.1, -(SIZE.z * 0.5 + 0.03))
+	ring.position = Vector3(size.x * 0.82, 1.1, -(size.z * 0.5 + 0.03))
 	hinge.add_child(ring)
 	if kind == Kind.BARRED:
 		var facing: float = -1.0 if bar_side.dot(global_basis.z) < 0.0 else 1.0
-		_box(hinge, Vector3(SIZE.x + 0.2, 0.16, 0.16),
-			Vector3(SIZE.x * 0.5, 1.2, facing * (SIZE.z * 0.5 + 0.1)), timber)
+		_box(hinge, Vector3(size.x + 0.2, 0.16, 0.16),
+			Vector3(size.x * 0.5, 1.2, facing * (size.z * 0.5 + 0.1)), timber)
 	return hinge
 
 
@@ -158,7 +166,14 @@ func refusal(body: Player) -> StringName:
 		return &"open"
 	if kind == Kind.BARRED:
 		return &"" if on_bar_side(body.global_position) else &"barred"
+	if kind == Kind.SEALED:
+		return &"sealed"
 	return &"" if carries_key(body) else &"locked"
+
+
+## How big this door's leaf is: a corridor's, or a niche's.
+func leaf_size() -> Vector3:
+	return NICHE_SIZE if kind == Kind.SEALED else SIZE
 
 
 ## **Nobody in the doorway** (ADR-015): a door that shut on a body would trap
@@ -173,7 +188,7 @@ func doorway_clear() -> bool:
 			if body == null:
 				continue
 			var local: Vector3 = into * body.global_position
-			if absf(local.x) < SIZE.x * 0.5 + 0.3 and absf(local.z) < 0.5:
+			if absf(local.x) < leaf_size().x * 0.5 + 0.3 and absf(local.z) < 0.5:
 				return false
 	return true
 

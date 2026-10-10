@@ -13818,4 +13818,37 @@ Two mismatches in all, both fixed in ADR-394. The rest were sound.
 
 Cutting it orphaned all of them, so it is restated as *the Rites' remaining systems* and is open again. The cut was made without searching for the task's ID, and the lesson is to do that search before closing anything.
 
+## ADR-397 — A grave on most floors: the Haugbrjótr's verb gets something to break
+
+**Date:** 2026-10-10 · **Status:** accepted. Made unattended: the developer asked for the classes to be polished extensively. This answers the question left open for them since ADR-382's review (*"the Haugbrjótr needs something shut to break"*), with the option recommended then. · **Amends `DES-011` §6 and `DES-015` (fixtures); `M4-T45`**
+
+**Context:** Haugbrot breaks what is shut: a locked door without its key, a barred door from the wrong side, and the barrow once it has shut (ADR-382). Gates stand on **39%** of floors. On the rest, her only target is the barrow, and only late, after it has woken and shut. So on most floors the class whose fantasy is *"the one who's actually here for the money"* carried a verb with nothing to use it on. Of the six classes, that is the weakest point found (`M4-T43`'s survey: every other verb can be used anywhere).
+
+**References:**
+- **The haugr itself.** Grettis saga ch. 18: Grettir breaks into Kárr the Old's mound for its treasure. The class's name is a mound-breaking, and a grave sealed in the wall of a worked mine is that act at room scale.
+- **Darkest Dungeon's curios and Diablo II's chests and shrines.** A small, seen, optional object in an ordinary room is a decision on the way. It is not a destination.
+- **Deep Rock Galactic's class objects.** A thing only one class can reach makes party composition matter without making any class required (`DES-011` balance rule 4). The others see it and know what they are missing.
+
+**Decision — a sealed grave-niche on most floors:**
+- **Chosen by the plan** (`FloorPlan.grave_niche`), on its own stream, as the ledge's wall is (ADR-392), so the floor that lays the seal and the goods agrees with the builder that cuts the recess. It uses the builder's alcove rules (rock on every side but the room, its mouth on floor), and three of its own: never in the entrance, the Shaft's room, the hub or the held span; never on a great room's ledge wall; and never within two cells of a doorway.
+- **Cut as any alcove** (2.2 m under its low ceiling), after the builder's own picks, so its stream draws as before.
+- **Shut by a grate** (`LockedDoor.Kind.SEALED`), sized to the recess: 1.5 × 2.1 m. **No key opens it and no bar lifts.** The reticle says *"a grave, sealed — a mound-breaker's to open"* to every other hand, and *hold to break it* to hers. It is a grille, as every door is (ADR-384), so the goods glint through it.
+- **Grave-goods** from what a barrow deals at that depth (`Deal.BARROW`, *"goods buried with the dead"*), chosen by the seed from the cheaper half, so a niche is a mound-breaker's errand and never a second Prize.
+- **Kept out of the vista.** A glint only one class can reach is no floor's guaranteed moment (ADR-215), so the goods are a fixture laid after `vista()` reads the standing finds. Dressing keeps the niche's mouth clear.
+- **Haugbrot is unchanged.** It takes 4 s, is as loud as a spent Waystone, and breaks off on a step or a blow. Hidden Way marks the niche, because it marks every door still shut. Wedge can shut it again.
+
+**Measured:**
+
+| | |
+|---|---|
+| floors with a grave-niche (`--interior-probe`, 90 floors) | **90 of 90**, in nine kinds of room |
+| floors with one, each shut by one sealed grate (`--lock-probe`, 120 floors) | **118 of 120**, 118 grates; the gate census unchanged, 69 gates for 69 doors |
+| a Húskarl at the grate (`--haug-probe` row 4c) | told *"a grave, sealed — a mound-breaker's to open"*; interact kept it shut |
+| a Haugbrjótr at the grate | told *hold to break it*; broken open |
+| seen (`--grave-shot`) | the grate fills the recess; the goods glint behind it, and lie open once it is broken |
+
+**Rejected:**
+- **A sealed side-room** (the larger form recommended in the question). Unlike a recess, a room meets loot placement, spawns, the vista, reach and population, and a dead-end room is a corridor's worth of walking for one find.
+- **Breaking a barrow before it wakes.** The barrow stands open until it is woken, so there is nothing shut to break.
+
 *Entries below to be added as design decisions are signed off.*

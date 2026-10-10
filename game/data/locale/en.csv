@@ -17,6 +17,7 @@ item.tol_floor_key.desc,"An iron key with a ring for a thong. Somewhere on this 
 door.locked,"locked — its key lies elsewhere on this floor"
 door.unlock,"%s — unlock it"
 door.barred,"barred from the other side"
+door.sealed,"a grave, sealed — a mound-breaker's to open"
 door.lift,"%s — lift the bar"
 item.wpn_bearded_axe.name,Bearded Axe
 item.wpn_bearded_axe.desc,"Slower than a seax and hooked at the heel. Throw it and it lands as a blow, and then it is on the floor over there, ringing, and your hand is empty."
