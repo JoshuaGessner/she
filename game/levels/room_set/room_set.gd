@@ -860,6 +860,8 @@ func _ready() -> void:
 			_capture_top(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--plan-shot="):
 			_plan_shot(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--interior-shot="):
+			_interior_shot(arg.split("=", true, 1)[1])
 		elif arg == "--route-probe":
 			_route_probe()
 		elif arg == "--sight-probe":
@@ -6980,6 +6982,10 @@ var _probe_struck: Dictionary = {}
 var _probe_guard: Dictionary = {}
 ## What the fury looked like on each side once the host wrote it (ADR-368).
 var _probe_fury: Dictionary = {}
+## How far a shove the host decided carried the client's own body (ADR-391).
+var _probe_shoved: Dictionary = {}
+## The shove the co-op probe strikes with, metres.
+const PROBE_SHOVE: float = 1.5
 ## What a client's Seiðr read, as each peer holds it (ADR-379).
 var _probe_seidr: Dictionary = {}
 ## A client's door, as each peer saw it (ADR-381).
@@ -7319,6 +7325,33 @@ func _coop_probe(out: String) -> void:
 		# them most runs. Waiting on the host's end puts both peers back on
 		# one clock.
 		await _hold_until(func() -> bool: return mine.fury <= 0.0, 3.0)
+	# **A shove is decided by the host and walked by the body's owner**
+	# (ADR-391): the host strikes the client's body with a blow that shoves,
+	# from a striker standing beside it; the client says how far its own body
+	# moved on its own screen. Event to event: the client waits for the blow it
+	# feels, the host for nothing but its own clock after the fury phase.
+	if host:
+		await _hold(0.5)
+		var shoved: Player = _client_body()
+		if shoved != null:
+			var striker := Node3D.new()
+			add_child(striker)
+			striker.global_position = shoved.global_position + Vector3(-1.0, 0.0, 0.0)
+			var blow := Hitbox.new()
+			striker.add_child(blow)
+			blow.owner = striker
+			blow.shove = PROBE_SHOVE
+			shoved._on_hurt(2.0, blow)
+			await _hold(1.2)
+			striker.queue_free()
+	else:
+		var stood: Vector3 = mine.global_position
+		var felt_before: int = felt.size()
+		await _hold_until(func() -> bool: return felt.size() > felt_before, 4.0)
+		await _hold_until(func() -> bool: return mine.shoved() >= PROBE_SHOVE * 0.7, 1.5)
+		await _hold(0.3)
+		_probe_shoved = {"felt": felt.size() > felt_before,
+			"moved": _flat_distance(mine.global_position, stood)}
 	# **A client's reading is the host's to make** (ADR-379). The host swears
 	# the client's body a Völva; the client holds its own craft key; the host
 	# runs the trance and says what was seen, and both peers hold the same
@@ -7748,6 +7781,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"struck": _probe_struck,
 		"guard": _probe_guard,
 		"fury": _probe_fury,
+		"shoved": _probe_shoved,
 		"seidr": _probe_seidr,
 		"door": _probe_door,
 		"haug": _probe_haug,
@@ -10451,6 +10485,55 @@ func _plan_shot(path: String) -> void:
 	get_viewport().get_texture().get_image().save_png(path)
 	print("[plan] %.0f × %.0f m → %s" % [box.size.x, box.size.z, path.get_file()])
 	get_tree().quit()
+
+
+## **What stands in the rooms, as a player sees it** (ADR-392): on a generated
+## floor, the player's own eyes (ink and all) stood in a free corner of each
+## furnished room, looking across it — up to `INTERIOR_SHOTS` rooms, one image
+## each, named by the room's module. The plan shot shows where a feature
+## stands; only this shows what it looks like.
+func _interior_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var delved := _floor as DelvingsFloor
+	var player: Player = _session.local_player()
+	if delved == null or player == null:
+		printerr("[interior] FAIL --interior-shot needs --delvings")
+		get_tree().quit(1)
+		return
+	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.process_mode = Node.PROCESS_MODE_DISABLED
+	for layer: Node in find_children("*", "CanvasLayer", true, false):
+		(layer as CanvasLayer).visible = false
+	var plan: FloorPlan = delved.get("_plan")
+	var taken: int = 0
+	for node: int in delved.graph().size():
+		if taken >= INTERIOR_SHOTS or plan.features_of(node).is_empty():
+			continue
+		var rect: Rect2i = plan.rect_of(node)
+		var middle := Vector3((rect.position.x + rect.size.x * 0.5) * FloorBuilder.CELL, 0.0,
+			(rect.position.y + rect.size.y * 0.5) * FloorBuilder.CELL)
+		for corner: Vector2i in [rect.position, Vector2i(rect.end.x - 1, rect.position.y),
+				Vector2i(rect.position.x, rect.end.y - 1), rect.end - Vector2i.ONE]:
+			if plan.notched(corner):
+				continue
+			var stand: Vector3 = FloorBuilder.at(corner) + Vector3(
+				FloorBuilder.CELL * 0.5, 0.1, FloorBuilder.CELL * 0.5)
+			var to: Vector3 = middle - stand
+			player.teleport(stand, atan2(-to.x, -to.z))
+			for i: int in 20:
+				await get_tree().physics_frame
+			await RenderingServer.frame_post_draw
+			var path: String = "%s/%02d_%s.png" % [dir, taken, plan.module_of(node)]
+			get_viewport().get_texture().get_image().save_png(path)
+			print("[interior] %s → %s" % [plan.module_of(node), path.get_file()])
+			taken += 1
+			break
+	get_tree().quit()
+
+
+## How many furnished rooms `--interior-shot` photographs.
+const INTERIOR_SHOTS: int = 8
 
 
 func _capture_top(path: String) -> void:

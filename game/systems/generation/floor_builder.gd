@@ -254,13 +254,16 @@ const SURFACES: Dictionary = {
 	"chamfer": DelvingsKit.CHAMFER,
 	"pillar": DelvingsKit.PILLAR,
 	# A room's interior (ADR-392), dressed in the pieces the kit already has:
-	# a pier is a heavier pillar, a bay and a bier are coursed stone, and a
-	# fallen block is the rock a chamfer is cut from.
+	# a pier is a heavier pillar, and a bay, a bier and a fallen block are all
+	# coursed stone — fallen masonry is what a worked mine's ceiling drops.
+	# (The chamfer piece first dressed the rubble, and a free-standing block
+	# showed none of it: a bare black box, read in the first-person shots as a
+	# missing asset. The chamfer piece buries three faces in rock by design.)
 	"column": DelvingsKit.PILLAR,
 	"pier": DelvingsKit.PILLAR,
 	"bay": DelvingsKit.WALL,
 	"bier": DelvingsKit.WALL,
-	"rubble": DelvingsKit.CHAMFER,
+	"rubble": DelvingsKit.WALL,
 }
 
 var _into: Node3D = null

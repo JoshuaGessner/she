@@ -445,6 +445,15 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         f"client sees fury {fury_client.get('fury', 0.0):.1f} owed {fury_client.get('owed', 0.0):.0f}; "
         f"host still {fury_host.get('fury', 0.0):.1f} owed {fury_host.get('owed', 0.0):.0f}"))
 
+    # A shove is the host's to decide and the owner's to walk (ADR-391): the
+    # host struck the client's body with a 1.5 m shove; the client felt it and
+    # its own body moved most of that on its own screen.
+    shoved = client.get("shoved", {})
+    rows.append(check(
+        "a shove the host decided carries the client's own body",
+        shoved.get("felt", False) and shoved.get("moved", 0.0) >= 1.0,
+        f"felt {shoved.get('felt', False)}, moved {shoved.get('moved', 0.0):.2f} m"))
+
     # A client's reading is the host's (ADR-379): the client held its own key,
     # the host ran the trance and said what was seen, and both peers hold the
     # same marks — the loot and the way out at least, and the sight spent.
