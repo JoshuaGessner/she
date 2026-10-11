@@ -192,6 +192,54 @@ static func _outcrops(into: Node3D, rng: RandomNumberGenerator, stone: Material,
 		into.add_child(rock)
 
 
+## **The throat, as rock** (B123). The two walls that close in on the Descent
+## were plain nine-metre boxes with ruler-straight tops, standing between
+## cliffs `rocks` had already broken up — from the fire the way down was a
+## slot between two slabs. Boulders along their tops break the skyline the
+## way the cliffs' do, and outcrops stand out of their inner faces and their
+## camp ends, all above head height, so nothing a body walks into is unseen
+## and nothing needs a collider. Its own seed, so the cliffs keep theirs.
+static func throat(into: Node3D, half: float, north: float, from: float,
+		high: float, thick: float) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x7A20
+	var stone := cliff_material()
+	for flank: float in [-1.0, 1.0]:
+		for i: int in 4:
+			var z: float = lerpf(north + 1.2, from - 0.6, float(i) / 3.0)
+			var radius: float = rng.randf_range(1.1, 1.9)
+			var rock := MeshInstance3D.new()
+			rock.mesh = boulder(rng, radius)
+			rock.material_override = stone
+			rock.position = Vector3(flank * half + rng.randf_range(-0.3, 0.3),
+				high + radius * 0.3, z + rng.randf_range(-0.4, 0.4))
+			rock.rotation = Vector3(rng.randf_range(-0.3, 0.3), rng.randf_range(0.0, TAU),
+				rng.randf_range(-0.3, 0.3))
+			rock.scale = Vector3(1.0, rng.randf_range(0.6, 0.9), 1.0)
+			into.add_child(rock)
+		# Out of the inner face, toward the way down; and one out of the end
+		# that faces the camp, where the throat is first seen.
+		var faces: Array = []
+		for i: int in 3:
+			faces.append([Vector3(flank * (half - thick * 0.5), 0.0,
+				lerpf(north + 2.0, from - 1.6, float(i) / 2.0)), Vector3(-flank, 0.0, 0.0)])
+		faces.append([Vector3(flank * half, 0.0, from), Vector3(0.0, 0.0, 1.0)])
+		for face: Array in faces:
+			var out: Vector3 = face[1]
+			var radius: float = rng.randf_range(1.0, 1.5)
+			var tall: float = rng.randf_range(1.3, 1.8)
+			var rock := MeshInstance3D.new()
+			rock.mesh = boulder(rng, radius)
+			rock.material_override = stone
+			var lowest: float = OUTCROP_LOWEST + radius * tall * 1.18
+			rock.position = (face[0] as Vector3) + Vector3(0.0,
+				rng.randf_range(lowest, maxf(lowest, high - 1.5)), 0.0)
+			rock.basis = Basis.looking_at(-out, Vector3.UP) \
+				* Basis(Vector3.UP, rng.randf_range(-0.2, 0.2)) \
+				* Basis.from_scale(Vector3(rng.randf_range(1.0, 1.4), tall, 0.5))
+			into.add_child(rock)
+
+
 ## **A campsite** (`DES-014`, ADR-402): the plot's tent opening toward the
 ## fire, its canvas in the plot's dye, and a banner on a pole by the door.
 ##

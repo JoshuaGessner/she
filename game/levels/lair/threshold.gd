@@ -1746,6 +1746,8 @@ func _dress_the_camp() -> void:
 		Vector3(0.0, 0.0, GROUND_AT + GROUND_DEEP * 0.5)]
 	CampDressing.rocks(self, half_wide, GROUND_AT - GROUND_DEEP * 0.5,
 		GROUND_AT + GROUND_DEEP * 0.5, WALL_HIGH, clear)
+	CampDressing.throat(self, THROAT_HALF, GROUND_AT - GROUND_DEEP * 0.5,
+		THROAT_FROM, WALL_HIGH, WALL_THICK)
 	for i: int in CampDressing.PLOTS.size():
 		var plot: Array = CampDressing.PLOTS[i]
 		var at: Vector3 = plot[0] as Vector3
