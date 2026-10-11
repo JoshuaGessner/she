@@ -3791,6 +3791,17 @@ func _turn_probe() -> void:
 		problems.append("a Húskarl planted facing away turned the Hunter — a shield at its back is no door")
 	player.sworn = was_sworn
 
+	# A trick worn thinner than the recoil (the correctness review): the turn
+	# ends mid-rear, and the rear must end with it, not hold for good.
+	await _turn_set(player, hunter, stand, 0.0, far, true)
+	hunter.remember({"galdr": 9})
+	var thin: float = hunter.turn_away(&"galdr", tuning.hunter_turn_galdr_seconds, stand, null)
+	await _hold(tuning.hunter_recoil_seconds + 0.4)
+	var stuck_rearing: bool = hunter.visual_phase == EnemyVisual.HunterPresentation.RECOIL
+	print("[turn] worn thin     a %.2f s turn: still rearing after it=%s" % [thin, stuck_rearing])
+	if stuck_rearing:
+		problems.append("a turn shorter than the recoil left the Hunter rearing back for good after it")
+
 	# ─ 3. the Veiðimaðr's snare: worked free, it limps off ─
 	await _turn_set(player, hunter, stand, 0.0, far, true)
 	hunter.rooted.hold_for(0.6)

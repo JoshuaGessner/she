@@ -490,7 +490,10 @@ func turn_away(by: StringName, seconds: float, from: Vector3, turner: Player = n
 
 func _go_away(held: float, from: Vector3, rears: bool) -> void:
 	_turned_left = held
-	_recoil_left = Config.tuning.hunter_recoil_seconds if rears else 0.0
+	# Never longer than the turn itself: a trick worn thin (0.6 to the
+	# seventh of 24 s is under the recoil) would end the turn mid-rear, and the
+	# recoil — counted down only while turned — would hold the pose for good.
+	_recoil_left = minf(Config.tuning.hunter_recoil_seconds, held) if rears else 0.0
 	_turned_from = from
 	_target = null
 	_has_scent = false
