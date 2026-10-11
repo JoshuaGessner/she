@@ -519,7 +519,10 @@ func veil(seconds: float, by: Player) -> float:
 	if not multiplayer.is_server():
 		return 0.0
 	var held: float = turn_seconds(&"seidr", seconds)
-	_wary[&"seidr"] = wary_of(&"seidr") + 1
+	# Learned only when it was there to learn it: a Hunter away — paid or
+	# turned — is not taught by a reading, as it is not by a turn (`turn_away`).
+	if not is_away():
+		_wary[&"seidr"] = wary_of(&"seidr") + 1
 	for node: Node in get_tree().get_nodes_in_group("player"):
 		var body := node as Player
 		if body != null:
