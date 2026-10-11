@@ -1832,15 +1832,44 @@ func open_the_board() -> LodgeScreen:
 	return _board
 
 
+## Where the Descent's lamp hangs (B99): over the mine set's right post
+## (`build_camp.py` sets the posts at ±1.30 m), and how far off the wall its
+## bracket holds it — out of the opening, which is 2.4 m wide, and of the wall.
+const DOOR_LAMP_X: float = 1.30
+const DOOR_LAMP_OUT: float = 0.5
+
+
 func _build_doors() -> void:
 	# The pads are gone (ADR-282) — the doors are cut into the walls in
 	# `_build_ground`. What is left here is the sign of each: a lamp hung on
 	# the mine mouth's frame, so the way down is found by its light.
+	#
+	# **And the lamp is there** (B99). This was the light alone, 0.6 m off
+	# the throat's end wall with nothing giving it — ADR-291's glow from
+	# nowhere, in the one place it was never fixed. From the fire it read as
+	# a haze in the throat. It now hangs in an iron cage from a bracket on
+	# the frame's post, beside the opening and clear of the way through, and
+	# the light is its flame.
+	var face: float = GROUND_AT - GROUND_DEEP * 0.5
+	var cage: Vector3 = Vector3(DOOR_LAMP_X, 2.45, face + DOOR_LAMP_OUT)
+	var colour := Color(1.0, 0.72, 0.4)
+	Hearth.door_lamp(self, cage, colour, 0.36)
+	var arm := MeshInstance3D.new()
+	var rod := BoxMesh.new()
+	rod.size = Vector3(0.04, 0.04, DOOR_LAMP_OUT + 0.04)
+	arm.mesh = rod
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color(0.1, 0.095, 0.09)
+	iron.metallic = 0.5
+	iron.roughness = 0.6
+	arm.material_override = iron
+	arm.position = Vector3(DOOR_LAMP_X, cage.y + 0.36, face + DOOR_LAMP_OUT * 0.5)
+	add_child(arm)
 	var lamp := FlickerLight.new()
-	lamp.light_color = Color(1.0, 0.72, 0.4)
+	lamp.light_color = colour
 	lamp.light_energy = 1.1
 	lamp.omni_range = 7.0
-	lamp.position = Vector3(1.9, 3.1, GROUND_AT - GROUND_DEEP * 0.5 + 0.6)
+	lamp.position = cage + Vector3(0.0, -0.05, 0.0)
 	add_child(lamp)
 
 
