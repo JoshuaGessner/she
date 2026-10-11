@@ -13941,4 +13941,22 @@ A wall is 0.3 m, so a corridor beside another is 1.7 m clear at that side, wide 
 - Every generation probe is green: kit, interior, plan, reach, the three delvings floors, vista0, vista2, population, machine, lock, arrival, crossing, lantern, barrow.
 - On the first version, which walled hairpins too, the vista panels held 20/21 (tuned) and 19/21 (fresh): both 55555 floors were fixed, and 12345/2 and 31346/2 were lost to the hairpins. With the hairpins left open, both of those pass. The full panels have not been re-run on the final rule.
 
+## ADR-402 — The plots' tents are modelled, after the Gokstad tent
+
+**Date:** 2026-10-10 · **Status:** accepted · **Amends ADR-287; `DES-014`** · **Developer's report: *"the tents at the camp don't look right"***
+
+**Context:** the four plots' tents were built in code from two `QuadMesh` sheets, a triangle and three boxes. The rotation meant to lean each sheet against the ridge, `(0, π/2, ±atan(half/high))`, tilted the sheet within its own plane instead (Euler YXZ applies Z first, about the sheet's normal). Both sheets stood vertical. From the fire and the flanks, every plot read as two pale blades and a post (`--camp-shot` before/after, `camp-flank_left`).
+
+**Decision:** a modelled tent (`build_camp.py` → `art/props/camp_tent.glb`), authored like the hearth and the logs (ADR-299): flat material families, the `ink` attribute, base-centre, `-colonly` solids. It follows the tent found with the Gokstad ship, whose gable boards are in the Viking Ship Museum, Oslo:
+- At each gable **two boards cross over the ridge**, and their tips carry **carved beast heads**. That is the silhouette that says *tent* against the sky at camp distance.
+- A **ridge pole** rests in the crossings.
+- The **wool canvas** sags between the gables and bellies inward down the slope. Its sewn strips stand proud at the seams, which gives the ink pass lines to draw down the slope. The hem flares where it is pegged and lifts between the pegs.
+- The **door is gathered back and tied** against its boards, so the doorway is a dark triangle facing the fire, with a hide and a bedroll inside. A pack and a pot stand by the door on the side away from the plot's brazier.
+- The canvas is its own material family, joined as one mesh named `canvas`. `CampDressing.dye` gives each plot its own dye with a per-instance surface override, so the four plots share one imported mesh.
+- **One mesh per material family:** built as about fifty pieces, the tent arrived as 54 surfaces. It is now 5. Four tents cost 20 draws, not 216.
+
+The banner pole stays in code. Its cloth shader moves the flag.
+
+**Measured:** 2,251 triangles (props budget 3,000); `art_probe` 0 failures, pivot 0.000 m, collision present; the camp probes are green (axis, threshold, board, edges, settle). `--camp-shot` gains a `plot` view: one tent from the fire's side, its door and dye.
+
 *Entries below to be added as design decisions are signed off.*

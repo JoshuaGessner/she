@@ -4,7 +4,7 @@ title: The Lair
 status: accepted
 owner: design
 tags: [hub, lair, retention, social, co-op, ui, progression, networking]
-updated: 2026-10-09
+updated: 2026-10-10
 related: [DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004]
 ---
 
@@ -274,6 +274,8 @@ Cheap. High impact. Prototype it early.
 > **AMENDED (ADR-286): a place.** The camp stands under a night sky, with logs drawn up to the fire, the mine's gear by the way down and candles at the board. Her hall has a beamed vault, piers along its walls and a brazier either side of her.
 
 > **AMENDED (ADR-287): alive before anyone speaks.** The camp is a hollow in rock, with boulders along its skyline and packed earth underfoot. The four campsites each have a tent opening toward the fire, a bedroll, gear at the door and a banner in the wind. The Lodge's board has a roof and notices, and the fire can be heard. The NPC Bound who will hold the plots are still to come.
+>
+> **AMENDED (ADR-402): the tents are modelled.** Each one follows the tent found with the Gokstad ship. Boards cross at each gable, with carved heads on their tips. A ridge pole rests in the crossings. The wool canvas is pegged out at the hem. The door is gathered back toward the fire, with a hide and a bedroll inside. Each plot dyes the canvas its own colour.
 
 > **AMENDED (ADR-337, ADR-338): she takes what you give.**
 > - Interact at the pile to open her page: what you carry and what each thing is worth to her, with the Tithe and Boon as bars that show a gift's effect before it is made.

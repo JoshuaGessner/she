@@ -9,12 +9,17 @@ extends RefCounted
 ## and a bedroll on every plot, gear left by the door of each, a banner moving
 ## in the wind, rock instead of brick, and boulders breaking the skyline.
 ##
-## Every piece is built in code from boxes, quads and displaced spheres, on
-## purpose: these are the shapes `ART-005`'s woodcut reads cleanest, and none
-## of them is a delivered model that `ART-004` would need to measure.
+## The rock and the board are built in code from boxes and displaced spheres,
+## the shapes `ART-005`'s woodcut reads cleanest. The tent is not, since
+## ADR-402: built in code it was two quads a rotation stood on edge.
 
 const CLIFF: Shader = preload("res://art/shaders/cliff.gdshader")
 const CLOTH: Shader = preload("res://art/shaders/cloth.gdshader")
+## A plot's tent (ADR-402, `build_camp.py`): base-centre, door toward +Z.
+const TENT: PackedScene = preload("res://art/props/camp_tent.glb")
+## Where a plot's banner pole stands, in the tent's frame: beside the door's
+## corner on the side away from the brazier (`Threshold` lays that on -X).
+const BANNER_AT: Vector3 = Vector3(1.75, 0.0, 1.05)
 
 ## The four plots (`DES-014`): position, which way the tent opens (toward the
 ## fire), and its canvas. Muted dyes — ochre, rust, moss, slate — because
@@ -187,8 +192,14 @@ static func _outcrops(into: Node3D, rng: RandomNumberGenerator, stone: Material,
 		into.add_child(rock)
 
 
-## **A campsite** (`DES-014`): an A-frame tent opening toward the fire, a
-## bedroll inside, a pack and a pot by the door, and a banner on a pole.
+## **A campsite** (`DES-014`, ADR-402): the plot's tent opening toward the
+## fire, its canvas in the plot's dye, and a banner on a pole by the door.
+##
+## The tent is authored (`build_camp.py`), after the tent found with the
+## Gokstad ship: boards crossed at each gable with carved heads on their tips,
+## a ridge pole, wool pegged out at the hem, the door gathered back and tied,
+## a hide and a bedroll inside, a pack and a pot by the door. It was two quads
+## a rotation stood on edge, and the four plots read as blades from the fire.
 static func campsite(into: Node3D, at: Vector3, canvas: Color, toward: Vector3,
 		sway: float) -> void:
 	var site := Node3D.new()
@@ -197,73 +208,15 @@ static func campsite(into: Node3D, at: Vector3, canvas: Color, toward: Vector3,
 	var facing: Vector3 = toward - at
 	facing.y = 0.0
 	site.rotation.y = atan2(facing.x, facing.z)
-	var cloth := _material(canvas)
-	cloth.cull_mode = BaseMaterial3D.CULL_DISABLED
-	var wood := _material(Color(0.26, 0.19, 0.12))
-	var long: float = 2.4
-	var half: float = 1.0
-	var high: float = 1.45
-	# Two sloped sheets meeting at the ridge, and a closed back.
-	for flank: float in [-1.0, 1.0]:
-		var sheet := MeshInstance3D.new()
-		var quad := QuadMesh.new()
-		quad.size = Vector2(long, sqrt(half * half + high * high))
-		sheet.mesh = quad
-		sheet.material_override = cloth
-		sheet.position = Vector3(flank * half * 0.5, high * 0.5, 0.0)
-		sheet.rotation = Vector3(0.0, PI * 0.5, flank * -atan2(half, high))
-		site.add_child(sheet)
-	var back := SurfaceTool.new()
-	back.begin(Mesh.PRIMITIVE_TRIANGLES)
-	back.add_vertex(Vector3(-half, 0.0, -long * 0.5))
-	back.add_vertex(Vector3(half, 0.0, -long * 0.5))
-	back.add_vertex(Vector3(0.0, high, -long * 0.5))
-	back.generate_normals()
-	var gable := MeshInstance3D.new()
-	gable.mesh = back.commit()
-	gable.material_override = cloth
-	site.add_child(gable)
-	_box(site, Vector3(0.06, 0.06, long + 0.3), Vector3(0.0, high + 0.02, 0.0), wood)
-	for end: float in [-1.0, 1.0]:
-		_box(site, Vector3(0.06, high + 0.1, 0.06),
-			Vector3(0.0, (high + 0.1) * 0.5, end * (long * 0.5 + 0.1)), wood)
-	# The bedroll, the pack and the pot.
-	var roll := MeshInstance3D.new()
-	var tube := CylinderMesh.new()
-	tube.top_radius = 0.16
-	tube.bottom_radius = 0.16
-	tube.height = 0.9
-	roll.mesh = tube
-	roll.material_override = _material(canvas.darkened(0.35))
-	roll.position = Vector3(0.0, 0.16, -0.5)
-	roll.rotation = Vector3(0.0, 0.0, PI * 0.5)
-	site.add_child(roll)
-	_box(site, Vector3(1.6, 0.04, 0.7), Vector3(0.0, 0.02, 0.15),
-		_material(canvas.darkened(0.5)))
-	_box(site, Vector3(0.42, 0.55, 0.3), Vector3(0.9, 0.28, long * 0.5 + 0.4),
-		_material(Color(0.28, 0.21, 0.14)), Vector3(0.0, 0.3, 0.1))
-	var pot := MeshInstance3D.new()
-	var bowl := CylinderMesh.new()
-	bowl.top_radius = 0.2
-	bowl.bottom_radius = 0.15
-	bowl.height = 0.24
-	pot.mesh = bowl
-	pot.material_override = _material(Color(0.12, 0.11, 0.11))
-	pot.position = Vector3(-0.8, 0.12, long * 0.5 + 0.5)
-	site.add_child(pot)
-	var tent_body := BoxShape3D.new()
-	tent_body.size = Vector3(half * 2.0, high, long)
-	var solid := StaticBody3D.new()
-	solid.collision_layer = CollisionLayers.WORLD
-	solid.collision_mask = 0
-	var holder := CollisionShape3D.new()
-	holder.shape = tent_body
-	holder.position = Vector3(0.0, high * 0.5, 0.0)
-	solid.add_child(holder)
-	site.add_child(solid)
+	var tent := TENT.instantiate() as Node3D
+	InkPass.classify(tent)
+	dye(tent, canvas)
+	site.add_child(tent)
 	# The banner: a plot's mark, moving in the wind (`DES-014`'s *banners and
-	# marks*, which Lineage will one day choose).
-	_box(site, Vector3(0.07, 2.9, 0.07), Vector3(-1.3, 1.45, long * 0.5 + 0.2), wood)
+	# marks*, which Lineage will one day choose) — by the door's corner, on the
+	# side away from the plot's brazier.
+	var wood := _material(Color(0.26, 0.19, 0.12))
+	_box(site, Vector3(0.07, 2.9, 0.07), BANNER_AT + Vector3(0.0, 1.45, 0.0), wood)
 	var flag := MeshInstance3D.new()
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(0.55, 1.0)
@@ -276,8 +229,27 @@ static func campsite(into: Node3D, at: Vector3, canvas: Color, toward: Vector3,
 	weave.set_shader_parameter("dye", canvas.lightened(0.15))
 	weave.set_shader_parameter("seed", sway)
 	flag.material_override = weave
-	flag.position = Vector3(-1.3 + 0.3, 2.3, long * 0.5 + 0.2)
+	flag.position = BANNER_AT + Vector3(-0.3, 2.3, 0.0)
 	site.add_child(flag)
+
+
+## **The plot's dye on the tent's canvas, and only there** (ADR-402). The
+## canvas is its own material family in the model, so its surfaces are found
+## by name; the frame, the hide and the pot keep their own colour. The
+## override is per instance, because the four plots share one imported mesh.
+static func dye(tent: Node, canvas: Color) -> int:
+	var dyed: int = 0
+	for node: Node in tent.find_children("canvas*", "MeshInstance3D", true, false):
+		var cloth := node as MeshInstance3D
+		for surface: int in cloth.mesh.get_surface_count():
+			var woven := cloth.mesh.surface_get_material(surface) as BaseMaterial3D
+			if woven == null:
+				continue
+			var mine := woven.duplicate() as BaseMaterial3D
+			mine.albedo_color = canvas
+			cloth.set_surface_override_material(surface, mine)
+			dyed += 1
+	return dyed
 
 
 ## **The Lodge's board** (ADR-287): two posts under a little gabled roof, a

@@ -196,13 +196,194 @@ def mine_set():
         post_solid.display_type = "WIRE"
 
 
-ASSETS = [("camp_hearth", hearth), ("camp_log", seat_log), ("mine_set", mine_set)]
+kit.PALETTE["canvas"] = ((0.60, 0.56, 0.48, 1.0), kit.PALETTE["rope"][1])
+kit.PALETTE["hide"] = ((0.27, 0.20, 0.14, 1.0), kit.PALETTE["timber"][1])
+
+# The tent's measure (ADR-402): door toward -Y, which glTF's Y-up turns into
+# the scene's +Z, the way `CampDressing.campsite` faces a plot at the fire.
+TENT_LONG = 3.0
+TENT_HALF = 1.3
+TENT_HIGH = 2.0
+
+
+def _canvas_point(flank, u, v):
+    """A point on one flank of the canvas: `u` along the tent (0 at the door),
+    `v` from the hem (0) to the ridge (1). Wool over a ridge pole sags between
+    the gables and bellies inward down the slope; the hem flares where it is
+    pegged out, and lifts a little between the pegs."""
+    sag = 0.12 * math.sin(math.pi * v) * (0.5 + 0.5 * math.sin(math.pi * u))
+    # Woven strips sewn edge to edge: every seam stands a little proud, which
+    # is also what gives the ink pass an edge to draw down the slope.
+    seam = 0.022 * math.sin(math.pi * v) if 0.0 < u < 1.0 and round(u * 8) % 2 == 0 else 0.0
+    flare = 0.07 * max(0.0, 1.0 - v / 0.16) ** 2
+    lift = 0.045 * (1.0 - math.cos(math.tau * u * 4.0)) * 0.5 * max(0.0, 1.0 - v / 0.05)
+    x = flank * (TENT_HALF * (1.0 - v) - sag + flare + seam)
+    y = -TENT_LONG * 0.5 + TENT_LONG * u
+    return (x, y, TENT_HIGH * v + lift)
+
+
+def _solidify(obj, thickness):
+    bpy.context.view_layer.objects.active = obj
+    mod = obj.modifiers.new("cloth_weight", "SOLIDIFY")
+    mod.thickness = thickness
+    mod.offset = -1.0
+    bpy.ops.object.modifier_apply(modifier=mod.name)
+    return kit.finish(obj, obj.name, obj.data.materials[0].name.removeprefix("flat_"))
+
+
+def _carved_head(name, tip, rise, out):
+    """A beast's head on a gable board's tip, as on the Gokstad tent boards: a
+    neck turning out over the gable, a snout, an open jaw and a swept-back ear.
+    Read at camp distance as a silhouette against the sky, which is all it is
+    asked to do."""
+    tip, rise, out = Vector(tip), Vector(rise), Vector(out)
+    neck = [tip - rise * 0.06, tip + rise * 0.10, tip + rise * 0.17 + out * 0.07,
+            tip + rise * 0.19 + out * 0.17]
+    kit.tube(f"{name}_neck", [tuple(p) for p in neck], 0.045, "bark", sides=6)
+    head = neck[-1] + out * 0.08
+    snout = kit.cube(f"{name}_snout", tuple(head), (0.17, 0.06, 0.08), "bark", 0.008)
+    snout.rotation_euler = (0.0, -math.atan2(out.z, out.x) + 0.12 * (1 if out.x > 0 else -1), 0.0)
+    kit.apply_mesh_transform(snout)
+    jaw = kit.cube(f"{name}_jaw", tuple(head + out * 0.02 - Vector((0, 0, 0.065))),
+                   (0.13, 0.05, 0.035), "bark", 0.006)
+    jaw.rotation_euler = (0.0, 0.32 if out.x > 0 else -0.32, 0.0)
+    kit.apply_mesh_transform(jaw)
+    ear = kit.cube(f"{name}_ear", tuple(head - out * 0.07 + Vector((0, 0, 0.06))),
+                   (0.03, 0.04, 0.09), "bark", 0.0)
+    ear.rotation_euler = (0.0, -0.6 if out.x > 0 else 0.6, 0.0)
+    kit.apply_mesh_transform(ear)
+
+
+def _join_by_family():
+    """One mesh per material family: built as fifty-odd pieces, the tent
+    arrived as fifty-four surfaces, and the camp lays four of them. The canvas
+    joins under the name `canvas`, which is how the camp finds it to dye."""
+    families = {}
+    for obj in list(bpy.context.scene.objects):
+        if obj.type == "MESH" and not obj.hide_render:
+            families.setdefault(obj.data.materials[0].name.removeprefix("flat_"), []).append(obj)
+    for kind, parts in families.items():
+        bpy.ops.object.select_all(action="DESELECT")
+        for part in parts:
+            part.select_set(True)
+        bpy.context.view_layer.objects.active = parts[0]
+        if len(parts) > 1:
+            bpy.ops.object.join()
+        bpy.context.object.name = kind
+        bpy.context.object.data.name = kind
+        # A torus keeps its rotation un-applied; joined under it, the whole
+        # family would carry it, and its bounds would be measured rotated.
+        kit.apply_mesh_transform(bpy.context.object)
+    bpy.context.view_layer.update()
+
+
+def camp_tent():
+    """A plot's tent (ADR-402), after the tent found with the Gokstad ship: two
+    pairs of boards crossed at each gable with carved heads on their tips, a
+    ridge pole laid in the crossings, and wool canvas pegged out at the hem.
+
+    The first tent was two quads that a rotation stood on edge — the camp's
+    four plots read as blades. This one is built so its silhouette says *tent*
+    from the fire: the crossed boards and the heads against the sky, the door
+    flaps tied back toward the fire, a bedroll and a hide inside.
+
+    The canvas is its own material family so the camp can dye each plot."""
+    rows, cols = 6, 8
+    for flank in (-1, 1):
+        verts, faces = [], []
+        for j in range(rows + 1):
+            for i in range(cols + 1):
+                verts.append(_canvas_point(flank, i / cols, j / rows))
+        for j in range(rows):
+            for i in range(cols):
+                a = j * (cols + 1) + i
+                quad = (a, a + 1, a + cols + 2, a + cols + 1)
+                faces.append(quad if flank > 0 else tuple(reversed(quad)))
+        _solidify(kit.mesh_object(f"canvas_flank_{flank}", verts, faces, "canvas"), 0.025)
+    # The back gable, closed: the two flanks' last columns and the ridge.
+    edge = [_canvas_point(-1, 1.0, j / rows) for j in range(rows + 1)]
+    edge += [_canvas_point(1, 1.0, j / rows) for j in reversed(range(rows))]
+    back = [(x, y - 0.01, z) for x, y, z in edge]
+    _solidify(kit.mesh_object("canvas_back", back, [tuple(range(len(back)))], "canvas"), 0.025)
+    # The door, open: the front gable is split down the middle and each half
+    # is gathered back against its board and tied, so the doorway is a dark
+    # triangle framed in bunched cloth, facing the fire.
+    apex = Vector((0.0, -TENT_LONG * 0.5, TENT_HIGH))
+    for flank in (-1, 1):
+        corner = Vector(_canvas_point(flank, 0.0, 0.0))
+        gathered = corner.lerp(Vector((0.0, corner.y, 0.0)), 0.22) + Vector((0.0, -0.05, 0.12))
+        belly = apex.lerp(corner, 0.55).lerp(gathered, 0.5) + Vector((0.0, -0.09, 0.0))
+        pts = [apex + Vector((0.0, -0.02, -0.06)), corner + Vector((0.0, -0.03, 0.0)), gathered, belly]
+        faces = [(0, 3, 2, 1)] if flank > 0 else [(0, 1, 2, 3)]
+        _solidify(kit.mesh_object(f"canvas_door_{flank}", [tuple(p) for p in pts], faces, "canvas"), 0.07)
+        # The tie round the gathered cloth, halfway down.
+        tie = apex.lerp(corner, 0.5)
+        kit.torus(f"door_tie_{flank}", tuple(tie + Vector((0.0, -0.06, 0.0))), 0.1, 0.014, "rope", 10, 4,
+                  rotation=(0.0, math.atan2(corner.z - apex.z, corner.x - apex.x) + math.pi * 0.5, 0.0))
+    # The frame: at each gable two boards cross over the ridge.
+    for end, y in (("door", -TENT_LONG * 0.5 - 0.05), ("back", TENT_LONG * 0.5 + 0.05)):
+        crossing = Vector((0.0, y, TENT_HIGH + 0.03))
+        for flank in (-1, 1):
+            foot = Vector((flank * (TENT_HALF + 0.08), y + 0.03 * flank, -0.04))
+            rise = (crossing - foot).normalized()
+            tip = crossing + rise * 0.34 + Vector((0, 0.03 * flank, 0))
+            kit.beam_between(f"board_{end}_{flank}", tuple(foot), tuple(tip), 0.15, 0.045, "bark")
+            out = Vector((-flank, 0.0, 0.0))
+            _carved_head(f"head_{end}_{flank}", tuple(tip), tuple(rise), tuple(out))
+    kit.cylinder("ridge_pole", (0.0, 0.0, TENT_HIGH + 0.07), 0.05, TENT_LONG + 0.5, "bark",
+                 vertices=8, rotation=(math.pi * 0.5, 0.0, 0.0))
+    # Pegs down each hem, at the low points between the scallops, with a loop
+    # of rope from the hem to each.
+    for flank in (-1, 1):
+        for k in range(5):
+            u = k / 4.0
+            hem = Vector(_canvas_point(flank, u, 0.0))
+            peg_at = hem + Vector((flank * 0.2, 0.0, 0.0))
+            peg = kit.cube(f"peg_{flank}_{k}", tuple(peg_at + Vector((0, 0, 0.07))),
+                           (0.04, 0.04, 0.22), "bark", 0.0)
+            peg.rotation_euler = (0.0, -0.35 * flank, 0.0)
+            kit.apply_mesh_transform(peg)
+            kit.tube(f"peg_loop_{flank}_{k}", [tuple(hem + Vector((0, 0, 0.03))),
+                                               tuple(peg_at + Vector((0, 0, 0.13)))], 0.01, "rope", sides=4)
+    # Inside: a hide on the ground and a rolled bedroll at the back.
+    hide = [(math.cos(a) * (0.78 + 0.08 * math.sin(a * 3)), math.sin(a) * (0.55 + 0.06 * math.cos(a * 2)) + 0.25, 0.015)
+            for a in (math.tau * i / 9 for i in range(9))]
+    kit.mesh_object("floor_hide", hide, [tuple(range(9))], "hide")
+    kit.cylinder("bedroll", (0.0, 0.85, 0.15), 0.15, 1.0, "hide", vertices=10,
+                 rotation=(0.0, math.pi * 0.5, 0.0))
+    for x in (-0.3, 0.3):
+        kit.torus(f"bedroll_strap_{x}", (x, 0.85, 0.15), 0.158, 0.012, "rope", 12, 4,
+                  rotation=(0.0, math.pi * 0.5, 0.0))
+    # By the door: a leather pack and an iron pot.
+    kit.lathe("pack", [(0.0, 0.0), (0.2, 0.02), (0.23, 0.22), (0.18, 0.46), (0.07, 0.52), (0.0, 0.53)],
+              "hide", loc=(1.0, -TENT_LONG * 0.5 - 0.45, 0.0), segments=9)
+    kit.lathe("pot", [(0.0, 0.0), (0.13, 0.01), (0.19, 0.12), (0.17, 0.24), (0.19, 0.26), (0.16, 0.26), (0.0, 0.03)],
+              "metal", loc=(0.42, -TENT_LONG * 0.5 - 0.62, 0.0), segments=12)
+    _join_by_family()
+    # Its solid: a low box the width of the hem and a narrow one up to the
+    # ridge, so a body is turned by the canvas, not by air beside it.
+    for name, half, high in (("tent_low-colonly", TENT_HALF, 0.9), ("tent_high-colonly", TENT_HALF * 0.5, TENT_HIGH)):
+        solid = kit.cube(name, (0.0, 0.0, high * 0.5), (half * 2.0, TENT_LONG, high), "canvas", 0.0, 0.0)
+        solid.hide_render = True
+        solid.display_type = "WIRE"
+
+
+# (name, builder, centred): a tent's origin is its own middle, not the middle
+# of whatever stands by its door.
+ASSETS = [("camp_hearth", hearth, True), ("camp_log", seat_log, True), ("mine_set", mine_set, True),
+          ("camp_tent", camp_tent, False)]
 
 
 def main():
     bpy.context.preferences.filepaths.save_version = 0
-    delivered = []
-    for name, builder in ASSETS:
+    # `-- camp_tent` builds only what is named; the measurements keep the rest.
+    wanted = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else []
+    record = SRC / "camp_measurements.json"
+    delivered = [row for row in json.loads(record.read_text())
+                 if wanted and row["name"] not in wanted] if record.exists() else []
+    for name, builder, centred in ASSETS:
+        if wanted and name not in wanted:
+            continue
         kit.clear_scene()
         builder()
         # Base-centre from the finished visible form, as `build_dressing.py`
@@ -210,8 +391,8 @@ def main():
         bpy.context.view_layer.update()
         visible = [o for o in bpy.context.scene.objects if o.type == "MESH" and not o.hide_render]
         pts = [o.matrix_world @ v.co for o in visible for v in o.data.vertices]
-        shift = Vector(((min(p.x for p in pts) + max(p.x for p in pts)) / 2,
-                        (min(p.y for p in pts) + max(p.y for p in pts)) / 2,
+        shift = Vector(((min(p.x for p in pts) + max(p.x for p in pts)) / 2 if centred else 0.0,
+                        (min(p.y for p in pts) + max(p.y for p in pts)) / 2 if centred else 0.0,
                         min(p.z for p in pts)))
         for obj in bpy.context.scene.objects:
             obj.location -= shift

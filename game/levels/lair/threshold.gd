@@ -2059,6 +2059,9 @@ func _camp_shot(dir: String) -> void:
 		["flank_right", Vector3(12.5, stand, 3.0), Vector3(-6.0, 1.2, -6.0)],
 		# The arrival as a first life meets it (ADR-393): down the axis.
 		["arrival", Vector3(0.0, stand, 14.0), Vector3(0.0, 1.2, -6.0)],
+		# A plot from the fire's side (ADR-402): the tent's door, its dye.
+		["plot", (CampDressing.PLOTS[0][0] as Vector3) + Vector3(4.6, stand, 3.4),
+			(CampDressing.PLOTS[0][0] as Vector3) + Vector3(0.0, 0.9, 0.0)],
 	]
 	get_tree().paused = true
 	for view: Array in views:
