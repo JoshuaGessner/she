@@ -3858,6 +3858,16 @@ func _turn_probe() -> void:
 	player.veiled = 0.0
 	await _hold(0.4)
 	var found_again: bool = hunter.target() == player
+	# A reading while it is away teaches it nothing, as a turn does not (B125).
+	var read_before: int = hunter.wary_of(&"seidr")
+	hunter.set("_sated_left", 5.0)
+	player.call("_read", tuning)
+	var read_away: int = hunter.wary_of(&"seidr")
+	hunter.set("_sated_left", 0.0)
+	player.veiled = 0.0
+	if read_away != read_before:
+		problems.append("a reading while the Hunter was away taught it (%d → %d) — only what it is there for teaches it"
+			% [read_before, read_away])
 	player.sworn = was_sworn
 	print("[turn] Seiðr         sought before=%s · after the reading veiled %.1f s, lost=%s · veil gone, found again=%s"
 		% [sought, veiled_for, lost, found_again])
@@ -7654,7 +7664,14 @@ func _coop_probe(out: String) -> void:
 	# it cost the bar on its own screen. The host used to pay a client's guard
 	# out of a copy of the client's stamina that nothing else ever touched.
 	var guard_from: float = 0.0
+	# **The bar holds still while the payment is read** (B93b). Regeneration
+	# is 14 a second after 0.9 s, and a client a long frame behind refunded
+	# half the charge before the read — "paid 10.2 of 22" under load, for a
+	# guard charged in full. Frozen on the client's own copy of the tuning for
+	# this phase only, so what is measured is the charge and nothing else.
+	var regen: float = Config.tuning.stamina_regen
 	if not host:
+		Config.tuning.stamina_regen = 0.0
 		mine.teleport(spot, PI * 0.5)
 		mine.stamina.refill()
 		await _hold(0.3)
@@ -7679,6 +7696,7 @@ func _coop_probe(out: String) -> void:
 		_probe_guard = {"guarded": float(felt[1]["guarded"]) if felt.size() >= 2 else 0.0,
 			"paid": guard_from - mine.stamina.current,
 			"cost": Config.tuning.block_stamina_cost}
+		Config.tuning.stamina_regen = regen
 	# **The fury is the host's to write** (ADR-368). The host sets a fury and a
 	# debt on the client's body; both are read back on both sides after the
 	# client has seen them. Sent with what the owner sends, the client's own
@@ -19110,6 +19128,8 @@ func _galdr_probe() -> void:
 		problems.append("a verse was not sung walking at half pace")
 	if on_no_one != tr("galdr.none"):
 		problems.append("a verse sung to an empty room said nothing — it reads as a broken key")
+	if _hunter != null:
+		_hunter.set("_sated_left", 0.0)
 	await _hold(1.0)
 
 	# ─ 2d. his alone, and said ─
