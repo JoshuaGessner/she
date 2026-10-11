@@ -743,11 +743,6 @@ func _think(delta: float) -> void:
 		_home = global_position
 		_has_home = true
 		_reckon_in = Config.tuning.hunter_reckon_seconds
-	# Gold first, always, and before anything else can claim its attention.
-	# `DES-017`: *"it will stop and pick it up. Every time. It cannot help
-	# itself."* A Hunter that finished its current thought before noticing a
-	# thrown purse would make baiting unreliable, and an unreliable counter-play
-	# is worse than none — the player stops trusting it and stops using it.
 	# **Worked free of a snare, it limps off** (ADR-403, the Veiðimaðr). Seen
 	# once, on the frame the hold lets go, whatever it was doing when caught.
 	var held_now: bool = rooted.held()
@@ -755,6 +750,11 @@ func _think(delta: float) -> void:
 		var ahead: Vector3 = _goal if _has_goal else global_position - global_basis.z * 2.0
 		turn_away(&"snare", Config.tuning.hunter_turn_snare_seconds, ahead, _nearest_with(&"snare"))
 	_was_held = held_now
+	# Gold first, always, and before anything else can claim its attention.
+	# `DES-017`: *"it will stop and pick it up. Every time. It cannot help
+	# itself."* A Hunter that finished its current thought before noticing a
+	# thrown purse would make baiting unreliable, and an unreliable counter-play
+	# is worse than none — the player stops trusting it and stops using it.
 	if state() == State.COLLECTING:
 		_tick_collecting(delta)
 		return
