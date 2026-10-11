@@ -45,6 +45,8 @@ enum State { SEALED, OPEN, CLOSING, SHUT, SPENT }
 const GROUP: StringName = &"barrows"
 ## The capstone: long, narrow and low enough to step over.
 const SLAB := Vector3(0.9, 0.14, 1.6)
+## Its look (B129, `build_barrow.py`), authored to `SLAB`.
+const CAPSTONE: PackedScene = preload("res://art/props/barrow_capstone.glb")
 ## How far it slides aside, along its narrow axis — enough to bare the pit.
 const SLIDE: float = 1.05
 ## Seconds the slab takes to move, which is how long it grinds.
@@ -76,8 +78,8 @@ var _grinding: float = 0.0
 var _broken: bool = false
 var _find: WorldItem = null
 var _field: ClamorField = null
-var _slab: MeshInstance3D = null
-var _slab_material: StandardMaterial3D = null
+var _slab: Node3D = null
+var _slab_material: BaseMaterial3D = null
 var _glow: OmniLight3D = null
 var _flicker: float = 0.0
 
@@ -109,27 +111,21 @@ func _ready() -> void:
 	pit.material_override = dark
 	pit.position = Vector3(0.0, FLOOR_Y + 0.006, 0.0)
 	add_child(pit)
-	_slab = MeshInstance3D.new()
-	var stone := BoxMesh.new()
-	stone.size = SLAB
-	_slab.mesh = stone
-	_slab_material = StandardMaterial3D.new()
-	_slab_material.albedo_color = STONE
-	_slab_material.roughness = 1.0
-	_slab.material_override = _slab_material
-	_slab.position = Vector3(0.0, FLOOR_Y + SLAB.y * 0.5, 0.0)
+	# **The capstone is carved** (B129): a dressed stone with a sunken panel
+	# and a serpent run down it, as Norse grave covers were — it was a box
+	# with a box laid on it for a cut line. Authored in `build_barrow.py`,
+	# base-centre, its one surface tinted here per instance for sealed and
+	# spent, as the box's material was.
+	_slab = CAPSTONE.instantiate() as Node3D
+	InkPass.classify(_slab)
+	_slab.position = Vector3(0.0, FLOOR_Y, 0.0)
 	add_child(_slab)
-	# A cut line down the capstone, so it reads as worked stone laid over
-	# something rather than a paving slab.
-	var rune := MeshInstance3D.new()
-	var groove := BoxMesh.new()
-	groove.size = Vector3(0.07, 0.012, SLAB.z * 0.7)
-	rune.mesh = groove
-	var cut := StandardMaterial3D.new()
-	cut.albedo_color = Color(0.2, 0.19, 0.18)
-	rune.material_override = cut
-	rune.position = Vector3(0.0, SLAB.y * 0.5 + 0.004, 0.0)
-	_slab.add_child(rune)
+	var cut := _slab.find_children("*", "MeshInstance3D", true, false)
+	if not cut.is_empty():
+		var face := cut[0] as MeshInstance3D
+		_slab_material = (face.mesh.surface_get_material(0) as BaseMaterial3D).duplicate() as BaseMaterial3D
+		_slab_material.albedo_color = STONE
+		face.set_surface_override_material(0, _slab_material)
 
 
 ## Host-side: the field the grind is laid in.
