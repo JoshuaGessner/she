@@ -20,6 +20,9 @@ extends RefCounted
 const HALF: float = 1.2
 const HIGH: float = 3.4
 const DEEP: float = 4.2
+## Where the passage's lamp hangs (B128): its cage above head height, on a
+## chain to the roof.
+const LAMP_HIGH: float = 2.4
 
 
 ## Cut an opening in the wall that runs along x at `wall_z`, `thick` deep and
@@ -78,14 +81,22 @@ static func cut(into: Node3D, slab: Callable, wall_z: float, outward: float,
 	# What is through there, said with light: a warm glow from her hall, or a
 	# cold one from the way down. Low and deep in the passage, so the door reads
 	# as leading somewhere rather than as a lit cupboard.
+	#
+	# **And something gives it** (B128, ADR-291's rule). The light alone, 0.6 m
+	# off the passage's end wall, painted a round glow on it — from the camp
+	# the way home read as an orb hung in the doorway. A lamp in the light's
+	# own colour now hangs from the passage roof, deep past where the way is
+	# taken (`DEEP * 0.55`), and the light is its flame.
 	if glow_energy > 0.0:
+		var cage: Vector3 = Vector3(0.0, LAMP_HIGH, start + outward * (DEEP - 0.9))
+		Hearth.door_lamp(into, cage, glow, HIGH - cage.y)
 		var light := FlickerLight.new()
 		light.light_color = glow
 		light.light_energy = glow_energy
 		light.omni_range = DEEP + 2.5
 		light.swing = 0.08
 		light.rate = 0.6
-		light.position = Vector3(0.0, 1.2, start + outward * (DEEP - 0.6))
+		light.position = cage + Vector3(0.0, -0.05, 0.0)
 		into.add_child(light)
 	return Vector3(0.0, 0.0, start + outward * DEEP * 0.55)
 
