@@ -886,6 +886,8 @@ func _ready() -> void:
 			_hunt_probe()
 		elif arg == "--turn-probe":
 			_turn_probe()
+		elif arg.begins_with("--turn-shot="):
+			_turn_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ear-probe":
 			_ear_probe()
 		elif arg == "--ground-probe":
@@ -3940,6 +3942,81 @@ func _turn_probe() -> void:
 		printerr("[turn] FAIL %s" % problem)
 	print("[turn] %d problem(s)" % problems.size())
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **`--turn-shot=DIR`** (ADR-403): the Hunter turned, seen as a player sees
+## it — first person, under the ink pass, the reticle's line showing. Five
+## frames: it coming on, balked at a planted shield, rearing back, going, and
+## stooping over the coin a mound-breaker's hammer knocked loose.
+func _turn_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var player: Player = _session.local_player()
+	var hunter: Gullsjukr = _hunter
+	if player == null or hunter == null:
+		printerr("[turn-shot] FAIL no body or no Hunter")
+		get_tree().quit(1)
+		return
+	player.show_ink(true)
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	# A clear line from where the body arrives, so what is framed is the
+	# Hunter against the floor it hunts on — the longest open bearing of eight.
+	var stand: Vector3 = _standing_at(_floor.spawns()[0])
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var along: Vector3 = Vector3.FORWARD
+	var longest: float = 0.0
+	for turn: int in 8:
+		var bearing := Vector3.FORWARD.rotated(Vector3.UP, TAU * float(turn) / 8.0)
+		var from: Vector3 = stand + Vector3(0.0, 1.2, 0.0)
+		var ray := PhysicsRayQueryParameters3D.create(from, from + bearing * 12.0)
+		ray.collision_mask = CollisionLayers.WORLD | CollisionLayers.GATE
+		var hit: Dictionary = space.intersect_ray(ray)
+		var open: float = 12.0 if hit.is_empty() else from.distance_to(hit["position"] as Vector3)
+		if open > longest and _standing_at(stand + bearing * minf(open - 1.0, 7.0)) != Vector3.INF:
+			longest = open
+			along = bearing
+	var yaw: float = atan2(-along.x, -along.z)
+	var off: float = minf(longest - 1.0, 7.0)
+	var was_sworn: StringName = player.sworn
+	var frames: Array = []
+	player.sworn = &"huskarl"
+	await _turn_set(player, hunter, stand, yaw, stand + along * off, true)
+	await _hold(0.8)
+	frames.append(await _turn_frame(dir, "coming"))
+	Input.action_press("verb")
+	var waited: float = 0.0
+	while hunter.turned_for() <= 0.0 and waited < 6.0:
+		if waited > 0.0 and hunter.state() == Gullsjukr.State.SIGHTED \
+				and float(hunter.get("_balked")) > 0.6 and frames.size() == 1:
+			frames.append(await _turn_frame(dir, "balked"))
+		await _hold(0.05)
+		waited += 0.05
+	await _hold(0.4)
+	frames.append(await _turn_frame(dir, "recoil"))
+	Input.action_release("verb")
+	await _hold(2.4)
+	frames.append(await _turn_frame(dir, "going"))
+	player.sworn = &"haugbrjotr"
+	await _turn_set(player, hunter, stand, yaw, stand + along * 1.8, true)
+	Input.action_press("verb")
+	await _hold(1.6)
+	Input.action_release("verb")
+	frames.append(await _turn_frame(dir, "coin"))
+	player.sworn = was_sworn
+	print("[turn-shot] %d frame(s) in %s, looking %.1f m down the open bearing" % [
+		frames.size(), dir, longest])
+	get_tree().quit(0)
+
+
+func _turn_frame(dir: String, name: String) -> String:
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var path: String = dir.path_join("turn-%s.png" % name)
+	get_viewport().get_texture().get_image().save_png(path)
+	print("[turn-shot] %s  hunter %s, turned %.1f s, %.1f m off" % [name,
+		Gullsjukr.State.keys()[_hunter.state_index], _hunter.turned_for(),
+		_hunter.global_position.distance_to(_session.local_player().global_position)])
+	return path
 
 
 ## A fresh encounter for one `--turn-probe` row: the body rich and silent at

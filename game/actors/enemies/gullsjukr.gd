@@ -425,6 +425,13 @@ func spill() -> WorldItem:
 	return _spill if is_instance_valid(_spill) else null
 
 
+## **Whether a mound-breaker's hammer has anything to knock loose** (ADR-403):
+## not while it is away, and not while it is already stooping for the lump the
+## last blow spilled — a prompt for a swing that would do nothing is a lie.
+func knockable() -> bool:
+	return not is_away() and spill() == null
+
+
 ## Whether it is away — paid or turned — and wants nothing.
 func is_away() -> bool:
 	return _sated_left > 0.0 or _turned_left > 0.0
@@ -519,7 +526,7 @@ func veil(seconds: float, by: Player) -> float:
 ## having it back it goes away to count it. The coin is real while it lies
 ## there — snatch it, and it is hers, and the Hunter is still hers too.
 func knock_loose(by: Player) -> void:
-	if not multiplayer.is_server() or is_away() or _spill != null:
+	if not multiplayer.is_server() or not knockable():
 		return
 	_spill_seconds = turn_seconds(&"haugbrot", Config.tuning.hunter_turn_haugbrot_seconds)
 	_wary[&"haugbrot"] = wary_of(&"haugbrot") + 1

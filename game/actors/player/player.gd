@@ -4150,7 +4150,7 @@ func _breakable(path: NodePath) -> bool:
 			and barrow.global_position.distance_to(global_position) <= hand_reach() + 1.0
 	var hunter := thing as Gullsjukr
 	if hunter != null:
-		return not hunter.is_away() and _hunter_in_reach(hunter)
+		return hunter.knockable() and _hunter_in_reach(hunter)
 	return false
 
 
@@ -4159,7 +4159,7 @@ func _breakable(path: NodePath) -> bool:
 func hunter_at_hand() -> Gullsjukr:
 	for node: Node in get_tree().get_nodes_in_group(&"hunters"):
 		var hunter := node as Gullsjukr
-		if hunter != null and not hunter.is_away() and _hunter_in_reach(hunter):
+		if hunter != null and hunter.knockable() and _hunter_in_reach(hunter):
 			return hunter
 	return null
 
