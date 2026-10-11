@@ -13983,8 +13983,8 @@ References:
 | Skald | **Galdr** | A whole verse sung within reach sends it away (a stanza is too short) | 28 | The verse: loud every second, and the floor hears it too |
 | Haugbrjótr | **Haugbrot** | Held at it in reach (0.6 s ⟨tune⟩, beating its 0.9 s stoop), her hammer knocks a lump of its hoard loose: a 9.5 kg hoard-coin worth 40. It stoops for it and then goes away to count it. **The coin is real**: snatch it and it is hers, and the Hunter stays | 24 | Standing in its reach, and greed if she takes the coin |
 
-- **It learns.** Each further use of a verb on the same Hunter buys `hunter_wary_factor` (0.6 ⟨tune⟩) of the last use: 24, 14.4, 8.6 s for a Hold. A different verb is unaffected, so one trick never holds it for a whole floor, and a party of mixed oaths does best. The menace gauge is not learned.
-- **Legible** (`DES-018`). The recoil is the visual twin. The sound is a groan of coin: the reckoning's heave, pitched down, so it reads as the Hunter going rather than coming. Whoever turned it is told in words why (*"it cannot reach past your shield — it turns away"*), and *"— it knows that trick now"* when the trick is already wearing thin. A Haugbrjótr in its reach is prompted *"hold to knock its hoard loose"*.
+- **It learns.** Each further use of a verb on the same Hunter buys `hunter_wary_factor` (0.6 ⟨tune⟩) of the last use: 24, 14.4, 8.6 s for a Hold. A different verb is unaffected, so one trick never holds it for a whole floor, and a party of mixed oaths does best. The menace gauge is not learned. **What it learns goes down with it**: the run file carries its lessons beside its age (`RunFile.hunt_lessons`, read with a default like the wounds). The Hunt that follows you is the same Hunter (ADR-037), so a staircase does not make it forget a trick.
+- **Legible** (`DES-018`). The recoil is the visual twin. The sound is a groan of coin: the reckoning's heave, pitched down, so it reads as the Hunter going rather than coming. Whoever turned it is told in words why (*"it cannot reach past your shield — it turns away"*), and *"— it knows that trick now"* when the trick is already wearing thin. A Völva's teammates are told their gold is veiled, since it changes what hunts them. A Haugbrjótr in its reach is prompted *"hold to knock its hoard loose"*.
 
 **Unchanged:** paying it (ADR-277), baiting and ADR-039's proportional bar, the ember exemption, the near and far senses, the speed ceiling, and that it cannot be killed below `gullsjukr_killable_rank`.
 
@@ -13996,6 +13996,7 @@ References:
 - **Galdr.** A stanza does not turn it. A whole verse buys 27.8 s.
 - **Seiðr.** Before the reading it is after the body. After the reading the gold is veiled for 29.6 s and the target is lost. With the veil gone it finds the body again.
 - **Haugbrot.** The hammer is 50% through at 0.3 s, the coin comes loose, and the bag is kept. Once it has its coin back it is turned for 21.9 s. If the coin is snatched, it stays.
+- **Lessons cross the stairs.** `--descent-probe` writes `hold 2` to the run file. `--crossing-probe` arrives with the verse remembered (1 of 1).
 - **Menace.** One second near fills 1.2 s of the gauge. Full, it breaks off for 14.7 s, without rearing back or learning. With the ceiling out of reach it stays on them.
 
 *Entries below to be added as design decisions are signed off.*

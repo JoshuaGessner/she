@@ -8989,6 +8989,10 @@ func _build_hunt() -> void:
 		_hunter.age += carried_age
 		if carried_age > 0.0:
 			print("[hunt] it followed you down — %.0f s of it" % carried_age)
+		var learned: Dictionary = RunFile.hunt_lessons()
+		_hunter.remember(learned)
+		if not learned.is_empty():
+			print("[hunt] it remembers %s" % str(learned))
 		if _she_sent_it_early > 0.0:
 			print("[hunt] she sent it early — %.0f s of it" % _she_sent_it_early)
 		if _hunter.age > 0.0:
@@ -9796,7 +9800,9 @@ func _take_the_party_down() -> void:
 	# `Shaft._escalation` reads the same `age` and the price of leaving and the
 	# pressure you feel have to come from one source.
 	var age: float = _hunter.age if _hunter != null else 0.0
-	RunFile.carry_down(bag, hurt, age, wounds, dazed)
+	# And what it learned (ADR-403): the same Hunter, the same lessons.
+	var lessons: Dictionary = _hunter.lessons() if _hunter != null else {}
+	RunFile.carry_down(bag, hurt, age, wounds, dazed, lessons)
 	var to: int = RunFile.descend()
 	print("[descent] floor %d → %d, carrying %d item(s) at %.0f hp, wounds %d, "
 		% [_floor_index, to, bag.size(), hurt, wounds]
@@ -22334,6 +22340,7 @@ func _descent_probe() -> void:
 	body.health.current = body.health.maximum * 0.4
 	if _hunter != null:
 		_hunter.age = 90.0
+		_hunter.remember({"hold": 2})
 	var hurt_before: float = body.health.current
 	# **A gashed leg and a ringing head go down too** (`M4-T14`, ADR-239).
 	body.wound(Enums.Wound.GASHED_LEG)
@@ -22374,6 +22381,12 @@ func _descent_probe() -> void:
 	if RunFile.hunt_age() < 89.0:
 		problems.append("the Hunt did not follow — ADR-037 closed Q9 with "
 			+ "*descending grants nothing, a staircase cannot shake it*")
+	# What it learned goes down with it (ADR-403).
+	var lessons: Dictionary = RunFile.hunt_lessons()
+	print("[descent] the Hunt's lessons written %s (want hold 2)" % str(lessons))
+	if int(lessons.get("hold", 0)) != 2:
+		problems.append("what the Hunter learned of the Hold did not go down — "
+			+ "the same Hunter follows you, and a staircase would be a way to make it forget")
 	print("[descent] wounds written  %d, %.1f s concussed (want %d, 5-17)"
 		% [RunFile.wounds(), RunFile.dazed(), wounds_before])
 	if RunFile.wounds() != wounds_before or wounds_before == 0:
@@ -22968,6 +22981,8 @@ func _crossing_leave() -> void:
 	body.health.current = HURT_ACROSS
 	if _hunter != null:
 		_hunter.age = HUNT_ACROSS
+		# A verse it has heard once (ADR-403), to be remembered below.
+		_hunter.remember({"galdr": 1})
 
 	if not problems.is_empty():
 		for problem: String in problems:
@@ -23047,6 +23062,13 @@ func _crossing_arrive() -> void:
 		problems.append(("the Hunt crossed at %.0f s and arrived at %.0f — "
 			+ "descending granted what `DES-017` says it must not")
 			% [float(was["hunt"]), age])
+	# **And it remembers** (ADR-403): the Hunter below is the one that heard
+	# the verse above, and a staircase does not make it forget the trick.
+	if _hunter != null:
+		print("[crossing] its lessons  the verse heard %d time(s), wanted 1" % _hunter.wary_of(&"galdr"))
+		if _hunter.wary_of(&"galdr") < 1:
+			problems.append("the Hunter below forgot the verse it heard above — "
+				+ "the stairs would be a way to reset what it has learned")
 
 	if _world.get_child_count() <= 0:
 		problems.append("the floor below is empty — the crossing built nothing")

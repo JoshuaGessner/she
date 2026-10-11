@@ -445,6 +445,22 @@ func turn_seconds(by: StringName, seconds: float) -> float:
 	return seconds * pow(Config.tuning.hunter_wary_factor, float(_wary.get(by, 0)))
 
 
+## **What it has learned, to carry down** (ADR-403): the Hunt follows you
+## below (ADR-037), and the same Hunter does not forget a trick on the stairs.
+## String keys, because the run file is JSON.
+func lessons() -> Dictionary:
+	var out: Dictionary = {}
+	for by: StringName in _wary:
+		out[String(by)] = int(_wary[by])
+	return out
+
+
+## Learned on the floor above (ADR-403).
+func remember(learned: Dictionary) -> void:
+	for by: Variant in learned:
+		_wary[StringName(str(by))] = maxi(int(learned[by]), wary_of(StringName(str(by))))
+
+
 ## How many times `by` has turned it.
 func wary_of(by: StringName) -> int:
 	return int(_wary.get(by, 0))
@@ -508,6 +524,10 @@ func veil(seconds: float, by: Player) -> float:
 		var body := node as Player
 		if body != null:
 			body.veiled = maxf(body.veiled, held)
+			# Told, every one it covers (`DES-018`): a state that changes what
+			# hunts you is one you are shown, not one you infer.
+			if body != by:
+				body.told_hunter(&"veiled", false)
 	if _target != null and _target.wealth_is_hidden():
 		_target = null
 		_has_scent = false

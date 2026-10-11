@@ -203,6 +203,8 @@ static func begin(class_id: StringName, rank: int, seed: int) -> void:
 		"seed": seed,
 		"carried": [],
 		"hunt_age": 0.0,
+		# What the Hunt has learned of each class's verbs (ADR-403).
+		"hunt_lessons": {},
 		# **`UNHURT` rather than a number** (`M4-T01`, ADR-185). A run opens on a
 		# body that does not exist yet, and every class has a different pool —
 		# writing a figure here would be this file deciding how much health a
@@ -264,9 +266,9 @@ static func seed_of() -> int:
 ## Per process, like `GameState` and for the same reason: your bag is yours, and
 ## four peers each hold one quarter of the party's answer.
 static func carry_down(rows: Array, hurt: float, age: float, wound_bits: int,
-		concussed_for: float) -> void:
+		concussed_for: float, lessons: Dictionary = {}) -> void:
 	note({"carried": rows, "health": hurt, "hunt_age": age, "wounds": wound_bits,
-		"dazed": concussed_for})
+		"dazed": concussed_for, "hunt_lessons": lessons})
 
 
 ## The bag this run is carrying, in `Inventory.pack()` rows. Empty on a fresh
@@ -363,6 +365,15 @@ static func barrow_woke() -> bool:
 ## Descending grants nothing — a staircase cannot shake it."*
 static func hunt_age() -> float:
 	return maxf(0.0, float(read().get("hunt_age", 0.0)))
+
+
+## **What the Hunt has learned of each verb** (ADR-403), carried with its age:
+## the same Hunter follows you down, and a staircase does not make it forget.
+## A file written before ADR-403 carries none, which is true of it, so the key
+## is read with a default rather than the version bumped (the wounds' rule).
+static func hunt_lessons() -> Dictionary:
+	var learned: Variant = read().get("hunt_lessons", {})
+	return learned as Dictionary if learned is Dictionary else {}
 
 
 ## Update the open run. Merged rather than replaced, so a caller that knows one
