@@ -1016,6 +1016,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **Every class can turn the Hunter away, and it learns** (ADR-403). Paying
+	# it was once the only thing that ended an encounter. Each row drives a
+	# class verb as it ships beside its control — the same set-up without the
+	# verb — so a row that passes either way cannot: Hold, Snare, the fury's
+	# blow, a whole verse, the Völva's veil, Haugbrot's spilled coin, the
+	# second use buying less, and the menace gauge's ceiling on pursuit.
+	turn="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --turn-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$turn"; then
+		echo "FAIL turning the Hunter" >&2
+		printf '%s\n' "$turn" | grep -E '\[turn\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Do both channels carry the same thing (`M2-T03`, ADR-036)? `DES-018`
 	# requires a run to be completable with audio muted, which nothing automated
 	# can play — but the way that guarantee actually breaks is an audio channel

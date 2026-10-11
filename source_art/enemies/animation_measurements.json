@@ -130,7 +130,8 @@
       "run": 1,
       "collect": 1,
       "take": 1,
-      "shrug": 1
+      "shrug": 1,
+      "recoil": 1
     },
     "loops": [
       "collect",

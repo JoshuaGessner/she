@@ -13959,4 +13959,43 @@ The banner pole stays in code. Its cloth shader moves the flag.
 
 **Measured:** 2,251 triangles (props budget 3,000); `art_probe` 0 failures, pivot 0.000 m, collision present; the camp probes are green (axis, threshold, board, edges, settle). `--camp-shot` gains a `plot` view: one tent from the fire's side, its door and dye.
 
+## ADR-403 — Every class can turn the Hunter away, and it learns
+
+**Date:** 2026-10-10 · **Status:** accepted · **Amends `DES-017`, `DES-011`, ADR-277; reopens ADR-387's "not the Hunt"** · **Developer's report: *"Hes just annoying and follows you around until you let him take something so it just becomes this game of juggling him. We need to work him into the classes abilities to help keep him away"***
+
+**Context:** ADR-277 answered the first report of a leash with one release: gold reaching its hands sates it for 35 s. That made **paying the only thing that ever ended an encounter**. Within 14 m it feels you through walls and pursues at 0.92 of a walk, so an unburdened player gains about 0.25 m/s on it and cannot lose it while looting. Every encounter therefore went the same way: it trails you until you pay, comes back about 35 s later, and you pay again. Of the six class verbs, only the Snare touched it; the Seiðr showed where it had been, and ADR-387 had ruled the Galdr *"not the Hunt"*. `DES-017` lists more answers than were built: *"Delay it: barricades, traps. Confuse it: Skald songs, Völva wards."*
+
+References:
+- *Alien: Isolation* gives the creature a **menace gauge**. It rises while the alien is close, in sight, or near on the tracker, and when it peaks the director sends the alien away to the vents. *"Players need a break"* (Creative Assembly, GDC 2015; "The Perfect Organism", Game Developer). The flamethrower drives it off, and it grows bolder against the flamethrower the more it is used.
+- *Amnesia: The Bunker* makes the Beast unkillable. A shot makes it retreat for a while and it comes back angrier. Combat buys time to reach a hiding place; it is never the answer.
+
+**Decision:** pursuit has a ceiling, every class has its own way to turn the Hunter away, and each way works less the more it is used.
+- **Turned away** is a new withdrawal beside Sated. The Hunter rears back where it stands (a `recoil` clip, 0.9 s ⟨tune⟩), then walks away from what turned it, going home if home lies that way and otherwise 14 m ⟨tune⟩ off. While turned it reads as Distant and wants nothing, then starts again with a reckoning. It does not stack: a Hunter already away, paid or turned, cannot be turned again, and the attempt teaches it nothing. Every turn is **shorter than a payment's 35 s** ⟨tune⟩, and `TuningProfile.validate` enforces that, so giving something up stays the longest peace.
+- **The menace gauge.** Each second of close pursuit (inside its near sense) with nothing taken adds one second; out of range it drains at half that rate. At 45 s ⟨tune⟩ it breaks off for 15 s ⟨tune⟩. It doesn't rear back or learn from this, since nobody turned it. Every class gets this ceiling; the verbs end pursuit sooner.
+- **The six answers,** one per class, each through the verb that class already has:
+
+| Class | Verb | What it does to the Hunter | Seconds ⟨tune⟩ | Its price |
+|---|---|---|---|---|
+| Húskarl | **Hold** | A planted shield within reach, facing it, is a door it cannot reach past. Its stoop gets nowhere, and after 2 s ⟨tune⟩ it turns. The whole party behind him is covered | 24 | Planted: no attacks, stamina, and he must face it |
+| Veiðimaðr | **Snare** | Held, then worked free, it limps off | 18 | A snare set in its path, and the hold's own seconds first |
+| Völva | **Seiðr** | *Sjónhverfing* (sight-turning; Útgarða-Loki, Katla of *Eyrbyggja*): a finished reading hides the party's gold from it. It is not sent away, and still hears the noise, so only a quiet party is lost to it | 30 | The trance: helpless, still, and spent after |
+| Úlfheðinn | **Wolf-Fury** | A blow struck in the fury drives it off. It is a person, badly, and *"neither fire nor iron told upon them"* (*Ynglinga saga* ch. 6). The blow still does no harm | 26 | The fury's blood, and its noise |
+| Skald | **Galdr** | A whole verse sung within reach sends it away (a stanza is too short) | 28 | The verse: loud every second, and the floor hears it too |
+| Haugbrjótr | **Haugbrot** | Held at it in reach (0.6 s ⟨tune⟩, beating its 0.9 s stoop), her hammer knocks a lump of its hoard loose: a 9.5 kg hoard-coin worth 40. It stoops for it and then goes away to count it. **The coin is real**: snatch it and it is hers, and the Hunter stays | 24 | Standing in its reach, and greed if she takes the coin |
+
+- **It learns.** Each further use of a verb on the same Hunter buys `hunter_wary_factor` (0.6 ⟨tune⟩) of the last use: 24, 14.4, 8.6 s for a Hold. A different verb is unaffected, so one trick never holds it for a whole floor, and a party of mixed oaths does best. The menace gauge is not learned.
+- **Legible** (`DES-018`). The recoil is the visual twin. The sound is a groan of coin: the reckoning's heave, pitched down, so it reads as the Hunter going rather than coming. Whoever turned it is told in words why (*"it cannot reach past your shield — it turns away"*), and *"— it knows that trick now"* when the trick is already wearing thin. A Haugbrjótr in its reach is prompted *"hold to knock its hoard loose"*.
+
+**Unchanged:** paying it (ADR-277), baiting and ADR-039's proportional bar, the ember exemption, the near and far senses, the speed ceiling, and that it cannot be killed below `gullsjukr_killable_rank`.
+
+**Measured:** `--turn-probe`, which drives each verb as it ships, beside its control. Each control is the same set-up without the verb, so a row that would pass either way cannot:
+- **Hold.** A Húskarl not planted is robbed. Planted and facing, he turns it for 23.3 s and keeps his bag. Planted facing away, he does not turn it.
+- **Learning.** A second Hold buys 13.7 s, against 14.4 s expected. Turning it while it is away neither turns it nor teaches it.
+- **Snare.** It is not turned while held. Released, it rears back and is turned for 17.5 s.
+- **Wolf-Fury.** An ordinary blow does not turn it. A blow in the fury buys 25.8 s, the full first-use seconds, untouched by what it learned of the Hold.
+- **Galdr.** A stanza does not turn it. A whole verse buys 27.8 s.
+- **Seiðr.** Before the reading it is after the body. After the reading the gold is veiled for 29.6 s and the target is lost. With the veil gone it finds the body again.
+- **Haugbrot.** The hammer is 50% through at 0.3 s, the coin comes loose, and the bag is kept. Once it has its coin back it is turned for 21.9 s. If the coin is snatched, it stays.
+- **Menace.** One second near fills 1.2 s of the gauge. Full, it breaks off for 14.7 s, without rearing back or learning. With the ceiling out of reach it stays on them.
+
 *Entries below to be added as design decisions are signed off.*

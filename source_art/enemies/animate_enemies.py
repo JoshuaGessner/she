@@ -20,7 +20,7 @@ ROOT = SRC.parents[1]
 KINDS = ('wretch', 'sling_wretch', 'bellringer', 'hall_warden', 'hoard_keeper', 'gullsjukr')
 CLIPS = {'idle': 6, 'search': 3, 'walk': 1, 'run': 1, 'strafe': 1, 'telegraph': 1,
          'attack': 1, 'recovery': 1, 'stagger': 1, 'death': 1,
-         'call': 1, 'collect': 1, 'take': 1, 'shrug': 1}
+         'call': 1, 'collect': 1, 'take': 1, 'shrug': 1, 'recoil': 1}
 LOOPS = {'idle', 'search', 'walk', 'run', 'strafe', 'collect'}
 PHASES = ('telegraph', 'attack', 'recovery')
 # **A second blow per archetype** (ADR-391): each is a family of three clips,
@@ -31,7 +31,7 @@ FAMILIES = {'wretch': ('lunge',), 'bellringer': ('lunge',),
 
 
 def clips_for(kind):
-    names = (('idle', 'search', 'walk', 'run', 'collect', 'take', 'shrug')
+    names = (('idle', 'search', 'walk', 'run', 'collect', 'take', 'shrug', 'recoil')
              if kind == 'gullsjukr' else
              ('idle', 'search', 'walk', 'run', 'strafe', 'telegraph', 'attack', 'recovery', 'stagger', 'death'))
     if kind == 'bellringer':
@@ -237,6 +237,25 @@ def pose(kind, clip, t):
         add('forearm_r', .70*lift-shake)
         add('head', -.22*lift)
         add('chest', -.10*lift)
+    elif clip == 'recoil':
+        # **Turned away** (ADR-403): it rears back from what turned it, both
+        # arms pulled in across the hoard on its chest, face down and aside, a
+        # foot stepping back. A person, badly, flinching, and keeping hold of the
+        # gold while it does. Fast in, then a slower settle into the hunch it
+        # walks off in.
+        k = ease(min(1.0, t*3.0))*(1.0 - .3*ease(max(0.0, (t - .35)/.65)))
+        add('spine_01', -.18*k)
+        add('chest', -.42*k, .20*k, 0)
+        add('head', .30*k, .10*k, -.60*k)
+        for side, sign in (('l', 1), ('r', -1)):
+            add('upper_arm_'+side, -1.05*k, 0, sign*.50*k)
+            add('forearm_'+side, 1.25*k)
+            add('hand_'+side, .30*k)
+        add('thigh_r', .38*k)
+        add('calf_r', -.45*k)
+        add('foot_r', .20*k)
+        add('thigh_l', -.12*k)
+        root.z = -.05*k
     elif clip in ('collect', 'take'):
         # Reaching is a full-body action: knees yield as the chest folds.
         reach = .92+.07*math.sin(t*math.tau) if clip == 'collect' else ease(t)

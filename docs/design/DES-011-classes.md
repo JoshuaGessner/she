@@ -121,7 +121,7 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 **Aspects:** Wing · Hoard · Maw
 **Fantasy:** the professional who was never seen.
 **How they get out:** by never having been noticed. Bow, traps, tracking, silence.
-**Unique verb — Snare:** place traps that hold, wound, or misdirect — **including against the Hunter**, the only reliable way to buy time during the Sealing.
+**Unique verb — Snare:** place traps that hold, wound, or misdirect — **including against the Hunter**, which limps off once it works free (ADR-403). Since ADR-403 every class has its own way to turn the Hunter (see *Against the Hunter* below).
 > **Built at `M3-T11` as *hold* alone** (ADR-123). Wound and misdirect are **absent, not stubbed**: trap *variety* is listed under this class's Rite themes below, so it belongs to the tree (`M3-T01`). One trap, one live at a time, and placing a second removes the first — a decision about *where* rather than a resource to count, which is also why it needs no ammunition economy to exist. It is silent to set and **loud when it fires**, so a trap in the doorway you are leaving through is a mistake you can make.
 **Rite themes:** silent movement, trap variety, ranged precision, reading tracks (who came through here, and when).
 
@@ -147,6 +147,19 @@ Dying stops being purely subtractive. It's the gateway to the Úlfheðinn run yo
 > - **Not built:** curses, until the Barrow-Fields (`M5-T02`).
 
 ---
+
+## Against the Hunter (ADR-403)
+
+Every class can turn the Gold-Sick away, each with the verb it already has, and each verb works less the more often it is used on the same Hunter. Seconds are ⟨tune⟩.
+
+| Class | Verb against the Hunter | Seconds |
+|---|---|---|
+| Húskarl | A planted Hold facing it, within reach: it cannot reach past, balks, and turns. It covers the party behind him | 24 |
+| Veiðimaðr | Worked free of a snare, it limps off | 18 |
+| Völva | A finished reading hides the party's gold from it (*sjónhverfing*). It still hears | 30 |
+| Úlfheðinn | A blow struck in the Wolf-Fury drives it off | 26 |
+| Skald | A whole verse sung within reach sends it away; a stanza does not | 28 |
+| Haugbrjótr | Haugbrot held at it knocks a lump of its hoard loose. It stoops for that, then goes, unless she snatches the coin | 24 |
 
 ## Availability
 

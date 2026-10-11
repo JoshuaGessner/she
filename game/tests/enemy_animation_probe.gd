@@ -135,9 +135,10 @@ func _run() -> void:
 		_check(going == row[1] and halted == row[2], "hunter in state %d %s moving, %s still (got %s, %s)"
 			% [row[0], row[1], row[2], going, halted])
 	for phase: int in [EnemyVisual.HunterPresentation.COLLECT,
-		EnemyVisual.HunterPresentation.TAKE, EnemyVisual.HunterPresentation.SHRUG]:
+		EnemyVisual.HunterPresentation.TAKE, EnemyVisual.HunterPresentation.SHRUG,
+		EnemyVisual.HunterPresentation.RECOIL]:
 		hunter_visual.present_hunter(Gullsjukr.State.COLLECTING, phase, 0.5, Vector3.ZERO, 0.2)
-		_check(hunter_visual.get("_clip") == ([&"collect", &"take", &"shrug"][phase - 1]),
+		_check(hunter_visual.get("_clip") == ([&"collect", &"take", &"shrug", &"recoil"][phase - 1]),
 			"hunter presents replicated action %d" % phase)
 	hunter.free()
 	world.free()

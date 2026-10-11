@@ -1026,6 +1026,7 @@ func _build_hunter(payload: Dictionary) -> Node:
 	# this node's job alone (`M2-T19`, ADR-112). Same wiring as `Player.dropped`
 	# two functions up — the actor decides, the session spawns.
 	hunter.took.connect(_on_hunter_took)
+	hunter.spilled.connect(_on_hunter_spilled.bind(hunter))
 	return hunter
 
 
@@ -1202,6 +1203,15 @@ func _on_item_struck(rest: Vector3, flying: WorldItem) -> void:
 func _on_hunter_took(item: ItemInstance, at: Vector3) -> void:
 	spawn_world_item(item.definition.id, at, 0.0, Vector3.ZERO, true,
 		item.bound_to, false, item.scarred)
+
+
+## **Coin knocked out of its hoard** (ADR-403): a lump at its feet, disturbed —
+## so it is gold on the floor like any other, and real to whoever takes it —
+## handed back to the Hunter, which stoops for it.
+func _on_hunter_spilled(item: StringName, at: Vector3, hunter: Gullsjukr) -> void:
+	var lump: WorldItem = spawn_world_item(item, at, 0.0, Vector3.ZERO, true)
+	if is_instance_valid(hunter):
+		hunter.stoop_for(lump)
 
 
 ## Levels ask for the Hunter. Returns the host's copy so a level can hand it

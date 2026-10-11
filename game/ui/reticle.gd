@@ -73,6 +73,9 @@ const HELD_SECONDS: float = 1.5
 var _held_text: StringName = &"waystone"
 ## How many the last verse turned, for its line (ADR-387).
 var _turned: int = 0
+## **What turned the Hunter, and whether it knew the trick** (ADR-403).
+var _hunter_by: StringName = &""
+var _hunter_wary: bool = false
 ## Under Shields as last read, to say it once when it is given.
 var _shields_seen: float = 0.0
 ## The progress the last frame's ring was drawn at, 0 for none. Written **inside
@@ -222,6 +225,11 @@ func _process(delta: float) -> void:
 		# **Wedge, said** (ADR-382): a door her hands broke can be shut behind
 		# her, and an action nothing announces is an action nobody finds.
 		_name.text = tr("door.wedge") % ControlsScreen.glyphs_for("interact")
+	elif _breaks_hoard():
+		# **The Hunter in a mound-breaker's reach** (ADR-403): her hammer can
+		# knock its hoard loose, and an action nothing announces is an action
+		# nobody finds.
+		_name.text = tr("hunt.break") % ControlsScreen.glyphs_for("verb")
 	elif _breaks_barrow():
 		# **The barrow, to a mound-breaker** (ADR-382): shut on its find, and
 		# hers to open again — said before she asks, as a door's is.
@@ -235,6 +243,12 @@ func _process(delta: float) -> void:
 			_name.text = tr("seidr.nothing")
 		elif _held_text == &"shields":
 			_name.text = tr("galdr.shields")
+		elif _held_text == &"hunter":
+			# **The Hunter turned, and by what** (ADR-403): said to whoever did
+			# it, and that it is warier of the trick when it is — the visual
+			# twin of the recoil, for a player looking the other way.
+			_name.text = tr("hunt.turned.%s" % _hunter_by) \
+				+ (tr("hunt.wary") if _hunter_wary else "")
 		elif _held_text == &"sang":
 			# **What the verse did** (ADR-387): a song that turned nothing is
 			# said too, or a verse on an empty room reads as a broken key.
@@ -292,6 +306,10 @@ func _listen_for_refusals() -> void:
 			_body.sang.connect(func(count: int) -> void:
 				_turned = count
 				_say_for_a_moment(&"sang", false))
+			_body.hunter_turned.connect(func(by: StringName, wary: bool) -> void:
+				_hunter_by = by
+				_hunter_wary = wary
+				_say_for_a_moment(&"hunter", false))
 	var weapon: MeleeWeapon = _body.weapon if _body != null else null
 	if weapon == _listening:
 		return
@@ -318,6 +336,14 @@ func _say_for_a_moment(what: StringName, refusal: bool = true) -> void:
 func _wedges() -> bool:
 	return _body != null and is_instance_valid(_body) \
 		and _body.has_effect(&"haugbrot_wedge") and _body.broken_door_at_hand() != null
+
+
+## Whether the body is a Haugbrjótr with the Hunter in reach (ADR-403).
+func _breaks_hoard() -> bool:
+	if _body == null or not is_instance_valid(_body):
+		return false
+	var sworn_as: ClassResource = ClassCatalogue.by_id(_body.sworn)
+	return sworn_as != null and sworn_as.verb == &"haugbrot" and _body.hunter_at_hand() != null
 
 
 ## Whether the body is a Haugbrjótr standing at a shut barrow (ADR-382).

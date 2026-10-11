@@ -441,6 +441,13 @@ var singing: float = 0.0
 ## Raised on the singer's own peer when a verse is sung through: how many it
 ## turned. The host decides it and tells the owner (`_tell_sang`).
 signal sang(turned: int)
+## **The Hunter turned from what this body did** (ADR-403), raised on the
+## body's own peer: by which verb, and whether it is warier of it than the
+## first time. The host decides it and tells the owner (`_tell_hunter`).
+signal hunter_turned(by: StringName, wary: bool)
+## Host-side: seconds a Völva's reading still hides this body's gold from the
+## Hunter (ADR-403). Read by `wealth_is_hidden`, which only the host asks.
+var veiled: float = 0.0
 ## Host-side: seconds left on the verse and its length. Owner-side: whether
 ## this body has asked to sing, so the key is a request when it changes.
 var _singing: float = 0.0
@@ -3153,6 +3160,7 @@ func _physics_process(delta: float) -> void:
 		_tick_breaking(delta, tuning)
 		_tick_song(delta, tuning)
 		_tick_bleeding(delta)
+		veiled = maxf(0.0, veiled - delta)
 	# Pose after weapons and use actions have advanced, so grips are this frame's.
 	if _is_local and _hands != null:
 		var ground_speed: float = Vector2(velocity.x, velocity.z).length()
@@ -3647,7 +3655,7 @@ func has_effect(tag: StringName) -> bool:
 ## body slot with no armour and 180 tribute not given, against Boon and rank 4.
 ## Asked of the body, never of `GameState`, because the host asks it of four.
 func wealth_is_hidden() -> bool:
-	if has_effect(&"unremarkable_wealth"):
+	if has_effect(&"unremarkable_wealth") or veiled > 0.0:
 		return true
 	var coat: ItemInstance = equipment.in_slot(Enums.Slot.BODY) if equipment != null else null
 	return coat != null and coat.definition.tags.has(ItemInstance.HIDES_WEALTH)
@@ -4041,10 +4049,13 @@ func _haugbrot() -> void:
 			and Input.is_action_pressed("verb") and not is_incapacitated() and _bag <= 0.0:
 		var door: LockedDoor = door_at_hand()
 		var barrow: Barrow = barrow_at_hand()
+		var hunter: Gullsjukr = hunter_at_hand()
 		if door != null and door.refusal(self) != &"":
 			target = door.get_path()
 		elif barrow != null:
 			target = barrow.get_path()
+		elif hunter != null:
+			target = hunter.get_path()
 	if target == _asked_break:
 		return
 	_asked_break = target
@@ -4074,7 +4085,10 @@ func _set_breaking(target: NodePath) -> void:
 	if body == null or body.verb != &"haugbrot" or not _breakable(target) \
 			or is_incapacitated() or _breaking > 0.0:
 		return
-	_breaking_total = maxf(Config.tuning.haugbrot_seconds, 0.01)
+	# The Hunter's hoard comes loose faster than a door gives (ADR-403): it
+	# is standing over her, and she has to beat its stoop.
+	_breaking_total = maxf(Config.tuning.haugbrot_hunter_seconds
+		if get_node_or_null(target) is Gullsjukr else Config.tuning.haugbrot_seconds, 0.01)
 	_breaking = _breaking_total
 	_breaking_what = target
 	_breaking_at = global_position
@@ -4113,6 +4127,8 @@ func _tick_breaking(delta: float, tuning: TuningProfile) -> void:
 		(broken as LockedDoor).host_open()
 	elif broken is Barrow:
 		(broken as Barrow).break_in()
+	elif broken is Gullsjukr:
+		(broken as Gullsjukr).knock_loose(self)
 	clamor.add(tuning.haugbrot_clamor)
 	_sound_for_all(Foley.Sound.CLANG, 0.6)
 
@@ -4132,7 +4148,26 @@ func _breakable(path: NodePath) -> bool:
 	if barrow != null:
 		return barrow.state == Barrow.State.SHUT \
 			and barrow.global_position.distance_to(global_position) <= hand_reach() + 1.0
+	var hunter := thing as Gullsjukr
+	if hunter != null:
+		return not hunter.is_away() and _hunter_in_reach(hunter)
 	return false
+
+
+## **The Hunter within a mound-breaker's reach**, or null (ADR-403): her
+## hammer knocks its hoard loose (`Gullsjukr.knock_loose`).
+func hunter_at_hand() -> Gullsjukr:
+	for node: Node in get_tree().get_nodes_in_group(&"hunters"):
+		var hunter := node as Gullsjukr
+		if hunter != null and not hunter.is_away() and _hunter_in_reach(hunter):
+			return hunter
+	return null
+
+
+func _hunter_in_reach(hunter: Gullsjukr) -> bool:
+	var off: Vector3 = hunter.global_position - global_position
+	off.y = 0.0
+	return off.length() <= hand_reach() + Gullsjukr.NAV_RADIUS + 0.3
 
 
 ## A barrow shut on its find within reach, or null (ADR-382).
@@ -4335,6 +4370,16 @@ func _sing_out(tuning: TuningProfile, stanza: bool) -> void:
 		sang.emit(turned_count)
 	else:
 		_tell_sang.rpc_id(get_multiplayer_authority(), turned_count)
+	# **And the Hunt hears it** (ADR-403, reopening ADR-387's "not the Hunt"):
+	# `DES-017` lists Skald songs among the ways to confuse it — *"it is a
+	# person, badly, and can still be lied to."* A whole verse sung within
+	# reach of it sends it away. A stanza is too short to. Told after the
+	# count, so the singer reads what mattered more.
+	if not stanza:
+		for node: Node in get_tree().get_nodes_in_group(&"hunters"):
+			var hunter := node as Gullsjukr
+			if hunter != null and hunter.global_position.distance_to(landed) <= tuning.galdr_reach:
+				hunter.turn_away(&"galdr", tuning.hunter_turn_galdr_seconds, landed, self)
 
 
 ## **Bjarkamál and Under Shields** (ADR-387), host-side at a whole verse's end.
@@ -4366,6 +4411,22 @@ func roused_by_song() -> void:
 	if not multiplayer.is_server() or not is_downed():
 		return
 	_stand_up(Config.tuning.revive_health_fraction)
+
+
+## **The Hunter turned from what this body did** (ADR-403), host-side: said on
+## the body's own screen, which may be a client's.
+func told_hunter(by: StringName, wary: bool) -> void:
+	if get_multiplayer_authority() == multiplayer.get_unique_id():
+		hunter_turned.emit(by, wary)
+	else:
+		_tell_hunter.rpc_id(get_multiplayer_authority(), by, wary)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _tell_hunter(by: StringName, wary: bool) -> void:
+	if multiplayer.get_remote_sender_id() != HOST_PEER:
+		return
+	hunter_turned.emit(by, wary)
 
 
 ## The host telling the singer what the verse did, so a client's reticle can
@@ -4498,6 +4559,10 @@ func _read(tuning: TuningProfile) -> void:
 		if hunter == null or not hunter.is_inside_tree():
 			continue
 		found.append([Pinger.Kind.ENEMY, hunter.global_position])
+		# **Sjónhverfing** (ADR-403): sight-turning, the seiðr the sagas give
+		# Útgarða-Loki and Katla of Eyrbyggja — she reads it, and reads the
+		# party's gold out of what it can feel.
+		hunter.veil(tuning.hunter_veil_seconds, self)
 		# **Spá** — and where it is going, one more snapshot.
 		if has_effect(&"seidr_foresees") and hunter.has_goal():
 			found.append([Pinger.Kind.GO, hunter.goal()])

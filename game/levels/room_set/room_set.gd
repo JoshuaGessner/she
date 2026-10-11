@@ -884,6 +884,8 @@ func _ready() -> void:
 			_bag_shot(arg.split("=", true, 1)[1])
 		elif arg == "--hunt-probe":
 			_hunt_probe()
+		elif arg == "--turn-probe":
+			_turn_probe()
 		elif arg == "--ear-probe":
 			_ear_probe()
 		elif arg == "--ground-probe":
@@ -3704,6 +3706,282 @@ func _hunt_probe() -> void:
 	for problem: String in problems:
 		printerr("[hunt] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **`--turn-probe`: every class can turn the Hunter away, and it learns**
+## (ADR-403). Before this, gold reaching its hands was the only thing that ended
+## an encounter. Each row drives the verb as it ships — a held key, a reading, a
+## verse, a blow — and each has its control, the same set-up without the verb,
+## so a row that would pass either way cannot. Run on the authored floor's east
+## corridor, the same ground `--hunt-probe` uses.
+func _turn_probe() -> void:
+	var player: Player = _session.local_player()
+	var hunter: Gullsjukr = _hunter
+	if hunter == null or player == null:
+		printerr("[turn] FAIL no Gullsjúkr or no body in the level")
+		get_tree().quit(1)
+		return
+	var tuning: TuningProfile = Config.tuning
+	var problems: PackedStringArray = PackedStringArray()
+	var was_sworn: StringName = player.sworn
+	var stand: Vector3 = Vector3(9.0, 0.1, -12.0)
+	var near: Vector3 = Vector3(9.0, 0.1, -13.6)
+	var far: Vector3 = Vector3(9.0, 0.1, -19.0)
+	# Facing the Hunter is facing -Z along the corridor: yaw 0.
+	# The floor's own enemies would wear the body down over twenty-odd seconds
+	# of rows, and a body bleeding out has no verbs — so they go first.
+	for node: Node in get_tree().get_nodes_in_group("enemies"):
+		node.queue_free()
+	var turned: Array = []
+	hunter.turned.connect(func(by: StringName, seconds: float, _turner: Player) -> void:
+		turned.append([by, seconds]))
+
+	# ─ 1. the Húskarl's door: a planted shield it cannot reach past ─
+	# Control: the same Húskarl, not planted — it reaches him and takes.
+	player.sworn = &"huskarl"
+	await _turn_set(player, hunter, stand, 0.0, near, true)
+	var before: int = player.inventory.total_tribute()
+	await _hold(2.6)
+	var robbed: bool = player.inventory.total_tribute() < before
+	var loose_turned: bool = hunter.turned_for() > 0.0
+	await _turn_set(player, hunter, stand, 0.0, near, true)
+	before = player.inventory.total_tribute()
+	Input.action_press("verb")
+	await _hold(3.0)
+	var held_turn: float = hunter.turned_for()
+	var kept: bool = player.inventory.total_tribute() == before
+	Input.action_release("verb")
+	await _hold(0.2)
+	print("[turn] Hold          loose: robbed=%s turned=%s · planted, facing: turned %.1f s, kept the bag=%s"
+		% [robbed, loose_turned, held_turn, kept])
+	if not robbed or loose_turned:
+		problems.append("a Húskarl not planted was not robbed (or it turned anyway), so the Hold row is not about the Hold")
+	if held_turn <= 0.0:
+		problems.append("a planted Húskarl facing the Hunter did not turn it away — his Hold is the party's door (ADR-403)")
+	elif not kept:
+		problems.append("the Hunter took from behind a planted shield before it turned")
+
+	# ─ 2. it learns: the same verb again buys less ─
+	await _turn_set(player, hunter, stand, 0.0, near, false)
+	Input.action_press("verb")
+	await _hold(3.0)
+	var again: float = hunter.turned_for()
+	Input.action_release("verb")
+	var expected: float = tuning.hunter_turn_hold_seconds * tuning.hunter_wary_factor
+	print("[turn] learning      first Hold %.1f s, second %.1f s (expected ≈ %.1f), Hold used %d time(s)"
+		% [held_turn, again, expected, hunter.wary_of(&"hold")])
+	if again <= 0.0 or again > expected + 0.5:
+		problems.append("a second Hold bought %.1f s against the first's %.1f s — it learns, or one trick holds it all floor"
+			% [again, held_turn])
+	# Not stacked: turning it while it is away neither turns nor teaches it.
+	var stacked: float = hunter.turn_away(&"hold", tuning.hunter_turn_hold_seconds, stand, player)
+	if stacked > 0.0 or hunter.wary_of(&"hold") != 2:
+		problems.append("a Hunter already away was turned again (%.1f s, Hold used %d times)"
+			% [stacked, hunter.wary_of(&"hold")])
+	# Facing away, planted: a shield at its back is no door.
+	await _turn_set(player, hunter, stand, PI, near, true)
+	Input.action_press("verb")
+	await _hold(3.0)
+	var back_turned: bool = hunter.turned_for() > 0.0
+	Input.action_release("verb")
+	print("[turn] Hold          planted facing away: turned=%s" % back_turned)
+	if back_turned:
+		problems.append("a Húskarl planted facing away turned the Hunter — a shield at its back is no door")
+	player.sworn = was_sworn
+
+	# ─ 3. the Veiðimaðr's snare: worked free, it limps off ─
+	await _turn_set(player, hunter, stand, 0.0, far, true)
+	hunter.rooted.hold_for(0.6)
+	await _hold(0.3)
+	var during: bool = hunter.turned_for() > 0.0
+	await _hold(0.45)
+	# Turned by somebody, it rears back first — the visual twin (`DES-018`).
+	var rearing: bool = hunter.visual_phase == EnemyVisual.HunterPresentation.RECOIL
+	await _hold(0.35)
+	var snared: float = hunter.turned_for()
+	print("[turn] Snare         while held turned=%s · released: turned %.1f s, rearing back=%s"
+		% [during, snared, rearing])
+	if snared > 0.0 and not rearing:
+		problems.append("turned away by a snare, the Hunter did not rear back — the turn has no visual twin")
+	if during:
+		problems.append("the Hunter was turned while still held — the snare's seconds are bought first")
+	if snared <= 0.0:
+		problems.append("worked free of a snare, the Hunter went on hunting (ADR-403)")
+
+	# ─ 4. the Úlfheðinn: a blow in the fury drives it off; a blow without, not ─
+	await _turn_set(player, hunter, stand, 0.0, far, true)
+	var hurtbox := hunter.get_node("Hurtbox") as Hurtbox
+	hurtbox.receive(4.0, Enums.DamageType.CUT, player)
+	await _hold(0.2)
+	var cold: bool = hunter.turned_for() > 0.0
+	player.fury = 3.0
+	hurtbox.receive(4.0, Enums.DamageType.CUT, player)
+	await _hold(0.2)
+	var furious: float = hunter.turned_for()
+	player.fury = 0.0
+	print("[turn] Wolf-Fury     a blow: turned=%s · in the fury: turned %.1f s (a fresh verb, not the Hold's %.1f)"
+		% [cold, furious, again])
+	if cold:
+		problems.append("an ordinary blow turned the Hunter — only the fury drives it off")
+	if absf(furious - tuning.hunter_turn_fury_seconds) > 0.5:
+		problems.append("a blow in the fury turned it for %.1f s, not the %.1f s a first use buys — what it learned of the Hold leaked into the fury"
+			% [furious, tuning.hunter_turn_fury_seconds])
+
+	# ─ 5. the Skald: a whole verse sends it; a stanza does not ─
+	player.sworn = &"skald"
+	await _turn_set(player, hunter, stand, 0.0, far, true)
+	player.song_at = Vector3.INF
+	player.call("_sing_out", tuning, true)
+	await _hold(0.2)
+	var stanza: bool = hunter.turned_for() > 0.0
+	player.call("_sing_out", tuning, false)
+	await _hold(0.2)
+	var verse: float = hunter.turned_for()
+	player.sworn = was_sworn
+	print("[turn] Galdr         a stanza: turned=%s · a whole verse: turned %.1f s" % [stanza, verse])
+	if stanza:
+		problems.append("a single stanza turned the Hunter — only a whole verse does")
+	if verse <= 0.0:
+		problems.append("a whole verse sung within reach did not turn the Hunter (DES-017: Skald songs confuse it)")
+
+	# ─ 6. the Völva: a reading veils the party's gold ─
+	player.sworn = &"volva"
+	await _turn_set(player, hunter, stand, 0.0, Vector3(9.0, 0.1, -20.0), true)
+	await _hold(0.4)
+	var sought: bool = hunter.target() == player
+	player.call("_read", tuning)
+	await _hold(0.4)
+	var veiled_for: float = player.veiled
+	var lost: bool = hunter.target() == null
+	player.veiled = 0.0
+	await _hold(0.4)
+	var found_again: bool = hunter.target() == player
+	player.sworn = was_sworn
+	print("[turn] Seiðr         sought before=%s · after the reading veiled %.1f s, lost=%s · veil gone, found again=%s"
+		% [sought, veiled_for, lost, found_again])
+	if not sought:
+		problems.append("the Hunter was not after the rich body before the reading, so the row is not about the veil")
+	if veiled_for <= 0.0 or not lost:
+		problems.append("a reading did not hide the party's gold from the Hunter (ADR-403)")
+	if not found_again:
+		problems.append("with the veil gone the Hunter still could not feel the body — the veil is not the thing hiding it")
+
+	# ─ 7. the Haugbrjótr: her hammer knocks its coin loose ─
+	player.sworn = &"haugbrjotr"
+	await _turn_set(player, hunter, stand, 0.0, near, true)
+	before = player.inventory.total_tribute()
+	Input.action_press("verb")
+	await _hold(0.3)
+	var swinging: float = player.breaking
+	await _hold(0.9)
+	Input.action_release("verb")
+	var stooping: bool = hunter.state() == Gullsjukr.State.COLLECTING
+	print("[turn] Haugbrot      0.3 s in, the hammer %.0f%% through" % (swinging * 100.0))
+	# Read now: once gathered the coin is freed, and a freed object reads as
+	# null by the time the row is printed.
+	var loosened: bool = hunter.spill() != null
+	var unrobbed: bool = player.inventory.total_tribute() == before
+	await _hold(tuning.hunter_collect_seconds + 1.5)
+	var after_coin: float = hunter.turned_for()
+	print("[turn] Haugbrot      coin loose=%s, stooping=%s, the bag kept=%s · coin back: turned %.1f s"
+		% [loosened, stooping, unrobbed, after_coin])
+	if not loosened or not stooping:
+		problems.append("Haugbrot at the Hunter knocked nothing loose, or it did not stoop for its coin")
+	if not unrobbed:
+		problems.append("the Hunter robbed the Haugbrjótr before her hammer landed — Haugbrot must beat its stoop")
+	if after_coin <= 0.0:
+		problems.append("with its own coin back the Hunter did not go away to count it")
+	# Snatched before it is gathered, the coin is hers and the Hunter stays.
+	await _turn_set(player, hunter, stand, 0.0, near, true)
+	hunter.knock_loose(player)
+	await _hold(0.3)
+	var snatch: WorldItem = hunter.spill()
+	var knocked: bool = snatch != null
+	if knocked:
+		snatch.queue_free()
+	await _hold(0.5)
+	var stayed: bool = hunter.turned_for() <= 0.0 and hunter.sated_for() <= 0.0
+	print("[turn] Haugbrot      the coin snatched: it stays=%s" % stayed)
+	if not knocked or not stayed:
+		problems.append("snatching its knocked-loose coin still sent the Hunter away — the coin is the greedy choice, not a free one")
+	player.sworn = was_sworn
+
+	# ─ 8. the menace gauge: close pursuit with nothing taken has a ceiling ─
+	await _turn_set(player, hunter, stand, 0.0, Vector3(9.0, 0.1, -21.0), true)
+	await _hold(1.0)
+	var filled: float = hunter.menace()
+	hunter.global_position = Vector3(9.0, 0.1, -21.0)
+	hunter.set("_menace", tuning.hunter_menace_seconds - 0.3)
+	var gauge: float = tuning.hunter_menace_seconds
+	await _hold(0.6)
+	var broke_off: float = hunter.turned_for()
+	var reared: bool = float(hunter.get("_recoil_left")) > 0.0
+	# Control: the same pursuit with the ceiling out of reach.
+	await _turn_set(player, hunter, stand, 0.0, Vector3(9.0, 0.1, -21.0), true)
+	tuning.hunter_menace_seconds = 9999.0
+	hunter.set("_menace", gauge - 0.3)
+	await _hold(0.6)
+	var held_on: bool = hunter.turned_for() <= 0.0
+	tuning.hunter_menace_seconds = gauge
+	print("[turn] menace        %.1f s gathered in 1 s near · full: broke off %.1f s, reared=%s, learned=%d · no ceiling: still after them=%s"
+		% [filled, broke_off, reared, hunter.wary_of(Gullsjukr.MENACE), held_on])
+	if filled < 0.7:
+		problems.append("a second of close pursuit filled the menace gauge by %.2f s — it is not counting" % filled)
+	if absf(broke_off - tuning.hunter_menace_rest) > 0.7:
+		problems.append("a full menace gauge did not break the pursuit off for its rest (%.1f s)" % broke_off)
+	if reared or hunter.wary_of(Gullsjukr.MENACE) != 0:
+		problems.append("breaking off on its own made it rear or learn — nobody turned it")
+	if not held_on:
+		problems.append("with the gauge out of reach it broke off anyway, so the menace row is not about the gauge")
+
+	player.sworn = was_sworn
+	Input.action_release("verb")
+	for problem: String in problems:
+		printerr("[turn] FAIL %s" % problem)
+	print("[turn] %d problem(s)" % problems.size())
+	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## A fresh encounter for one `--turn-probe` row: the body rich and silent at
+## `at` facing `yaw`, the Hunter at `hunter_at` with nothing pending — not away,
+## not stooping, not held — and, unless `remember`, nothing learned.
+func _turn_set(player: Player, hunter: Gullsjukr, at: Vector3, yaw: float,
+		hunter_at: Vector3, forget: bool) -> void:
+	Input.action_release("verb")
+	for field: String in ["_turned_left", "_recoil_left", "_sated_left", "_menace",
+			"_balked", "_taking", "_collect_left"]:
+		hunter.set(field, 0.0)
+	var spill: WorldItem = hunter.spill()
+	if spill != null:
+		spill.queue_free()
+	hunter.set("_spill", null)
+	hunter.set("_bait", null)
+	# What it took or was thrown in earlier rows is gold on the floor, and it
+	# would stoop for that rather than come for the body.
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var lying := node as WorldItem
+		if lying != null and lying.disturbed:
+			lying.queue_free()
+	hunter.rooted.release()
+	hunter.set("_was_held", false)
+	if forget:
+		hunter.set("_wary", {})
+	hunter.state_index = Gullsjukr.State.DISTANT
+	hunter.global_position = hunter_at
+	hunter.velocity = Vector3.ZERO
+	player.inventory.clear()
+	for row: Array in LOOT:
+		var definition: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
+		if definition != null and definition.tribute_value > 0:
+			player.inventory.add(definition)
+	player.veiled = 0.0
+	player.fury = 0.0
+	player.health.heal(player.health.maximum * 5.0)
+	player.teleport(at, yaw)
+	player.clamor.silence()
+	await _hold(0.15)
+	hunter.rooted.release()
+	hunter.set("_was_held", false)
 
 
 ## Do both channels carry the same thing (`M2-T03`, ADR-036)?
@@ -18723,7 +19001,11 @@ func _galdr_probe() -> void:
 	body.restore_for_descent()
 
 	# ─ 2c. sung walking, at half pace, with no swing ─
+	# An empty room is empty of the Hunter too: since ADR-403 a whole verse
+	# within its reach sends it away, and the reticle says so instead.
 	_session.clear_enemies()
+	if _hunter != null:
+		_hunter.set("_sated_left", 999.0)
 	await _hold(0.2)
 	var paces: Array[float] = []
 	for sing: bool in [false, true]:

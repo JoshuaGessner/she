@@ -7,7 +7,7 @@ extends Node3D
 
 const HUNTER_MODEL: String = "res://art/heroes/gullsjukr.glb"
 
-enum HunterPresentation { NONE, COLLECT, TAKE, SHRUG }
+enum HunterPresentation { NONE, COLLECT, TAKE, SHRUG, RECOIL }
 
 const ENEMY_SUSPICIOUS: int = 1
 const ENEMY_ALERTED: int = 2
@@ -330,6 +330,10 @@ func present_hunter(state: int, presentation: int, presentation_progress: float,
 			return
 		HunterPresentation.SHRUG:
 			_play_event(&"shrug", presentation_progress)
+			return
+		HunterPresentation.RECOIL:
+			# Turned away (ADR-403): it rears back from what turned it.
+			_play_event(&"recoil", presentation_progress)
 			return
 	match state:
 		HUNTER_COURSING:

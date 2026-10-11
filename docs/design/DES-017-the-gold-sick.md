@@ -4,7 +4,7 @@ title: The Gold-Sick — the Hunter
 status: accepted
 owner: design
 tags: [hunter, pressure, ai, theme, clamor, extraction]
-updated: 2026-09-30
+updated: 2026-10-10
 related: [DES-005, DES-013, DES-008, DES-014, DES-018]
 ---
 
@@ -88,6 +88,16 @@ This is the best interaction in the design and it costs very little to build:
 **Satisfy it.** ⟨tune⟩ Give it enough at once to settle its Tithe, and it *stops*. Sits down. Leaves the run.
 Expensive, optional, and it is the **Refusal** answer to the same problem (`DES-016`) — the mercy option.
 
+> **AMENDED (ADR-403): every class can turn it away, and it learns.** Paying it was the only thing that ever ended an encounter, so every encounter was the same toll. Now each class turns it with the verb it already has:
+> - the **Húskarl's** planted shield is a door it cannot reach past;
+> - worked free of a **Veiðimaðr's** snare, it limps off;
+> - a **Völva's** reading hides the party's gold from it;
+> - a blow struck in the **Úlfheðinn's** fury drives it off;
+> - a **Skald's** whole verse sends it away;
+> - a **Haugbrjótr's** hammer knocks coin out of its hoard, and it stoops for that and goes, unless she snatches the coin.
+>
+> Turned, it rears back and goes for less time than a payment buys. Each use of the same verb buys 0.6 of the last ⟨tune⟩, which is how *Alien: Isolation*'s creature treats the flamethrower. Close pursuit also has a ceiling for every class, the **menace gauge**: after 45 s ⟨tune⟩ near you with nothing taken, it breaks off for 15 s.
+
 **Or kill it, eventually.** At high Pact Rank ⟨tune⟩ it becomes killable. You get its entire hoard, which is enormous, and a deed. It is also a person, and the game will not mention that either. **Two solutions expressing opposite values** — take everything it has, or give it enough to rest.
 
 ## Behaviour states
@@ -101,6 +111,7 @@ Reuses the `DES-013` awareness ladder for consistency:
 | **Sighted** | It has you | Full mix. It does not lose interest quickly. |
 | **Collecting** | Distracted by thrown gold | Everything drops back for a few seconds — *your window* |
 | **Lost** | Searching your last known position | Tension holds, then decays |
+| **Turned** *(ADR-403)* | A class verb turned it, or the menace gauge filled. It rears back, then goes from what turned it for that verb's seconds, less each time the verb is used again. Shown as Distant | The recoil, a groan of coin, and a line saying what turned it |
 | **Sated** *(ADR-277)* | Gold reached its hands — taken from you or thrown to it. It walks back to where it came onto the floor for 35 s ⟨tune⟩ and wants nothing while it counts. Shown as Distant | The score drops away: your window to finish |
 
 ## Where it appears

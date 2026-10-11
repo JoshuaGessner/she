@@ -75,6 +75,22 @@ signal took(item: ItemInstance, at: Vector3)
 ## colour.
 signal shrugged()
 
+## **Turned away** (ADR-403), host-side: by which verb, for how many seconds
+## after what it has learned, and who did it (null when it broke off on its
+## own). Raised for probes; the turner is told through `Player.told_hunter`.
+signal turned(by: StringName, seconds: float, turner: Player)
+
+## Asks the session to drop a lump of its own hoard at its feet (ADR-403,
+## the Haugbrjótr's Haugbrot). Same shape as `took`: the session owns every
+## spawn, and hands the lump back with `stoop_for`.
+signal spilled(item: StringName, at: Vector3)
+
+## What turned it away when it broke off on its own (ADR-403): never learned,
+## because it is not a trick anybody played on it.
+const MENACE: StringName = &"menace"
+## The coin a mound-breaker's hammer knocks loose (ADR-403).
+const SPILL_ITEM: StringName = &"glt_hoard_coin"
+
 ## How an ember ranks against gold when both are on the floor (`M2-T21`).
 ## A **priority, not a value** — it outranks any hoard because it is the thing
 ## every hoard was being gathered *for*, and it is deliberately not a
@@ -202,6 +218,30 @@ var _sated_left: float = 0.0
 ## one place on the floor it has a reason to be.
 var _home: Vector3 = Vector3.ZERO
 var _has_home: bool = false
+## **Turned away** (ADR-403): seconds left going from what turned it, the
+## part of that spent rearing back where it stood, and where the thing that
+## turned it was. Read as Distant, like Sated, and for the same reason.
+var _turned_left: float = 0.0
+var _recoil_left: float = 0.0
+var _turned_from: Vector3 = Vector3.ZERO
+## **It learns** (ADR-403): how many times each verb has turned it. Each use
+## buys `hunter_wary_factor` as much as the last — Alien: Isolation's creature
+## grows bolder against the flamethrower the same way — so no one trick holds
+## it for a whole floor, and paying it stays a real answer.
+var _wary: Dictionary = {}
+## **Seconds of close pursuit with nothing taken** (ADR-403): Alien: Isolation's
+## menace gauge. Full, it breaks off and goes, so pursuit has a ceiling for
+## every class, and the verbs are a way to end it sooner, not the only way.
+var _menace: float = 0.0
+## Seconds a planted shield has stood between it and its reach (ADR-403).
+var _balked: float = 0.0
+## Whether a Rooted held it last frame, so its release is seen once.
+var _was_held: bool = false
+## The lump of its own coin it is stooping for, and how long it will stay
+## away once it has it back (ADR-403, Haugbrot).
+var _spill: WorldItem = null
+var _spill_seconds: float = 0.0
+var _spill_by: Player = null
 ## Seconds to its next reckoning, and where the last one said someone was.
 var _reckon_in: float = 0.0
 var _scent_at: Vector3 = Vector3.ZERO
@@ -370,6 +410,143 @@ func sated_for() -> float:
 	return _sated_left
 
 
+## Seconds of being turned away left, for probes and the overlay (ADR-403).
+func turned_for() -> float:
+	return _turned_left
+
+
+## Seconds of close pursuit it has spent with nothing taken (ADR-403).
+func menace() -> float:
+	return _menace
+
+
+## The lump of its own coin it is stooping for, or null (ADR-403).
+func spill() -> WorldItem:
+	return _spill if is_instance_valid(_spill) else null
+
+
+## Whether it is away — paid or turned — and wants nothing.
+func is_away() -> bool:
+	return _sated_left > 0.0 or _turned_left > 0.0
+
+
+## **What a verb would buy now** (ADR-403): its seconds, less for every time
+## that verb has turned it before. Breaking off on its own is not learned.
+func turn_seconds(by: StringName, seconds: float) -> float:
+	if by == MENACE:
+		return seconds
+	return seconds * pow(Config.tuning.hunter_wary_factor, float(_wary.get(by, 0)))
+
+
+## How many times `by` has turned it.
+func wary_of(by: StringName) -> int:
+	return int(_wary.get(by, 0))
+
+
+## **Turned away** (ADR-403), host-side. Every class has a verb that does this,
+## each its own way (`DES-011`); what they share is here: it drops whoever it
+## wanted, rears back where it stands, and goes from the thing that turned it
+## for the seconds the verb buys, after what it has learned of that verb.
+##
+## It does not stack. A Hunter already away — paid, or turned — is not turned
+## again, and is not taught anything by the attempt.
+func turn_away(by: StringName, seconds: float, from: Vector3, turner: Player = null) -> float:
+	if not multiplayer.is_server() or is_away():
+		return 0.0
+	var held: float = turn_seconds(by, seconds)
+	if by != MENACE:
+		_wary[by] = wary_of(by) + 1
+	_go_away(held, from, by != MENACE)
+	print("[hunt] turned away by %s for %.1f s (turned by it %d time(s) now)" % [
+		by, held, wary_of(by)])
+	turned.emit(by, held, turner)
+	if turner != null:
+		turner.told_hunter(by, wary_of(by) > 1)
+	return held
+
+
+func _go_away(held: float, from: Vector3, rears: bool) -> void:
+	_turned_left = held
+	_recoil_left = Config.tuning.hunter_recoil_seconds if rears else 0.0
+	_turned_from = from
+	_target = null
+	_has_scent = false
+	_patience_left = 0.0
+	_taking = 0.0
+	_menace = 0.0
+	_balked = 0.0
+	_bait = null
+	_reckon_in = Config.tuning.hunter_reckon_seconds
+	state_index = State.DISTANT
+	_groan.rpc()
+
+
+## **A groan of coin** (ADR-403): the reckoning's heave, pitched down — the
+## sound of it going rather than coming. Its visual twin is the recoil.
+@rpc("authority", "call_local", "unreliable")
+func _groan() -> void:
+	Foley.at(self, Foley.Sound.STALK, 0.42, 4.0, Config.tuning.hunter_wealth_range_max)
+
+
+## **Veiled** (ADR-403, the Völva's reading): it cannot feel the party's gold
+## for the seconds the reading buys, after what it has learned of readings.
+## It is not turned — it still hears, and it still goes where the noise was —
+## it has lost what it was following, and a quiet party is lost to it.
+func veil(seconds: float, by: Player) -> float:
+	if not multiplayer.is_server():
+		return 0.0
+	var held: float = turn_seconds(&"seidr", seconds)
+	_wary[&"seidr"] = wary_of(&"seidr") + 1
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var body := node as Player
+		if body != null:
+			body.veiled = maxf(body.veiled, held)
+	if _target != null and _target.wealth_is_hidden():
+		_target = null
+		_has_scent = false
+		_patience_left = Config.tuning.hunter_patience
+	_menace = 0.0
+	print("[hunt] a reading veils the party's gold for %.1f s (read %d time(s) now)" % [
+		held, wary_of(&"seidr")])
+	turned.emit(&"seidr", held, by)
+	if by != null:
+		by.told_hunter(&"seidr", wary_of(&"seidr") > 1)
+	return held
+
+
+## **Coin knocked loose** (ADR-403, the Haugbrjótr's Haugbrot): a lump of its
+## hoard falls at its feet, it stoops for it as it would for any gold, and
+## having it back it goes away to count it. The coin is real while it lies
+## there — snatch it, and it is hers, and the Hunter is still hers too.
+func knock_loose(by: Player) -> void:
+	if not multiplayer.is_server() or is_away() or _spill != null:
+		return
+	_spill_seconds = turn_seconds(&"haugbrot", Config.tuning.hunter_turn_haugbrot_seconds)
+	_wary[&"haugbrot"] = wary_of(&"haugbrot") + 1
+	_spill_by = by
+	_target = null
+	_taking = 0.0
+	_menace = 0.0
+	print("[hunt] coin knocked loose — it will stoop, then go for %.1f s" % _spill_seconds)
+	spilled.emit(SPILL_ITEM, global_position + Vector3(0.0, 0.2, 0.0)
+		+ global_basis.z * -0.9)
+
+
+## The session hands the knocked-loose lump back: it stoops for it now.
+func stoop_for(lump: WorldItem) -> void:
+	if lump == null:
+		return
+	_spill = lump
+	_bait = lump
+	_collect_left = Config.tuning.hunter_collect_seconds
+	_goal = lump.global_position
+	_has_goal = true
+	state_index = State.COLLECTING
+	turned.emit(&"haugbrot", _spill_seconds, _spill_by)
+	if _spill_by != null:
+		_spill_by.told_hunter(&"haugbrot", wary_of(&"haugbrot") > 1)
+
+
 ## The richest player inside wealth range, or `null`.
 ##
 ## **Through walls, and through silence.** `DES-017`: co-op makes this pick the
@@ -517,6 +694,9 @@ func _physics_process(delta: float) -> void:
 	if _shrug_left > 0.0:
 		visual_phase = EnemyVisual.HunterPresentation.SHRUG
 		visual_progress = 1.0 - _shrug_left / SHRUG_SECONDS
+	elif _recoil_left > 0.0:
+		visual_phase = EnemyVisual.HunterPresentation.RECOIL
+		visual_progress = 1.0 - _recoil_left / maxf(Config.tuning.hunter_recoil_seconds, 0.01)
 	elif state() == State.COLLECTING and not _has_goal:
 		visual_phase = EnemyVisual.HunterPresentation.COLLECT
 		visual_progress = 1.0 - _collect_left / Config.tuning.hunter_collect_seconds
@@ -541,6 +721,13 @@ func _think(delta: float) -> void:
 	# itself."* A Hunter that finished its current thought before noticing a
 	# thrown purse would make baiting unreliable, and an unreliable counter-play
 	# is worse than none — the player stops trusting it and stops using it.
+	# **Worked free of a snare, it limps off** (ADR-403, the Veiðimaðr). Seen
+	# once, on the frame the hold lets go, whatever it was doing when caught.
+	var held_now: bool = rooted.held()
+	if _was_held and not held_now:
+		var ahead: Vector3 = _goal if _has_goal else global_position - global_basis.z * 2.0
+		turn_away(&"snare", Config.tuning.hunter_turn_snare_seconds, ahead, _nearest_with(&"snare"))
+	_was_held = held_now
 	if state() == State.COLLECTING:
 		_tick_collecting(delta)
 		return
@@ -549,6 +736,16 @@ func _think(delta: float) -> void:
 	if _sated_left > 0.0:
 		_sated_left -= delta
 		_withdraw()
+		return
+	# **Turned, it goes from what turned it** (ADR-403): first it rears back
+	# where it stands, then it walks away, wanting nothing until the time is up.
+	if _turned_left > 0.0:
+		_turned_left -= delta
+		if _recoil_left > 0.0:
+			_recoil_left -= delta
+			_has_goal = false
+			return
+		_flee()
 		return
 	var bait: WorldItem = _bait_worth_taking()
 	if bait != null:
@@ -572,6 +769,27 @@ func _think(delta: float) -> void:
 		_goal = rich.global_position
 		_has_goal = true
 		_has_scent = false
+		# **The menace gauge** (ADR-403): close pursuit with nothing taken has
+		# a ceiling. Full, it breaks off — not turned by anyone, so it neither
+		# rears nor learns — and goes, for less time than a payment buys.
+		_menace += delta
+		if _menace >= Config.tuning.hunter_menace_seconds:
+			turn_away(MENACE, Config.tuning.hunter_menace_rest, rich.global_position, rich)
+			return
+		# **A planted shield it cannot reach past** (ADR-403, the Húskarl). It
+		# stands at the guard, its stoop gets nowhere, and if the guard holds
+		# long enough it turns away from the door it was refused.
+		var guard: Player = _guard_before_it()
+		if guard != null:
+			_balked += delta
+			_taking = 0.0
+			_has_goal = false
+			state_index = State.SIGHTED
+			if _balked >= Config.tuning.hunter_balk_seconds:
+				turn_away(&"hold", Config.tuning.hunter_turn_hold_seconds,
+					guard.global_position, guard)
+			return
+		_balked = maxf(0.0, _balked - delta)
 		# **Arriving has to cost you something** (`M2-T19`, ADR-112). It used to
 		# walk up, stop at 24 cm, and stand inside you for as long as you let
 		# it: measured over fourteen seconds, health 100 → 100 and the bag
@@ -588,6 +806,10 @@ func _think(delta: float) -> void:
 		state_index = State.SIGHTED if _can_see(rich) else State.COURSING
 		return
 	_taking = 0.0
+	# Out of its near sense the gauge drains, at half the rate it fills: a
+	# body that slipped it for a moment has not reset the pursuit.
+	_menace = maxf(0.0, _menace - delta * 0.5)
+	_balked = 0.0
 
 	# **The reckoning** (ADR-277): a beat, not a leash. It feels for the
 	# richest body in range once, takes where they *were*, and goes there.
@@ -642,9 +864,65 @@ func _sate() -> void:
 	_has_scent = false
 	_patience_left = 0.0
 	_taking = 0.0
+	_menace = 0.0
+	_balked = 0.0
 	_reckon_in = Config.tuning.hunter_reckon_seconds
 	state_index = State.DISTANT
 	print("[hunt] sated — it goes to count it for %.0f s" % _sated_left)
+
+
+## **Going from what turned it** (ADR-403): home, if home lies away from the
+## thing that turned it; otherwise the nearest walkable point a good way off
+## on the far side. Never back past the guard that refused it.
+func _flee() -> void:
+	state_index = State.DISTANT
+	var away: Vector3 = global_position - _turned_from
+	away.y = 0.0
+	if away.length() < 0.01:
+		away = global_basis.z
+	if _home.distance_to(_turned_from) > global_position.distance_to(_turned_from) + 2.0:
+		_goal = _home
+	else:
+		_goal = global_position + away.normalized() * Config.tuning.hunter_flee_metres
+		if _agent != null and _agent.get_navigation_map().is_valid():
+			_goal = NavigationServer3D.map_get_closest_point(_agent.get_navigation_map(), _goal)
+	_has_goal = global_position.distance_to(_goal) > 1.5
+
+
+## **A Húskarl's planted shield between it and its reach** (ADR-403): a body
+## in a full Hold, within reach, facing it. Read off the replicated `planted`
+## and the body's own yaw, on the host, of every body on the floor — a guard
+## holds the door for the whole party, not only for himself.
+func _guard_before_it() -> Player:
+	var reach: float = Config.tuning.hunter_reach + Config.tuning.hunter_guard_slack
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var body := node as Player
+		if body == null or body.planted < 1.0 or body.is_incapacitated():
+			continue
+		var off: Vector3 = global_position - body.global_position
+		off.y = 0.0
+		if off.length() > reach or off.length() < 0.01:
+			continue
+		var facing: Vector3 = -body.global_basis.z
+		facing.y = 0.0
+		if facing.normalized().dot(off.normalized()) >= Config.tuning.hunter_guard_facing:
+			return body
+	return null
+
+
+## The nearest body sworn to `verb`, for telling a turner what they did when
+## the thing that turned it (a snare, an arrow) does not know its owner.
+func _nearest_with(verb: StringName) -> Player:
+	var best: Player = null
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var body := node as Player
+		var sworn_as: ClassResource = ClassCatalogue.by_id(body.sworn) if body != null else null
+		if sworn_as == null or sworn_as.verb != verb:
+			continue
+		if best == null or body.global_position.distance_to(global_position) \
+				< best.global_position.distance_to(global_position):
+			best = body
+	return best
 
 
 func _withdraw() -> void:
@@ -745,9 +1023,14 @@ func _take_from(player: Player, delta: float) -> void:
 
 func _tick_collecting(delta: float) -> void:
 	if _bait == null or not is_instance_valid(_bait):
+		# Its own coin snatched from under it (ADR-403): it got nothing back,
+		# so it goes nowhere, and whoever has the coin is richer for it.
 		_bait = null
+		_spill = null
 		state_index = State.LOST
 		return
+	if _spill != null and not is_instance_valid(_spill):
+		_spill = null
 	_goal = _bait.global_position
 	_has_goal = true
 	if global_position.distance_to(_bait.global_position) > Config.tuning.hunter_reach:
@@ -777,6 +1060,16 @@ func _tick_collecting(delta: float) -> void:
 	if _bait.is_ember():
 		print("[hunt] the Gullsjúkr stooped over an ember and left it")
 		_bait.disturbed = false
+	elif _bait == _spill:
+		# **Its own coin back in its hands** (ADR-403): not a payment — nobody
+		# paid it — so it is not sated. It goes away to count what fell.
+		_bait.queue_free()
+		_bait = null
+		_spill = null
+		_go_away(_spill_seconds, _spill_by.global_position if is_instance_valid(_spill_by)
+			else global_position + global_basis.z, false)
+		print("[hunt] it has its coin back, and goes for %.1f s" % _spill_seconds)
+		return
 	else:
 		# It takes the gold with it. Not despawned quietly: an item that
 		# vanished would read as a bug, and `DES-017` is explicit that it is
@@ -985,7 +1278,14 @@ func voice_is(sound: Foley.Sound) -> bool:
 		return false
 	return Foley.is_sound(_voice.stream, sound)
 
-func _on_struck(_amount: float, _from: Node) -> void:
+func _on_struck(_amount: float, from: Node) -> void:
+	# **A blow struck in the Wolf-Fury drives it off** (ADR-403, the
+	# Úlfheðinn). *"Neither fire nor iron told upon them"* — Ynglinga saga
+	# ch. 6. It is a person, badly, and a person does not stand in front of
+	# that. The blow still does nothing to it; what turns it is who struck.
+	var striker: Player = _striker(from)
+	if striker != null and striker.fury > 0.0:
+		turn_away(&"fury", Config.tuning.hunter_turn_fury_seconds, striker.global_position, striker)
 	if killable():
 		# Nothing yet, and deliberately nothing: `M3-T01` gives it the health
 		# this branch needs. Reaching here at all requires a rank no build can
@@ -996,6 +1296,14 @@ func _on_struck(_amount: float, _from: Node) -> void:
 	shrugged.emit()
 	_shrug_left = SHRUG_SECONDS
 	_apply_tint()
+
+
+## The body behind a blow: a hitbox lives on a weapon held by a player.
+static func _striker(from: Node) -> Player:
+	var node: Node = from
+	while node != null and not node is Player:
+		node = node.get_parent()
+	return node as Player
 
 
 func _apply_tint() -> void:

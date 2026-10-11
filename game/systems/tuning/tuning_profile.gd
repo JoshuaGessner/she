@@ -438,6 +438,47 @@ extends Resource
 ## Gullsjúkr is a decision rather than a reflex (principle 3).
 @export var hunter_take_seconds: float = 0.9
 
+## **Turning it away** (ADR-403). Before this, gold reaching its hands was the
+## only thing that ended an encounter, so every encounter ended the same way:
+## it trailed you until you paid, came back, and you paid again. Each class
+## now has a verb that turns it, each buying its own seconds ⟨tune⟩ — less
+## than a payment's `hunter_sated_seconds`, more than a bait's window — and
+## it learns: each use of one verb buys `hunter_wary_factor` of the last.
+@export var hunter_turn_hold_seconds: float = 24.0
+@export var hunter_turn_snare_seconds: float = 18.0
+@export var hunter_turn_fury_seconds: float = 26.0
+@export var hunter_turn_galdr_seconds: float = 28.0
+@export var hunter_turn_haugbrot_seconds: float = 24.0
+## Seconds a Völva's reading hides the party's gold from it ⟨tune⟩. Longer than
+## a turn, because it does not send it away — it still hears, and still comes
+## to where the noise was; only a quiet party is lost to it.
+@export var hunter_veil_seconds: float = 30.0
+## What each further use of the same verb buys, as a fraction of the last
+## ⟨tune⟩. Alien: Isolation's creature grows bolder against the flamethrower
+## the more it is used on it; the lesson is the same here — no one trick
+## holds it for a whole floor, and a party of mixed oaths does best.
+@export var hunter_wary_factor: float = 0.6
+## Seconds it rears back where it stands before it goes ⟨tune⟩ — the visual
+## twin of being turned (`DES-018`), long enough to read from across a room.
+@export var hunter_recoil_seconds: float = 0.9
+## Metres it goes when home lies past what turned it ⟨tune⟩.
+@export var hunter_flee_metres: float = 14.0
+## **The menace gauge** ⟨tune⟩: seconds of close pursuit with nothing taken
+## before it breaks off on its own, and how long it then stays away. Pursuit
+## has a ceiling for every class; the verbs end it sooner.
+@export var hunter_menace_seconds: float = 45.0
+@export var hunter_menace_rest: float = 15.0
+## **The Húskarl's door** ⟨tune⟩: seconds a planted guard must refuse it before
+## it turns, how far past its reach the guard still stands in its way, and how
+## squarely he must face it (a dot product).
+@export var hunter_balk_seconds: float = 2.0
+@export var hunter_guard_slack: float = 0.8
+@export var hunter_guard_facing: float = 0.5
+## Seconds of Haugbrot at the Hunter before its coin comes loose ⟨tune⟩ —
+## shorter than its `hunter_take_seconds` stoop, so a mound-breaker who starts
+## first wins.
+@export var haugbrot_hunter_seconds: float = 0.6
+
 @export_group("The Tithe")
 ## What she expects of you per cycle, indexed by Pact Rank (`DES-003`) ⟨tune⟩.
 ##
@@ -1025,6 +1066,22 @@ func validate() -> PackedStringArray:
 			+ "genuinely fight") % [floor_fog_end, InkPass.FALLOFF_END])
 	if carry_capacity <= 0.0:
 		problems.append("carry_capacity must be positive or encumbrance is undefined")
+	# ADR-403: a trick it learns must buy less each time, never more, and
+	# never nothing; and paying it must stay the longest peace, or giving
+	# something up — the game's whole decision — would be the worse answer.
+	if hunter_wary_factor <= 0.0 or hunter_wary_factor > 1.0:
+		problems.append("hunter_wary_factor %.2f must be in (0, 1]: it learns, "
+			% hunter_wary_factor + "so a verb used again buys no more than the last time")
+	for turn: float in [hunter_turn_hold_seconds, hunter_turn_snare_seconds,
+			hunter_turn_fury_seconds, hunter_turn_galdr_seconds,
+			hunter_turn_haugbrot_seconds, hunter_menace_rest]:
+		if turn <= 0.0 or turn >= hunter_sated_seconds:
+			problems.append(("a turn of %.1f s must be positive and shorter than "
+				+ "a payment's %.1f s (ADR-403) — paying it is the longest peace")
+				% [turn, hunter_sated_seconds])
+	if haugbrot_hunter_seconds >= hunter_take_seconds:
+		problems.append("haugbrot_hunter_seconds must be shorter than its take, "
+			+ "or a mound-breaker in reach is always robbed first (ADR-403)")
 	if stamina_max <= 0.0:
 		problems.append("stamina_max must be positive")
 	if inventory_grid.x < 1 or inventory_grid.y < 1:

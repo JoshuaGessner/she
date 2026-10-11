@@ -380,13 +380,14 @@ audio, vertex-channel authoring, inversion, or the human playtest gate.
 - [x] `M4-T46` **The Rites change the bare arms** — ***closed by ADR-399: three stages of each class's own marks at Pact Ranks 3, 5 and 7, worn by every class, checked in `--hands-probe`.*** *ADR-057 decided it and ADR-398 found it unbuilt: at Pact Ranks 3, 5 and 7 each class's forearms carry more of their own marks (the Völva's ink spreads, the Úlfheðinn's fur climbs, the Haugbrjótr's hands grave-stained, the Húskarl's scars, the Veiðimaðr's wrappings, the Skald's rings). Growth you can see on your own body, in the runs 11–25 sag (`DES-022`). Built in `build_class_arms.py` as stages of the same marks; swapped by rank.* → DES-011, DES-020, DES-022
 
 
-### The Hunter and the camp — ADR-402
+### The Hunter and the camp — ADR-402, ADR-403
 
 > **Asked for by the developer (2026-10-10):** *"The tents at the camp don't look right. We
 > need to research and rework the hunter mechanics [...] work him into the classes abilities
 > to help keep him away."*
 
 - [x] `M4-T47` **The plots' tents are modelled** — ***closed by ADR-402: the Gokstad tent (crossed gable boards with carved heads, ridge pole, pegged wool, the door tied back), one mesh per material, dyed per plot.*** *The code-built tents' sheets stood on edge and read as blades.* → DES-014
+- [x] `M4-T48` **Every class can turn the Hunter away** — ***closed by ADR-403: a turn per class verb (Hold, Snare, Seiðr's veil, the fury's blow, a whole verse, Haugbrot's spilled coin), each shorter than a payment and learned, plus a menace gauge on close pursuit; `--turn-probe` drives every verb against its control.*** *Reported from play: "follows you around until you let him take something".* → DES-017, DES-011
 ## M5 — Content & Breadth
 
 <!-- milestone id=M5 depends=M4 size=unknown -->

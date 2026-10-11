@@ -168,7 +168,7 @@ func _check_enemy_animation(path: String) -> void:
 	player.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
 	var hunter: bool = path.contains("gullsjukr")
 	var clips: Array[String] = ["idle", "search", "walk", "run"]
-	clips.append_array(["collect", "take", "shrug"] if hunter else
+	clips.append_array(["collect", "take", "shrug", "recoil"] if hunter else
 		["telegraph", "attack", "recovery", "stagger", "death"])
 	if path.contains("bellringer"):
 		clips.append("call")
