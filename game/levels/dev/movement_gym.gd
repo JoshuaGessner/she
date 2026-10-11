@@ -77,6 +77,8 @@ func _ready() -> void:
 			_fight_probe(player)
 		elif arg == "--swarm-probe":
 			_swarm_probe(player)
+		elif arg == "--brawl-probe":
+			_brawl_probe(player)
 		elif arg == "--feel-probe":
 			_feel_probe(player)
 		elif arg.begins_with("--feel-shot="):
@@ -1030,6 +1032,113 @@ func _fight_probe(player: Player) -> void:
 		print("[fight] FAIL %d assertion(s)" % failures)
 	else:
 		print("[fight] a fight costs something, and heavy is what staggers")
+
+
+## **`--brawl-probe`: what a fight against several costs** (B87).
+##
+## `--fight-probe` is a duel with the health restored every frame — it asks
+## whether blows land, never what a fight costs. This stands a seax-armed body
+## still on open ground with 1, 2 and 3 Wretches around it, facing them and
+## swinging with the stamina it actually has, and reports for each: how long
+## until they are dead or it is down, what it took, how fast, and the most
+## enemies ever mid-blow at once. Two rules ride on it: one Wretch is a fight
+## a body wins, and no more than two bodies swing at one target at a time
+## (ADR-390's tokens) however many stand round it.
+func _brawl_probe(player: Player) -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var failures: int = 0
+	var stand: Vector3 = Vector3(0.0, 0.1, 4.0)
+	var rows: Array = []
+	for count: int in [1, 2, 3]:
+		# The gym's own reset brings a body back the way it does in play;
+		# then the floor is cleared for this row's Wretches.
+		_reset()
+		_session.clear_enemies()
+		await get_tree().physics_frame
+		player.teleport(stand, 0.0)
+		player.health.restore()
+		player.stamina.refill()
+		await get_tree().physics_frame
+		for i: int in count:
+			var at: Vector3 = stand + Vector3.FORWARD.rotated(Vector3.UP,
+				(float(i) - float(count - 1) * 0.5) * 0.5) * 4.0
+			var to_player: Vector3 = stand - at
+			_session.spawn_enemy(at, atan2(-to_player.x, -to_player.z))
+		await get_tree().physics_frame
+		player.clamor.add(Config.tuning.clamor_maximum)
+		var foes: Array[Enemy] = []
+		for node: Node in get_tree().get_nodes_in_group("enemies"):
+			if node is Enemy:
+				foes.append(node as Enemy)
+		var tally: Dictionary = {"taken": 0.0, "landed": 0}
+		var on_hurt: Callable = func(amount: float, _r: float, _f: Node) -> void:
+			tally["taken"] = float(tally["taken"]) + amount
+		var on_land: Callable = func(_h: Hurtbox) -> void:
+			tally["landed"] = int(tally["landed"]) + 1
+		player.health.damaged.connect(on_hurt)
+		player.weapon.connected.connect(on_land)
+		var start_health: float = player.health.current
+		var swings: int = 0
+		var peak: int = 0
+		var frames: int = 0
+		var limit: int = 60 * 40
+		var won: bool = false
+		while frames < limit:
+			var living: Array[Enemy] = []
+			for foe: Enemy in foes:
+				if is_instance_valid(foe) and foe.state() != Enemy.State.DEAD:
+					living.append(foe)
+			if living.is_empty():
+				won = true
+				break
+			# **Down is counted, never reached** (`--fight-probe`'s rule): the
+			# pool is restored every frame and the row ends when what was taken
+			# would have emptied it. A body that really dies stays out of the
+			# fight after the gym brings it back, and every row after measured
+			# nothing.
+			if float(tally["taken"]) >= start_health:
+				break
+			player.health.restore()
+			var mid_blow: int = 0
+			for foe: Enemy in living:
+				if foe.attack_phase() in [Enemy.Attack.TELEGRAPH, Enemy.Attack.ACTIVE]:
+					mid_blow += 1
+			peak = maxi(peak, mid_blow)
+			# Face the nearest, as a player would, a few times a second.
+			if frames % 6 == 0:
+				var nearest: Enemy = living[0]
+				for foe: Enemy in living:
+					if foe.global_position.distance_to(player.global_position) \
+							< nearest.global_position.distance_to(player.global_position):
+						nearest = foe
+				var off: Vector3 = nearest.global_position - player.global_position
+				player.teleport(player.global_position, atan2(-off.x, -off.z))
+			if not player.weapon.is_busy() and player.weapon.request_swing(player.stamina):
+				swings += 1
+			frames += 1
+			await get_tree().physics_frame
+		player.health.damaged.disconnect(on_hurt)
+		player.weapon.connected.disconnect(on_land)
+		var seconds: float = float(frames) / 60.0
+		var taken: float = float(tally["taken"])
+		var row: Dictionary = {"count": count, "won": won, "seconds": seconds,
+			"taken": taken, "rate": taken / maxf(seconds, 0.01), "peak": peak,
+			"swings": swings, "landed": int(tally["landed"]),
+			"left": maxf(0.0, 1.0 - taken / maxf(start_health, 0.01))}
+		rows.append(row)
+		print("[brawl] 1 v %d   %-4s in %5.1f s · took %5.1f (%4.1f/s, %3.0f%% left) · %2d swings, %2d land · most mid-blow at once %d"
+			% [count, "won" if won else "LOST", seconds, taken, float(row["rate"]),
+				float(row["left"]) * 100.0, swings, int(row["landed"]), peak])
+		if peak > 2:
+			print("[brawl] FAIL %d Wretches were mid-blow on one body at once — the tokens cap it at two (ADR-390)" % peak)
+			failures += 1
+	if not bool((rows[0] as Dictionary)["won"]):
+		print("[brawl] FAIL one Wretch beat a seax-armed body standing its ground — the weakest fight in the game is not winnable")
+		failures += 1
+	var solo: float = float((rows[0] as Dictionary)["rate"])
+	var three: float = float((rows[2] as Dictionary)["rate"])
+	print("[brawl] three hit %.1fx as hard as one" % (three / maxf(solo, 0.01)))
+	get_tree().quit(1 if failures > 0 else 0)
 
 
 ## The swarm rows' floor (ADR-234): a Bellringer on the first post, where the
