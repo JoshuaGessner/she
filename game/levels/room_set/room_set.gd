@@ -3794,6 +3794,7 @@ func _turn_probe() -> void:
 	# ─ 3. the Veiðimaðr's snare: worked free, it limps off ─
 	await _turn_set(player, hunter, stand, 0.0, far, true)
 	hunter.rooted.hold_for(0.6)
+	var groans_before: int = int(Foley.played.get(Foley.Sound.STALK, 0))
 	await _hold(0.3)
 	var during: bool = hunter.turned_for() > 0.0
 	await _hold(0.45)
@@ -3805,6 +3806,11 @@ func _turn_probe() -> void:
 		% [during, snared, rearing])
 	if snared > 0.0 and not rearing:
 		problems.append("turned away by a snare, the Hunter did not rear back — the turn has no visual twin")
+	# And it is heard going (B127): the groan of coin, one STALK one-shot.
+	var groans: int = int(Foley.played.get(Foley.Sound.STALK, 0)) - groans_before
+	print("[turn] Snare         groans heard as it went: %d (want 1)" % groans)
+	if snared > 0.0 and groans != 1:
+		problems.append("turned away, the Hunter made %d groan(s) of coin, not 1 — the turn's sound is its audio half (DES-018)" % groans)
 	if during:
 		problems.append("the Hunter was turned while still held — the snare's seconds are bought first")
 	if snared <= 0.0:
