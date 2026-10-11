@@ -4418,7 +4418,10 @@ func roused_by_song() -> void:
 func told_hunter(by: StringName, wary: bool) -> void:
 	if get_multiplayer_authority() == multiplayer.get_unique_id():
 		hunter_turned.emit(by, wary)
-	else:
+	elif _owner_connected():
+		# A stand-in with nobody behind it has no screen to say it on, and a
+		# message to a peer that is not here is an engine error (the guard's
+		# charge has the same rule).
 		_tell_hunter.rpc_id(get_multiplayer_authority(), by, wary)
 
 
