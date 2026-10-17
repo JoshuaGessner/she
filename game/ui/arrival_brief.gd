@@ -52,6 +52,15 @@ var _elapsed: float = 0.0
 ## How long this brief holds before it fades: `HOLD_SECONDS`, or as long as its
 ## own words take to read.
 var _hold: float = HOLD_SECONDS
+## **Read, and walking: the way ahead shows through** (B135). The first floor's
+## card holds for its reading time — 20 s with the verb and the lantern — in
+## the middle of the view. Once the minimum hold has passed and the body has
+## set off, it dims to `WALKING_ALPHA` so the corridor it covers can be seen,
+## still there to finish reading, and fades on its own clock as before.
+const WALKING_ALPHA: float = 0.5
+## Metres the eye must have moved since the card came up to count as setting off.
+const SET_OFF_METRES: float = 1.5
+var _from: Vector3 = Vector3.INF
 var _words: int = 0
 ## Seconds of Hunt a missed Tithe bought her, handed down by the level. Set
 ## before this enters the tree, because `_ready` is where the lines are built.
@@ -177,6 +186,21 @@ func _line(text: String, role: StringName) -> void:
 	_lines.add_child(label)
 
 
+## Whether the body has set off since the card came up, past the minimum hold:
+## read off the eye, which is the one thing every peer's screen has.
+func _walking() -> bool:
+	var eye: Camera3D = get_viewport().get_camera_3d()
+	if eye == null:
+		return false
+	# Taken a second in, once the body has been put where it arrives: the
+	# first frames' camera can still be at the origin.
+	if not _from.is_finite():
+		if _elapsed < 1.0:
+			return false
+		_from = eye.global_position
+	return _elapsed >= HOLD_SECONDS and eye.global_position.distance_to(_from) >= SET_OFF_METRES
+
+
 func _process(delta: float) -> void:
 	_elapsed += delta
 	# Positioned every frame rather than anchored: a `Control` under a
@@ -189,10 +213,12 @@ func _process(delta: float) -> void:
 	_card.size = _card.get_combined_minimum_size()
 	_card.position = Vector2(screen.x * 0.5 - _card.size.x * 0.5,
 		screen.y * 0.34)
+	var ceiling: float = 1.0 if notice or not _walking() else WALKING_ALPHA
 	if _elapsed < _hold:
+		modulate.a = move_toward(modulate.a, ceiling, delta * 2.0)
 		return
 	var fading: float = (_elapsed - _hold) / FADE_SECONDS
-	modulate.a = 1.0 - clampf(fading, 0.0, 1.0)
+	modulate.a = minf(modulate.a, ceiling * (1.0 - clampf(fading, 0.0, 1.0)))
 	if fading >= 1.0:
 		# Freed rather than hidden. It has said its piece and will never say it
 		# again this run, so leaving it in the tree is a node that exists to do
