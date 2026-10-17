@@ -116,7 +116,8 @@ const REPLICATION_HZ: float = 20.0
 
 var _mesh: MeshInstance3D = null
 ## The windlass (B132), and the quarter turn it stood at: -1 when no turn
-## fitted the room, and it stands hidden. Read by `--interior-probe`'s census.
+## fitted the room, and it stands hidden; -2 until it has been tried. Said in
+## the `[shaft]` log line, which is what a census across floors counts.
 var _head: Node3D = null
 var head_turn: int = -2
 var _beacon: MeshInstance3D = null
