@@ -69,6 +69,12 @@ var _door: LockedDoor = null
 var _held: float = 0.0
 ## How long that line stands: long enough to read, gone before it is noise.
 const HELD_SECONDS: float = 1.5
+## **The Gold-Sick's lines stand longer** (B139): what it took and why it
+## went are sentences, not a refused key — "it tears the Altar-Plate from your
+## bag — it lies at its feet, for now" is fourteen words, and at 1.5 s a
+## walkthrough's frames never caught it on screen. Held for its reading time
+## at the arrival brief's pace.
+const HUNT_HELD_SECONDS: float = 4.0
 ## Which refusal the held line is saying: the Waystone's, or the sight's.
 var _held_text: StringName = &"waystone"
 ## How many the last verse turned, for its line (ADR-387).
@@ -315,10 +321,10 @@ func _listen_for_refusals() -> void:
 			_body.hunter_turned.connect(func(by: StringName, wary: bool) -> void:
 				_hunter_by = by
 				_hunter_wary = wary
-				_say_for_a_moment(&"hunter", false))
+				_say_for_a_moment(&"hunter", false, HUNT_HELD_SECONDS))
 			_body.hunter_robbed.connect(func(item_name: String) -> void:
 				_robbed_name = item_name
-				_say_for_a_moment(&"robbed", false))
+				_say_for_a_moment(&"robbed", false, HUNT_HELD_SECONDS))
 	var weapon: MeleeWeapon = _body.weapon if _body != null else null
 	if weapon == _listening:
 		return
@@ -334,8 +340,9 @@ func _listen_for_refusals() -> void:
 ## **A key that did nothing, said for a moment** (ADR-371, ADR-383): which
 ## refusal, held for `HELD_SECONDS`, and the crosshair flinches. One gesture,
 ## so the next refusal is one connection rather than a fourth copy of it.
-func _say_for_a_moment(what: StringName, refusal: bool = true) -> void:
-	_held = HELD_SECONDS
+func _say_for_a_moment(what: StringName, refusal: bool = true,
+		seconds: float = HELD_SECONDS) -> void:
+	_held = seconds
 	_held_text = what
 	if refusal:
 		_refused = 1.0

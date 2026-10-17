@@ -4529,6 +4529,14 @@ func _walkthrough_shot(dir: String) -> void:
 		printerr("[walk] FAIL no body, no Shaft or no arrival point to walk between")
 		get_tree().quit(1)
 		return
+	# **`--walk-rich`** (B139): the same walk with a bag worth hunting, so the
+	# Gold-Sick comes and the frames show what the screen says when it does.
+	if OS.get_cmdline_user_args().has("--walk-rich"):
+		for row: Array in LOOT:
+			var definition: ItemResource = ItemCatalogue.by_id(row[0] as StringName)
+			if definition != null and definition.tribute_value > 0:
+				player.inventory.add(definition)
+		print("[walk] rich      carrying %d tribute" % player.inventory.total_tribute())
 	var route: PackedVector3Array = await _route_when_ready(
 		get_world_3d().navigation_map, spawns[0], _shaft.position)
 	var walking: Array[bool] = [true]
