@@ -935,6 +935,13 @@ func _sate() -> void:
 	_reckon_in = Config.tuning.hunter_reckon_seconds
 	state_index = State.DISTANT
 	print("[hunt] sated — it goes to count it for %.0f s" % _sated_left)
+	# **Said to whoever is near** (B133): this is the game's one rule about
+	# it — gold in its hands, and it goes — and it was shown and never said.
+	for node: Node in get_tree().get_nodes_in_group("player"):
+		var near := node as Player
+		if near != null and near.global_position.distance_to(global_position) \
+				<= Config.tuning.hunter_near_range:
+			near.told_hunter(&"sated", false)
 
 
 ## **Going from what turned it** (ADR-403): home, if home lies away from the
@@ -1082,6 +1089,7 @@ func _take_from(player: Player, delta: float) -> void:
 		return
 	print("[hunt] the Gullsjúkr took %s from %s" % [
 		taken.definition.display(), player.name])
+	player.told_robbed(taken.definition.display())
 	# At its feet, disturbed, so it is bait it will now stoop over — and so it
 	# is a thing on the floor the player can run in and take back.
 	took.emit(taken, global_position + Vector3(0.0, 0.2, 0.0))

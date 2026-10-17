@@ -445,6 +445,10 @@ signal sang(turned: int)
 ## body's own peer: by which verb, and whether it is warier of it than the
 ## first time. The host decides it and tells the owner (`_tell_hunter`).
 signal hunter_turned(by: StringName, wary: bool)
+## **Robbed** (B133), raised on the body's own peer: what the Gold-Sick tore
+## out of the bag. Said, because a loss nothing names reads as the bag eating
+## an item — and the line is what teaches that it lies at its feet, to take back.
+signal hunter_robbed(item_name: String)
 ## Host-side: seconds a Völva's reading still hides this body's gold from the
 ## Hunter (ADR-403). Read by `wealth_is_hidden`, which only the host asks.
 var veiled: float = 0.0
@@ -4411,6 +4415,21 @@ func roused_by_song() -> void:
 	if not multiplayer.is_server() or not is_downed():
 		return
 	_stand_up(Config.tuning.revive_health_fraction)
+
+
+## **What the Gold-Sick tore out of this body's bag** (B133), host-side.
+func told_robbed(item_name: String) -> void:
+	if get_multiplayer_authority() == multiplayer.get_unique_id():
+		hunter_robbed.emit(item_name)
+	elif _owner_connected():
+		_tell_robbed.rpc_id(get_multiplayer_authority(), item_name)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _tell_robbed(item_name: String) -> void:
+	if multiplayer.get_remote_sender_id() != HOST_PEER:
+		return
+	hunter_robbed.emit(item_name)
 
 
 ## **The Hunter turned from what this body did** (ADR-403), host-side: said on

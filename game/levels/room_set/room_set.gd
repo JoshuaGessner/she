@@ -3746,8 +3746,17 @@ func _turn_probe() -> void:
 	player.sworn = &"huskarl"
 	await _turn_set(player, hunter, stand, 0.0, near, true)
 	var before: int = player.inventory.total_tribute()
+	# What the body is told when it is robbed (B133): the item, by name.
+	var told_of: Array = []
+	var on_robbed: Callable = func(item_name: String) -> void: told_of.append(item_name)
+	player.hunter_robbed.connect(on_robbed)
 	await _hold(2.6)
+	player.hunter_robbed.disconnect(on_robbed)
 	var robbed: bool = player.inventory.total_tribute() < before
+	print("[turn] robbed        told of %s" % str(told_of))
+	if robbed and (told_of.size() != 1 or String(told_of[0]) == ""):
+		problems.append("the Hunter robbed the body and the body was told %s — a loss nothing names reads as the bag eating it"
+			% str(told_of))
 	var loose_turned: bool = hunter.turned_for() > 0.0
 	await _turn_set(player, hunter, stand, 0.0, near, true)
 	before = player.inventory.total_tribute()
@@ -3979,6 +3988,18 @@ func _turn_probe() -> void:
 		problems.append("breaking off on its own made it rear or learn — nobody turned it")
 	if not held_on:
 		problems.append("with the gauge out of reach it broke off anyway, so the menace row is not about the gauge")
+
+	# ─ 9. gold in its hands, said to whoever is near (B133) ─
+	await _turn_set(player, hunter, stand, 0.0, Vector3(9.0, 0.1, -16.0), true)
+	var heard: Array = []
+	var on_turned: Callable = func(by: StringName, _wary: bool) -> void: heard.append(by)
+	player.hunter_turned.connect(on_turned)
+	hunter.call("_sate")
+	await _hold(0.2)
+	player.hunter_turned.disconnect(on_turned)
+	print("[turn] sated         the body near is told %s" % str(heard))
+	if not heard.has(&"sated"):
+		problems.append("the Hunter was paid and went, and the body beside it was not told why")
 
 	player.sworn = was_sworn
 	Input.action_release("verb")

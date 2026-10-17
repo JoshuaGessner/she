@@ -76,6 +76,8 @@ var _turned: int = 0
 ## **What turned the Hunter, and whether it knew the trick** (ADR-403).
 var _hunter_by: StringName = &""
 var _hunter_wary: bool = false
+## What it tore from the bag (B133).
+var _robbed_name: String = ""
 ## Under Shields as last read, to say it once when it is given.
 var _shields_seen: float = 0.0
 ## The progress the last frame's ring was drawn at, 0 for none. Written **inside
@@ -243,6 +245,10 @@ func _process(delta: float) -> void:
 			_name.text = tr("seidr.nothing")
 		elif _held_text == &"shields":
 			_name.text = tr("galdr.shields")
+		elif _held_text == &"robbed":
+			# **What it took, and where it is** (B133): a loss you can name,
+			# and the one beat that can still be contested.
+			_name.text = tr("hunt.robbed") % _robbed_name
 		elif _held_text == &"hunter":
 			# **The Hunter turned, and by what** (ADR-403): said to whoever did
 			# it, and that it is warier of the trick when it is — the visual
@@ -310,6 +316,9 @@ func _listen_for_refusals() -> void:
 				_hunter_by = by
 				_hunter_wary = wary
 				_say_for_a_moment(&"hunter", false))
+			_body.hunter_robbed.connect(func(item_name: String) -> void:
+				_robbed_name = item_name
+				_say_for_a_moment(&"robbed", false))
 	var weapon: MeleeWeapon = _body.weapon if _body != null else null
 	if weapon == _listening:
 		return
