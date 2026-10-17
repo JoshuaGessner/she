@@ -209,8 +209,10 @@ func last_bearing() -> Dictionary:
 		"x": _from_x, "behind": _from_behind}
 
 
-func _draw() -> void:
-	var screen: Vector2 = get_viewport_rect().size
+## **The standing wound as it is drawn now** (B141): `WOUND_TONE` with the
+## edge's strength as its alpha, zero when unhurt. One home for the number the
+## drawing and `--wound-probe` both read, so the probe asks of what is drawn.
+func standing_wound() -> Color:
 	var wound: float = 0.0
 	if _health != null and _health.maximum > 0.0:
 		# **The wound you will have** (ADR-345): in a fury the blood is owed
@@ -220,12 +222,17 @@ func _draw() -> void:
 		var fraction: float = maxf(0.0, _health.current - owed) / _health.maximum
 		if fraction < WOUNDED:
 			wound = (1.0 - fraction / WOUNDED) * WOUND_STRENGTH
+		if wound > 0.0 and _health.current / _health.maximum < WOUND_PULSE_BELOW:
+			wound *= 0.85 + 0.15 * sin(_swim * TAU * 1.1)
+	return Color(WOUND_TONE.r, WOUND_TONE.g, WOUND_TONE.b, wound)
+
+
+func _draw() -> void:
+	var screen: Vector2 = get_viewport_rect().size
+	var wound: float = standing_wound().a
 	if wound > 0.0:
 		# The standing wound closes in from every side, so it reads as the
 		# frame tightening rather than as a direction.
-		var fraction_left: float = _health.current / _health.maximum
-		if fraction_left < WOUND_PULSE_BELOW:
-			wound *= 0.85 + 0.15 * sin(_swim * TAU * 1.1)
 		_draw_sides(screen, true, true, 1.0, wound, WOUND_TONE)
 		_draw_caps(screen, wound, WOUND_TONE)
 	_draw_daze(screen)

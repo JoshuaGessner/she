@@ -16234,6 +16234,32 @@ func _wound_probe() -> void:
 	if after != 0:
 		problems.append("the concussion did not pass when its clock ran out (DES-009: time)")
 
+	# **And being badly hurt is seen** (B141, ADR-404): the standing wound is
+	# the only health readout there is. None when whole; at a fifth of health
+	# strong at the edge and in a tone that reads against the near-black floor
+	# — it was near-black itself, and measurably there while nobody could see it.
+	var frame: WoundVignette = null
+	for node: Node in get_tree().root.find_children("*", "WoundVignette", true, false):
+		frame = node as WoundVignette
+	if frame == null:
+		problems.append("no wound vignette on the screen — the only health readout is missing")
+	else:
+		player.health.current = player.health.maximum
+		await get_tree().process_frame
+		var whole: Color = frame.standing_wound()
+		player.health.current = player.health.maximum * 0.2
+		await get_tree().process_frame
+		var low: Color = frame.standing_wound()
+		player.health.current = player.health.maximum
+		print("[wound] the standing wound                 whole %.2f; at a fifth %.2f in (%.2f, %.2f, %.2f) (want 0, ≥ 0.35, red over the rest)"
+			% [whole.a, low.a, low.r, low.g, low.b])
+		if whole.a > 0.0:
+			problems.append("a whole body's screen draws a wound (%.2f)" % whole.a)
+		if low.a < 0.35:
+			problems.append("at a fifth of health the wound drew %.2f at the edge — too faint to see" % low.a)
+		if low.r < 0.15 or low.r < (low.g + low.b) * 3.0:
+			problems.append("the wound is drawn in %s — near-black vanishes on the Delvings (ADR-404)" % low)
+
 	_session.clear_enemies()
 	print("[wound] a heavy blow leaves its wound, and the wound is felt")
 	_report(problems, "wound")
