@@ -7370,6 +7370,8 @@ func _heard_census() -> Dictionary:
 var _probe_struck: Dictionary = {}
 ## What a guarded blow cost the client's own breath (ADR-313).
 var _probe_guard: Dictionary = {}
+## What a client read off the Hunter while the host had it away (B130).
+var _probe_knock: Dictionary = {}
 ## What the fury looked like on each side once the host wrote it (ADR-368).
 var _probe_fury: Dictionary = {}
 ## How far a shove the host decided carried the client's own body (ADR-391).
@@ -7388,6 +7390,9 @@ const PROBE_WARDEN_OFF: float = 1.2
 const PROBE_ACK_FURY: float = 0.0
 const PROBE_ACK_SHOVE: float = PI
 const PROBE_ACK_BLOW: float = -PI * 0.5
+## The client has read the Hunter away, and then back (B130).
+const PROBE_ACK_KNOCK: float = PI * 0.25
+const PROBE_ACK_KNOCK_OPEN: float = -PI * 0.25
 ## How close a replicated facing must come to count as the turn, radians.
 const PROBE_ACK_SLACK: float = 0.15
 ## How long either side waits on the other's half of a handshake.
@@ -7714,6 +7719,27 @@ func _coop_probe(out: String) -> void:
 			"paid": guard_from - mine.stamina.current,
 			"cost": Config.tuning.block_stamina_cost}
 		Config.tuning.stamina_regen = regen
+	# **The hammer's prompt follows the host** (B130). Whether the Hunter has
+	# anything to knock loose is decided by host-only timers, so a client's
+	# Haugbrjótr was offered the swing while it was away. The host turns it
+	# away; the client must read it closed, and open again once the host ends
+	# the turn — event to event, by the client's turn (B93).
+	var hunted: Gullsjukr = get_tree().get_first_node_in_group(&"hunters") as Gullsjukr
+	if host:
+		if hunted != null:
+			hunted.turn_away(&"hold", 20.0, hunted.global_position + Vector3.FORWARD, null)
+			await _client_faces(PROBE_ACK_KNOCK, PROBE_ACK_WITHIN)
+			hunted.set("_turned_left", 0.0)
+			hunted.set("_recoil_left", 0.0)
+			await _client_faces(PROBE_ACK_KNOCK_OPEN, PROBE_ACK_WITHIN)
+	else:
+		var closed: bool = await _hold_until(func() -> bool:
+			return hunted != null and not hunted.knockable(), PROBE_ACK_WITHIN)
+		mine.teleport(mine.global_position, PROBE_ACK_KNOCK)
+		var reopened: bool = await _hold_until(func() -> bool:
+			return hunted != null and hunted.knockable(), PROBE_ACK_WITHIN)
+		mine.teleport(mine.global_position, PROBE_ACK_KNOCK_OPEN)
+		_probe_knock = {"hunter": hunted != null, "closed": closed, "reopened": reopened}
 	# **The fury is the host's to write** (ADR-368). The host sets a fury and a
 	# debt on the client's body; both are read back on both sides after the
 	# client has seen them. Sent with what the owner sends, the client's own
@@ -8266,6 +8292,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"revived": _probe_revived,
 		"struck": _probe_struck,
 		"guard": _probe_guard,
+		"knock": _probe_knock,
 		"fury": _probe_fury,
 		"shoved": _probe_shoved,
 		"blows": _probe_blows,

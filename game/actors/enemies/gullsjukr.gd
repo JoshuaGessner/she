@@ -186,6 +186,7 @@ const REPLICATED_PROPERTIES: Dictionary = {
 	".:state_index": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:visual_phase": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	".:visual_progress": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
+	".:knock_open": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 }
 
 ## Replicated as an int, because `MultiplayerSynchronizer` carries properties
@@ -209,6 +210,11 @@ var age: float = 0.0
 var _shrug_left: float = 0.0
 var visual_phase: int = EnemyVisual.HunterPresentation.NONE
 var visual_progress: float = 0.0
+## **Whether a mound-breaker's hammer has anything to knock loose**, decided
+## on the host and replicated (B130): away and spill are host-only timers, so a
+## client's Haugbrjótr was offered the swing while the Hunter was away and the
+## host refused it — a prompt that did nothing.
+var knock_open: bool = true
 
 ## **Sated** (ADR-277): seconds left walking home to count what it got. While
 ## this runs it wants nothing — no gold, no noise, no one — and reads as
@@ -429,6 +435,8 @@ func spill() -> WorldItem:
 ## not while it is away, and not while it is already stooping for the lump the
 ## last blow spilled — a prompt for a swing that would do nothing is a lie.
 func knockable() -> bool:
+	if not multiplayer.is_server():
+		return knock_open
 	return not is_away() and spill() == null
 
 
@@ -722,6 +730,7 @@ func _physics_process(delta: float) -> void:
 			_apply_tint()
 	_think(delta)
 	_walk(delta)
+	knock_open = not is_away() and spill() == null
 	visual_phase = EnemyVisual.HunterPresentation.NONE
 	visual_progress = 0.0
 	if _shrug_left > 0.0:

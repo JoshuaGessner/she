@@ -434,6 +434,17 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
         guard.get("paid", 0.0) >= guard.get("cost", 1.0) * 0.8,
         f"{guard.get('paid', 0.0):.1f} of {guard.get('cost', 0.0):.0f} paid"))
 
+    # Whether the Hunter has anything to knock loose is the host's (B130): a
+    # client reads it closed while the host has it away, and open after.
+    knock = client.get("knock", {})
+    rows.append(check(
+        "a client sees the Hunter away, so no hammer prompt",
+        knock.get("hunter", False) and knock.get("closed", False),
+        f"hunter {knock.get('hunter', False)}, closed {knock.get('closed', False)}"))
+    rows.append(check(
+        "and sees it back when the host ends the turn",
+        knock.get("reopened", False), f"reopened {knock.get('reopened', False)}"))
+
     # The fury is the host's (ADR-368): what the host wrote on the client's body
     # is what both sides hold, and the client's own zero did not overwrite it.
     fury_host = host.get("fury", {})
