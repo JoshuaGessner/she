@@ -3827,6 +3827,23 @@ func _turn_probe() -> void:
 	if thin > 0.0 or int(shrugs[0]) != 1 or hunter.wary_of(&"galdr") != 9 or stuck_rearing:
 		problems.append("a trick worn below hunter_turn_floor still turned it (%.2f s), or it did not shrug, or it learned more"
 			% thin)
+	# A Hold worn too thin (the correctness review): it shrugs at the shield and
+	# presses on — once per balk, not once a frame. Counted over 3 s.
+	player.sworn = &"huskarl"
+	await _turn_set(player, hunter, stand, 0.0, near, true)
+	hunter.remember({"hold": 9})
+	var thin_shrugs: Array = [0]
+	var on_thin: Callable = func() -> void: thin_shrugs[0] = int(thin_shrugs[0]) + 1
+	hunter.shrugged.connect(on_thin)
+	Input.action_press("verb")
+	await _hold(3.0)
+	Input.action_release("verb")
+	hunter.shrugged.disconnect(on_thin)
+	player.sworn = was_sworn
+	print("[turn] worn thin     a ninth Hold, held 3 s: shrugged %d time(s) (want 1)" % int(thin_shrugs[0]))
+	if int(thin_shrugs[0]) > 2:
+		problems.append("a worn-out Hold made the Hunter shrug %d times in 3 s — once a frame, a message each time"
+			% int(thin_shrugs[0]))
 	# The last use that still works does work.
 	await _turn_set(player, hunter, stand, 0.0, far, true)
 	hunter.remember({"galdr": 3})
@@ -4126,6 +4143,8 @@ func _turn_set(player: Player, hunter: Gullsjukr, at: Vector3, yaw: float,
 	player.veiled = 0.0
 	player.fury = 0.0
 	player.health.heal(player.health.maximum * 5.0)
+	# And breath: a Hold is paid from it, and rows before drain it.
+	player.stamina.refill()
 	player.teleport(at, yaw)
 	player.clamor.silence()
 	await _hold(0.15)

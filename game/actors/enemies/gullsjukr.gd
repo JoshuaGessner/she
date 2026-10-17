@@ -854,6 +854,9 @@ func _think(delta: float) -> void:
 			if _balked >= Config.tuning.hunter_balk_seconds:
 				turn_away(&"hold", Config.tuning.hunter_turn_hold_seconds,
 					guard.global_position, guard)
+				# Refused (a Hold it knows too well, B131): it shrugs once and
+				# balks again — not a shrug and a message every frame.
+				_balked = 0.0
 			return
 		_balked = maxf(0.0, _balked - delta)
 		# **Arriving has to cost you something** (`M2-T19`, ADR-112). It used to
