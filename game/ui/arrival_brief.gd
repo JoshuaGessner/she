@@ -148,9 +148,15 @@ func _ready() -> void:
 ## screen. Said with its price, as the verb is, and only on the first floor.
 static func lantern_line(class_id: StringName) -> String:
 	var sworn: ClassResource = ClassCatalogue.by_id(class_id)
-	if sworn == null or not sworn.carried.has(&"tol_horn_lantern"):
+	if sworn == null:
 		return ""
-	return TranslationServer.translate("brief.lantern") % ControlsScreen.glyphs_for("shutter")
+	# Any light it carries, by the item's own `light` tag (B138), not one id:
+	# a second lantern in a kit would otherwise go unsaid.
+	for id: StringName in sworn.carried + sworn.kit:
+		var item: ItemResource = ItemCatalogue.by_id(id)
+		if item != null and item.tags.has(&"light"):
+			return TranslationServer.translate("brief.lantern") % ControlsScreen.glyphs_for("shutter")
+	return ""
 
 
 ## *"F — Wolf-Fury: …"*: the key and what the class's verb does and costs, or
