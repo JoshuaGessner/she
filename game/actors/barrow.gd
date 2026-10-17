@@ -116,8 +116,10 @@ func _ready() -> void:
 	# with a box laid on it for a cut line. Authored in `build_barrow.py`,
 	# base-centre, its one surface tinted here per instance for sealed and
 	# spent, as the box's material was.
-	_slab = CAPSTONE.instantiate() as Node3D
-	InkPass.classify(_slab)
+	# Look-only, as the box was: a solid on the barrow's own anchor stood the
+	# floor's authored point inside geometry (`--sight-probe`), and a stone you
+	# step over has nothing to stop. The model keeps its solid for `ART-004`.
+	_slab = DelvingsKit.look_of(CAPSTONE)
 	_slab.position = Vector3(0.0, FLOOR_Y, 0.0)
 	add_child(_slab)
 	var cut := _slab.find_children("*", "MeshInstance3D", true, false)
