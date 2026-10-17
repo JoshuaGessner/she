@@ -59,7 +59,11 @@ const WOUND_STRENGTH: float = 0.72  # ⟨tune⟩
 ## fifth of a body's health the frame's edges measured 0.78 of its middle and
 ## nobody could see it. A deep blood tone reads against the dark as colour —
 ## far below the fury's ember (`FURY`), and still with no number and no bar.
-const WOUND_TONE: Color = Color(0.30, 0.02, 0.02)
+## **And it reads by value, not by hue alone** (B145, `DES-018`: colour-blind
+## players lose nothing). At (0.30, 0.02, 0.02) a red-blind eye (protanopia)
+## saw the wound at a fifth of health as near-black on near-black — the fault
+## this fixed, back for them. Light enough to stand out of the dark for any eye.
+const WOUND_TONE: Color = Color(0.55, 0.12, 0.08)
 ## Below this share of health the wound beats, slowly, as a pulse does — the
 ## last warning before down, and the one a glance cannot miss ⟨tune⟩.
 const WOUND_PULSE_BELOW: float = 0.3
@@ -68,7 +72,7 @@ const WOUND_PULSE_BELOW: float = 0.3
 ## not looking at* (principle 4), and it was drawn in `SHADOW`: near-black on
 ## an edge the Delvings had already drawn near-black. Brighter than the
 ## standing wound, so a fresh blow and an old hurt read apart.
-const FLASH_TONE: Color = Color(0.58, 0.06, 0.04)
+const FLASH_TONE: Color = Color(0.80, 0.22, 0.14)
 
 ## How far across the screen a flash reaches from its edge.
 const ARC: float = 0.34
@@ -248,8 +252,8 @@ func _draw() -> void:
 	if wound > 0.0:
 		# The standing wound closes in from every side, so it reads as the
 		# frame tightening rather than as a direction.
-		_draw_sides(screen, true, true, 1.0, wound, WOUND_TONE)
-		_draw_caps(screen, wound, WOUND_TONE)
+		_draw_sides(screen, true, true, 1.0, wound, WOUND_TONE, STEPS * 2)
+		_draw_caps(screen, wound, WOUND_TONE, 1.0, STEPS * 2)
 	_draw_daze(screen)
 	_draw_guard(screen)
 	_draw_fury(screen)

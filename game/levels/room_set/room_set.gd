@@ -4162,6 +4162,17 @@ func _turn_frame(dir: String, name: String) -> String:
 	return path
 
 
+## **A colour as a red-blind eye sees it, as brightness** (B145): Machado et
+## al. 2009's protanopia at full severity, then Rec. 709 luminance. For the
+## rows that hold `DES-018`'s *colour-blind players lose nothing*.
+static func _protan_luminance(c: Color) -> float:
+	var seen := Color(
+		clampf(0.152286 * c.r + 1.052583 * c.g - 0.204868 * c.b, 0.0, 1.0),
+		clampf(0.114503 * c.r + 0.786281 * c.g + 0.099216 * c.b, 0.0, 1.0),
+		clampf(-0.003882 * c.r - 0.048116 * c.g + 1.051998 * c.b, 0.0, 1.0))
+	return seen.get_luminance()
+
+
 ## A fresh encounter for one `--turn-probe` row: the body rich and silent at
 ## `at` facing `yaw`, the Hunter at `hunter_at` with nothing pending — not away,
 ## not stooping, not held — and, unless `remember`, nothing learned.
@@ -16316,8 +16327,11 @@ func _wound_probe() -> void:
 			problems.append("a whole body's screen draws a wound (%.2f)" % whole.a)
 		if low.a < 0.35:
 			problems.append("at a fifth of health the wound drew %.2f at the edge — too faint to see" % low.a)
-		if low.r < 0.15 or low.r < (low.g + low.b) * 3.0:
+		if low.r < 0.15 or low.r < (low.g + low.b) * 2.0:
 			problems.append("the wound is drawn in %s — near-black vanishes on the Delvings (ADR-404)" % low)
+		# By value as well as hue (B145): as a red-blind eye sees it, still light.
+		if _protan_luminance(low) < 0.12:
+			problems.append("a red-blind eye sees the wound at %.2f — near-black again (DES-018)" % _protan_luminance(low))
 		# **And a blow from behind is seen** (B144): both edges, in a tone that
 		# reads on the dark, and none for a blow the screen already shows.
 		var eye: Camera3D = get_viewport().get_camera_3d()
@@ -16337,8 +16351,10 @@ func _wound_probe() -> void:
 					front["left"], front["right"]])
 			if not (bool(behind["left"]) and bool(behind["right"])) or float(behind["strength"]) < 0.4:
 				problems.append("a blow from behind did not flash both edges")
-			if tone.r < 0.3 or tone.r < (tone.g + tone.b) * 3.0:
+			if tone.r < 0.3 or tone.r < (tone.g + tone.b) * 2.0:
 				problems.append("the side flash is drawn in %s — near-black vanishes on the Delvings" % tone)
+			if _protan_luminance(tone) < 0.2:
+				problems.append("a red-blind eye sees the side flash at %.2f — too dark to read (DES-018)" % _protan_luminance(tone))
 			if bool(front["left"]) or bool(front["right"]):
 				problems.append("a blow from in front flashed an edge — the screen already shows it")
 
