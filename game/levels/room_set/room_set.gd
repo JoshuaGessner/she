@@ -3841,8 +3841,11 @@ func _turn_probe() -> void:
 	hunter.shrugged.disconnect(on_thin)
 	player.sworn = was_sworn
 	print("[turn] worn thin     a ninth Hold, held 3 s: shrugged %d time(s) (want 1)" % int(thin_shrugs[0]))
-	if int(thin_shrugs[0]) > 2:
-		problems.append("a worn-out Hold made the Hunter shrug %d times in 3 s — once a frame, a message each time"
+	# Both ways (the tests review): none means the Hold never balked it — a
+	# body with no breath to plant passed this row once — and many means the
+	# refusal repeats each frame.
+	if int(thin_shrugs[0]) < 1 or int(thin_shrugs[0]) > 2:
+		problems.append("a worn-out Hold made the Hunter shrug %d times in 3 s — once per balk is right"
 			% int(thin_shrugs[0]))
 	# The last use that still works does work.
 	await _turn_set(player, hunter, stand, 0.0, far, true)
