@@ -7298,6 +7298,7 @@ func _build_hud() -> void:
 		# deeper ones — `PRO-005` §8's price of a line said every time.
 		if _floor_index == 0:
 			brief.verb = ArrivalBrief.verb_line(GameState.class_id)
+			brief.lantern = ArrivalBrief.lantern_line(GameState.class_id)
 		layer.add_child(brief)
 
 ## How much floor has already been laid, so an arriving player tops it up
@@ -19209,6 +19210,12 @@ func _galdr_probe() -> void:
 	# and its verb line was fading half-read at the old 4.5 s hold.
 	var brief := ArrivalBrief.new()
 	brief.verb = told
+	# And the lantern's key (B133): a Skald carries one, a Veiðimaðr does not.
+	brief.lantern = ArrivalBrief.lantern_line(&"skald")
+	var unlit: String = ArrivalBrief.lantern_line(&"veidimadr")
+	print("[galdr] the lantern  the Skald is told '%s'; the Veiðimaðr '%s'" % [brief.lantern, unlit])
+	if not brief.lantern.contains(ControlsScreen.glyphs_for("shutter")) or unlit != "":
+		problems.append("the first floor does not say how to open the lantern, or says it to a life with none")
 	add_child(brief)
 	await get_tree().process_frame
 	var words: int = 0

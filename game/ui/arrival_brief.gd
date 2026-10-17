@@ -78,6 +78,8 @@ var notice: bool = false
 ## class verb* and nowhere said what it did — so a first Úlfheðinn learned that
 ## blows in a fury are paid when it ends by being paid. Empty, no line.
 var verb: String = ""
+## The lantern's key, or empty (B133).
+var lantern: String = ""
 
 
 func _ready() -> void:
@@ -109,6 +111,8 @@ func _ready() -> void:
 	_line(tr("brief.climb_out" if way_out else "brief.climb_down"), MenuStyle.BODY_TEXT)
 	if verb != "":
 		_line(verb, MenuStyle.BODY_WARM)
+	if lantern != "":
+		_line(lantern, MenuStyle.BODY_TEXT)
 	# **Where the controls went** (ADR-139). This brief holds for 4.5 seconds and
 	# then frees itself, so anything it does not point at is gone with it. The
 	# Deep's control list used to live inside the diagnostic overlay, which is
@@ -127,6 +131,17 @@ func _ready() -> void:
 		_line(tr("brief.unpaid"), MenuStyle.BODY_WARM)
 	for note: String in notes:
 		_line(note, MenuStyle.BODY_TEXT)
+
+
+## **The lantern's key, to a life that carries one** (B133). A fresh body
+## arrives with its shutter closed (ADR-188), so the first floor opens in the
+## dark — and the one key that answers it was said nowhere but the controls
+## screen. Said with its price, as the verb is, and only on the first floor.
+static func lantern_line(class_id: StringName) -> String:
+	var sworn: ClassResource = ClassCatalogue.by_id(class_id)
+	if sworn == null or not sworn.carried.has(&"tol_horn_lantern"):
+		return ""
+	return TranslationServer.translate("brief.lantern") % ControlsScreen.glyphs_for("shutter")
 
 
 ## *"F — Wolf-Fury: …"*: the key and what the class's verb does and costs, or
