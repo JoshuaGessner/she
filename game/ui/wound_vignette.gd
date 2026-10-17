@@ -53,7 +53,16 @@ const FLASH_STRENGTH: float = 0.62  # ⟨tune⟩
 ## fine and the screen says nothing at all — a permanent effect would stop
 ## meaning anything within a minute.
 const WOUNDED: float = 0.7  # ⟨tune⟩
-const WOUND_STRENGTH: float = 0.55  # ⟨tune⟩
+const WOUND_STRENGTH: float = 0.72  # ⟨tune⟩
+## **The wound is blood, not shadow** (B140). Drawn in `SHADOW` the standing
+## wound darkened edges that the Delvings had already drawn near-black: at a
+## fifth of a body's health the frame's edges measured 0.78 of its middle and
+## nobody could see it. A deep blood tone reads against the dark as colour —
+## far below the fury's ember (`FURY`), and still with no number and no bar.
+const WOUND_TONE: Color = Color(0.30, 0.02, 0.02)
+## Below this share of health the wound beats, slowly, as a pulse does — the
+## last warning before down, and the one a glance cannot miss ⟨tune⟩.
+const WOUND_PULSE_BELOW: float = 0.3
 
 ## How far across the screen a flash reaches from its edge.
 const ARC: float = 0.34
@@ -214,8 +223,11 @@ func _draw() -> void:
 	if wound > 0.0:
 		# The standing wound closes in from every side, so it reads as the
 		# frame tightening rather than as a direction.
-		_draw_sides(screen, true, true, 1.0, wound)
-		_draw_caps(screen, wound)
+		var fraction_left: float = _health.current / _health.maximum
+		if fraction_left < WOUND_PULSE_BELOW:
+			wound *= 0.85 + 0.15 * sin(_swim * TAU * 1.1)
+		_draw_sides(screen, true, true, 1.0, wound, WOUND_TONE)
+		_draw_caps(screen, wound, WOUND_TONE)
 	_draw_daze(screen)
 	_draw_guard(screen)
 	_draw_fury(screen)

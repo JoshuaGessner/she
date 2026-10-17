@@ -14000,4 +14000,18 @@ References:
 - **Lessons cross the stairs.** `--descent-probe` writes `hold 2` to the run file. `--crossing-probe` arrives with the verse remembered (1 of 1).
 - **Menace.** One second near fills 1.2 s of the gauge. Full, it breaks off for 14.7 s, without rearing back or learning. With the ceiling out of reach it stays on them.
 
+## ADR-404 — The standing wound is drawn in blood, not shadow
+
+**Date:** 2026-10-17 · **Status:** accepted · **Amends ADR-105 (the wound vignette); `DES-018`, `ART-005`** · **Found by the first-hour review (B140)**
+
+**Context:** the game has no health bar (`TEC-009`: Body is absent). The only health readout is `WoundVignette`'s standing wound: below 70% health ⟨tune⟩ the screen's edges close in, with no number. It was drawn in `SHADOW`, near-black, over the Delvings, which the ink pass already draws near-black. A rich walkthrough reached 21% health with no darkening anyone could point to. A controlled shot (`--wound-shot`: the same view at 100%, 45% and 20%) measured the edges at 0.78 of the middle at 20%, and still nothing could be seen. Shadow laid on shadow is not a signal, so a player near death had no way to know it (principle 4).
+
+**Decision:**
+- **The standing wound is drawn in a deep blood tone** (`WOUND_TONE` 0.30, 0.02, 0.02) at up to 0.72 ⟨tune⟩, from 0.55. It reads against the dark as colour.
+- **Below 30% ⟨tune⟩ it beats slowly**, ±15% at 1.1 Hz like a pulse, so the last warning before down is the one a glance cannot miss.
+- Still no number and no bar: it says *how bad*, never *how many* (ADR-105).
+- `ART-005` spends saturated colour on treasure. This is dark and barely saturated, far from gold, and far below the Wolf-Fury's ember frame (`FURY` 0.62, 0.16, 0.06), so the two cannot be confused. A hit's directional flash keeps `SHADOW`: it is brief and directional, and the hit sound carries it.
+
+**Measured:** `--wound-shot` at 45% shows a faint tinge at the frame's edge, and at 20% a plain blood frame with the middle of the view clear (.claude/work/wound). `--seidr-probe` (the trance's dimming, same drawing) and `--fury-probe` are green.
+
 *Entries below to be added as design decisions are signed off.*

@@ -894,6 +894,8 @@ func _ready() -> void:
 			_turn_probe()
 		elif arg == "--shaft-probe":
 			_shaft_probe()
+		elif arg.begins_with("--wound-shot="):
+			_wound_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--turn-shot="):
 			_turn_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ear-probe":
@@ -4186,6 +4188,29 @@ func _shaft_probe() -> void:
 	for problem: String in problems:
 		printerr("[shaft] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## **`--wound-shot=DIR`** (B140): one view at full health, at 45% and at 20%,
+## so the standing wound's vignette can be seen against the same frame. Its
+## code darkens the edges below `WoundVignette.WOUNDED`; a walkthrough at 21%
+## health showed no darkening anyone could point to, and a vignette nobody can
+## see is the only health readout this game has (TEC-009: no bar).
+func _wound_shot(dir: String) -> void:
+	DirAccess.make_dir_recursive_absolute(dir)
+	var player: Player = _session.local_player()
+	_session.clear_enemies()
+	for layer: Node in get_tree().root.find_children("*", "CanvasLayer", true, false):
+		for brief: Node in (layer as CanvasLayer).find_children("*", "ArrivalBrief", true, false):
+			brief.queue_free()
+	await _hold(0.5)
+	for fraction: float in [1.0, 0.45, 0.2]:
+		player.health.current = player.health.maximum * fraction
+		await _hold(0.3)
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(
+			dir.path_join("wound_%03d.png" % int(round(fraction * 100.0))))
+		print("[wound] shot at %.0f%% health" % (fraction * 100.0))
+	get_tree().quit(0)
 
 
 ## Do both channels carry the same thing (`M2-T03`, ADR-036)?
