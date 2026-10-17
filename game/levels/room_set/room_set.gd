@@ -654,7 +654,10 @@ func _ready() -> void:
 	# labels across a screenshot. This used to be decided *after* `_build_hud`,
 	# so a HUD element asking `_probing` would silently always see `false`.
 	for arg: String in OS.get_cmdline_user_args():
-		if arg.contains("probe") or arg.contains("shot") or arg.contains("capture"):
+		# The flag's name, not its value: `--walkthrough=…/shots/walk` is not a
+		# shot, and read whole it hid the brief the walkthrough exists to show.
+		var flag: String = arg.split("=", true, 1)[0]
+		if flag.contains("probe") or flag.contains("shot") or flag.contains("capture"):
 			_probing = true
 		# **Sworn before the body is built** (`M3-T11`). A class reaches a body
 		# through the spawn payload and nowhere else (`M3-T02`, ADR-121), so a
