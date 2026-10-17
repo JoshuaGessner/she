@@ -4283,6 +4283,14 @@ func _wound_shot(dir: String) -> void:
 		get_viewport().get_texture().get_image().save_png(
 			dir.path_join("wound_%03d.png" % int(round(fraction * 100.0))))
 		print("[wound] shot at %.0f%% health" % (fraction * 100.0))
+	# And a blow from the left, unseen (B144).
+	player.health.current = player.health.maximum
+	var eye: Camera3D = get_viewport().get_camera_3d()
+	player.struck.emit(5.0, eye.global_position - eye.global_basis.x * 2.0, 0.0)
+	await get_tree().process_frame
+	await RenderingServer.frame_post_draw
+	get_viewport().get_texture().get_image().save_png(dir.path_join("wound_blow_left.png"))
+	print("[wound] shot a blow from the left")
 	get_tree().quit(0)
 
 
@@ -16310,6 +16318,29 @@ func _wound_probe() -> void:
 			problems.append("at a fifth of health the wound drew %.2f at the edge — too faint to see" % low.a)
 		if low.r < 0.15 or low.r < (low.g + low.b) * 3.0:
 			problems.append("the wound is drawn in %s — near-black vanishes on the Delvings (ADR-404)" % low)
+		# **And a blow from behind is seen** (B144): both edges, in a tone that
+		# reads on the dark, and none for a blow the screen already shows.
+		var eye: Camera3D = get_viewport().get_camera_3d()
+		if eye != null:
+			var back: Vector3 = eye.global_position + eye.global_basis.z * 2.0
+			player.struck.emit(5.0, back, 0.0)
+			await get_tree().process_frame
+			var behind: Dictionary = frame.side_flash()
+			await _hold(WoundVignette.FLASH_SECONDS + 0.1)
+			var ahead: Vector3 = eye.global_position - eye.global_basis.z * 2.0
+			player.struck.emit(5.0, ahead, 0.0)
+			await get_tree().process_frame
+			var front: Dictionary = frame.side_flash()
+			var tone: Color = behind["tone"] as Color
+			print("[wound] a blow unseen                   behind: left %s right %s at %.2f in (%.2f, %.2f, %.2f); ahead: left %s right %s (want both, ≥ 0.4, red; neither)"
+				% [behind["left"], behind["right"], float(behind["strength"]), tone.r, tone.g, tone.b,
+					front["left"], front["right"]])
+			if not (bool(behind["left"]) and bool(behind["right"])) or float(behind["strength"]) < 0.4:
+				problems.append("a blow from behind did not flash both edges")
+			if tone.r < 0.3 or tone.r < (tone.g + tone.b) * 3.0:
+				problems.append("the side flash is drawn in %s — near-black vanishes on the Delvings" % tone)
+			if bool(front["left"]) or bool(front["right"]):
+				problems.append("a blow from in front flashed an edge — the screen already shows it")
 
 	_session.clear_enemies()
 	print("[wound] a heavy blow leaves its wound, and the wound is felt")

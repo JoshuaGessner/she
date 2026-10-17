@@ -14010,8 +14010,8 @@ References:
 - **The standing wound is drawn in a deep blood tone** (`WOUND_TONE` 0.30, 0.02, 0.02) at up to 0.72 ⟨tune⟩, from 0.55. It reads against the dark as colour.
 - **Below 30% ⟨tune⟩ it beats slowly**, ±15% at 1.1 Hz like a pulse, so the last warning before down is the one a glance cannot miss.
 - Still no number and no bar: it says *how bad*, never *how many* (ADR-105).
-- `ART-005` spends saturated colour on treasure. This is dark and barely saturated, far from gold, and far below the Wolf-Fury's ember frame (`FURY` 0.62, 0.16, 0.06), so the two cannot be confused. A hit's directional flash keeps `SHADOW`: it is brief and directional, and the hit sound carries it.
+- `ART-005` spends saturated colour on treasure. This is dark and barely saturated, far from gold, and far below the Wolf-Fury's ember frame (`FURY` 0.62, 0.16, 0.06), so the two cannot be confused. **And the side flash is red too** (B144). A blow you did not see flashes the edge it came from, both edges if it came from behind, in `FLASH_TONE` (0.58, 0.06, 0.04): brighter than the standing wound, so a fresh blow and an old hurt read apart. It is the one channel for *something is on you that you are not looking at*, and in `SHADOW` it was as invisible as the wound had been. It is drawn in sixteen bands, not eight, because a bright tone shows every step.
 
-**Measured:** `--wound-shot` at 45% shows a faint tinge at the frame's edge, and at 20% a plain blood frame with the middle of the view clear (.claude/work/wound). `--seidr-probe` (the trance's dimming, same drawing) and `--fury-probe` are green.
+**Measured:** `--wound-shot` at 45% shows a faint tinge at the frame's edge, and at 20% a plain blood frame with the middle of the view clear (.claude/work/wound). `--seidr-probe` (the trance's dimming, same drawing) and `--fury-probe` are green. `--wound-probe` asserts both: the standing wound at a fifth of health (0.47, red), and a blow from behind (both edges at 0.61, red), with nothing flashing for a blow from in front. With the old near-black tones, both rows fail.
 
 *Entries below to be added as design decisions are signed off.*

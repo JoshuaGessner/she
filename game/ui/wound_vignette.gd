@@ -63,6 +63,12 @@ const WOUND_TONE: Color = Color(0.30, 0.02, 0.02)
 ## Below this share of health the wound beats, slowly, as a pulse does — the
 ## last warning before down, and the one a glance cannot miss ⟨tune⟩.
 const WOUND_PULSE_BELOW: float = 0.3
+## **A blow you did not see flashes red** (B144, ADR-404's finding twice). The
+## side flash is the one channel that says *something is on you that you are
+## not looking at* (principle 4), and it was drawn in `SHADOW`: near-black on
+## an edge the Delvings had already drawn near-black. Brighter than the
+## standing wound, so a fresh blow and an old hurt read apart.
+const FLASH_TONE: Color = Color(0.58, 0.06, 0.04)
 
 ## How far across the screen a flash reaches from its edge.
 const ARC: float = 0.34
@@ -209,6 +215,15 @@ func last_bearing() -> Dictionary:
 		"x": _from_x, "behind": _from_behind}
 
 
+## **The side flash as it is drawn now** (B144): how strong, which edges, in
+## what tone. None for a blow from in front — the screen already shows it.
+func side_flash() -> Dictionary:
+	var left: bool = _flash > 0.0 and (_from_behind or _from_x < -SIDEWAYS)
+	var right: bool = _flash > 0.0 and (_from_behind or _from_x > SIDEWAYS)
+	return {"strength": _flash * FLASH_STRENGTH, "left": left, "right": right,
+		"tone": FLASH_TONE}
+
+
 ## **The standing wound as it is drawn now** (B141): `WOUND_TONE` with the
 ## edge's strength as its alpha, zero when unhurt. One home for the number the
 ## drawing and `--wound-probe` both read, so the probe asks of what is drawn.
@@ -251,13 +266,11 @@ func _draw() -> void:
 	# Behind reads as *both* edges rather than as a bearing you could aim at —
 	# `DES-019`'s guardrail for the Ear, report attention and never positions,
 	# applies just as well here. It says "turn round", not "it is exactly there".
-	var strength: float = _flash * FLASH_STRENGTH
-	if _from_behind:
-		_draw_sides(screen, true, true, ARC, strength)
-	elif _from_x < -SIDEWAYS:
-		_draw_sides(screen, true, false, ARC, strength)
-	elif _from_x > SIDEWAYS:
-		_draw_sides(screen, false, true, ARC, strength)
+	var flash: Dictionary = side_flash()
+	if bool(flash["left"]) or bool(flash["right"]):
+		# Twice the bands of the shadow's: a bright tone shows every step.
+		_draw_sides(screen, bool(flash["left"]), bool(flash["right"]), ARC,
+			float(flash["strength"]), FLASH_TONE, STEPS * 2)
 
 
 ## Darkening bands down the left and/or right edges. `spread` is how far across
