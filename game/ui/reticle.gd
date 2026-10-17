@@ -70,8 +70,8 @@ var _held: float = 0.0
 ## How long that line stands: long enough to read, gone before it is noise.
 const HELD_SECONDS: float = 1.5
 ## **The Gold-Sick's lines stand longer** (B139): what it took and why it
-## went are sentences, not a refused key — "it tears the Altar-Plate from your
-## bag — it lies at its feet, for now" is fourteen words, and at 1.5 s a
+## went are sentences, not a refused key — the robbed line (`hunt.robbed`) is
+## fourteen words, and at 1.5 s a
 ## walkthrough's frames never caught it on screen. Held for its reading time
 ## at the arrival brief's pace.
 const HUNT_HELD_SECONDS: float = 4.0
