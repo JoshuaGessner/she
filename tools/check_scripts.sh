@@ -1030,6 +1030,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The windlass stands over most ways out** (B132, B137): each floor of
+	# the reach panel laid, a Shaft stood where the floor puts it, and its
+	# windlass trying four turns against the room's stone. Every Shaft must
+	# answer, and most must stand — the way out reads as a mine's mouth.
+	shaft="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 40000 \
+		levels/room_set/room_set.tscn -- --shaft-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$shaft"; then
+		echo "FAIL the Shaft's windlass" >&2
+		printf '%s\n' "$shaft" | grep -E '\[shaft\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# Do both channels carry the same thing (`M2-T03`, ADR-036)? `DES-018`
 	# requires a run to be completable with audio muted, which nothing automated
 	# can play — but the way that guarantee actually breaks is an audio channel

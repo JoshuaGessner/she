@@ -254,6 +254,9 @@ const NAV_AGENT_CLIMB: float = 0.3
 ## end to end, 0 refused` either side of this constant, which is the row ADR-200
 ## made red. It is an aggregate rather than a per-floor comparison — enough to
 ## say the lift did not disconnect a floor, not enough to say no vertex moved.
+## How many floors the Shaft's windlass must stand on (B137): 27 of 30 by
+## the census that set it ⟨tune⟩, with room for a panel that differs.
+const SHAFT_STANDS_AT_LEAST: float = 0.75
 const WALK_LIFT: Vector3 = Vector3(0.0, 1000.0, 0.0)
 ## How near a route corner the body must come before the leg counts as walked.
 ##
@@ -889,6 +892,8 @@ func _ready() -> void:
 			_hunt_probe()
 		elif arg == "--turn-probe":
 			_turn_probe()
+		elif arg == "--shaft-probe":
+			_shaft_probe()
 		elif arg.begins_with("--turn-shot="):
 			_turn_shot(arg.split("=", true, 1)[1])
 		elif arg == "--ear-probe":
@@ -4124,6 +4129,63 @@ func _turn_set(player: Player, hunter: Gullsjukr, at: Vector3, yaw: float,
 	await _hold(0.15)
 	hunter.rooted.release()
 	hunter.set("_was_held", false)
+
+
+## **`--shaft-probe`: the windlass stands over most ways out** (B132, B137).
+## Each floor of the reach panel is laid (geometry and dressing, no navmesh),
+## a Shaft is stood where the floor puts it, and the windlass tries its four
+## quarter turns against the room's stone. Two claims: every Shaft gives an
+## answer (stood, or refused for want of room — never left untried), and it
+## stands on most floors, so the way out reads as a mine's mouth and not only
+## a disc. (That the fit sees rock at all was shown by hand, B132: a footprint
+## three times the size was refused on 13 of 30 floors.)
+func _shaft_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	var modules: Array[RoomModule] = RoomCatalogue.all()
+	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
+	var kinds: PackedStringArray = _prize_kinds(modules)
+	var stood: int = 0
+	var refused: int = 0
+	var untried: int = 0
+	var floors: int = 0
+	for run_seed: int in _reach_panel():
+		for depth: int in RunFile.LAST_FLOOR + 1:
+			var graph: MissionGraph = MissionGraph.build(run_seed, depth)
+			var lore := ExpeditionHistory.roll(run_seed, calamities, kinds)
+			var plan: FloorPlan = FloorPlan.build(graph, run_seed, depth, modules, lore)
+			if not plan.problems().is_empty():
+				continue
+			var root := Node3D.new()
+			root.position = WALK_LIFT
+			add_child(root)
+			FloorBuilder.build(plan, graph, run_seed, depth, root)
+			var laid := DelvingsFloor.of(run_seed, depth)
+			laid.dress(root)
+			var way := Shaft.new()
+			way.position = laid.shaft()
+			root.add_child(way)
+			for _frame: int in 4:
+				await get_tree().physics_frame
+			floors += 1
+			match way.head_turn:
+				-2:
+					untried += 1
+				-1:
+					refused += 1
+				_:
+					stood += 1
+			root.queue_free()
+			await get_tree().process_frame
+	print("[shaft] the windlass over %d floor(s): stands on %d, no room on %d, untried %d"
+		% [floors, stood, refused, untried])
+	if untried > 0:
+		problems.append("%d Shaft(s) never tried a turn — the windlass would stay hidden without a reason" % untried)
+	if floors == 0 or float(stood) / float(floors) < SHAFT_STANDS_AT_LEAST:
+		problems.append("the windlass stands on %d of %d floors, under %.0f%% — the way out reads as a bare disc too often"
+			% [stood, floors, SHAFT_STANDS_AT_LEAST * 100.0])
+	for problem: String in problems:
+		printerr("[shaft] FAIL %s" % problem)
+	get_tree().quit(1 if problems.size() > 0 else 0)
 
 
 ## Do both channels carry the same thing (`M2-T03`, ADR-036)?
