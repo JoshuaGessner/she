@@ -4333,6 +4333,9 @@ func _delvings_views() -> Array:
 		["entrance", from, _floor.shaft()],
 		["spawn_door", from, _nearest_door_light(from)],
 		["shaft", _floor.shaft(), _nearest_door_light(_floor.shaft())],
+		# The way out seen from its room's door (B132): the windlass over it.
+		["shaft_head", _floor.shaft().lerp(_nearest_door_light(_floor.shaft()), 0.75),
+			_floor.shaft() + Vector3(0.0, 1.6, 0.0)],
 		["prize", _floor.prize(), _nearest_door_light(_floor.prize())],
 	]
 	# And the clutter (ADR-265), from the middle of the room that has most.

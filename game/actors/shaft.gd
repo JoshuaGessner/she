@@ -46,6 +46,19 @@ const GROUP: StringName = &"shafts"
 
 const RADIUS: float = 1.6
 const HEIGHT: float = 0.35
+## The windlass over the mouth (B132), and how far it stands off the middle
+## so the beacon clears its drum.
+const HEAD: PackedScene = preload("res://art/props/shaft_head.glb")
+const HEAD_OFFSET: float = 0.5
+## How high its A-frames' caps stand (`build_shaft_head.py` APEX + cap).
+const HEAD_TOP: float = 3.65
+## Where its legs and cranks stand, in its own frame (`build_shaft_head.py`:
+## the A-frames at ±1.95 m, feet ±0.95 m either side, cranks 0.48 m beyond).
+const HEAD_FEET: Array[Vector3] = [
+	Vector3(1.95, 0.0, 0.95), Vector3(1.95, 0.0, -0.95),
+	Vector3(-1.95, 0.0, 0.95), Vector3(-1.95, 0.0, -0.95),
+	Vector3(2.4, 0.0, 0.0), Vector3(-2.4, 0.0, 0.0),
+]
 ## Cold, pale, and the only thing down here that is not warm. `ART-005` spends
 ## saturated colour on treasure, so the way out reads by *value* instead —
 ## which also keeps it distinguishable from gold at a glance and in monochrome.
@@ -102,6 +115,10 @@ const HUM_RANGE: float = 14.0      # ⟨tune⟩
 const REPLICATION_HZ: float = 20.0
 
 var _mesh: MeshInstance3D = null
+## The windlass (B132), and the quarter turn it stood at: -1 when no turn
+## fitted the room, and it stands hidden. Read by `--interior-probe`'s census.
+var _head: Node3D = null
+var head_turn: int = -2
 var _beacon: MeshInstance3D = null
 var _light: OmniLight3D = null
 var _material: StandardMaterial3D = null
@@ -318,7 +335,62 @@ func _build_body() -> void:
 	_mesh.material_override = _material
 	_mesh.position.y = HEIGHT * 0.5
 	add_child(_mesh)
+	# **What it is, not only where** (B132): the windlass over a mine's mouth,
+	# after Agricola's woodcuts (`build_shaft_head.py`) — two A-frames, a drum,
+	# a rope and a kibble. Outside the disc or above head height, so where a
+	# body stands to be drawn up is unchanged; look-only, as the mine set is,
+	# so it can never close a route on a floor the generator laid. Set off the
+	# middle so the beacon rises beside the drum, not through it.
+	_head = DelvingsKit.look_of(HEAD)
+	_head.position = Vector3(0.0, 0.0, HEAD_OFFSET)
+	_head.visible = false
+	add_child(_head)
+	_fit_head.call_deferred()
 	_build_beacon()
+
+
+## **Turned to fit its room, or not stood up at all** (B132). The frame is
+## 4.9 m across and a Shaft's room can be narrower, so its legs are tested
+## against the room's stone at each quarter turn once the floor's solids are in
+## the world, and it stands at the first turn where none is in rock. Where no
+## turn fits, the disc and the beacon say *here* as they always did — a frame
+## standing half inside a wall would say something false.
+func _fit_head() -> void:
+	if not is_inside_tree():
+		return
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	if not is_inside_tree() or _head == null:
+		return
+	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	for turn: int in 4:
+		var yaw: float = PI * 0.5 * float(turn)
+		var clear: bool = true
+		for foot: Vector3 in HEAD_FEET:
+			var at: Vector3 = (foot + Vector3(0.0, 0.0, HEAD_OFFSET)).rotated(Vector3.UP, yaw)
+			for high: float in [0.4, 1.6, 2.8]:
+				var probe := PhysicsPointQueryParameters3D.new()
+				probe.position = to_global(at + Vector3(0.0, high, 0.0))
+				probe.collision_mask = CollisionLayers.WORLD
+				if not space.intersect_point(probe, 1).is_empty():
+					clear = false
+		# And the frame's tops, which stand 3.6 m up: a low roof is rock too.
+		for side: float in [-1.0, 1.0]:
+			var apex := PhysicsPointQueryParameters3D.new()
+			apex.position = to_global((Vector3(side * 1.95, HEAD_TOP, 0.0)
+				+ Vector3(0.0, 0.0, HEAD_OFFSET)).rotated(Vector3.UP, yaw))
+			apex.collision_mask = CollisionLayers.WORLD
+			if not space.intersect_point(apex, 1).is_empty():
+				clear = false
+		if clear:
+			_head.rotation.y = yaw
+			_head.position = Vector3(0.0, 0.0, HEAD_OFFSET).rotated(Vector3.UP, yaw)
+			_head.visible = true
+			head_turn = turn
+			print("[shaft] the windlass stands at a quarter turn of %d" % turn)
+			return
+	head_turn = -1
+	print("[shaft] the windlass fits no turn of its room, and is not stood up")
 
 
 ## The column, the light and the hum — the three halves of "you can find this".
