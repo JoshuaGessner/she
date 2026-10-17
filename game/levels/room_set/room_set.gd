@@ -4028,6 +4028,35 @@ func _turn_probe() -> void:
 	if not heard.has(&"sated"):
 		problems.append("the Hunter was paid and went, and the body beside it was not told why")
 
+	# ─ 10. said long enough to read (B142) ─
+	# The Hunter's lines hold `HUNT_HELD_SECONDS`, not a refused key's 1.5 s:
+	# at 1.5 s no walkthrough frame ever caught the robbed line on screen.
+	var mark: Reticle = _reticle()
+	if mark != null:
+		player.hunter_robbed.emit("Gilt Bead")
+		await _hold(2.5)
+		var still: String = mark.showing()
+		print("[turn] said          2.5 s after the take the reticle reads '%s'" % still)
+		if not still.contains("Gilt Bead"):
+			problems.append("the robbed line was gone within 2.5 s — fourteen words, not readable")
+	# And the first floor's card dims once the body sets off, not while it stands.
+	var levels: Array[float] = []
+	for walks: bool in [false, true]:
+		var card := ArrivalBrief.new()
+		card.verb = "a line"
+		add_child(card)
+		player.teleport(stand, 0.0)
+		await _hold(1.2)
+		if walks:
+			player.teleport(stand + Vector3(0.0, 0.0, -3.0), 0.0)
+		await _hold(ArrivalBrief.HOLD_SECONDS + 0.4)
+		levels.append(card.modulate.a)
+		card.queue_free()
+	print("[turn] the card      standing %.2f, walking %.2f (want 1.00, about %.2f)"
+		% [levels[0], levels[1], ArrivalBrief.WALKING_ALPHA])
+	if levels[0] < 0.95 or levels[1] > ArrivalBrief.WALKING_ALPHA + 0.1:
+		problems.append("the arrival card did not dim when the body set off, or dimmed while it stood")
+
 	player.sworn = was_sworn
 	Input.action_release("verb")
 	for problem: String in problems:
