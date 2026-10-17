@@ -65,6 +65,8 @@ var _column: VBoxContainer = null
 ## how it gets out, one at a time.
 var _about: Label = null
 var _way: Label = null
+## The focused life's verb, said as the descent's brief says it (B133).
+var _verb: Label = null
 var _shown_entry: ClassResource = null
 
 
@@ -128,6 +130,12 @@ func _ready() -> void:
 	_way = MenuStyle.line("", MenuStyle.BODY_DIM)
 	_way.custom_minimum_size = Vector2(MenuStyle.inside(self, MenuStyle.SLATE, wide), 0.0)
 	words.add_child(_way)
+	# **And what it does** (B133): the verb, said as the descent's brief says
+	# it. A life was chosen on a temperament and a way out, and its one key —
+	# and what it does to the Gold-Sick (ADR-403) — was first met underground.
+	_verb = MenuStyle.line("", MenuStyle.BODY_WARM)
+	_verb.custom_minimum_size = Vector2(MenuStyle.inside(self, MenuStyle.SLATE, wide), 0.0)
+	words.add_child(_verb)
 	var centred := CenterContainer.new()
 	centred.add_child(plate)
 	column.add_child(centred)
@@ -186,6 +194,8 @@ func _show(entry: ClassResource) -> void:
 		_about.text = tr(String(entry.description_key)) if entry.description_key != &"" else ""
 	if _way != null:
 		_way.text = tr(String(entry.exit_key)) if entry.exit_key != &"" else ""
+	if _verb != null:
+		_verb.text = tr("verb.%s.brief" % entry.verb) if entry.verb != &"" else ""
 
 
 ## One class: who you would be, and its name to swear by (ADR-385). What it
