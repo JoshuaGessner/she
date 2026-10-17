@@ -96,7 +96,7 @@ Expensive, optional, and it is the **Refusal** answer to the same problem (`DES-
 > - a **Skald's** whole verse sends it away;
 > - a **Haugbrjótr's** hammer knocks coin out of its hoard, and it stoops for that and goes, unless she snatches the coin.
 >
-> Turned, it rears back and goes for less time than a payment buys. Each use of the same verb buys 0.6 of the last ⟨tune⟩, which is how *Alien: Isolation*'s creature treats the flamethrower. Close pursuit also has a ceiling for every class, the **menace gauge**: after 45 s ⟨tune⟩ near you with nothing taken, it breaks off for 15 s.
+> Turned, it rears back and goes for less time than a payment buys. Each use of the same verb buys 0.6 of the last ⟨tune⟩, which is how *Alien: Isolation*'s creature treats the flamethrower. A trick worn below 4 s ⟨tune⟩ is shrugged off, not obeyed. Close pursuit also has a ceiling for every class, the **menace gauge**: after 45 s ⟨tune⟩ near you with nothing taken, it breaks off for 15 s.
 
 **Or kill it, eventually.** At high Pact Rank ⟨tune⟩ it becomes killable. You get its entire hoard, which is enormous, and a deed. It is also a person, and the game will not mention that either. **Two solutions expressing opposite values** — take everything it has, or give it enough to rest.
 

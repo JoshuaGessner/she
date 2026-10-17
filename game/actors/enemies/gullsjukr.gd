@@ -485,6 +485,8 @@ func turn_away(by: StringName, seconds: float, from: Vector3, turner: Player = n
 	if not multiplayer.is_server() or is_away():
 		return 0.0
 	var held: float = turn_seconds(by, seconds)
+	if by != MENACE and _knows_too_well(by, held, turner):
+		return 0.0
 	if by != MENACE:
 		_wary[by] = wary_of(by) + 1
 	_go_away(held, from, by != MENACE)
@@ -494,6 +496,24 @@ func turn_away(by: StringName, seconds: float, from: Vector3, turner: Player = n
 	if turner != null:
 		turner.told_hunter(by, wary_of(by) > 1)
 	return held
+
+
+## **A trick it knows too well** (B131): each use buys 0.6 of the last, and
+## a turn worth less than `hunter_turn_floor` is not taken at all. It shrugs
+## — the refusal a blow gets, seen and heard the same way — learns nothing
+## more, and whoever tried it is told. A trick that bought half a second
+## used to play a whole turn: the recoil, the groan, and "it knows that trick
+## now", for a Hunter that was back on them before the line had faded.
+func _knows_too_well(by: StringName, held: float, turner: Player) -> bool:
+	if held >= Config.tuning.hunter_turn_floor:
+		return false
+	print("[hunt] it knows %s too well to turn for it (%.1f s would be all it bought)" % [by, held])
+	_shrug_left = SHRUG_SECONDS
+	_apply_tint()
+	shrugged.emit()
+	if turner != null:
+		turner.told_hunter(&"spent", false)
+	return true
 
 
 func _go_away(held: float, from: Vector3, rears: bool) -> void:
@@ -530,6 +550,8 @@ func veil(seconds: float, by: Player) -> float:
 	if not multiplayer.is_server():
 		return 0.0
 	var held: float = turn_seconds(&"seidr", seconds)
+	if _knows_too_well(&"seidr", held, by):
+		return 0.0
 	# Learned only when it was there to learn it: a Hunter away — paid or
 	# turned — is not taught by a reading, as it is not by a turn (`turn_away`).
 	if not is_away():
@@ -563,6 +585,8 @@ func knock_loose(by: Player) -> void:
 	if not multiplayer.is_server() or not knockable():
 		return
 	_spill_seconds = turn_seconds(&"haugbrot", Config.tuning.hunter_turn_haugbrot_seconds)
+	if _knows_too_well(&"haugbrot", _spill_seconds, by):
+		return
 	_wary[&"haugbrot"] = wary_of(&"haugbrot") + 1
 	_spill_by = by
 	_target = null

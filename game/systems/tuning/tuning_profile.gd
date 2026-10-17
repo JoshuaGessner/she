@@ -458,6 +458,11 @@ extends Resource
 ## the more it is used on it; the lesson is the same here — no one trick
 ## holds it for a whole floor, and a party of mixed oaths does best.
 @export var hunter_wary_factor: float = 0.6
+## **The least a trick may still buy** ⟨tune⟩ (B131). Below it the Hunter
+## shrugs the trick off rather than turning for a moment: with the factor
+## above, a Hold works four times on one Hunter (24, 14, 9, 5 s) and not the
+## fifth, a snare three.
+@export var hunter_turn_floor: float = 4.0
 ## Seconds it rears back where it stands before it goes ⟨tune⟩ — the visual
 ## twin of being turned (`DES-018`), long enough to read from across a room.
 @export var hunter_recoil_seconds: float = 0.9
@@ -1079,6 +1084,10 @@ func validate() -> PackedStringArray:
 			problems.append(("a turn of %.1f s must be positive and shorter than "
 				+ "a payment's %.1f s (ADR-403) — paying it is the longest peace")
 				% [turn, hunter_sated_seconds])
+	if hunter_turn_floor <= hunter_recoil_seconds:
+		problems.append("hunter_turn_floor %.1f must be longer than the recoil (%.1f s), "
+			% [hunter_turn_floor, hunter_recoil_seconds]
+			+ "or a turn can end before it has finished rearing back (B131)")
 	if haugbrot_hunter_seconds >= hunter_take_seconds:
 		problems.append("haugbrot_hunter_seconds must be shorter than its take, "
 			+ "or a mound-breaker in reach is always robbed first (ADR-403)")
