@@ -4497,9 +4497,15 @@ func _walkthrough_shot(dir: String) -> void:
 				if (label as Label).is_visible_in_tree() and (label as Control).modulate.a > 0.05:
 					brief.append((label as Label).text)
 		var mark: Reticle = _reticle()
-		print("[walk] %02d %4.1fs  health %3.0f  clamor %4.1f  nearest %-16s said '%s'  brief '%s'" % [
+		# And the Hunter (B136): what it is doing and how far, so a deeper walk
+		# shows when it notices the body and what the screen says then.
+		var hunting: String = "none"
+		if _hunter != null:
+			hunting = "%s %.0f m" % [Gullsjukr.State.keys()[_hunter.state_index],
+				_hunter.global_position.distance_to(player.global_position)]
+		print("[walk] %02d %4.1fs  health %3.0f  clamor %4.1f  nearest %-16s hunter %-15s said '%s'  brief '%s'" % [
 			shot, float(Time.get_ticks_msec() - began) / 1000.0, player.health.current,
-			player.clamor.level, nearest, mark.showing() if mark != null else "",
+			player.clamor.level, nearest, hunting, mark.showing() if mark != null else "",
 			" / ".join(brief)])
 		shot += 1
 	print("[walk] done      %d frame(s), arrived %s, down %s, %.0f m of route" % [
