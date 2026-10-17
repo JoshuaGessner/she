@@ -650,18 +650,26 @@ var _probe_arrival_clamor: float = 0.0
 static var _crossing: Dictionary = {}
 
 
+## **Whether these arguments make a run a measurement** (no brief, no scene
+## change). Read off each flag's *name*, not its value (B143):
+## `--walkthrough=…/shots/walk` is not a shot, and read whole it hid the
+## brief the walkthrough exists to show.
+static func measures(args: PackedStringArray) -> bool:
+	for arg: String in args:
+		var flag: String = arg.split("=", true, 1)[0]
+		if flag.contains("probe") or flag.contains("shot") or flag.contains("capture"):
+			return true
+	return false
+
+
 func _ready() -> void:
 	# **First, before anything reads it.** Any probe at all means this process
 	# is measuring the floor rather than playing the loop — extraction must not
 	# change scene out from under it, and the arrival brief must not fade three
 	# labels across a screenshot. This used to be decided *after* `_build_hud`,
 	# so a HUD element asking `_probing` would silently always see `false`.
+	_probing = measures(OS.get_cmdline_user_args())
 	for arg: String in OS.get_cmdline_user_args():
-		# The flag's name, not its value: `--walkthrough=…/shots/walk` is not a
-		# shot, and read whole it hid the brief the walkthrough exists to show.
-		var flag: String = arg.split("=", true, 1)[0]
-		if flag.contains("probe") or flag.contains("shot") or flag.contains("capture"):
-			_probing = true
 		# **Sworn before the body is built** (`M3-T11`). A class reaches a body
 		# through the spawn payload and nowhere else (`M3-T02`, ADR-121), so a
 		# probe that swore after `_spawn_actors` would be measuring a body it
@@ -4027,6 +4035,20 @@ func _turn_probe() -> void:
 	print("[turn] sated         the body near is told %s" % str(heard))
 	if not heard.has(&"sated"):
 		problems.append("the Hunter was paid and went, and the body beside it was not told why")
+
+	# ─ 9b. what makes a run a measurement (B143) ─
+	var cases: Array = [
+		[["--walkthrough=/x/shots/walk", "--seed=1"], false],
+		[["--delvings", "--as-class=huskarl"], false],
+		[["--turn-probe"], true],
+		[["--camp-shot=/x/y"], true],
+	]
+	for case: Array in cases:
+		var said: bool = measures(PackedStringArray(case[0] as Array))
+		if said != bool(case[1]):
+			problems.append("%s read as %s — only a flag's name decides it"
+				% [str(case[0]), "a measurement" if said else "play"])
+	print("[turn] measuring     a walkthrough under shots/ is play; a probe or shot flag measures")
 
 	# ─ 10. said long enough to read (B142) ─
 	# The Hunter's lines hold `HUNT_HELD_SECONDS`, not a refused key's 1.5 s:
