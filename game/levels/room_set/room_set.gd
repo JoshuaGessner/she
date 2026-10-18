@@ -1110,38 +1110,6 @@ func _ready() -> void:
 			_coop_probe(arg.split("=", true, 1)[1])
 
 
-## **The mission graph, before it has any geometry** (`M4-T01`, `DES-015`).
-##
-## Six claims, and the third is the one that could not have existed before
-## today.
-##
-## `check_determinism.py` has passed `--seed=` since `M1-T07` and **nothing in
-## this project has ever read it.** The layout is six literal `AABB`s, so every
-## seed produces an identical hash and the harness has been asserting that a
-## constant is constant. That is not a criticism of the harness — `WorldHash`
-## says so in its own header, and being written before the generator is what
-## makes it a specification rather than a description. But it means the harness
-## can catch *"the engine introduced variance"* and cannot catch the failure a
-## generator actually has: **ignoring its seed.** A generator that returned the
-## same floor every time would pass `check_determinism.py` perfectly.
-##
-## So determinism is asserted in both directions here. Same seed, same graph —
-## and *different seed, different graph*, which is the half that has been
-## missing and the half a stubbed generator fails.
-##
-## Run over many seeds rather than one, because `problems()` is a claim about
-## every floor the generator can emit and a single sample proves nothing about
-## a random process. Cheap: no scene, no navmesh, no meshes — the whole point
-## of building topology first.
-## `DES-015` step 4 — the graph became a space, and is still the graph.
-##
-## The row no other check can make: **connectivity is read back off the grid**,
-## not taken from the graph that asked for it. `MissionGraph.problems()` proves
-## the topology poses a decision; this proves the floor built from it still
-## does. A corridor that clipped a third room, or two rooms that ended up
-## flush, would leave every graph assertion passing about a floor that no
-## longer matches — the ADR-032 bypass in particular, which is a claim about
-## routes and therefore about geometry the moment geometry exists.
 ## `TEC-008` — the plan became a place, and it is still the plan.
 ##
 ## `--plan-probe` proves the floor is the mission as *integers*. This proves the
@@ -2667,6 +2635,15 @@ func _obstruction_height(feet: Vector3, facing: Vector3) -> float:
 	return INF
 
 
+## `DES-015` step 4 — the graph became a space, and is still the graph.
+##
+## The row no other check can make: **connectivity is read back off the grid**,
+## not taken from the graph that asked for it. `MissionGraph.problems()` proves
+## the topology poses a decision; this proves the floor built from it still
+## does. A corridor that clipped a third room, or two rooms that ended up
+## flush, would leave every graph assertion passing about a floor that no
+## longer matches — the ADR-032 bypass in particular, which is a claim about
+## routes and therefore about geometry the moment geometry exists.
 func _plan_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var trials: int = 120
@@ -3116,6 +3093,29 @@ func _plan_probe() -> void:
 	_report(problems, "plan")
 
 
+## **The mission graph, before it has any geometry** (`M4-T01`, `DES-015`).
+##
+## Six claims, and the third is the one that could not have existed before
+## today.
+##
+## `check_determinism.py` has passed `--seed=` since `M1-T07` and **nothing in
+## this project has ever read it.** The layout is six literal `AABB`s, so every
+## seed produces an identical hash and the harness has been asserting that a
+## constant is constant. That is not a criticism of the harness — `WorldHash`
+## says so in its own header, and being written before the generator is what
+## makes it a specification rather than a description. But it means the harness
+## can catch *"the engine introduced variance"* and cannot catch the failure a
+## generator actually has: **ignoring its seed.** A generator that returned the
+## same floor every time would pass `check_determinism.py` perfectly.
+##
+## So determinism is asserted in both directions here. Same seed, same graph —
+## and *different seed, different graph*, which is the half that has been
+## missing and the half a stubbed generator fails.
+##
+## Run over many seeds rather than one, because `problems()` is a claim about
+## every floor the generator can emit and a single sample proves nothing about
+## a random process. Cheap: no scene, no navmesh, no meshes — the whole point
+## of building topology first.
 func _graph_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var trials: int = 400
