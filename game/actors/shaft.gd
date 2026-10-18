@@ -363,26 +363,15 @@ func _fit_head() -> void:
 	await get_tree().physics_frame
 	if not is_inside_tree() or _head == null:
 		return
-	var space: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
 	for turn: int in 4:
 		var yaw: float = PI * 0.5 * float(turn)
 		var clear: bool = true
 		for foot: Vector3 in HEAD_FEET:
-			var at: Vector3 = (foot + Vector3(0.0, 0.0, HEAD_OFFSET)).rotated(Vector3.UP, yaw)
 			for high: float in [0.4, 1.6, 2.8]:
-				var probe := PhysicsPointQueryParameters3D.new()
-				probe.position = to_global(at + Vector3(0.0, high, 0.0))
-				probe.collision_mask = CollisionLayers.WORLD
-				if not space.intersect_point(probe, 1).is_empty():
-					clear = false
+				clear = clear and not _in_rock(foot + Vector3(0.0, high, 0.0), yaw)
 		# And the frame's tops, which stand 3.6 m up: a low roof is rock too.
 		for side: float in [-1.0, 1.0]:
-			var apex := PhysicsPointQueryParameters3D.new()
-			apex.position = to_global((Vector3(side * 1.95, HEAD_TOP, 0.0)
-				+ Vector3(0.0, 0.0, HEAD_OFFSET)).rotated(Vector3.UP, yaw))
-			apex.collision_mask = CollisionLayers.WORLD
-			if not space.intersect_point(apex, 1).is_empty():
-				clear = false
+			clear = clear and not _in_rock(Vector3(side * 1.95, HEAD_TOP, 0.0), yaw)
 		if clear:
 			_head.rotation.y = yaw
 			_head.position = Vector3(0.0, 0.0, HEAD_OFFSET).rotated(Vector3.UP, yaw)
@@ -392,6 +381,15 @@ func _fit_head() -> void:
 			return
 	head_turn = -1
 	print("[shaft] the windlass fits no turn of its room, and is not stood up")
+
+
+## Whether a point of the windlass, in its own frame, stands in the room's
+## stone when it is turned `yaw` and set off the middle (B151).
+func _in_rock(local: Vector3, yaw: float) -> bool:
+	var probe := PhysicsPointQueryParameters3D.new()
+	probe.position = to_global((local + Vector3(0.0, 0.0, HEAD_OFFSET)).rotated(Vector3.UP, yaw))
+	probe.collision_mask = CollisionLayers.WORLD
+	return not get_world_3d().direct_space_state.intersect_point(probe, 1).is_empty()
 
 
 ## The column, the light and the hum — the three halves of "you can find this".
