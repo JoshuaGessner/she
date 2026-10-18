@@ -68,9 +68,12 @@ class Trial(NamedTuple):
     # that every clean run already prints, so its trial could not fail.
     names: str = ""
 
+    @property
+    def expected(self) -> str:
+        return self.names or self.path.name
+
     def reported(self, output: str) -> bool:
-        expected = self.names or self.path.name
-        return any(self.code in line and expected in line for line in output.splitlines())
+        return any(self.code in line and self.expected in line for line in output.splitlines())
 
 
 TRIALS = [
@@ -219,7 +222,8 @@ def run_trials() -> int:
     for trial in TRIALS:
         if trial.reported(clean[trial.tool]):
             print(f"VACUOUS {trial.code}: the clean tree already reports it for "
-                  f"{trial.names or trial.path.name} — this trial cannot fail", file=sys.stderr)
+                  f"{trial.expected}, so this trial cannot fail — plant it in a file the "
+                  f"clean tree does not report, or set names= to where it lands", file=sys.stderr)
             failures += 1
             continue
         original = trial.path.read_text(encoding="utf-8")
