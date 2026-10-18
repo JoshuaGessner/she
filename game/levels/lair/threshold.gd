@@ -1436,7 +1436,7 @@ func _process(delta: float) -> void:
 			# **Her region, not appended to the readout** (`M4-T20`). This was
 			# `_readout.text +=`, which grew the top-left panel by two lines
 			# every time it fired and had no way to shrink back.
-			_say("you have sworn to nothing — there is no one here to go down")
+			_say(tr("camp.sworn_nothing"))
 	elif (_chamber_armed
 			and player.global_position.distance_to(CHAMBER_AT) <= 1.8):
 		_open_the_chamber()
@@ -1529,9 +1529,9 @@ func _still_at_the_fire(waiting: int) -> void:
 	# **Her region, not appended to the readout** (`M4-T20`), the twin of the
 	# refusal above. Between them these two `+=` calls were the growth TEC-009
 	# §5.6 named as the thing nothing bounded.
-	_say(("%d of the party %s still at the fire — the Deep takes you "
-		+ "together, or not at all") % [
-			waiting, "is" if waiting == 1 else "are"])
+	# One line for one waiting and one for more: a translation cannot patch an
+	# English verb into the sentence.
+	_say(tr("camp.waiting_one" if waiting == 1 else "camp.waiting_many") % waiting)
 
 
 ## **Say one thing, in the region that owns saying things** (`M4-T20`).
@@ -1984,7 +1984,7 @@ func layout_faults() -> PackedStringArray:
 		return out
 	# Made to speak here rather than in the caller — see `Chamber.layout_faults`
 	# for the 0×0 that taught this.
-	_say("the check makes the camp refuse at length, so this region is measured "
+	_say("the check makes the camp refuse at length, so this region is measured "  # probe-text
 		+ "at the longest it is ever asked to hold")
 	var screen: Vector2 = MenuStyle.base_screen()
 	await relayout(screen)

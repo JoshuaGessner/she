@@ -994,10 +994,10 @@ func _tell_the_reticle(at_the_pile: bool, at_the_chest: bool) -> void:
 	# give and where you spend. The drag still works and no longer needs
 	# teaching here — the page is the door a first life can find.
 	if GameState.boon > 0:
-		_mark.offer("%s — give to her, or ask of her (%d boon unspent)"
+		_mark.offer(tr("her.offer_boon")
 			% [ControlsScreen.glyphs_for("interact"), GameState.boon])
 		return
-	_mark.offer("%s — give to her: what you owe, and what earns boon"
+	_mark.offer(tr("her.offer")
 		% ControlsScreen.glyphs_for("interact"))
 
 

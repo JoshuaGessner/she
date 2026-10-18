@@ -233,7 +233,7 @@ func restore_defaults() -> void:
 	_capture = {}
 	Bindings.reset()
 	_fill()
-	_say("every control is back where it started", MenuStyle.CAPTION_DIM)
+	_say(tr("controls.reset"), MenuStyle.CAPTION_DIM)
 
 
 func _begin(label: String, actions: PackedStringArray, device: int) -> void:
@@ -257,10 +257,10 @@ func _ask() -> void:
 	var which: String = ""
 	if actions.size() > 1:
 		which = " — " + action.get_slice("_", action.get_slice_count("_") - 1)
-	_say("%s%s: press %s, or Escape to leave it" % [
+	_say(tr("controls.press") % [
 		String(_capture["label"]), which,
-		"a key or a mouse button" if int(_capture["device"]) == Bindings.Device.KEYS
-			else "a pad button or push a stick"], MenuStyle.CAPTION_WARM)
+		tr("controls.press_keys") if int(_capture["device"]) == Bindings.Device.KEYS
+			else tr("controls.press_pad")], MenuStyle.CAPTION_WARM)
 
 
 func _process(delta: float) -> void:
@@ -269,7 +269,7 @@ func _process(delta: float) -> void:
 	_capture["left"] = float(_capture["left"]) - delta
 	if float(_capture["left"]) <= 0.0:
 		_capture = {}
-		_say("left as it was", MenuStyle.CAPTION_DIM)
+		_say(tr("controls.left"), MenuStyle.CAPTION_DIM)
 
 
 func _input(event: InputEvent) -> void:
@@ -288,7 +288,7 @@ func capture(event: InputEvent) -> bool:
 	var key := event as InputEventKey
 	if key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE:
 		_capture = {}
-		_say("left as it was", MenuStyle.CAPTION_DIM)
+		_say(tr("controls.left"), MenuStyle.CAPTION_DIM)
 		return true
 	if not _is_a_press(event):
 		return false

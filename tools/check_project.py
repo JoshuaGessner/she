@@ -514,6 +514,10 @@ MENU_LITERAL = re.compile(r'MenuStyle\.(?:line|title|heading|button)\("[A-Za-z]'
 # a quoted string of words (B170).
 MENU_OPEN = re.compile(r'(?:MenuStyle\.(?:line|title|heading|button)|_toggle_row)\($')
 LABEL_LITERAL = re.compile(r'\.(?:text|tooltip_text|placeholder_text)\s*=\s*"[A-Za-z][^"]*"')
+# A line handed to a saying helper — a region's `_say`, a reticle's `offer` —
+# as a literal (B175). `# probe-text` on the line marks a measurement's own
+# fixture, which is never shown to a player.
+SAY_LITERAL = re.compile(r'(?:\b_say|\.say|\.offer)\(\(?\s*"[A-Za-z%]')
 
 
 def check_menu_literals(path: Path) -> list[Issue]:
@@ -538,7 +542,8 @@ def check_menu_literals(path: Path) -> list[Issue]:
         # into the code past a rule that only read one line at a time.
         wrapped = (line.lstrip().startswith('"') and number > 1
                    and MENU_OPEN.search(lines[number - 2].rstrip()))
-        if MENU_LITERAL.search(line) or wrapped or LABEL_LITERAL.search(line):
+        said = SAY_LITERAL.search(line) and "# probe-text" not in line
+        if MENU_LITERAL.search(line) or wrapped or LABEL_LITERAL.search(line) or said:
             issues.append(Issue(
                 "error", "menu-literal", f"{rel(path)}:{number}",
                 "a menu string is typed into the code rather than read from the table",
