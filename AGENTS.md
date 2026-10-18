@@ -80,7 +80,17 @@ python3 tools/status.py --check     # must pass
 python3 tools/check_project.py      # locked settings + conventions
 python3 tools/check_dead.py         # nothing orphaned (ADR-098)
 python3 tools/bind_gamepad.py --check
+python3 tools/test_checks.py        # each check above still fires on a planted fault
 tools/check_scripts.sh              # real GDScript parser, every script
+```
+
+CI runs two more, each launching Godot twice, so they are not in the list above;
+run them when you touch networking or generation, and never beside a running
+`check_scripts.sh`, whose own Godot processes they would contend with:
+
+```bash
+python3 tools/run_net_spike.py --smoke   # two clients still replicate (TEC-004)
+python3 tools/check_determinism.py       # same seed, same layout, two processes
 ```
 
 **A failing check is a blocked commit, not a note in the commit message.**
