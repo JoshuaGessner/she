@@ -195,6 +195,10 @@ func _ready() -> void:
 			continue
 		if arg.contains("probe") or arg.contains("shot"):
 			_probing = true
+	# **The camp lifts off black** (B174), from the menu or from the Deep, the
+	# twin of the fall the descent goes through. Not under a probe or a shot.
+	if not _probing:
+		Curtain.lift(self)
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--threshold-shot="):
 			_threshold_shot(arg.split("=", true, 1)[1])
@@ -1599,6 +1603,13 @@ func _descend(seed: int) -> void:
 		# the assertion (ADR-138).
 		print("[edges] descended (held, probing)")
 		return
+	# **Into the dark first** (B174): the floor takes a second to make, and
+	# the frame that holds while it does is black rather than the throat
+	# frozen. The body is held still for the fall, as a menu would hold it.
+	var body: Player = _session.local_player() if _session != null else null
+	if body != null:
+		body.hold_attention(&"descent")
+	await Curtain.fall(self)
 	get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
 
 

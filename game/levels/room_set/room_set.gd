@@ -863,6 +863,10 @@ func _ready() -> void:
 	_open_the_ledger()
 	_build_hud()
 	add_child(PauseMenu.new())
+	# **And out of it** (B174): every arrival lifts off black, the twin of the
+	# fall that came before it. Not under a probe, whose first frame is a shot.
+	if not _probing:
+		Curtain.lift(self)
 	# After `_probing` is known and never before it. A probe that inherited a
 	# loadout would be measuring a bag it did not pack — and the reason this is
 	# a real hazard rather than a hypothetical one is that it reads correct
@@ -10318,6 +10322,13 @@ func _take_the_party_down() -> void:
 		# one that frees a floor, a population and a HUD and builds another —
 		# had never been executed by any check in the suite.
 		return
+	# **Into the dark first** (B174), as from the camp: the next floor takes a
+	# second to make, and the frame that holds is black. Not under a probe —
+	# `--crossing-probe` measures the crossing, and the curtain is only look.
+	if not _probing:
+		if body != null:
+			body.hold_attention(&"descent")
+		await Curtain.fall(self)
 	get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
 
 
