@@ -45,6 +45,12 @@ const MOUSE_WAKES: float = 4.0
 ## stick counts when it *crosses* `STICK_WAKES`, not while it rests past it, so
 ## a pad with a stuck axis cannot take the prompts back after every key.
 static var _leaned: Dictionary = {}
+## The pad a person last picked up, or -1 (B164): whose family names the buttons.
+static var _pad: int = -1
+## Pad families whose faces are labelled differently (B164).
+const XBOX: StringName = &"xbox"
+const PLAYSTATION: StringName = &"playstation"
+const NINTENDO: StringName = &"nintendo"
 
 
 ## The device a person is using, or `ALL` while nothing says.
@@ -74,12 +80,40 @@ static func note(event: InputEvent) -> void:
 			device = KEYBOARD
 	if device != ALL:
 		_in_hand = device
+		if device == GAMEPAD:
+			_pad = event.device
+
+
+## **Whose buttons the prompts name** (B164): the family of the pad last picked
+## up — or of the first one connected, before any was — read off its name.
+## SDL's names, which Godot reports: *"PS5 Controller"*, *"DualSense Wireless
+## Controller"*, *"Nintendo Switch Pro Controller"*, *"Xbox Series X
+## Controller"*. Anything unrecognised reads as the Xbox layout Godot's own
+## button names follow.
+static func pad_family() -> StringName:
+	var pad: int = _pad
+	if pad < 0 or not Input.get_connected_joypads().has(pad):
+		var connected: Array[int] = Input.get_connected_joypads()
+		pad = connected[0] if not connected.is_empty() else -1
+	return family_of(Input.get_joy_name(pad)) if pad >= 0 else XBOX
+
+
+static func family_of(pad_name: String) -> StringName:
+	var named: String = pad_name.to_lower()
+	for word: String in ["playstation", "dualsense", "dualshock", "ps3", "ps4", "ps5", "sony"]:
+		if named.contains(word):
+			return PLAYSTATION
+	for word: String in ["nintendo", "switch", "joy-con", "joycon"]:
+		if named.contains(word):
+			return NINTENDO
+	return XBOX
 
 
 ## Back to knowing nothing, for a probe that has fed events of its own.
 static func forget() -> void:
 	_in_hand = ALL
 	_leaned.clear()
+	_pad = -1
 
 
 ## True unless this instance was launched gamepad-only. The player consults it

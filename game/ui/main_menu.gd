@@ -1160,6 +1160,25 @@ func _controls_probe() -> PackedStringArray:
 	var stuck_after_key: String = ControlsScreen.glyphs_for("interact")
 	InputDevices.forget()
 	var pad_says: PackedStringArray = ControlsScreen.pad_glyphs(PackedStringArray(["interact"]))
+	# **Whose buttons** (B164): the family read off a pad's name, and its faces.
+	var face := InputEventJoypadButton.new()
+	face.button_index = JOY_BUTTON_A
+	var trigger := InputEventJoypadMotion.new()
+	trigger.axis = JOY_AXIS_TRIGGER_RIGHT
+	var families: PackedStringArray = PackedStringArray()
+	for pad_name: String in ["DualSense Wireless Controller", "PS4 Controller",
+			"Nintendo Switch Pro Controller", "Xbox Series X Controller", "Generic USB Joystick"]:
+		var family: StringName = InputDevices.family_of(pad_name)
+		families.append("%s → %s %s/%s" % [pad_name, family,
+			ControlsScreen.pad_text_for(face, family), ControlsScreen.pad_text_for(trigger, family)])
+	print("[controls] families   %s" % "; ".join(families))
+	if InputDevices.family_of("DualSense Wireless Controller") != InputDevices.PLAYSTATION \
+			or ControlsScreen.pad_text_for(face, InputDevices.PLAYSTATION) != "Cross" \
+			or ControlsScreen.pad_text_for(trigger, InputDevices.PLAYSTATION) != "R2" \
+			or ControlsScreen.pad_text_for(face, InputDevices.NINTENDO) != "B" \
+			or ControlsScreen.pad_text_for(face, InputDevices.XBOX) != "A" \
+			or InputDevices.family_of("Generic USB Joystick") != InputDevices.XBOX:
+		problems.append("a pad's buttons were not named as its family prints them")
 	print("[controls] in hand    before any input '%s', a pad pressed '%s', a key '%s', a drifting stick after '%s' (want both, the pad's, the key's, the key's)"
 		% [both, on_pad, on_keys, after_drift])
 	print("[controls] stuck      a stick leaned and held '%s', then a key, then the same stick still held '%s' (want the pad's, the key's)"
