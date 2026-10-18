@@ -76,7 +76,7 @@ func _ready() -> void:
 	margin.add_child(page)
 	page.add_child(MenuStyle.title(tr("ui.her_pile"), MenuStyle.SCREEN_TITLE))
 	page.add_child(MenuStyle.line(
-		"What you give pays what she is owed. Whatever is past that becomes boon, and boon buys her aspects.",
+		tr("offer.intro"),
 		MenuStyle.BODY_WARM))
 
 	var halves := HBoxContainer.new()
@@ -144,7 +144,7 @@ func refresh() -> void:
 		_selected = _first_she_wants(items)
 	for item: ItemInstance in items:
 		_cards.add_child(_card(item))
-	_ask.text = "Her aspects · %d boon unspent" % GameState.boon
+	_ask.text = tr("offer.aspects") % GameState.boon
 	_describe()
 
 
@@ -231,7 +231,7 @@ func _describe() -> void:
 
 	if _selected == null:
 		_detail.add_child(_left(MenuStyle.line(tr("ui.you_carry_nothing"), MenuStyle.BODY_DIM)))
-		_give.text = "Nothing to give"
+		_give.text = tr("offer.nothing")
 		_give.disabled = true
 		return
 	# The gift, drawn large beside its name — the plate is about this one thing.
@@ -252,24 +252,23 @@ func _describe() -> void:
 	_detail.add_child(named)
 	if refused != "":
 		_detail.add_child(_wrapped(refused, MenuStyle.BODY_DIM))
-		_give.text = "She will not take it"
+		_give.text = tr("offer.refused")
 		_give.disabled = true
 		return
 	_detail.add_child(_left(MenuStyle.line(tr("offer.worth") % _worth(_selected), MenuStyle.CAPTION_WARM)))
 	if int(sum["to_tithe"]) > 0:
-		_detail.add_child(_wrapped("%d of it pays what you owe her." % int(sum["to_tithe"]),
+		_detail.add_child(_wrapped(tr("offer.to_tithe") % int(sum["to_tithe"]),
 			MenuStyle.BODY_TEXT))
 	if int(sum["surplus"]) > 0:
 		var gained: int = int(sum["boon"])
-		_detail.add_child(_wrapped("%d is past the Tithe: %d of it goes to boon%s." % [
+		_detail.add_child(_wrapped(tr("offer.surplus") % [
 			int(sum["surplus"]), int(sum["earned"]),
-			(" — %d boon" % gained) if gained > 0 else ""], MenuStyle.BODY_TEXT))
+			(tr("offer.surplus_boon") % gained) if gained > 0 else ""], MenuStyle.BODY_TEXT))
 	if int(sum["learned"]) > 0:
 		# ADR-011's cap said out loud: she will not turn all of a cycle into
 		# power, and what she turns away is not lost.
-		_detail.add_child(_wrapped(("%d is more than this cycle can turn to boon; "
-			+ "your lineage keeps it as a lesson.") % int(sum["learned"]), MenuStyle.CAPTION_DIM))
-	_give.text = "Lay it on the pile"
+		_detail.add_child(_wrapped(tr("offer.learned") % int(sum["learned"]), MenuStyle.CAPTION_DIM))
+	_give.text = tr("offer.lay")
 	_give.disabled = false
 
 

@@ -324,7 +324,7 @@ func _show_host() -> void:
 	var copy: Button = MenuStyle.button(tr("ui.copy_address"))
 	copy.pressed.connect(func() -> void:
 		DisplayServer.clipboard_set("%s:%d" % [address, NetPlan.DEFAULT_PORT])
-		copy.text = "COPIED")
+		copy.text = tr("ui.copied"))
 	_column.add_child(copy)
 
 	var start: Button = MenuStyle.button(tr("ui.open_the_threshold"))
@@ -442,7 +442,7 @@ func hold_abandon(delta: float) -> void:
 	_abandon_held += delta
 	var hold: float = Config.tuning.abandon_hold_seconds
 	if _abandon_held < hold:
-		_abandon.text = "KEEP HOLDING — %d" % ceili(hold - _abandon_held)
+		_abandon.text = tr("ui.keep_holding") % ceili(hold - _abandon_held)
 		return
 	_abandon_held = -1.0
 	GameState.forget_the_lineage()

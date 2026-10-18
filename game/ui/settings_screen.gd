@@ -38,7 +38,7 @@ func _ready() -> void:
 	centre.add_child(column)
 	column.add_child(MenuStyle.title(tr("ui.settings"), MenuStyle.SCREEN_TITLE))
 	column.add_child(MenuStyle.line(
-		"Changes apply as you make them and are kept when you quit.",
+		tr("ui.settings_live"),
 		MenuStyle.CAPTION_DIM))
 
 	column.add_child(_gap(8))
@@ -49,12 +49,12 @@ func _ready() -> void:
 	column.add_child(_gap(10))
 	column.add_child(MenuStyle.line(tr("ui.look"), MenuStyle.CAPTION_WARM))
 	column.add_child(_sensitivity_row())
-	column.add_child(_toggle_row("Invert vertical look", Settings.invert_look,
+	column.add_child(_toggle_row(tr("ui.invert_look"), Settings.invert_look,
 		func(on: bool) -> void:
 			Settings.invert_look = on
 			Settings.save()))
 	column.add_child(_motion_row())
-	column.add_child(_toggle_row("Fullscreen", Settings.fullscreen,
+	column.add_child(_toggle_row(tr("ui.fullscreen"), Settings.fullscreen,
 		func(on: bool) -> void:
 			Settings.fullscreen = on
 			Settings.apply()

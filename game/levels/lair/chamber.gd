@@ -984,7 +984,7 @@ func _tell_the_reticle(at_the_pile: bool, at_the_chest: bool) -> void:
 	if at_the_chest:
 		# The chest has no verb of its own — it is a drop target, not an
 		# interaction — so the prompt names the gesture rather than a key.
-		_mark.offer("open the bag (%s), drag it here — yours, until you die"
+		_mark.offer(tr("her.chest_drop")
 			% ControlsScreen.glyphs_for("bag"))
 		return
 	if not at_the_pile:
@@ -1289,7 +1289,7 @@ func _build_readout() -> void:
 	# wide inside a 323 px region. Caught by `HudFrame.escapes` on its first run,
 	# which is the entire argument for having written it.
 	_way_back = Label.new()
-	_way_back.text = "the door behind you returns to the Threshold"
+	_way_back.text = tr("her.way_back")
 	_way_back.theme_type_variation = MenuStyle.FINE_DIM
 	_way_back.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	place_body.add_child(MenuStyle.rule())

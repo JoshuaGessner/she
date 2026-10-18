@@ -163,7 +163,7 @@ func _nodes_of(path: StringName) -> Array[AspectNode]:
 func _path_name(path: StringName) -> String:
 	if path == RITE:
 		var body: ClassResource = ClassCatalogue.by_id(GameState.class_id)
-		return "The %s's Rite" % body.display()
+		return tr("pact.rite") % body.display()
 	return String(path).capitalize()
 
 
@@ -318,23 +318,23 @@ func _describe() -> void:
 		# a mode: giving one back is the same kind of act as taking it.
 		var back: String = GameState.why_not_reclaim(node.id)
 		var refund: int = _refund(node)
-		_act.text = "Give it back — %s" % (
-			"%d boon returned" % refund if refund > 0 else "nothing returned")
+		_act.text = tr("pact.give_back") % (
+			tr("pact.returned") % refund if refund > 0 else tr("pact.none_returned"))
 		_act.set_meta(&"pact_act", &"give")
 		_act.disabled = back != "" or viewing
-		standing = "Taken." + ((" " + back) if back != "" else "")
+		standing = tr("pact.taken") + ((" " + back) if back != "" else "")
 	else:
-		_act.text = "Take it — %d boon" % price
+		_act.text = tr("pact.take") % price
 		_act.set_meta(&"pact_act", &"take")
 		_act.disabled = refused != "" or viewing
 		standing = refused
 	# Said once, here, rather than on every card: `DES-003` buys these at the
 	# pile, where you give, and that is the reason the button will not press.
 	if viewing and standing == "":
-		standing = "Bought at the pile, where you give — come back to her with tribute."
+		standing = tr("pact.bought_away")
 	elif viewing:
 		_detail.add_child(_left(MenuStyle.line(
-			"Bought at the pile, where you give.", MenuStyle.CAPTION_DIM)))
+			tr("pact.bought_here"), MenuStyle.CAPTION_DIM)))
 	if standing != "":
 		var stood: Label = _left(MenuStyle.line(standing,
 			MenuStyle.CAPTION_WARM if owned else MenuStyle.CAPTION_DIM))

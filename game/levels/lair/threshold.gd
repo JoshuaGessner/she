@@ -1807,7 +1807,7 @@ const BOARD_LIGHT_REACH: float = 4.5
 func _offer_the_board(player: Player) -> void:
 	var near: bool = player.global_position.distance_to(BOARD_AT) <= BOARD_REACH
 	if _mark != null and is_instance_valid(_mark):
-		_mark.offer("hold %s — the Lodge's board" % ControlsScreen.glyphs_for("interact")
+		_mark.offer(tr("camp.lodge_board") % ControlsScreen.glyphs_for("interact")
 			if near and _board == null else "")
 	if near and _board == null and Input.is_action_just_pressed("interact"):
 		open_the_board()
