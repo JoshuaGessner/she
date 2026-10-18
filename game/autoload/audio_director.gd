@@ -76,6 +76,10 @@ var mix: HuntMix = HuntMix.new()
 var _players: Dictionary = {}
 var _targets: Dictionary = {}
 var _levels: Dictionary = {}
+## **Each voice rendered once a session** (B157), keyed by voice and pitch. The
+## render is seeded and deterministic, so a kept stream is the stream; drawing
+## the Deep's again on every return from the camp cost ~170 ms of the descent.
+var _rendered: Dictionary = {}
 var _ready_to_mix: bool = false
 ## How far across the room the ear is in, and the room it is walking into.
 var _room_is: float = 0.0
@@ -505,6 +509,13 @@ func layers() -> Dictionary:
 func _voice_stream(spec: Dictionary) -> AudioStreamWAV:
 	var voice: String = String(spec["voice"])
 	var hz: float = float(spec["hz"])
+	var key: String = "%s@%s" % [voice, hz]
+	if not _rendered.has(key):
+		_rendered[key] = _render_voice(voice, hz)
+	return _rendered[key] as AudioStreamWAV
+
+
+func _render_voice(voice: String, hz: float) -> AudioStreamWAV:
 	match voice:
 		"air":
 			return _render(PHRASE_SECONDS, _air_at, hz)
