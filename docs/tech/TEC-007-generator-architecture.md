@@ -4,7 +4,7 @@ title: Generator Architecture
 status: accepted
 owner: tech
 tags: [procgen, generation, determinism, godot, research, levels, cyclic]
-updated: 2026-10-07
+updated: 2026-10-18
 related: [DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001]
 ---
 
@@ -77,6 +77,18 @@ is not itself a source of nondeterminism. The real hazard is one step back:
 function of call order.** Two machines that build the same dictionary by different
 code paths get different iteration orders and neither hash tables nor sorting had
 anything to do with it.
+
+> **The floors are held still by the sweep (B183).** `tests/plan_digest_probe.gd`
+> plans a fixed panel of 12 seeds × 3 floors and compares each plan, its seating,
+> routes and carved corners, with `tests/plan_digests.txt`. The vista, reach and
+> glint panels were tuned on those floors, so a change meant to change nothing
+> has to keep every line, and a change meant to make different floors
+> regenerates the file (`Godot --headless --path game --script
+> tests/plan_digest_probe.gd -- --write`) and says why in its commit. Anything
+> that orders the generator's inputs is part of what a seed means: the Prize
+> kinds `ExpeditionHistory.roll` draws from come from one sorted list,
+> `RoomCatalogue.prize_kinds()`, because two probes that built it unsorted had
+> been planning floors the game never makes (B184).
 
 The rule that actually holds:
 

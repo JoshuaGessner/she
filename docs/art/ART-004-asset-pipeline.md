@@ -4,7 +4,7 @@ title: Asset Pipeline & Production Schedule
 status: accepted
 owner: art
 tags: [art, assets, pipeline, blender, godot, production, specs]
-updated: 2026-10-05
+updated: 2026-10-18
 related: [ART-001, PRO-001, TEC-001, TEC-002, DES-013, DES-017]
 ---
 
@@ -139,6 +139,15 @@ colour still decides its hue. The glTF carries the colour as its factor and
 the map as its texture. Where the field is at hand, the normal map also carries
 **the sculpt's own surface normal**, so detail lost to decimation survives as
 light.
+
+**Every baked map imports VRAM Compressed (ADR-408).** Godot imports a PNG
+losslessly unless the editor sees it used in 3D, and a headless import never
+does, so a new bake arrives uncompressed. Losslessly, the six classes' art
+alone held 319 MB of video memory; compressed, it holds 68 MB. Set
+`compress/mode=2` in the map's `.import`, add `compress/normal_map=1` for an
+`_n` map, and reimport. `tools/check_project.py` refuses an uncompressed map
+anywhere under `art/` except `ui/` (flat images, which stay lossless) and
+`shaders/`.
 
 **Props are sculpted the same way (ADR-320).** The hoard's mound is a
 repose-angle cone of coin with a few treasures half-swallowed, its struck coins
