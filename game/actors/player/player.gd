@@ -658,22 +658,15 @@ var ranged: RangedWeapon = null
 var _hands: Hands = null
 ## The breath and step of what the hands hold (ADR-309), likewise local only.
 var _sway: CarrySway = CarrySway.new()
-## How far through setting a Snare, 0 to 1. **Not replicated**, unlike the
-## Húskarl's `planted`: that one crosses the wire because it changes a collision
-## layer and the host's enemies have to collide with it. This changes nothing
-## anyone else's machine has to agree about — the legible event is the trap
-## appearing, and the trap is a spawned actor that appears for everybody.
-var _setting: float = 0.0
+## The Veiðimaðr's verb — setting a snare, its ring, the request (B52): a
+## component at one path on every peer, which feeds `set_snare`.
+var snare_verb: SnareVerb = null
 ## **What the two verbs look like from inside** (`M4-T03`, ADR-272), metres the
 ## eye drops ⟨tune⟩. A Hold digs in a hand's breadth; setting a snare is done
 ## kneeling, which is also why it cannot be done at a run. Look only: the
 ## collider is the stance's, and neither of these touches it.
 const BRACE_EYE_DROP: float = 0.10
 const KNEEL_EYE_DROP: float = 0.35
-## The ring a snare being set will be, growing at your feet as you set it —
-## the progress of a verb you cannot otherwise see, since `_setting` never
-## leaves this machine. Made the first time it is needed.
-var _snare_ghost: MeshInstance3D = null
 ## Whether the last frame was fully planted, so the plant is heard once, when it
 ## lands, on every peer (ADR-272).
 var _was_planted: bool = false
@@ -877,6 +870,11 @@ func _ready() -> void:
 	wolf_fury.serve(self)
 	wolf_fury.howled.connect(_on_howled)
 	wolf_fury.paid.connect(_sound_for_all.bind(Foley.Sound.HURT, 0.8))
+	snare_verb = SnareVerb.new()
+	snare_verb.name = "SnareVerb"
+	add_child(snare_verb)
+	snare_verb.serve(self)
+	snare_verb.placed.connect(set_snare.emit)
 	equipment.changed.connect(_on_equipment_changed)
 	_redress()
 	# **The tree configures the components** (`M3-T01`, `TEC-006`). Calls down,
@@ -3477,7 +3475,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	# as a vulnerable act and a guard you could hold through it would refund
 	# exactly the vulnerability being paid for.
 	_hold(delta, tuning)
-	_snare(delta, tuning)
+	snare_verb.ask(delta, tuning, _driving, _bag > 0.0)
 	wolf_fury.ask(delta, tuning, _driving, _bag > 0.0)
 	# **Weaker than their wont** (ADR-345): the breath is gone and held gone,
 	# paid by the owner, whose stamina it is.
@@ -3490,7 +3488,8 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	seidr.ask(_driving, _bag > 0.0)
 	haugbrot.ask(_driving, _bag > 0.0)
 	galdr.ask(_driving, _bag > 0.0)
-	_show_setting()
+	if snare_verb.draw():
+		_apply_stance()
 	# **Nor with a broken arm** (`DES-009`, ADR-239): the arm is what a guard is
 	# made of. Asked here so the guard never shows, and again by the host in
 	# `_on_hurt`, which is the copy that decides — the stamina minimum's shape.
@@ -3518,8 +3517,11 @@ func _apply_stance() -> void:
 	# with its feet at its own origin, and it crouches by bending rather than
 	# by shrinking, which is `BodyRig`'s job and not this one's.
 	_collider.position.y = height * 0.5
+	# The stance is applied from `_ready` and from its replicated setter, both
+	# before the verbs exist: nobody is kneeling to a snare yet.
+	var kneel: float = snare_verb.setting() if snare_verb != null else 0.0
 	_head.position.y = height - tuning.eye_drop \
-		- planted * BRACE_EYE_DROP - maxf(_setting, trance) * KNEEL_EYE_DROP
+		- planted * BRACE_EYE_DROP - maxf(kneel, trance) * KNEEL_EYE_DROP
 
 
 func _blocked_above(tuning: TuningProfile) -> bool:
@@ -3956,47 +3958,6 @@ func _loose_arrow(aim: Vector3) -> void:
 	clamor.add(ranged.kit().clamor_loose)
 
 
-## **Snare** (`M3-T11`, `DES-011`) — the Veiðimaðr's verb, and only theirs.
-##
-## > *"Place traps that hold, wound, or misdirect — including against the
-## > Hunter, the only reliable way to buy time during the Sealing."*
-##
-## Held rather than tapped, and it takes `snare_place_seconds`, for the reason
-## the Húskarl's plant takes time: `DES-009` refuses reflex-timed play, so this
-## is a thing you decide to do a beat before you need it. Releasing early
-## abandons it and costs nothing — the stamina is spent when the trap exists,
-## not when you start thinking about it.
-##
-## It goes at your feet. Not ahead of you, which would need an aim and a preview
-## and a rule about walls; at your feet is somewhere you have just proved you
-## can stand, and *"set it and back away through it"* is a legible gesture with
-## nothing to learn.
-func _snare(delta: float, tuning: TuningProfile) -> void:
-	var body: ClassResource = ClassCatalogue.by_id(sworn)
-	var wants: bool = (body != null and body.verb == &"snare"
-		and _driving and Input.is_action_pressed("verb")
-		and not is_incapacitated()
-		and _bag <= 0.0
-		and stamina.current >= tuning.snare_stamina_cost)
-	if not wants:
-		_setting = 0.0
-		return
-	_setting += delta / maxf(tuning.snare_place_seconds, 0.001)
-	if _setting < 1.0:
-		return
-	_setting = 0.0
-	if not stamina.spend(tuning.snare_stamina_cost):
-		return
-	# The jaws set: a small click for your own ears (ADR-272). Not a noise the
-	# floor hears — setting is silent (ADR-123), and `Foley` is sound, never
-	# Clamor.
-	Foley.at(self, Foley.Sound.CLINK, 0.55, -8.0)
-	if multiplayer.is_server():
-		_place_snare(global_position)
-	else:
-		_place_snare.rpc_id(HOST_PEER, global_position)
-
-
 ## **The fury begins** (host, ADR-358): the howl, on the floor's ear and
 ## every peer's. `DES-018`'s twin of it is the screen's ember edge.
 func _on_howled() -> void:
@@ -4094,50 +4055,6 @@ func hand_reach() -> float:
 	return Config.tuning.interact_reach + Config.tuning.interact_reach_slack
 
 
-## **Setting a snare, seen** (ADR-272): the ring it will be, growing at your
-## feet, and the eye dropping as you kneel to it. Both undone the moment you
-## stop, because stopping throws the setting away.
-func _show_setting() -> void:
-	var showing: bool = _snare_ghost != null and _snare_ghost.visible
-	if _setting > 0.0 or showing:
-		_apply_stance()
-	if _setting <= 0.0:
-		if _snare_ghost != null:
-			_snare_ghost.visible = false
-		return
-	if _snare_ghost == null:
-		var torus := TorusMesh.new()
-		torus.inner_radius = Snare.RADIUS * 0.78
-		torus.outer_radius = Snare.RADIUS
-		# Opaque and dim rather than see-through: the ink pass composites over
-		# the finished frame, and a transparent ring would be drawn and then
-		# painted over (`ART-005`) — measured, it vanished.
-		var faint := StandardMaterial3D.new()
-		faint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		faint.albedo_color = Color(0.46, 0.42, 0.34)
-		_snare_ghost = MeshInstance3D.new()
-		_snare_ghost.name = "SnareGhost"
-		_snare_ghost.mesh = torus
-		_snare_ghost.material_override = faint
-		_snare_ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		_snare_ghost.top_level = true
-		add_child(_snare_ghost)
-	_snare_ghost.visible = true
-	_snare_ghost.global_position = global_position + Vector3(0.0, 0.03, 0.0)
-	var grown: float = lerpf(0.3, 1.0, _setting)
-	_snare_ghost.scale = Vector3(grown, 1.0, grown)
-
-
-## How far through setting a snare this body is, and whether its ring is
-## showing — for `--verbs-probe`.
-func setting() -> float:
-	return _setting
-
-
-func snare_ghost() -> MeshInstance3D:
-	return _snare_ghost
-
-
 ## **Last Door's price, taken where health lives** (ADR-273). The owner knows
 ## the bar is empty; the host owns the blood. Checked against what the host can
 ## see — a full Hold and the node — which is `TEC-004`'s trust model: a client
@@ -4183,22 +4100,6 @@ func _shove() -> void:
 			continue
 		enemy.shove(off.normalized(), tuning.rite_shove_metres)
 	clamor.add(tuning.rite_shove_clamor)
-
-
-## The host is told a trap was set. It does not set it — `CoopSession` does,
-## including clearing the one this peer already had, because the session owns
-## every spawned actor and *one live at a time* is a fact about the world rather
-## than about this body.
-@rpc("any_peer", "call_local", "reliable")
-func _place_snare(at: Vector3) -> void:
-	if not multiplayer.is_server():
-		return
-	var from: int = multiplayer.get_remote_sender_id()
-	if from == 0:
-		from = multiplayer.get_unique_id()
-	if from != get_multiplayer_authority():
-		return
-	set_snare.emit(at, from)
 
 
 ## The layer, applied wherever the body is — owner or remote copy — because the

@@ -12855,17 +12855,24 @@ func _stalker_probe() -> void:
 	# Through `_place_snare`, so this is the seam a player actually uses — the
 	# body tells the host, the host tells the session, and the session is what
 	# clears the old one (ADR-112).
-	player._place_snare(player.global_position + Vector3(2.0, 0.0, 0.0))
+	player.snare_verb.place(player.global_position + Vector3(2.0, 0.0, 0.0))
 	await _hold(0.4)
-	player._place_snare(player.global_position + Vector3(4.0, 0.0, 0.0))
+	var second: Vector3 = player.global_position + Vector3(4.0, 0.0, 0.0)
+	player.snare_verb.place(second)
 	await _hold(0.6)
 	var live: int = 0
+	# **And it is the one just set** (C322): a trap left from an earlier row
+	# made one live trap with placing broken outright.
+	var newest: bool = false
 	for node: Node in get_tree().get_nodes_in_group(&"snares"):
 		var one := node as Snare
 		if one != null and is_instance_valid(one) and not one.is_queued_for_deletion() \
 				and one.placer == player.get_multiplayer_authority() and not one.sprung:
 			live += 1
-	print("[stalker] live traps for one peer %4d   (want 1)" % live)
+			newest = newest or _flat_distance(one.global_position, second) < 0.6
+	print("[stalker] live traps for one peer %4d   (want 1), the one just set %s" % [live, newest])
+	if not newest:
+		problems.append("the trap set through the body's own seam is not the one lying there")
 	if live != 1:
 		problems.append(("%d unsprung traps belong to one peer — one live at a "
 			+ "time is what makes the Snare a decision about *where* rather "
@@ -21070,10 +21077,10 @@ func _verbs_probe() -> void:
 	await _hold(0.1)
 	Input.action_press("verb")
 	await _hold(Config.tuning.snare_place_seconds * 0.5)
-	var ghost: MeshInstance3D = body.snare_ghost()
+	var ghost: MeshInstance3D = body.snare_verb.ghost()
 	var grown: float = ghost.scale.x if ghost != null and ghost.visible else 0.0
 	var kneel: float = eye_up - head.position.y
-	var partway: float = body.setting()
+	var partway: float = body.snare_verb.setting()
 	Input.action_release("verb")
 	await _hold(0.1)
 	var gone: bool = ghost == null or not ghost.visible
