@@ -23,6 +23,8 @@ item.wpn_bearded_axe.name,Bearded Axe
 item.wpn_bearded_axe.desc,"Slower than a seax and hooked at the heel. Throw it and it lands as a blow, and then it is on the floor over there, ringing, and your hand is empty."
 item.arm_mail_byrnie.name,Mail Byrnie
 item.arm_mail_byrnie.desc,"Riveted rings on a leather shirt. Turns an edge, and rings like a dropped purse when you run."
+item.arm_dvergar_plate.name,Dvergar Plate
+item.arm_dvergar_plate.desc,"Iron lames laced in courses over a short byrnie. Turns an edge and most points, clanks at every stride, and a hammer goes through it as if it were cloth."
 item.glt_gilt_bead.name,Gilt Bead
 item.glt_gilt_bead.desc,"Gold leaf over lead, and thin enough to read the lead through. It catches the light like the real thing, which was the whole of the idea."
 item.glt_hoard_coin.name,Hoard-Coin

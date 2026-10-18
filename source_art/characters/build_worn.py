@@ -62,6 +62,31 @@ Dt.MATERIALS.update({
 })
 
 
+def _lames(p):
+    """**Lamellar** (ADR-406): the Birka garrison's — narrow iron lames laced
+    in courses round the body, each course lapping the one below and its
+    joints staggered against the next. Baked, as the mail's rings are: lames
+    2.6 cm wide are detail no voxel of a worn piece can hold."""
+    course, lame = 0.056, 0.026
+    k = np.floor(p[:, 2] / course)
+    # 0 at a course's foot, 1 at its head: a lame's foot laps over the course
+    # below, so it stands proudest there.
+    down = p[:, 2] / course - k
+    around = np.arctan2(p[:, 0], -p[:, 1]) * 0.17 + (k % 2.0) * lame * 0.5
+    across = around / lame - np.floor(around / lame)
+    joint = np.clip(1.0 - np.minimum(across, 1.0 - across) / 0.08, 0.0, 1.0)
+    # And the lacing: a pair of holes a course, near each lame's head.
+    lace = np.clip(1.0 - np.abs(down - 0.82) / 0.06, 0.0, 1.0) \
+        * np.clip(1.0 - np.abs(across - 0.5) / 0.10, 0.0, 1.0)
+    return 0.0012 * (1.0 - down) - 0.0010 * joint - 0.0006 * lace + 0.00012 * S.noise(p, 0.004)
+
+
+## Dvergar plate (ADR-406): the Hall-Warden's warm worked iron, lamellar.
+Dt.MATERIALS.update({
+    "lamellar": ((0.235, 0.225, 0.19), 0.40, _lames),
+})
+
+
 def underlayer(p):
     """What the body wore where a body piece hides it."""
     return {
@@ -76,6 +101,36 @@ def byrnie(p):
     stride, sleeves past the elbow; the Gjermundbu mail's cut."""
     r = underlayer(p)
     r["mail"] = Hm.mail_coat(p, B, hem=0.60, sleeves=0.56)
+    return r
+
+
+def dvergar_plate(p):
+    """**Dvergar plate** (`DES-023`, ADR-406): a lamellar cuirass from the
+    breast to the hips over a short byrnie, belted, with lames stepping down
+    each shoulder — *the Birka lamellar*, the Hall-Warden's iron worn by the
+    living. The heaviest thing on the list, and it reads as plate at a
+    glance: rigid courses where the byrnie hangs in folds."""
+    r = underlayer(p)
+    r["mail"] = Hm.mail_coat(p, B, hem=0.66, sleeves=0.52)
+    shell = Hm.trunk(p, B, 0.042)
+    shell = S.smax(shell, p[:, 2] - 1.45, 0.012)
+    shell = S.smax(shell, 0.98 - p[:, 2], 0.012)
+    # Each course stands a few millimetres proud at its foot, so the courses
+    # are in the silhouette as well as the bake.
+    k = np.floor((p[:, 2] - 0.98) / 0.056)
+    shell = shell + 0.004 * ((p[:, 2] - 0.98) / 0.056 - k)
+    # A spaulder over each shoulder: a cap of the same lamellar, so its courses
+    # step down the arm as the cuirass's step down the body. Solid, not loose
+    # lames — plates a centimetre thick shred at this voxel.
+    for side in (-1.0, 1.0):
+        # Proud of the mail sleeve under it, or the sleeve is what shows.
+        c = V((side * 0.215, 0.0, 1.425))
+        cap = S.ellipsoid(p - c, V((0.115, 0.132, 0.118)))
+        cap = S.smax(cap, (c[2] - 0.075) - p[:, 2], 0.010)
+        cap = S.smax(cap, 0.135 - side * p[:, 0], 0.010)
+        shell = S.smin(shell, cap, 0.012)
+    r["lamellar"] = shell
+    r["leather"] = np.minimum(r["leather"], Hm.belt(p, B, z=1.02, grow=0.056))
     return r
 
 
@@ -303,6 +358,7 @@ def skald_cloak(p):
 
 ITEMS = {
     "mail_byrnie_worn": (byrnie, dict(voxel=0.010, body_tris=7500, texture=1024, ceiling=10000)),
+    "dvergar_plate_worn": (dvergar_plate, dict(voxel=0.008, body_tris=8500, texture=1024, ceiling=10000)),
     # Seen from the eye in first person, not only across a room: dense enough
     # that no facet shows at arm's length (ADR-319).
     "iron_bracers_worn": (bracers, dict(voxel=0.005, body_tris=5000, texture=1024, ceiling=10000, sparse=True)),
@@ -321,6 +377,10 @@ def build(name):
     piece = E.sculpt(name, regions, plan, rig)
     piece.name = name
     em.PARTS.append(piece)
+    # Worked iron is cut, not grown (the Hall-Warden's rule): hard pieces are
+    # laid on after the sculpt, on the same rig.
+    if "hard" in plan:
+        plan["hard"]()
     return rig, plan
 
 
@@ -358,7 +418,7 @@ def review(name):
 
 ## Pieces in the body slot, which hide the body under them, and the bones
 ## whose vertices they hide (`BodyRig.BODY_COVERED_BONES`).
-BODY_PIECES = ("mail_byrnie_worn", "otr_pelt_worn", "wolf_coat_worn", "hunter_hood_worn",
+BODY_PIECES = ("mail_byrnie_worn", "dvergar_plate_worn", "otr_pelt_worn", "wolf_coat_worn", "hunter_hood_worn",
                "volva_mantle_worn", "mound_jerkin_worn", "skald_cloak_worn")
 COVERED = {"pelvis", "spine_01", "spine_02", "chest", "thigh_l", "calf_l", "foot_l",
            "thigh_r", "calf_r", "foot_r", "upper_arm_l", "upper_arm_r"}

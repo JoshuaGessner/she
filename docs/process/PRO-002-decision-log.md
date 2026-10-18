@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-17
+updated: 2026-10-18
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -14028,5 +14028,18 @@ References:
 - **`--perf-shot` reports script time.** Each view now prints process and physics time (mean and worst) and the frame its worst fell on, and the run ends with a fight: six Wretches at the body. A floor prints how long it took to plan and build.
 
 **Measured** (1920 × 1080, Apple M5, `--delvings --seed=12345`): physics worst 23–26 ms → 0.8–1.3 ms, worst frame 24–27 ms → 12–17 ms, mean frame 9.1 → 8.3 ms (the display's 120 Hz, held now). Learning the walls costs 28–31 ms once, on the field's first pass after arrival. A full pass costs 1.1 ms.
+
+## ADR-406 — Dvergar plate is built: the slice's one listed item that never was
+
+**Date:** 2026-10-18 · **Status:** accepted · **Completes `DES-023` §2 (ADR-217); amends `DES-018`'s status line** · **Found by the cohesion audit (B156)**
+
+**Context:** asked for *all of our intended functionality*, the slice's design promises were audited against the build. `DES-023` lists twenty-six items. Twenty-five were in `data/items`. `arm_dvergar_plate`, the **Plated** body piece and floor-2 gear, never was, and no ADR set it aside. Both things it waited on had landed: the armour triangle (ADR-219) and the depth bands (ADR-220). So `Plated` was a row of the table that only the Hall-Warden used, and a player could be Mailed or nothing. The audit found one more stale claim: `DES-018` said its accessibility list was "built by `M4-T11`", but ADR-077 split that suite out and `PRO-001` carries it as `M5-T09`, unbuilt.
+
+**Decision:**
+- **Dvergar plate is built, as listed.** Plated (a fifth of a cut and two-fifths of a pierce land; blunt goes through whole, so a hammer is its answer). 18 kg ⟨tune⟩, the heaviest thing a body can wear (the byrnie is 11). Clamor 2.4 ⟨tune⟩ against the byrnie's 1.6. 3 × 3 cells, worth 12. Dealt as floor-2 gear (`from_floor = 2`, Gear), the band `DES-023` §4 puts it in.
+- **What it looks like: the Birka lamellar**, narrow iron lames laced in courses, each lapping the one below, with the joints staggered. It is a real find from a tenth-century garrison, and it reads as plate at a glance where the byrnie hangs in folds. A cuirass from breast to hips over a short byrnie, belted, with a lamellar spaulder at each shoulder, in the Hall-Warden's warm Dvergar iron (`humanoid_detail`'s `plate`), so the dead plate and the living plate are one metal. The lames are baked into the normal map, as the mail's rings are, because at 2.6 cm they are below what a worn piece's voxel holds. Each course still steps in the silhouette. The pickup lies on its back as a rigid shell, with hard edges over 35° marked so the outline pass finds the belt and the courses. Loose shoulder lames were tried twice and rejected: plates a centimetre thick shred at an 8 mm voxel, and hard-surface planes scaled from the Warden's frame stood off the delver's shoulders as fins.
+- **`DES-018` says where its list lives**: `M5-T09`, not built.
+
+**Measured:** worn piece 8,500 triangles (ceiling 10,000). Pickup 2,800 (props, 3,000). `art_probe`, `data_probe`, `--bag-probe`, `--bagui-probe`, `--body-probe`, `--scaling-probe`, `--population-probe` and `--machine-probe` are green. `--body-shot --wear=arm_dvergar_plate` (new: any body piece on a teammate) shows it worn with the helm, bracers and frame.
 
 *Entries below to be added as design decisions are signed off.*

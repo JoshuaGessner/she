@@ -4,7 +4,7 @@ title: Items — the Slice's List
 status: accepted
 owner: design
 tags: [items, loot, gear, weapons, armour, consumables, taxonomy]
-updated: 2026-09-16
+updated: 2026-10-18
 related: [DES-008, DES-009, DES-020, DES-022, DES-011, DES-013, DES-017, DES-014, TEC-006, PRO-004]
 ---
 
@@ -54,7 +54,7 @@ It is paired with `DES-008`'s four axes, which must **disagree**: weight, clamor
 | id | Slot | What only it does | Costs | Source |
 |---|---|---|---|---|
 | `arm_mail_byrnie` *(exists)* | Body | **Mailed** — turns most of a cut (§3) | Heavy, and it jingles — **charged since ADR-224**: nothing worn weighed or sounded before, so both were free on the body | Húskarl kit · floor 0+ gear |
-| `arm_dvergar_plate` | Body | **Plated** — turns a cut and most of a pierce, so a swarm's chip damage stops mattering | The heaviest thing you can wear; loud to move in; a hammer goes straight through it | floor 2 gear |
+| `arm_dvergar_plate` *(built, ADR-406)* | Body | **Plated** — turns a cut and most of a pierce, so a swarm's chip damage stops mattering | The heaviest thing you can wear; loud to move in; a hammer goes straight through it | floor 2 gear |
 | `rlc_otr_pelt` *(built, ADR-226)* | Body | **The Gold-Sick cannot feel through a wall what you carry while you wear it** (`DES-017`'s near sense). *It is Her Reckoning's effect worn rather than bought, by the developer's call: the same capability at a different price.* Ótr's skin, the one the first hoard was paid over | No protection at all — it is a pelt — and worth 180 to her ⟨tune⟩, so wearing it is refusing the richest single offer on the floor | floor 2 Prize |
 | `arm_spangen_helm` *(built, ADR-239)* | Head | **You cannot be Concussed** (`DES-009` wounds) — the Warden's overhead still lands whole, and leaves no ringing head | 2.2 kg and a little noise, worn or carried (ADR-224) | floor 1+ gear |
 | `arm_iron_bracers` *(built, ADR-239)* | Arms | **You cannot have an arm broken** — so a heavy hit on a raised blade never takes your two-hander or your guard (`DES-009` wounds) | 1.6 kg, and they clink | floor 1+ gear |

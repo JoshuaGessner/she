@@ -4,7 +4,7 @@ title: Legibility & Accessibility
 status: accepted
 owner: design
 tags: [accessibility, ui, hud, audio, legibility, clamor]
-updated: 2026-09-16
+updated: 2026-10-18
 related: [DES-005, DES-013, DES-017, ART-001, PRO-005]
 ---
 
@@ -110,7 +110,7 @@ Its mirror is worth stating too: a run played with the HUD hidden should still b
 
 ## Beyond the core loop
 
-The rest. **Built by `M4-T11`, the accessibility suite** — which exists because this list said "planned rather than discovered late" for six months while no task implemented any of it (ADR-077). Listing is not planning; a milestone is.
+The rest. **Owned by `M5-T09`, the accessibility suite, and not yet built** (ADR-406 corrected this line, which said `M4-T11` had built it). The task exists because this list said "planned rather than discovered late" for six months while no task implemented any of it (ADR-077), and ADR-077 split it out of `M4-T06`. Listing is not planning; a milestone is. Built so far: per-bus volume, look sensitivity, inverted look and the camera-motion scale on the settings screen, and no information in hue alone on the wound vignette (ADR-404).
 
 **Visual**
 - Full colour-blind support; no information in hue alone, anywhere

@@ -21326,8 +21326,14 @@ func _body_shot(path: String) -> void:
 	player.face_toward(mate.global_position + Vector3.UP * 1.2)
 	var gear: Equipment = mate.equipment
 	gear.clear()
+	# **`--wear=ID`** (ADR-406): another body piece in the byrnie's place, so
+	# every one can be photographed on a teammate.
+	var body_piece: StringName = &"arm_mail_byrnie"
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--wear="):
+			body_piece = StringName(arg.split("=", true, 1)[1])
 	for id: StringName in [&"wpn_bearded_axe", &"arm_spangen_helm",
-			&"tol_horn_lantern", &"arm_pack_frame", &"arm_mail_byrnie",
+			&"tol_horn_lantern", &"arm_pack_frame", body_piece,
 			&"arm_iron_bracers"]:
 		gear.equip(ItemInstance.of(ItemCatalogue.by_id(id), 9600))
 	mate.lit = true

@@ -1,0 +1,27 @@
+[gd_resource type="Resource" script_class="ItemResource" load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://systems/items/item_resource.gd" id="1_item"]
+[ext_resource type="Texture2D" path="res://art/ui/items/arm_dvergar_plate.svg" id="99_icon"]
+[ext_resource type="Script" path="res://systems/items/wearable_trait.gd" id="2_wearable"]
+[ext_resource type="PackedScene" path="res://art/props/dvergar_plate.glb" id="100_model"]
+[ext_resource type="PackedScene" path="res://art/characters/dvergar_plate_worn.glb" id="101_worn"]
+
+[sub_resource type="Resource" id="Resource_wearable"]
+script = ExtResource("2_wearable")
+armour_class = 2
+
+[resource]
+script = ExtResource("1_item")
+id = &"arm_dvergar_plate"
+name_key = &"item.arm_dvergar_plate.name"
+description_key = &"item.arm_dvergar_plate.desc"
+weight = 18.0
+clamor = 2.4
+grid_size = Vector2i(3, 3)
+icon = ExtResource("99_icon")
+model = ExtResource("100_model")
+worn_model = ExtResource("101_worn")
+tribute_value = 12
+slot = 5
+traits = Array[ExtResource("2_wearable")]([SubResource("Resource_wearable")])
+tags = Array[StringName]([&"gear", &"armour", &"metal"])
