@@ -17783,6 +17783,20 @@ func _body_probe() -> void:
 		rig.step(0.016, 0.0, Config.tuning.walk_speed, 0.0, 0.0, false)
 	problems.append_array(await _body_wears(body))
 
+	# ─ a staff stands upright at rest, a blade hangs (B44) ─
+	#
+	# Where the held thing's mass sits against the fist holding it: a völr's
+	# above, as a seeress carries hers, an axe's below.
+	var rises: Dictionary = {}
+	for id: StringName in [&"wpn_volr", &"wpn_bearded_axe"]:
+		rig.wield(ItemCatalogue.by_id(id), false)
+		rig.step(0.016, 0.0, 0.0, 0.0, 0.0, false)
+		rises[id] = _held_rise(rig.wielded())
+	print("[body] carried     a völr's middle %.2f m from the fist, an axe's %.2f m (want above, below)"
+		% [rises[&"wpn_volr"], rises[&"wpn_bearded_axe"]])
+	if float(rises[&"wpn_volr"]) <= 0.1 or float(rises[&"wpn_bearded_axe"]) >= 0.0:
+		problems.append("a staff hangs head-down like a blade, or a blade stands up like a staff")
+
 	for problem: String in problems:
 		printerr("[body] FAIL %s" % problem)
 	print("[body] a teammate is a body, and the body moves")
@@ -21347,15 +21361,20 @@ func _body_shot(path: String) -> void:
 	# **`--wear=ID`** (ADR-406): another body piece in the byrnie's place, so
 	# every one can be photographed on a teammate.
 	var body_piece: StringName = &"arm_mail_byrnie"
+	# **`--hold=ID`** (B44): another weapon in the axe's place.
+	var in_hand: StringName = &"wpn_bearded_axe"
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--wear="):
 			body_piece = StringName(arg.split("=", true, 1)[1])
+		elif arg.begins_with("--hold="):
+			in_hand = StringName(arg.split("=", true, 1)[1])
 	# Refused by name (B166), rather than handed on as nothing to be worn.
-	if ItemCatalogue.by_id(body_piece) == null:
-		printerr("[body] FAIL no item '%s' to wear" % body_piece)
-		get_tree().quit(1)
-		return
-	for id: StringName in [&"wpn_bearded_axe", &"arm_spangen_helm",
+	for asked: StringName in [body_piece, in_hand]:
+		if ItemCatalogue.by_id(asked) == null:
+			printerr("[body] FAIL no item '%s' to wear or hold" % asked)
+			get_tree().quit(1)
+			return
+	for id: StringName in [in_hand, &"arm_spangen_helm",
 			&"tol_horn_lantern", &"arm_pack_frame", body_piece,
 			&"arm_iron_bracers"]:
 		gear.equip(ItemInstance.of(ItemCatalogue.by_id(id), 9600))
@@ -22370,6 +22389,22 @@ func _newest_in_bag(player: Player, id: StringName) -> ItemInstance:
 				or item.instance_id > newest.instance_id):
 			newest = item
 	return newest
+
+
+## How far above the fist holding it a wielded thing's drawn middle sits, in
+## metres, or NAN with nothing held (B44).
+func _held_rise(holder: Node3D) -> float:
+	if holder == null:
+		return NAN
+	var middle: Vector3 = Vector3.ZERO
+	var count: int = 0
+	for node: Node in holder.find_children("*", "MeshInstance3D", true, false):
+		var drawn := node as MeshInstance3D
+		middle += drawn.global_transform * drawn.get_aabb().get_center()
+		count += 1
+	if count == 0:
+		return NAN
+	return (middle / float(count)).y - holder.global_position.y
 
 
 ## A block of stone on `WORLD`, for the arc rig.

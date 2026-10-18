@@ -31,4 +31,4 @@ model = ExtResource("100_model")
 tribute_value = 0
 traits = Array[ExtResource("2_wieldable")]([SubResource("Resource_wieldable")])
 slot = 1
-tags = Array[StringName]([&"gear", &"metal"])
+tags = Array[StringName]([&"gear", &"metal", &"staff"])

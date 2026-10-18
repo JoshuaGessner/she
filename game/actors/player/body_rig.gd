@@ -141,6 +141,12 @@ const SKINNED_SLOTS: Array[Enums.Slot] = [Enums.Slot.ARMS, Enums.Slot.BODY]
 const WIELD_HAND: StringName = &"sock_hand_r"
 const BOW_HAND: StringName = &"sock_hand_l"
 const WIELD_TURN: Vector3 = Vector3(-1.45, 0.0, 0.0)
+## **A staff stands upright at rest** (B44): a seeress's völr is carried head
+## up beside her, as the Eiríks saga's Þorbjörg carries hers, not hung like a
+## blade. It turns back to the wield as a swing begins, so it still strikes with
+## its head. An item says it is one by its `staff` tag.
+const STAFF_TURN: Vector3 = Vector3(-1.45 + PI, 0.0, 0.0)
+const STAFF_TAG: StringName = &"staff"
 ## A bow hangs along the arm at rest and stands across it at the draw.
 const BOW_TURN: Vector3 = Vector3(0.0, 0.0, 0.0)
 const BOW_DRAWN_TURN: Vector3 = Vector3(-1.5708, 0.0, 0.0)
@@ -210,6 +216,8 @@ var _gear_shown: bool = true
 var _wielded: Node3D = null
 var _wielded_item: ItemResource = null
 var _bow: bool = false
+## Whether what is wielded is a staff (B44), carried upright between blows.
+var _staff: bool = false
 var _raise: float = 0.0
 var _cut: float = 0.0
 var _pull: float = 0.0
@@ -473,6 +481,7 @@ func wield(item: ItemResource, bow: bool) -> void:
 		return
 	_wielded_item = item
 	_bow = bow
+	_staff = item != null and not bow and item.tags.has(STAFF_TAG)
 	if _wielded != null and is_instance_valid(_wielded):
 		_wielded.free()
 	_wielded = null
@@ -484,7 +493,7 @@ func wield(item: ItemResource, bow: bool) -> void:
 		return
 	var holder := Node3D.new()
 	holder.name = "Wielded"
-	holder.rotation = BOW_TURN if bow else WIELD_TURN
+	holder.rotation = BOW_TURN if bow else (STAFF_TURN if _staff else WIELD_TURN)
 	holder.add_child(look)
 	holder.visible = _gear_shown and (bow or _use_look == null)
 	hand.add_child(holder)
@@ -774,6 +783,9 @@ func step(delta: float, speed: float, of_walking: float, stance: float,
 	else:
 		arm_r += _raise * ARM_RAISE + _cut * ARM_CUT
 		elbow_r += _raise * ELBOW_RAISE + _cut * ELBOW_CUT
+		if _staff and _wielded != null and is_instance_valid(_wielded):
+			_wielded.rotation = STAFF_TURN.lerp(WIELD_TURN,
+				clampf(maxf(_raise, _cut) * 2.0, 0.0, 1.0))
 	_turn("upper_arm_l", arm_l + _brace * BRACE_SHIELD_ARM)
 	_turn("upper_arm_r", arm_r)
 	# Elbows bend forward, which for a hanging forearm is the positive sense.
