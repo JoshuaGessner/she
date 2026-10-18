@@ -197,7 +197,7 @@ func _redraw() -> void:
 	# costs obligation, and a tree that showed only the power would be teaching
 	# the opposite of the game.
 	_page.add_child(MenuStyle.line(
-		"%d boon unspent · rank %d · she expects %d a cycle, and more for everything you take"
+		tr("pact.standing")
 		% [GameState.boon, GameState.pact_rank, GameState.tithe_due()],
 		MenuStyle.BODY_WARM))
 	# **And where boon comes from** (ADR-340), on the page that spends it.
@@ -214,7 +214,7 @@ func _redraw() -> void:
 	var paths: Array[StringName] = paths_shown()
 	if paths.is_empty():
 		_page.add_child(MenuStyle.line(
-			"%s may not enter any Aspect this build has written." % body.display(),
+			tr("pact.no_aspect") % body.display(),
 			MenuStyle.BODY_WARM))
 		return
 

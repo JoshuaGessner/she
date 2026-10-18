@@ -70,7 +70,7 @@ func _redraw() -> void:
 		GameState.lodge_trust, GameState.lodge_favour, GameState.contracts.size(),
 		ContractBoard.TAKEN_MAX], MenuStyle.BODY_WARM))
 	_column.add_child(MenuStyle.line(
-		"Take what you can carry back. We'd rather see you again.", MenuStyle.CAPTION_DIM))
+		tr("lodge.parting"), MenuStyle.CAPTION_DIM))
 	if lodge == null:
 		return
 
@@ -97,7 +97,7 @@ func _redraw() -> void:
 	gift_head.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	gifts.add_child(gift_head)
 	gifts.add_child(MenuStyle.line(
-		"Given at your next descent, one of each.", MenuStyle.CAPTION_DIM))
+		tr("lodge.given"), MenuStyle.CAPTION_DIM))
 	for offered: FavourResource in lodge.favours:
 		gifts.add_child(_favour_row(offered))
 

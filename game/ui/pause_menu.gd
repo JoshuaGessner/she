@@ -86,7 +86,7 @@ func _rebuild() -> void:
 		return
 	_column.add_child(MenuStyle.title(tr("ui.paused"), MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line(
-		"The Deep does not stop while this is open.", MenuStyle.CAPTION_DIM))
+		tr("pause.no_stop"), MenuStyle.CAPTION_DIM))
 	_column.add_child(_gap(14))
 
 	var resume: Button = MenuStyle.button(tr("ui.back_to_it"))
@@ -151,10 +151,9 @@ func _ask_first() -> void:
 func _build_confirmation() -> void:
 	_column.add_child(MenuStyle.title(tr("ui.abandon_the_run"), MenuStyle.DIALOG_TITLE))
 	_column.add_child(MenuStyle.line(
-		"This ends the life. The tree, the stash, what you are wearing and "
-		+ "everything you are carrying go with it."))
+		tr("pause.ends_life")))
 	_column.add_child(MenuStyle.line(
-		"The hoard is untouched. It always is.", MenuStyle.CAPTION_WARM))
+		tr("pause.hoard_kept"), MenuStyle.CAPTION_WARM))
 	_column.add_child(_gap(14))
 
 	_way_out = MenuStyle.button(tr("ui.end_it"))

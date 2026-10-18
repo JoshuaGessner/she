@@ -510,6 +510,10 @@ STRING_LITERAL = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"')
 
 # A MenuStyle text helper called with a bare string, not tr(...).
 MENU_LITERAL = re.compile(r'MenuStyle\.(?:line|title|heading|button)\("[A-Za-z]')
+# The same helper with its text on the next line, and a control's text set to
+# a quoted string of words (B170).
+MENU_OPEN = re.compile(r'(?:MenuStyle\.(?:line|title|heading|button)|_toggle_row)\($')
+LABEL_LITERAL = re.compile(r'\.(?:text|tooltip_text|placeholder_text)\s*=\s*"[A-Za-z][^"]*"')
 
 
 def check_menu_literals(path: Path) -> list[Issue]:
@@ -524,10 +528,17 @@ def check_menu_literals(path: Path) -> list[Issue]:
     if path.suffix != ".gd":
         return []
     issues = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    lines = path.read_text(encoding="utf-8").splitlines()
+    for number, line in enumerate(lines, 1):
         if line.lstrip().startswith("#"):
             continue
-        if MENU_LITERAL.search(line):
+        # **And the two shapes that slipped past it** (B170): the text on the
+        # line after the helper's open bracket, and a label's text set to a
+        # quoted sentence. Twenty-five lines and then eleven more were typed
+        # into the code past a rule that only read one line at a time.
+        wrapped = (line.lstrip().startswith('"') and number > 1
+                   and MENU_OPEN.search(lines[number - 2].rstrip()))
+        if MENU_LITERAL.search(line) or wrapped or LABEL_LITERAL.search(line):
             issues.append(Issue(
                 "error", "menu-literal", f"{rel(path)}:{number}",
                 "a menu string is typed into the code rather than read from the table",

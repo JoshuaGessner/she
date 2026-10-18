@@ -98,7 +98,7 @@ func _ready() -> void:
 	# player discovers on their first death is a different game from the one
 	# they agreed to play.
 	column.add_child(MenuStyle.line(
-		"Chosen once, and kept until you die.", MenuStyle.BODY_WARM))
+		tr("class.kept"), MenuStyle.BODY_WARM))
 
 	# **Cards laid side by side** (ADR-290), as a choice between lives reads in
 	# Darkest Dungeon's hamlet or Hades' mirror — two things you compare, not
@@ -149,7 +149,7 @@ func _ready() -> void:
 		# playtester describing a menu with nothing in it.
 		push_error("ClassScreen: the catalogue is empty; no life can begin")
 		column.add_child(MenuStyle.line(
-			"No classes are in this build. That is a packaging fault, not a choice.",
+			tr("class.none"),
 			MenuStyle.BODY_WARM))
 
 

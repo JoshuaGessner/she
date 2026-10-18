@@ -150,7 +150,7 @@ func _show_root() -> void:
 	_clear()
 	_column.add_child(MenuStyle.title(tr("ui.she"), MenuStyle.MASTHEAD))
 	_column.add_child(MenuStyle.line(
-		"a hoard-dragon buys your soul one run at a time", MenuStyle.SUB_DIM))
+		tr("ui.tagline"), MenuStyle.SUB_DIM))
 	var said: Array = lineage_line(SaveFile.standing())
 	if not said.is_empty():
 		_column.add_child(_gap(6))
@@ -341,7 +341,7 @@ func _show_join() -> void:
 	_clear()
 	_column.add_child(MenuStyle.title(tr("ui.join"), MenuStyle.SCREEN_TITLE))
 	_column.add_child(MenuStyle.line(
-		"The host's address. Port %d is assumed if you leave it off."
+		tr("ui.host_address")
 			% NetPlan.DEFAULT_PORT, MenuStyle.CAPTION_DIM))
 
 	var field: LineEdit = MenuStyle.field("192.168.1.20  or  1.2.3.4:47018")
