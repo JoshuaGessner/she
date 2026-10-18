@@ -706,8 +706,14 @@ func _route(edge: Vector2i, index: int, rng: RandomNumberGenerator) -> bool:
 		came[seed_cell] = seed_cell
 		queue.append(seed_cell)
 	var visited: int = 0
-	while not queue.is_empty():
-		var at: Vector2i = queue.pop_front()
+	# **Read by an index, not popped** (B159): `pop_front` shifts the whole queue
+	# each call, and a search that fails walks up to `MAX_ROUTE` cells — so the
+	# plans that re-roll most spent most of their time moving the queue along.
+	# The same cells in the same order: every floor is the floor it was.
+	var head: int = 0
+	while head < queue.size():
+		var at: Vector2i = queue[head]
+		head += 1
 		visited += 1
 		if visited > MAX_ROUTE:
 			return false
