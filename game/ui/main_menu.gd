@@ -1128,6 +1128,33 @@ func _controls_probe() -> PackedStringArray:
 		await get_tree().process_frame
 	var shut: bool = _controls == null and _column.visible
 	print("[controls] opened %s, %d label(s), closed %s" % [opened, glyphs, shut])
+	# **The device in hand** (`M4-T05`, `DES-019` rule 7): both labels until
+	# anything is touched, then the one device alone — and a resting stick's
+	# drift does not take it back.
+	InputDevices.forget()
+	var both: String = ControlsScreen.glyphs_for("interact")
+	var pressed := InputEventJoypadButton.new()
+	pressed.button_index = JOY_BUTTON_A
+	pressed.pressed = true
+	InputDevices.note(pressed)
+	var on_pad: String = ControlsScreen.glyphs_for("interact")
+	var typed := InputEventKey.new()
+	typed.physical_keycode = KEY_E
+	typed.pressed = true
+	InputDevices.note(typed)
+	var on_keys: String = ControlsScreen.glyphs_for("interact")
+	var drift := InputEventJoypadMotion.new()
+	drift.axis = JOY_AXIS_LEFT_X
+	drift.axis_value = 0.2
+	InputDevices.note(drift)
+	var after_drift: String = ControlsScreen.glyphs_for("interact")
+	InputDevices.forget()
+	var pad_says: PackedStringArray = ControlsScreen.pad_glyphs(PackedStringArray(["interact"]))
+	print("[controls] in hand    before any input '%s', a pad pressed '%s', a key '%s', a drifting stick after '%s' (want both, the pad's, the key's, the key's)"
+		% [both, on_pad, on_keys, after_drift])
+	if not both.contains("/") or pad_says.is_empty() or on_pad != pad_says[0] \
+			or on_keys != both.get_slice("/", 0) or after_drift != on_keys:
+		problems.append("a prompt did not name the device in hand, or named one before any was touched")
 	if not opened:
 		problems.append("CONTROLS did not open, or left the menu behind it "
 			+ "visible through a 94%-opaque backdrop")

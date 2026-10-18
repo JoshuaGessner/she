@@ -30,6 +30,46 @@ static var _pointer_allowed: bool = true
 ## The device a launch was restricted to, so a rebuilt map can be restricted
 ## again.
 static var _restricted: String = ALL
+## **The device in hand** (`M4-T05`, `DES-019` rule 7): the last one a person
+## touched, or `ALL` before anything was. Prompts name it alone once it is
+## known — *"e"* or *"A"*, not *"e/A"* — and both until then.
+static var _in_hand: String = ALL
+## How far a stick must lean to count as picking the pad up. A resting stick
+## drifts, and a prompt that flickered between devices on drift would be worse
+## than one that named both.
+const STICK_WAKES: float = 0.5
+## How far the mouse must move in one event to count as taking it in hand: a
+## desk knocked is not a choice of device.
+const MOUSE_WAKES: float = 4.0
+
+
+## The device a person is using, or `ALL` while nothing says.
+static func in_hand() -> String:
+	return _in_hand if _restricted == ALL else _restricted
+
+
+## Hear one input event (`Config` passes every one).
+static func note(event: InputEvent) -> void:
+	var device: String = ALL
+	if event is InputEventJoypadButton:
+		if (event as InputEventJoypadButton).pressed:
+			device = GAMEPAD
+	elif event is InputEventJoypadMotion:
+		if absf((event as InputEventJoypadMotion).axis_value) >= STICK_WAKES:
+			device = GAMEPAD
+	elif event is InputEventKey or event is InputEventMouseButton:
+		if event.is_pressed():
+			device = KEYBOARD
+	elif event is InputEventMouseMotion:
+		if (event as InputEventMouseMotion).relative.length() >= MOUSE_WAKES:
+			device = KEYBOARD
+	if device != ALL:
+		_in_hand = device
+
+
+## Back to knowing nothing, for a probe that has fed events of its own.
+static func forget() -> void:
+	_in_hand = ALL
 
 
 ## True unless this instance was launched gamepad-only. The player consults it

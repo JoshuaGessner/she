@@ -138,7 +138,7 @@ The rest. **Owned by `M5-T09`, the accessibility suite, and not yet built** (ADR
 - **The menus too** (ADR-245). The engine's own `ui_accept` and `ui_cancel` had no pad button, so a pad could move through a menu and press none of it: **A presses, Start is the menu.** B stays crouch — as *back* it would pause on every crouch — and every screen has a BACK button. A probe presses them as pad buttons, not as action names.
 - **One input, one verb, on both devices.** `bind_gamepad.py` refuses two actions on one pad input and `check_project.py` the same on the keyboard and mouse, unless `SHARED_OK` names what keeps them apart.
 
-Still absent, deliberately: rumble and glyph-swapping prompt icons (`M4-T05`). Rebinding is built (ADR-245).
+Still absent, deliberately: rumble and prompt *icons* (`M4-T05`). Prompts already name the device in hand as text (ADR-407). Rebinding is built (ADR-245).
 
 **Cognitive**
 - Contract and objective text re-readable at any time, never timed

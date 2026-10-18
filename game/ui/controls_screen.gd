@@ -374,6 +374,13 @@ static func glyphs_for_all(actions: PackedStringArray) -> String:
 	if not short.is_empty():
 		left = "".join(short) if every_one_a_letter else "/".join(short)
 	var right: String = pad[0] if not pad.is_empty() else "—"
+	# **The device in hand, alone, once it is known** (`M4-T05`, `DES-019`
+	# rule 7): both were said only until the prompt could tell which.
+	match InputDevices.in_hand():
+		InputDevices.KEYBOARD:
+			return left
+		InputDevices.GAMEPAD:
+			return right
 	return "%s/%s" % [left, right]
 
 

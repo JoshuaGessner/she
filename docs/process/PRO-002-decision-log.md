@@ -14042,4 +14042,18 @@ References:
 
 **Measured:** worn piece 8,500 triangles (ceiling 10,000). Pickup 2,800 (props, 3,000). `art_probe`, `data_probe`, `--bag-probe`, `--bagui-probe`, `--body-probe`, `--scaling-probe`, `--population-probe` and `--machine-probe` are green. `--body-shot --wear=arm_dvergar_plate` (new: any body piece on a teammate) shows it worn with the helm, bracers and frame.
 
+## ADR-407 — A prompt names the device in hand
+
+**Date:** 2026-10-18 · **Status:** accepted · **Part of `M4-T05`; completes `DES-019` rule 7's swap, as text** · **Found by the cohesion audit (B156b)**
+
+**Context:** `DES-019` rule 7 has every prompt name both devices, *"until glyph-swapping icons land at `M4-T05`"*, so that the swap is a rendering change and never a redesign. Thirty call sites ask `ControlsScreen.glyphs_for` and every one said *"e/X"* whichever device was in a player's hands: a controller player read keyboard letters in every prompt, and a keyboard player read pad buttons. The audit of `DES-018` found the swap still listed as absent.
+
+**Decision:**
+- **Prompts name the device in hand, alone, once it is known.** `InputDevices` keeps the last device a person touched. `Config`, the first autoload, hears every event and never consumes one. `glyphs_for_all` then returns the keyboard's label or the pad's, and returns both until anything has been touched, so a cold launch still says *"e/X"*. A launch restricted with `--input=` names its one device.
+- **Drift is not a choice.** A stick must lean past half (`STICK_WAKES` 0.5 ⟨tune⟩) and a mouse must move 4 px in an event (`MOUSE_WAKES` ⟨tune⟩) before either counts. A resting stick's drift would otherwise flicker every prompt between devices, which is worse than naming both.
+- **No redraw signal.** Every prompt is computed through `glyphs_for` as it is shown. The arrival brief is the exception: its lines are built when the floor is, from the device used since the menu.
+- **Still to come under `M4-T05`:** icons in place of text, controller families (a PlayStation pad still reads Xbox letters), and rumble.
+
+**Measured:** `--menu-probe` gains a row. Before any input it says `e/X`; after a pad press, `X`; after a key, `e`; and a stick drifting at 0.2 does not take it back. With the device ignored, the row fails, reading `e/X` throughout. The bag, HUD, rebind, verb, fury and Haugbrot probes are green, as are the Threshold's own. Every one of those compares prompts through the same function.
+
 *Entries below to be added as design decisions are signed off.*

@@ -16,6 +16,14 @@ const PROFILE_PATH: String = "res://data/tuning/default_tuning.tres"
 var tuning: TuningProfile
 
 
+## Every event, first, so the prompts know which device a person is holding
+## (`InputDevices.note`, `M4-T05`). Never consumed: this only listens. Every
+## prompt asks `ControlsScreen.glyphs_for` as it is shown, so none needs telling
+## when the device changes.
+func _input(event: InputEvent) -> void:
+	InputDevices.note(event)
+
+
 func _ready() -> void:
 	tuning = load(PROFILE_PATH) as TuningProfile
 	if tuning == null:
