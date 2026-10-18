@@ -62,6 +62,15 @@ class Trial(NamedTuple):
     # a document, and a trial pointed at the wrong tool passes by being silent
     # — the exact failure this whole script exists to catch.
     tool: str = "status.py"
+    # What the report line must name besides the code: the planted file, unless
+    # the checker reports the fault where it lands (an orphaned doc, not the
+    # roadmap that orphaned it). A code alone is not enough — B199 found a code
+    # that every clean run already prints, so its trial could not fail.
+    names: str = ""
+
+    def reported(self, output: str) -> bool:
+        expected = self.names or self.path.name
+        return any(self.code in line and expected in line for line in output.splitlines())
 
 
 TRIALS = [
@@ -88,6 +97,7 @@ TRIALS = [
         ROADMAP,
         "→ TEC-006",
         "→ TEC-001",
+        names="TEC-006-data-schemas.md",
     ),
     Trial(
         # The shape ADR-083 found: a task citing a question that was answered
@@ -125,9 +135,10 @@ TRIALS = [
         "owner: tech\nparked: exercising the exclusive-state check",
     ),
     Trial(
-        # TEC-002 is implemented by exactly one task, M1-T08, which is done —
-        # so it is the only doc that can be *fully* built today, and therefore
-        # the only one able to exercise this check at all (ADR-071).
+        # TEC-002 is fully built and holds no ⟨tune⟩ of its own (ADR-071). It
+        # was once the only doc that could be; nine others now are, and still
+        # hold markers, so `untuned` is in every clean run — which made this
+        # trial pass on code alone until each trial had to name its file (B199).
         "untuned", "ADR-071 — a fully built doc should not still hold ⟨tune⟩",
         TEC002,
         "## Build & release",
@@ -200,8 +211,17 @@ def run_trials() -> int:
     subprocess.run([sys.executable, str(ROOT / "tools" / "status.py"), "--write"],
                    capture_output=True, text=True, cwd=ROOT, check=True)
 
+    # Each checker once on the clean tree: a trial whose report is already
+    # there before anything is planted would pass without proving anything.
+    clean = {tool: run_check(tool) for tool in {trial.tool for trial in TRIALS}}
+
     failures = 0
     for trial in TRIALS:
+        if trial.reported(clean[trial.tool]):
+            print(f"VACUOUS {trial.code}: the clean tree already reports it for "
+                  f"{trial.names or trial.path.name} — this trial cannot fail", file=sys.stderr)
+            failures += 1
+            continue
         original = trial.path.read_text(encoding="utf-8")
         if trial.old not in original:
             print(f"BROKEN  {trial.code}: anchor text not found in "
@@ -214,7 +234,7 @@ def run_trials() -> int:
         finally:
             trial.path.write_text(original, encoding="utf-8")
 
-        if trial.code in output:
+        if trial.reported(output):
             print(f"ok      {trial.code:<26} {trial.why}")
         else:
             print(f"SILENT  {trial.code:<26} {trial.why}", file=sys.stderr)
