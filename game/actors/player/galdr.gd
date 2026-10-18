@@ -44,11 +44,6 @@ func serve(body: Player, camera: Camera3D) -> void:
 	_camera = camera
 
 
-## Whether a verse is being sung, on the host.
-func singing() -> bool:
-	return _left > 0.0
-
-
 ## The owner's frame. Held asks to sing; a Lausavísa's tap shortens the verse
 ## to a stanza; the bag ends any verse.
 func ask(driving: bool, rummaging: bool) -> void:
