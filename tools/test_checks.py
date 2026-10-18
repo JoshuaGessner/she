@@ -27,6 +27,10 @@ TEC005 = ROOT / "docs" / "tech" / "TEC-005-audio-technology.md"
 TEC002 = ROOT / "docs" / "tech" / "TEC-002-project-structure.md"
 QUESTIONS = ROOT / "docs" / "OPEN-QUESTIONS.md"
 WORKFLOW = ROOT / ".github" / "workflows" / "ci.yml"
+CATALOGUE = ROOT / "game" / "systems" / "generation" / "room_catalogue.gd"
+CURTAIN = ROOT / "game" / "ui" / "curtain.gd"
+PLATE_COLOUR = ROOT / "game" / "art" / "characters" / "dvergar_plate_worn_dvergar_plate_worn_c.png.import"
+PLATE_NORMAL = ROOT / "game" / "art" / "characters" / "dvergar_plate_worn_dvergar_plate_worn_n.png.import"
 
 # Every file this script can disturb, including the generated views, which
 # `status.py --write` re-stamps with today's date. Restoring these verbatim is
@@ -134,6 +138,47 @@ TRIALS = [
         TEC002,
         "## Build & release",
         "## Build & release, and future tooling beyond the core loop",
+    ),
+    # B193: the code checks had one trial between them, so a rule whose regex
+    # stopped matching would have passed CI as silently as the rule it guards.
+    # check_dead.py reads tools/*.py as callers, this file among them, so the
+    # planted names are joined from halves: written whole here, they would be
+    # a use of themselves and the trial would pass by being silent.
+    Trial(
+        "DEAD-FUNC", "ADR-098 — a function nothing calls is a stub",
+        CATALOGUE,
+        "static func by_id(",
+        "static func b193_" + "never_called() -> void:\n\tpass\n\n\nstatic func by_id(",
+        "check_dead.py",
+    ),
+    Trial(
+        "DEAD-SIGNAL", "ADR-098 — a signal nobody hears is a stub",
+        CATALOGUE,
+        "static func by_id(",
+        "signal b193_" + "never_heard\n\n\nstatic func by_id(",
+        "check_dead.py",
+    ),
+    Trial(
+        "texture-lossless", "B160 — a baked material map is VRAM compressed",
+        PLATE_COLOUR,
+        "compress/mode=2",
+        "compress/mode=0",
+        "check_project.py",
+    ),
+    Trial(
+        "texture-normal", "B160 — a normal map is compressed as a normal map",
+        PLATE_NORMAL,
+        "compress/normal_map=1",
+        "compress/normal_map=0",
+        "check_project.py",
+    ),
+    Trial(
+        "menu-literal", "ADR-360 — words a player reads come from the string table",
+        CURTAIN,
+        "class_name Curtain\nextends CanvasLayer\n",
+        "class_name Curtain\nextends CanvasLayer\n\n\nfunc _b193(label: Label) -> void:\n"
+        "\tlabel.text = \"Typed into the code\"\n",
+        "check_project.py",
     ),
 ]
 
