@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-10
+updated: 2026-10-17
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -14014,5 +14014,19 @@ References:
 - `ART-005` spends saturated colour on treasure. This is dark and barely saturated, far from gold, and far below the Wolf-Fury's ember frame (`FURY` 0.62, 0.16, 0.06), so the two cannot be confused. **And the side flash is red too** (B144). A blow you did not see flashes the edge it came from, both edges if it came from behind, in `FLASH_TONE` (0.58, 0.06, 0.04): brighter than the standing wound, so a fresh blow and an old hurt read apart. It is the one channel for *something is on you that you are not looking at*, and in `SHADOW` it was as invisible as the wound had been. It is drawn in sixteen bands, not eight, because a bright tone shows every step.
 
 **Measured:** `--wound-shot` at 45% shows a faint tinge at the frame's edge, and at 20% a plain blood frame with the middle of the view clear (.claude/work/wound). `--seidr-probe` (the trance's dimming, same drawing) and `--fury-probe` are green. `--wound-probe` asserts both: the standing wound at a fifth of health (0.47, red), and a blow from behind (both edges at 0.61, red), with nothing flashing for a blow from in front. With the old near-black tones, both rows fail.
+
+## ADR-405 — The clamor field learns its walls once
+
+**Date:** 2026-10-17 · **Status:** accepted · **Amends `TEC-001` (the Hunt's field, performance targets)** · **Found by measuring the frame (B154, B155)**
+
+**Context:** asked for a performant game, the first step was to measure one. `--perf-shot` reported draw calls and render times, and nothing about the game's own code. Given process and physics times (B154), it showed physics peaking at 23–26 ms in every Delvings view, and a worst frame of about 25 ms against a mean of 9 ms. A frame clock placed first and last in physics order put the whole cost in one script step, every eleventh frame. Turning each script off in turn found it: `ClamorField`. Each 10 Hz pass cast a ray for all eight neighbours of every cell, about 17,000 rays on a 50 × 43 cell floor, and took 22–27 ms. That is a dropped frame ten times a second, against `TEC-001`'s 2 ms budget. The budget had been judged on the Deep, the six-room test floor, and the comment saying so pointed at a `--field-probe` that did not exist.
+
+**Decision:**
+- **Each cell's eight edges are learned once per floor**, the first time a pass needs them, by the same ray as before, and kept. Walls on `WORLD` are what a floor was built with and never move. Doors stand on `GATE`, which noise has always passed. `configure()` forgets the walls along with the cells.
+- **A pass visits only the cells that can hold noise**: the box around every non-zero cell, grown by one step. A cell outside it is silent with silent neighbours, and a pass would leave it silent.
+- **The field is unchanged as a Hunter reads it.** `--field-probe`, now real and in the sweep, asks three things on a generated floor. Every one of 16,646 edges is learned as a ray sees it. Twenty passes from three loud places leave every cell within 0.000001 of a pass that asked the rays each time. A pass over a floor noisy end to end stays under 2 ms. With the per-pass rays restored, the last row fails at 27.5 ms.
+- **`--perf-shot` reports script time.** Each view now prints process and physics time (mean and worst) and the frame its worst fell on, and the run ends with a fight: six Wretches at the body. A floor prints how long it took to plan and build.
+
+**Measured** (1920 × 1080, Apple M5, `--delvings --seed=12345`): physics worst 23–26 ms → 0.8–1.3 ms, worst frame 24–27 ms → 12–17 ms, mean frame 9.1 → 8.3 ms (the display's 120 Hz, held now). Learning the walls costs 28–31 ms once, on the field's first pass after arrival. A full pass costs 1.1 ms.
 
 *Entries below to be added as design decisions are signed off.*

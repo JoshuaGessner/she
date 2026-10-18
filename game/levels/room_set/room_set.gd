@@ -811,8 +811,14 @@ func _ready() -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg == "--delvings" or arg == "--delvings-probe":
 			generated = true
+	# **What a floor costs to make** (B154): planned and built, on the clock
+	# `TEC-001`'s two-second budget is written against, printed for every
+	# generated floor so a slow seed in a bug report names itself.
+	var making: int = Time.get_ticks_usec()
+	var planned: int = 0
 	if generated:
 		var rolled := DelvingsFloor.of(_run_seed, depth)
+		planned = Time.get_ticks_usec() - making
 		if not rolled.problems().is_empty():
 			push_error("the Delvings would not plan: %s"
 				% " · ".join(rolled.problems()))
@@ -869,6 +875,10 @@ func _ready() -> void:
 	# survives the transition is the thing it is measuring.
 	if not _probing or not _crossing.is_empty():
 		_carry_the_stash_down()
+	if generated:
+		print("[delvings] made in %d ms (planned %d, built %d)" % [
+			(Time.get_ticks_usec() - making) / 1000, planned / 1000,
+			(Time.get_ticks_usec() - making - planned) / 1000])
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--capture-top="):
 			_capture_top(arg.split("=", true, 1)[1])
@@ -902,6 +912,8 @@ func _ready() -> void:
 			_turn_probe()
 		elif arg == "--shaft-probe":
 			_shaft_probe()
+		elif arg == "--field-probe":
+			_field_probe()
 		elif arg.begins_with("--wound-shot="):
 			_wound_shot(arg.split("=", true, 1)[1])
 		elif arg.begins_with("--turn-shot="):
@@ -4230,6 +4242,118 @@ func _turn_set(player: Player, hunter: Gullsjukr, at: Vector3, yaw: float,
 	hunter.set("_was_held", false)
 
 
+## **`--field-probe`: the clamor field hears as the walls say, inside its
+## budget** (B155, `TEC-001`). On a generated floor, three claims:
+## 1. every edge between two cells is learned as a ray between their centres
+##    sees it — the field's walls are the floor's walls;
+## 2. twenty passes from three loud places leave every cell where a pass that
+##    asked the rays each time would have left it, so learning the walls once
+##    and visiting only the noisy cells changed nothing a Hunter could follow;
+## 3. a pass over a floor noisy end to end costs under `TEC-001`'s 2 ms. The
+##    pass this replaced cast 20,000 rays and cost 22 ms, ten times a second.
+func _field_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	_session.clear_enemies()
+	_session.local_player().clamor.silence()
+	_field.set_physics_process(false)
+	await _hold(0.3)
+	var wide: int = _field.width()
+	var high: int = _field.height()
+	var cells: int = wide * high
+
+	# ─ 1. the walls, learned as a ray sees them ─
+	var began: int = Time.get_ticks_usec()
+	_field.hears_across(Vector2i.ZERO, Vector2i(1, 0))
+	var learned_in: float = float(Time.get_ticks_usec() - began) / 1000.0
+	var rays: PackedByteArray = PackedByteArray()
+	rays.resize(cells * 8)
+	var edges: int = 0
+	var shut: int = 0
+	var disagree: int = 0
+	for y: int in high:
+		for x: int in wide:
+			var slot: int = (y * wide + x) * 8
+			for step_y: int in range(-1, 2):
+				for step_x: int in range(-1, 2):
+					if step_x == 0 and step_y == 0:
+						continue
+					var here := Vector2i(x, y)
+					var there := Vector2i(x + step_x, y + step_y)
+					var open: bool = _field.in_bounds(there) and _field._open_between(here, there)
+					rays[slot] = 1 if open else 0
+					slot += 1
+					if not _field.in_bounds(there):
+						continue
+					edges += 1
+					shut += 0 if open else 1
+					if open != _field.hears_across(here, there):
+						disagree += 1
+	print("[field] walls       %d x %d cells, %d edges, %d shut, learned in %.1f ms; %d disagree with a ray (want 0)"
+		% [wide, high, edges, shut, learned_in, disagree])
+	if shut == 0:
+		problems.append("no edge on the floor is shut: the rays saw no walls")
+	if disagree > 0:
+		problems.append("%d edges are learned other than a ray sees them" % disagree)
+
+	# ─ 2. twenty passes, against the rays asked each time ─
+	var tuning: TuningProfile = Config.tuning
+	_field.deposit(_floor.spawns()[0], tuning.clamor_field_maximum)
+	_field.deposit(_shaft.position, tuning.clamor_field_maximum)
+	_field.deposit(_floor.enemy_posts()[0], tuning.clamor_field_maximum)
+	var spread: float = tuning.clamor_field_spread
+	var step: float = 1.0 / ClamorField.TICK_HZ
+	var decay: float = tuning.clamor_field_decay * step
+	var worst: float = 0.0
+	for _pass: int in 20:
+		var expected: PackedFloat32Array = PackedFloat32Array()
+		expected.resize(cells)
+		for y: int in high:
+			for x: int in wide:
+				var here: float = _field.level_in(Vector2i(x, y))
+				var gathered: float = 0.0
+				var neighbours: int = 0
+				var slot: int = (y * wide + x) * 8
+				for step_y: int in range(-1, 2):
+					for step_x: int in range(-1, 2):
+						if step_x == 0 and step_y == 0:
+							continue
+						if rays[slot] == 1:
+							gathered += _field.level_in(Vector2i(x + step_x, y + step_y))
+							neighbours += 1
+						slot += 1
+				var averaged: float = gathered / float(neighbours) if neighbours > 0 else here
+				expected[y * wide + x] = maxf(0.0, here * (1.0 - spread) + averaged * spread - decay)
+		_field._propagate(step)
+		for y: int in high:
+			for x: int in wide:
+				worst = maxf(worst, absf(_field.level_in(Vector2i(x, y)) - expected[y * wide + x]))
+	print("[field] passes      20 from three loud places: total %.2f, worst cell off by %.6f (want under 0.0001)"
+		% [_field.total(), worst])
+	if _field.total() <= 0.0:
+		problems.append("the noise was gone after twenty passes, so they compared nothing")
+	if worst > 0.0001:
+		problems.append("a pass left a cell %.5f from where the rays would have" % worst)
+
+	# ─ 3. a floor noisy end to end, inside the budget ─
+	for y: int in high:
+		for x: int in wide:
+			_field.deposit(_field.cell_centre(x, y), 1.0)
+	var fastest: float = INF
+	for _try: int in 5:
+		var start: int = Time.get_ticks_usec()
+		_field._propagate(step)
+		fastest = minf(fastest, float(Time.get_ticks_usec() - start) / 1000.0)
+	print("[field] cost        a pass over all %d cells: %.2f ms at fastest of five (budget %.1f ms)"
+		% [cells, fastest, FIELD_BUDGET_MS])
+	if fastest > FIELD_BUDGET_MS:
+		problems.append("a pass costs %.2f ms, over TEC-001's %.1f ms" % [fastest, FIELD_BUDGET_MS])
+	_report(problems, "field")
+
+
+## `TEC-001`'s budget for clamor propagation in a frame (B155).
+const FIELD_BUDGET_MS: float = 2.0
+
+
 ## **`--shaft-probe`: the windlass stands over most ways out** (B132, B137).
 ## Each floor of the reach panel is laid (geometry and dressing, no navmesh),
 ## a Shaft is stood where the floor puts it, and the windlass tries its four
@@ -4591,6 +4715,13 @@ func _delvings_views() -> Array:
 ## frames), draw calls and primitives. Windowed, because a headless renderer
 ## costs nothing and measures nothing. A report, not a gate: the numbers are a
 ## baseline for the Scorecard, and a budget is the developer's to set.
+##
+## **And what the game's own code costs** (B154): the engine's process and
+## physics times, mean and worst, with the frame the worst one fell on — a
+## frame that is slow once is a hitch, and where in the window it falls says
+## whether the view's arrival caused it. The last view is a **fight**: a pack
+## of Wretches at the body, because `TEC-001`'s CPU budget is about the agents
+## thinking, and a quiet hall measures them asleep.
 func _perf_shot() -> void:
 	var player: Player = _session.local_player()
 	player.show_ink(true)
@@ -4606,36 +4737,86 @@ func _perf_shot() -> void:
 		var at: Vector3 = (view[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
 		player.teleport(at, _yaw_toward(at, view[2] as Vector3))
 		await _hold(0.6)
-		var frames: Array[float] = []
-		var calls: float = 0.0
-		var gpu: float = 0.0
-		var cpu: float = 0.0
-		var primitives: float = 0.0
-		var last: int = Time.get_ticks_usec()
-		for _i: int in 120:
-			await RenderingServer.frame_post_draw
-			var now: int = Time.get_ticks_usec()
-			frames.append(float(now - last) / 1000.0)
-			gpu += RenderingServer.viewport_get_measured_render_time_gpu(port)
-			cpu += RenderingServer.viewport_get_measured_render_time_cpu(port)
-			last = now
-			calls = maxf(calls, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
-			primitives = maxf(primitives, Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
-		var total: float = 0.0
-		var worst: float = 0.0
-		for ms: float in frames:
-			total += ms
-			worst = maxf(worst, ms)
-		var n: float = float(frames.size())
-		# GPU time reads zero where the backend has no timestamp queries — Metal,
-		# measured on an Apple M5 — so on a Mac the GPU column says nothing, and
-		# the GPU's cost has to be read on Vulkan or D3D12 (ADR-369).
-		print(("[perf] %-10s %5.1f ms mean, %5.1f ms worst · render gpu %4.2f cpu %4.2f ms · "
-			+ "%4.0f draw calls, %7.0f primitives")
-			% [view[0], total / n, worst, gpu / n, cpu / n, calls, primitives])
+		await _perf_measure(String(view[0]), port, player)
+	# ─ the fight ─
+	var hub: Array = _delvings_views()[0]
+	var stand: Vector3 = (hub[1] as Vector3) + Vector3(0.0, 0.1, 0.0)
+	player.teleport(stand, _yaw_toward(stand, hub[2] as Vector3))
+	var nav: RID = get_world_3d().navigation_map
+	for index: int in PERF_PACK:
+		var angle: float = TAU * float(index) / float(PERF_PACK)
+		var near: Vector3 = stand + Vector3(cos(angle), 0.0, sin(angle)) * PERF_PACK_RING
+		_session.spawn_enemy(NavigationServer3D.map_get_closest_point(nav, near), angle + PI)
+	await _hold(1.5)
+	await _perf_measure("fight", port, player, true)
+	var awake: int = 0
+	var foes: int = 0
+	for node: Node in get_tree().get_nodes_in_group(&"enemies"):
+		var foe := node as Enemy
+		if foe != null:
+			foes += 1
+			if foe.state() != Enemy.State.UNAWARE and foe.state() != Enemy.State.DEAD:
+				awake += 1
+	print("[perf] enemies %d on the floor, %d awake in the fight" % [foes, awake])
 	print("[perf] nodes %d, objects %d" % [Performance.get_monitor(Performance.OBJECT_NODE_COUNT),
 		Performance.get_monitor(Performance.OBJECT_COUNT)])
 	get_tree().quit()
+
+
+## Wretches stood at the body for `--perf-shot`'s fight, and how far out (B154).
+const PERF_PACK: int = 6
+const PERF_PACK_RING: float = 3.0
+
+
+## One view's hundred and twenty frames, printed as one row (B154). `keep_up`
+## refills the body each frame, so a fight is measured while it lasts rather
+## than until the body falls and the pack goes quiet.
+func _perf_measure(view: String, port: RID, player: Player, keep_up: bool = false) -> void:
+	var frames: Array[float] = []
+	var calls: float = 0.0
+	var gpu: float = 0.0
+	var cpu: float = 0.0
+	var primitives: float = 0.0
+	var script: float = 0.0
+	var script_worst: float = 0.0
+	var physics: float = 0.0
+	var physics_worst: float = 0.0
+	var last: int = Time.get_ticks_usec()
+	for _i: int in 120:
+		await RenderingServer.frame_post_draw
+		if keep_up:
+			player.health.restore()
+		var now: int = Time.get_ticks_usec()
+		frames.append(float(now - last) / 1000.0)
+		gpu += RenderingServer.viewport_get_measured_render_time_gpu(port)
+		cpu += RenderingServer.viewport_get_measured_render_time_cpu(port)
+		last = now
+		calls = maxf(calls, Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME))
+		primitives = maxf(primitives, Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME))
+		# Seconds, for the last frame: `_process` and `_physics_process` across
+		# the whole tree, the game's code and the engine's work it drives.
+		var process_ms: float = Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0
+		var physics_ms: float = Performance.get_monitor(Performance.TIME_PHYSICS_PROCESS) * 1000.0
+		script += process_ms
+		script_worst = maxf(script_worst, process_ms)
+		physics += physics_ms
+		physics_worst = maxf(physics_worst, physics_ms)
+	var total: float = 0.0
+	var worst: float = 0.0
+	var worst_at: int = 0
+	for index: int in frames.size():
+		total += frames[index]
+		if frames[index] > worst:
+			worst = frames[index]
+			worst_at = index
+	var n: float = float(frames.size())
+	# GPU time reads zero where the backend has no timestamp queries — Metal,
+	# measured on an Apple M5 — so on a Mac the GPU column says nothing, and
+	# the GPU's cost has to be read on Vulkan or D3D12 (ADR-369).
+	print(("[perf] %-10s %5.1f ms mean, %5.1f ms worst (frame %3d) · render gpu %4.2f cpu %4.2f ms · "
+		+ "%4.0f draw calls, %7.0f primitives · process %4.2f/%5.2f, physics %4.2f/%5.2f ms")
+		% [view, total / n, worst, worst_at, gpu / n, cpu / n, calls, primitives,
+			script / n, script_worst, physics / n, physics_worst])
 
 
 ## **`--walkthrough=DIR`**: a first floor as a first-timer walks it. Not named a

@@ -4,7 +4,7 @@ title: Godot Architecture
 status: accepted
 owner: tech
 tags: [godot, architecture, engine, systems]
-updated: 2026-10-07
+updated: 2026-10-17
 related: [TEC-002, TEC-003, DES-005]
 ---
 
@@ -127,4 +127,5 @@ Not needed, but recorded so the question stays closed:
 **How it is measured.** `--delvings --perf-shot` (on `room_set.tscn`, in a window, not headless) stands in the views of the Delvings that `--ink-shot` photographs (one list, `_delvings_views()`) and prints each view's primitives, draw calls and the engine's own render times (ADR-350's baseline, ADR-369's method). Three cautions a newcomer needs:
 - **Frame time is the display's, not the game's.** It sits at the refresh interval (about 9 ms on the development Mac) however light the frame is, so "comfortable" is read from the render CPU time instead (ADR-369).
 - **GPU time cannot be measured on macOS.** Metal reports none, so the ink pass's real cost needs a Windows run on Vulkan or D3D12.
+- **Script time is measured too** (ADR-405). Each view prints process and physics time, mean and worst, and the run ends with a fight, six Wretches at the body. Every generated floor prints how long it took to plan and build. The first reading found the clamor field casting 17,000 rays a pass, a 22 ms frame ten times a second. Its walls are now learned once per floor, a pass costs about 1 ms, and `--field-probe` holds it to the 2 ms budget.
 - **What is already spent:** flagstones and wall panels stop drawing past 30 m, which halved a hall's primitives (ADR-362, guarded by `kit_probe`). Every sound cue is made while a floor is built, not in the frame it first plays (ADR-377, guarded by `--ear-probe`). Draw calls are still about a thousand in a hall, and batching them is the open item.

@@ -1030,6 +1030,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The clamor field hears as the walls say, inside its budget** (ADR-405).
+	# A pass cast every ray every tick and cost 22 ms on a generated floor; its
+	# walls are learned once now. Every edge must agree with a ray, twenty
+	# passes must land where the rays would, and a full pass must cost < 2 ms.
+	field="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		levels/room_set/room_set.tscn -- --delvings --seed=12345 --field-probe 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$field"; then
+		echo "FAIL the clamor field" >&2
+		printf '%s\n' "$field" | grep -E '\[field\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The windlass stands over most ways out** (B132, B137): each floor of
 	# the reach panel laid, a Shaft stood where the floor puts it, and its
 	# windlass trying four turns against the room's stone. Every Shaft must

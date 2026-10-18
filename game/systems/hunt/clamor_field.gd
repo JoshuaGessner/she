@@ -56,6 +56,19 @@ var _height: int = 0
 var _origin: Vector3 = Vector3.ZERO
 var _accumulated: float = 0.0
 var _connected: Array[ClamorSource] = []
+## **Which neighbours each cell hears, learned once** (B155): eight entries a
+## cell, in `_propagate`'s order, each the neighbour's index or -1 where the
+## grid's edge or a wall stands between. A pass used to cast all eight rays
+## for every cell, ten times a second — about 20,000 rays and 22 ms on a
+## Delvings floor, a dropped frame ten times a second against a 2 ms budget.
+## The walls are what a floor was built with and never move (doors stand on
+## `GATE`, which noise passes), so the answer is the same every pass.
+var _reach: PackedInt32Array = PackedInt32Array()
+## **The cells that can hold noise** (B155), corner to corner, inclusive. A
+## cell farther than one step outside is silent with silent neighbours, so a
+## pass leaves it silent and need not visit it; empty when `_hi.x < _lo.x`.
+var _lo: Vector2i = Vector2i.ZERO
+var _hi: Vector2i = Vector2i(-1, -1)
 
 
 ## Lay the grid over a level's footprint. Levels call this; nothing discovers
@@ -70,6 +83,9 @@ func configure(from: Vector3, to: Vector3) -> void:
 	_cells.resize(_width * _height)
 	_scratch = PackedFloat32Array()
 	_scratch.resize(_width * _height)
+	_reach = PackedInt32Array()
+	_lo = Vector2i.ZERO
+	_hi = Vector2i(-1, -1)
 
 
 func width() -> int:
@@ -124,6 +140,26 @@ func deposit(at: Vector3, amount: float) -> void:
 		return
 	var index: int = cell.y * _width + cell.x
 	_cells[index] = minf(Config.tuning.clamor_field_maximum, _cells[index] + amount)
+	if _hi.x < _lo.x:
+		_lo = cell
+		_hi = cell
+	else:
+		_lo = _lo.min(cell)
+		_hi = _hi.max(cell)
+
+
+## Whether noise passes from `from` into its neighbour `to` (B155), as the
+## field has learned it — false off the grid or for cells that do not touch.
+func hears_across(from: Vector2i, to: Vector2i) -> bool:
+	var step: Vector2i = to - from
+	if not in_bounds(from) or step == Vector2i.ZERO or absi(step.x) > 1 or absi(step.y) > 1:
+		return false
+	if _reach.size() != _cells.size() * 8:
+		_learn_walls()
+	var slot: int = (step.y + 1) * 3 + (step.x + 1)
+	if slot > 4:
+		slot -= 1
+	return _reach[(from.y * _width + from.x) * 8 + slot] >= 0
 
 
 ## The loudest neighbouring cell, or `(-1, -1)` when everything nearby is
@@ -223,40 +259,68 @@ func _on_noise(amount: float, _level: float, from: ClamorSource) -> void:
 ## rock and the Hunter walks confidently at a wall, which is both wrong and the
 ## kind of wrong a player reads as the game cheating.
 func _propagate(step: float) -> void:
+	if _hi.x < _lo.x:
+		return
+	if _reach.size() != _cells.size() * 8:
+		_learn_walls()
 	var spread: float = Config.tuning.clamor_field_spread
 	var keep: float = 1.0 - spread
-	for y: int in range(_height):
-		for x: int in range(_width):
+	# Noise reaches one cell farther each pass, so the box grows by one first.
+	var first: Vector2i = (_lo - Vector2i.ONE).max(Vector2i.ZERO)
+	var last: Vector2i = (_hi + Vector2i.ONE).min(Vector2i(_width - 1, _height - 1))
+	for y: int in range(first.y, last.y + 1):
+		for x: int in range(first.x, last.x + 1):
 			var index: int = y * _width + x
 			var here: float = _cells[index]
 			var gathered: float = 0.0
 			var neighbours: int = 0
-			for step_y: int in range(-1, 2):
-				for step_x: int in range(-1, 2):
-					if step_x == 0 and step_y == 0:
-						continue
-					var neighbour := Vector2i(x + step_x, y + step_y)
-					if not in_bounds(neighbour):
-						continue
-					if not _open_between(Vector2i(x, y), neighbour):
-						continue
-					gathered += _cells[neighbour.y * _width + neighbour.x]
+			var base: int = index * 8
+			for slot: int in 8:
+				var neighbour: int = _reach[base + slot]
+				if neighbour >= 0:
+					gathered += _cells[neighbour]
 					neighbours += 1
 			var averaged: float = gathered / float(neighbours) if neighbours > 0 else here
 			_scratch[index] = here * keep + averaged * spread
 
 	var decay: float = Config.tuning.clamor_field_decay * step
-	for index: int in range(_cells.size()):
-		_cells[index] = maxf(0.0, _scratch[index] - decay)
+	var lo: Vector2i = Vector2i(_width, _height)
+	var hi: Vector2i = Vector2i(-1, -1)
+	for y: int in range(first.y, last.y + 1):
+		for x: int in range(first.x, last.x + 1):
+			var index: int = y * _width + x
+			var level: float = maxf(0.0, _scratch[index] - decay)
+			_cells[index] = level
+			if level > 0.0:
+				lo = lo.min(Vector2i(x, y))
+				hi = hi.max(Vector2i(x, y))
+	_lo = lo
+	_hi = hi
+
+
+## Learn every cell's eight edges (B155), once a floor stands: a ray each, as
+## `_open_between` casts it. Ray from the cell to its neighbour, never the
+## reverse — a centre inside rock sees out of it, and the pass this replaced
+## asked in that direction.
+func _learn_walls() -> void:
+	_reach = PackedInt32Array()
+	_reach.resize(_cells.size() * 8)
+	for y: int in range(_height):
+		for x: int in range(_width):
+			var slot: int = (y * _width + x) * 8
+			for step_y: int in range(-1, 2):
+				for step_x: int in range(-1, 2):
+					if step_x == 0 and step_y == 0:
+						continue
+					var neighbour := Vector2i(x + step_x, y + step_y)
+					var open: bool = in_bounds(neighbour) and _open_between(Vector2i(x, y), neighbour)
+					_reach[slot] = neighbour.y * _width + neighbour.x if open else -1
+					slot += 1
 
 
 ## Can noise pass between two neighbouring cells? A single ray between their
-## centres, at chest height, against the world layer.
-##
-## Cached per pass would be faster and is not done yet: the grid is small
-## enough that this stays inside `TEC-001`'s 2 ms, and `--field-probe` reports
-## the real cost so the decision to cache is made on a measurement rather than
-## on a worry.
+## centres, at chest height, against the world layer. Asked once per edge per
+## floor, by `_learn_walls` (B155).
 func _open_between(a: Vector2i, b: Vector2i) -> bool:
 	var space: PhysicsDirectSpaceState3D = _space()
 	if space == null:
