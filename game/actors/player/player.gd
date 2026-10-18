@@ -419,18 +419,9 @@ var trance: float = 0.0
 var sight_spent: float = 0.0
 ## What she saw, at one path on every peer, drawn by `PingLayer`.
 var sight: Sight = null
-## Host-side: seconds left on the trance, its length, and whether Varðlokkur's
-## ward still stands between it and the next blow.
-var _trance: float = 0.0
-var _trance_total: float = 0.0
-var _trance_warded: bool = false
-## Host-side, the binding's measure of movement (`_tick_binding`): a step
-## breaks a trance, judged as the host sees the body go.
-var _trance_at: Vector3 = Vector3.ZERO
-var _trance_speed: float = 0.0
-## Owner-side: whether this body has asked the host to sit, so the key is a
-## request when it changes and not twenty a second.
-var _asked_trance: bool = false
+## The verb itself — the ask, the host's clock, the reading (B52): a component
+## at one path on every peer, which writes the two values above.
+var seidr: Seidr = null
 
 ## **Haugbrot** (ADR-382, `DES-011` §6) — the Haugbrjótr's verb. How far
 ## through breaking what is shut, 0–1, on every peer: the trance's shape.
@@ -880,6 +871,12 @@ func _ready() -> void:
 	sight = Sight.new()
 	sight.name = "Sight"
 	add_child(sight)
+	seidr = Seidr.new()
+	seidr.name = "Seidr"
+	add_child(seidr)
+	seidr.serve(self)
+	seidr.resting.connect(sight_resting.emit)
+	seidr.warded.connect(broke_hush.emit)
 	equipment.changed.connect(_on_equipment_changed)
 	_redress()
 	# **The tree configures the components** (`M3-T01`, `TEC-006`). Calls down,
@@ -1352,11 +1349,7 @@ func _bear(amount: float, from: Node) -> void:
 	if _singing > 0.0:
 		_stop_song()
 	# **And the trance** (ADR-379), unless the ward-songs hold for one blow.
-	if _trance > 0.0:
-		if _trance_warded:
-			_trance_warded = false
-		else:
-			_stop_trance()
+	seidr.struck()
 	# **A heavy blow goes through a weapon's guard** (`DES-023` §3, ADR-232):
 	# no stamina spent on it and nothing taken off. A raised seax is a hand in the
 	# way of a falling hammer. **And so does anything in the air** (ADR-235) — the
@@ -3160,7 +3153,7 @@ func _physics_process(delta: float) -> void:
 		_tick_binding(delta, tuning)
 		_tick_wounds(delta)
 		_tick_fury(delta)
-		_tick_trance(delta, tuning)
+		seidr.tick(delta, tuning)
 		_tick_breaking(delta, tuning)
 		_tick_song(delta, tuning)
 		_tick_bleeding(delta)
@@ -3488,7 +3481,7 @@ func _update_stance(delta: float, tuning: TuningProfile) -> void:
 	_hold(delta, tuning)
 	_snare(delta, tuning)
 	_wolf_fury(delta, tuning)
-	_seidr()
+	seidr.ask(_driving, _bag > 0.0)
 	_haugbrot()
 	_galdr()
 	_show_setting()
@@ -4106,7 +4099,7 @@ func _stop_breaking() -> void:
 	breaking = 0.0
 
 
-## The clock, on the host: the trance's rule for a step (`_tick_trance`), and
+## The clock, on the host: the trance's rule for a step (`Seidr.tick`), and
 ## on the last second the door opens, loud as a spent Waystone.
 func _tick_breaking(delta: float, tuning: TuningProfile) -> void:
 	if _breaking <= 0.0:
@@ -4482,150 +4475,6 @@ func _voice_the_song() -> void:
 ## How far a hand reaches for anything at all: interact's reach and its slack.
 func hand_reach() -> float:
 	return Config.tuning.interact_reach + Config.tuning.interact_reach_slack
-
-
-## **Seiðr** (ADR-379) — the Völva's verb, and only hers.
-##
-## > *"She was to sit on a high seat … and the women made a ring around it,
-## > and Guðríðr sang the ward-songs so well that the seeress said many
-## > spirits had come."* — Eiríks saga rauða, ch. 4
-##
-## The owner's half is only the asking: held, she asks the host to let her sit;
-## let go, to stand. The host runs the trance's clock and breaks it on a step
-## or a blow, because what it pays for is the floor's secrets, and those are
-## never the client's to award itself (`TEC-004`).
-func _seidr() -> void:
-	var body: ClassResource = ClassCatalogue.by_id(sworn)
-	if body != null and body.verb == &"seidr" and _driving and sight_spent > 0.0 \
-			and Input.is_action_just_pressed("verb"):
-		sight_resting.emit()
-	var wants: bool = (body != null and body.verb == &"seidr"
-		and _driving and Input.is_action_pressed("verb")
-		and not is_incapacitated()
-		and _bag <= 0.0
-		and sight_spent <= 0.0)
-	if wants == _asked_trance:
-		return
-	_asked_trance = wants
-	if multiplayer.is_server():
-		_set_trance(wants)
-	else:
-		_request_trance.rpc_id(HOST_PEER, wants)
-
-
-@rpc("any_peer", "call_remote", "reliable")
-func _request_trance(sitting: bool) -> void:
-	if not multiplayer.is_server():
-		return
-	if multiplayer.get_remote_sender_id() != get_multiplayer_authority():
-		return
-	_set_trance(sitting)
-
-
-## Host-side. Sitting is refused to any but a Völva, while the sight is
-## spent, while down, or while one trance already runs.
-func _set_trance(sitting: bool) -> void:
-	if not sitting:
-		_stop_trance()
-		return
-	var body: ClassResource = ClassCatalogue.by_id(sworn)
-	if body == null or body.verb != &"seidr" or sight_spent > 0.0 \
-			or is_incapacitated() or _trance > 0.0:
-		return
-	_trance_total = maxf(Config.tuning.seidr_seconds, 0.01)
-	_trance = _trance_total
-	_trance_warded = has_effect(&"seidr_warded")
-	_trance_at = global_position
-	_trance_speed = 0.0
-	trance = 0.0
-
-
-func _stop_trance() -> void:
-	_trance = 0.0
-	trance = 0.0
-
-
-## The trance's clock and the sight's, on the host. A step breaks it — judged
-## by the binding's averaged speed against `seidr_break_speed`, so a client's
-## eased packets do not read as a stride — and so does going down.
-func _tick_trance(delta: float, tuning: TuningProfile) -> void:
-	if sight_spent > 0.0:
-		sight_spent = maxf(0.0, sight_spent - delta)
-	if _trance <= 0.0:
-		return
-	var moved: Vector3 = global_position - _trance_at
-	moved.y = 0.0
-	_trance_at = global_position
-	_trance_speed = lerpf(_trance_speed, moved.length() / maxf(delta, 0.0001),
-		clampf(delta * 8.0, 0.0, 1.0))
-	if is_incapacitated() or _trance_speed > tuning.seidr_break_speed:
-		_stop_trance()
-		return
-	_trance -= delta
-	trance = clampf(1.0 - _trance / _trance_total, 0.0, 1.0)
-	if _trance > 0.0:
-		return
-	_stop_trance()
-	sight_spent = tuning.seidr_spent_seconds
-	_read(tuning)
-
-
-## **The reading**, decided on the host: where the Gold-Sick was, the best
-## thing still on the floor, and the way out — and, with the Rite, the awake,
-## where the Gold-Sick is going, and a hush where she sat. Every mark is where
-## the thing *was*; none of them follows.
-func _read(tuning: TuningProfile) -> void:
-	var found: Array = []
-	for node: Node in get_tree().get_nodes_in_group(&"hunters"):
-		var hunter := node as Gullsjukr
-		if hunter == null or not hunter.is_inside_tree():
-			continue
-		found.append([Pinger.Kind.ENEMY, hunter.global_position])
-		# **Sjónhverfing** (ADR-403): sight-turning, the seiðr the sagas give
-		# Útgarða-Loki and Katla of Eyrbyggja — she reads it, and reads the
-		# party's gold out of what it can feel.
-		hunter.veil(tuning.hunter_veil_seconds, self)
-		# **Spá** — and where it is going, one more snapshot.
-		if has_effect(&"seidr_foresees") and hunter.has_goal():
-			found.append([Pinger.Kind.GO, hunter.goal()])
-		break
-	var best: WorldItem = null
-	var worth: int = 0
-	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
-		var lying := node as WorldItem
-		if lying == null or lying.definition() == null:
-			continue
-		var value: int = lying.definition().tribute_value
-		if value > worth:
-			best = lying
-			worth = value
-	if best != null:
-		found.append([Pinger.Kind.LOOT, best.global_position])
-	for node: Node in get_tree().get_nodes_in_group(Shaft.GROUP):
-		var way := node as Shaft
-		if way != null:
-			found.append([Pinger.Kind.WAY, way.global_position])
-			break
-	# **Marking Prey** — every awake enemy near, where it stood.
-	if has_effect(&"seidr_marks_prey"):
-		for node: Node in get_tree().get_nodes_in_group("enemies"):
-			var awake := node as Enemy
-			if awake == null or found.size() >= Sight.MOST:
-				continue
-			var state: Enemy.State = awake.state()
-			if state == Enemy.State.UNAWARE or state == Enemy.State.DEAD:
-				continue
-			if awake.global_position.distance_to(global_position) > tuning.rite_prey_metres:
-				continue
-			found.append([Pinger.Kind.ENEMY, awake.global_position])
-	sight.show_reading(found)
-	# **Vé** — the seat stays warded a while, and cracks as a rune does.
-	if has_effect(&"seidr_wards_ground"):
-		var ward := HushTrait.new()
-		ward.radius = tuning.rite_ve_radius
-		ward.seconds = tuning.rite_ve_seconds
-		ward.crack = tuning.rite_ve_crack
-		broke_hush.emit(global_position, ward)
 
 
 ## **The fury begins**, on the host: the clock, the howl's noise, and — with

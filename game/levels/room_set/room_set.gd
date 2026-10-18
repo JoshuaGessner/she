@@ -3941,7 +3941,7 @@ func _turn_probe() -> void:
 	await _turn_set(player, hunter, stand, 0.0, Vector3(9.0, 0.1, -20.0), true)
 	await _hold(0.4)
 	var sought: bool = hunter.target() == player
-	player.call("_read", tuning)
+	player.seidr.read(tuning)
 	await _hold(0.4)
 	var veiled_for: float = player.veiled
 	var lost: bool = hunter.target() == null
@@ -3951,7 +3951,7 @@ func _turn_probe() -> void:
 	# A reading while it is away teaches it nothing, as a turn does not (B125).
 	var read_before: int = hunter.wary_of(&"seidr")
 	hunter.set("_sated_left", 5.0)
-	player.call("_read", tuning)
+	player.seidr.read(tuning)
 	var read_away: int = hunter.wary_of(&"seidr")
 	hunter.set("_sated_left", 0.0)
 	player.veiled = 0.0
@@ -20253,12 +20253,12 @@ func _seidr_probe() -> void:
 	# Varðlokkur: one blow does not break the trance; a second does.
 	for warded: bool in [false, true]:
 		body.effects = PackedStringArray(["seidr_warded"]) if warded else PackedStringArray()
-		body._set_trance(true)
+		body.seidr.sit(true)
 		body._on_hurt(5.0, striker)
-		var after_one: bool = body._trance > 0.0
+		var after_one: bool = body.seidr.sitting()
 		body._on_hurt(5.0, striker)
-		var after_two: bool = body._trance > 0.0
-		body._stop_trance()
+		var after_two: bool = body.seidr.sitting()
+		body.seidr.stop()
 		rows.append("vardlokkur %s: through one blow %s, two %s" % [warded, after_one, after_two])
 		if after_one != warded or after_two:
 			problems.append("Varðlokkur did not hold the trance through exactly one blow")
@@ -20274,7 +20274,7 @@ func _seidr_probe() -> void:
 	for marking: bool in [false, true]:
 		body.effects = PackedStringArray(["seidr_marks_prey"]) if marking else PackedStringArray()
 		prey.set("_state", Enemy.State.ALERTED)
-		body._read(tuning)
+		body.seidr.read(tuning)
 		var enemies: int = 0
 		for seen: Dictionary in body.sight.marks:
 			if int(seen["kind"]) == Pinger.Kind.ENEMY:
@@ -20290,7 +20290,7 @@ func _seidr_probe() -> void:
 	var going: Array[bool] = []
 	for foreseeing: bool in [false, true]:
 		body.effects = PackedStringArray(["seidr_foresees"]) if foreseeing else PackedStringArray()
-		body._read(tuning)
+		body.seidr.read(tuning)
 		var shown: bool = false
 		for seen: Dictionary in body.sight.marks:
 			shown = shown or int(seen["kind"]) == Pinger.Kind.GO
@@ -20302,7 +20302,7 @@ func _seidr_probe() -> void:
 	var hushed: Array[bool] = []
 	for warding: bool in [false, true]:
 		body.effects = PackedStringArray(["seidr_wards_ground"]) if warding else PackedStringArray()
-		body._read(tuning)
+		body.seidr.read(tuning)
 		await get_tree().process_frame
 		hushed.append(Hush.silences(body.global_position))
 	rows.append("ve: her seat hushed %s without, %s with" % [hushed[0], hushed[1]])
