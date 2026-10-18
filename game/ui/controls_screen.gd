@@ -147,19 +147,22 @@ const PAD_AXIS: Dictionary = {
 ## and no ○, and a prompt half in another font's glyphs reads as a fault.
 ## Nintendo's are the same buttons in other places — the bottom face Godot
 ## calls A is Nintendo's B.
-const PAD_FACES: Dictionary = {
+const PAD_FACE_BUTTONS: Dictionary = {
 	InputDevices.PLAYSTATION: {
 		JOY_BUTTON_A: "Cross", JOY_BUTTON_B: "Circle", JOY_BUTTON_X: "Square",
 		JOY_BUTTON_Y: "Triangle", JOY_BUTTON_BACK: "Create", JOY_BUTTON_START: "Options",
 		JOY_BUTTON_LEFT_SHOULDER: "L1", JOY_BUTTON_RIGHT_SHOULDER: "R1",
-		JOY_AXIS_TRIGGER_LEFT + 100: "L2", JOY_AXIS_TRIGGER_RIGHT + 100: "R2",
 	},
 	InputDevices.NINTENDO: {
 		JOY_BUTTON_A: "B", JOY_BUTTON_B: "A", JOY_BUTTON_X: "Y", JOY_BUTTON_Y: "X",
 		JOY_BUTTON_BACK: "−", JOY_BUTTON_START: "+",
 		JOY_BUTTON_LEFT_SHOULDER: "L", JOY_BUTTON_RIGHT_SHOULDER: "R",
-		JOY_AXIS_TRIGGER_LEFT + 100: "ZL", JOY_AXIS_TRIGGER_RIGHT + 100: "ZR",
 	},
+}
+## And the triggers, which are axes and share numbers with buttons.
+const PAD_FACE_AXES: Dictionary = {
+	InputDevices.PLAYSTATION: {JOY_AXIS_TRIGGER_LEFT: "L2", JOY_AXIS_TRIGGER_RIGHT: "R2"},
+	InputDevices.NINTENDO: {JOY_AXIS_TRIGGER_LEFT: "ZL", JOY_AXIS_TRIGGER_RIGHT: "ZR"},
 }
 
 
@@ -538,18 +541,18 @@ static func _pad_text(event: InputEvent) -> String:
 	return pad_text_for(event, InputDevices.pad_family())
 
 
-## A pad input's name as `family` prints it (B164). Triggers are keyed past the
-## buttons (+100) in `PAD_FACES`, since an axis and a button share numbers.
+## A pad input's name as `family` prints it (B164).
 static func pad_text_for(event: InputEvent, family: StringName) -> String:
-	var faces: Dictionary = PAD_FACES.get(family, {}) as Dictionary
 	var pressed := event as InputEventJoypadButton
 	if pressed != null:
-		return String(faces.get(pressed.button_index, PAD_BUTTON.get(pressed.button_index,
+		var buttons: Dictionary = PAD_FACE_BUTTONS.get(family, {}) as Dictionary
+		return String(buttons.get(pressed.button_index, PAD_BUTTON.get(pressed.button_index,
 			"Pad %d" % pressed.button_index)))
 	var moved := event as InputEventJoypadMotion
 	if moved == null:
 		return ""
-	return String(faces.get(int(moved.axis) + 100, PAD_AXIS.get(moved.axis, "Axis %d" % moved.axis)))
+	var axes: Dictionary = PAD_FACE_AXES.get(family, {}) as Dictionary
+	return String(axes.get(moved.axis, PAD_AXIS.get(moved.axis, "Axis %d" % moved.axis)))
 
 
 ## Every action this screen teaches. The probe compares it against `InputMap`
