@@ -259,7 +259,7 @@ func _process(delta: float) -> void:
 			# **The Hunter turned, and by what** (ADR-403): said to whoever did
 			# it, and that it is warier of the trick when it is — the visual
 			# twin of the recoil, for a player looking the other way.
-			_name.text = tr("hunt.turned.%s" % _hunter_by) \
+			_name.text = Reticle.hunter_line(_hunter_by) \
 				+ (tr("hunt.wary") if _hunter_wary else "")
 		elif _held_text == &"sang":
 			# **What the verse did** (ADR-387): a song that turned nothing is
@@ -352,6 +352,14 @@ func _say_for_a_moment(what: StringName, refusal: bool = true,
 func _wedges() -> bool:
 	return _body != null and is_instance_valid(_body) \
 		and _body.has_effect(&"haugbrot_wedge") and _body.broken_door_at_hand() != null
+
+
+## **What the Hunter's turn says, by its reason** (B153): its own line, or —
+## for a reason added without one — a plain line rather than the raw key.
+static func hunter_line(by: StringName) -> String:
+	var key: String = "hunt.turned.%s" % by
+	var said: String = TranslationServer.translate(key)
+	return said if said != key else TranslationServer.translate("hunt.turned.other")
 
 
 ## Whether the body is a Haugbrjótr with the Hunter in reach (ADR-403).

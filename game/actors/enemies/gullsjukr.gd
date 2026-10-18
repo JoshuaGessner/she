@@ -88,6 +88,11 @@ signal spilled(item: StringName, at: Vector3)
 ## What turned it away when it broke off on its own (ADR-403): never learned,
 ## because it is not a trick anybody played on it.
 const MENACE: StringName = &"menace"
+## **Every reason a body can be told the Hunter turned** (B153): the verbs that
+## turn it, the veil said to a Völva's party, a trick it knows too well, and
+## being paid. `--turn-probe` holds each to a line of its own.
+const TURN_REASONS: Array[StringName] = [&"hold", &"snare", &"seidr", &"veiled",
+	&"fury", &"galdr", &"haugbrot", &"menace", &"spent", &"sated"]
 ## The coin a mound-breaker's hammer knocks loose (ADR-403).
 const SPILL_ITEM: StringName = &"glt_hoard_coin"
 

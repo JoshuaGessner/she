@@ -4036,6 +4036,19 @@ func _turn_probe() -> void:
 	if not heard.has(&"sated"):
 		problems.append("the Hunter was paid and went, and the body beside it was not told why")
 
+	# ─ 9a. every reason has its line (B153) ─
+	var unsaid: PackedStringArray = PackedStringArray()
+	for reason: StringName in Gullsjukr.TURN_REASONS:
+		if TranslationServer.translate("hunt.turned.%s" % reason) == "hunt.turned.%s" % reason:
+			unsaid.append(String(reason))
+	var fallback: String = Reticle.hunter_line(&"no_such_reason")
+	print("[turn] reasons       %d of %d have a line; an unknown one reads '%s'"
+		% [Gullsjukr.TURN_REASONS.size() - unsaid.size(), Gullsjukr.TURN_REASONS.size(), fallback])
+	if not unsaid.is_empty():
+		problems.append("the Hunter can turn for %s and nothing says why" % ", ".join(unsaid))
+	if fallback.begins_with("hunt."):
+		problems.append("a reason with no line showed its raw key '%s'" % fallback)
+
 	# ─ 9b. what makes a run a measurement (B143) ─
 	var cases: Array = [
 		[["--walkthrough=/x/shots/walk", "--seed=1"], false],
