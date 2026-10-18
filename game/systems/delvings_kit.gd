@@ -272,8 +272,39 @@ static func recess(node: MeshInstance3D) -> void:
 	if box == null:
 		return
 	var thin_x: bool = box.size.x < box.size.z
-	box.size.x = maxf(box.size.x - (BED if thin_x else PROUD) * 2.0, PROUD)
-	box.size.z = maxf(box.size.z - (PROUD if thin_x else BED) * 2.0, PROUD)
+	# Swapped for the recessed size, never resized: the box is shared (B16).
+	node.mesh = box_of(Vector3(
+		maxf(box.size.x - (BED if thin_x else PROUD) * 2.0, PROUD),
+		box.size.y,
+		maxf(box.size.z - (PROUD if thin_x else BED) * 2.0, PROUD)))
+
+
+## **One box per size, one material per colour** (B16). The renderer draws
+## identical mesh-and-material pairs in one call — 400 kit pieces cost one —
+## and every slab made its own of both, so a hall's ~700 drawn boxes were ~440
+## of its ~750 draw calls, though they came in 78 sizes and 7 colours. Shared,
+## so nothing may resize or recolour one in place: `recess` swaps, and a slab
+## that needs a look of its own makes it.
+static var _boxes: Dictionary = {}
+static var _flats: Dictionary = {}
+
+
+static func box_of(size: Vector3) -> BoxMesh:
+	if not _boxes.has(size):
+		var made := BoxMesh.new()
+		made.size = size
+		_boxes[size] = made
+	return _boxes[size] as BoxMesh
+
+
+## A plain matte stone colour, shared (B16).
+static func flat(colour: Color) -> StandardMaterial3D:
+	if not _flats.has(colour):
+		var made := StandardMaterial3D.new()
+		made.albedo_color = colour
+		made.roughness = 1.0
+		_flats[colour] = made
+	return _flats[colour] as StandardMaterial3D
 
 
 ## **A delivered piece, drawn and nothing else** (ADR-301). Every placed piece

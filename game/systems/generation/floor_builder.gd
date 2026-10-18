@@ -1336,16 +1336,11 @@ func _mark(size: Vector3, centre: Vector3, colour: Color, yaw: float) -> void:
 	if _into == null:
 		_fallen_laid += 1
 		return
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.roughness = 1.0
 	var node := MeshInstance3D.new()
-	node.mesh = mesh
+	node.mesh = DelvingsKit.box_of(size)
 	node.position = centre
 	node.rotation.y = yaw
-	node.material_override = material
+	node.material_override = DelvingsKit.flat(colour)
 	# Numbered for the same reason every slab is: Godot throws the name away on
 	# a collision and a probe filtering by role would read exactly one. Counted
 	# **here**, per mark, rather than per machine — a count bumped by the caller
@@ -1374,17 +1369,15 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 	if _into == null:
 		_slabs += 1
 		return null
-	var mesh := BoxMesh.new()
-	mesh.size = size
 	# Navigation parses STATIC_COLLIDERS, not rendered meshes. Keep its tested
 	# lap, all occluder arithmetic, and the player's collision unchanged; only
 	# the visible flat floors meet edge to edge. Ramps and ledges retain their
 	# measured joins. Their overlaps are not this coplanar floor seam.
+	var drawn: Vector3 = size
 	if role == "floor":
-		mesh.size -= Vector3(FLOOR_LAP * 2.0, 0.0, FLOOR_LAP * 2.0)
-	var material := StandardMaterial3D.new()
-	material.albedo_color = colour
-	material.roughness = 1.0
+		drawn -= Vector3(FLOOR_LAP * 2.0, 0.0, FLOOR_LAP * 2.0)
+	# Shared by size and by colour, so the renderer draws alike boxes as one (B16).
+	var mesh: BoxMesh = DelvingsKit.box_of(drawn)
 	var node := MeshInstance3D.new()
 	node.mesh = mesh
 	node.position = centre
@@ -1408,7 +1401,7 @@ func _slab(size: Vector3, centre: Vector3, colour: Color,
 		node.basis = tilt
 	else:
 		node.rotation.y = yaw
-	node.material_override = material
+	node.material_override = DelvingsKit.flat(colour)
 	var body := StaticBody3D.new()
 	body.collision_layer = CollisionLayers.WORLD
 	body.collision_mask = 0

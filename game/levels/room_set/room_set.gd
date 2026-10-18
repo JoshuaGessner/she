@@ -4262,9 +4262,10 @@ func _field_probe() -> void:
 	var cells: int = wide * high
 
 	# ─ 1. the walls, learned as a ray sees them ─
-	var began: int = Time.get_ticks_usec()
-	_field.hears_across(Vector2i.ZERO, Vector2i(1, 0))
-	var learned_in: float = float(Time.get_ticks_usec() - began) / 1000.0
+	#
+	# Learned while the floor was built, which is the claim: a floor not yet
+	# standing in the physics space when they were learned would read open
+	# everywhere and disagree here. Timed afterwards, by learning them again.
 	var rays: PackedByteArray = PackedByteArray()
 	rays.resize(cells * 8)
 	var edges: int = 0
@@ -4288,6 +4289,9 @@ func _field_probe() -> void:
 					shut += 0 if open else 1
 					if open != _field.hears_across(here, there):
 						disagree += 1
+	var began: int = Time.get_ticks_usec()
+	_field.learn_walls()
+	var learned_in: float = float(Time.get_ticks_usec() - began) / 1000.0
 	print("[field] walls       %d x %d cells, %d edges, %d shut, learned in %.1f ms; %d disagree with a ray (want 0)"
 		% [wide, high, edges, shut, learned_in, disagree])
 	if shut == 0:
@@ -9437,6 +9441,11 @@ func _build_hunt() -> void:
 	add_child(_field)
 	var heard: AABB = _floor.field()
 	_field.configure(heard.position, heard.end)
+	# **Its walls learned while the floor is made** (ADR-405), not on its first
+	# pass a tenth of a second into play, where the ~30 ms was a dropped frame.
+	# On the host, the only peer the field runs on.
+	if multiplayer.is_server():
+		_field.learn_walls()
 	_hunter = _session.spawn_hunter(_floor.hunter())
 	# Arrows and Snares deposit into it too (`M3-T11`), and both are built by
 	# the session rather than by this level, so the session needs the same

@@ -298,6 +298,12 @@ func _propagate(step: float) -> void:
 	_hi = hi
 
 
+## Learn the walls now rather than on the first pass that needs them, for a
+## level that has just built its floor and would rather spend the time there.
+func learn_walls() -> void:
+	_learn_walls()
+
+
 ## Learn every cell's eight edges (B155), once a floor stands: a ray each, as
 ## `_open_between` casts it. Ray from the cell to its neighbour, never the
 ## reverse — a centre inside rock sees out of it, and the pass this replaced
