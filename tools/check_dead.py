@@ -352,7 +352,7 @@ def main() -> int:
 
     total = len(paths)
     if findings:
-        print(f"\n{len(findings)} unreachable name(s) across {total} script(s)",
+        print(f"\n{len(findings)} finding(s) across {total} script(s)",
               file=sys.stderr)
         return 1
 

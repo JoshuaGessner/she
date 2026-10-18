@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
-"""Prove that `status.py --check` actually fails on the things it claims to catch.
+"""Prove that the project's checks actually fail on the things they claim to catch.
 
 Usage:
     python3 tools/test_checks.py
 
-A check that has never fired is not known to work — and these particular checks
-guard decisions (ADR-064, ADR-065, ADR-066) rather than code, so nothing else
+A check that has never fired is not known to work — and most of these guard
+decisions (ADR-064, ADR-065, ADR-066) rather than behaviour, so nothing else
 would notice if one silently stopped matching. Each trial plants one violation
-in a real doc, asserts `--check` reports that specific issue code, and restores
-the file.
+in a real file, asserts the checker (`status.py --check`, `check_project.py` or
+`check_dead.py`) reports that specific issue code, and restores the file.
 
-Writes to `docs/` and restores in a `finally`, so an interrupted run still
-leaves the tree clean. Run it on a clean working tree anyway.
+Writes to `docs/`, the CI workflow, two game scripts and two texture `.import`
+files, and restores each in a `finally`, so an interrupted run still leaves the
+tree clean. Run it on a clean working tree anyway, and with the Godot editor
+closed: an open editor sees the planted scripts and imports and reloads them.
 """
 
 from __future__ import annotations
