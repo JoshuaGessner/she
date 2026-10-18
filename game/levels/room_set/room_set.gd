@@ -20019,10 +20019,10 @@ func _haug_probe() -> void:
 			atan2(ahead.x, ahead.z), LockedDoor.Kind.LOCKED, Vector3.ZERO)
 		await _hold(0.2)
 		body.effects = PackedStringArray(["haugbrot_holds"]) if holding else PackedStringArray()
-		body._set_breaking(pried.get_path())
+		body.haugbrot.start(pried.get_path())
 		body._on_hurt(5.0, striker)
-		var still: bool = body._breaking > 0.0
-		body._stop_breaking()
+		var still: bool = body.haugbrot.working()
+		body.haugbrot.stop()
 		pried.queue_free()
 		rows.append("long pry %s: still breaking after a blow %s" % [holding, still])
 		if still != holding:

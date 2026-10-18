@@ -367,7 +367,7 @@ func _breaks_hoard() -> bool:
 	if _body == null or not is_instance_valid(_body):
 		return false
 	var sworn_as: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	return sworn_as != null and sworn_as.verb == &"haugbrot" and _body.hunter_at_hand() != null
+	return sworn_as != null and sworn_as.verb == &"haugbrot" and _body.haugbrot.hunter_at_hand() != null
 
 
 ## Whether the body is a Haugbrjótr standing at a shut barrow (ADR-382).
@@ -375,7 +375,7 @@ func _breaks_barrow() -> bool:
 	if _body == null or not is_instance_valid(_body):
 		return false
 	var sworn_as: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	return sworn_as != null and sworn_as.verb == &"haugbrot" and _body.barrow_at_hand() != null
+	return sworn_as != null and sworn_as.verb == &"haugbrot" and _body.haugbrot.barrow_at_hand() != null
 
 
 ## The empty-handed flinch: the same four ticks the dot opens outward when a
