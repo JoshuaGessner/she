@@ -85,6 +85,21 @@ It is deliberately **not** Tolkien-derived. Tolkien's legendarium remains under 
 
 See [TEC-001](docs/tech/TEC-001-godot-architecture.md) and [TEC-004](docs/tech/TEC-004-networking.md).
 
+## Running it
+
+1. **Install [Git LFS](https://git-lfs.com) before you clone**, then `git lfs install` once. Models, textures and audio live in LFS; a clone without it gets small text pointers where the art should be, and Godot reports every one as a corrupt asset. Already cloned without it? `git lfs pull`.
+2. **Use Godot 4.7** (the standard build, not .NET). CI pins this exact version, because a minor version can change which GDScript warnings fire, and warnings are errors here.
+3. **Open `game/project.godot`**, not the repository root. The first open imports and compresses every asset, which takes a while; then press Play to reach the main menu.
+
+The checks need Python 3.11+ and nothing else, since the tools use only the standard library:
+
+```bash
+python3 tools/check_project.py   # locked settings and conventions, seconds
+tools/check_scripts.sh           # parses every script, then runs the game's probes headless
+```
+
+`check_scripts.sh` looks for `godot` on your `PATH` or the macOS app in `/Applications`; set `GODOT=/path/to/godot` otherwise. The full run takes the better part of an hour. [AGENTS.md](AGENTS.md) lists the whole pre-commit sweep.
+
 ## Monetization
 
 **Premium purchase. Nothing else.** No microtransactions, cosmetic or otherwise; no loot boxes, no premium currency, no battle pass, no purchasable power. Everything in the game is earned by playing it.

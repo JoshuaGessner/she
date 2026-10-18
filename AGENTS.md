@@ -78,6 +78,7 @@ python3 tools/reindex.py            # regenerate docs/INDEX.md
 python3 tools/status.py --write     # regenerate the dashboards
 python3 tools/status.py --check     # must pass
 python3 tools/check_project.py      # locked settings + conventions
+python3 tools/check_dead.py         # nothing orphaned (ADR-098)
 python3 tools/bind_gamepad.py --check
 tools/check_scripts.sh              # real GDScript parser, every script
 ```
@@ -126,7 +127,7 @@ allow/deny list in `docs/process/PRO-004-ip-and-legal-guardrails.md`.
 
 ## If you are unsure
 
-Search `docs/process/PRO-002-decision-log.md` before asking. Eighty-one ADRs
-record the reasoning **and the rejected alternatives**, so the answer is
+Search `docs/process/PRO-002-decision-log.md` before asking. Its ADRs record
+the reasoning **and the rejected alternatives**, so the answer is
 usually already written down — including why the obvious approach was not
 taken.
