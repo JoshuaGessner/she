@@ -19,6 +19,7 @@ fail:
   DEAD-SIGNAL   a signal nobody connects, or one nobody ever emits
   DEAD-TUNE     a TuningProfile field nothing reads
   DEAD-CONST    a script-level const nothing reads
+  ORPHAN-UID    a script's .gd.uid left behind after the script was deleted
 
 ## What this deliberately cannot do
 
@@ -329,6 +330,14 @@ def main() -> int:
                     findings.append(Finding(
                         "DEAD-TUNE", where, name,
                         "a tuning number no system reads"))
+
+    # Godot writes a `.gd.uid` beside every script, and deleting the script
+    # outside the editor leaves it behind: an id that names nothing (B191).
+    for uid in sorted(GAME.rglob("*.gd.uid")):
+        if ".godot" not in uid.parts and not uid.with_suffix("").exists():
+            findings.append(Finding(
+                "ORPHAN-UID", str(uid.relative_to(ROOT)), uid.name,
+                "its script is gone — delete the .uid too"))
 
     if "--list" in sys.argv:
         for path in paths:
