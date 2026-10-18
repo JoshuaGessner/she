@@ -20806,7 +20806,7 @@ func _rite_probe() -> void:
 		body.face_toward(enemy.global_position + Vector3.UP)
 		var before: float = enemy.global_position.distance_to(here)
 		body.effects = PackedStringArray(["hold_shove"] if with_node else [])
-		body._shove()
+		body.hold_verb.shove()
 		await get_tree().physics_frame
 		pushed.append([enemy.global_position.distance_to(here) - before,
 			enemy.state() == Enemy.State.STAGGERED])
