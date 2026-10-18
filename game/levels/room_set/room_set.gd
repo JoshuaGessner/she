@@ -17794,7 +17794,10 @@ func _body_probe() -> void:
 		rises[id] = _held_rise(rig.wielded())
 	print("[body] carried     a völr's middle %.2f m from the fist, an axe's %.2f m (want above, below)"
 		% [rises[&"wpn_volr"], rises[&"wpn_bearded_axe"]])
-	if float(rises[&"wpn_volr"]) <= 0.1 or float(rises[&"wpn_bearded_axe"]) >= 0.0:
+	# Nothing held reads NAN, and every comparison with NAN is false — so a
+	# weapon that never appeared would have passed both halves.
+	if is_nan(float(rises[&"wpn_volr"])) or is_nan(float(rises[&"wpn_bearded_axe"])) \
+			or float(rises[&"wpn_volr"]) <= 0.1 or float(rises[&"wpn_bearded_axe"]) >= 0.0:
 		problems.append("a staff hangs head-down like a blade, or a blade stands up like a staff")
 
 	for problem: String in problems:
