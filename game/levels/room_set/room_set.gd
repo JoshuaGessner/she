@@ -20477,7 +20477,7 @@ func _fury_probe() -> void:
 		body.effects = PackedStringArray([tag]) if tag != "" else PackedStringArray()
 		body.fury = 5.0
 		body.blood_owed = 30.0
-		body._fury_landed(true)
+		body.wolf_fury.landed(true)
 		results[tag] = body.blood_owed
 	print("[fury] blood-price owed after a kill: plain %.0f, with it %.0f"
 		% [results[""], results["fury_blood_price"]])
@@ -20487,9 +20487,9 @@ func _fury_probe() -> void:
 	for tag: String in ["", "fury_rising"]:
 		body.effects = PackedStringArray([tag]) if tag != "" else PackedStringArray()
 		body.fury = 3.0
-		body._fury_added = 0.0
+		body.wolf_fury._added = 0.0
 		for _i: int in 20:
-			body._fury_landed(false)
+			body.wolf_fury.landed(false)
 		rose[tag] = body.fury
 	print("[fury] rising      fury after twenty blows: plain %.1f, with it %.1f (cap %.1f)"
 		% [rose[""], rose["fury_rising"], 3.0 + tuning.fury_seconds])
@@ -20534,7 +20534,7 @@ func _fury_probe() -> void:
 			warden.global_position = body.global_position + Vector3(0.0, 0.0, -2.0)
 			await _hold(0.2)
 			var was: int = warden.state()
-			body._rouse()
+			body.wolf_fury.rouse()
 			reeled[tag] = warden.state() == Enemy.State.STAGGERED and was != Enemy.State.STAGGERED
 			body.fury = 0.0
 			await _hold(maxf(warden.get("_kind").stagger, 0.5) + 0.2)
