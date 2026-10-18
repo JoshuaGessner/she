@@ -1148,12 +1148,25 @@ func _controls_probe() -> PackedStringArray:
 	drift.axis_value = 0.2
 	InputDevices.note(drift)
 	var after_drift: String = ControlsScreen.glyphs_for("interact")
+	# **A stuck stick counts once** (B167): leaned past the wake and held there,
+	# it takes the prompts once — and a key after it keeps them.
+	var stuck := InputEventJoypadMotion.new()
+	stuck.axis = JOY_AXIS_RIGHT_Y
+	stuck.axis_value = 1.0
+	InputDevices.note(stuck)
+	var stuck_takes: String = ControlsScreen.glyphs_for("interact")
+	InputDevices.note(typed)
+	InputDevices.note(stuck)
+	var stuck_after_key: String = ControlsScreen.glyphs_for("interact")
 	InputDevices.forget()
 	var pad_says: PackedStringArray = ControlsScreen.pad_glyphs(PackedStringArray(["interact"]))
 	print("[controls] in hand    before any input '%s', a pad pressed '%s', a key '%s', a drifting stick after '%s' (want both, the pad's, the key's, the key's)"
 		% [both, on_pad, on_keys, after_drift])
+	print("[controls] stuck      a stick leaned and held '%s', then a key, then the same stick still held '%s' (want the pad's, the key's)"
+		% [stuck_takes, stuck_after_key])
 	if not both.contains("/") or pad_says.is_empty() or on_pad != pad_says[0] \
-			or on_keys != both.get_slice("/", 0) or after_drift != on_keys:
+			or on_keys != both.get_slice("/", 0) or after_drift != on_keys \
+			or stuck_takes != on_pad or stuck_after_key != on_keys:
 		problems.append("a prompt did not name the device in hand, or named one before any was touched")
 	if not opened:
 		problems.append("CONTROLS did not open, or left the menu behind it "

@@ -21339,6 +21339,11 @@ func _body_shot(path: String) -> void:
 	for arg: String in OS.get_cmdline_user_args():
 		if arg.begins_with("--wear="):
 			body_piece = StringName(arg.split("=", true, 1)[1])
+	# Refused by name (B166), rather than handed on as nothing to be worn.
+	if ItemCatalogue.by_id(body_piece) == null:
+		printerr("[body] FAIL no item '%s' to wear" % body_piece)
+		get_tree().quit(1)
+		return
 	for id: StringName in [&"wpn_bearded_axe", &"arm_spangen_helm",
 			&"tol_horn_lantern", &"arm_pack_frame", body_piece,
 			&"arm_iron_bracers"]:

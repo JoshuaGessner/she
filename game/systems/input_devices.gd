@@ -41,6 +41,10 @@ const STICK_WAKES: float = 0.5
 ## How far the mouse must move in one event to count as taking it in hand: a
 ## desk knocked is not a choice of device.
 const MOUSE_WAKES: float = 4.0
+## How far each axis leaned at its last event, by device and axis (B167): a
+## stick counts when it *crosses* `STICK_WAKES`, not while it rests past it, so
+## a pad with a stuck axis cannot take the prompts back after every key.
+static var _leaned: Dictionary = {}
 
 
 ## The device a person is using, or `ALL` while nothing says.
@@ -55,7 +59,12 @@ static func note(event: InputEvent) -> void:
 		if (event as InputEventJoypadButton).pressed:
 			device = GAMEPAD
 	elif event is InputEventJoypadMotion:
-		if absf((event as InputEventJoypadMotion).axis_value) >= STICK_WAKES:
+		var motion := event as InputEventJoypadMotion
+		var axis: int = motion.device * 64 + int(motion.axis)
+		var was: float = float(_leaned.get(axis, 0.0))
+		var now: float = absf(motion.axis_value)
+		_leaned[axis] = now
+		if now >= STICK_WAKES and was < STICK_WAKES:
 			device = GAMEPAD
 	elif event is InputEventKey or event is InputEventMouseButton:
 		if event.is_pressed():
@@ -70,6 +79,7 @@ static func note(event: InputEvent) -> void:
 ## Back to knowing nothing, for a probe that has fed events of its own.
 static func forget() -> void:
 	_in_hand = ALL
+	_leaned.clear()
 
 
 ## True unless this instance was launched gamepad-only. The player consults it
