@@ -32,6 +32,19 @@ static func all() -> Array[RoomModule]:
 
 
 ## The module behind a stable id, or `null` if nothing owns it.
+## **Every Prize kind a module offers, sorted** (B184). `ExpeditionHistory.roll`
+## picks a floor's Prize by index into this list, so its order is part of what
+## a seed means: five places built it by hand, and two did not sort it, so the
+## probes among them planned floors the game never makes for their seeds.
+static func prize_kinds() -> PackedStringArray:
+	var kinds: PackedStringArray = PackedStringArray()
+	for module: RoomModule in all():
+		if module.prize_kind != &"" and not kinds.has(String(module.prize_kind)):
+			kinds.append(String(module.prize_kind))
+	kinds.sort()
+	return kinds
+
+
 static func by_id(id: StringName) -> RoomModule:
 	_scan()
 	return _by_id.get(String(id), null)

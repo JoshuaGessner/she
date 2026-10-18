@@ -6,10 +6,7 @@ extends SceneTree
 func _initialize() -> void:
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds := PackedStringArray()
-	for module: RoomModule in modules:
-		if not module.prize_kind.is_empty() and not kinds.has(module.prize_kind):
-			kinds.append(module.prize_kind)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 	var overlaps: int = 0
 	var floors: int = 0
 	var broken_laps: int = 0

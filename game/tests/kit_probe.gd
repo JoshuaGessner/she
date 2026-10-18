@@ -100,10 +100,7 @@ func _initialize() -> void:
 	# ─ 2. build the corpus ────────────────────────────────────────────────
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds := PackedStringArray()
-	for module: RoomModule in modules:
-		if not module.prize_kind.is_empty() and not kinds.has(module.prize_kind):
-			kinds.append(module.prize_kind)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 
 	var slabs: int = 0
 	var pieces: int = 0

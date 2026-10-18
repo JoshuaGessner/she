@@ -23,11 +23,7 @@ const DIGESTS: String = "res://tests/plan_digests.txt"
 func _initialize() -> void:
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds := PackedStringArray()
-	for module: RoomModule in modules:
-		if not module.prize_kind.is_empty() and not kinds.has(module.prize_kind):
-			kinds.append(module.prize_kind)
-	kinds.sort()
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 	var made: PackedStringArray = PackedStringArray()
 	for run_seed: int in PANEL_SEEDS:
 		for depth: int in 3:

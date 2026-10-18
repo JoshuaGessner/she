@@ -81,11 +81,7 @@ static func of(run_seed: int, floor_index: int) -> DelvingsFloor:
 	floor_at._depth = floor_index
 	floor_at._graph = MissionGraph.build(run_seed, floor_index)
 	var modules: Array[RoomModule] = RoomCatalogue.all()
-	var kinds := PackedStringArray()
-	for module: RoomModule in modules:
-		if module.prize_kind != &"" and not kinds.has(String(module.prize_kind)):
-			kinds.append(String(module.prize_kind))
-	kinds.sort()
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 	# **Kept, not just passed.** It was rolled here and handed to the plan, and
 	# nothing else could reach it afterwards — which is half of why the Calamity
 	# was never named to a player (ADR-192). A floor knows what happened on it.

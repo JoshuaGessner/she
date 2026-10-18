@@ -1142,18 +1142,6 @@ func _ready() -> void:
 ## flush, would leave every graph assertion passing about a floor that no
 ## longer matches — the ADR-032 bypass in particular, which is a claim about
 ## routes and therefore about geometry the moment geometry exists.
-## Every kind of Prize the corpus can actually build. The roll draws from
-## this rather than a written-down list, so a history can never promise a Prize
-## no floor could hold.
-func _prize_kinds(modules: Array[RoomModule]) -> PackedStringArray:
-	var kinds: PackedStringArray = PackedStringArray()
-	for module: RoomModule in modules:
-		if module.prize_kind != &"" and not kinds.has(String(module.prize_kind)):
-			kinds.append(String(module.prize_kind))
-	kinds.sort()
-	return kinds
-
-
 ## `TEC-008` — the plan became a place, and it is still the plan.
 ##
 ## `--plan-probe` proves the floor is the mission as *integers*. This proves the
@@ -1167,7 +1155,7 @@ func _build_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds: PackedStringArray = _prize_kinds(modules)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 
 	# ─ 1. a floor of every depth builds at all ─
 	var built: int = 0
@@ -1926,7 +1914,7 @@ func _reach_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds: PackedStringArray = _prize_kinds(modules)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 	var walked: int = 0
 	# **And the body a person is actually holding** (`M4-T25`).
 	#
@@ -2199,7 +2187,7 @@ func _hunter_fit() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds: PackedStringArray = _prize_kinds(modules)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 	# **Several shapes, because one answer is not actionable.** *The Hunter does
 	# not fit* is a finding; *it fits at 0.55 and not at 0.65* is a decision
 	# somebody can make.
@@ -2684,7 +2672,7 @@ func _plan_probe() -> void:
 	var trials: int = 120
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds: PackedStringArray = _prize_kinds(modules)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 
 	# ─ 1. the corpus loads at all ─
 	#
@@ -3305,7 +3293,7 @@ func _generated_rows() -> PackedStringArray:
 	var rows := PackedStringArray()
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var history := ExpeditionHistory.roll(_run_seed, CalamityCatalogue.all(),
-		_prize_kinds(modules))
+		RoomCatalogue.prize_kinds())
 	# The history is hashed as well as the floors. Two machines that disagreed
 	# about what happened here would build rooms that differ before a single
 	# co-ordinate did, and `DES-015` Layer 2 is what makes the expedition an
@@ -4374,7 +4362,7 @@ func _shaft_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds: PackedStringArray = _prize_kinds(modules)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 	var stood: int = 0
 	var refused: int = 0
 	var untried: int = 0
@@ -6974,7 +6962,7 @@ func _machine_probe() -> void:
 	# ─ 3. the corpus can serve the floors it claims ─
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var calamities: Array[CalamityResource] = CalamityCatalogue.all()
-	var kinds: PackedStringArray = _prize_kinds(modules)
+	var kinds: PackedStringArray = RoomCatalogue.prize_kinds()
 
 	# ─ 4. a floor of every depth stamps something ─
 	#
@@ -15838,7 +15826,7 @@ func _hazard_probe() -> void:
 	# ─ 7. **a machine lays its hazard over its room** ─ on a generated floor
 	var modules: Array[RoomModule] = RoomCatalogue.all()
 	var graph: MissionGraph = MissionGraph.build(4242, 1)
-	var lore := ExpeditionHistory.roll(4242, CalamityCatalogue.all(), _prize_kinds(modules))
+	var lore := ExpeditionHistory.roll(4242, CalamityCatalogue.all(), RoomCatalogue.prize_kinds())
 	var plan: FloorPlan = FloorPlan.build(graph, 4242, 1, modules, lore)
 	var pinned: Array[MachineResource] = [fall, seam]
 	var stamping: FloorMachines = FloorMachines.of(plan, graph, 4242, 1, pinned)
