@@ -141,3 +141,9 @@ Search `docs/process/PRO-002-decision-log.md` before asking. Its ADRs record
 the reasoning **and the rejected alternatives**, so the answer is
 usually already written down — including why the obvious approach was not
 taken.
+
+A **`B###`** in a commit subject or a code comment (`B184`) is a work-item
+label, not a task or an ADR: the backlog it came from is not kept in the
+repository, so each such commit carries its own reason.
+`git log --grep='B184[^0-9]'` finds the commit that made it, and any later
+commit that mentions it.
