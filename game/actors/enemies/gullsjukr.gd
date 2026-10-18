@@ -830,49 +830,7 @@ func _think(delta: float) -> void:
 	# the rest of the run. That was a leash, not a hunt.
 	if rich != null and (global_position.distance_to(rich.global_position)
 			<= Config.tuning.hunter_near_range or _can_see(rich)):
-		_target = rich
-		_patience_left = Config.tuning.hunter_patience
-		_goal = rich.global_position
-		_has_goal = true
-		_has_scent = false
-		# **The menace gauge** (ADR-403): close pursuit with nothing taken has
-		# a ceiling. Full, it breaks off — not turned by anyone, so it neither
-		# rears nor learns — and goes, for less time than a payment buys.
-		_menace += delta
-		if _menace >= Config.tuning.hunter_menace_seconds:
-			turn_away(MENACE, Config.tuning.hunter_menace_rest, rich.global_position, rich)
-			return
-		# **A planted shield it cannot reach past** (ADR-403, the Húskarl). It
-		# stands at the guard, its stoop gets nowhere, and if the guard holds
-		# long enough it turns away from the door it was refused.
-		var guard: Player = _guard_before_it()
-		if guard != null:
-			_balked += delta
-			_taking = 0.0
-			_has_goal = false
-			state_index = State.SIGHTED
-			if _balked >= Config.tuning.hunter_balk_seconds:
-				turn_away(&"hold", Config.tuning.hunter_turn_hold_seconds,
-					guard.global_position, guard)
-				# Refused (a Hold it knows too well, B131): it shrugs once and
-				# balks again — not a shrug and a message every frame.
-				_balked = 0.0
-			return
-		_balked = maxf(0.0, _balked - delta)
-		# **Arriving has to cost you something** (`M2-T19`, ADR-112). It used to
-		# walk up, stop at 24 cm, and stand inside you for as long as you let
-		# it: measured over fourteen seconds, health 100 → 100 and the bag
-		# untouched. `DES-017` describes five ways to deal with it and never
-		# said what happens if none of them work, so the encounter had no
-		# consequence to avoid.
-		if global_position.distance_to(rich.global_position) \
-				<= Config.tuning.hunter_reach:
-			_take_from(rich, delta)
-			return
-		# Out of reach again — a stoop that was interrupted starts over, so
-		# backing away is a real answer rather than a delay.
-		_taking = 0.0
-		state_index = State.SIGHTED if _can_see(rich) else State.COURSING
+		_press(rich, delta)
 		return
 	_taking = 0.0
 	# Out of its near sense the gauge drains, at half the rate it fills: a
@@ -904,6 +862,67 @@ func _think(delta: float) -> void:
 		return
 	_target = null
 	_follow_noise(State.DISTANT)
+
+
+## **Close to a body worth having** (ADR-277, ADR-403, B152): it knows where
+## that body is, and each frame one of four things happens, in this order —
+## the pursuit has run too long and it breaks off; a planted shield stands in
+## its way; it is in reach and stoops; or it closes in.
+func _press(rich: Player, delta: float) -> void:
+	_target = rich
+	_patience_left = Config.tuning.hunter_patience
+	_goal = rich.global_position
+	_has_goal = true
+	_has_scent = false
+	if _menace_breaks(rich, delta):
+		return
+	if _balked_at_guard(delta):
+		return
+	# **Arriving has to cost you something** (`M2-T19`, ADR-112). It used to
+	# walk up, stop at 24 cm, and stand inside you for as long as you let
+	# it: measured over fourteen seconds, health 100 → 100 and the bag
+	# untouched. `DES-017` describes five ways to deal with it and never
+	# said what happens if none of them work, so the encounter had no
+	# consequence to avoid.
+	if global_position.distance_to(rich.global_position) <= Config.tuning.hunter_reach:
+		_take_from(rich, delta)
+		return
+	# Out of reach again — a stoop that was interrupted starts over, so
+	# backing away is a real answer rather than a delay.
+	_taking = 0.0
+	state_index = State.SIGHTED if _can_see(rich) else State.COURSING
+
+
+## **The menace gauge** (ADR-403): close pursuit with nothing taken has a
+## ceiling. Full, it breaks off — not turned by anyone, so it neither rears
+## nor learns — and goes, for less time than a payment buys. True when it did.
+func _menace_breaks(rich: Player, delta: float) -> bool:
+	_menace += delta
+	if _menace < Config.tuning.hunter_menace_seconds:
+		return false
+	turn_away(MENACE, Config.tuning.hunter_menace_rest, rich.global_position, rich)
+	return true
+
+
+## **A planted shield it cannot reach past** (ADR-403, the Húskarl). It stands
+## at the guard, its stoop gets nowhere, and if the guard holds long enough it
+## turns away from the door it was refused. True while a guard holds it.
+func _balked_at_guard(delta: float) -> bool:
+	var guard: Player = _guard_before_it()
+	if guard == null:
+		_balked = maxf(0.0, _balked - delta)
+		return false
+	_balked += delta
+	_taking = 0.0
+	_has_goal = false
+	state_index = State.SIGHTED
+	if _balked >= Config.tuning.hunter_balk_seconds:
+		turn_away(&"hold", Config.tuning.hunter_turn_hold_seconds,
+			guard.global_position, guard)
+		# Refused (a Hold it knows too well, B131): it shrugs once and balks
+		# again — not a shrug and a message every frame.
+		_balked = 0.0
+	return true
 
 
 ## Feel for gold across the floor, once (ADR-277). **Heard where it stands**:
