@@ -999,9 +999,37 @@ func _threshold_probe() -> void:
 			+ "under it — a player walking through falls out of the world")
 			% (down_gaps + home_gaps))
 
+	# **Each voice rendered once a session** (B157, B172): down to the Deep and
+	# back, and the camp's layers play the very streams they played. Rendering
+	# them again cost ~170 ms of every descent.
+	var before: Dictionary = _layer_streams()
+	AudioDirector.enter("deep")
+	await get_tree().process_frame
+	AudioDirector.enter("threshold")
+	await get_tree().process_frame
+	var after: Dictionary = _layer_streams()
+	var kept: int = 0
+	for layer: String in before:
+		kept += 1 if after.get(layer, 0) == before[layer] else 0
+	print("[camp] voices kept  %d of %d layer(s) play the same stream after the Deep and back (want all)"
+		% [kept, before.size()])
+	if before.is_empty() or kept != before.size():
+		problems.append("the camp's music was rendered again on the way back from the Deep")
+
 	for problem: String in problems:
 		printerr("[camp] FAIL %s" % problem)
 	get_tree().quit(1 if problems.size() > 0 else 0)
+
+
+## The stream each music layer plays, by layer, as instance ids (B172).
+func _layer_streams() -> Dictionary:
+	var out: Dictionary = {}
+	for child: Node in AudioDirector.get_children():
+		var player := child as AudioStreamPlayer
+		if player != null and player.stream != null and String(player.name).begins_with("layer_") \
+				and not player.is_queued_for_deletion():
+			out[String(player.name)] = player.stream.get_instance_id()
+	return out
 
 
 func _levels_line(levels: Dictionary) -> String:
