@@ -236,6 +236,18 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The floors are the floors they were** (B183). A fixed panel's plans —
+	# seating, routes and carved corners — against `tests/plan_digests.txt`.
+	# The vista, reach and glint panels were tuned on these floors, so a
+	# change meant to change nothing has to prove it, and a change meant to
+	# change them regenerates the file with --write and says why.
+	digest="$("$GODOT_BIN" --headless --path "$GAME" --script tests/plan_digest_probe.gd 2>&1)"
+	if [[ $? -ne 0 ]] || grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$digest"; then
+		echo "FAIL the floors the generator makes" >&2
+		printf '%s\n' "$digest" | grep -E '\[digest\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **The set dressing is laid, and it is in nobody's way** (`M4-T10`,
 	# ADR-265). The pieces are solid, so every row is about passage — stone
 	# behind each one, nothing in a doorway, nothing the floor placed on
