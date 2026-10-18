@@ -3923,10 +3923,10 @@ func _turn_probe() -> void:
 	player.sworn = &"skald"
 	await _turn_set(player, hunter, stand, 0.0, far, true)
 	player.song_at = Vector3.INF
-	player.call("_sing_out", tuning, true)
+	player.galdr.sing_out(tuning, true)
 	await _hold(0.2)
 	var stanza: bool = hunter.turned_for() > 0.0
-	player.call("_sing_out", tuning, false)
+	player.galdr.sing_out(tuning, false)
 	await _hold(0.2)
 	var verse: float = hunter.turned_for()
 	player.sworn = was_sworn
