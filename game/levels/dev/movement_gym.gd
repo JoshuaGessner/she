@@ -1203,10 +1203,12 @@ func _swarm_probe(player: Player) -> void:
 	# is still CALLING for one frame, so a build that shouted with no warning
 	# at all walked straight through the row. What `DES-013` asks for is a beat
 	# a person can act inside, which is a duration.
-	var beat_began: int = 0
+	# Frames, read as game time (B149): a beat timed by the wall clock reads
+	# short when a loaded machine runs the physics steps it owes back to back.
+	var beat_began: int = -1
 	var beat_ms: int = 0
 	var swarmed_at: float = -1.0
-	var began: int = Time.get_ticks_msec()
+	var tick: float = 1.0 / Engine.physics_ticks_per_second
 	# **Held where it was posted** (ADR-391). Since a body steps back to its
 	# ring after a blow and lunges back in, a Bellringer left free calls from
 	# wherever its last lunge left it — and how far a shout carries through
@@ -1216,12 +1218,12 @@ func _swarm_probe(player: Player) -> void:
 	caller.rooted.hold_for(ringing.calls_after + 6.0)
 	for i: int in range(int(90.0 * (ringing.calls_after + 4.0))):
 		player.health.restore()
-		if caller.state() == Enemy.State.CALLING and beat_began == 0:
-			beat_began = Time.get_ticks_msec()
+		if caller.state() == Enemy.State.CALLING and beat_began < 0:
+			beat_began = i
 		if caller.state() == Enemy.State.SWARM:
-			swarmed_at = (Time.get_ticks_msec() - began) / 1000.0
-			if beat_began != 0:
-				beat_ms = Time.get_ticks_msec() - beat_began
+			swarmed_at = i * tick
+			if beat_began >= 0:
+				beat_ms = int(round((i - beat_began) * tick * 1000.0))
 			break
 		await get_tree().physics_frame
 	var floor_ms: int = int(TuningProfile.TELEGRAPH_FLOOR * 1000.0)

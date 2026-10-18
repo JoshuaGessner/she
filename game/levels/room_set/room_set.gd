@@ -12349,13 +12349,16 @@ func _stalker_probe() -> void:
 	# that missed. Every distance below is checked against `ROOMS.entrance`.
 	player.teleport(ARCHER_POST, 0.0)
 	await _hold(0.3)
-	var began: int = Time.get_ticks_msec()
+	# In game time (B149): a draw timed by the wall clock reads short when a
+	# loaded machine runs the physics steps it owes back to back.
 	player.ranged.request_draw(player.stamina)
 	var refused_mid_draw: bool = not player.ranged.request_draw(player.stamina)
 	var drew_ms: int = 0
+	var drawing_frames: int = 0
 	while player.ranged.phase() == RangedWeapon.Phase.DRAWING:
 		await get_tree().physics_frame
-		drew_ms = Time.get_ticks_msec() - began
+		drawing_frames += 1
+		drew_ms = int(round(drawing_frames * 1000.0 / Engine.physics_ticks_per_second))
 	var bow: RangedTrait = player.ranged.kit()
 	print("[stalker] draw                    %4d ms   floor  250, expected %4d"
 		% [drew_ms, int(bow.draw_seconds * 1000.0)])
@@ -12761,11 +12764,13 @@ func _gear_probe() -> void:
 	# was 25 and 2.2. Asserting they *differ* is what proves the item is being
 	# read at all — equal numbers would pass whichever source won.
 	player.stamina.refill()
-	var began: int = Time.get_ticks_msec()
+	# In game time (B149): ±60 ms of the wall clock is a test of the machine.
 	player.weapon.request_swing(player.stamina)
+	var winding: int = 0
 	while player.weapon.phase() == MeleeWeapon.Phase.WINDUP:
 		await get_tree().physics_frame
-	var windup_ms: int = Time.get_ticks_msec() - began
+		winding += 1
+	var windup_ms: int = int(round(winding * 1000.0 / Engine.physics_ticks_per_second))
 	print("[gear] seax windup        %4d ms   the item says %4d, the profile %4d"
 		% [windup_ms, int(blade.windup * 1000.0),
 		int(blade.windup * 1000.0)])
