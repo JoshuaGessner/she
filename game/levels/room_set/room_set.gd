@@ -18795,7 +18795,9 @@ func _portrait_shot(dir: String) -> void:
 ## swing; this is where the grip and the arm's angles are judged, since a
 ## teammate's swing is a telegraph and has to read from across a room.
 const TEAMMATE_WEAPONS: Array[StringName] = [&"wpn_seax", &"wpn_bearded_axe",
-	&"wpn_dvergar_hammer", &"wpn_ash_spear", &"rlc_regin_blade", &"wpn_yew_bow"]
+	&"wpn_dvergar_hammer", &"wpn_ash_spear", &"rlc_regin_blade", &"wpn_yew_bow",
+	# The völr (B180): carried upright at rest, turned to the wield to strike.
+	&"wpn_volr"]
 
 
 func _teammate_shot(dir: String) -> void:
@@ -21268,7 +21270,16 @@ func _hands_shot(path: String) -> void:
 	var gear: Equipment = body.equipment
 	gear.clear()
 	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"arm_iron_bracers"), 9802))
-	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"wpn_seax"), 9800))
+	# **`--hold=ID`** (B180): another weapon in the seax's place, as `--body-shot`.
+	var in_hand: StringName = &"wpn_seax"
+	for arg: String in OS.get_cmdline_user_args():
+		if arg.begins_with("--hold="):
+			in_hand = StringName(arg.split("=", true, 1)[1])
+	if ItemCatalogue.by_id(in_hand) == null:
+		printerr("[hands] FAIL no item '%s' to hold" % in_hand)
+		get_tree().quit(1)
+		return
+	gear.equip(ItemInstance.of(ItemCatalogue.by_id(in_hand), 9800))
 	gear.equip(ItemInstance.of(ItemCatalogue.by_id(&"tol_horn_lantern"), 9801))
 	body.lit = true
 	var coin: WorldItem = _session.spawn_world_item(&"glt_hoard_coin",
