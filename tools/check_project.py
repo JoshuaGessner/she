@@ -704,8 +704,10 @@ def check_translations() -> list[Issue]:
     return issues
 
 
-# The art folders whose PNGs are a model's baked maps, drawn in 3D (B160).
-BAKED_MAP_FOLDERS = ("characters", "enemies", "heroes", "props")
+# The art folders whose PNGs are *not* a model's baked maps (B181): the
+# interface's images are drawn flat and stay lossless, and a shader's lookup
+# textures are data. Every other folder under art/ holds 3D material maps.
+FLAT_ART_FOLDERS = ("ui", "shaders")
 
 
 def check_texture_compression() -> list[Issue]:
@@ -718,21 +720,23 @@ def check_texture_compression() -> list[Issue]:
     the shot it changed: under 0.7% of pixels, along the ink lines.
     """
     issues = []
-    for folder in BAKED_MAP_FOLDERS:
-        for imp in sorted((GAME / "art" / folder).glob("*.png.import")):
-            text = imp.read_text(encoding="utf-8")
-            if "compress/mode=2" not in text:
-                issues.append(Issue(
-                    "error", "texture-lossless", rel(imp),
-                    "a baked material map is imported uncompressed (several times the video memory)",
-                    "set compress/mode=2 (VRAM Compressed), and compress/normal_map=1 for an _n map, then reimport",
-                ))
-            elif imp.name.endswith("_n.png.import") and "compress/normal_map=1" not in text:
-                issues.append(Issue(
-                    "error", "texture-normal", rel(imp),
-                    "a normal map is compressed as a colour map, which bends its normals",
-                    "set compress/normal_map=1 and reimport",
-                ))
+    art = GAME / "art"
+    for imp in sorted(art.rglob("*.png.import")):
+        if imp.relative_to(art).parts[0] in FLAT_ART_FOLDERS:
+            continue
+        text = imp.read_text(encoding="utf-8")
+        if "compress/mode=2" not in text:
+            issues.append(Issue(
+                "error", "texture-lossless", rel(imp),
+                "a baked material map is imported uncompressed (several times the video memory)",
+                "set compress/mode=2 (VRAM Compressed), and compress/normal_map=1 for an _n map, then reimport",
+            ))
+        elif imp.name.endswith("_n.png.import") and "compress/normal_map=1" not in text:
+            issues.append(Issue(
+                "error", "texture-normal", rel(imp),
+                "a normal map is compressed as a colour map, which bends its normals",
+                "set compress/normal_map=1 and reimport",
+            ))
     return issues
 
 
