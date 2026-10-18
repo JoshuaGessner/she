@@ -757,7 +757,6 @@ func _feel_probe(player: Player) -> void:
 		var row: Dictionary = {"stopped": 0.0, "kicked": 0.0, "flinched": 0.0,
 			"heavy": false, "windup_ms": 0}
 		Input.action_press("attack")
-		var started: int = Time.get_ticks_msec()
 		var released: bool = false
 		var frames: int = 0
 		while frames < 2 or player.weapon.is_busy():
@@ -768,8 +767,12 @@ func _feel_probe(player: Player) -> void:
 					or mode == "heavy" and player.weapon.phase() == MeleeWeapon.Phase.ACTIVE):
 				Input.action_release("attack")
 				released = true
+			# **In game time, not the wall clock** (B148): a loaded machine runs
+			# the physics steps it owes back to back, so a wind-up timed by
+			# `get_ticks_msec` read 376 ms in a sweep that was 462 ms alone, and
+			# failed a heavy blow that was as slow as ever. Counted in frames.
 			if player.weapon.phase() == MeleeWeapon.Phase.ACTIVE and row["windup_ms"] == 0:
-				row["windup_ms"] = Time.get_ticks_msec() - started
+				row["windup_ms"] = int(round(frames * 1000.0 / Engine.physics_ticks_per_second))
 			row["stopped"] = maxf(float(row["stopped"]), player.weapon.stopped_for())
 			row["kicked"] = maxf(float(row["kicked"]), player.view_kick().length())
 			# The recoil of *your* blow (ADR-335): the six frames after it lands,
