@@ -408,12 +408,32 @@ def review(name):
         dst.objects = ["player_body"]
     body = dst.objects[0]
     bpy.context.scene.collection.objects.link(body)
+    _relink_shipped(body)
     for mod in body.modifiers:
         if mod.type == "ARMATURE":
             mod.object = em.RIG
     if name in BODY_PIECES:
         _mask(body)
     em.review(name, SRC)
+
+
+def _relink_shipped(body):
+    """**The body's maps, from where they ship** (B163). The bake saves its maps
+    to the temp folder (`blender_bake._image`: the glb carries them), so the
+    body's .blend points at files the system has since cleared, and every review
+    drew the delver magenta. The exported copies sit beside the glb as
+    `player_body_<image>.png`; a review reads those."""
+    for slot in body.material_slots:
+        material = slot.material
+        if material is None or not material.use_nodes:
+            continue
+        for node in material.node_tree.nodes:
+            if node.type != "TEX_IMAGE" or node.image is None:
+                continue
+            shipped = OUT / f"player_body_{node.image.name}.png"
+            if not Path(bpy.path.abspath(node.image.filepath)).exists() and shipped.exists():
+                node.image.filepath = str(shipped)
+                node.image.reload()
 
 
 ## Pieces in the body slot, which hide the body under them, and the bones
