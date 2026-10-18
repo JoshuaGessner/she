@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://b2jo4gjbf5q61"
-path="res://.godot/imported/wolf_coat_worn_wolf_coat_worn_c.png-9a8311c88eb8846a8ac2efd8819cd62d.ctex"
+path.s3tc="res://.godot/imported/wolf_coat_worn_wolf_coat_worn_c.png-9a8311c88eb8846a8ac2efd8819cd62d.s3tc.ctex"
+path.etc2="res://.godot/imported/wolf_coat_worn_wolf_coat_worn_c.png-9a8311c88eb8846a8ac2efd8819cd62d.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "d078e3ce8b9045e16e462bb844b71a41"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/wolf_coat_worn_wolf_coat_worn_c.png"
-dest_files=["res://.godot/imported/wolf_coat_worn_wolf_coat_worn_c.png-9a8311c88eb8846a8ac2efd8819cd62d.ctex"]
+dest_files=["res://.godot/imported/wolf_coat_worn_wolf_coat_worn_c.png-9a8311c88eb8846a8ac2efd8819cd62d.s3tc.ctex", "res://.godot/imported/wolf_coat_worn_wolf_coat_worn_c.png-9a8311c88eb8846a8ac2efd8819cd62d.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cm2mhjoc5l4id"
-path="res://.godot/imported/hunter_hood_worn_hunter_hood_worn_c.png-4ada7ebe802cdab4bd3e4b9ee61d92e2.ctex"
+path.s3tc="res://.godot/imported/hunter_hood_worn_hunter_hood_worn_c.png-4ada7ebe802cdab4bd3e4b9ee61d92e2.s3tc.ctex"
+path.etc2="res://.godot/imported/hunter_hood_worn_hunter_hood_worn_c.png-4ada7ebe802cdab4bd3e4b9ee61d92e2.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "56f583601027c3f7163b0e71ba7db6b6"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/hunter_hood_worn_hunter_hood_worn_c.png"
-dest_files=["res://.godot/imported/hunter_hood_worn_hunter_hood_worn_c.png-4ada7ebe802cdab4bd3e4b9ee61d92e2.ctex"]
+dest_files=["res://.godot/imported/hunter_hood_worn_hunter_hood_worn_c.png-4ada7ebe802cdab4bd3e4b9ee61d92e2.s3tc.ctex", "res://.godot/imported/hunter_hood_worn_hunter_hood_worn_c.png-4ada7ebe802cdab4bd3e4b9ee61d92e2.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

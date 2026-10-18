@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://52qs5ql7oeus"
-path="res://.godot/imported/veidimadr_arms_r5_veidimadr_arms_r5_c.png-f16673f34462b8f079a3184aeb73aaa5.ctex"
+path.s3tc="res://.godot/imported/veidimadr_arms_r5_veidimadr_arms_r5_c.png-f16673f34462b8f079a3184aeb73aaa5.s3tc.ctex"
+path.etc2="res://.godot/imported/veidimadr_arms_r5_veidimadr_arms_r5_c.png-f16673f34462b8f079a3184aeb73aaa5.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "3bad0a0d1768e2459d59ef5b6fc17cec"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/veidimadr_arms_r5_veidimadr_arms_r5_c.png"
-dest_files=["res://.godot/imported/veidimadr_arms_r5_veidimadr_arms_r5_c.png-f16673f34462b8f079a3184aeb73aaa5.ctex"]
+dest_files=["res://.godot/imported/veidimadr_arms_r5_veidimadr_arms_r5_c.png-f16673f34462b8f079a3184aeb73aaa5.s3tc.ctex", "res://.godot/imported/veidimadr_arms_r5_veidimadr_arms_r5_c.png-f16673f34462b8f079a3184aeb73aaa5.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

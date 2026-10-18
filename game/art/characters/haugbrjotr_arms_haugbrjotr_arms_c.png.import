@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bl1dy63tpfq8o"
-path="res://.godot/imported/haugbrjotr_arms_haugbrjotr_arms_c.png-14b5db99c3356f3a7bcb2f53d10a96ec.ctex"
+path.s3tc="res://.godot/imported/haugbrjotr_arms_haugbrjotr_arms_c.png-14b5db99c3356f3a7bcb2f53d10a96ec.s3tc.ctex"
+path.etc2="res://.godot/imported/haugbrjotr_arms_haugbrjotr_arms_c.png-14b5db99c3356f3a7bcb2f53d10a96ec.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "7a384c2d2fac787808401bc07e39092f"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/haugbrjotr_arms_haugbrjotr_arms_c.png"
-dest_files=["res://.godot/imported/haugbrjotr_arms_haugbrjotr_arms_c.png-14b5db99c3356f3a7bcb2f53d10a96ec.ctex"]
+dest_files=["res://.godot/imported/haugbrjotr_arms_haugbrjotr_arms_c.png-14b5db99c3356f3a7bcb2f53d10a96ec.s3tc.ctex", "res://.godot/imported/haugbrjotr_arms_haugbrjotr_arms_c.png-14b5db99c3356f3a7bcb2f53d10a96ec.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

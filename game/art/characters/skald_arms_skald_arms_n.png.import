@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dwmdt070lidm5"
-path="res://.godot/imported/skald_arms_skald_arms_n.png-53923e1d519cd4d224af93c180948a40.ctex"
+path.s3tc="res://.godot/imported/skald_arms_skald_arms_n.png-53923e1d519cd4d224af93c180948a40.s3tc.ctex"
+path.etc2="res://.godot/imported/skald_arms_skald_arms_n.png-53923e1d519cd4d224af93c180948a40.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "72e07670171ad367103ec79308549f55"
@@ -14,17 +16,17 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/skald_arms_skald_arms_n.png"
-dest_files=["res://.godot/imported/skald_arms_skald_arms_n.png-53923e1d519cd4d224af93c180948a40.ctex"]
+dest_files=["res://.godot/imported/skald_arms_skald_arms_n.png-53923e1d519cd4d224af93c180948a40.s3tc.ctex", "res://.godot/imported/skald_arms_skald_arms_n.png-53923e1d519cd4d224af93c180948a40.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

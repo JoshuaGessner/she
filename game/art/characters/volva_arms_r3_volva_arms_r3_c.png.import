@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dju01v4t555fu"
-path="res://.godot/imported/volva_arms_r3_volva_arms_r3_c.png-4f461cd6faeaa6cf8941c3d53c0c097a.ctex"
+path.s3tc="res://.godot/imported/volva_arms_r3_volva_arms_r3_c.png-4f461cd6faeaa6cf8941c3d53c0c097a.s3tc.ctex"
+path.etc2="res://.godot/imported/volva_arms_r3_volva_arms_r3_c.png-4f461cd6faeaa6cf8941c3d53c0c097a.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "a1fba6d9433a7c80717179ea0bc15176"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/volva_arms_r3_volva_arms_r3_c.png"
-dest_files=["res://.godot/imported/volva_arms_r3_volva_arms_r3_c.png-4f461cd6faeaa6cf8941c3d53c0c097a.ctex"]
+dest_files=["res://.godot/imported/volva_arms_r3_volva_arms_r3_c.png-4f461cd6faeaa6cf8941c3d53c0c097a.s3tc.ctex", "res://.godot/imported/volva_arms_r3_volva_arms_r3_c.png-4f461cd6faeaa6cf8941c3d53c0c097a.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bil2ohax82fgs"
-path="res://.godot/imported/dvergar_plate_worn_dvergar_plate_worn_c.png-9ceec2bebd33d7fae8f8fb38a35e7377.ctex"
+path.s3tc="res://.godot/imported/dvergar_plate_worn_dvergar_plate_worn_c.png-9ceec2bebd33d7fae8f8fb38a35e7377.s3tc.ctex"
+path.etc2="res://.godot/imported/dvergar_plate_worn_dvergar_plate_worn_c.png-9ceec2bebd33d7fae8f8fb38a35e7377.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "0585b22bd2baf594caf393870961302c"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/dvergar_plate_worn_dvergar_plate_worn_c.png"
-dest_files=["res://.godot/imported/dvergar_plate_worn_dvergar_plate_worn_c.png-9ceec2bebd33d7fae8f8fb38a35e7377.ctex"]
+dest_files=["res://.godot/imported/dvergar_plate_worn_dvergar_plate_worn_c.png-9ceec2bebd33d7fae8f8fb38a35e7377.s3tc.ctex", "res://.godot/imported/dvergar_plate_worn_dvergar_plate_worn_c.png-9ceec2bebd33d7fae8f8fb38a35e7377.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

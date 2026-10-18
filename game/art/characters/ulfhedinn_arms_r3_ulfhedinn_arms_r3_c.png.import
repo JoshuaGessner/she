@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cevcyyy0x4puj"
-path="res://.godot/imported/ulfhedinn_arms_r3_ulfhedinn_arms_r3_c.png-350e4847810470f8ef25d662ebcd079f.ctex"
+path.s3tc="res://.godot/imported/ulfhedinn_arms_r3_ulfhedinn_arms_r3_c.png-350e4847810470f8ef25d662ebcd079f.s3tc.ctex"
+path.etc2="res://.godot/imported/ulfhedinn_arms_r3_ulfhedinn_arms_r3_c.png-350e4847810470f8ef25d662ebcd079f.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "90fe5405d3b123a29730386647f02668"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/ulfhedinn_arms_r3_ulfhedinn_arms_r3_c.png"
-dest_files=["res://.godot/imported/ulfhedinn_arms_r3_ulfhedinn_arms_r3_c.png-350e4847810470f8ef25d662ebcd079f.ctex"]
+dest_files=["res://.godot/imported/ulfhedinn_arms_r3_ulfhedinn_arms_r3_c.png-350e4847810470f8ef25d662ebcd079f.s3tc.ctex", "res://.godot/imported/ulfhedinn_arms_r3_ulfhedinn_arms_r3_c.png-350e4847810470f8ef25d662ebcd079f.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

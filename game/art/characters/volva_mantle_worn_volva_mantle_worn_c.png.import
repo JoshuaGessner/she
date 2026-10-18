@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://cu7jucow4etv8"
-path="res://.godot/imported/volva_mantle_worn_volva_mantle_worn_c.png-bf5d9b0c6a5c191805101d7aa2bfd23c.ctex"
+path.s3tc="res://.godot/imported/volva_mantle_worn_volva_mantle_worn_c.png-bf5d9b0c6a5c191805101d7aa2bfd23c.s3tc.ctex"
+path.etc2="res://.godot/imported/volva_mantle_worn_volva_mantle_worn_c.png-bf5d9b0c6a5c191805101d7aa2bfd23c.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "8ddcc2a4e3a251d6302ee455d67088d9"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/volva_mantle_worn_volva_mantle_worn_c.png"
-dest_files=["res://.godot/imported/volva_mantle_worn_volva_mantle_worn_c.png-bf5d9b0c6a5c191805101d7aa2bfd23c.ctex"]
+dest_files=["res://.godot/imported/volva_mantle_worn_volva_mantle_worn_c.png-bf5d9b0c6a5c191805101d7aa2bfd23c.s3tc.ctex", "res://.godot/imported/volva_mantle_worn_volva_mantle_worn_c.png-bf5d9b0c6a5c191805101d7aa2bfd23c.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

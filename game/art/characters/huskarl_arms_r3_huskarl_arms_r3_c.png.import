@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://2y0e60nqj1cd"
-path="res://.godot/imported/huskarl_arms_r3_huskarl_arms_r3_c.png-94be901702c581d2f0726a65e0f191ca.ctex"
+path.s3tc="res://.godot/imported/huskarl_arms_r3_huskarl_arms_r3_c.png-94be901702c581d2f0726a65e0f191ca.s3tc.ctex"
+path.etc2="res://.godot/imported/huskarl_arms_r3_huskarl_arms_r3_c.png-94be901702c581d2f0726a65e0f191ca.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "9a922808d47b24606cc9274496d08a55"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/huskarl_arms_r3_huskarl_arms_r3_c.png"
-dest_files=["res://.godot/imported/huskarl_arms_r3_huskarl_arms_r3_c.png-94be901702c581d2f0726a65e0f191ca.ctex"]
+dest_files=["res://.godot/imported/huskarl_arms_r3_huskarl_arms_r3_c.png-94be901702c581d2f0726a65e0f191ca.s3tc.ctex", "res://.godot/imported/huskarl_arms_r3_huskarl_arms_r3_c.png-94be901702c581d2f0726a65e0f191ca.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

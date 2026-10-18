@@ -14056,4 +14056,17 @@ References:
 
 **Measured:** `--menu-probe` gains a row. Before any input it says `e/X`; after a pad press, `X`; after a key, `e`; and a stick drifting at 0.2 does not take it back. With the device ignored, the row fails, reading `e/X` throughout. The bag, HUD, rebind, verb, fury and Haugbrot probes are green, as are the Threshold's own. Every one of those compares prompts through the same function.
 
+## ADR-408 — A baked material map goes to the GPU compressed
+
+**Date:** 2026-10-18 · **Status:** accepted · **Amends ADR-086 (the export's texture formats); `TEC-001` performance** · **Found by measuring memory (B160)**
+
+**Context:** `ClassCatalogue` loads every class at the menu and keeps them all session, so every class's arms (four ranks), garments and portrait stay loaded. Loading them was measured windowed at **319 MB of video memory**. The cause was the import, not the count. Godot imports a PNG losslessly unless the editor sees it used in 3D, and a headless import never does. So all 88 maps the Blender scripts baked (characters, enemies, heroes, props) reached the GPU uncompressed, about 5.3 MB per 1024² map with its mips. ADR-086 turned the compressed formats on for export when the project had no textures; nothing changed when it got them. TEC-001 targets a mid-range 2020 GPU, which commonly has 4 GB.
+
+**Decision:**
+- **Baked material maps import as VRAM Compressed** (`compress/mode=2`): S3TC/BPTC on desktop and ETC2/ASTC for Apple arm64, both already enabled. Normal maps use normal-map compression (`compress/normal_map=1`), which keeps them from bending as colour maps would.
+- **`check_project.py` refuses a lossless one** (`texture-lossless`, `texture-normal`) in `art/characters`, `enemies`, `heroes` and `props`. Every new bake would otherwise arrive lossless again.
+- **The catalogue keeps everything loaded.** At 68 MB the share of the GPU is small, and loading each class's art on demand would move a ~100 ms load into the class screen. That is B160's remaining half, not needed now.
+
+**Measured:** the six classes' textures cost 319.1 MB, now 67.6 MB (−79%); loading them took 726 ms, now 99 ms. The same `--body-shot` of a teammate in plate differs in 0.56% and 0.68% of pixels (front and side), along the ink lines, and reads the same. `art_probe`, `data_probe`, the bag, body, hands, rig and enemy-animation probes and `--hunt-probe` are green. With the old imports restored, the new check reports all 88.
+
 *Entries below to be added as design decisions are signed off.*

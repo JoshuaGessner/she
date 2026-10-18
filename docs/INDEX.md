@@ -42,7 +42,7 @@ _How it gets built._
 
 | ID | Document | Status | Updated | Related |
 |---|---|---|---|---|
-| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-10-17 | TEC-002, TEC-003, DES-005 |
+| `TEC-001` | [Godot Architecture](tech/TEC-001-godot-architecture.md) | ✔ accepted | 2026-10-18 | TEC-002, TEC-003, DES-005 |
 | `TEC-002` | [Project Structure & Conventions](tech/TEC-002-project-structure.md) | ✔ accepted | 2026-09-13 | TEC-001, PRO-001 |
 | `TEC-003` | [Save System & Persistence Implementation](tech/TEC-003-save-and-persistence-tech.md) | ✔ accepted | 2026-09-16 | DES-003, DES-015, TEC-001, TEC-002, TEC-004 |
 | `TEC-004` | [Networking Architecture](tech/TEC-004-networking.md) | ✔ accepted | 2026-10-07 | DES-012, TEC-001, TEC-003, PRO-001 |

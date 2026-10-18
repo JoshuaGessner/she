@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ckh3p52wbcdsn"
-path="res://.godot/imported/haugbrjotr_arms_r3_haugbrjotr_arms_r3_n.png-0a930a2347329dbad248bf2e6d88bce1.ctex"
+path.s3tc="res://.godot/imported/haugbrjotr_arms_r3_haugbrjotr_arms_r3_n.png-0a930a2347329dbad248bf2e6d88bce1.s3tc.ctex"
+path.etc2="res://.godot/imported/haugbrjotr_arms_r3_haugbrjotr_arms_r3_n.png-0a930a2347329dbad248bf2e6d88bce1.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "5c7a098456f345b9ce6ae3d041cb5564"
@@ -14,17 +16,17 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/haugbrjotr_arms_r3_haugbrjotr_arms_r3_n.png"
-dest_files=["res://.godot/imported/haugbrjotr_arms_r3_haugbrjotr_arms_r3_n.png-0a930a2347329dbad248bf2e6d88bce1.ctex"]
+dest_files=["res://.godot/imported/haugbrjotr_arms_r3_haugbrjotr_arms_r3_n.png-0a930a2347329dbad248bf2e6d88bce1.s3tc.ctex", "res://.godot/imported/haugbrjotr_arms_r3_haugbrjotr_arms_r3_n.png-0a930a2347329dbad248bf2e6d88bce1.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

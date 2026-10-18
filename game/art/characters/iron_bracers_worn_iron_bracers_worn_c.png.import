@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bspjffno67irj"
-path="res://.godot/imported/iron_bracers_worn_iron_bracers_worn_c.png-199621c2ad0b591fdd3409d2ce64cc9b.ctex"
+path.s3tc="res://.godot/imported/iron_bracers_worn_iron_bracers_worn_c.png-199621c2ad0b591fdd3409d2ce64cc9b.s3tc.ctex"
+path.etc2="res://.godot/imported/iron_bracers_worn_iron_bracers_worn_c.png-199621c2ad0b591fdd3409d2ce64cc9b.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "324a05c3c2928c4689072ad36ad248eb"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/iron_bracers_worn_iron_bracers_worn_c.png"
-dest_files=["res://.godot/imported/iron_bracers_worn_iron_bracers_worn_c.png-199621c2ad0b591fdd3409d2ce64cc9b.ctex"]
+dest_files=["res://.godot/imported/iron_bracers_worn_iron_bracers_worn_c.png-199621c2ad0b591fdd3409d2ce64cc9b.s3tc.ctex", "res://.godot/imported/iron_bracers_worn_iron_bracers_worn_c.png-199621c2ad0b591fdd3409d2ce64cc9b.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

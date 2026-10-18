@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://ccbu7gi6krj5q"
-path="res://.godot/imported/hoard_keeper_hoard_keeper_n.png-282d0576ec77e0eda672470c646f90f8.ctex"
+path.s3tc="res://.godot/imported/hoard_keeper_hoard_keeper_n.png-282d0576ec77e0eda672470c646f90f8.s3tc.ctex"
+path.etc2="res://.godot/imported/hoard_keeper_hoard_keeper_n.png-282d0576ec77e0eda672470c646f90f8.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "0e0a8b384bf80a3a3256ead9803532c1"
@@ -14,17 +16,17 @@ generator_parameters={
 [deps]
 
 source_file="res://art/enemies/hoard_keeper_hoard_keeper_n.png"
-dest_files=["res://.godot/imported/hoard_keeper_hoard_keeper_n.png-282d0576ec77e0eda672470c646f90f8.ctex"]
+dest_files=["res://.godot/imported/hoard_keeper_hoard_keeper_n.png-282d0576ec77e0eda672470c646f90f8.s3tc.ctex", "res://.godot/imported/hoard_keeper_hoard_keeper_n.png-282d0576ec77e0eda672470c646f90f8.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

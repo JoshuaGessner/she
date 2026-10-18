@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bwa4lrxy8w7fq"
-path="res://.godot/imported/otr_pelt_otr_pelt_c.png-17a773b8b7b6a4840a229e775eeb0b69.ctex"
+path.s3tc="res://.godot/imported/otr_pelt_otr_pelt_c.png-17a773b8b7b6a4840a229e775eeb0b69.s3tc.ctex"
+path.etc2="res://.godot/imported/otr_pelt_otr_pelt_c.png-17a773b8b7b6a4840a229e775eeb0b69.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "8a88b66c8e6b2e7980baae5c78e38ce0"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/props/otr_pelt_otr_pelt_c.png"
-dest_files=["res://.godot/imported/otr_pelt_otr_pelt_c.png-17a773b8b7b6a4840a229e775eeb0b69.ctex"]
+dest_files=["res://.godot/imported/otr_pelt_otr_pelt_c.png-17a773b8b7b6a4840a229e775eeb0b69.s3tc.ctex", "res://.godot/imported/otr_pelt_otr_pelt_c.png-17a773b8b7b6a4840a229e775eeb0b69.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

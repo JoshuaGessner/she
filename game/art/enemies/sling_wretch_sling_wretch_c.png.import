@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://bb5owkd2tcwl1"
-path="res://.godot/imported/sling_wretch_sling_wretch_c.png-eafda42625f3e01e9df5aa1ca53eb0aa.ctex"
+path.s3tc="res://.godot/imported/sling_wretch_sling_wretch_c.png-eafda42625f3e01e9df5aa1ca53eb0aa.s3tc.ctex"
+path.etc2="res://.godot/imported/sling_wretch_sling_wretch_c.png-eafda42625f3e01e9df5aa1ca53eb0aa.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "6d079dc96dcd0c2c4f6f36ea1d2c7398"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/enemies/sling_wretch_sling_wretch_c.png"
-dest_files=["res://.godot/imported/sling_wretch_sling_wretch_c.png-eafda42625f3e01e9df5aa1ca53eb0aa.ctex"]
+dest_files=["res://.godot/imported/sling_wretch_sling_wretch_c.png-eafda42625f3e01e9df5aa1ca53eb0aa.s3tc.ctex", "res://.godot/imported/sling_wretch_sling_wretch_c.png-eafda42625f3e01e9df5aa1ca53eb0aa.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

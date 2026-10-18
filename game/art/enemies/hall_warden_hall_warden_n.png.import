@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://d2pq1onejwlk"
-path="res://.godot/imported/hall_warden_hall_warden_n.png-534bf506af75a9c13c34862d51144c8b.ctex"
+path.s3tc="res://.godot/imported/hall_warden_hall_warden_n.png-534bf506af75a9c13c34862d51144c8b.s3tc.ctex"
+path.etc2="res://.godot/imported/hall_warden_hall_warden_n.png-534bf506af75a9c13c34862d51144c8b.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "f0e4a436c75419f9f40aa80bf27cd00b"
@@ -14,17 +16,17 @@ generator_parameters={
 [deps]
 
 source_file="res://art/enemies/hall_warden_hall_warden_n.png"
-dest_files=["res://.godot/imported/hall_warden_hall_warden_n.png-534bf506af75a9c13c34862d51144c8b.ctex"]
+dest_files=["res://.godot/imported/hall_warden_hall_warden_n.png-534bf506af75a9c13c34862d51144c8b.s3tc.ctex", "res://.godot/imported/hall_warden_hall_warden_n.png-534bf506af75a9c13c34862d51144c8b.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

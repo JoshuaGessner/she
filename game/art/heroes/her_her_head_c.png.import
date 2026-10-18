@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://yb3rmkr3n3rd"
-path="res://.godot/imported/her_her_head_c.png-59c9e5a4e1b487ca9d54d502f028918d.ctex"
+path.s3tc="res://.godot/imported/her_her_head_c.png-59c9e5a4e1b487ca9d54d502f028918d.s3tc.ctex"
+path.etc2="res://.godot/imported/her_her_head_c.png-59c9e5a4e1b487ca9d54d502f028918d.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "58960ad64067bf3749388e8c1f317430"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/heroes/her_her_head_c.png"
-dest_files=["res://.godot/imported/her_her_head_c.png-59c9e5a4e1b487ca9d54d502f028918d.ctex"]
+dest_files=["res://.godot/imported/her_her_head_c.png-59c9e5a4e1b487ca9d54d502f028918d.s3tc.ctex", "res://.godot/imported/her_her_head_c.png-59c9e5a4e1b487ca9d54d502f028918d.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0

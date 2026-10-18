@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://dmxta3h6oj6aq"
-path="res://.godot/imported/otr_pelt_worn_otr_pelt_worn_n.png-e59c23bc0cc4c0c87d929d059a8d641a.ctex"
+path.s3tc="res://.godot/imported/otr_pelt_worn_otr_pelt_worn_n.png-e59c23bc0cc4c0c87d929d059a8d641a.s3tc.ctex"
+path.etc2="res://.godot/imported/otr_pelt_worn_otr_pelt_worn_n.png-e59c23bc0cc4c0c87d929d059a8d641a.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "3a7a268eabc8fcb29ea7e5833acc2739"
@@ -14,17 +16,17 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/otr_pelt_worn_otr_pelt_worn_n.png"
-dest_files=["res://.godot/imported/otr_pelt_worn_otr_pelt_worn_n.png-e59c23bc0cc4c0c87d929d059a8d641a.ctex"]
+dest_files=["res://.godot/imported/otr_pelt_worn_otr_pelt_worn_n.png-e59c23bc0cc4c0c87d929d059a8d641a.s3tc.ctex", "res://.godot/imported/otr_pelt_worn_otr_pelt_worn_n.png-e59c23bc0cc4c0c87d929d059a8d641a.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
 compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
-compress/normal_map=0
+compress/normal_map=1
 compress/channel_pack=0
 mipmaps/generate=true
 mipmaps/limit=-1

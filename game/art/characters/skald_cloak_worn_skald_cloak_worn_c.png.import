@@ -3,9 +3,11 @@
 importer="texture"
 type="CompressedTexture2D"
 uid="uid://7ywuqq6sy7ao"
-path="res://.godot/imported/skald_cloak_worn_skald_cloak_worn_c.png-4530c24514d6692becf729ba9eb01c8e.ctex"
+path.s3tc="res://.godot/imported/skald_cloak_worn_skald_cloak_worn_c.png-4530c24514d6692becf729ba9eb01c8e.s3tc.ctex"
+path.etc2="res://.godot/imported/skald_cloak_worn_skald_cloak_worn_c.png-4530c24514d6692becf729ba9eb01c8e.etc2.ctex"
 metadata={
-"vram_texture": false
+"imported_formats": ["s3tc_bptc", "etc2_astc"],
+"vram_texture": true
 }
 generator_parameters={
 "md5": "792f5ebd556de5d34460214bc4a38f0f"
@@ -14,11 +16,11 @@ generator_parameters={
 [deps]
 
 source_file="res://art/characters/skald_cloak_worn_skald_cloak_worn_c.png"
-dest_files=["res://.godot/imported/skald_cloak_worn_skald_cloak_worn_c.png-4530c24514d6692becf729ba9eb01c8e.ctex"]
+dest_files=["res://.godot/imported/skald_cloak_worn_skald_cloak_worn_c.png-4530c24514d6692becf729ba9eb01c8e.s3tc.ctex", "res://.godot/imported/skald_cloak_worn_skald_cloak_worn_c.png-4530c24514d6692becf729ba9eb01c8e.etc2.ctex"]
 
 [params]
 
-compress/mode=0
+compress/mode=2
 compress/high_quality=false
 compress/lossy_quality=0.7
 compress/uastc_level=0
