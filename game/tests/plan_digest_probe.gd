@@ -42,7 +42,7 @@ func _initialize() -> void:
 		print("[digest] wrote %d plan digest(s) to %s" % [made.size(), DIGESTS])
 		quit(0)
 		return
-	var kept: PackedStringArray = FileAccess.get_file_as_string(DIGESTS).strip_edges().split("\n")
+	var kept: PackedStringArray = FileAccess.get_file_as_string(DIGESTS).replace("\r", "").strip_edges().split("\n")
 	var differ: PackedStringArray = PackedStringArray()
 	for i: int in made.size():
 		if i >= kept.size() or kept[i] != made[i]:
