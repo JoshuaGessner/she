@@ -1,5 +1,5 @@
 class_name HoldVerb
-extends Node
+extends Verb
 
 ## **Hold** (`M3-T02`, `DES-011`) — the Húskarl's verb, and only theirs.
 ##
@@ -28,14 +28,8 @@ extends Node
 ## `Player` keeps `planted`, which crosses the wire, and everything every peer
 ## does with it — the layer, the stance, the brace, the sound of the plant.
 
-var _body: Player = null
 ## Health a Last Door has cost and the host has not yet taken (ADR-273).
 var _owed_blood: float = 0.0
-
-
-## Called by the body that owns it, once, before anything asks.
-func serve(body: Player) -> void:
-	_body = body
 
 
 ## The owner's frame: the plant, what it costs, and what letting go of it does.
@@ -44,8 +38,7 @@ func ask(delta: float, tuning: TuningProfile, driving: bool, rummaging: bool) ->
 	# the verb, not the stat line — so this is the line that makes a Húskarl
 	# recognisable from ten seconds of watching, and it is gated on nothing but
 	# whether you are one.
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	var wants: bool = (body != null and body.verb == &"hold"
+	var wants: bool = (_owns(&"hold")
 		and driving and Input.is_action_pressed("verb")
 		and not _body.is_incapacitated()
 		and not rummaging
@@ -82,17 +75,6 @@ func ask(delta: float, tuning: TuningProfile, driving: bool, rummaging: bool) ->
 			shove()
 		else:
 			shove.rpc_id(Player.HOST_PEER)
-
-
-## Whether an RPC came from the peer that owns this body, on the host. A local
-## call reports sender 0, which is this peer.
-func _from_owner() -> bool:
-	if not multiplayer.is_server():
-		return false
-	var from: int = multiplayer.get_remote_sender_id()
-	if from == 0:
-		from = multiplayer.get_unique_id()
-	return from == _body.get_multiplayer_authority()
 
 
 ## **Last Door's price, taken where health lives** (ADR-273). The owner knows

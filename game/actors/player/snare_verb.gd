@@ -1,5 +1,5 @@
 class_name SnareVerb
-extends Node
+extends Verb
 
 ## **Snare** (`M3-T11`, `DES-011`) — the Veiðimaðr's verb, and only theirs.
 ##
@@ -24,7 +24,6 @@ extends Node
 ## The host was told a trap was set here, by this peer (`Player.set_snare`).
 signal placed(at: Vector3, placer: int)
 
-var _body: Player = null
 ## How far through setting a Snare, 0 to 1. **Not replicated**, unlike the
 ## Húskarl's `planted`: that one crosses the wire because it changes a collision
 ## layer and the host's enemies have to collide with it. This changes nothing
@@ -35,11 +34,6 @@ var _setting: float = 0.0
 ## the progress of a verb you cannot otherwise see, since `_setting` never
 ## leaves this machine. Made the first time it is needed.
 var _ghost: MeshInstance3D = null
-
-
-## Called by the body that owns it, once, before anything asks.
-func serve(body: Player) -> void:
-	_body = body
 
 
 ## How far through setting a snare this body is (the kneel, `--verbs-probe`).
@@ -54,8 +48,7 @@ func ghost() -> MeshInstance3D:
 
 ## The owner's frame: held for `snare_place_seconds`, the trap is asked for.
 func ask(delta: float, tuning: TuningProfile, driving: bool, rummaging: bool) -> void:
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	var wants: bool = (body != null and body.verb == &"snare"
+	var wants: bool = (_owns(&"snare")
 		and driving and Input.is_action_pressed("verb")
 		and not _body.is_incapacitated()
 		and not rummaging
@@ -85,14 +78,8 @@ func ask(delta: float, tuning: TuningProfile, driving: bool, rummaging: bool) ->
 ## than about this body.
 @rpc("any_peer", "call_local", "reliable")
 func place(at: Vector3) -> void:
-	if not multiplayer.is_server():
-		return
-	var from: int = multiplayer.get_remote_sender_id()
-	if from == 0:
-		from = multiplayer.get_unique_id()
-	if from != _body.get_multiplayer_authority():
-		return
-	placed.emit(at, from)
+	if _from_owner():
+		placed.emit(at, _body.get_multiplayer_authority())
 
 
 ## **Setting a snare, seen** (ADR-272): the ring it will be, growing at your

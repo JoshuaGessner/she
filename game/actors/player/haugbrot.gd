@@ -1,5 +1,5 @@
 class_name Haugbrot
-extends Node
+extends Verb
 
 ## **Haugbrot** (ADR-382, `DES-011` §6) — the Haugbrjótr's verb, and only hers.
 ##
@@ -19,7 +19,6 @@ extends Node
 ## Something gave under her hands (host): the body makes the noise of it.
 signal broke
 
-var _body: Player = null
 ## Host-side: seconds left, the length, what is being broken, and the measure
 ## of movement a step breaks it off by.
 var _left: float = 0.0
@@ -31,11 +30,6 @@ var _speed: float = 0.0
 var _asked: NodePath = NodePath()
 
 
-## Called by the body that owns it, once, before anything asks.
-func serve(body: Player) -> void:
-	_body = body
-
-
 ## Whether a break is under way, on the host.
 func working() -> bool:
 	return _left > 0.0
@@ -44,9 +38,8 @@ func working() -> bool:
 ## The owner's frame: the craft key held at what is shut is a request to break
 ## it — a door shut against her first, then a barrow, then the Hunter's hoard.
 func ask(driving: bool, rummaging: bool) -> void:
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
 	var target: NodePath = NodePath()
-	if body != null and body.verb == &"haugbrot" and driving \
+	if _owns(&"haugbrot") and driving \
 			and Input.is_action_pressed("verb") and not _body.is_incapacitated() and not rummaging:
 		var door: LockedDoor = _body.door_at_hand()
 		var barrow: Barrow = barrow_at_hand()
@@ -68,11 +61,8 @@ func ask(driving: bool, rummaging: bool) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _request(target: NodePath) -> void:
-	if not multiplayer.is_server():
-		return
-	if multiplayer.get_remote_sender_id() != _body.get_multiplayer_authority():
-		return
-	start(target)
+	if _from_owner():
+		start(target)
 
 
 ## Host-side. Only a Haugbrjótr, only at a door that is shut against her (a
@@ -82,8 +72,7 @@ func start(target: NodePath) -> void:
 	if target.is_empty():
 		stop()
 		return
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	if body == null or body.verb != &"haugbrot" or not breakable(target) \
+	if not _owns(&"haugbrot") or not breakable(target) \
 			or _body.is_incapacitated() or _left > 0.0:
 		return
 	# The Hunter's hoard comes loose faster than a door gives (ADR-403): it

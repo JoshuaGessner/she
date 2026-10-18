@@ -1,5 +1,5 @@
 class_name WolfFury
-extends Node
+extends Verb
 
 ## **Wolf-Fury** (ADR-345, `DES-011`) — the Úlfheðinn's verb, and only theirs.
 ##
@@ -23,16 +23,10 @@ signal howled
 ## The fury ended owing blood, and it was paid (host).
 signal paid
 
-var _body: Player = null
 ## How far through the howl that opens a fury the owner is, 0–1.
 var _howling: float = 0.0
 ## Seconds Rising Fury has added to this fury, capped at its own length.
 var _added: float = 0.0
-
-
-## Called by the body that owns it, once, before anything asks.
-func serve(body: Player) -> void:
-	_body = body
 
 
 ## How far through the howl this body is, 0–1. Owner-side (ADR-372).
@@ -42,8 +36,7 @@ func howling() -> float:
 
 ## The owner's frame: the key held through the howl rouses the fury.
 func ask(delta: float, tuning: TuningProfile, driving: bool, rummaging: bool) -> void:
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	var wants: bool = (body != null and body.verb == &"fury"
+	var wants: bool = (_owns(&"fury")
 		and driving and Input.is_action_pressed("verb")
 		and not _body.is_incapacitated()
 		and not rummaging
@@ -64,15 +57,9 @@ func ask(delta: float, tuning: TuningProfile, driving: bool, rummaging: bool) ->
 ## The Howl — every enemy in reach staggered back as by a blow.
 @rpc("any_peer", "call_remote", "reliable")
 func rouse() -> void:
-	if not multiplayer.is_server():
+	if not _from_owner():
 		return
-	var from: int = multiplayer.get_remote_sender_id()
-	if from == 0:
-		from = multiplayer.get_unique_id()
-	if from != _body.get_multiplayer_authority():
-		return
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	if body == null or body.verb != &"fury" or _body.fury > 0.0 or _body.fury_spent > 0.0 \
+	if not _owns(&"fury") or _body.fury > 0.0 or _body.fury_spent > 0.0 \
 			or _body.is_incapacitated():
 		return
 	var tuning: TuningProfile = Config.tuning

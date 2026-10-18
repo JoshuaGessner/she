@@ -1,5 +1,5 @@
 class_name Galdr
-extends Node
+extends Verb
 
 ## **Galdr** (ADR-387, `DES-011` §3) — the Skald's verb, and only his.
 ##
@@ -20,7 +20,6 @@ extends Node
 ## singer's own screen.
 signal sung(turned: int)
 
-var _body: Player = null
 var _camera: Camera3D = null
 ## Host-side: seconds left on the verse and its length. Owner-side: whether
 ## this body has asked to sing, so the key is a request when it changes.
@@ -37,10 +36,8 @@ var _pressed_at: int = 0
 var _stave: ClamorSource = null
 
 
-## Called by the body that owns it, once, before anything asks: the body, and
-## the eye Níðstöng aims by.
-func serve(body: Player, camera: Camera3D) -> void:
-	_body = body
+## The eye Níðstöng aims by, handed over with `serve`.
+func aim_with(camera: Camera3D) -> void:
 	_camera = camera
 
 
@@ -59,8 +56,7 @@ func ask(driving: bool, rummaging: bool) -> void:
 			_request_hush.rpc_id(Player.HOST_PEER)
 	elif _body.singing <= 0.0:
 		_hushed = false
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	var wants: bool = (body != null and body.verb == &"galdr"
+	var wants: bool = (_owns(&"galdr")
 		and driving and Input.is_action_pressed("verb")
 		and not _body.is_incapacitated()
 		and not rummaging)
@@ -85,12 +81,6 @@ func ask(driving: bool, rummaging: bool) -> void:
 		sing(wants)
 	else:
 		_request_song.rpc_id(Player.HOST_PEER, wants)
-
-
-## Whether an RPC came from the peer that owns this body, on the host.
-func _from_owner() -> bool:
-	return multiplayer.is_server() \
-		and multiplayer.get_remote_sender_id() == _body.get_multiplayer_authority()
 
 
 @rpc("any_peer", "call_remote", "reliable")
@@ -118,8 +108,7 @@ func sing(sing_on: bool) -> void:
 		if not _stanza:
 			stop()
 		return
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	if body == null or body.verb != &"galdr" or _body.is_incapacitated() or _left > 0.0:
+	if not _owns(&"galdr") or _body.is_incapacitated() or _left > 0.0:
 		return
 	_stanza = false
 	_total = maxf(Config.tuning.galdr_seconds, 0.01)

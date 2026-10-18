@@ -1,5 +1,5 @@
 class_name Seidr
-extends Node
+extends Verb
 
 ## **Seiðr** (ADR-379, `DES-011` §2) — the Völva's verb, and only hers.
 ##
@@ -23,7 +23,6 @@ signal resting
 ## Vé: the seat stays warded a while, laid where she sat.
 signal warded(at: Vector3, ward: HushTrait)
 
-var _body: Player = null
 ## Host-side: seconds left on the trance, its length, and whether Varðlokkur's
 ## ward still stands between it and the next blow.
 var _left: float = 0.0
@@ -38,11 +37,6 @@ var _speed: float = 0.0
 var _asked: bool = false
 
 
-## Called by the body that owns it, once, before anything asks.
-func serve(body: Player) -> void:
-	_body = body
-
-
 ## Whether a trance is running, on the host.
 func sitting() -> bool:
 	return _left > 0.0
@@ -50,8 +44,7 @@ func sitting() -> bool:
 
 ## The owner's frame: the craft key held is a request to sit, let go to stand.
 func ask(driving: bool, rummaging: bool) -> void:
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	var hers: bool = body != null and body.verb == &"seidr"
+	var hers: bool = _owns(&"seidr")
 	if hers and driving and _body.sight_spent > 0.0 \
 			and Input.is_action_just_pressed("verb"):
 		resting.emit()
@@ -70,11 +63,8 @@ func ask(driving: bool, rummaging: bool) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _request(sitting_down: bool) -> void:
-	if not multiplayer.is_server():
-		return
-	if multiplayer.get_remote_sender_id() != _body.get_multiplayer_authority():
-		return
-	sit(sitting_down)
+	if _from_owner():
+		sit(sitting_down)
 
 
 ## Host-side. Sitting is refused to any but a Völva, while the sight is
@@ -83,8 +73,7 @@ func sit(sitting_down: bool) -> void:
 	if not sitting_down:
 		stop()
 		return
-	var body: ClassResource = ClassCatalogue.by_id(_body.sworn)
-	if body == null or body.verb != &"seidr" or _body.sight_spent > 0.0 \
+	if not _owns(&"seidr") or _body.sight_spent > 0.0 \
 			or _body.is_incapacitated() or _left > 0.0:
 		return
 	_total = maxf(Config.tuning.seidr_seconds, 0.01)

@@ -863,7 +863,8 @@ func _ready() -> void:
 	galdr = Galdr.new()
 	galdr.name = "Galdr"
 	add_child(galdr)
-	galdr.serve(self, _camera)
+	galdr.serve(self)
+	galdr.aim_with(_camera)
 	galdr.sung.connect(_on_sung)
 	wolf_fury = WolfFury.new()
 	wolf_fury.name = "WolfFury"
