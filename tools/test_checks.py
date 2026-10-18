@@ -8,7 +8,9 @@ A check that has never fired is not known to work — and most of these guard
 decisions (ADR-064, ADR-065, ADR-066) rather than behaviour, so nothing else
 would notice if one silently stopped matching. Each trial plants one violation
 in a real file, asserts the checker (`status.py --check`, `check_project.py` or
-`check_dead.py`) reports that specific issue code, and restores the file.
+`check_dead.py`) prints a line naming both that issue code and the file, and
+restores the file. A trial whose line is already printed on the clean tree
+fails as VACUOUS, because it could not have failed (B199).
 
 Writes to `docs/`, the CI workflow, two game scripts and two texture `.import`
 files, and restores each in a `finally`, so an interrupted run still leaves the
