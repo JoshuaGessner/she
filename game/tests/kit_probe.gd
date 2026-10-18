@@ -119,6 +119,11 @@ func _initialize() -> void:
 	var far: Array[int] = [0, 0, 0]
 	var far_names: PackedStringArray = PackedStringArray()
 	var far_meshes: Dictionary = _far_meshes()
+	# B16's share, by size and by colour: `size -> {mesh id: true}` and
+	# `colour -> {material id: true}`, across every floor built.
+	var by_size: Dictionary = {}
+	var by_colour: Dictionary = {}
+	var boxes: int = 0
 	for run_seed: int in SEEDS:
 		for depth: int in 3:
 			var graph: MissionGraph = MissionGraph.build(run_seed, depth)
@@ -139,6 +144,7 @@ func _initialize() -> void:
 			_solids_match(shell, census["occluders"] as Array, strayed)
 			ducked = minf(ducked, _clad_slabs(shell, bare, sunk, flush))
 			_far_cull(shell, far_meshes, far, far_names)
+			boxes += _shares(shell, by_size, by_colour)
 			shell.free()
 
 	print("[kit] laid        %d piece(s) over %d slab(s) across %d floor(s)"
@@ -156,6 +162,25 @@ func _initialize() -> void:
 		problems.append(("the far cull is wrong: %d flagstone(s) or panel(s) "
 			+ "draw to any range, %d beam(s), pillar(s) or frame(s) are cut (%s)")
 			% [far[1], far[2], ", ".join(far_names.slice(0, 3))])
+
+	# ─ 2c. alike boxes are one box (B16, B171) ─
+	#
+	# The renderer draws identical mesh-and-material pairs in one call, and a
+	# hall's ~700 room boxes came in 78 sizes and 7 colours — but each made its
+	# own of both, ~440 of a hall's ~750 draw calls. Shared now; only
+	# `--perf-shot`, windowed and outside the sweep, would notice a return.
+	var split_sizes: int = 0
+	for size: Vector3 in by_size:
+		split_sizes += 1 if (by_size[size] as Dictionary).size() > 1 else 0
+	var split_colours: int = 0
+	for colour: Color in by_colour:
+		split_colours += 1 if (by_colour[colour] as Dictionary).size() > 1 else 0
+	print("[kit] shared      %d drawn box(es) in %d size(s) and %d colour(s); %d size(s) and %d colour(s) made more than once (want 0, 0)"
+		% [boxes, by_size.size(), by_colour.size(), split_sizes, split_colours])
+	if boxes == 0 or split_sizes > 0 or split_colours > 0:
+		problems.append(("alike room boxes are not one resource: %d size(s) and %d "
+			+ "colour(s) were made more than once, which costs a draw call each "
+			+ "(B16)") % [split_sizes, split_colours])
 
 	# ─ 3. nothing the kit laid is a solid ─────────────────────────────────
 	print("[kit] solids      %d collision shape(s) for %d slab(s), %d strayed"
@@ -320,6 +345,27 @@ static func _lowest_walking_face(shape: Mesh) -> float:
 ## Every collision shape under a floor, and a complaint for any that is not a
 ## box — the kit's own `-colonly` proxies would arrive as boxes too, so the
 ## count is what catches them and the class is what catches a stranger.
+## The room boxes a floor drew (its root's own children with a `BoxMesh`), each
+## counted under its size and its colour by the resource it holds (B171).
+func _shares(shell: Node3D, by_size: Dictionary, by_colour: Dictionary) -> int:
+	var counted: int = 0
+	for child: Node in shell.get_children():
+		var slab := child as MeshInstance3D
+		if slab == null or not (slab.mesh is BoxMesh):
+			continue
+		var size: Vector3 = (slab.mesh as BoxMesh).size
+		if not by_size.has(size):
+			by_size[size] = {}
+		(by_size[size] as Dictionary)[slab.mesh.get_instance_id()] = true
+		var flat := slab.material_override as StandardMaterial3D
+		if flat != null:
+			if not by_colour.has(flat.albedo_color):
+				by_colour[flat.albedo_color] = {}
+			(by_colour[flat.albedo_color] as Dictionary)[flat.get_instance_id()] = true
+		counted += 1
+	return counted
+
+
 func _shapes_under(shell: Node3D, strayed: PackedStringArray) -> int:
 	var found: int = 0
 	for node: Node in shell.find_children("*", "CollisionShape3D", true, false):
