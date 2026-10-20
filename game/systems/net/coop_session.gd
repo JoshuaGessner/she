@@ -64,10 +64,6 @@ const NO_ANSWER: String = ("No answer from %s:%d after %d seconds.\n\n"
 ## Sentinel for "wherever the next spawn mark is". A real position, never used
 ## as one, because `Vector3` has no null.
 const NO_PLACE: Vector3 = Vector3(-99999.0, -99999.0, -99999.0)
-## Where a peer called down mid-run walks in (`M4-T15`, ADR-250). Named here
-## rather than passed, because the answer is *the floor the party is on* and
-## there is one scene that is a floor.
-const DEEP_SCENE: String = "res://levels/room_set/room_set.tscn"
 
 const PLAYER_SCENE: PackedScene = preload("res://actors/player/player.tscn")
 const ENEMY_SCENE: PackedScene = preload("res://actors/enemies/enemy.tscn")
@@ -831,7 +827,9 @@ func _come_down(run_seed: int, floor_index: int) -> void:
 	# This disconnect is our own scene transition, not the host abandoning us.
 	_going_to_them = true
 	multiplayer.multiplayer_peer = null
-	get_tree().change_scene_to_file.call_deferred(DEEP_SCENE)
+	# Where a peer called down mid-run walks in (`M4-T15`, ADR-250): the floor
+	# the party is on, and there is one scene that is a floor (ADR-411).
+	get_tree().change_scene_to_file.call_deferred(RoomSet.scene())
 
 
 func _on_peer_disconnected(peer: int) -> void:

@@ -57,7 +57,7 @@ PRIVATE_SECONDS = 34
 # The two doors this file walks. Extraction starts in the Deep, so it cannot
 # reuse the Threshold launch the other scenarios share.
 CAMP = "levels/lair/threshold.tscn"
-DEEP = "levels/room_set/room_set.tscn"
+DEEP = "tests/room_set_probed.tscn"
 # A three-player party, because that is the size the crash was reported at —
 # though it reproduces at two, and asserting it at three costs one process.
 # The host walks into the hole at 6 s of its own clock (`--doorway-probe`), so

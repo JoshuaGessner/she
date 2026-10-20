@@ -29,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 GAME = ROOT / "game"
-SCENE = "res://levels/room_set/room_set.tscn"
+SCENE = "res://tests/room_set_probed.tscn"
 
 HASH_RE = re.compile(r"^\[hash\] ([0-9a-f]{64})$", re.MULTILINE)
 COUNT_RE = re.compile(r"^\[hash\] seed -?\d+, entries (\d+), generated (\d+)$",

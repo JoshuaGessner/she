@@ -56,7 +56,7 @@ import own_user_dir
 
 ROOT = Path(__file__).resolve().parent.parent
 GAME = ROOT / "game"
-SCENE = "res://levels/room_set/room_set.tscn"
+SCENE = "res://tests/room_set_probed.tscn"
 
 # Tolerances, in metres. Chosen to be far below the divergence a broken link
 # produces — a body whose position never arrives sits at its spawn point, tens

@@ -37,13 +37,19 @@ game/                       the Godot project root (project.godot)
 │   ├── characters/         rigs and character meshes (.glb)
 │   └── shaders/            .gdshader
 ├── audio/
-└── tests/                  probes and validators
+└── tests/                  probes and validators — never exported (B185)
 ```
 
 **There is no `game/assets/`.** Art the engine loads lives in `game/art/`;
 DCC source files live in `source_art/` at the repo root and are never
 referenced by `res://` paths. A rig once landed in `game/assets/characters/`
 and had to be moved — that is the mistake this file is trying to prevent.
+
+**The level's probes live in `game/tests/room_set_probed.gd`** (ADR-411), a
+subclass of the level, not in `room_set.gd`. Launch a level probe or shot
+against `tests/room_set_probed.tscn`; `RoomSet.scene()` hands the same scene to
+a harness process that walks in through the camp or a doorway. A new
+`--x-probe` goes in that file's `_measure()`, never in the shipped level.
 
 ## Conventions
 

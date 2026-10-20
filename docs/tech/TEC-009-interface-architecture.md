@@ -4,7 +4,7 @@ title: Interface Architecture
 status: accepted
 owner: tech
 tags: [ui, hud, layout, legibility, accessibility, godot, research]
-updated: 2026-10-08
+updated: 2026-10-20
 related: [DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001]
 ---
 
@@ -86,7 +86,7 @@ function of game state and nothing bounds it.
 
 ### 1.2 Three of `DES-019`'s six layers do not exist
 
-`room_set.gd:3693` builds the whole in-run HUD. It is five children:
+`RoomSet._build_hud` builds the whole in-run HUD. It is five children:
 `WoundVignette`, `Ear`, `Reticle`, `FallenReadout`, and — outside a probe —
 `ArrivalBrief`.
 

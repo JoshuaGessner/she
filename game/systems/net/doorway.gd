@@ -8,7 +8,6 @@ extends Node
 ## authentication. The existing connection is still replaced when changing scene.
 
 const NAME: StringName = &"Doorway"
-const FLOOR_SCENE: String = "res://levels/room_set/room_set.tscn"
 signal called_down(run_seed: int, floor_index: int)
 
 static var _here: Doorway = null
@@ -40,9 +39,12 @@ func configure(api: SceneMultiplayer, scene: String, timeout: float) -> void:
 
 
 func _place() -> Dictionary:
+	# The floor's scene is whichever `RoomSet.scene()` names (ADR-411): a
+	# harness peer plays the probed level, and both ends of it agree.
+	var on_floor: bool = _scene == RoomSet.scene()
 	return {"scene": _scene,
-		"seed": RunFile.seed_of() if _scene == FLOOR_SCENE else 0,
-		"floor": RunFile.floor_index() if _scene == FLOOR_SCENE else 0}
+		"seed": RunFile.seed_of() if on_floor else 0,
+		"floor": RunFile.floor_index() if on_floor else 0}
 
 
 func _send_admission(peer: int) -> void:
@@ -57,7 +59,7 @@ func _receive_admission(peer: int, packet: PackedByteArray) -> void:
 	if place == _place():
 		_api.complete_auth(peer)
 	elif not _api.is_server() and peer == 1 \
-			and place.get("scene", "") == FLOOR_SCENE \
+			and place.get("scene", "") == RoomSet.scene() \
 			and place.get("seed") is int and place.get("floor") is int \
 			and int(place["floor"]) >= 0 and int(place["floor"]) <= RunFile.LAST_FLOOR:
 		# The session receives this deferred, outside the engine's packet loop.

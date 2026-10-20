@@ -8,7 +8,7 @@
 
 > **Gate:** `pending` — shippable-quality **25 minutes** ⟨tune⟩, played solo *and* as a 4-stack, with every major system present and polished. This is what a publisher, a Steam page, or a Kickstarter would see.
 
-`113/129` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
+`114/130` tasks complete across the roadmap. Progress is **scope covered, never time remaining** (ADR-034).
 
 ```mermaid
 flowchart LR
@@ -19,7 +19,7 @@ flowchart LR
   M1 --> M2
   M3["M3 The Pact<br/>42/42"]:::passed
   M2 --> M3
-  M4["M4 Vertical Slice<br/>40/46"]:::current
+  M4["M4 Vertical Slice<br/>41/47"]:::current
   M3 --> M4
   M5["M5 Content & Breadth<br/>0/10"]:::ahead
   M4 --> M5
@@ -38,7 +38,7 @@ flowchart LR
 | ✔ | **M1** The Feel Prototype<br><sub>×1</sub> | `██████████` | 10/10 | `EXIT` passed 2026-08-16 |
 | ✔ | **M2** The Loop Prototype<br><sub>×1.5</sub> | `███████████████` | 21/21 | `EXIT` passed 2026-08-25<br>`COOP` passed 2026-08-25 |
 | ✔ | **M3** The Pact<br><sub>×2</sub> | `████████████████████` | 42/42 | `EXIT` passed 2026-09-01 |
-| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████████████████▒░░` | 40/46 (1 cut) | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
+| ▶ | **M4** Vertical Slice<br><sub>unsized</sub> | `█████████████████▒░░` | 41/47 (1 cut) | `COOP` pending<br>`STRANGER` passed 2026-09-05<br>`EXIT` pending<br>`GREED` pending |
 |  | **M5** Content & Breadth<br><sub>unsized</sub> | `░░░░░░░░░░░░░░░░░░░░` | 0/10 | `EXIT` pending |
 |  | **M6** Ship<br><sub>not broken down</sub> | — | — | _no gate_ |
 
@@ -50,13 +50,12 @@ _None. Sequencing is clean._
 
 | Check | Note |
 |---|---|
-| `adr-missing` | ADR-411 is cited by TEC-001 but has no entry |
 | `untuned` | DES-002 is fully implemented (M2-T04, M2-T05, M2-T06, M2-T15, M2-T16, M2-T20, M3-T01, M3-T14, M3-T09, M3-T15, M3-T30, M3-T31, M3-T34, M3-T35, M3-T38, M3-T39, M4-T16) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-005 is fully implemented (M1-T01, M1-T04, M2-T01, M2-T02, M2-T04, M2-T14, M2-T17, M2-T18, M3-T11, M3-T12, M4-T01, M4-T15) but still has 8 ⟨tune⟩ marker(s) |
 | `untuned` | DES-009 is fully implemented (M1-T01, M1-T02, M2-T14, M3-T02, M3-T11, M3-T07, M3-T19, M4-T16, M4-T17, M4-T32, M4-T27, M4-T29, M4-T38, M4-T39) but still has 15 ⟨tune⟩ marker(s) |
 | `untuned` | DES-016 is fully implemented (M3-T08, M4-T01) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | DES-017 is fully implemented (M2-T02, M2-T03, M2-T19, M2-T21, M3-T04, M3-T21, M3-T22, M4-T01, M4-T48) but still has 11 ⟨tune⟩ marker(s) |
-| `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21) but still has 1 ⟨tune⟩ marker(s) |
+| `untuned` | TEC-001 is fully implemented (M1-T07, M1-T08, M3-T21, M4-T50) but still has 1 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-007 is fully implemented (M4-T01, M4-T25, M4-T28, M4-T29) but still has 2 ⟨tune⟩ marker(s) |
 | `untuned` | TEC-008 is fully implemented (M4-T01, M4-T25, M4-T23, M4-T28, M4-T29, M4-T30, M4-T40) but still has 3 ⟨tune⟩ marker(s) |
 
@@ -193,6 +192,7 @@ _None. Sequencing is clean._
 - ✔ `M4-T47` **The plots' tents are modelled** — ***closed by ADR-402: the Gokstad tent (crossed gable boards with carved heads, ridge pole, pegged wool, the door tied back), one mesh per material, dyed per plot.*** *The code-built tents' sheets stood on edge and read as blades.* `DES-014`
 - ✔ `M4-T48` **Every class can turn the Hunter away** — ***closed by ADR-403: a turn per class verb (Hold, Snare, Seiðr's veil, the fury's blow, a whole verse, Haugbrot's spilled coin), each shorter than a payment and learned, plus a menace gauge on close pursuit; `--turn-probe` drives every verb against its control.*** *Reported from play: "follows you around until you let him take something".* `DES-017` `DES-011`
 - ▶ `M4-T49` **Return: the Vörðr's second exit** — ***decided by ADR-410: the next life is chosen at the gate (the developer's option a).*** *`DES-012` gives a Vörðr two exits and only *Wait* was ever built. ADR-129/130 put Return with `M3-T05`, which shipped the Legacy screen without it. Build: a held *interact* as a Vörðr (or the run-over screen's Return, with nobody standing) asks the host; the host puts the ember out wherever it is; the owner's life ends and the Legacy flow opens in the Deep; the chosen life walks in at the floor's entrance with its class and kit; a returning body holds the wipe, and ADR-050's visible, shortening window replaces the 3 s backstop when nobody is standing. `GATE M4 COOP` leans on the death decision.* `DES-012` `DES-003` `DES-011`
+- ✔ `M4-T50` **The level's probes leave the level** — ***closed by ADR-411: `room_set.gd` 23,831 → 2,579 lines, its probes a subclass under `tests/` that no export carries.*** *B195, the developer's call. `RoomSet._measure` is the one hook; `RoomSet.scene()` hands the probed scene to any harness process, through the camp, a descent or a doorway. Compiling the level script fell from about 195 ms to 36 ms, paid on every session's first descent. `@rpc` functions stay in the level, because Godot numbers RPCs by the script's method table.* `TEC-002` `TEC-001`
 
 ### M5 — Content & Breadth
 
@@ -209,6 +209,6 @@ _None. Sequencing is clean._
 
 ---
 
-_49 docs (46 accepted) · 410 ADRs · 0 open questions · 434 ⟨tune⟩ markers._
+_49 docs (46 accepted) · 411 ADRs · 0 open questions · 434 ⟨tune⟩ markers._
 
 Regenerate with `python3 tools/status.py --write`. Source of truth is [PRO-001](process/PRO-001-roadmap-and-milestones.md) (ADR-063).

@@ -14099,4 +14099,21 @@ References:
 
 **Cost:** about a week. Nothing is new except the Return request, the ember's extinguishing and the wipe's window. The Legacy and class screens are reused in place, and the body is rebuilt by `CoopSession` exactly as the camp rebuilds it after the fire (ADR-148, ADR-162).
 
+## ADR-411 — The level's probes are a subclass under tests/, and never ship
+
+**Date:** 2026-10-20 · **Status:** accepted · **Amends `TEC-002` (where a check lives) and B185 (what an export leaves out)** · **The developer's call (B195)**
+
+**Context:** `room_set.gd`, the level a player plays, was 23,831 lines, and 72% of it was probe code: 249 functions answering `--x-probe` and `--x-shot`, plus their constants and state. B185 left `tests/` out of every export, but these were in the level, so they shipped in every build and were compiled on every first descent. Every probe reads and drives the level's own members, which is why they were written there.
+
+**Decision:**
+- **`RoomSetProbed extends RoomSet`**, in `tests/room_set_probed.gd`, with an inherited `tests/room_set_probed.tscn`. A subclass keeps every member a probe touches in reach, so the probes moved with no line of them changed. A script found what was reachable only from the probe dispatch: functions, constants and state, by code tokens and by string, checked against every reference into the level from other files.
+- **The level keeps one hook.** `RoomSet._ready` ends by calling `_measure(args)`, which does nothing in the shipped level. The subclass overrides it with the dispatch, so probes still start after the floor, actors and HUD stand, in the same order as before.
+- **`RoomSet.scene()` names the level for whoever changes to it**: the camp's descent, a floor's descent, a peer called down mid-run, and the doorway's admission check. It returns the probed scene when the process has harness arguments and the scene exists, and the shipped one otherwise. An export has no `tests/`, and a player never passes `--` arguments. So a probe that walks in through the camp or a doorway finds its code, and both peers of a harness agree on the scene.
+- **`@rpc` functions stay in the level**, whatever calls them. Godot numbers a script's RPCs by its method table, and two peers running different scripts would disagree about which number is which.
+- The sweep, `run_coop.py`, `run_doorway.py` and `check_determinism.py` launch `tests/room_set_probed.tscn`.
+
+**Measured:** `room_set.gd` is 2,579 lines; the subclass holds 21,295. Compiling the level script went from 193–206 ms to 35–36 ms in the editor build, three rounds each in one process. That is paid on the first descent of every session. The previous estimate of 400–500 ms counted dependencies. The shipped level boots with no flag and runs nothing; `--field-probe` and `--hash` run through the probed scene with unchanged results; and the full sweep is green on the split.
+
+**Rejected:** a helper node holding the probes, which would have meant rewriting every member access in 21,000 lines; and routing every scene change to the probed level whenever it exists. That would have made an editor play test run a different script from the export.
+
 *Entries below to be added as design decisions are signed off.*

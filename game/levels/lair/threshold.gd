@@ -1610,7 +1610,7 @@ func _descend(seed: int) -> void:
 	if body != null:
 		body.hold_attention(&"descent")
 	await Curtain.fall(self)
-	get_tree().change_scene_to_file("res://levels/room_set/room_set.tscn")
+	get_tree().change_scene_to_file(RoomSet.scene())
 
 
 ## **The camp's half of the second descent** (`M3-T38`, ADR-160).
