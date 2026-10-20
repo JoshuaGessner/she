@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-18
+updated: 2026-10-20
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -14070,5 +14070,15 @@ References:
 **Measured:** the six classes' textures cost 319.1 MB, now 67.6 MB (−79%); loading them took 726 ms, now 99 ms. The same `--body-shot` of a teammate in plate differs in 0.56% and 0.68% of pixels (front and side), along the ink lines, and reads the same. `art_probe`, `data_probe`, the bag, body, hands, rig and enemy-animation probes and `--hunt-probe` are green. With the old imports restored, the new check reports all 88.
 
 **Measured in the export (2026-10-20, 31e0716), which corrects one line above:** the pack grew from 99.8 MB to **166.4 MB** on both platforms. A lossless map was stored PNG-compressed (about 70 MB for the 88); a VRAM-compressed map is stored as the GPU reads it, mips included (146.1 MB). The Windows download fell anyway, **136.3 MB → 130.9 MB zipped**, because block-compressed data zips where PNG does not, so the cost lands on installed size and not on what a tester downloads. **And no ETC2/ASTC ships**: both packs carry the S3TC/BPTC files alone, and the macOS build runs its packed-content census clean on an arm64 Mac, whose GPU reads BC formats. `import_etc2_astc` stays on because ADR-086's export refuses a universal macOS build without it; those files live in the editor's import cache only.
+
+## ADR-409 — The field's cost is judged against its own rays, not the clock
+
+**Date:** 2026-10-20 · **Status:** accepted · **Amends ADR-405 (what `--field-probe` asserts) and `TEC-001` (how the 2 ms budget is held)** · **Found by CI**
+
+**Context:** ADR-405's third row asserted that a ClamorField pass over a floor noisy end to end costs under `TEC-001`'s 2 ms, timed on whatever machine runs the sweep. This Mac reads 1.28–1.34 ms. CI went red on 2dba27c with 2.13 ms, a commit that changed one paragraph of this log, while the same code had passed CI one commit earlier. A shared runner's speed is not the target machine's, and it varies from run to run. A row that fails on it says nothing about the game, and a red main that nothing in the game caused teaches people to rerun CI rather than read it.
+
+**Decision:** the row asserts what ADR-405 fixed, which is machine-independent. **A pass must cost under a tenth of learning the walls once, both timed in the same process.** The pass ADR-405 replaced cast every ray each time, so it cost what learning them costs. Measured: 29× cheaper as built, 1× with the per-pass rays restored, and that control fails the row by name. The pass's time against 2 ms is still printed, and the budget is judged on the development machine through `--perf-shot` and this line, not by a CI runner.
+
+**Rejected:** a looser absolute ceiling (4 ms passes CI today and fails the next slower runner), and more tries (fastest of five already takes the best case; a slower runner is slower throughout).
 
 *Entries below to be added as design decisions are signed off.*

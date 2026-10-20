@@ -1069,7 +1069,8 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 	# **The clamor field hears as the walls say, inside its budget** (ADR-405).
 	# A pass cast every ray every tick and cost 22 ms on a generated floor; its
 	# walls are learned once now. Every edge must agree with a ray, twenty
-	# passes must land where the rays would, and a full pass must cost < 2 ms.
+	# passes must land where the rays would, and a full pass must cost under a
+	# tenth of learning the walls on the same machine (ADR-409: not the clock).
 	field="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
 		levels/room_set/room_set.tscn -- --delvings --seed=12345 --field-probe 2>&1)"
 	if [[ $? -ne 0 ]] || ! grep -q '^\[field\]' <<<"$field" \

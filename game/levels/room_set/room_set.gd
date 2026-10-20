@@ -4241,8 +4241,10 @@ func _turn_set(player: Player, hunter: Gullsjukr, at: Vector3, yaw: float,
 ## 2. twenty passes from three loud places leave every cell where a pass that
 ##    asked the rays each time would have left it, so learning the walls once
 ##    and visiting only the noisy cells changed nothing a Hunter could follow;
-## 3. a pass over a floor noisy end to end costs under `TEC-001`'s 2 ms. The
-##    pass this replaced cast 20,000 rays and cost 22 ms, ten times a second.
+## 3. a pass over a floor noisy end to end costs under a tenth of learning the
+##    walls once, on the same machine (ADR-409). The pass this replaced cast
+##    every ray each time, so it cost what learning them costs; its time against
+##    `TEC-001`'s 2 ms is printed, and judged where the budget is, not on CI.
 func _field_probe() -> void:
 	var problems: PackedStringArray = PackedStringArray()
 	_session.clear_enemies()
@@ -4339,15 +4341,22 @@ func _field_probe() -> void:
 		var start: int = Time.get_ticks_usec()
 		_field._propagate(step)
 		fastest = minf(fastest, float(Time.get_ticks_usec() - start) / 1000.0)
-	print("[field] cost        a pass over all %d cells: %.2f ms at fastest of five (budget %.1f ms)"
-		% [cells, fastest, FIELD_BUDGET_MS])
-	if fastest > FIELD_BUDGET_MS:
-		problems.append("a pass costs %.2f ms, over TEC-001's %.1f ms" % [fastest, FIELD_BUDGET_MS])
+	print("[field] cost        a pass over all %d cells: %.2f ms at fastest of five (TEC-001's budget %.1f ms), %.0fx cheaper than learning the walls (want %.0fx or more)"
+		% [cells, fastest, FIELD_BUDGET_MS, learned_in / maxf(fastest, 0.001), FIELD_CHEAPER_THAN_RAYS])
+	# **Against the rays, not the clock** (ADR-409): a shared CI runner read
+	# 2.13 ms where this Mac reads 1.3, with nothing changed. Both sides of a
+	# ratio run on one machine, and per-pass rays put it near 1.
+	if fastest * FIELD_CHEAPER_THAN_RAYS > learned_in:
+		problems.append("a pass costs %.2f ms against %.1f ms to learn the walls: under %.0fx cheaper, as if it cast the rays again"
+			% [fastest, learned_in, FIELD_CHEAPER_THAN_RAYS])
 	_report(problems, "field")
 
 
 ## `TEC-001`'s budget for clamor propagation in a frame (B155).
 const FIELD_BUDGET_MS: float = 2.0
+## How much cheaper than learning the walls a pass must be (ADR-409): about
+## 30 measured, about 1 with the per-pass rays restored.
+const FIELD_CHEAPER_THAN_RAYS: float = 10.0
 
 
 ## **`--shaft-probe`: the windlass stands over most ways out** (B132, B137).
