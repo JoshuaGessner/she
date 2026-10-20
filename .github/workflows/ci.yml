@@ -10,6 +10,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# B201: the token reads the repository and does nothing else. No step pushes,
+# comments or publishes, so a compromised action has nothing to write with.
+permissions:
+  contents: read
+
 jobs:
   docs:
     name: Docs & dashboard
@@ -43,6 +48,11 @@ jobs:
       # behaviour, and this project treats warnings as errors — an unpinned
       # engine would break CI on someone else's release schedule.
       GODOT_VERSION: "4.7"
+      # B202: the engine is checked against the hash the release published
+      # (its SHA512-SUMS.txt), pinned here rather than fetched beside the zip —
+      # a sums file from the same place as the binary proves only that the
+      # download finished. Changes with GODOT_VERSION, and only with it.
+      GODOT_SHA512: "b639ca9c1ddea39bb3df89bd5283a51ca6047467abe6b25e9436566f2b2082ede633025073989ecf39c7d5d3c2493d80ea13e3af6dd5e261bbf89e462d6d2214"
     steps:
       # `lfs: true` is load-bearing, not tidiness. `.gitattributes` puts .glb
       # through LFS, and checkout's default is to leave pointer files in place
@@ -76,6 +86,7 @@ jobs:
           base="Godot_v${GODOT_VERSION}-stable_linux.x86_64"
           curl -fsSL -o godot.zip \
             "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/${base}.zip"
+          echo "${GODOT_SHA512}  godot.zip" | sha512sum -c -
           unzip -q godot.zip
           sudo install -m 755 "$base" /usr/local/bin/godot
           godot --version
