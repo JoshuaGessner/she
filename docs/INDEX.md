@@ -24,7 +24,7 @@ _What the game is._
 | `DES-009` | [Combat, Movement & Player Systems](design/DES-009-combat-and-player-systems.md) | ✔ accepted | 2026-10-09 | DES-005, DES-007, DES-008, PRO-001 |
 | `DES-010` | [Retention, Session Hooks & Churn Points](design/DES-010-retention-and-session-hooks.md) | ✔ accepted | 2026-09-18 | DES-002, DES-003, DES-007, PRO-001 |
 | `DES-011` | [Classes — The Sworn](design/DES-011-classes.md) | ✔ accepted | 2026-10-10 | DES-004, DES-003, DES-012, DES-009 |
-| `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-09-16 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
+| `DES-012` | [Cooperative Play](design/DES-012-cooperative-play.md) | ✔ accepted | 2026-10-20 | DES-002, DES-003, DES-011, TEC-001, TEC-004 |
 | `DES-013` | [Enemies & AI](design/DES-013-enemies-and-ai.md) | ✔ accepted | 2026-10-09 | DES-005, DES-007, DES-009, TEC-001, TEC-004 |
 | `DES-014` | [The Lair](design/DES-014-the-lair.md) | ✔ accepted | 2026-10-10 | DES-002, DES-003, DES-010, DES-012, DES-006, TEC-004 |
 | `DES-015` | [Level Generation](design/DES-015-level-generation.md) | ✔ accepted | 2026-10-10 | DES-005, DES-006, DES-013, DES-008, TEC-001, TEC-004, TEC-007 |
@@ -50,7 +50,7 @@ _How it gets built._
 | `TEC-006` | [Data Schemas](tech/TEC-006-data-schemas.md) | ✔ accepted | 2026-09-16 | TEC-001, TEC-002, TEC-003, DES-008, DES-013, DES-004, DES-007 |
 | `TEC-007` | [Generator Architecture](tech/TEC-007-generator-architecture.md) | ✔ accepted | 2026-10-18 | DES-015, DES-005, DES-008, TEC-001, TEC-004, TEC-006, PRO-001 |
 | `TEC-008` | [Level Geometry & Spatial Legibility](tech/TEC-008-level-geometry.md) | ✔ accepted | 2026-10-02 | DES-015, DES-009, DES-018, DES-006, TEC-001, TEC-007, ART-001 |
-| `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ✔ accepted | 2026-10-08 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
+| `TEC-009` | [Interface Architecture](tech/TEC-009-interface-architecture.md) | ✔ accepted | 2026-10-20 | DES-019, DES-018, DES-014, DES-008, DES-020, ART-005, ART-001, PRO-005, TEC-001 |
 
 ## Process
 

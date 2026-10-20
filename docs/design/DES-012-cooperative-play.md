@@ -4,7 +4,7 @@ title: Cooperative Play
 status: accepted
 owner: design
 tags: [co-op, multiplayer, scaling, social, networking, retention]
-updated: 2026-09-16
+updated: 2026-10-20
 related: [DES-002, DES-003, DES-011, TEC-001, TEC-004]
 ---
 
@@ -29,7 +29,7 @@ This keeps `DES-003` intact without modification, avoids loot-drama entirely, an
 
 Barony's best social idea is that dead players stay in the level as ghosts with small useful powers, instead of watching a spectator camera. We take it, and add a decision to it that no extraction game has tried.
 
-> **Partly built at `M2-T05` (ADR-092).** *Wait* is real — you go down, you bleed out, your ember drops and a friend can carry it. **Return is absent, not approximated**: walking back in with nothing requires a LIFE to end, and that arrives with `M3`. So does the Vörðr's utility (scout marks need the ping system, `M4-T05`). Until then a fallen player's body stays where it fell rather than becoming a ghost with nothing to do.
+> **Partly built at `M2-T05` (ADR-092).** *Wait* is real — you go down, you bleed out, your ember drops and a friend can carry it. The Vörðr itself landed at `M3-T14` (ADR-130) and its marks with the ping system (`M4-T05`). **Return is decided by ADR-410** and built by `M4-T49`; see below.
 
 **On death you become a Vörðr** — your ward-spirit, briefly loose. Mobile, safe, unable to fight or carry. Minor utility ⟨tune⟩: scout ahead without risk, mark what you find for the living, unnerve enemies slightly. **The point is that a dead player is still playing**, still talking, still contributing — which is the whole reason Barony's ghosts work.
 
@@ -53,6 +53,12 @@ From there, **two exits, and they are mutually exclusive:**
 **Why this doesn't weaken death:** your LIFE is wiped either way. ADR-004 is untouched. What you no longer lose is *the rest of your evening* — a retention win at zero balance cost. And rescue stays strictly better when it's available, since it saves the entire tree, so neither option dominates.
 
 **Solo:** the same, minus the wait. With nobody to carry your ember, it's return or end the run — which makes solo death heavier than co-op death, correctly.
+
+> **DECIDED (ADR-410): the next life is chosen at the gate.** Ending a life clears its class, and a class used to be chosen only at the fire. Returning opens the Legacy flow where you stand: what you learned, what she keeps, who you are next. The new life walks in at the floor's entrance as its class, with its kit. *A naked rank-1* means exactly what any fresh life is: a class, its kit, and nothing carried from the life before.
+>
+> - **To return**, hold *interact* as a Vörðr while somebody is still standing; the readout fills as you hold and names the price. With nobody standing, the run-over screen offers Return beside leaving.
+> - **The host decides it.** The ember goes out wherever it is, on the floor or in a teammate's bag, so you cannot return *and* be rescued (rule 1). A life whose ember already reached an exit has nothing to return from.
+> - **ADR-050's window is the wipe's.** With nobody left to carry an ember, the choice is Return or the end, and it is shown as a shortening bar: your ember is going out, for `return_window_seconds` ⟨tune⟩. A Vörðr with someone still standing has no clock, so a rescue is never timed.
 
 > **DECIDED (ADR-050):** **A visible, shortening window** ⟨tune⟩. Your ember is going out whether you choose or not, so the decision is forced by the fiction rather than by a UI timer.
 

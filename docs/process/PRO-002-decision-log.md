@@ -14081,4 +14081,22 @@ References:
 
 **Rejected:** a looser absolute ceiling (4 ms passes CI today and fails the next slower runner), and more tries (fastest of five already takes the best case; a slower runner is slower throughout).
 
+## ADR-410 — Return: the Vörðr's second exit, and the next life is chosen at the gate
+
+**Date:** 2026-10-20 · **Status:** accepted · **Completes `DES-012`'s Vörðr (ADR-024, ADR-129, ADR-130); builds Q61 of ADR-050 for the wipe** · **The developer's call, option (a) of three**
+
+**Context:** `DES-012` gives a Vörðr two exits. *Wait* has been built since `M2-T05`: a teammate carries the ember out and the life survives. *Return* has never been built: give up on rescue, the ember goes out, the life ends, and you walk back in at the floor entrance, rank 1, in the same run. ADR-129 and ADR-130 placed it with the Legacy screen (`M3-T05`), and `M3-T05` (ADR-133) shipped without it. `player.gd` still calls it absent. The design never settled one thing: ending a life clears the class, and a class is chosen at the fire. Three options were put to the developer. (a) Choose at the gate: the Legacy screen and the class screen open in place, and the next life walks in as its class with its kit. (b) Walk in classless, with no verb and no kit, until the fire. (c) Cut Return by ADR. (b) is the stub ADR-064 bans, since `DES-011` says identity comes from the verb. (c) removes the decision `DES-012` calls "a good one". **The developer chose (a).**
+
+**Decision:**
+- **Who can return:** a Vörðr whose ember has not reached an exit. A rescued life is already saved and has nothing to give up.
+- **How:** with somebody still standing, hold *interact* for `return_hold_seconds` ⟨tune⟩. The Vörðr readout fills a bar as you hold and names the price. No dialog (`DES-019`); a hold you can let go of is the confirmation. With nobody standing, the run-over screen offers **Return** beside leaving.
+- **What it does, decided by the host:** the ember is extinguished wherever it is, on the floor or in a teammate's bag. The deeds that life earned are awarded, then the life ends on its owner's machine (`GameState.die()`, the same one-function death as ever). Then the Legacy flow opens in the Deep: what you learned, what she keeps, who you are next. Once chosen, the new life is built at **the floor's entrance**, never at the party (`DES-012` rule 2). It has its class, its kit and its rank, and carries nothing from the life before. The run file names the new class, and the run continues.
+- **The wipe waits for a choice:** a body that is returning counts as still in the run. With nobody standing and a Return still possible, the run-over screen's backstop is `return_window_seconds` ⟨tune⟩ in place of `party_wipe_seconds`. It is shown as a shortening bar: *your ember is going out*. That is Q61's visible, shortening window (ADR-050), built where it means something, because with nobody left to carry an ember the only choice is Return or the end. A Vörðr with someone still standing has no window, so a rescue is never put on a clock it did not have.
+- **Solo is the same:** return or end the run, which makes a solo death heavier than a co-op one, as `DES-012` says it should be.
+- **Quitting during the Legacy flow** forfeits the rest of the run. The life ended when Return was chosen, so the run file names a class the profile no longer has and is dropped as an orphan on the next launch (ADR-138).
+
+**Rejected:** (b) and (c), for the reasons above. A window on every Vörðr was also rejected, because it would put a clock on the rescue `DES-012` builds the co-op gate on.
+
+**Cost:** about a week. Nothing is new except the Return request, the ember's extinguishing and the wipe's window. The Legacy and class screens are reused in place, and the body is rebuilt by `CoopSession` exactly as the camp rebuilds it after the fire (ADR-148, ADR-162).
+
 *Entries below to be added as design decisions are signed off.*
