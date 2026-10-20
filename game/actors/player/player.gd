@@ -1017,7 +1017,7 @@ func _on_swing_connected(hurtbox_hit: Hurtbox) -> void:
 		wolf_fury.landed(killed)
 	if get_multiplayer_authority() == multiplayer.get_unique_id():
 		_feel_the_blow(heavy, killed)
-	else:
+	elif _owner_connected():
 		_feel_the_blow.rpc_id(get_multiplayer_authority(), heavy, killed)
 
 
@@ -3926,7 +3926,9 @@ func _on_broke() -> void:
 func _on_sung(turned_count: int) -> void:
 	if get_multiplayer_authority() == multiplayer.get_unique_id():
 		sang.emit(turned_count)
-	else:
+	elif _owner_connected():
+		# As `told_hunter`: a singer whose peer has gone has no screen to say
+		# it on, and a message to a peer that is not here is an engine error.
 		_tell_sang.rpc_id(get_multiplayer_authority(), turned_count)
 
 
