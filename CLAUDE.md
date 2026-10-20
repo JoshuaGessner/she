@@ -111,8 +111,14 @@ python3 tools/status.py --write
 python3 tools/status.py --check      # must pass
 python3 tools/check_project.py       # locked settings + TEC-002 conventions
 python3 tools/check_dead.py          # nothing orphaned (ADR-098)
+python3 tools/bind_gamepad.py --check  # every action has a pad binding (ADR-075)
+python3 tools/test_checks.py         # each check above still fires on a planted fault
 tools/check_scripts.sh               # parse, boot, teardown, rig, data, 2-player co-op
 ```
+
+CI also runs `tools/run_net_spike.py --smoke` and `tools/check_determinism.py`;
+run them locally when you touch networking or generation, never beside a
+running `check_scripts.sh` (AGENTS.md says why).
 
 **A failing check is a blocked commit, not a note in the commit message.**
 

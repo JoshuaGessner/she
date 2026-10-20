@@ -2,7 +2,7 @@
 
 # Project SHE — Status
 
-<!-- generated-stamp --> _Regenerated 2026-10-18_
+<!-- generated-stamp --> _Regenerated 2026-10-20_
 
 **Current milestone: M4 — Vertical Slice**
 
