@@ -14069,4 +14069,6 @@ References:
 
 **Measured:** the six classes' textures cost 319.1 MB, now 67.6 MB (−79%); loading them took 726 ms, now 99 ms. The same `--body-shot` of a teammate in plate differs in 0.56% and 0.68% of pixels (front and side), along the ink lines, and reads the same. `art_probe`, `data_probe`, the bag, body, hands, rig and enemy-animation probes and `--hunt-probe` are green. With the old imports restored, the new check reports all 88.
 
+**Measured in the export (2026-10-20, 31e0716), which corrects one line above:** the pack grew from 99.8 MB to **166.4 MB** on both platforms. A lossless map was stored PNG-compressed (about 70 MB for the 88); a VRAM-compressed map is stored as the GPU reads it, mips included (146.1 MB). The Windows download fell anyway, **136.3 MB → 130.9 MB zipped**, because block-compressed data zips where PNG does not, so the cost lands on installed size and not on what a tester downloads. **And no ETC2/ASTC ships**: both packs carry the S3TC/BPTC files alone, and the macOS build runs its packed-content census clean on an arm64 Mac, whose GPU reads BC formats. `import_etc2_astc` stays on because ADR-086's export refuses a universal macOS build without it; those files live in the editor's import cache only.
+
 *Entries below to be added as design decisions are signed off.*
