@@ -102,6 +102,11 @@ signal extracted(player: Player)
 ## life ends up is the level's business and the body is past having opinions.
 signal died_here(player: Player, at: Vector3)
 
+## **A Vörðr asked to walk back in** (ADR-410, `DES-012`'s Return), raised on
+## the peer playing it once *interact* has been held for `return_hold_seconds`.
+## The level asks the host, because the ember and the floor are the host's.
+signal asked_to_return
+
 ## **The Waystone key, pressed in a fury** (ADR-371), raised on the peer playing
 ## it. ADR-370 closed the road, and a key that does nothing reads as a broken
 ## key; the reticle says why.
@@ -199,6 +204,10 @@ const STATE_PROPERTIES: Dictionary = {
 	".:bleeding": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:revival": SceneReplicationConfig.REPLICATION_MODE_ALWAYS,
 	".:spent": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
+	# **Whether this life is already saved** (ADR-410): its ember reached an
+	# exit, so its owner has nothing to return from — and the readout must not
+	# offer a hold that the host would refuse.
+	".:borne_out": SceneReplicationConfig.REPLICATION_MODE_ON_CHANGE,
 	# **Wolf-Fury** (ADR-345): the host's clock, read by every peer — the
 	# owner's controls, the owner's screen and every copy's weapon. **Sent by
 	# the host** (ADR-368): ADR-345 put these with what the owner sends, so a
@@ -595,6 +604,11 @@ var spent: bool = false:
 			return
 		spent = value
 		_apply_out()
+## **This life's ember reached an exit** (`M3-T33`, ADR-410). Host-authored and
+## replicated: the life survives the run, so there is no Return to offer it.
+var borne_out: bool = false
+## Owner-side: how far through the hold that asks to walk back in, 0 to 1.
+var _return_hold: float = 0.0
 ## **You made it out, and the run is still going on without you** (`M3-T09`).
 ##
 ## Host-authored, like `spent`. The two are the only ways to leave a floor and
@@ -2346,6 +2360,32 @@ func is_out() -> bool:
 	return spent or got_out
 
 
+## **Whether this body could walk back in** (ADR-410): a Vörðr whose ember has
+## not reached an exit. The host asks it again before granting anything.
+func can_return() -> bool:
+	return spent and not borne_out
+
+
+## How far through the hold that asks to return, 0 to 1. Owner-side, for the
+## Vörðr readout, which fills as it is held.
+func returning() -> float:
+	return _return_hold
+
+
+## **The owner's hold** (ADR-410): *interact*, held for `return_hold_seconds`,
+## asks once. Let go and it empties, which is the only confirmation `DES-019`
+## allows. Only while the body is driving — with nobody standing the run-over
+## screen holds the body and offers Return as a button instead.
+func _tick_return(delta: float) -> void:
+	if not (can_return() and _driving and Input.is_action_pressed("interact")):
+		_return_hold = 0.0
+		return
+	_return_hold += delta / maxf(Config.tuning.return_hold_seconds, 0.001)
+	if _return_hold >= 1.0:
+		_return_hold = 0.0
+		asked_to_return.emit()
+
+
 func _on_health_emptied(_from: Node) -> void:
 	if not multiplayer.is_server():
 		return
@@ -2492,16 +2532,17 @@ func _set_reviving(holding: bool) -> void:
 ##
 ## Not a revive and not a heal: this is a *new run*, which is the one moment
 ## the design allows hit points to return to full (`DES-009` bans regeneration
-## within a run, not between them). `DES-012`'s **Return** — walking back in
-## with nothing, at the floor entrance, your ember extinguished — is what this
-## becomes once `M3` gives a LIFE to lose, and it is absent rather than
-## approximated in the meantime.
+## within a run, not between them). `DES-012`'s **Return** is not this: a
+## returned life is a new body built by `CoopSession` at the floor's entrance
+## (ADR-410), because a new life is a new class, and becoming a class is
+## `spawn_player`'s one job.
 func restore_for_descent() -> void:
 	if not multiplayer.is_server():
 		return
 	bleeding = 0.0
 	revival = 0.0
 	spent = false
+	borne_out = false
 	_spending = 0.0
 	# **A new floor is a new chance** (`M3-T12`). `DES-004` says *once per
 	# floor*, and without this the keystone is once per **life** — which is a
@@ -3130,6 +3171,7 @@ func _physics_process(delta: float) -> void:
 		# behind a menu. Down or a Vörðr, it still speaks — `DES-012`'s dead
 		# player is still playing, and marking is the Vörðr's whole use.
 		pinger.tick(delta, _driving and not bag_is_open())
+		_tick_return(delta)
 		_update_bag(delta)
 		_update_reach()
 		_drive(delta, tuning)

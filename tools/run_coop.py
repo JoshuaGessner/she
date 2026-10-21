@@ -673,6 +673,31 @@ def judge(host: dict, client: dict, expected_players: int) -> list[tuple[str, bo
             mark.get("kind") == kind and off <= POSITION_TOLERANCE,
             f"{mark.get('kind', 'nothing')} {off:.2f} m off"))
 
+    # **A client walks back in** (ADR-410). The request, the ember and the new
+    # body are the host's; the death and the choice are the client's. Each row
+    # is a claim both machines have to agree about.
+    went = client.get("returned", {})
+    came = host.get("returned", {})
+    rows.append(check(
+        "a client's Return ended its life and swore it again, on the client",
+        went.get("walked_back", False) and went.get("chose", "") != ""
+        and went.get("life_class") == went.get("chose")
+        and went.get("chose") != went.get("was"),
+        f"{went.get('was', '?')} → {went.get('chose', '?')}, "
+        f"life now {went.get('life_class', '?')}"
+        + (f" ({went['error']})" if "error" in went else "")))
+    rows.append(check(
+        "and the host built that life at the way in",
+        came.get("walked_back", False) and came.get("sworn") == went.get("chose")
+        and 0.0 <= float(came.get("from_door", -1.0)) <= 2.0,
+        f"host sees '{came.get('sworn', '?')}' "
+        f"{float(came.get('from_door', -1.0)):.1f} m from the way in"
+        + (f" ({came['error']})" if "error" in came else "")))
+    rows.append(check(
+        "and the ember it gave up is out",
+        came.get("embers_left", 1) == 0,
+        f"{came.get('embers_left', '?')} still lit"))
+
     return rows
 
 

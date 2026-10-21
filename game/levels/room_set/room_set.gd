@@ -378,6 +378,10 @@ var _ending: bool = false
 ## Peers whose ember reached an exit in somebody's bag (`M3-T33`, `DES-012`).
 ## Per floor, and cleared with it: a rescue is about this run and nothing else.
 var _borne_out: Dictionary = {}
+## **Peers walking back in** (ADR-410): granted a Return, choosing the next life,
+## not yet built again. Host-side. A returning peer is still in the run, so the
+## wipe waits for them, and the entry goes when the new body stands.
+var _returning: Dictionary = {}
 ## Peer → the Scars that peer's life takes when the run resolves (`M4-T14`,
 ## ADR-240), decided **at the exit** — a concussion that walked out and wore off
 ## while its owner waited for the party still walked out. Cleared with the floor.
@@ -1522,6 +1526,8 @@ func _on_barrow_changed(now: int) -> void:
 func _watch(player: Player) -> void:
 	player.extracted.connect(_on_extracted)
 	player.died_here.connect(_on_died_here)
+	# Raised only on the body's own peer, which is the one that asks (ADR-410).
+	player.asked_to_return.connect(_ask_to_return)
 
 
 ## Someone bled out (`M2-T05`, `DES-012`). **The ember drops where they fell.**
@@ -1596,18 +1602,17 @@ func _watch_for_a_wipe() -> void:
 	if _ending or not _the_party_is_gone():
 		return
 	_ending = true
-	print("[death] nobody is left standing — %.1f s and the run is over"
-		% Config.tuning.party_wipe_seconds)
+	var wait: float = _wipe_seconds()
+	print("[death] nobody is left standing — %.1f s and the run is over" % wait)
 	# **Say so, and let it be ended** (`M3-T30`, ADR-151). ADR-108 gave reason 1
 	# for this window as *"a cut to the camp on the frame you go out gives the
 	# player nothing to read"* — right about the problem, and three seconds of
 	# the same readout was not a solution. The wait is now a floor rather than a
 	# fixed price: whoever is ready presses, and the clock is the backstop for
 	# whoever is not.
-	_the_run_is_over.rpc()
+	_the_run_is_over.rpc(wait)
 	_skip_the_wait = false
-	var until: float = Time.get_ticks_msec() \
-		+ Config.tuning.party_wipe_seconds * 1000.0
+	var until: float = Time.get_ticks_msec() + wait * 1000.0
 	while Time.get_ticks_msec() < until and not _skip_the_wait:
 		await get_tree().process_frame
 		# **Out the moment somebody is standing**, rather than at the end of the
@@ -1645,11 +1650,17 @@ func _watch_for_a_wipe() -> void:
 ## Shown on every peer, because every peer in it has just lost the run and the
 ## host is the only one that knows.
 @rpc("authority", "call_local", "reliable")
-func _the_run_is_over() -> void:
+func _the_run_is_over(seconds: float) -> void:
 	if _run_over != null:
 		return
 	var screen := RunOverScreen.new()
 	screen.leave_now.connect(_ask_to_end_it_now)
+	# **Or walk back in** (ADR-410): offered to a body that still could, with
+	# the window shortening beside it.
+	var mine: Player = _session.local_player()
+	screen.can_return = mine != null and mine.can_return()
+	screen.window_seconds = seconds if screen.can_return else 0.0
+	screen.return_now.connect(_ask_to_return)
 	_run_over = CanvasLayer.new()
 	_run_over.layer = 9
 	_run_over.add_child(screen)
@@ -1694,6 +1705,182 @@ func _end_it_now() -> void:
 	_skip_the_wait = true
 
 
+## **How long a wipe waits** (ADR-410): `party_wipe_seconds` when nobody could
+## still walk back in, and the ember's window when somebody could — with
+## nobody left to carry it, Return or the end is the whole choice, and
+## ADR-050 makes that window visible and shortening.
+func _wipe_seconds() -> float:
+	for body: Player in _session.players():
+		if body.can_return() and not _borne_out.has(body.get_multiplayer_authority()):
+			return Config.tuning.return_window_seconds
+	return Config.tuning.party_wipe_seconds
+
+
+# ── Return: the Vörðr's second exit (ADR-410, `DES-012`) ───────────────────
+#
+# A Vörðr gives up on being carried out: the ember goes out wherever it is,
+# the life ends on its owner's machine, the Legacy flow opens where they
+# stand, and the life they choose walks back in at the floor's entrance — the
+# way she lets a soul back in, never beside the party (`DES-012` rule 2).
+
+## The Legacy flow's claim on the body while the next life is chosen.
+const RETURN_CLAIM: StringName = &"return"
+## Frames to wait for the old body to leave before the new one is built
+## (ADR-162: wait for gone, never count on one frame).
+const RETURN_REBUILD_FRAMES: int = 30
+## How long the Legacy flow stays up waiting for the new body, so a client is
+## never left looking at a world with no camera in it.
+const RETURN_ARRIVAL_MSEC: int = 8000
+
+
+## A Vörðr asked, on its own peer: by a held key, or the run-over screen.
+func _ask_to_return() -> void:
+	if multiplayer.is_server():
+		_grant_return(multiplayer.get_unique_id())
+	else:
+		_request_return.rpc_id(CoopSession.HOST_PEER)
+
+
+@rpc("any_peer", "reliable")
+func _request_return() -> void:
+	if not multiplayer.is_server():
+		return
+	_grant_return(multiplayer.get_remote_sender_id())
+
+
+## **The host decides a Return**, because the ember and the floor are the
+## host's (`TEC-004`). Refused to a body that is not a Vörðr, whose ember
+## already reached an exit, or that is already walking back in.
+func _grant_return(peer: int) -> void:
+	var body: Player = _session.player_for(peer)
+	if body == null or not body.can_return() or _borne_out.has(peer) \
+			or _returning.has(peer):
+		print("[return] peer %d asked to walk back in, and cannot" % peer)
+		return
+	var put_out: int = _put_out_the_ember(peer)
+	_returning[peer] = true
+	print("[return] %s walks back in — %d ember(s) put out, and that life is over"
+		% [body.name, put_out])
+	if peer == multiplayer.get_unique_id():
+		_begin_the_next_life()
+	else:
+		_return_granted.rpc_id(peer)
+
+
+## **You cannot return and be rescued** (`DES-012` rule 1): every ember bound
+## to `peer` goes out, lying on the floor or carried in somebody's bag.
+func _put_out_the_ember(peer: int) -> int:
+	var count: int = 0
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var lying := node as WorldItem
+		if lying != null and not lying.is_queued_for_deletion() \
+				and lying.is_ember() and lying.bound() == peer:
+			lying.queue_free()
+			count += 1
+	for holder: Player in _session.players():
+		var carried: Array[int] = []
+		for held: ItemInstance in holder.inventory.items():
+			if held.bound_to == peer:
+				carried.append(held.instance_id)
+		for instance: int in carried:
+			holder.inventory.remove(instance)
+			count += 1
+	return count
+
+
+@rpc("authority", "reliable")
+func _return_granted() -> void:
+	_begin_the_next_life()
+
+
+## **The life ends here, and the next is chosen where you stand** (ADR-410), on
+## the returning player's own machine: `GameState` is never networked, so the
+## host can say *granted* and only this peer can die.
+func _begin_the_next_life() -> void:
+	var body: Player = _session.local_player()
+	RunLedger.record(RunLedger.DIED, {
+		"descent": GameState.descents,
+		"class": String(GameState.class_id),
+		"rank": GameState.pact_rank,
+		"floor": RunFile.floor_index(),
+		"party": maxi(_session.players().size(), 1),
+		"extracted_value": 0,
+		"returned": true,
+	})
+	GameState.die()
+	# The run goes on, and the next life carries nothing of this one down.
+	RunFile.note({"carried": [], "health": RunFile.UNHURT, "wounds": 0, "dazed": 0.0})
+	print("[return] this life is over — she is asked who comes next")
+	_put_the_screen_away()
+	var screen := LegacyScreen.new()
+	var layer := CanvasLayer.new()
+	layer.layer = 10
+	layer.add_child(screen)
+	add_child(layer)
+	# ADR-141: the screen has the player, or there is no cursor to choose with.
+	if body != null:
+		body.hold_attention(RETURN_CLAIM)
+	screen.finished.connect(_walk_in_as_chosen.bind(layer), CONNECT_ONE_SHOT)
+
+
+## **Chosen: say who this peer is now, and ask to be built at the way in.**
+## The screen stays up until the new body stands, so the frame with no body in
+## it is a frame nobody sees (ADR-148's reason).
+func _walk_in_as_chosen(layer: CanvasLayer) -> void:
+	GameState.forget_the_last_life()
+	RunFile.note({"class_id": String(GameState.class_id), "rank": GameState.pact_rank})
+	_session.redeclare()
+	if multiplayer.is_server():
+		_walk_back_in(multiplayer.get_unique_id())
+	else:
+		_walked_back_in.rpc_id(CoopSession.HOST_PEER)
+	var began: int = Time.get_ticks_msec()
+	while is_inside_tree():
+		var arrived: Player = _session.local_player()
+		if arrived != null and not arrived.spent:
+			break
+		if Time.get_ticks_msec() - began > RETURN_ARRIVAL_MSEC:
+			push_warning("RoomSet: no new body arrived after a Return")
+			break
+		await get_tree().process_frame
+	if is_instance_valid(layer):
+		layer.queue_free()
+	# The kit is the new life's (`DES-011`): worn on the body, and the rest
+	# carried down from the stash the oath filled, as at any descent.
+	_carry_the_stash_down()
+	print("[return] walked back in as '%s'" % GameState.class_id)
+
+
+@rpc("any_peer", "reliable")
+func _walked_back_in() -> void:
+	if not multiplayer.is_server():
+		return
+	_walk_back_in(multiplayer.get_remote_sender_id())
+
+
+## **Built again where the floor lets you in** (ADR-410, `DES-012` rule 2), by
+## `CoopSession`, as the camp rebuilds a body after the fire: the old body goes,
+## and the new one is spawned from the declaration that peer has just made.
+func _walk_back_in(peer: int) -> void:
+	if not multiplayer.is_server() or not _returning.has(peer):
+		return
+	var old: Player = _session.player_for(peer)
+	if old != null:
+		_session.despawn_player(peer)
+		var waited: int = 0
+		while is_instance_valid(old) and waited < RETURN_REBUILD_FRAMES:
+			await get_tree().process_frame
+			waited += 1
+	var way_in: Vector3 = _floor.spawns()[0]
+	var built: Player = _session.spawn_player(peer, way_in)
+	_returning.erase(peer)
+	print("[return] peer %d stands at the way in as '%s'" % [peer,
+		_session.sworn_of(peer) if built != null else "nobody"])
+	# Nobody standing and nobody coming back is still a wipe.
+	if built == null:
+		_watch_for_a_wipe()
+
+
 ## Is there a body left that could still do something?
 ##
 ## `spent` rather than `is_incapacitated()`: a **downed** player is bleeding but
@@ -1706,6 +1893,10 @@ func _end_it_now() -> void:
 func _the_party_is_gone() -> bool:
 	var bodies: Array[Player] = _session.players()
 	if bodies.is_empty():
+		return false
+	# **Somebody is walking back in** (ADR-410). Their old body is spent and
+	# their new one is not built yet, and they are still in the run.
+	if not _returning.is_empty():
 		return false
 	for body: Player in bodies:
 		# **Out by either door** (`M3-T09`). This asked `spent` alone, which was
@@ -1749,9 +1940,12 @@ func _the_party_is_gone() -> bool:
 ## all. It failed its own new row, which is the only reason it is not still
 ## doing that: awaiting a frame first appeared to be the fix and is a guess
 ## about the deletion queue rather than a statement about the party.
-func _on_peer_left(_peer: int) -> void:
+func _on_peer_left(peer: int) -> void:
 	if not multiplayer.is_server():
 		return
+	# Somebody who left while choosing the next life is not walking back in
+	# (ADR-410), and the wipe stops waiting for them.
+	_returning.erase(peer)
 	if not _the_party_is_gone():
 		return
 	# **Which of the two endings this is.** Both already exist and they are not
@@ -2169,6 +2363,9 @@ func _on_extracted(player: Player) -> void:
 		print("[death] %s carried %s's ember out — their LIFE survives" % [
 			player.name, who])
 		_borne_out[peer] = true
+		# Told to the body too (ADR-410): a saved life has no Return to offer.
+		if saved != null:
+			saved.borne_out = true
 		_wounds_out[peer] = scars_for(saved.wounds if saved != null else 0, true)
 		# **Delivered, so it is spent.** Left in the bag it rides home in
 		# `carried`, turns up in the Chamber as a thing you can put on the pile,
@@ -2270,6 +2467,7 @@ func _reset_floor() -> void:
 	# A rescue belongs to the run it happened in (`M3-T33`). Carried past a
 	# floor reset it would forgive a death on the next one, for free.
 	_borne_out.clear()
+	_returning.clear()
 	_wounds_out.clear()
 	_open_the_ledger()
 	if _barrow != null:
@@ -2284,11 +2482,9 @@ func _reset_floor() -> void:
 	for player: Player in _session.players():
 		player.inventory.clear()
 		player.clamor.silence()
-		# A new descent is a new body. `DES-012`'s *Return* — walking back in
-		# with nothing, at the floor entrance, ember extinguished — is the real
-		# version of this and needs the LIFE that `M3` builds; it is absent
-		# rather than approximated, and what happens here is simply the next run
-		# starting.
+		# A new descent is a new body, for a probe that needs a second run in
+		# one scene. Not `DES-012`'s *Return*, which builds a new life where the
+		# floor lets you in (ADR-410, `_walk_back_in`).
 		player.restore_for_descent()
 		# **Off the floor, not off the Deep's constants** (ADR-187). These read
 		# `SPAWNS` and `HUNTER_POST` directly, which is a body placed inside

@@ -669,6 +669,16 @@ extends Resource
 ## for a fight to end, and the second one getting up must not arrive after the
 ## run is already over.
 @export var party_wipe_seconds: float = 3.0
+## Seconds a Vörðr holds *interact* to walk back in ⟨tune⟩ (ADR-410, `DES-012`'s
+## Return). A hold, not a press: a life ends on it, `DES-019` refuses a dialog,
+## and letting go is the only confirmation a hold needs.
+@export var return_hold_seconds: float = 1.5
+## **The ember going out, when nobody is left to carry it** ⟨tune⟩ (ADR-410,
+## ADR-050's visible, shortening window). With nobody standing the choice is
+## Return or the end, and this replaces `party_wipe_seconds` as the wipe's
+## backstop while any spent body could still return. Long enough to read the
+## screen and decide; a Vörðr with somebody still standing has no clock at all.
+@export var return_window_seconds: float = 20.0
 
 @export_group("Extraction")
 ## Seconds standing in the Shaft to leave, before escalation ⟨tune⟩. Long
@@ -979,6 +989,13 @@ func armour_through(armour: Enums.ArmourClass, type: Enums.DamageType) -> float:
 
 func validate() -> PackedStringArray:
 	var problems: PackedStringArray = PackedStringArray()
+	# **A window shorter than the wipe it replaces** would make Return the faster
+	# way to lose the choice (ADR-410), and a hold of nothing is a press.
+	if return_window_seconds < party_wipe_seconds:
+		problems.append("return_window_seconds is %.1f, under party_wipe_seconds' %.1f"
+			% [return_window_seconds, party_wipe_seconds])
+	if return_hold_seconds <= 0.0:
+		problems.append("return_hold_seconds is %.2f; a hold has to last" % return_hold_seconds)
 	# A swing that sweeps nothing cannot meet a wall, and one that sweeps a
 	# right angle either side meets the wall beside you on every swing.
 	if swing_arc_degrees <= 0.0 or swing_arc_degrees >= 90.0:

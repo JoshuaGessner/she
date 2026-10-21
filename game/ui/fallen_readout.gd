@@ -103,7 +103,17 @@ func line() -> String:
 ## Built from `ControlsScreen.glyphs_for` rather than typed, because ADR-139
 ## made that file the only one that names a key.
 func hint() -> String:
-	if not _showing() or _body.spent or _body.revival > 0.0:
+	if not _showing() or _body.revival > 0.0:
+		return ""
+	if _body.spent:
+		# **The Vörðr's second exit, named with its price** (ADR-410). Only while
+		# somebody is still standing: with nobody, the run-over screen holds
+		# the body and offers Return there. A life whose ember is already out
+		# of the Deep is safe, and is told so rather than offered nothing.
+		if _body.borne_out:
+			return tr("fallen.borne")
+		if _anyone_still_standing():
+			return tr("fallen.return") % ControlsScreen.glyphs_for("interact")
 		return ""
 	if _body.has_self_recovery():
 		return tr("fallen.up") % ControlsScreen.glyphs_for("use_waystone")
@@ -134,9 +144,11 @@ func _draw() -> void:
 	var tint: Color = DOWN_COLOUR
 
 	if _body.spent:
-		# No bar: there is no clock on this state, and drawing an empty one
-		# would imply a deadline that does not exist.
+		# **No clock on this state**, so no bar unless the key is held: then
+		# the hold that asks to return fills (ADR-410), and a bar that only
+		# grows while you hold it cannot read as a deadline.
 		tint = VORDR_COLOUR
+		fill = clampf(_body.returning(), 0.0, 1.0)
 	elif _body.revival > 0.0:
 		# **A hand on you.** Fills toward one, and it is the only bar here that
 		# grows — which is the whole reason direction carries the meaning.
@@ -148,7 +160,7 @@ func _draw() -> void:
 		var whole: float = maxf(Config.tuning.bleed_out_seconds, 0.001)
 		fill = clampf(_body.bleeding / whole, 0.0, 1.0)
 
-	if not _body.spent:
+	if not _body.spent or fill > 0.0:
 		draw_rect(Rect2(origin, BAR), Color(0.06, 0.05, 0.05, 0.72))
 		draw_rect(Rect2(origin, Vector2(BAR.x * fill, BAR.y)), tint)
 		draw_rect(Rect2(origin, BAR), Color(0.0, 0.0, 0.0, 0.5), false, 1.0)

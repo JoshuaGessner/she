@@ -176,6 +176,8 @@ fallen.vordr,"Vörðr. You are loose, and nothing can touch you. Scout for them.
 fallen.vordr.alone,"Vörðr. Your ember is on the floor, and nobody is left standing."
 fallen.up,"%s — get back up. You have one, and it is gone for the rest of the run."
 fallen.up.spent,"Your one way up is spent. Hold on, or go out."
+fallen.return,"Hold %s to walk back in — your ember goes out, this life ends, and you choose who comes next."
+fallen.borne,"Your ember is out of the Deep. This life is safe; wait for the others."
 wound.broken_arm,Broken arm
 wound.concussed,Concussed
 wound.gashed_leg,Gashed leg
@@ -200,6 +202,9 @@ favour.fav_plan.name,"The plans: where each floor's Prize and Shaft lie"
 runover.title,"YOU WENT OUT"
 runover.body,"Your ember is down there, and everything you were carrying is with it. The hoard is untouched — it always is. She is waiting at the fire."
 runover.go,"TO THE FIRE"
+runover.body.return,"Nobody is left to carry your ember. Walk back in and it goes out: this life ends, you choose who comes next, and the run goes on from the floor's way in. Or let it go, and go to the fire."
+runover.return,"WALK BACK IN"
+runover.window,"Your ember is going out — %d s"
 legacy.learned.title,"What you learned"
 legacy.learned.body,"No descent returns nothing. This lineage carries %d lessons out of the Deep — where things were, what they did, and who would speak to you."
 legacy.learned.one,"No descent returns nothing. This lineage carries its first lesson out of the Deep — where something was, what it did, or who would speak to you."

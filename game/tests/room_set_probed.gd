@@ -110,6 +110,8 @@ func _measure(args: PackedStringArray) -> void:
 			_descent_probe()
 		elif arg == "--vordr-probe":
 			_vordr_probe()
+		elif arg == "--return-probe":
+			_return_probe()
 		elif arg == "--stalker-probe":
 			_stalker_probe()
 		elif arg == "--creditor-probe":
@@ -6043,7 +6045,11 @@ func _wipe_probe() -> void:
 	friend.health.apply_damage(friend.health.maximum * 2.0)
 	await _hold(0.2)
 	friend.bleeding = 0.02
-	await _hold(Config.tuning.party_wipe_seconds + 1.5)
+	# **The backstop in force** (ADR-410): with a Return still possible it is
+	# the ember's window rather than `party_wipe_seconds`, and the run still
+	# ends when it runs out — which is the claim this row makes.
+	await _hold(0.4)
+	await _hold(_wipe_seconds() + 1.1)
 	# `_probing` keeps the floor from walking out from under a measurement, so
 	# what a run ending looks like from in here is the floor reset and the
 	# great reset having happened — not a scene change.
@@ -6104,6 +6110,8 @@ func _wipe_probe() -> void:
 	mine.bleeding = 0.02
 	friend.bleeding = 0.02
 	await _hold(0.6)
+	# What the press has to beat: the backstop in force (ADR-410).
+	var backstop: float = _wipe_seconds()
 	var screen: RunOverScreen = null
 	if _run_over != null:
 		for child: Node in _run_over.get_children():
@@ -6130,16 +6138,16 @@ func _wipe_probe() -> void:
 	await _hold(0.6)
 	var took: float = float(Time.get_ticks_msec() - began) / 1000.0
 	print("[wipe] pressed       floor %d → %d in %.1f s (the wait alone is %.1f s)"
-		% [floor_at_fourth, _descent, took, Config.tuning.party_wipe_seconds])
+		% [floor_at_fourth, _descent, took, backstop])
 	if _descent == floor_at_fourth:
 		problems.append("pressing TO THE FIRE did not end the run, so the "
 			+ "button is the stub ADR-064 bans on the one screen a player "
 			+ "meets at their worst moment")
-	elif took >= Config.tuning.party_wipe_seconds:
+	elif took >= backstop:
 		problems.append(("the run took %.1f s to end against a %.1f s wait — "
 			+ "the press did not shorten anything, so the screen is a caption "
 			+ "on a timer rather than a way out of one")
-			% [took, Config.tuning.party_wipe_seconds])
+			% [took, backstop])
 	print("[wipe] and it leaves screen still up=%s (want no)" % (_run_over != null))
 	if _run_over != null:
 		problems.append(("the run-over screen outlived the run — in a real "
@@ -7753,6 +7761,13 @@ func _coop_probe(out: String) -> void:
 	# rest have finished rather than fighting them for the same enemies.
 	_probe_motion = await _probe_wire_motion()
 
+	# 9. **A client walks back in** (ADR-410). The request crosses the wire, the
+	#    host puts the ember out, the client's life ends on the client and is
+	#    chosen again there, and the host builds the body it declares at the
+	#    way in — one process cannot tell that from a host returning itself.
+	#    Last, because it replaces the client's body under every phase above.
+	_probe_returned = await _probe_client_return(host)
+
 	if host:
 		await _await_probe_end()
 		_probe_write(out, _probe_report(true))
@@ -7881,6 +7896,7 @@ func _probe_report(host: bool) -> Dictionary:
 		"haug": _probe_haug,
 		"galdr": _probe_galdr,
 		"rallied": _probe_rallied,
+		"returned": _probe_returned,
 		# What this peer heard, by sound name (ADR-311).
 		"heard": _heard_census(),
 		"binding_mid": _probe_binding_mid,
@@ -7897,6 +7913,77 @@ func _probe_report(host: bool) -> Dictionary:
 		"player_max_health": Config.tuning.player_health,
 		"revive_health_fraction": Config.tuning.revive_health_fraction,
 		"godot": Engine.get_version_info()["string"],
+	}
+
+
+## Phase 9 of `--coop-probe`: what a client's Return looked like from here.
+var _probe_returned: Dictionary = {}
+
+
+## **A client walks back in** (ADR-410). The host spends the client's body and
+## waits for the life it chooses to stand at the way in; the client asks, ends
+## its life, presses through the Legacy flow to a different class, and waits
+## for its new body. Each side writes what it saw.
+func _probe_client_return(host: bool) -> Dictionary:
+	if host:
+		_session.clear_enemies()
+		var client: Player = _client_body()
+		if client == null:
+			return {"error": "no client body to spend"}
+		var peer: int = client.get_multiplayer_authority()
+		client.health.apply_damage(client.health.maximum * 2.0)
+		await _hold(0.2)
+		client.bleeding = 0.02
+		# **Out first, then a different body.** The bleed runs out on the next
+		# tick, so "a standing client body" was true of the old one at once — the
+		# first run read the old Húskarl, its ember and where it fell.
+		await _hold_until(func() -> bool: return client.spent, 4.0)
+		await _hold_until(func() -> bool:
+			var body: Player = _client_body()
+			return body != null and body != client and not body.spent \
+				and not _returning.has(peer), 20.0)
+		await _hold(0.5)
+		var back: Player = _client_body()
+		var lit: int = 0
+		if _return_ember_of(peer) != null:
+			lit += 1
+		return {
+			"walked_back": back != null and not back.spent,
+			"sworn": String(back.sworn) if back != null else "",
+			"from_door": back.global_position.distance_to(_floor.spawns()[0])
+				if back != null else -1.0,
+			"embers_left": lit,
+		}
+	var was: StringName = GameState.class_id
+	await _hold_until(func() -> bool:
+		var body: Player = _session.local_player()
+		return body != null and body.spent, 8.0)
+	await _hold(0.5)
+	_ask_to_return()
+	await _hold_until(func() -> bool: return _return_legacy_screen() != null, 6.0)
+	var legacy: LegacyScreen = _return_legacy_screen()
+	if legacy == null:
+		return {"error": "no Legacy screen on the client after asking to return"}
+	legacy.advance()
+	await _hold(0.2)
+	legacy.advance()
+	await _hold(0.3)
+	var chose: StringName = &""
+	for node: Node in legacy.find_children("*", "ClassScreen", true, false):
+		var choosing := node as ClassScreen
+		for entry: ClassResource in ClassCatalogue.all():
+			if chose == &"" and entry.id != was and choosing.press(entry.id):
+				chose = entry.id
+	await _hold_until(func() -> bool:
+		var body: Player = _session.local_player()
+		return body != null and not body.spent, 12.0)
+	var back: Player = _session.local_player()
+	return {
+		"was": String(was),
+		"chose": String(chose),
+		"life_class": String(GameState.class_id),
+		"walked_back": back != null and not back.spent,
+		"sworn": String(back.sworn) if back != null else "",
 	}
 
 
@@ -21293,3 +21380,222 @@ func _ground_probe() -> void:
 			+ "opening in it") % by_the_door)
 
 	_report(problems, "ground")
+
+
+## **`--return-probe`: the Vörðr's second exit** (ADR-410, `M4-T49`).
+##
+## `DES-012` gives a Vörðr two exits and this is the one that was never built:
+## give up on being carried out, the ember goes out, the life ends, and the
+## life chosen next walks back in at the floor's entrance in the same run.
+## Driven through the shipping path throughout — the held key, the host's
+## grant, the Legacy flow pressed through its own class screen, the body
+## `CoopSession` builds — because every claim below is about a join between
+## systems that each already pass their own checks.
+func _return_probe() -> void:
+	var problems: PackedStringArray = PackedStringArray()
+	# A scratch run, so the run file a Return rewrites is never the player's
+	# (ADR-152), and a real one, so "the run goes on" has a file to be true of.
+	RunFile.use_a_scratch_run()
+	RunFile.arm()
+	RunFile.begin(GameState.class_id, GameState.pact_rank, 31346)
+	var mine: Player = _session.local_player()
+	# Somebody standing, or the hold is the run-over screen's business.
+	var friend: Player = _session.spawn_player(TEAMMATE_PEER)
+	await _hold(0.5)
+	if mine == null or friend == null:
+		_report(PackedStringArray(["no body, or no second body to stand while "
+			+ "the first walks back in"]), "return")
+		return
+	var peer: int = mine.get_multiplayer_authority()
+	var sworn_before: StringName = GameState.class_id
+	# Something in this life's bag, so the next life can be seen to carry none of it.
+	mine.inventory.add(ItemCatalogue.by_id(&"glt_hoard_coin"))
+	var readout: FallenReadout = _find_readout(self)
+
+	# ─ 1. a Vörðr, with somebody standing, is told how to walk back in ─
+	mine.health.apply_damage(mine.health.maximum * 2.0)
+	await _hold(0.2)
+	mine.bleeding = 0.02
+	await _hold(0.6)
+	var said: String = readout.hint() if readout != null else ""
+	var ember: WorldItem = _return_ember_of(peer)
+	print("[return] as a Vörðr      spent=%s, can return=%s, ember on the floor=%s, says '%s'"
+		% [mine.spent, mine.can_return(), ember != null, said])
+	if not mine.spent or ember == null:
+		problems.append("the body did not go out with its ember on the floor, so "
+			+ "nothing below is about a Return")
+		_report(problems, "return")
+		return
+	if not said.contains(ControlsScreen.glyphs_for("interact")):
+		problems.append(("a Vörðr with somebody standing is not told which key "
+			+ "walks back in — an exit nothing names is an exit nobody takes: "
+			+ "'%s'") % said)
+
+	# ─ 2. a life already saved is refused ─
+	mine.borne_out = true
+	_grant_return(peer)
+	var refused: bool = not _returning.has(peer) and GameState.class_id == sworn_before \
+		and is_instance_valid(ember) and not ember.is_queued_for_deletion()
+	mine.borne_out = false
+	print("[return] a saved life     refused=%s (want yes)" % refused)
+	if not refused:
+		problems.append(("a life whose ember already reached an exit was let "
+			+ "walk back in — it is saved, and returning would end the life the "
+			+ "rescue kept (`DES-012`)"))
+
+	# ─ 3. the hold asks, and the host puts the ember out ─
+	#
+	# **From another room.** A Vörðr is mobile, and one that never moved from
+	# the spawn mark is standing at the way in already — so a new body built
+	# where the old one stood would pass row 5 by accident. Planted exactly so,
+	# and it did.
+	mine.teleport(_floor.prize() + Vector3(0.0, 0.1, 0.0), 0.0)
+	await _hold(0.3)
+	var fell_from_door: float = mine.global_position.distance_to(_floor.spawns()[0])
+	Input.action_press(&"interact")
+	await _hold(Config.tuning.return_hold_seconds + 0.6)
+	Input.action_release(&"interact")
+	await _hold(0.3)
+	var legacy: LegacyScreen = _return_legacy_screen()
+	var ember_out: bool = not is_instance_valid(ember) or ember.is_queued_for_deletion()
+	print("[return] held %.1f s       ember out=%s, life ended=%s, Legacy up=%s, walking back=%s"
+		% [Config.tuning.return_hold_seconds + 0.6, ember_out,
+			GameState.life_already_ended(), legacy != null, _returning.has(peer)])
+	if not ember_out:
+		problems.append(("the ember is still on the floor after a Return — "
+			+ "`DES-012` rule 1: you cannot return *and* be rescued, or death "
+			+ "costs nothing"))
+	if not GameState.life_already_ended():
+		problems.append("returning did not end the life, so the next one is "
+			+ "this one with a new body")
+	if legacy == null:
+		problems.append(("no Legacy screen after returning — the next life is "
+			+ "chosen at the gate (ADR-410), and with no screen there is nobody "
+			+ "to walk back in"))
+		_report(problems, "return")
+		return
+
+	# ─ 4. the wipe waits while the next life is chosen ─
+	var descent_before: int = _descent
+	friend.health.apply_damage(friend.health.maximum * 2.0)
+	await _hold(0.2)
+	friend.bleeding = 0.02
+	await _hold(Config.tuning.party_wipe_seconds + 1.0)
+	print("[return] all out, choosing  floor %d → %d, a wipe begun=%s, run-over screen=%s (want unchanged, no, no)"
+		% [descent_before, _descent, _ending, _run_over != null])
+	# **Whether a wipe began, not whether it finished.** With a Return still
+	# possible a wipe's backstop is the ember's window, so a run that has not
+	# ended after a few seconds says nothing — planted, and it passed.
+	if _descent != descent_before or _ending or _run_over != null:
+		problems.append(("the run began to end while a player was choosing the "
+			+ "life to walk back in as — somebody returning is still in the run"))
+
+	# ─ 5. chosen, and built at the way in ─
+	legacy.advance()
+	await _hold(0.2)
+	legacy.advance()
+	await _hold(0.3)
+	var choosing: ClassScreen = null
+	for node: Node in legacy.find_children("*", "ClassScreen", true, false):
+		choosing = node as ClassScreen
+	var chose: StringName = &""
+	if choosing != null:
+		for entry: ClassResource in ClassCatalogue.all():
+			if entry.id != sworn_before and choosing.press(entry.id):
+				chose = entry.id
+				break
+	await _hold(1.5)
+	var back: Player = _session.local_player()
+	if back == null:
+		problems.append("nobody walked back in at all after the class was chosen")
+		_report(problems, "return")
+		return
+	var way_in: Vector3 = _floor.spawns()[0]
+	var from_door: float = back.global_position.distance_to(way_in)
+	var old_coin: bool = back.inventory.count_of(ItemCatalogue.by_id(&"glt_hoard_coin")) > 0
+	var holds: ItemInstance = back.equipment.in_slot(Enums.Slot.MAIN_HAND)
+	var written: String = String(RunFile.read().get("class_id", ""))
+	print("[return] walked back in   as '%s' (chose '%s'), %.1f m from the way in (fell %.1f m from it), spent=%s, driving=%s"
+		% [back.sworn, chose, from_door, fell_from_door, back.spent, back.driving()])
+	if fell_from_door < 6.0:
+		problems.append(("the Vörðr was only %.1f m from the way in when it "
+			+ "returned, so where the new life stands proves nothing about "
+			+ "where it was built") % fell_from_door)
+	print("[return] carrying         old coin=%s (want no), hand=%s, bag %d, run file names '%s'"
+		% [old_coin, holds.definition.id if holds != null else &"", back.inventory.count(), written])
+	if chose == &"":
+		problems.append("the Legacy flow's class panel offered no other class to choose")
+	if back.spent or back.sworn != chose:
+		problems.append(("the life chosen at the gate did not walk back in as "
+			+ "itself — a body sworn '%s' stands here") % back.sworn)
+	if from_door > 2.0:
+		problems.append(("the new life stands %.1f m from the floor's way in — "
+			+ "`DES-012` rule 2: she puts a soul back at the door, never beside "
+			+ "the party") % from_door)
+	if old_coin:
+		problems.append("the new life carries the old life's coin — a Return "
+			+ "walks in with nothing of the life before")
+	if holds == null:
+		problems.append(("the new life has empty hands — a fresh life carries "
+			+ "its class kit (`DES-011`), and an empty hand refuses the swing"))
+	if written != String(chose):
+		problems.append("the run file still names the old life's class, so a "
+			+ "resume would put a dead life back on the floor")
+	if _returning.has(peer) or _return_legacy_screen() != null:
+		problems.append("the Return did not finish — the host still waits for "
+			+ "it, or the Legacy screen is still up over the floor")
+	if _descent != descent_before:
+		problems.append("the run ended across the Return — it goes on, in the "
+			+ "same run, from the way in")
+
+	# ─ 6. with nobody standing, the run-over screen offers Return and the window ─
+	back.health.apply_damage(back.health.maximum * 2.0)
+	await _hold(0.2)
+	back.bleeding = 0.02
+	await _hold(0.8)
+	var screen: RunOverScreen = null
+	if _run_over != null:
+		for child: Node in _run_over.get_children():
+			if child is RunOverScreen:
+				screen = child as RunOverScreen
+	var offers: bool = screen != null and screen.find_child("Return", true, false) != null
+	print("[return] nobody standing  screen=%s, offers Return=%s, window %.0f s, wipe waits %.0f s"
+		% [screen != null, offers, screen.window_seconds if screen != null else 0.0,
+			_wipe_seconds()])
+	if not offers:
+		problems.append(("with nobody standing the run-over screen does not offer "
+			+ "Return — solo, it is return or end the run (`DES-012`)"))
+	if screen == null or screen.window_seconds < Config.tuning.return_window_seconds:
+		problems.append(("the run-over screen shows no window, or a short one — "
+			+ "with a Return possible the backstop is the ember going out "
+			+ "(ADR-410, ADR-050's visible, shortening window)"))
+	if screen != null:
+		screen.press()
+	await _hold(0.8)
+	print("[return] and it ends      floor %d → %d after leaving" % [descent_before, _descent])
+	if _descent == descent_before:
+		problems.append("pressing leave with a Return on offer did not end the run")
+	_report(problems, "return")
+
+
+## The ember bound to `peer` lying on the floor, or null.
+func _return_ember_of(peer: int) -> WorldItem:
+	for node: Node in get_tree().get_nodes_in_group(WorldItem.GROUP):
+		var lying := node as WorldItem
+		if lying != null and lying.is_ember() and lying.bound() == peer \
+				and not lying.is_queued_for_deletion():
+			return lying
+	return null
+
+
+## The Legacy screen a Return opened over the floor, or null.
+func _return_legacy_screen() -> LegacyScreen:
+	for child: Node in get_children():
+		var layer := child as CanvasLayer
+		if layer == null or layer.is_queued_for_deletion():
+			continue
+		for grandchild: Node in layer.get_children():
+			var found := grandchild as LegacyScreen
+			if found != null:
+				return found
+	return null

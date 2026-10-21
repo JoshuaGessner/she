@@ -85,7 +85,12 @@ LEFT_BEHIND_KILL = 16
 # ENet's peer timeout is 5.4 s. This is only how long a genuine failure takes
 # to be called one, so it is generous on purpose: the old flat 18 s sleep had
 # 1.8x headroom over a timeout-driven event, which is none at all under load.
-LEFT_BEHIND_CEILING = 45
+#
+# **And the host's wipe is now the ember's window** (ADR-410): the host lies
+# spent and could still walk back in, so its run ends `return_window_seconds`
+# (20 s) after the client goes rather than three — about 30 s idle against
+# this ceiling, which is why it rose from 45.
+LEFT_BEHIND_CEILING = 60
 # The last line any left-behind row reads: the host noticed, resolved the run,
 # and got back to the fire.
 HOME_AGAIN = "[extract] host at the fire, run still open"

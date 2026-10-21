@@ -683,6 +683,20 @@ if grep -q '^run/main_scene=' "$GAME/project.godot"; then
 		exit 1
 	fi
 
+	# **The Vörðr's second exit** (ADR-410, `M4-T49`). Held as a Vörðr, the
+	# ember goes out, the life ends, the Legacy flow opens where you stand and
+	# the life chosen walks back in at the floor's way in, in the same run; a
+	# saved life is refused, the wipe waits while the next life is chosen, and
+	# with nobody standing the run-over screen offers Return and the window.
+	returned="$("$GODOT_BIN" --headless --path "$GAME" --quit-after 9000 \
+		tests/room_set_probed.tscn -- --return-probe 2>&1)"
+	if [[ $? -ne 0 ]] || ! grep -q '^\[return\]' <<<"$returned" \
+			|| grep -qE 'FAIL|SCRIPT ERROR|^ERROR:' <<<"$returned"; then
+		echo "FAIL a Vörðr has to be able to walk back in" >&2
+		printf '%s\n' "$returned" | grep -E '\[return\]|ERROR' | sed 's/^/      /' >&2
+		exit 1
+	fi
+
 	# **Six slots, and a weapon whose numbers are finally read** (`M3-T07`,
 	# `DES-020`, ADR-127). `WieldableTrait` carried windup, active, recovery,
 	# damage and reach on four authored weapons and nothing consumed any of it
