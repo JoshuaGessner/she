@@ -38,7 +38,11 @@ const VOLUME_BUSES: Array[String] = [
 static var volumes: Dictionary = {}
 static var mouse_sensitivity: float = 1.0
 static var invert_look: bool = false
-static var fullscreen: bool = false
+## **Fullscreen until the player says otherwise** (ADR-412). A measurement
+## launched with harness arguments starts windowed instead: `run_coop.py` sets
+## two windows side by side and a capture reads a fixed size, and a player never
+## passes `--` arguments. `load_once` sets the default; a saved choice wins.
+static var fullscreen: bool = true
 ## **How much the view is pushed by blows** (ADR-279, `DES-009`: camera feedback
 ## *"must remain independently adjustable for accessibility"*). 0 is none.
 static var camera_motion: float = 1.0
@@ -64,6 +68,7 @@ static func load_once() -> void:
 	for bus: String in VOLUME_BUSES:
 		volumes[bus] = 1.0
 
+	fullscreen = OS.get_cmdline_user_args().is_empty()
 	var file := ConfigFile.new()
 	if file.load(PATH) == OK:
 		for bus: String in VOLUME_BUSES:
@@ -72,7 +77,7 @@ static func load_once() -> void:
 		mouse_sensitivity = clampf(
 			float(file.get_value("input", "mouse_sensitivity", 1.0)), 0.1, 4.0)
 		invert_look = bool(file.get_value("input", "invert_look", false))
-		fullscreen = bool(file.get_value("video", "fullscreen", false))
+		fullscreen = bool(file.get_value("video", "fullscreen", fullscreen))
 		camera_motion = clampf(
 			float(file.get_value("video", "camera_motion", 1.0)), 0.0, 1.0)
 		# A file from before rebinding has no section, which is true of it.

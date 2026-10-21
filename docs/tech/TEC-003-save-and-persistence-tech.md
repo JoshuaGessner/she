@@ -4,7 +4,7 @@ title: Save System & Persistence Implementation
 status: accepted
 owner: tech
 tags: [save, persistence, serialization, migration, tech-debt]
-updated: 2026-09-16
+updated: 2026-10-21
 related: [DES-003, DES-015, TEC-001, TEC-002, TEC-004]
 ---
 
@@ -87,7 +87,7 @@ The alternative was a guard: a lock file, or a second instance refusing to start
 
 ## Preferences are not the save
 
-`user://settings.cfg` (`Settings`) holds volumes, look and fullscreen, and since ADR-245 a `[bindings]` section: per action, per device (`keys`, `pad`), **only what the player changed**, each input as a small dictionary (`kind` and its code, button or axis and sign). A file from before rebinding has no section and reads as the defaults; a kept input that no longer builds is skipped rather than unbinding its verb. Not versioned, no migrations — a preference file a later build cannot read costs a player their bindings, not their lineage. Probes write `settings.probe.cfg` by name (`Settings.PROBE_PATH`).
+`user://settings.cfg` (`Settings`) holds volumes, look and fullscreen (on by default since ADR-412, except in a process launched with harness arguments), and since ADR-245 a `[bindings]` section: per action, per device (`keys`, `pad`), **only what the player changed**, each input as a small dictionary (`kind` and its code, button or axis and sign). A file from before rebinding has no section and reads as the defaults; a kept input that no longer builds is skipped rather than unbinding its verb. Not versioned, no migrations — a preference file a later build cannot read costs a player their bindings, not their lineage. Probes write `settings.probe.cfg` by name (`Settings.PROBE_PATH`).
 
 ## Run state (separate from profile)
 

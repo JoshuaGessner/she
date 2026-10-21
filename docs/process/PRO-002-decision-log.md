@@ -4,7 +4,7 @@ title: Decision Log (ADRs)
 status: accepted
 owner: process
 tags: [decisions, adr, process, history]
-updated: 2026-10-20
+updated: 2026-10-21
 related: [DES-001, DES-003, PRO-001]
 ---
 
@@ -14115,5 +14115,20 @@ References:
 **Measured:** `room_set.gd` is 2,579 lines; the subclass holds 21,295. Compiling the level script went from 193–206 ms to 35–36 ms in the editor build, three rounds each in one process. That is paid on the first descent of every session. The previous estimate of 400–500 ms counted dependencies. The shipped level boots with no flag and runs nothing; `--field-probe` and `--hash` run through the probed scene with unchanged results; and the full sweep is green on the split.
 
 **Rejected:** a helper node holding the probes, which would have meant rewriting every member access in 21,000 lines; and routing every scene change to the probed level whenever it exists. That would have made an editor play test run a different script from the export.
+
+## ADR-412 — The game starts fullscreen
+
+**Date:** 2026-10-21 · **Status:** accepted · **Amends `TEC-003` (what `settings.cfg` defaults to)** · **The developer's call**
+
+**Context:** `Settings.fullscreen` defaulted to off, so a first launch, every tester's first impression, opened in a window sized by the engine's default. The toggle already existed in Settings and was applied at boot by `Config`.
+
+**Decision:**
+- **The default is fullscreen** (`DisplayServer.WINDOW_MODE_FULLSCREEN`, which is borderless on Windows and a native fullscreen Space on macOS). A saved choice still wins, so a player who turns it off stays windowed.
+- **A process launched with harness arguments defaults to windowed.** `run_coop.py` lays two windows side by side with `--resolution` and `--position`, and a capture reads a fixed size; both pass `--` arguments, and a player never does. This is the test `RoomSet.scene()` already uses (ADR-411). Headless runs ignore window mode either way.
+- The default is set in `Settings.load_once`, not in `project.godot`'s `display/window/size/mode`. A project setting would open every harness window fullscreen before `Settings` turned it back, and the default would then live in two places.
+
+**Known edge:** a tester whose `settings.cfg` was written by an earlier build (any change on the Settings screen saves every value) has `fullscreen = false` saved and stays windowed until they toggle it. The file cannot tell a choice from a saved default.
+
+**Rejected:** exclusive fullscreen, which changes the display mode, is slower to alt-tab out of, and buys nothing at this budget.
 
 *Entries below to be added as design decisions are signed off.*
